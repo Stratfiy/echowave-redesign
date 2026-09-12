@@ -12,6 +12,7 @@ from api.routes.agent_templates import router as agent_templates_router
 from api.routes.auth import router as auth_router
 from api.routes.billing_dashboard import router as billing_dashboard_router
 from api.routes.campaign import router as campaign_router
+from api.routes.connectors import router as connectors_router
 from api.routes.contacts import router as contacts_router
 from api.routes.cost_estimate import router as cost_estimate_router
 from api.routes.credentials import router as credentials_router
@@ -26,9 +27,12 @@ from api.routes.managed_numbers import router as managed_numbers_router
 from api.routes.missed_calls import router as missed_calls_router
 from api.routes.node_types import router as node_types_router
 from api.routes.notifications import router as notifications_router
+from api.routes.organisation import router as organisation_router
+from api.routes.organisation_memory import router as organisation_memory_router
 from api.routes.organization import router as organization_router
 from api.routes.organization_members import router as organization_members_router
 from api.routes.organization_usage import router as organization_usage_router
+from api.routes.packs import router as packs_router
 from api.routes.partner_admin import router as partner_admin_router
 from api.routes.partners import router as partners_router
 from api.routes.payments import router as payments_router
@@ -42,6 +46,7 @@ from api.routes.reports import router as reports_router
 from api.routes.s3_signed_url import router as s3_router
 from api.routes.service_keys import router as service_keys_router
 from api.routes.superuser import router as superuser_router
+from api.routes.team import router as team_router
 from api.routes.telephony import router as telephony_router
 from api.routes.telephony_admin import router as telephony_admin_router
 from api.routes.tool import router as tool_router
@@ -52,6 +57,7 @@ from api.routes.verified_numbers import router as verified_numbers_router
 from api.routes.webrtc_signaling import router as webrtc_signaling_router
 from api.routes.workflow import router as workflow_router
 from api.routes.workflow_embed import router as workflow_embed_router
+from api.routes.workflow_outcomes import router as workflow_outcomes_router
 from api.routes.workflow_recording import router as workflow_recording_router
 from api.routes.workflow_text_chat import router as workflow_text_chat_router
 from api.services.integrations import all_routers
@@ -89,6 +95,12 @@ router.include_router(workflow_text_chat_router)
 router.include_router(user_router)
 router.include_router(campaign_router)
 router.include_router(credentials_router)
+router.include_router(connectors_router)
+router.include_router(organisation_router)
+router.include_router(organisation_memory_router)
+router.include_router(packs_router)
+router.include_router(team_router)
+router.include_router(workflow_outcomes_router)
 router.include_router(tool_router)
 router.include_router(organization_router)
 router.include_router(s3_router)

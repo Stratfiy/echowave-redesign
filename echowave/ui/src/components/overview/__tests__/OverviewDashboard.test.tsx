@@ -51,7 +51,9 @@ describe("overview dashboard", () => {
         render(<OverviewDashboard firstName="Nithish" />);
         expect(await screen.findByText(/numbers appear here after the first call/)).toBeTruthy();
         expect(screen.getByRole("link", { name: /build your first agent/i }).getAttribute("href")).toBe("/start");
-        expect(screen.getByText("builder")).toBeTruthy();
+        // The composer lives above this component on the home screen now.
+        // Two on one page was two doors into the same room.
+        expect(screen.queryByText("builder")).toBeNull();
     });
 
     it("is a dashboard after it, in credits", async () => {

@@ -27,6 +27,7 @@ import logger from '@/lib/logger';
 import { getNextNodeId, getRandomId } from "@/lib/utils";
 import {
     type CallOutcome,
+    type OutcomeAction,
     type PronunciationEntry,
     resolveWorkflowConfigurations,
     type WorkflowConfigurationDefaults,
@@ -646,6 +647,37 @@ export const useWorkflowState = ({
         [workflowId, workflowName, user, setWorkflowConfigurations, workflowConfigurationDefaults],
     );
 
+    // What happens once a call is over. Saved the same way as the outcomes it
+    // keys off, because they are two halves of one idea and an operator edits
+    // them in the same sitting.
+    const saveOutcomeActions = useCallback(
+        async (actions: OutcomeAction[]) => {
+            if (!user) return;
+            const currentConfigurations =
+                useWorkflowStore.getState().workflowConfigurations
+                ?? resolveWorkflowConfigurations(null, workflowConfigurationDefaults);
+            const updatedConfigurations: WorkflowConfigurations = {
+                ...currentConfigurations,
+                outcome_actions: actions,
+            };
+            try {
+                await updateWorkflowApiV1WorkflowWorkflowIdPut({
+                    path: { workflow_id: workflowId },
+                    body: {
+                        name: workflowName,
+                        workflow_definition: null,
+                        workflow_configurations: updatedConfigurations as Record<string, unknown>,
+                    },
+                });
+                setWorkflowConfigurations(updatedConfigurations);
+            } catch (error) {
+                logger.error(`Error saving outcome actions: ${error}`);
+                throw error;
+            }
+        },
+        [workflowId, workflowName, user, setWorkflowConfigurations, workflowConfigurationDefaults],
+    );
+
     // The two halves of the same complaint, saved together because they are
     // edited together: whether the agent moves when the caller switches
     // language, and whether what comes back is the register people speak or
@@ -781,6 +813,7 @@ export const useWorkflowState = ({
         saveDictionary,
         savePronunciationLexicon,
         saveCallOutcomes,
+        saveOutcomeActions,
         saveLanguageSettings,
         // Export undo/redo state
         undo,

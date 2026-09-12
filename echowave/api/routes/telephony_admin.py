@@ -242,3 +242,75 @@ async def set_shared_outbound(
         "address": updated.address,
         "is_shared_outbound": updated.is_shared_outbound,
     }
+
+
+class DemoAgentRequest(BaseModel):
+    demo: bool
+
+
+@router.get("/demo-agent")
+async def read_demo_agent(user: UserModel = Depends(get_superuser)) -> dict[str, Any]:
+    """The agent a prospect hears, and the two ways they can reach it.
+
+    Either a share link or a number is enough to publish every calling role on
+    the shelf. Both empty means the shelf's calling roles stay unlisted, which
+    is the rule doing its job: an empty shelf is a missing configuration
+    somebody notices, and a shelf full of dead demo links is one nobody
+    reports.
+    """
+    return await db_client.demo_contact()
+
+
+@router.post("/agents/{workflow_id}/demo")
+async def set_demo_agent(
+    workflow_id: int,
+    request: DemoAgentRequest,
+    user: UserModel = Depends(get_superuser),
+) -> dict[str, Any]:
+    """Publish one agent as the demo every calling role points at, or stop.
+
+    Staff-only, and it is the switch that takes the shelf from empty to
+    listed. Refuses an agent that is paused or archived: publishing a link to
+    something that answers nothing would teach every prospect that the demo is
+    broken, which is worse than showing no demo at all.
+    """
+    row = await db_client.get_workflow_by_id(workflow_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    if request.demo:
+        if str(row.status) != "active":
+            raise HTTPException(
+                status_code=409,
+                detail=f"{row.name} is archived, so a prospect would reach nothing.",
+            )
+        if not row.is_live:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"{row.name} is paused, so it answers nothing. Switch it "
+                    "on before publishing it as the demo."
+                ),
+            )
+
+    updated = await db_client.set_demo_agent(workflow_id, demo=request.demo)
+    logger.warning(
+        "Agent {} ({}) marked is_demo={} by user {}",
+        workflow_id,
+        updated.name,
+        request.demo,
+        user.id,
+    )
+    contact = await db_client.demo_contact()
+    return {
+        "workflow_id": updated.id,
+        "name": updated.name,
+        "is_demo": updated.is_demo,
+        # Echoed so whoever flips the switch immediately sees whether a
+        # prospect can actually reach it, rather than discovering later that
+        # the agent has no share link and no number.
+        "reachable_by": {
+            "url": contact.get("url"),
+            "number": contact.get("number"),
+        },
+    }

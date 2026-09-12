@@ -8,6 +8,7 @@ when the same schema is surfaced through MCP or SDK authoring flows.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
@@ -17,6 +18,9 @@ from api.enums import ToolCategory
 
 DEFAULT_MCP_TIMEOUT_SECS = 30
 DEFAULT_MCP_SSE_READ_TIMEOUT_SECS = 300
+# Shorter than the MCP default because this one is spent on a live call.
+# See COMPOSIO_TIMEOUT_SECS in api/constants.py.
+DEFAULT_COMPOSIO_TIMEOUT_SECS = 12.0
 
 ToolParameterType = Literal["string", "number", "boolean", "object", "array"]
 HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE"]
@@ -349,6 +353,85 @@ class McpToolConfig(BaseModel):
         return v
 
 
+class ComposioToolConfig(BaseModel):
+    """Configuration for one tool on one Composio-connected app.
+
+    Deliberately one tool per Decibyl tool rather than a whole toolkit. A
+    toolkit is hundreds of slugs; handing an agent all of Gmail means handing
+    it GMAIL_DELETE_MESSAGE, and the operator who wanted "send the customer
+    their invoice" did not ask for that. Naming the slug is also what makes the
+    parameters knowable: we can state what the model must supply instead of
+    letting it guess at a catalog.
+
+    There is no credential field on purpose. *Which organization* this acts for
+    is not configuration -- it is derived from the caller at execution time
+    (see services/integrations/composio/client.py), so no value stored here can
+    reach another tenant's data.
+
+    ``connected_account_id`` is a different question and belongs here. A clinic
+    with three doctors connects three calendars, all under the one organization
+    identity, and "Book with Dr Ramesh" and "Book with Dr Priya" are then two
+    tools differing only by this field. Because an agent holds a list of tools
+    per node, that also settles permissions without a permission system: an
+    agent that was not given the second tool cannot reach the second calendar.
+    """
+
+    toolkit: str = Field(
+        description="Composio toolkit slug, e.g. GMAIL or GOOGLESHEETS.",
+        json_schema_extra=_llm_hint(
+            "Use the exact toolkit slug from Composio. Do not invent one."
+        ),
+    )
+    tool_slug: str = Field(
+        description="Composio tool slug, e.g. GMAIL_SEND_EMAIL.",
+        json_schema_extra=_llm_hint(
+            "Use the exact tool slug from the Composio toolkit catalog. Do not "
+            "invent one; an invented slug fails at call time, mid-conversation."
+        ),
+    )
+    connected_account_id: Optional[str] = Field(
+        default=None,
+        max_length=128,
+        description=(
+            "Which connected account this tool acts on, e.g. a specific "
+            "doctor's calendar. Omit to use the organization's default."
+        ),
+        json_schema_extra=_llm_hint(
+            "Use an id from the connected-accounts list. Only needed when the "
+            "account has connected the same app more than once."
+        ),
+    )
+    parameters: list[ToolParameter] = Field(
+        default_factory=list,
+        description="Arguments the agent supplies, passed through to the tool.",
+        json_schema_extra=_llm_hint(
+            "Name only the arguments this tool needs from the conversation."
+        ),
+    )
+    timeout_secs: float = Field(
+        default=DEFAULT_COMPOSIO_TIMEOUT_SECS,
+        gt=0,
+        le=30,
+        description="How long to wait for the tool before giving up, in seconds.",
+        json_schema_extra=_llm_hint(
+            "Leave this alone unless the tool is known to be slow. A caller is "
+            "listening to silence for this whole duration."
+        ),
+    )
+
+    @field_validator("toolkit", "tool_slug")
+    @classmethod
+    def validate_slug(cls, v: str) -> str:
+        if not isinstance(v, str) or not v.strip():
+            raise ValueError("must be a non-empty slug")
+        cleaned = v.strip().upper()
+        if not re.fullmatch(r"[A-Z0-9_]+", cleaned):
+            raise ValueError(
+                f"must contain only letters, digits and underscores (got {v!r})"
+            )
+        return cleaned
+
+
 class HttpApiToolDefinition(BaseModel):
     """Tool definition for HTTP API tools."""
 
@@ -485,6 +568,14 @@ class GoogleCalendarToolDefinition(BaseModel):
     type: Literal["google_calendar"] = Field(description="Tool type.")
 
 
+class ComposioToolDefinition(BaseModel):
+    """Tool definition for running one Composio tool."""
+
+    schema_version: int = Field(default=1, description="Schema version.")
+    type: Literal["composio"] = Field(description="Tool type.")
+    config: ComposioToolConfig
+
+
 ToolDefinition = Annotated[
     Union[
         HttpApiToolDefinition,
@@ -494,6 +585,7 @@ ToolDefinition = Annotated[
         RateTableToolDefinition,
         McpToolDefinition,
         GoogleCalendarToolDefinition,
+        ComposioToolDefinition,
     ],
     Field(discriminator="type"),
 ]

@@ -866,6 +866,19 @@ class WorkflowModel(Base):
         default=True,
         server_default=text("true"),
     )
+    #: This is the agent a prospect hears when they want to try a published
+    #: role before hiring it.
+    #:
+    #: On the agent rather than on a phone number, because the agent is the
+    #: thing being demonstrated and there are two ways to reach it: the share
+    #: link, which needs no telephony at all and whose text chat works on a
+    #: locked-down network where WebRTC never connects, and a phone number
+    #: pointed at it, which is stronger proof for a product whose pitch is
+    #: that it answers your phone. One flag, both derived -- a number is nice
+    #: to have, not the thing that gates a listing.
+    is_demo = Column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     workflow_definition = Column(JSON, nullable=False, default=dict)
     template_context_variables = Column(JSON, nullable=False, default=dict)
     call_disposition_codes = Column(JSON, nullable=False, default=dict)
@@ -4876,4 +4889,198 @@ class PaymentTokenModel(Base):
         # redelivery must update the row rather than add a second one that half
         # the code then reads instead.
         Index("uq_payment_tokens_token", "provider", "token_id", unique=True),
+    )
+
+
+class AppInteractionModel(Base):
+    """One row per action an agent took in somebody else's software.
+
+    Every tool call, of every kind, whether it worked or not. Written from a
+    single wrapper around the handler registration rather than from inside each
+    handler, so a tool type added next year is recorded without anybody
+    remembering to add the line.
+
+    Three things depend on this table and none of them can be answered without
+    it. Whether a call produced the outcome the customer is paying for, which
+    is the number the product is sold on. Which connector is failing, before
+    the customer tells us. And how long each provider actually takes, which
+    decides whether a tool can sit inside a live turn at all -- measured, not
+    assumed, because the two we did measure differed by a factor of two.
+
+    Deliberately not the transcript's tool-call record. That lives with the
+    run and is read one conversation at a time; this is queried across an
+    organization and a month, and putting an index on somebody's transcript
+    JSON would be the wrong shape for both.
+    """
+
+    __tablename__ = "app_interactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Denormalized from the run on purpose: every question asked of this table
+    # is scoped to one organization, and joining through workflow_runs and
+    # workflows to reach it would put two joins in front of a dashboard query.
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    #: Null for an action taken outside a call -- a post-call outcome, or a
+    #: trigger firing. Not every interaction belongs to a conversation.
+    workflow_run_id = Column(
+        Integer, ForeignKey("workflow_runs.id", ondelete="SET NULL"), nullable=True
+    )
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="SET NULL"), nullable=True
+    )
+    #: Which published version of the agent took this action.
+    #:
+    #: The column that makes a change measurable. Without it "we changed the
+    #: prompt and bookings fell" is a story; with it, it is a query. Stamped
+    #: from the run rather than looked up later, because the answer changes the
+    #: moment somebody publishes again and a report written next month must
+    #: still say which version was live at the time.
+    definition_id = Column(
+        Integer,
+        ForeignKey("workflow_definitions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    #: The tool category: composio, http_api, google_calendar, mcp, calculator,
+    #: rate_table, end_call, transfer_call. A plain string rather than an enum
+    #: so a new tool type needs no migration -- the same reasoning as
+    #: workflow_runs.mode above it.
+    kind = Column(String(64), nullable=False)
+    #: Which outside app, where there is one: "gmail", "googlesheets",
+    #: "razorpay". Null for a calculator or an end-call, which touch nothing.
+    #: This is the column the connector reliability report groups by.
+    app = Column(String(128), nullable=True)
+    #: The function name the model actually called.
+    name = Column(String(255), nullable=False)
+
+    #: "success" or "error". Kept as text rather than a boolean because a third
+    #: state is already foreseeable -- an action awaiting a human's approval is
+    #: neither -- and widening a boolean later costs a migration and a backfill.
+    status = Column(String(24), nullable=False)
+    #: The provider's own words, when it gave any. Truncated on write; a
+    #: provider that returns a stack trace should not be able to fill a column.
+    error = Column(String(1024), nullable=True)
+    duration_ms = Column(Integer, nullable=True)
+
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+
+    __table_args__ = (
+        # The dashboard query: this organization, this month, grouped by app.
+        Index("ix_app_interactions_org_time", "organization_id", "created_at"),
+        # "What did this call actually do", which is the outcome question and
+        # the one a support ticket starts from.
+        Index("ix_app_interactions_run", "workflow_run_id"),
+        # Connector reliability, across tenants, for us rather than for them.
+        Index("ix_app_interactions_app_status", "app", "status"),
+        # "Did version 13 do better than version 12", which is the whole point
+        # of recording the version at all.
+        Index("ix_app_interactions_definition", "definition_id", "status"),
+    )
+
+
+class OrganisationFactModel(Base):
+    """What an organization's agents have learned, kept apart from what it told us.
+
+    Deliberately not written into ``contacts.attributes``. Those are the
+    account's own data -- uploaded in a CSV, typed into a screen, trusted. A
+    fact here was inferred by a model from a conversation, and the two must
+    never be stored in the same place, because merging them makes the agent's
+    guess indistinguishable from the customer's record and there is no way back
+    once it has overwritten one. Operator data wins on read, always.
+
+    The subject is a string rather than a foreign key so the same table can
+    remember things about a caller who is not in anybody's contact list, which
+    is most inbound callers on the first call. ``subject_key`` for a person is
+    the normalized phone number -- the same canonical form contacts match on.
+
+    This is the first half of the organization ontology. It stores instances;
+    what kinds of thing an organization deals in, and which of them are worth
+    remembering, is the half that comes next.
+    """
+
+    __tablename__ = "organisation_facts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+
+    #: What kind of thing this is about. "contact" today; "quote" and "shipment"
+    #: are the reason it is a column rather than an assumption.
+    subject_type = Column(String(64), nullable=False, default="contact")
+    #: Which one. A normalized phone number for a contact.
+    subject_key = Column(String(255), nullable=False)
+
+    key = Column(String(128), nullable=False)
+    value = Column(Text, nullable=False)
+
+    #: "fact" or "gap". A fact is something we now know; a gap is something a
+    #: caller wanted that no agent could answer or do.
+    #:
+    #: Gaps live here rather than in a table of their own because they are the
+    #: same thing seen from the other side -- "we do not know our Saturday
+    #: hours" is a fact about the organisation, and the screen that shows what
+    #: the business has learned is the screen that should show what it still
+    #: cannot answer. Splitting them would put the two halves of one question
+    #: on two pages.
+    kind = Column(String(16), nullable=False, default="fact", server_default="fact")
+
+    #: "learned", "confirmed" or "rejected".
+    #:
+    #: The column that keeps this safe. Everything inferred from a conversation
+    #: arrives as "learned" and a learned fact never reaches an agent's prompt.
+    #: A person confirms it first. An agent that starts confidently telling
+    #: callers something it merely overheard is the failure mode that would
+    #: cost an account, and no amount of corroboration count substitutes for
+    #: somebody saying yes.
+    status = Column(
+        String(16), nullable=False, default="learned", server_default="learned"
+    )
+    confirmed_at = Column(DateTime(timezone=True), nullable=True)
+
+    #: Which call taught us this, kept so a wrong fact can be traced to the
+    #: conversation that produced it and heard. Without it a bad fact is
+    #: unfalsifiable, and an unfalsifiable fact in front of an agent is worse
+    #: than no fact.
+    source_run_id = Column(
+        Integer, ForeignKey("workflow_runs.id", ondelete="SET NULL"), nullable=True
+    )
+    #: How many calls have said the same thing. A value heard three times is
+    #: worth more than one heard once, and this is what lets a later version
+    #: prefer the corroborated answer instead of the most recent one.
+    times_seen = Column(Integer, nullable=False, default=1)
+
+    first_seen_at = Column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    last_seen_at = Column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+    __table_args__ = (
+        # One row per fact about a subject. A second call saying the same thing
+        # updates the row; a second call saying something different replaces the
+        # value on it. Either way there is exactly one answer to "what is this
+        # customer's delivery address", which is the property the prompt needs.
+        Index(
+            "uq_organisation_facts_subject_key",
+            "organization_id",
+            "subject_type",
+            "subject_key",
+            "key",
+            unique=True,
+        ),
+        Index(
+            "ix_organisation_facts_lookup",
+            "organization_id",
+            "subject_type",
+            "subject_key",
+        ),
     )

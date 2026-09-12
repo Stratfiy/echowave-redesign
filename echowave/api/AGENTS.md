@@ -56,6 +56,41 @@ api/
 
 When an API endpoint updates in-memory state (e.g. cached credentials, config objects), that change only affects the worker process that handled the request. With multiple FastAPI workers, **use `WorkerSyncManager`** (`services/worker_sync/`) to propagate changes to all workers via Redis pub/sub instead of updating local state directly.
 
+## Silent Absence (read this before adding a filter or a default)
+
+The most common defect in this codebase is not a crash. It is code doing
+exactly what it was told while something goes missing, with no error, no log
+line, and no symptom until a customer notices. Three shipped in one week:
+
+- A category **allowlist** with no entry for `commerce` dropped every shipping
+  tracker from the integrations screen. Correct code, invisible gap, and every
+  category the vendor added afterwards would have gone the same way.
+- An `endswith("_mcp")` **filter** assumed the suffix always marked a duplicate.
+  For Cashfree it did not, and a payment gateway vanished.
+- `getattr(self._engine, "_workflow_id", None)` named an attribute the engine
+  does not have. Every row of a new table got a NULL, and nothing failed.
+
+The shape is always the same: **a rule that removes things, where being wrong
+produces nothing rather than an error.**
+
+When you write one, prefer the direction that fails loudly:
+
+- **Blocklist over allowlist.** The worst case of a blocklist is an item nobody
+  wanted, which somebody notices. The worst case of an allowlist is an item
+  somebody wanted, which nobody can.
+- **Never drop silently.** If something matches no known bucket, put it in
+  `Other` and let it be seen. An absence cannot be reviewed.
+- **`getattr` with a default is for an attribute that exists and may be unset.**
+  It is not for a name you have not checked. `api/tests/test_silent_absence_guard.py`
+  enforces this for the engine by AST-scanning every call site against the
+  attributes `PipecatEngine` actually assigns.
+- **Test what must appear, not only what must not.** `test_connector_catalogue.py`
+  asserts a `commerce` app reaches the screen; that test is what the allowlist
+  was missing.
+
+Before merging a filter, ask what it removes that you have not looked at, and
+how anyone would ever find out.
+
 ## Organization Scoping (Security)
 
 Most resources in this codebase are scoped to an organization. **Whenever you read or write an organization-scoped field, you must filter or validate by `organization_id`.** This is a tenant-isolation requirement, not a stylistic one — skipping the check lets a user in one org touch resources owned by another.

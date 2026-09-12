@@ -75,6 +75,10 @@ export function WidgetConfigurator({
     const [buttonText, setButtonText] = useState("Talk to Agent");
     const [buttonColor, setButtonColor] = useState("#10b981");
     const [callToActionText, setCallToActionText] = useState("Click to start voice conversation");
+    // Whether the visitor may type instead of talk. Off by default: turning it
+    // on adds a second way in to somebody's site, which is their decision and
+    // not a default we get to pick for them.
+    const [enableText, setEnableText] = useState(false);
     // What the visitor sees once the call ends. Off by default, because a card
     // appearing on a customer's page that they did not configure is a change
     // to their site rather than a feature.
@@ -112,6 +116,9 @@ export function WidgetConfigurator({
                     setButtonText(settings.buttonText || "Talk to Agent");
                     setButtonColor(settings.buttonColor || "#10b981");
                     setCallToActionText(settings.callToActionText || "Click to start voice conversation");
+                    setEnableText(
+                        (response.data.settings as Record<string, unknown>).enableText === true,
+                    );
 
                     const postCall = (response.data.settings as Record<string, unknown>)
                         .postCall as Record<string, unknown> | undefined;
@@ -171,6 +178,7 @@ export function WidgetConfigurator({
                             buttonText,
                             buttonColor,
                             callToActionText,
+                            enableText,
                             size: "medium",
                             autoStart: false,
                             containerId: embedMode === "inline" ? "decibyl-inline-container" : undefined,
@@ -766,6 +774,31 @@ document.getElementById('talk-btn').addEventListener('click', () => {
                                     who clicked, heard a word and closed did not
                                     have a conversation, and showing them a
                                     pitch is how a widget becomes a popup. */}
+                                {/* The widget has always been able to hold a
+                                    typed conversation -- same agent, same
+                                    answers, no microphone. It was reachable
+                                    only by hand-editing the script tag, which
+                                    is to say it was not reachable. */}
+                                <div className="flex items-center justify-between gap-4">
+                                    <div className="space-y-0.5">
+                                        <Label htmlFor="enable-text">
+                                            Let visitors type instead
+                                        </Label>
+                                        <p className="text-sm text-muted-foreground">
+                                            Adds a chat box beside the call
+                                            button. Same agent and the same
+                                            answers — it just does not need a
+                                            microphone, which is most of the
+                                            people who will not click call.
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        id="enable-text"
+                                        checked={enableText}
+                                        onCheckedChange={setEnableText}
+                                    />
+                                </div>
+
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between gap-4">
                                         <div className="space-y-0.5">

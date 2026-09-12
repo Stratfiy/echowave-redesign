@@ -57,14 +57,30 @@ interface BuilderConfig {
     usage: Usage & { resets_at: string };
 }
 
-/** Openers that show what the thing does better than a paragraph would. */
+/** Openers that show what the thing does better than a paragraph would.
+ *  Used only when nobody supplies better ones — the home screen passes chips
+ *  built from what is actually true of the account. */
 const SUGGESTIONS = [
     "Answer my clinic's phone and book appointments",
     "Call my property leads and qualify them",
     "Confirm COD orders before we ship",
 ];
 
-export function AgentBuilderPanel() {
+export interface Prefill {
+    text: string;
+    /** Bumped by the caller on every click, so clicking the same chip twice
+     *  refills the box. Without it React sees an unchanged prop and the
+     *  second click does nothing, which reads as a broken chip. */
+    nonce: number;
+}
+
+export function AgentBuilderPanel({
+    prefill,
+    showSuggestions = true,
+}: {
+    prefill?: Prefill;
+    showSuggestions?: boolean;
+} = {}) {
     const { user, loading: authLoading } = useAuth();
     const [config, setConfig] = useState<BuilderConfig | null>(null);
     const [turns, setTurns] = useState<Turn[]>([]);
@@ -73,6 +89,7 @@ export function AgentBuilderPanel() {
     const [sending, setSending] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => {
         // The auth interceptor only attaches the bearer token once auth has
@@ -122,6 +139,17 @@ export function AgentBuilderPanel() {
             cancelled = true;
         };
     }, [authLoading, user]);
+
+    // A suggestion fills the box and waits. It never sends.
+    //
+    // The person has to press the button, every time. A chip that dispatched
+    // straight to the model would eventually be a chip that started calling
+    // customers, and no amount of saved keystrokes is worth that.
+    useEffect(() => {
+        if (!prefill?.text) return;
+        setDraft(prefill.text);
+        textareaRef.current?.focus();
+    }, [prefill?.text, prefill?.nonce]);
 
     // Keep the newest turn in view as the conversation grows.
     useEffect(() => {
@@ -292,13 +320,16 @@ export function AgentBuilderPanel() {
                             </div>
                         ) : null}
                     </div>
-                ) : (
+                ) : showSuggestions ? (
                     <div className="mb-3 flex flex-wrap gap-2">
                         {SUGGESTIONS.map((suggestion) => (
                             <button
                                 key={suggestion}
                                 type="button"
-                                onClick={() => void send(suggestion)}
+                                onClick={() => {
+                                    setDraft(suggestion);
+                                    textareaRef.current?.focus();
+                                }}
                                 disabled={outOfMessages}
                                 className="rounded-full border border-border bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                             >
@@ -306,7 +337,7 @@ export function AgentBuilderPanel() {
                             </button>
                         ))}
                     </div>
-                )}
+                ) : null}
 
                 {error ? (
                     <p
@@ -319,6 +350,7 @@ export function AgentBuilderPanel() {
 
                 <div className="relative">
                     <Textarea
+                        ref={textareaRef}
                         value={draft}
                         onChange={(event) => setDraft(event.target.value)}
                         onKeyDown={(event) => {

@@ -7,9 +7,10 @@ places, and two copies of a normalisation rule eventually disagree — at which
 point a refusal cannot be matched to the caller that caused it.
 """
 
+from datetime import UTC, datetime, timedelta
 from typing import Optional, Sequence
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 from api.db.base_client import BaseDBClient
 from api.db.models import MissedCallEventModel
@@ -100,3 +101,24 @@ class MissedCallClient(BaseDBClient):
                 .offset(offset)
             )
             return result.scalars().all()
+
+    async def unreturned_missed_call_count(
+        self, organization_id: int, *, hours: int = 48
+    ) -> int:
+        """Callers who rang and have not been called back yet.
+
+        Anything other than ``called_back`` counts -- pending, refused by a cap
+        or a cooldown, or failed outright. All of them are the same thing to
+        the business: somebody rang the number on the hoarding and nobody has
+        spoken to them.
+        """
+        since = datetime.now(UTC) - timedelta(hours=hours)
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(func.count(MissedCallEventModel.id)).where(
+                    MissedCallEventModel.organization_id == organization_id,
+                    MissedCallEventModel.received_at >= since,
+                    MissedCallEventModel.outcome != "called_back",
+                )
+            )
+            return int(result.scalar() or 0)

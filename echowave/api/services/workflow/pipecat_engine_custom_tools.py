@@ -10,6 +10,7 @@ import asyncio
 import time
 import uuid
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 from loguru import logger
 from pipecat.adapters.schemas.function_schema import FunctionSchema
@@ -22,6 +23,13 @@ from pipecat.utils.enums import EndTaskReason
 
 from api.db import db_client
 from api.enums import ToolCategory, WorkflowRunMode
+from api.schemas.tool import DEFAULT_COMPOSIO_TIMEOUT_SECS
+from api.services.integrations.composio.client import (
+    ComposioNotConfigured,
+)
+from api.services.integrations.composio.client import (
+    execute_tool as execute_composio_tool,
+)
 from api.services.integrations.google_calendar.client import (
     execute_google_calendar_tool,
     google_calendar_function_schema,
@@ -31,6 +39,7 @@ from api.services.telephony.call_transfer_manager import get_call_transfer_manag
 from api.services.telephony.escalation import briefing_from_config
 from api.services.telephony.factory import get_telephony_provider_for_run
 from api.services.telephony.transfer_event_protocol import TransferContext
+from api.services.workflow import app_interactions
 from api.services.workflow.tools.calculator import get_calculator_tools, safe_calculator
 from api.services.workflow.tools.custom_tool import (
     execute_http_tool,
@@ -57,6 +66,46 @@ def _is_google_calendar_tool(tool: Any) -> bool:
     is sufficient, since tool creation enforces category == definition.type
     (see api/schemas/tool.py CreateToolRequest.validate_category_matches_definition)."""
     return tool.category == ToolCategory.GOOGLE_CALENDAR.value
+
+
+def _composio_timeout_secs(config: dict) -> float:
+    """How long this Composio tool may take, from its config or the default.
+
+    Tolerant of a malformed stored value rather than strict, unlike the tenant
+    id: the worst case of a wrong timeout is a call that waits the default,
+    while the worst case of a wrong tenant id is a data leak. A bool is still
+    rejected -- ``timeout_secs=True`` is a wrong field, not one second.
+    """
+    value = config.get("timeout_secs")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return DEFAULT_COMPOSIO_TIMEOUT_SECS
+    return float(value) if value > 0 else DEFAULT_COMPOSIO_TIMEOUT_SECS
+
+
+def _tool_app_slug(tool: Any) -> Optional[str]:
+    """Which outside app this tool touches, when the definition names one.
+
+    Composio names it exactly -- that is the whole point of a toolkit slug. An
+    HTTP tool does not, so it falls back to the host of the URL, which is not a
+    slug but is the thing a reliability report needs to group by: "every call
+    to api.acme.com is failing" is the sentence somebody acts on.
+    """
+    definition = (tool.definition or {}) if hasattr(tool, "definition") else {}
+    config = definition.get("config") or {}
+
+    toolkit = config.get("toolkit")
+    if isinstance(toolkit, str) and toolkit.strip():
+        return toolkit.strip().lower()[:128]
+
+    url = config.get("url")
+    if isinstance(url, str) and url.strip():
+        try:
+            host = urlparse(url).hostname
+        except ValueError:
+            return None
+        if host:
+            return host.lower()[:128]
+    return None
 
 
 def _render_transfer_destination(
@@ -126,6 +175,11 @@ class CustomToolManager:
         # expecting the change to land on that call was never a behaviour
         # anything offered.
         self._tool_cache: Dict[str, Any] = {}
+        # Which agent and which published version this call is running, fetched
+        # once. None means not yet asked; a resolved dict with None inside it
+        # means asked and unanswerable, which must not be retried on every
+        # tool call.
+        self._attribution: Optional[Dict[str, Optional[int]]] = None
 
     async def _load_tools(self, tool_uuids: list[str], organization_id: int) -> list:
         """Return tool rows for these uuids, fetching only the ones not yet seen.
@@ -195,6 +249,69 @@ class CustomToolManager:
                 return True
 
         return False
+
+    async def _interaction_context(self) -> dict[str, Optional[int]]:
+        """Who this action belongs to, and which version of them took it.
+
+        Resolved late rather than captured at registration, because the
+        organization lookup is cached on the engine and a handler registered
+        before the run is fully known would otherwise record rows against None.
+
+        The agent and its version come from the run in one small query, cached
+        here for the life of the call: neither can change mid-conversation -- a
+        run is pinned to one published definition -- so asking twice would be
+        asking the same question twice while a caller waits.
+
+        Read from the run rather than from the engine. The engine holds only
+        `_workflow_run_id`; an earlier version of this method reached for
+        `_workflow_id` with a getattr default and silently wrote NULL into
+        every row, which is the failure a getattr default is very good at
+        hiding.
+        """
+        run_id = getattr(self._engine, "_workflow_run_id", None)
+        if run_id and self._attribution is None:
+            try:
+                self._attribution = await db_client.run_attribution(run_id)
+            except Exception as exc:  # noqa: BLE001 - a metric must not end a call
+                logger.warning("Could not resolve run attribution: {}", exc)
+                self._attribution = {"workflow_id": None, "definition_id": None}
+
+        attribution = self._attribution or {}
+        return {
+            "organization_id": await self.get_organization_id(),
+            "workflow_run_id": run_id,
+            "workflow_id": attribution.get("workflow_id"),
+            "definition_id": attribution.get("definition_id"),
+        }
+
+    def _register(
+        self,
+        function_name: str,
+        handler,
+        *,
+        kind: str,
+        app: Optional[str] = None,
+        **register_kwargs,
+    ) -> None:
+        """Register a tool handler, recorded.
+
+        The single place a handler reaches the LLM. Everything the agent can do
+        in outside software passes through here, which is the point: a tool
+        kind added next year is measured without anybody remembering to add the
+        line, and there is no second registration path for somebody to use by
+        accident.
+        """
+        self._engine.llm.register_function(
+            function_name,
+            app_interactions.wrap_handler(
+                handler,
+                kind=kind,
+                app=app,
+                name=function_name,
+                context=self._interaction_context,
+            ),
+            **register_kwargs,
+        )
 
     async def get_organization_id(self) -> Optional[int]:
         """Get the organization ID from the engine (shared cache)."""
@@ -356,9 +473,11 @@ class CustomToolManager:
                 if _is_google_calendar_tool(tool):
                     gcal_schema = google_calendar_function_schema(tool)
                     gcal_function_name = gcal_schema["function"]["name"]
-                    self._engine.llm.register_function(
+                    self._register(
                         gcal_function_name,
                         self._create_google_calendar_handler(tool, gcal_function_name),
+                        kind=ToolCategory.GOOGLE_CALENDAR.value,
+                        app="googlecalendar",
                         timeout_secs=15.0,
                     )
                     logger.debug(
@@ -382,9 +501,14 @@ class CustomToolManager:
                     )
                     mcp_schemas = session.function_schemas(allowed)
                     for fs in mcp_schemas:
-                        self._engine.llm.register_function(
+                        self._register(
                             fs.name,
                             self._create_mcp_handler(session, fs.name),
+                            kind=ToolCategory.MCP.value,
+                            # The customer's own server, named by the tool they
+                            # created rather than by a slug we know -- there is
+                            # no catalogue behind an MCP URL.
+                            app=tool.name,
                             timeout_secs=session.call_timeout_secs,
                         )
                     logger.debug(
@@ -406,9 +530,11 @@ class CustomToolManager:
                     ToolCategory.END_CALL.value,
                     ToolCategory.TRANSFER_CALL.value,
                 }
-                self._engine.llm.register_function(
+                self._register(
                     function_name,
                     handler,
+                    kind=tool.category,
+                    app=_tool_app_slug(tool),
                     timeout_secs=timeout_secs,
                     is_node_transition=is_node_transition,
                 )
@@ -438,6 +564,14 @@ class CustomToolManager:
         elif tool.category == ToolCategory.TRANSFER_CALL.value:
             timeout_secs = self._transfer_handler_timeout_secs(tool)
             handler = self._create_transfer_call_handler(tool, function_name)
+        elif tool.category == ToolCategory.COMPOSIO.value:
+            # Its own timeout rather than the HTTP tool's `timeout_ms`: this
+            # one is spent waiting on somebody else's SaaS while a caller
+            # listens to silence, and the shipped default is chosen for that
+            # rather than for an API we control.
+            config = (tool.definition or {}).get("config", {}) or {}
+            timeout_secs = _composio_timeout_secs(config)
+            handler = self._create_composio_handler(tool, function_name)
         else:
             timeout_ms = ((tool.definition or {}).get("config", {}) or {}).get(
                 "timeout_ms", 5000
@@ -483,7 +617,12 @@ class CustomToolManager:
             except Exception as e:
                 await function_call_params.result_callback({"error": str(e)})
 
-        self._engine.llm.register_function("safe_calculator", calculate_func)
+        # Recorded like everything else although it touches nothing outside.
+        # A calculator that is being called forty times a call is a prompt
+        # problem, and the only way to know is to have counted it.
+        self._register(
+            "safe_calculator", calculate_func, kind=ToolCategory.CALCULATOR.value
+        )
 
     def _register_rate_table_handler(self, tool: Any) -> None:
         """Register the built-in rate-card lookup with the LLM.
@@ -523,7 +662,9 @@ class CustomToolManager:
                     }
                 )
 
-        self._engine.llm.register_function(function_name, rate_lookup_func)
+        self._register(
+            function_name, rate_lookup_func, kind=ToolCategory.RATE_TABLE.value
+        )
 
     def _create_http_tool_handler(self, tool: Any, function_name: str):
         """Create a handler function for an HTTP API tool.
@@ -625,6 +766,60 @@ class CustomToolManager:
                 )
 
         return google_calendar_handler
+
+    def _create_composio_handler(self, tool: Any, function_name: str):
+        """Create a handler that runs one Composio tool for this organization.
+
+        Same ``{"status": ...}`` contract as the HTTP and Calendar handlers, and
+        the same refusal to let an exception unwind the turn: a caller mid-
+        sentence should hear the agent say it could not do the thing, not hear
+        the line go strange.
+        """
+
+        async def composio_handler(
+            function_call_params: FunctionCallParams,
+        ) -> None:
+            logger.info(f"Composio Tool EXECUTED: {function_name}")
+            logger.info(f"Arguments: {function_call_params.arguments}")
+
+            config = (tool.definition or {}).get("config", {}) or {}
+            tool_slug = config.get("tool_slug")
+            if not tool_slug:
+                # Unreachable through the API, which validates the definition on
+                # create. Reachable through a row edited by hand, and the agent
+                # should still be able to speak.
+                logger.error(f"Composio tool '{function_name}' has no tool_slug")
+                await function_call_params.result_callback(
+                    {"status": "error", "error": f"{function_name} is misconfigured"}
+                )
+                return
+
+            try:
+                result = await execute_composio_tool(
+                    tool_slug=tool_slug,
+                    arguments=function_call_params.arguments or {},
+                    organization_id=await self.get_organization_id(),
+                    connected_account_id=config.get("connected_account_id"),
+                    timeout_secs=_composio_timeout_secs(config),
+                )
+                await function_call_params.result_callback(result)
+            except ComposioNotConfigured as e:
+                # Our deployment, not the caller's problem -- but the agent has
+                # to say something, and "not available" is true.
+                logger.error(f"Composio tool '{function_name}' unavailable: {e}")
+                await function_call_params.result_callback(
+                    {
+                        "status": "error",
+                        "error": f"{function_name} is not available right now",
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Composio tool '{function_name}' failed: {e}")
+                await function_call_params.result_callback(
+                    {"status": "error", "error": str(e)}
+                )
+
+        return composio_handler
 
     def _create_mcp_handler(self, session: "McpToolSession", function_name: str):
         """Create a handler that proxies an LLM function call to a live MCP

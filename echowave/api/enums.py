@@ -89,6 +89,43 @@ def is_voice_run_mode(mode: str | None) -> bool:
     return bool(mode) and mode not in NON_VOICE_RUN_MODES
 
 
+#: The modes where a carrier tells us whether the callee picked up.
+#:
+#: A narrower question than "was this a call". A browser call over WebRTC is a
+#: call, and a text chat is not, but neither has a carrier and neither can ever
+#: have an ``answered_at`` -- nothing exists to set it. Answer rate divides by
+#: this set and not by every run, because a run that structurally cannot be
+#: answered is not a call that went unanswered.
+#:
+#: That distinction was silently wrong before: every dashboard test call and
+#: every share-link chat counted as an attempt nobody picked up, so an account
+#: doing its first day of testing saw an answer rate near zero and concluded
+#: the product did not work.
+#:
+#: An allow-list, unlike NON_VOICE_RUN_MODES above, and deliberately: a new
+#: telephony provider missing from here under-reports attempts, which shows up
+#: as an impossibly high answer rate and gets noticed. The other direction --
+#: a new browser mode silently counted as a carrier call -- drags the number
+#: down and looks like reality.
+CARRIER_RUN_MODES: frozenset[str] = frozenset(
+    {
+        WorkflowRunMode.ARI.value,
+        WorkflowRunMode.PLIVO.value,
+        WorkflowRunMode.TWILIO.value,
+        WorkflowRunMode.VONAGE.value,
+        WorkflowRunMode.VOBIZ.value,
+        WorkflowRunMode.CLOUDONIX.value,
+        WorkflowRunMode.TELNYX.value,
+        WorkflowRunMode.STASIS.value,
+    }
+)
+
+
+def is_carrier_run_mode(mode: str | None) -> bool:
+    """Whether a carrier can report an answer for this run."""
+    return bool(mode) and mode in CARRIER_RUN_MODES
+
+
 class StorageBackend(Enum):
     """Storage backend enumeration.
 
@@ -208,6 +245,7 @@ class ToolCategory(Enum):
     GOOGLE_CALENDAR = (
         "google_calendar"  # Create events on a connected Google Calendar (implemented)
     )
+    COMPOSIO = "composio"  # Run one Composio tool against a connected app (implemented)
 
 
 class ToolStatus(Enum):

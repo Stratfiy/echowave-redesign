@@ -160,6 +160,52 @@ class CallOutcome(BaseModel):
     when: str = Field(default="", max_length=200)
 
 
+class OutcomeAction(BaseModel):
+    """Something the agent does once the call is over.
+
+    The other half of :class:`CallOutcome`. That one names what a call can turn
+    out to be; this one says what should happen when it turns out that way --
+    append the booking to the clinic's sheet, raise the CRM record, send the
+    payment link.
+
+    **After the call, not during, and that is the point.** The same action is
+    already possible as a tool the agent calls mid-conversation, and for most
+    of what a business wants it is the wrong shape: writing a row takes a
+    second or more of a live line, and a caller listening to silence while we
+    talk to Google is a worse experience than one whose booking is filed
+    thirty seconds after they hang up. Nothing here is on the caller's clock,
+    so nothing here needs a filler phrase, a timeout budget, or a decision from
+    the model about whether it is worth the wait.
+
+    Deterministic, too. A tool the agent *may* call is a tool it sometimes does
+    not, and "always log the booking" cannot be built out of a model's
+    judgement. This fires on the outcome code, or on every call.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    #: The tool to run, by uuid. Any tool the account already has -- the
+    #: Composio connector, the Google Calendar integration, their own HTTP
+    #: endpoint -- because an action worth taking after a call is the same
+    #: action that was worth taking during one.
+    tool_uuid: str = Field(min_length=1, max_length=64)
+
+    #: Which outcomes this fires on, by ``CallOutcome.code``. Empty means every
+    #: call, which is right for "log it" and wrong for "send the invoice" --
+    #: the default is the broad one because a missing row is easier to notice
+    #: than an invoice that went to somebody who did not buy anything.
+    when: list[str] = Field(default_factory=list, max_length=30)
+
+    #: Arguments for the tool, as templates over the call's own context --
+    #: ``{{ gathered_context.customer_name }}``. Rendered once, after the call,
+    #: against the same context the webhooks already use.
+    arguments: dict[str, str] = Field(default_factory=dict)
+
+    #: Off by default so adding one to a live agent is two deliberate acts
+    #: rather than one.
+    enabled: bool = True
+
+
 class AgentScheduleSlot(BaseModel):
     """One window in an agent's week.
 
@@ -294,6 +340,10 @@ class WorkflowConfigurationDefaults(BaseModel):
     # Capped because every entry is sent with every transcript, and past thirty
     # this is not a taxonomy anybody sorts by.
     call_outcomes: list[CallOutcome] = Field(default_factory=list, max_length=30)
+    #: What happens once a call is over. Part of the versioned behavioural
+    #: snapshot like everything else here, so "we added the Sheets step on the
+    #: 14th" is answerable from the same place as "we changed the prompt".
+    outcome_actions: list[OutcomeAction] = Field(default_factory=list, max_length=20)
     # Does the agent move with a caller who switches language mid-call?
     #
     # This replaced an environment variable, which made following a property of

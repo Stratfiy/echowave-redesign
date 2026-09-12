@@ -25,7 +25,13 @@ from api.services.pipecat.tracing_config import (
     register_org_langfuse_credentials,
     unregister_org_langfuse_credentials,
 )
+from api.services.reports import call_intent
 from api.services.telephony import credential_encryption
+from api.services.workflow import (
+    organisation_learning,
+    organisation_memory,
+    outcomes,
+)
 from api.services.workflow.disposition_run import classify_call
 from api.services.workflow.dto import (
     QANodeData,
@@ -465,12 +471,40 @@ async def run_integrations_post_workflow_run(_ctx, workflow_run_id: int):
             )
 
         # Step 7: Build render context (includes annotations from QA and
-        # integrations) — shared by follow-up messages and webhooks alike.
+        # integrations) — shared by outcome actions, follow-up messages and
+        # webhooks alike.
+        render_context = _build_render_context(workflow_run, public_token)
+
+        # Step 7a: Outcome actions — file the booking, raise the record, send
+        # the link.
+        #
+        # Above the early return below rather than beside the webhooks, because
+        # that return fires when an agent has no webhook or message nodes, and
+        # an agent whose whole configuration is "write it to my sheet" has
+        # neither. Putting this after it would have made outcomes work only for
+        # agents that already had something else configured, which nobody would
+        # have reported as a bug -- they would have reported that it does not
+        # work.
+        gathered = workflow_run.gathered_context or {}
+        await outcomes.run_for_call(
+            organization_id=organization_id,
+            workflow_run_id=workflow_run_id,
+            workflow_id=workflow_run.workflow_id,
+            definition_id=workflow_run.definition_id,
+            # From the run's pinned definition row, not the `workflow_definition`
+            # local above it -- that name holds `workflow_json`, the graph, and
+            # the configurations are a sibling column on the same row.
+            configurations=workflow_run.definition.workflow_configurations,
+            disposition=(
+                gathered.get("mapped_call_disposition")
+                or gathered.get("call_disposition")
+            ),
+            render_context=render_context,
+        )
+
         if not webhook_nodes and not sms_nodes:
             logger.debug("No webhook or message nodes in workflow")
             return
-
-        render_context = _build_render_context(workflow_run, public_token)
 
         # Step 8: Send follow-up messages.
         #
@@ -487,6 +521,39 @@ async def run_integrations_post_workflow_run(_ctx, workflow_run_id: int):
                 organization_id=organization_id,
                 workflow_run_id=workflow_run_id,
             )
+
+        # What this call taught us, before the webhooks and before the early
+        # return below.
+        #
+        # It used to sit *after* `if not webhook_nodes: return`, which meant an
+        # agent with no webhook node never remembered anything -- and most
+        # agents have no webhook node. The memory was not broken, it was
+        # unreachable for the majority of accounts, and nothing failed to say
+        # so. Both calls here are written not to raise, so a webhook that does
+        # cannot cost the account its memory of the conversation.
+        await organisation_memory.promote_from_run(
+            organization_id=organization_id,
+            workflow_run_id=workflow_run_id,
+            gathered_context=workflow_run.gathered_context,
+            subject_key=organisation_memory.subject_key_for_run(
+                workflow_run.initial_context
+            ),
+        )
+
+        # And what it taught the business about itself: a question no agent
+        # could answer, a handover to a person, a system that would not
+        # respond. Recorded unbelieved -- none of it reaches an agent's prompt
+        # until somebody confirms it.
+        await organisation_learning.learn_from_run(
+            organization_id=organization_id,
+            workflow_run_id=workflow_run_id,
+            intent=call_intent.intent_of(
+                (workflow_run.gathered_context or {}).get("nodes_visited"),
+                call_intent.passthrough_names(workflow_definition),
+            ),
+            gathered_context=workflow_run.gathered_context,
+            interactions=await db_client.app_interactions_for_run(workflow_run_id),
+        )
 
         if not webhook_nodes:
             logger.debug("No webhook nodes in workflow")

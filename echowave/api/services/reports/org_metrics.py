@@ -30,6 +30,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db.models import WorkflowModel, WorkflowRunModel
+from api.enums import CARRIER_RUN_MODES
 
 _IST = ZoneInfo("Asia/Kolkata")
 
@@ -72,6 +73,12 @@ async def answer_seizure_ratio(
                 WorkflowModel.organization_id == organization_id,
                 WorkflowRunModel.created_at >= start_utc,
                 WorkflowRunModel.created_at < end_utc,
+                # Only runs a carrier could have reported an answer for. A
+                # browser test call and a share-link chat have no carrier
+                # and can never carry answered_at, so counting them as
+                # attempts made every account's first day look like nobody
+                # picked up.
+                WorkflowRunModel.mode.in_(CARRIER_RUN_MODES),
             )
         )
     ).one()

@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { CalendarIcon, ChevronRight, Clipboard, Download, ExternalLink, FileDown, Fingerprint, FlaskConical, Mic, PhoneOff, Plus, Rocket, Settings, Share2, Tags, Trash2, Trash2Icon, Variable } from "lucide-react";
+import { CalendarIcon, CheckCircle2, ChevronRight, Clipboard, Download, ExternalLink, FileDown, Fingerprint, FlaskConical, Mic, PhoneOff, Plus, Rocket, Settings, Share2, Tags, Trash2, Trash2Icon, Variable } from "lucide-react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -11,7 +11,9 @@ import {
     downloadWorkflowReportApiV1WorkflowWorkflowIdReportGet,
     getModelConfigurationV2DefaultsApiV1OrganizationsModelConfigurationsV2DefaultsGet,
     getWorkflowApiV1WorkflowFetchWorkflowIdGet,
+    listToolsApiV1ToolsGet,
 } from "@/client/sdk.gen";
+import type { OutcomeAction } from "@/client/types.gen";
 import type {
     WorkflowResponse,
 } from "@/client/types.gen";
@@ -59,6 +61,9 @@ import { AgentHeader } from "../components/AgentHeader";
 import { AgentTabs } from "../components/AgentTabs";
 import { QaCard } from "../components/QaCard";
 import { useWorkflowState } from "../hooks/useWorkflowState";
+import { ALWAYS_AVAILABLE, type ToolParameter,toolParameters } from "./outcomeArguments";
+import { OutcomeRateCard } from "./OutcomeRateCard";
+import { ReadinessCard } from "./ReadinessCard";
 import { DEFAULT_TAB, isTabId, type TabId, TABS } from "./tabs";
 
 // ---------------------------------------------------------------------------
@@ -755,6 +760,298 @@ function TemplateVariablesSection({
  * changes, which is where Vapi and Bolna both land and for the same reason:
  * there is no list that fits everyone.
  */
+type ToolChoice = {
+    tool_uuid: string;
+    name: string;
+    category: string;
+    parameters: ToolParameter[];
+};
+
+function ArgumentsEditor({
+    tool,
+    values,
+    onChange,
+}: {
+    tool: ToolChoice | undefined;
+    values: Record<string, string>;
+    onChange: (next: Record<string, string>) => void;
+}) {
+    const [freeKey, setFreeKey] = useState("");
+    if (!tool) return null;
+
+    const declared = tool.parameters;
+    const set = (name: string, value: string) => onChange({ ...values, [name]: value });
+
+    return (
+        <div className="space-y-2 rounded-md border border-dashed bg-muted/20 p-3">
+            {declared.length > 0 ? (
+                declared.map((parameter) => (
+                    <div key={parameter.name} className="space-y-1">
+                        <label className="text-xs font-medium">
+                            {parameter.name}
+                            {parameter.required ? (
+                                <span className="ml-1 text-destructive">*</span>
+                            ) : null}
+                        </label>
+                        <Input
+                            className="h-8 font-mono text-xs"
+                            placeholder="{{ gathered_context.extracted_variables.customer_name }}"
+                            value={values[parameter.name] ?? ""}
+                            onChange={(e) => set(parameter.name, e.target.value)}
+                        />
+                        {parameter.description ? (
+                            <p className="text-xs text-muted-foreground">
+                                {parameter.description}
+                            </p>
+                        ) : null}
+                    </div>
+                ))
+            ) : (
+                <>
+                    <p className="text-xs text-muted-foreground">
+                        This tool does not declare what it needs, so name the fields
+                        yourself.
+                    </p>
+                    {Object.entries(values).map(([name, value]) => (
+                        <div key={name} className="grid grid-cols-[1fr_1.6fr_auto] gap-2">
+                            <Input className="h-8 text-xs" value={name} disabled />
+                            <Input
+                                className="h-8 font-mono text-xs"
+                                value={value}
+                                onChange={(e) => set(name, e.target.value)}
+                            />
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label={`Remove ${name}`}
+                                onClick={() => {
+                                    const next = { ...values };
+                                    delete next[name];
+                                    onChange(next);
+                                }}
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    ))}
+                    <div className="flex gap-2">
+                        <Input
+                            className="h-8 text-xs"
+                            placeholder="Field name"
+                            value={freeKey}
+                            onChange={(e) => setFreeKey(e.target.value)}
+                        />
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={!freeKey.trim()}
+                            onClick={() => {
+                                set(freeKey.trim(), "");
+                                setFreeKey("");
+                            }}
+                        >
+                            Add field
+                        </Button>
+                    </div>
+                </>
+            )}
+
+            <div className="flex flex-wrap items-center gap-1 pt-1">
+                <span className="text-xs text-muted-foreground">Available:</span>
+                {ALWAYS_AVAILABLE.map((variable) => (
+                    <code
+                        key={variable.token}
+                        title={variable.label}
+                        className="rounded bg-muted px-1 py-0.5 text-[10px]"
+                    >
+                        {variable.token}
+                    </code>
+                ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+                Anything your agent collects is at{" "}
+                <code className="text-[10px]">
+                    {"{{ gathered_context.extracted_variables.your_field }}"}
+                </code>
+                .
+            </p>
+        </div>
+    );
+}
+
+/** Tool kinds that can run once the call is over.
+ *
+ * Ending a call that has ended and transferring a caller who has hung up are
+ * not options, so they are not offered. Mirrors RUNNABLE_KINDS in
+ * api/services/workflow/outcomes.py -- if that list grows, this one has to.
+ */
+const RUNNABLE_TOOL_KINDS = ["http_api", "composio", "google_calendar"];
+
+function OutcomeActionsSection({
+    actions,
+    outcomes,
+    onSave,
+}: {
+    actions: OutcomeAction[];
+    outcomes: CallOutcome[];
+    onSave: (actions: OutcomeAction[]) => Promise<void>;
+}) {
+    const [rows, setRows] = useState<OutcomeAction[]>(actions);
+    const [tools, setTools] = useState<ToolChoice[]>([]);
+    const [isSaving, setIsSaving] = useState(false);
+
+    const isDirty = JSON.stringify(rows) !== JSON.stringify(actions);
+    useUnsavedChanges("outcome-actions", isDirty);
+
+    useEffect(() => {
+        let cancelled = false;
+        listToolsApiV1ToolsGet()
+            .then((response) => {
+                if (cancelled) return;
+                const usable = (response.data ?? [])
+                    .filter((tool) => RUNNABLE_TOOL_KINDS.includes(tool.category ?? ""))
+                    .map((tool) => ({
+                        tool_uuid: tool.tool_uuid ?? "",
+                        name: tool.name ?? "Untitled tool",
+                        category: tool.category ?? "",
+                        parameters: toolParameters(tool.definition),
+                    }));
+                setTools(usable);
+            })
+            .catch(() => setTools([]));
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    const update = (index: number, patch: Partial<OutcomeAction>) =>
+        setRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            await onSave(rows.filter((row) => row.tool_uuid));
+        } catch (error) {
+            console.error("Failed to save outcome actions:", error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Card id="outcome-actions">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                    <CheckCircle2 className="h-4 w-4" />
+                    After the call
+                </CardTitle>
+                <CardDescription>
+                    What should happen once a call is finished &mdash; file the booking
+                    in a sheet, raise the record, send the link. This runs after the
+                    caller has hung up, so it never makes anybody wait, and it runs
+                    every time rather than when the agent decides to.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+                {tools.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                        Nothing to run yet. Connect an app under{" "}
+                        <Link href="/integrations/apps" className="underline">
+                            Integrations
+                        </Link>{" "}
+                        and it will appear here.
+                    </p>
+                ) : null}
+
+                {rows.map((row, index) => (
+                    <div
+                        key={index}
+                        className="grid grid-cols-[1.4fr_1.2fr_auto] gap-2 items-start"
+                    >
+                        <select
+                            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                            value={row.tool_uuid}
+                            onChange={(e) => update(index, { tool_uuid: e.target.value })}
+                        >
+                            <option value="">Choose what to do…</option>
+                            {tools.map((tool) => (
+                                <option key={tool.tool_uuid} value={tool.tool_uuid}>
+                                    {tool.name}
+                                </option>
+                            ))}
+                        </select>
+
+                        <select
+                            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                            value={row.when?.[0] ?? ""}
+                            onChange={(e) =>
+                                update(index, {
+                                    when: e.target.value ? [e.target.value] : [],
+                                })
+                            }
+                        >
+                            {/* Empty means every call, and it is first because it is
+                                the right answer for "log it" -- a missing row is
+                                easier to notice than an invoice sent to somebody who
+                                did not buy anything. */}
+                            <option value="">On every call</option>
+                            {outcomes.map((outcome) => (
+                                <option key={outcome.code} value={outcome.code}>
+                                    Only when {outcome.label || outcome.code}
+                                </option>
+                            ))}
+                        </select>
+
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() =>
+                                setRows((prev) => prev.filter((_, i) => i !== index))
+                            }
+                            aria-label="Remove this step"
+                        >
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
+
+                        {/* Under the row it belongs to, spanning the grid, so a
+                            step with six fields still reads as one step. */}
+                        {row.tool_uuid ? (
+                            <div className="col-span-3">
+                                <ArgumentsEditor
+                                    tool={tools.find((t) => t.tool_uuid === row.tool_uuid)}
+                                    values={(row.arguments ?? {}) as Record<string, string>}
+                                    onChange={(next) => update(index, { arguments: next })}
+                                />
+                            </div>
+                        ) : null}
+                    </div>
+                ))}
+
+                <div className="flex items-center gap-2 pt-1">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={tools.length === 0}
+                        onClick={() =>
+                            setRows((prev) => [
+                                ...prev,
+                                { tool_uuid: "", when: [], arguments: {}, enabled: true },
+                            ])
+                        }
+                    >
+                        <Plus className="mr-1 h-4 w-4" />
+                        Add a step
+                    </Button>
+                    <Button size="sm" onClick={handleSave} disabled={!isDirty || isSaving}>
+                        {isSaving ? "Saving…" : "Save"}
+                    </Button>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+
 function CallOutcomesSection({
     outcomes,
     onSave,
@@ -1243,6 +1540,7 @@ function WorkflowSettingsInner({
         saveWorkflowConfigurations,
         saveTemplateContextVariables,
         saveCallOutcomes,
+        saveOutcomeActions,
     } = useWorkflowState({
         initialWorkflowName: workflow.name,
         workflowId,
@@ -1317,6 +1615,28 @@ function WorkflowSettingsInner({
                                 outcomes={workflowConfigurations?.call_outcomes ?? []}
                                 onSave={saveCallOutcomes}
                             />
+
+                            {/* Directly under the taxonomy it keys off. One says
+                                what a call can turn out to be, the other what
+                                happens when it does, and reading them apart is
+                                how somebody configures a step that never fires. */}
+{/* Above the steps rather than below them: an operator whose
+                                Sheets connection is broken needs to know that before
+                                they start wondering why the step they configured is
+                                not running. */}
+                            <ReadinessCard workflowId={Number(workflowId)} />
+
+                                                        <OutcomeActionsSection
+                                actions={workflowConfigurations?.outcome_actions ?? []}
+                                outcomes={workflowConfigurations?.call_outcomes ?? []}
+                                onSave={saveOutcomeActions}
+                            />
+
+                            {/* Directly under the steps it measures, so the
+                                person changing them sees what the last change
+                                did without a detour to a reporting screen they
+                                would have to remember exists. */}
+                            <OutcomeRateCard workflowId={Number(workflowId)} />
 
                             {/* Recordings – moved to org-level page */}
                             <Card id="recordings">

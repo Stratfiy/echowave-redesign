@@ -47,8 +47,8 @@ def _summary(template: AgentTemplate) -> dict[str, Any]:
         "summary": template.summary,
         "languages": template.languages,
         "example_requests": template.example_requests,
-        "typical_call_seconds": template.call_shape.typical_call_seconds,
-        "typical_minutes_per_month": template.call_shape.minutes_per_month,
+        "typical_call_seconds": template.call_seconds,
+        "typical_minutes_per_month": template.minutes_per_month,
         # What the first-agent flow asks before it builds. Derived from the
         # prompts rather than read off the declaration so an undeclared
         # placeholder is still asked about instead of reaching a caller.
@@ -98,10 +98,12 @@ async def get_agent_template(
     return {
         **_summary(template),
         "stack": template.stack.model_dump(),
+        # Null throughout for a template that never dials. A card that printed
+        # zeros there would be claiming a silent agent takes no-second calls.
         "call_shape": {
-            "typical_call_seconds": template.call_shape.typical_call_seconds,
-            "typical_calls_per_month": template.call_shape.typical_calls_per_month,
-            "minutes_per_month": template.call_shape.minutes_per_month,
+            "typical_call_seconds": template.call_seconds,
+            "typical_calls_per_month": template.calls_per_month,
+            "minutes_per_month": template.minutes_per_month,
         },
         "nodes": [node.model_dump() for node in template.nodes],
         "edges": [edge.model_dump() for edge in template.edges],

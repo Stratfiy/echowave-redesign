@@ -39,8 +39,80 @@ from api.services.agent_builder.assemble import (
 from api.services.agent_templates import find_templates, get_template, list_templates
 from api.services.billing.addons import DEFAULT_AGENT_ADDONS
 from api.services.billing.estimator import estimate_cost_per_minute
+from api.services.integrations.composio.client import (
+    connect_link as composio_connect_link,
+)
+from api.services.integrations.composio.client import (
+    connected_toolkits,
+)
+from api.services.integrations.composio.client import (
+    is_configured as composio_configured,
+)
+from api.services.integrations.composio.client import (
+    toolkit_name as composio_toolkit_name,
+)
+from api.services.packs import badges, pricing, resolve_listed_packs
+from api.services.packs.search import search_packs
 from api.services.workflow.dto import ReactFlowDTO
 from api.services.workflow.workflow_graph import WorkflowGraph
+
+
+async def _suggest_roles(query: str | None) -> dict[str, Any]:
+    """Roles from the shelf that match what the user described.
+
+    Hiring is offered before building, deliberately. A listed role carries a
+    measured outcome rate across every business that hired it; an agent
+    assembled from a description in a chat window is a first draft about to go
+    on somebody's live phone line.
+
+    An empty shelf is reported as such rather than as an empty list. With no
+    demo number configured every calling role is unlisted, and a model that
+    received `[]` would conclude we have nothing to offer and start building --
+    which is the wrong answer to a configuration problem.
+    """
+    roles = search_packs(query or "", packs=await resolve_listed_packs())
+    if not roles:
+        return {
+            "roles": [],
+            "note": (
+                "No ready-made role matches, or none is published yet. Say so "
+                "plainly, then offer to build one from a template."
+            ),
+        }
+    return {
+        "roles": [
+            {
+                "slug": role.slug,
+                "name": role.name,
+                "job": role.job,
+                "summary": role.summary,
+                # The promise, not the channel name: "Answers calls" is what
+                # somebody hires, "inbound_call" is how we route it.
+                "does": badges(role),
+                "industries": list(role.industries),
+                "languages": list(role.languages),
+                "needs_connected": [
+                    {"app": connector.label, "for": connector.used_for}
+                    for connector in role.required_connectors
+                    if connector.required
+                ],
+                "monthly_price_rupees": pricing(role)["monthly_price_paise"] // 100,
+                "priced_as": (
+                    "a hire, per agent"
+                    if pricing(role)["is_hire"]
+                    else "included in the monthly plan"
+                ),
+                "demo_number": role.demo_number,
+                "template_id": role.template_id,
+            }
+            for role in roles[:4]
+        ],
+        "note": (
+            "Show these to the user with the price and what each needs "
+            "connected. Offer the demo number so they can interview it before "
+            "hiring. Build something custom only if they say none fit."
+        ),
+    }
 
 
 def tool_schemas() -> list[dict[str, Any]]:
@@ -51,6 +123,33 @@ def tool_schemas() -> list[dict[str, Any]]:
     a fourth dialect to keep in sync.
     """
     return [
+        {
+            "name": "suggest_roles",
+            "description": (
+                "Find ready-to-hire roles that match what the user just said "
+                "about their business. ALWAYS call this first, before "
+                "list_agent_templates and before asking any questions. A "
+                "listed role has a measured outcome rate across every "
+                "business that hired it; an agent you build from scratch has "
+                "none, so offering the proven one first is better for the "
+                "user. Show the user the roles it returns, with the price and "
+                "what each one needs connected, and let them pick. Only build "
+                "something custom if they say none of them fit."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": (
+                            "What the user's business does and what they want "
+                            "handled, in their own words. Omit to see the "
+                            "whole shelf."
+                        ),
+                    }
+                },
+            },
+        },
         {
             "name": "list_agent_templates",
             "description": (
@@ -191,6 +290,44 @@ def tool_schemas() -> list[dict[str, Any]]:
                 "required": ["workflow_id", "variables"],
             },
         },
+        {
+            "name": "list_connected_apps",
+            "description": (
+                "List the outside apps this account has already connected -- "
+                "Gmail, Google Sheets, Slack and so on. Call this before "
+                "offering to connect anything, so you never ask a user to "
+                "connect something they connected last week."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+        {
+            "name": "connect_app",
+            "description": (
+                "Give the user a link to connect one outside app to this "
+                "account, so their agent can use it. Returns a URL -- show it "
+                "to them and ask them to open it and sign in. You cannot "
+                "complete the connection yourself; only they can, and only in "
+                "a browser. The link expires in a few minutes, so call this "
+                "when they are ready rather than in advance. After they say "
+                "they are done, call list_connected_apps to check."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "app": {
+                        "type": "string",
+                        "description": (
+                            "The app's Composio slug, lowercase, e.g. gmail, "
+                            "googlesheets, googlecalendar, slack, notion, "
+                            "hubspot. If you are not sure of the exact slug, "
+                            "say so and ask the user which app they mean "
+                            "rather than guessing -- a wrong slug is refused."
+                        ),
+                    },
+                },
+                "required": ["app"],
+            },
+        },
     ]
 
 
@@ -218,6 +355,8 @@ async def dispatch(
     something it skipped.
     """
     try:
+        if name == "suggest_roles":
+            return await _suggest_roles(arguments.get("query"))
         if name == "list_agent_templates":
             return _list_templates(arguments.get("query"))
         if name == "get_agent_template":
@@ -238,6 +377,13 @@ async def dispatch(
                 organization_id=organization_id,
                 workflow_id=arguments.get("workflow_id"),
                 variables=arguments.get("variables") or {},
+            )
+        if name == "list_connected_apps":
+            return await _list_connected_apps(organization_id)
+        if name == "connect_app":
+            return await _connect_app(
+                organization_id=organization_id,
+                app=arguments.get("app", ""),
             )
         if name == "create_agent":
             return await _create_agent(
@@ -293,8 +439,8 @@ def _get_template(template_id: str) -> dict[str, Any]:
             for key in required_variables(template)
         ],
         "compliance_notes": template.compliance_notes,
-        "typical_call_seconds": template.call_shape.typical_call_seconds,
-        "typical_calls_per_month": template.call_shape.typical_calls_per_month,
+        "typical_call_seconds": template.call_seconds,
+        "typical_calls_per_month": template.calls_per_month,
     }
 
 
@@ -308,6 +454,22 @@ async def _estimate(
     template = get_template(template_id)
     if template is None:
         return {"error": f"No template {template_id!r}."}
+
+    # An agent that never speaks has no minutes, so a per-minute quote would
+    # be a number with no unit behind it. The honest answer is the plan it runs
+    # inside, and that reads better to an owner than a rupee figure rounding to
+    # zero would.
+    if not template.speaks:
+        return {
+            "priced_as": "included in the monthly plan",
+            "rupees_per_minute": None,
+            "monthly": None,
+            "note": (
+                "This agent makes no calls, so it uses no minutes. It runs "
+                "against the tasks included in the monthly plan. Tell the "
+                "user that plainly rather than quoting a per-minute figure."
+            ),
+        }
 
     stack = template.stack
     estimate = await estimate_cost_per_minute(
@@ -326,8 +488,8 @@ async def _estimate(
     )
 
     per_minute = estimate.total_paise_per_minute / 100
-    calls = calls_per_month or template.call_shape.typical_calls_per_month
-    minutes = round(calls * template.call_shape.typical_call_seconds / 60)
+    calls = calls_per_month or template.calls_per_month or 0
+    minutes = round(calls * (template.call_seconds or 0) / 60)
 
     result: dict[str, Any] = {
         "rupees_per_minute": round(per_minute, 2),
@@ -581,4 +743,100 @@ async def _revise_agent_facts(
             "still answering exactly as it did before.",
             "Tell them to open the agent, test it, and publish when happy.",
         ],
+    }
+
+
+async def _list_connected_apps(organization_id: int) -> dict[str, Any]:
+    """Which outside apps this account has authorized.
+
+    A deployment with no Composio key is not an error to report upward -- it is
+    a platform that simply does not offer this, and the builder should stop
+    talking about it rather than tell a clinic owner about a missing
+    environment variable.
+    """
+    if not composio_configured():
+        return {
+            "apps": [],
+            "available": False,
+            "note": (
+                "Connecting outside apps is not switched on for this "
+                "platform. Do not offer it."
+            ),
+        }
+
+    apps = await connected_toolkits(organization_id)
+    return {
+        "apps": apps,
+        "available": True,
+        "note": (
+            "Nothing is connected yet. If the user wants their agent to send "
+            "email, update a sheet or post to Slack, offer connect_app."
+            if not apps
+            else (
+                "These are already connected; do not ask the user to connect "
+                "them again."
+            )
+        ),
+    }
+
+
+async def _connect_app(*, organization_id: int, app: str) -> dict[str, Any]:
+    """A link the user opens to authorize one app.
+
+    Two refusals before any link is minted, and both are deliberate.
+
+    The slug is checked against Composio's own catalogue rather than a list
+    kept here: a hardcoded list goes stale the week they add an app, and the
+    failure mode of a stale list is telling a user we cannot do something we
+    can. The failure mode of an unchecked slug is worse -- an auth config
+    created against an invented app, and a confusing failure later.
+
+    And an app this organization already connected returns no link at all.
+    Minting a second one is how a user ends up with two authorizations and no
+    idea which one their agent uses.
+    """
+    if not composio_configured():
+        return {
+            "error": ("Connecting outside apps is not switched on for this platform.")
+        }
+
+    slug = (app or "").strip().lower()
+    if not slug:
+        return {"error": "Which app? Ask the user, then call this again."}
+
+    already = await connected_toolkits(organization_id)
+    if slug.upper() in already:
+        return {
+            "already_connected": True,
+            "app": slug,
+            "note": (
+                f"{slug} is already connected to this account. Tell the user "
+                "it is ready to use; do not send them a link."
+            ),
+        }
+
+    display_name = await composio_toolkit_name(slug)
+    if not display_name:
+        return {
+            "error": (
+                f"There is no app called {slug!r}. Ask the user which app "
+                "they mean by name and try the obvious slug for it."
+            )
+        }
+
+    link = await composio_connect_link(toolkit=slug, organization_id=organization_id)
+    if "error" in link:
+        return link
+
+    return {
+        "app": slug,
+        "app_name": display_name,
+        "connect_url": link["url"],
+        "expires_at": link.get("expires_at"),
+        "note": (
+            f"Show this link to the user and ask them to open it and sign in "
+            f"to {display_name}. It expires in a few minutes. You cannot "
+            f"complete this for them. When they say they have finished, call "
+            f"list_connected_apps to confirm it worked."
+        ),
     }

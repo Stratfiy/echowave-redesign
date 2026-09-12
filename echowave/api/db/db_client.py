@@ -1,6 +1,7 @@
 from api.db.activation_client import ActivationClient
 from api.db.agent_trigger_client import AgentTriggerClient
 from api.db.api_key_client import APIKeyClient
+from api.db.app_interaction_client import AppInteractionClient
 from api.db.campaign_client import CampaignClient
 from api.db.contact_client import ContactClient
 from api.db.do_not_call_client import DoNotCallClient
@@ -11,6 +12,7 @@ from api.db.integration_client import IntegrationClient
 from api.db.knowledge_base_client import KnowledgeBaseClient
 from api.db.kyc_client import KycClient
 from api.db.missed_call_client import MissedCallClient
+from api.db.organisation_fact_client import OrganisationFactClient
 from api.db.organization_client import OrganizationClient
 from api.db.organization_configuration_client import OrganizationConfigurationClient
 from api.db.organization_usage_client import OrganizationUsageClient
@@ -31,6 +33,8 @@ from api.db.workflow_template_client import WorkflowTemplateClient
 
 
 class DBClient(
+    AppInteractionClient,
+    OrganisationFactClient,
     KycClient,
     MissedCallClient,
     ActivationClient,
