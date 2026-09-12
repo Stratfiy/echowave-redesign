@@ -20,6 +20,7 @@ from typing import Any, Awaitable, Callable, Optional
 from loguru import logger
 
 from api.db import db_client
+from api.services.workflow import agent_timeline
 
 STATUS_SUCCESS = "success"
 STATUS_ERROR = "error"
@@ -176,3 +177,32 @@ async def _safe_record(
         definition_id=ids.get("definition_id"),
         **fields,
     )
+
+    # The same facts, as a line on the timeline. Written here rather than in
+    # each handler for the reason this module exists at all: a recording line
+    # that has to be remembered is a recording line that will be missed, and a
+    # tool kind added next year gets a timeline entry without anybody thinking
+    # about it.
+    #
+    # Two writes rather than one because they answer different questions for
+    # different people. The row above is the support record -- what the tool
+    # returned, how long it took, the error verbatim. This is what happened on
+    # the call, in a sentence. Collapsing them would make one of the two
+    # answers worse.
+    #
+    # Independent on purpose: a timeline that will not write must not cost us
+    # the support row, and `agent_timeline.record` swallows its own failures
+    # for the same reason this function does.
+    try:
+        await agent_timeline.record_action(
+            organization_id=ids.get("organization_id"),
+            workflow_id=ids.get("workflow_id"),
+            definition_id=ids.get("definition_id"),
+            workflow_run_id=ids.get("workflow_run_id"),
+            name=fields.get("name") or "",
+            app=fields.get("app"),
+            status=fields.get("status") or STATUS_SUCCESS,
+            error=fields.get("error"),
+        )
+    except Exception as exc:  # noqa: BLE001 - never into a live call
+        logger.warning("Could not record the timeline line for {}: {}", fields, exc)

@@ -750,3 +750,88 @@ STAFF_ROLE_RANK: dict[str, int] = {
     StaffRole.SUPPORT.value: 0,
     StaffRole.SUPERADMIN.value: 1,
 }
+
+
+class AgentEventKind(str, Enum):
+    """What happened, in one word, on the timeline every screen reads from.
+
+    Kinds rather than free text because these are grouped, counted and
+    filtered, and a typo in free text is a row that silently stops appearing
+    in the count it belongs to.
+
+    Stored as VARCHAR rather than a Postgres ENUM, the same convention as
+    ``StaffRole`` and ``OrganizationModel.account_type``: a kind added next
+    year should not need a migration, and an unrecognised kind read back from
+    an older writer must render as itself rather than crash the screen.
+    """
+
+    CALL_STARTED = "call_started"
+    CALL_ANSWERED = "call_answered"
+    #: What the caller turned out to want, once it is known. Not the
+    #: transcript -- the intent, so a timeline reads as a story rather than a
+    #: wall of speech.
+    CALLER_WANTED = "caller_wanted"
+    #: The agent did something in outside software. Fed by app_interactions.
+    AGENT_ACTED = "agent_acted"
+    #: The thing the call existed for: a booking written, an order confirmed.
+    OUTCOME_FILED = "outcome_filed"
+    #: Handed to a person, or tried to be.
+    ESCALATED = "escalated"
+    CALL_ENDED = "call_ended"
+    CREDITS_HELD = "credits_held"
+    CREDITS_SETTLED = "credits_settled"
+    #: Something a human has to look at. The Team screen's attention tone, as
+    #: an event rather than a computed state, so it can be notified on.
+    NEEDS_ATTENTION = "needs_attention"
+    #: The organisation learned something from what an agent did.
+    MEMORY_LEARNED = "memory_learned"
+    ROUTINE_FIRED = "routine_fired"
+    #: A routine that was due and deliberately did not run -- out of hours,
+    #: DND, a broken connector. Recorded because a routine that silently
+    #: skipped is indistinguishable from one that never existed.
+    ROUTINE_SKIPPED = "routine_skipped"
+    #: Something produced that a person would want handed to them: a report,
+    #: a recording, a filed booking.
+    DELIVERABLE = "deliverable"
+    #: The agent could not do what was asked. Its own kind because a failure
+    #: nobody sees is the defect this whole log exists to end.
+    COULD_NOT = "could_not"
+
+
+class AgentEventActor(str, Enum):
+    """Who did it. Four, and the fourth one matters.
+
+    ``SYSTEM`` is us -- a credit hold, a routine tick. Attributing those to the
+    agent would have a screen say "Meera charged you", which is not what
+    happened and is the kind of wrong that erodes trust in everything beside
+    it.
+    """
+
+    AGENT = "agent"
+    CALLER = "caller"
+    HUMAN = "human"
+    SYSTEM = "system"
+
+
+class AgentEventVisibility(str, Enum):
+    """Who may see this row, and it is a compliance answer rather than a
+    preference.
+
+    A clinic's transcripts and recordings carry patient information, and the
+    caller was told what the recording was for. So the middle tier is not a
+    tidiness setting: it is the difference between an operational record the
+    business owns and a caller's words, which it holds on terms.
+
+    ALWAYS
+        The business's own operational record -- bookings, outcomes, spend,
+        failures. Shown without asking.
+    ON_REQUEST
+        Recordings, transcripts, caller details. Hidden until somebody asks
+        for them, checked against the organisation's consent settings.
+    OFF
+        Suppressed for this organisation.
+    """
+
+    ALWAYS = "always"
+    ON_REQUEST = "on_request"
+    OFF = "off"

@@ -5100,3 +5100,126 @@ class OrganisationFactModel(Base):
             "subject_key",
         ),
     )
+
+
+class AgentEventModel(Base):
+    """One thing that happened, on the timeline every screen reads from.
+
+    Append-only. The reason this exists: runs, tool actions and outcomes lived
+    in three tables at three different grains, so ``agent_activity`` is three
+    separate queries and "what did this agent do" could not be answered
+    without writing SQL by hand. A clinic owner asked why their agent refused
+    a free noon slot and the answer took an SSH session.
+
+    One table, four filters, no joins:
+
+    * ``workflow_run_id`` -- one call's story
+    * ``workflow_id`` -- one bot's history
+    * ``folder_id`` -- one team's, without fanning out over its bots and
+      re-merging, which is the three-grain problem again
+    * ``organization_id`` -- the home screen and the deliverables list
+
+    It does not replace ``app_interactions`` or ``workflow_runs``. Those keep
+    their jobs -- one is the support record of what a tool returned, the other
+    is the billing and state record of a call. This is the *narrative*, written
+    alongside them, and a row here carries the sentence a person reads rather
+    than the fields a screen would have to assemble.
+    """
+
+    __tablename__ = "agent_events"
+
+    id = Column(BigInteger, primary_key=True)
+
+    # Every row is tenant-scoped, and this one is not nullable: an event with
+    # no organisation cannot be read back by anyone who should see it and
+    # could be read by someone who should not.
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    # All three nullable, deliberately. A routine tick belongs to a bot and no
+    # call; a credit top-up belongs to an organisation and neither; a bot may
+    # be in no team at all. A schema that demanded them would push writers
+    # into inventing values, which is how a log stops being trustworthy.
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="CASCADE"), nullable=True
+    )
+    definition_id = Column(
+        Integer,
+        ForeignKey("workflow_definitions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    workflow_run_id = Column(
+        Integer, ForeignKey("workflow_runs.id", ondelete="CASCADE"), nullable=True
+    )
+    #: The team, denormalised from the workflow at write time rather than
+    #: joined at read time. A bot moved between teams later must not rewrite
+    #: its history -- the row records which team it was working for when it
+    #: happened, which is the answer a person actually wants.
+    folder_id = Column(
+        Integer, ForeignKey("folders.id", ondelete="SET NULL"), nullable=True
+    )
+
+    at = Column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+    #: See ``AgentEventKind``. VARCHAR rather than an ENUM so a kind added
+    #: next year needs no migration.
+    kind = Column(String(48), nullable=False)
+    #: See ``AgentEventActor``. "system" is us, and attributing a credit hold
+    #: to the agent would have a screen say "Meera charged you".
+    actor = Column(String(16), nullable=False)
+
+    #: The one line a person reads, written when the event is recorded.
+    #:
+    #: Deliberately not assembled at render time. A sentence built by a screen
+    #: from a payload drifts the moment the payload shape changes, and the
+    #: history then reads differently than it did -- which for a record
+    #: somebody may rely on in a dispute is the wrong property entirely.
+    summary = Column(String(500), nullable=False)
+    payload = Column(
+        JSON, nullable=False, default=dict, server_default=text("'{}'::json")
+    )
+
+    #: Does this render as a card a person is handed, rather than a line on a
+    #: timeline. A booking filed is both; a credit hold is only a line.
+    is_deliverable = Column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    #: See ``AgentEventVisibility``. Checked at read time, because consent can
+    #: be withdrawn after the row was written and a stored decision would
+    #: outlive it.
+    visibility = Column(
+        String(16),
+        nullable=False,
+        # Literal rather than the enum, matching every other status column in
+        # this file. `AgentEventVisibility` is the vocabulary; the column just
+        # stores a string, which is what lets a value be added without a
+        # migration.
+        default="always",
+        server_default="always",
+    )
+
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    __table_args__ = (
+        # One index per read path above. Every screen orders by time
+        # descending, so the indexes carry the sort rather than making
+        # Postgres re-sort a clinic's whole history to show twenty rows.
+        Index("ix_agent_events_org_at", "organization_id", "at"),
+        Index("ix_agent_events_workflow_at", "workflow_id", "at"),
+        Index("ix_agent_events_run_at", "workflow_run_id", "at"),
+        Index("ix_agent_events_folder_at", "folder_id", "at"),
+        # The deliverables list is "this organisation's cards, newest first",
+        # which without this walks every event ever recorded to find the few
+        # that are cards.
+        Index(
+            "ix_agent_events_org_deliverables",
+            "organization_id",
+            "at",
+            postgresql_where=text("is_deliverable"),
+        ),
+    )
