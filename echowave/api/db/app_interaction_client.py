@@ -9,8 +9,28 @@ from api.db.base_client import BaseDBClient
 from api.db.models import (
     AppInteractionModel,
     WorkflowDefinitionModel,
+    WorkflowModel,
     WorkflowRunModel,
 )
+from api.enums import CARRIER_RUN_MODES
+
+
+def _empty_activity() -> dict[str, Any]:
+    """An agent that acted in the window without a run row to hang it on.
+
+    A post-call outcome carries no ``workflow_run_id``, so it can be the only
+    trace of an agent inside the window. Defaulting to zeros rather than
+    skipping it keeps the agent on the screen with its action shown.
+    """
+    return {
+        "calls": 0,
+        "answered": 0,
+        "dialled": 0,
+        "outcomes": 0,
+        "failures": 0,
+        "last_run_at": None,
+        "last_action": None,
+    }
 
 
 class AppInteractionClient(BaseDBClient):
@@ -220,3 +240,159 @@ class AppInteractionClient(BaseDBClient):
             )
         out.sort(key=lambda r: (r["version_number"] is None, r["version_number"] or 0))
         return out
+
+    async def agent_activity(
+        self, *, organization_id: int, hours: int = 24
+    ) -> dict[int, dict[str, Any]]:
+        """Recent work per agent, for the one-line status beside its name.
+
+        Three queries rather than one join, on purpose. Runs, outcomes and the
+        latest action have three different grains -- one row per run, one row
+        per run that reached an outside system, one row per action -- and
+        joining them would multiply the run count by the number of actions each
+        call took, which is the classic way to report nine calls as
+        twenty-seven.
+
+        Answered is counted only for runs a carrier can report an answer for.
+        A browser test and a text chat never get an ``answered_at`` and
+        including them would make every account's first day read as a near-zero
+        answer rate.
+        """
+        since = datetime.now(UTC) - timedelta(hours=hours)
+        activity: dict[int, dict[str, Any]] = {}
+
+        async with self.async_session() as session:
+            runs = (
+                await session.execute(
+                    select(
+                        WorkflowRunModel.workflow_id,
+                        func.count(WorkflowRunModel.id).label("calls"),
+                        func.sum(
+                            case(
+                                (
+                                    WorkflowRunModel.mode.in_(CARRIER_RUN_MODES)
+                                    & WorkflowRunModel.answered_at.isnot(None),
+                                    1,
+                                ),
+                                else_=0,
+                            )
+                        ).label("answered"),
+                        func.sum(
+                            case(
+                                (
+                                    WorkflowRunModel.mode.in_(CARRIER_RUN_MODES),
+                                    1,
+                                ),
+                                else_=0,
+                            )
+                        ).label("dialled"),
+                        func.max(WorkflowRunModel.created_at).label("last_run_at"),
+                    )
+                    .join(
+                        WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id
+                    )
+                    .where(
+                        WorkflowModel.organization_id == organization_id,
+                        WorkflowRunModel.created_at >= since,
+                    )
+                    .group_by(WorkflowRunModel.workflow_id)
+                )
+            ).all()
+
+            for row in runs:
+                activity[row.workflow_id] = {
+                    "calls": int(row.calls or 0),
+                    "answered": int(row.answered or 0),
+                    "dialled": int(row.dialled or 0),
+                    "outcomes": 0,
+                    "failures": 0,
+                    "last_run_at": row.last_run_at,
+                    "last_action": None,
+                }
+
+            # Runs that reached an outside system and succeeded, counted once
+            # each however many actions they took.
+            reached = (
+                select(
+                    AppInteractionModel.workflow_id.label("workflow_id"),
+                    AppInteractionModel.workflow_run_id.label("run_id"),
+                )
+                .where(
+                    AppInteractionModel.organization_id == organization_id,
+                    AppInteractionModel.created_at >= since,
+                    AppInteractionModel.status == "success",
+                    AppInteractionModel.app.isnot(None),
+                    AppInteractionModel.workflow_id.isnot(None),
+                    AppInteractionModel.workflow_run_id.isnot(None),
+                )
+                .distinct()
+                .subquery()
+            )
+            for workflow_id, count in (
+                await session.execute(
+                    select(
+                        reached.c.workflow_id,
+                        func.count(func.distinct(reached.c.run_id)),
+                    ).group_by(reached.c.workflow_id)
+                )
+            ).all():
+                activity.setdefault(workflow_id, _empty_activity())["outcomes"] = int(
+                    count or 0
+                )
+
+            for workflow_id, count in (
+                await session.execute(
+                    select(
+                        AppInteractionModel.workflow_id,
+                        func.count(AppInteractionModel.id),
+                    )
+                    .where(
+                        AppInteractionModel.organization_id == organization_id,
+                        AppInteractionModel.created_at >= since,
+                        AppInteractionModel.status == "error",
+                        AppInteractionModel.workflow_id.isnot(None),
+                    )
+                    .group_by(AppInteractionModel.workflow_id)
+                )
+            ).all():
+                activity.setdefault(workflow_id, _empty_activity())["failures"] = int(
+                    count or 0
+                )
+
+            # The most recent action per agent. Ranked in the database rather
+            # than by pulling every row and sorting here, because a busy
+            # account's window holds thousands of actions and we want one each.
+            ranked = (
+                select(
+                    AppInteractionModel.workflow_id,
+                    AppInteractionModel.name,
+                    AppInteractionModel.app,
+                    AppInteractionModel.status,
+                    AppInteractionModel.created_at,
+                    func.row_number()
+                    .over(
+                        partition_by=AppInteractionModel.workflow_id,
+                        order_by=AppInteractionModel.created_at.desc(),
+                    )
+                    .label("rank"),
+                )
+                .where(
+                    AppInteractionModel.organization_id == organization_id,
+                    AppInteractionModel.created_at >= since,
+                    AppInteractionModel.workflow_id.isnot(None),
+                )
+                .subquery()
+            )
+            for row in (
+                await session.execute(select(ranked).where(ranked.c.rank == 1))
+            ).all():
+                activity.setdefault(row.workflow_id, _empty_activity())[
+                    "last_action"
+                ] = {
+                    "name": row.name,
+                    "app": row.app,
+                    "status": row.status,
+                    "at": row.created_at,
+                }
+
+        return activity

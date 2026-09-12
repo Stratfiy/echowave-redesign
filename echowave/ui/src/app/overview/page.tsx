@@ -19,6 +19,7 @@
 
 import { PageBody, PageHeader } from '@/components/layout/PageHeader';
 import { OverviewDashboard } from '@/components/overview/OverviewDashboard';
+import { TeamPanel } from '@/components/team/TeamPanel';
 import { useAuth } from '@/lib/auth';
 
 export default function OverviewPage() {
@@ -39,7 +40,13 @@ export default function OverviewPage() {
                 Everything below is a chat composer and two prose cards; run
                 full-bleed at 1440 the input alone would be over a metre of
                 line, which is worse than the gutter the shell exists to remove. */}
-            <PageBody>
+            <PageBody className="space-y-6">
+                {/* Who is working, before how it is trending. The team reads
+                    as sentences — "9 calls, 6 answered, 4 bookings" — and the
+                    charts below answer the question those sentences raise.
+                    Renders nothing until there is an agent, so a new account
+                    still opens on the door rather than on an empty list. */}
+                <TeamPanel />
                 {/* A door until the first call, a dashboard after it. The
                     builder chat, the next steps and the docs links moved inside
                     the dashboard's empty state so this page has one job at a

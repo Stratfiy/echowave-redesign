@@ -5450,6 +5450,28 @@ export type LangfuseCredentialsResponse = {
 };
 
 /**
+ * LastAction
+ */
+export type LastAction = {
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * App
+     */
+    app: string | null;
+    /**
+     * Status
+     */
+    status: string | null;
+    /**
+     * At
+     */
+    at: string | null;
+};
+
+/**
  * LastCampaignSettingsResponse
  */
 export type LastCampaignSettingsResponse = {
@@ -9147,6 +9169,71 @@ export type SwitchOrganizationRequest = {
      * Organization Id
      */
     organization_id: number;
+};
+
+/**
+ * TeamMember
+ */
+export type TeamMember = {
+    /**
+     * Workflow Id
+     */
+    workflow_id: number;
+    /**
+     * Workflow Uuid
+     */
+    workflow_uuid: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Is Live
+     */
+    is_live: boolean;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Tone
+     */
+    tone: string;
+    /**
+     * At
+     */
+    at: string | null;
+    /**
+     * Calls
+     */
+    calls: number;
+    /**
+     * Answered
+     */
+    answered: number;
+    /**
+     * Outcomes
+     */
+    outcomes: number;
+    /**
+     * Failures
+     */
+    failures: number;
+    last_action: LastAction | null;
+};
+
+/**
+ * TeamResponse
+ */
+export type TeamResponse = {
+    /**
+     * Hours
+     */
+    hours: number;
+    /**
+     * Members
+     */
+    members: Array<TeamMember>;
 };
 
 /**
@@ -22342,6 +22429,50 @@ export type ListConnectedAccountsApiV1ConnectorsAccountsGetResponses = {
 };
 
 export type ListConnectedAccountsApiV1ConnectorsAccountsGetResponse = ListConnectedAccountsApiV1ConnectorsAccountsGetResponses[keyof ListConnectedAccountsApiV1ConnectorsAccountsGetResponses];
+
+export type TeamStatusApiV1TeamStatusGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Hours
+         */
+        hours?: number;
+    };
+    url: '/api/v1/team/status';
+};
+
+export type TeamStatusApiV1TeamStatusGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TeamStatusApiV1TeamStatusGetError = TeamStatusApiV1TeamStatusGetErrors[keyof TeamStatusApiV1TeamStatusGetErrors];
+
+export type TeamStatusApiV1TeamStatusGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TeamResponse;
+};
+
+export type TeamStatusApiV1TeamStatusGetResponse = TeamStatusApiV1TeamStatusGetResponses[keyof TeamStatusApiV1TeamStatusGetResponses];
 
 export type OutcomeRateApiV1WorkflowWorkflowIdOutcomeRateGetData = {
     body?: never;
