@@ -532,3 +532,81 @@ No change to the Revision 2 sequencing, and one addition to the build list.
 - Any cross-app trigger, polling or event-detection infrastructure. Rent it.
 - Any agent that passes the four-noes test. A content poster is an n8n workflow.
 - A connector catalogue of our own. Composio is the catalogue.
+
+---
+
+# Revision 4 — correction: n8n is not the workspace
+
+Added 12 September 2026, same session, after the founder pushed back on Revision 1's
+central claim with: *"n8n isn't the workspace."*
+
+**They are right, and Revisions 1 to 3 are wrong on this point.** The correction is
+recorded here rather than edited into the earlier text, so the reasoning trail survives.
+
+## The error
+
+Revision 1 said *"n8n is the canvas"* and used that to argue the workspace was redundant.
+That collapsed two different products for two different people into one word.
+
+| | n8n | The work layer |
+|---|---|---|
+| User | The agency. Technical. Configures once | The operator. Non-technical. Opens it daily |
+| Surface | Node editor, execution log (a debugging view) | A queue of things that need a person |
+| Memory | None. State belongs to a run | Facts the *business* knows, corrected over time |
+| Permissions | Who may edit a workflow | Who handles escalations for which accounts |
+
+The agency builds the workflow. The receptionist works the queue. n8n is useless to the
+receptionist, and she is who the product is for.
+
+The founder's original instinct was pointing at a surface that genuinely does not exist,
+and three revisions treated it as redundant.
+
+## The second error, which followed from the first
+
+`pricing-and-unit-economics.md` §4 proposes a **₹699 per-seat line** as the fix for the
+margin variance, because it is the only revenue uncorrelated with minutes. A seat is a
+human with a daily surface. Arguing against the workspace while pricing seats for it was
+incoherent. The seat line requires the work layer to exist.
+
+## Corrected model: three layers
+
+| Layer | Who uses it | Ownership |
+|---|---|---|
+| **Build** | The agency, technical, configures once | n8n, Make, the customer's own tool. **Not ours. Do not compete.** |
+| **Run** | Nobody, it executes | **Ours.** Agent runtime, telephony, KYC, TRAI/DLT, GST ledger. The moat |
+| **Work** | The operator, non-technical, daily | **Ours.** Inbox, org memory, KPIs, contact and outcome record. The retention |
+
+**The work layer is where retention lives.** A workflow is configured once and forgotten.
+A surface someone opens every morning cannot be ripped out. n8n supplies configured-once
+only, so building on n8n alone leaves the company with no daily-active surface, which is a
+weaker position than Revision 1 assumed.
+
+## What is still refused, and the test that decides
+
+Not "do not build a workspace". **Build the operator's workspace; refuse the general one.**
+
+> **Scope test: does a non-technical operator touch it every day, in service of a job an
+> agent runs?**
+
+- **In scope:** escalation inbox; org memory with confirm and reject; KPI per agent;
+  the contact and outcome record; the numbers, hours and do-not-call lists that operator
+  controls.
+- **Out of scope:** generic chat, documents, notes, projects, a plugin system, an agent
+  marketplace, or anything that invites a feature-for-feature comparison with a
+  well-capitalised general agent workspace. That comparison is a capital fight and it is
+  lost on entry.
+
+The defensible position is not "we have a workspace too". It is being the only place a
+collections lead can see which of yesterday's 400 calls need a human today.
+
+## Effect on the plan
+
+- **Sequencing unchanged.** The escalation inbox was already first. It is now correctly
+  named as the first brick of the work layer rather than a patch over a gap in n8n.
+- **The ₹699 seat stands** and now has a surface to attach to.
+- **Org memory is promoted** from feature to work-layer primitive. It is one of the five
+  properties identified in the reference class, it already exists
+  (`api/routes/organisation_memory.py`), and it is not surfaced anywhere a customer sees.
+- **Positioning needs the operator in it.** "Zapier runs steps, we run jobs that have to
+  work" describes the run layer and omits the person. A line that carries both is still
+  needed.
