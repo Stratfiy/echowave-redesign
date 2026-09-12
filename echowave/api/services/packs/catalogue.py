@@ -105,7 +105,7 @@ def _packs(
     return (
         AgentPack(
             slug="front_desk_clinic",
-            name="Front Desk",
+            name="Front Desk Bot",
             job="Answer the phone",
             summary="Answers every call, books the appointment, and hands anything clinical to a person.",
             publisher=DECIBYL,
@@ -140,7 +140,7 @@ def _packs(
         ),
         AgentPack(
             slug="order_confirmation",
-            name="Order Confirmation",
+            name="Order Confirmation Bot",
             job="Confirm orders before they ship",
             summary="Rings every COD order before dispatch and confirms the customer still wants it.",
             publisher=DECIBYL,
@@ -179,7 +179,7 @@ def _packs(
         ),
         AgentPack(
             slug="payment_reminder",
-            name="Payment Reminder",
+            name="Payment Reminder Bot",
             job="Chase what is owed",
             summary="Calls before the due date, takes the promise to pay, and never calls outside legal hours.",
             publisher=DECIBYL,
@@ -204,7 +204,7 @@ def _packs(
         ),
         AgentPack(
             slug="lead_qualifier",
-            name="Lead Qualifier",
+            name="Lead Qualifier Bot",
             job="Qualify new enquiries",
             summary="Calls a new lead within minutes, finds out what they actually want, and books the visit.",
             publisher=DECIBYL,
@@ -230,7 +230,7 @@ def _packs(
         ),
         AgentPack(
             slug="admissions_desk",
-            name="Admissions Desk",
+            name="Admissions Bot",
             job="Follow up on admissions",
             summary="Calls every enquiry back, answers fees and batches, and books the counselling slot.",
             publisher=DECIBYL,
@@ -263,7 +263,7 @@ def _packs(
         ),
         AgentPack(
             slug="reservations_desk",
-            name="Reservations Desk",
+            name="Reservations Bot",
             job="Answer the phone",
             summary="Takes the booking, holds the table, and stops the phone ringing through service.",
             publisher=DECIBYL,

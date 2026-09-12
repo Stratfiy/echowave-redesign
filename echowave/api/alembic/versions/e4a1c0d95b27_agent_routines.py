@@ -18,7 +18,7 @@ the week a clinic moves to 10:00 -- the report still arrives, an hour before
 anybody is there to read it, and nothing says the schedule is now wrong.
 
 ``is_active`` defaults false and ``tested_at`` starts NULL, so a routine
-cannot arm until it has been test-run once. The first time a Desk runs
+cannot arm until it has been test-run once. The first time a bot runs
 unsupervised it writes into somebody's real accounting software.
 
 ``last_fired_at`` stores the *slot* that fired rather than the moment of

@@ -35,7 +35,9 @@ class TestSearchNeverLosesARole:
 
     def test_the_roles_own_name_outranks_prose_that_merely_mentions_it(self):
         found = search_packs("front desk", packs=SHELF)
-        assert found[0].name == "Front Desk"
+        # Pinned to the slug, not the display name: a rename is a product
+        # decision and must not be able to break a ranking test.
+        assert found[0].slug == "front_desk_clinic"
 
     def test_an_ecommerce_sentence_reaches_order_confirmation(self):
         found = search_packs("we ship cod orders and half of them bounce", packs=SHELF)

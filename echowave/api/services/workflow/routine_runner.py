@@ -1,8 +1,8 @@
-"""Running a Desk: one turn, no caller, a card at the end.
+"""Running a routine: one turn, no caller, a card at the end.
 
 A scheduled bot has nobody on the line, which sounds like it should make this
 simpler and does the opposite. A live call has a caller who hears when it goes
-wrong; a Desk that fails produces silence, and silence is what the operator
+wrong; a routine that fails produces silence, and silence is what the operator
 was already getting before they hired it. So the run's only real obligation is
 to leave a record either way -- a deliverable when it worked, a ``COULD_NOT``
 when it did not -- and that obligation is the whole of the error handling
@@ -10,12 +10,12 @@ here.
 
 The engine is the text-chat path, the same one the eval runner drives: the
 bot's own prompts, tools, connectors and model, minus audio. That is not a
-shortcut. A Desk that ran on a second, simpler runtime would answer
+shortcut. A bot that ran its routines on a second, simpler runtime would answer
 differently from the same bot in a chat, and the first time those two
 disagreed nobody would be able to say which was the bot's real behaviour.
 
 The routine's instruction arrives as the one user message. Which means a
-routine is editable without touching the bot's prompt, and two Desks can share
+routine is editable without touching the bot's prompt, and two routines can share
 one bot and differ only in what they are told to do each morning.
 """
 
@@ -54,7 +54,7 @@ async def run_routine(routine_id: int) -> None:
     """Do one run of one routine. Never raises.
 
     Never raises because the caller is a cron tick serving every tenant: one
-    routine throwing would end the tick, and every other business's Desk would
+    routine throwing would end the tick, and every other business's routines would
     silently not run that minute. A failure here is this routine's failure and
     is recorded as this routine's failure.
     """
@@ -74,7 +74,7 @@ async def run_routine(routine_id: int) -> None:
             mode=WorkflowRunMode.TEXTCHAT.value,
             user_id=None,
             initial_context=None,
-            # The published bot, not the draft. A Desk running somebody's
+            # The published bot, not the draft. A routine running somebody's
             # half-finished edit every morning is how an unreviewed change
             # reaches real accounting software -- the eval runner uses the
             # draft precisely because a person is sitting there watching it.
@@ -91,8 +91,8 @@ async def run_routine(routine_id: int) -> None:
         )
         if not quota.has_quota:
             # Recorded as something the operator must act on, not swallowed.
-            # A Desk that stops because the balance ran out looks exactly like
-            # a Desk that is broken, and the difference is one they can fix.
+            # A bot that stops because the balance ran out looks exactly like
+            # one that is broken, and the difference is one they can fix.
             await agent_timeline.record(
                 organization_id=organization_id,
                 kind=AgentEventKind.NEEDS_ATTENTION.value,

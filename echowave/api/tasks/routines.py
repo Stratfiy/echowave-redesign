@@ -1,4 +1,4 @@
-"""The clock for every Desk, once a minute.
+"""The clock for every routine, once a minute.
 
 Cross-tenant on purpose: this is the only job in the product that legitimately
 has no organisation, because it is not acting for anybody -- it is the clock.
@@ -14,7 +14,7 @@ outcome than the silence it was meant to fix.
 **A skip worth knowing about writes once per episode, not once a minute.** A
 broken connector or a missed run is recorded the first tick it appears and
 then deduplicated against what the routine already says, so "your Shopify is
-down and the Desk has stopped" arrives as one line rather than as a thousand.
+down and the run has stopped" arrives as one line rather than as a thousand.
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ async def fire_due_routines(ctx) -> None:
     fired = 0
 
     # Preferences and failing apps are per organisation, not per routine. Two
-    # Desks in one clinic would otherwise each pay for the same two queries
+    # routines in one clinic would otherwise each pay for the same two queries
     # every minute of every day.
     preferences: dict[int, object] = {}
     broken: dict[int, set[str]] = {}
@@ -115,7 +115,7 @@ async def fire_due_routines(ctx) -> None:
             )
         except Exception as exc:  # noqa: BLE001
             # One routine must never end the tick. Every other business's
-            # Desk would silently not run this minute, and nothing would say
+            # routines would silently not run this minute, and nothing would say
             # which one caused it.
             logger.exception("Routine {} could not be evaluated: {}", routine.id, exc)
 

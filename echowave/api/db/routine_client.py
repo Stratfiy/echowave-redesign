@@ -1,4 +1,4 @@
-"""Reads and writes for standing instructions -- the Desks' clock.
+"""Reads and writes for standing instructions -- the routine clock.
 
 Three queries and two stamps. Kept small on purpose: the firing *decision*
 lives in ``services/workflow/routines.py`` as pure functions over a moment, so
@@ -111,7 +111,7 @@ class RoutineClient(BaseDBClient):
 
         Org-scoped, because this is reachable from a request and it is the
         gate on arming: letting another tenant stamp it would let them arm
-        somebody else's Desk.
+        somebody else's routine.
         """
         async with self.async_session() as session:
             result = await session.execute(

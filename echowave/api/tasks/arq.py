@@ -113,7 +113,7 @@ class WorkerSettings:
             second=0,
             run_at_startup=True,
         ),
-        # Every minute, because a Desk anchored to a business's opening time
+        # Every minute, because a routine anchored to a business's opening time
         # can be due at any minute of the hour -- a clinic that opens at 09:37
         # is not a configuration error. Cheap when nothing is armed: one
         # indexed query against a partial index, and an early return.

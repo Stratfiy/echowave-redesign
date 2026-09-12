@@ -238,7 +238,7 @@ class TestSkipsWorthKnowingAbout:
 
 class TestOneRoutineNeverEndsTheTick:
     async def test_a_broken_routine_does_not_stop_the_others(self):
-        # Every other business's Desk would silently not run this minute.
+        # Every other business's routines would silently not run this minute.
         h = Harness([routine(id=1, cadence="nonsense"), routine(id=2)])
         await h.run(DUE)
         assert h.enqueued == [("run_agent_routine", 2)]
