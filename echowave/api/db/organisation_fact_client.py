@@ -294,3 +294,166 @@ class OrganisationFactClient(BaseDBClient):
             )
             await session.commit()
             return bool(result.rowcount)
+
+    async def organisation_graph_edges(
+        self, *, organization_id: int, days: int = 90
+    ) -> dict[str, Any]:
+        """The organisation's memory as nodes and edges, read straight off the
+        tables that already record it.
+
+        No graph store. Every edge here is a join over rows we keep anyway, so
+        there is nothing to index, nothing to sync and nothing that can drift
+        from the truth it is drawn from. If traversal ever gets slow -- it will
+        not at this size -- that is the day to revisit it, not before.
+
+        Three queries, because facts, actions and agents live in three tables
+        and joining them would multiply each agent's fact count by its action
+        count. The shape is assembled here rather than in SQL for the same
+        reason the team endpoint does it: the grains differ.
+        """
+        since = datetime.now(UTC) - timedelta(days=days)
+        nodes: dict[str, dict[str, Any]] = {}
+        edges: list[dict[str, Any]] = []
+
+        def node(node_id: str, kind: str, label: str, **extra: Any) -> str:
+            existing = nodes.get(node_id)
+            if existing is None:
+                nodes[node_id] = {
+                    "id": node_id,
+                    "kind": kind,
+                    "label": label,
+                    **extra,
+                }
+            return node_id
+
+        org_node = node(f"org:{organization_id}", "organisation", "This business")
+
+        async with self.async_session() as session:
+            # What the business knows and cannot answer, and which agent
+            # learned each one. The attribution is what makes the graph worth
+            # looking at: an agent switched off in March still has edges.
+            memory = (
+                await session.execute(
+                    select(
+                        OrganisationFactModel.id,
+                        OrganisationFactModel.kind,
+                        OrganisationFactModel.key,
+                        OrganisationFactModel.value,
+                        OrganisationFactModel.status,
+                        OrganisationFactModel.times_seen,
+                        WorkflowRunModel.workflow_id,
+                    )
+                    .outerjoin(
+                        WorkflowRunModel,
+                        OrganisationFactModel.source_run_id == WorkflowRunModel.id,
+                    )
+                    .where(
+                        OrganisationFactModel.organization_id == organization_id,
+                        OrganisationFactModel.subject_type == SUBJECT_ORGANISATION,
+                        OrganisationFactModel.status != "rejected",
+                    )
+                )
+            ).all()
+
+            for row in memory:
+                memory_id = node(
+                    f"{row.kind}:{row.id}",
+                    row.kind,
+                    row.value,
+                    key=row.key,
+                    status=row.status,
+                    times_seen=int(row.times_seen or 0),
+                )
+                edges.append(
+                    {
+                        "source": org_node,
+                        "target": memory_id,
+                        # A gap is the same relation seen from the other side,
+                        # and naming it differently is what lets one picture
+                        # show both halves of a question.
+                        "relation": (
+                            "knows" if row.kind == "fact" else "cannot answer"
+                        ),
+                    }
+                )
+                if row.workflow_id:
+                    edges.append(
+                        {
+                            "source": f"agent:{row.workflow_id}",
+                            "target": memory_id,
+                            "relation": "learned",
+                        }
+                    )
+
+            # Every agent, archived included. Their work happened and their
+            # edges are as real as they were; dropping them would be the graph
+            # agreeing that knowledge belongs to whoever was holding it.
+            agents = (
+                await session.execute(
+                    select(
+                        WorkflowModel.id,
+                        WorkflowModel.name,
+                        WorkflowModel.status,
+                        WorkflowModel.is_live,
+                    ).where(WorkflowModel.organization_id == organization_id)
+                )
+            ).all()
+            for row in agents:
+                agent_id = node(
+                    f"agent:{row.id}",
+                    "agent",
+                    row.name,
+                    archived=str(row.status) != "active",
+                    live=bool(row.is_live),
+                )
+                edges.append(
+                    {"source": org_node, "target": agent_id, "relation": "employs"}
+                )
+
+            # Which outside systems each agent actually reached, and whether it
+            # worked. Counted, so a thick edge means a system the business
+            # depends on rather than one it touched once.
+            actions = (
+                await session.execute(
+                    select(
+                        AppInteractionModel.workflow_id,
+                        AppInteractionModel.app,
+                        func.count(AppInteractionModel.id).label("uses"),
+                        func.sum(
+                            case((AppInteractionModel.status == "error", 1), else_=0)
+                        ).label("errors"),
+                    )
+                    .where(
+                        AppInteractionModel.organization_id == organization_id,
+                        AppInteractionModel.created_at >= since,
+                        AppInteractionModel.app.isnot(None),
+                        AppInteractionModel.workflow_id.isnot(None),
+                    )
+                    .group_by(AppInteractionModel.workflow_id, AppInteractionModel.app)
+                )
+            ).all()
+            for row in actions:
+                app_id = node(f"app:{row.app}", "app", row.app)
+                edges.append(
+                    {
+                        "source": f"agent:{row.workflow_id}",
+                        "target": app_id,
+                        "relation": "acts in",
+                        "uses": int(row.uses or 0),
+                        "errors": int(row.errors or 0),
+                    }
+                )
+
+        # An edge whose endpoint was never built is dropped rather than left
+        # dangling: an agent deleted before its facts were, or an app recorded
+        # outside the window. A renderer handed a dangling edge either throws
+        # or silently draws nothing, and both are worse than a smaller graph.
+        known = set(nodes)
+        return {
+            "nodes": list(nodes.values()),
+            "edges": [
+                edge
+                for edge in edges
+                if edge["source"] in known and edge["target"] in known
+            ],
+        }

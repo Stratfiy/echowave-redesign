@@ -4815,6 +4815,84 @@ export type GraphConstraints = {
 };
 
 /**
+ * GraphEdge
+ */
+export type GraphEdge = {
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * Target
+     */
+    target: string;
+    /**
+     * Relation
+     */
+    relation: string;
+    /**
+     * Uses
+     */
+    uses?: number | null;
+    /**
+     * Errors
+     */
+    errors?: number | null;
+};
+
+/**
+ * GraphNode
+ */
+export type GraphNode = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Times Seen
+     */
+    times_seen?: number | null;
+    /**
+     * Status
+     */
+    status?: string | null;
+    /**
+     * Key
+     */
+    key?: string | null;
+    /**
+     * Archived
+     */
+    archived?: boolean | null;
+    /**
+     * Live
+     */
+    live?: boolean | null;
+};
+
+/**
+ * GraphResponse
+ */
+export type GraphResponse = {
+    /**
+     * Nodes
+     */
+    nodes: Array<GraphNode>;
+    /**
+     * Edges
+     */
+    edges: Array<GraphEdge>;
+};
+
+/**
  * Grok Realtime
  */
 export type GrokRealtimeLlmConfiguration = {
@@ -22967,6 +23045,50 @@ export type OrganisationApiV1OrganisationGetResponses = {
 };
 
 export type OrganisationApiV1OrganisationGetResponse = OrganisationApiV1OrganisationGetResponses[keyof OrganisationApiV1OrganisationGetResponses];
+
+export type GraphApiV1OrganisationGraphGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+    };
+    url: '/api/v1/organisation/graph';
+};
+
+export type GraphApiV1OrganisationGraphGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GraphApiV1OrganisationGraphGetError = GraphApiV1OrganisationGraphGetErrors[keyof GraphApiV1OrganisationGraphGetErrors];
+
+export type GraphApiV1OrganisationGraphGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: GraphResponse;
+};
+
+export type GraphApiV1OrganisationGraphGetResponse = GraphApiV1OrganisationGraphGetResponses[keyof GraphApiV1OrganisationGraphGetResponses];
 
 export type ReadMemoryApiV1OrganisationMemoryGetData = {
     body?: never;

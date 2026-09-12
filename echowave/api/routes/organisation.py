@@ -174,3 +174,66 @@ async def organisation(
         contributors=contributors,
         suggestions=[Improvement(**item) for item in improvements.rank(found)],
     )
+
+
+class GraphNode(BaseModel):
+    id: str
+    #: "organisation" | "agent" | "fact" | "gap" | "app".
+    kind: str
+    label: str
+    #: Present on a memory node: how many calls have said the same thing.
+    times_seen: Optional[int] = None
+    #: Present on a memory node: "learned" or "confirmed". A learned node has
+    #: never reached an agent's prompt.
+    status: Optional[str] = None
+    key: Optional[str] = None
+    #: Present on an agent node. Archived agents are kept and marked -- their
+    #: work happened, and dropping them would be the graph agreeing that
+    #: knowledge belongs to whoever was holding it.
+    archived: Optional[bool] = None
+    live: Optional[bool] = None
+
+
+class GraphEdge(BaseModel):
+    source: str
+    target: str
+    #: "employs" | "knows" | "cannot answer" | "learned" | "acts in".
+    relation: str
+    #: Present on an "acts in" edge, so a thick line means a system the
+    #: business depends on rather than one it touched once.
+    uses: Optional[int] = None
+    errors: Optional[int] = None
+
+
+class GraphResponse(BaseModel):
+    nodes: list[GraphNode]
+    edges: list[GraphEdge]
+
+
+@router.get("/graph", response_model=GraphResponse)
+async def graph(
+    days: int = 90,
+    user: UserModel = Depends(get_user),
+) -> GraphResponse:
+    """The organisation's memory as nodes and edges.
+
+    Drawn straight off the tables that already record it -- no graph store, so
+    nothing to index, nothing to sync, and nothing that can drift from the
+    truth it is drawn from.
+
+    Honest about what it is for: an owner acts on the organisation page, and
+    this is the picture that makes the shape of what they own legible at a
+    glance. It is the least useful view and the most persuasive one, which is
+    why it was built last rather than first.
+    """
+    organization_id = user.selected_organization_id
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    data = await db_client.organisation_graph_edges(
+        organization_id=organization_id, days=max(1, min(days, 365))
+    )
+    return GraphResponse(
+        nodes=[GraphNode(**node) for node in data["nodes"]],
+        edges=[GraphEdge(**edge) for edge in data["edges"]],
+    )
