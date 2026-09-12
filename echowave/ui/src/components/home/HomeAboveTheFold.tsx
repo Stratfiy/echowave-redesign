@@ -108,9 +108,12 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
             try {
                 const response = await teamHomeApiV1TeamHomeGet({ query: { hours: 24 } });
                 if (cancelled || response.error || !response.data) return;
-                setHeadline(response.data.headline);
-                setSuggestions(response.data.suggestions);
-                setMembers(response.data.members);
+                // Defaulted rather than trusted. The shapes come from our own
+                // schema, but a field that arrives missing must leave the
+                // screen a sentence short — not throw the whole home page away.
+                setHeadline(response.data.headline ?? null);
+                setSuggestions(response.data.suggestions ?? []);
+                setMembers(response.data.members ?? []);
             } catch {
                 // The composer below still works. A greeting that failed to
                 // load is a missing sentence, not a broken screen.
