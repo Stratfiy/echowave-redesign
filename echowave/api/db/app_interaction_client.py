@@ -129,6 +129,48 @@ class AppInteractionClient(BaseDBClient):
                 for row in result.all()
             ]
 
+    async def apps_last_failing(
+        self, organization_id: int, *, within_hours: int = 24
+    ) -> set[str]:
+        """Apps whose **most recent** action failed, for this organisation.
+
+        The signal a Desk needs before it runs. A thirty-day error count
+        cannot answer it: one failure in five hundred calls is a blip, and
+        five hundred failures a month ago is a connector that has since been
+        reconnected. What matters is whether the last thing we tried worked.
+
+        Bounded by ``within_hours`` so a connector nobody has used since
+        Tuesday is not called broken on the strength of one old failure --
+        silence is not evidence either way, and treating it as evidence would
+        stop a Desk on an app that is probably fine.
+        """
+        since = datetime.now(UTC) - timedelta(hours=within_hours)
+        ranked = (
+            select(
+                AppInteractionModel.app,
+                AppInteractionModel.status,
+                func.row_number()
+                .over(
+                    partition_by=AppInteractionModel.app,
+                    order_by=AppInteractionModel.created_at.desc(),
+                )
+                .label("rank"),
+            )
+            .where(
+                AppInteractionModel.organization_id == organization_id,
+                AppInteractionModel.created_at >= since,
+                AppInteractionModel.app.isnot(None),
+            )
+            .subquery()
+        )
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(ranked.c.app).where(
+                    ranked.c.rank == 1, ranked.c.status == "error"
+                )
+            )
+            return {str(app).lower() for app in result.scalars().all() if app}
+
     async def run_attribution(self, workflow_run_id: int) -> dict[str, Optional[int]]:
         """Which agent, and which version of it, a run belongs to.
 

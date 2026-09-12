@@ -120,7 +120,7 @@ class SkipReason(str, Enum):
 #: The reasons an operator should be shown rather than left to notice. The
 #: rest are the system working: a Sunday, a not-yet, an already-ran.
 ATTENTION_SKIPS: frozenset[SkipReason] = frozenset(
-    {SkipReason.CONNECTOR_BROKEN, SkipReason.MISSED}
+    {SkipReason.CONNECTOR_BROKEN, SkipReason.MISSED, SkipReason.NEVER_TESTED}
 )
 
 
@@ -353,6 +353,30 @@ def _hhmm(minute: int) -> str:
     return f"{minute // 60:02d}:{minute % 60:02d}"
 
 
+def spec_from_model(model: Any) -> RoutineSpec:
+    """Read a schedule off an ``agent_routines`` row.
+
+    A converter rather than properties on the model, so every rule above stays
+    testable at any moment in any zone without a database, and the row stays a
+    row. An unrecognised cadence or anchor raises here rather than silently
+    picking one -- a routine whose schedule we cannot read must not quietly
+    become a daily one.
+    """
+    return RoutineSpec(
+        cadence=Cadence(model.cadence),
+        anchor=Anchor(model.anchor),
+        at_minute=int(model.at_minute or 0),
+        offset_minutes=int(model.offset_minutes or 0),
+        weekday=int(model.weekday or 0),
+        is_active=bool(model.is_active),
+        tested_at=model.tested_at,
+        last_fired_at=model.last_fired_at,
+        needs_apps=tuple(
+            str(app) for app in (model.needs_apps or []) if isinstance(app, str)
+        ),
+    )
+
+
 __all__ = [
     "ATTENTION_SKIPS",
     "CATCH_UP_MINUTES",
@@ -364,5 +388,6 @@ __all__ = [
     "decide",
     "may_arm",
     "next_slot",
+    "spec_from_model",
     "targets_for_day",
 ]

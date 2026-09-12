@@ -19,6 +19,7 @@ from api.db.organization_configuration_client import OrganizationConfigurationCl
 from api.db.organization_usage_client import OrganizationUsageClient
 from api.db.password_reset_client import PasswordResetClient
 from api.db.reports_client import ReportsClient
+from api.db.routine_client import RoutineClient
 from api.db.telephony_configuration_client import TelephonyConfigurationClient
 from api.db.telephony_phone_number_client import TelephonyPhoneNumberClient
 from api.db.tool_client import ToolClient
@@ -35,6 +36,7 @@ from api.db.workflow_template_client import WorkflowTemplateClient
 
 class DBClient(
     AgentEventClient,
+    RoutineClient,
     AppInteractionClient,
     OrganisationFactClient,
     KycClient,

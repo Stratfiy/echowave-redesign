@@ -5223,3 +5223,108 @@ class AgentEventModel(Base):
             postgresql_where=text("is_deliverable"),
         ),
     )
+
+
+class AgentRoutineModel(Base):
+    """A standing instruction: run this bot at this time, over and over.
+
+    What makes a Desk a Desk. Everything else in this file records something a
+    person or a caller started; this is the row that starts things itself, and
+    it is the only place in the product where nobody is waiting on the other
+    end. That absence is the whole design problem -- a routine that fires at
+    the wrong time, twice, or not at all has no caller to notice and no
+    transcript to explain itself -- so the schedule is stored in pieces the
+    runtime can reason about and a person can read, and every firing decision
+    is made by ``services/workflow/routines.py`` against these columns.
+
+    **Not a cron string.** The person setting this runs a clinic, and the
+    difference between ``0 9 * * 1-5`` and ``0 9 * * 1,5`` is a support ticket
+    waiting to happen. Four cadences and three anchors cover every Desk we
+    have written; a fifth cadence is a smaller change than a cron parser plus
+    the screen that would have to explain one.
+
+    **The anchor is why this is not just a time.** "Every morning" means when
+    the business opens, and the opening hours are already recorded and already
+    change. A stored 09:30 goes quietly wrong the week a clinic moves to
+    10:00: the report still arrives, an hour before anybody is there to read
+    it, and nothing anywhere says the schedule is now wrong.
+    """
+
+    __tablename__ = "agent_routines"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id"), nullable=False, index=True
+    )
+    # CASCADE: a deleted bot's standing instructions are not a thing that
+    # should outlive it and quietly keep firing against nothing.
+    workflow_id = Column(
+        Integer,
+        ForeignKey("workflows.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    #: What the operator calls this run. "Morning numbers", not "routine 4".
+    name = Column(String(120), nullable=False)
+    #: What the bot should do each time, in the operator's own words. Fed to
+    #: the run as its instruction, so a routine is editable without touching
+    #: the bot's own prompt -- two Desks can share a bot and differ only here.
+    instruction = Column(Text, nullable=False, default="")
+
+    #: ``routines.Cadence``. A literal string like every other status column
+    #: in this file, so a fifth cadence needs no migration.
+    cadence = Column(String(16), nullable=False, default="daily")
+    #: ``routines.Anchor``: opening, closing, or a literal clock time.
+    anchor = Column(String(16), nullable=False, default="opening")
+    #: Minute of the day for a clock anchor; for hourly, the minute past each
+    #: hour. Ignored by the opening and closing anchors, which compute it.
+    at_minute = Column(Integer, nullable=False, default=0)
+    #: Signed minutes from the anchor. -30 with the closing anchor is "half an
+    #: hour before you shut".
+    offset_minutes = Column(Integer, nullable=False, default=0)
+    #: 0 = Monday, matching ``date.weekday()``. Read only for weekly.
+    weekday = Column(Integer, nullable=False, default=0)
+
+    #: Connector slugs this routine cannot do its job without. A run whose
+    #: shop is disconnected reports nothing, which to the operator looks
+    #: exactly like the Desk being broken -- so it is skipped, and said.
+    needs_apps = Column(JSON, nullable=False, default=list)
+
+    #: **Off until a person switches it on, and they cannot until it has been
+    #: test-run.** The first time a Desk runs unsupervised it writes into
+    #: somebody's real accounting software; a test run is the one chance to
+    #: see what it would do before it does it, which is worth nothing if the
+    #: toggle does not wait for it.
+    is_active = Column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    #: When it was last test-run. NULL means never, which means it may not arm.
+    tested_at = Column(DateTime(timezone=True), nullable=True)
+
+    #: The slot last fired, not the moment of firing. This is what makes a
+    #: minute tick safe: the runtime compares it against the slot it is
+    #: considering, so a tick that runs twice in one minute, or a worker that
+    #: comes back up inside the catch-up window, cannot send the same report
+    #: twice.
+    last_fired_at = Column(DateTime(timezone=True), nullable=True)
+    #: Why the last tick did not fire, and when. Stored rather than only
+    #: written to the timeline so the routine's own screen can answer "why
+    #: didn't it run" without a query across the event log.
+    last_skipped_reason = Column(String(32), nullable=True)
+    last_skipped_at = Column(DateTime(timezone=True), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    __table_args__ = (
+        # The tick's only query: every armed routine, across all tenants,
+        # once a minute. Partial so it holds the handful that are switched on
+        # rather than every routine anybody ever drafted.
+        Index(
+            "ix_agent_routines_active",
+            "is_active",
+            postgresql_where=text("is_active"),
+        ),
+        Index("ix_agent_routines_org_workflow", "organization_id", "workflow_id"),
+    )
