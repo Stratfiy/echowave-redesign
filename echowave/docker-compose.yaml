@@ -46,6 +46,17 @@ services:
       # You can manually change the password using psql in the container
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-postgres}"
       POSTGRES_DB: postgres
+    # EVERY LONG-RUNNING SERVICE IN THIS FILE NEEDS THIS BLOCK.
+    #
+    # Docker's default json-file driver has NO size limit, so a container's log
+    # grows until the disk is full -- and then Postgres cannot write, calls
+    # cannot be costed, and recordings cannot be saved. One unbounded log takes
+    # the platform down, and the symptom is "no space left on device" from
+    # whichever service happened to write next, never from the one at fault.
+    #
+    # For a long time only this service had the cap, which meant the database
+    # was the one thing that could not cause the outage and everything else
+    # could. 30MB a service is generous for debugging and bounded for a box.
     logging:
       driver: "json-file"
       options:
@@ -64,6 +75,12 @@ services:
       - app-network
 
   redis:
+    # Bounded, like every other service here -- see the note on postgres.
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     # Comes back on its own after a reboot or a daemon restart.
     #
     # Six of the nine services had no restart policy, so a box that rebooted —
@@ -92,6 +109,12 @@ services:
       - app-network
 
   minio:
+    # Bounded, like every other service here -- see the note on postgres.
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     # Comes back on its own after a reboot or a daemon restart.
     #
     # Six of the nine services had no restart policy, so a box that rebooted —
@@ -155,6 +178,12 @@ services:
       - /workspace/scripts/run_decibyl_init.sh
 
   nginx:
+    # Bounded, like every other service here -- see the note on postgres.
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     # Comes back on its own after a reboot or a daemon restart.
     #
     # Six of the nine services had no restart policy, so a box that rebooted —
@@ -194,6 +223,12 @@ services:
       - app-network
 
   coturn:
+    # Bounded, like every other service here -- see the note on postgres.
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     image: coturn/coturn:4.8.0
     container_name: coturn
     restart: unless-stopped
@@ -216,6 +251,12 @@ services:
       - app-network
 
   api:
+    # Bounded, like every other service here -- see the note on postgres.
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     # Comes back on its own after a reboot or a daemon restart.
     #
     # Six of the nine services had no restart policy, so a box that rebooted —
@@ -417,6 +458,12 @@ services:
   # model; check free memory on the box before enabling it, because the thing
   # it would starve is the call pipeline.
   embeddings:
+    # Bounded, like every other service here -- see the note on postgres.
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.5
     container_name: decibyl_embeddings
     profiles: ["embeddings"]
@@ -442,6 +489,12 @@ services:
       - app-network
 
   ui:
+    # Bounded, like every other service here -- see the note on postgres.
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     # Comes back on its own after a reboot or a daemon restart.
     #
     # Six of the nine services had no restart policy, so a box that rebooted —
@@ -498,6 +551,12 @@ services:
   #     *.trycloudflare.com URL the API discovers from the metrics endpoint
   #     (api/utils/tunnel.py). Convenient for local dev.
   cloudflared:
+    # Bounded, like every other service here -- see the note on postgres.
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     image: cloudflare/cloudflared:latest
     container_name: cloudflared-tunnel
     profiles: ["tunnel"]
