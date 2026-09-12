@@ -26,7 +26,7 @@ from api.services.pipecat.tracing_config import (
     unregister_org_langfuse_credentials,
 )
 from api.services.telephony import credential_encryption
-from api.services.workflow import organisation_memory
+from api.services.workflow import organisation_memory, outcomes
 from api.services.workflow.disposition_run import classify_call
 from api.services.workflow.dto import (
     QANodeData,
@@ -466,12 +466,40 @@ async def run_integrations_post_workflow_run(_ctx, workflow_run_id: int):
             )
 
         # Step 7: Build render context (includes annotations from QA and
-        # integrations) — shared by follow-up messages and webhooks alike.
+        # integrations) — shared by outcome actions, follow-up messages and
+        # webhooks alike.
+        render_context = _build_render_context(workflow_run, public_token)
+
+        # Step 7a: Outcome actions — file the booking, raise the record, send
+        # the link.
+        #
+        # Above the early return below rather than beside the webhooks, because
+        # that return fires when an agent has no webhook or message nodes, and
+        # an agent whose whole configuration is "write it to my sheet" has
+        # neither. Putting this after it would have made outcomes work only for
+        # agents that already had something else configured, which nobody would
+        # have reported as a bug -- they would have reported that it does not
+        # work.
+        gathered = workflow_run.gathered_context or {}
+        await outcomes.run_for_call(
+            organization_id=organization_id,
+            workflow_run_id=workflow_run_id,
+            workflow_id=workflow_run.workflow_id,
+            definition_id=workflow_run.definition_id,
+            # From the run's pinned definition row, not the `workflow_definition`
+            # local above it -- that name holds `workflow_json`, the graph, and
+            # the configurations are a sibling column on the same row.
+            configurations=workflow_run.definition.workflow_configurations,
+            disposition=(
+                gathered.get("mapped_call_disposition")
+                or gathered.get("call_disposition")
+            ),
+            render_context=render_context,
+        )
+
         if not webhook_nodes and not sms_nodes:
             logger.debug("No webhook or message nodes in workflow")
             return
-
-        render_context = _build_render_context(workflow_run, public_token)
 
         # Step 8: Send follow-up messages.
         #

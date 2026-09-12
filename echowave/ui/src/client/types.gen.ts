@@ -6725,6 +6725,51 @@ export type OrganizationPreferences = {
 export type OrganizationRole = 'member' | 'admin' | 'owner';
 
 /**
+ * OutcomeAction
+ *
+ * Something the agent does once the call is over.
+ *
+ * The other half of :class:`CallOutcome`. That one names what a call can turn
+ * out to be; this one says what should happen when it turns out that way --
+ * append the booking to the clinic's sheet, raise the CRM record, send the
+ * payment link.
+ *
+ * **After the call, not during, and that is the point.** The same action is
+ * already possible as a tool the agent calls mid-conversation, and for most
+ * of what a business wants it is the wrong shape: writing a row takes a
+ * second or more of a live line, and a caller listening to silence while we
+ * talk to Google is a worse experience than one whose booking is filed
+ * thirty seconds after they hang up. Nothing here is on the caller's clock,
+ * so nothing here needs a filler phrase, a timeout budget, or a decision from
+ * the model about whether it is worth the wait.
+ *
+ * Deterministic, too. A tool the agent *may* call is a tool it sometimes does
+ * not, and "always log the booking" cannot be built out of a model's
+ * judgement. This fires on the outcome code, or on every call.
+ */
+export type OutcomeAction = {
+    /**
+     * Tool Uuid
+     */
+    tool_uuid: string;
+    /**
+     * When
+     */
+    when?: Array<string>;
+    /**
+     * Arguments
+     */
+    arguments?: {
+        [key: string]: string;
+    };
+    /**
+     * Enabled
+     */
+    enabled?: boolean;
+    [key: string]: unknown;
+};
+
+/**
  * OutcomesResponse
  */
 export type OutcomesResponse = {
@@ -10474,6 +10519,10 @@ export type WorkflowConfigurationDefaults = {
      * Call Outcomes
      */
     call_outcomes?: Array<CallOutcome>;
+    /**
+     * Outcome Actions
+     */
+    outcome_actions?: Array<OutcomeAction>;
     /**
      * Follow Caller Language
      */
