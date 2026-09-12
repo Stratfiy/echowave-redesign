@@ -1,8 +1,9 @@
-"""Curation: which of Composio's 1,540 toolkits an operator is shown, and how.
+"""Curation: how Composio's 1,540 toolkits are ordered for an operator.
 
-The tests here are about the two claims the screen makes. That a row labelled
-one-click really can be connected in one click, and that a row we cannot offer
-at all is still honest about it rather than absent.
+Nothing offerable is dropped. The tests here are about the two claims the
+screen makes instead: that a row labelled one-click really can be connected in
+one click, and that the rows a business actually asks for are the ones it sees
+without scrolling.
 """
 
 import pytest
@@ -14,6 +15,7 @@ from api.services.integrations.composio.catalogue import (
     SETUP_NO_AUTH,
     SETUP_ONE_CLICK,
     curate,
+    search,
 )
 
 
@@ -74,13 +76,21 @@ class TestSetupClassification:
         assert rows[0].setup == SETUP_ONE_CLICK
 
 
-class TestWhatIsHidden:
-    def test_developer_tooling_never_reaches_a_clinic_owner(self):
-        """Composio's largest category is developer tools. A dental clinic is
-        not looking for Hugging Face, and the groups are an allowlist so it
-        simply never appears."""
-        rows = curate([_toolkit("hugging_face", categories=("developer tools",))])
-        assert rows == []
+class TestDeduplicationAndShape:
+    def test_developer_tooling_is_listed_but_last(self):
+        """It is not dropped -- an operator who wants GitHub should be able to
+        have GitHub. It just sits below everything a business asks for first,
+        and is reached by typing a name rather than by scrolling."""
+        rows = curate(
+            [
+                _toolkit(
+                    "hugging_face", name="Hugging Face", categories=("developer tools",)
+                ),
+                _toolkit("gmail", name="Gmail", categories=("email",)),
+            ]
+        )
+        assert [r.slug for r in rows] == ["gmail", "hugging_face"]
+        assert rows[1].group == "Developer"
 
     def test_the_mcp_flavour_of_an_app_is_not_a_second_row(self):
         """Composio ships `<app>_mcp` beside many toolkits. Two Box rows
@@ -101,17 +111,18 @@ class TestWhatIsHidden:
 
 
 class TestOrdering:
-    def test_one_click_apps_come_before_ones_needing_work(self):
-        """The screen is read top down. What can be turned on now belongs
-        above what cannot."""
+    def test_rows_of_every_setup_kind_sort_together_by_name(self):
+        """Setup kind deliberately does not sort. These three are alphabetical
+        whatever it takes to connect them -- see
+        TestPopularityOrder.test_setup_never_decides_the_order for why."""
         rows = curate(
             [
-                _toolkit("needs", name="Needs", auth_schemes=["OAUTH2"]),
-                _toolkit("keyed", name="Keyed", auth_schemes=["API_KEY"]),
-                _toolkit("easy", name="Easy", composio_managed_auth_schemes=["OAUTH2"]),
+                _toolkit("zed", name="Zed", composio_managed_auth_schemes=["OAUTH2"]),
+                _toolkit("mid", name="Mid", auth_schemes=["OAUTH2"]),
+                _toolkit("abe", name="Abe", auth_schemes=["API_KEY"]),
             ]
         )
-        assert [r.slug for r in rows] == ["easy", "keyed", "needs"]
+        assert [r.name for r in rows] == ["Abe", "Mid", "Zed"]
 
     def test_groups_are_ordered_by_what_a_business_asks_for(self):
         """Not alphabetically, and not by how many connectors are in each."""
@@ -151,8 +162,8 @@ class TestNothingUsefulIsDroppedSilently:
         assert rows[0].group == "Shop & shipping"
 
     def test_a_category_nobody_anticipated_becomes_Other_not_nothing(self):
-        """The point of the blocklist. A shelf we did not think of is worth
-        less than the right shelf and far more than silence."""
+        """A shelf we did not think of is worth less than the right shelf and
+        far more than silence."""
         rows = curate([_toolkit("weird", categories=("underwater basket weaving",))])
         assert rows and rows[0].group == "Other"
 
@@ -160,20 +171,20 @@ class TestNothingUsefulIsDroppedSilently:
         rows = curate([_toolkit("bare", categories=())])
         assert rows and rows[0].group == "Other"
 
-    def test_a_useful_app_filed_under_developer_tools_survives(self):
+    def test_a_useful_app_filed_under_developer_tools_lands_where_expected(self):
         """Google Maps is categorised 'developer tools' by Composio and is
-        perfectly useful to a business. A toolkit is dropped only when every
-        category it claims is hidden."""
+        perfectly useful to a business. The business shelves are tried before
+        the long-tail ones, so it lands where a business would look."""
         rows = curate(
             [_toolkit("google_maps", categories=("developer tools", "productivity"))]
         )
         assert rows and rows[0].group == "Work management"
 
-    def test_something_that_is_only_developer_tooling_is_still_dropped(self):
-        rows = curate(
-            [_toolkit("hugging_face", categories=("developer tools", "ai models"))]
-        )
-        assert rows == []
+    def test_nothing_offerable_is_dropped_for_its_category(self):
+        """There is no category that removes a connector any more. The only
+        reason not to list one is that we cannot connect it at all."""
+        for label in ("developer tools", "gaming", "ai models", "made up thing"):
+            assert curate([_toolkit("x", categories=(label,))]), label
 
     def test_other_sorts_last(self):
         rows = curate(
@@ -183,3 +194,102 @@ class TestNothingUsefulIsDroppedSilently:
             ]
         )
         assert [r.group for r in rows] == ["Email", "Other"]
+
+
+class TestPopularityOrder:
+    def test_the_names_people_ask_for_come_first(self):
+        """Alphabetical alone puts "2chat" and "AimTell" above WhatsApp, which
+        is a correct sort and a useless screen."""
+        rows = curate(
+            [
+                _toolkit("aimtell", name="AimTell", categories=("team chat",)),
+                _toolkit("2chat", name="2chat", categories=("team chat",)),
+                _toolkit("whatsapp", name="WhatsApp", categories=("team chat",)),
+                _toolkit("slack", name="Slack", categories=("team chat",)),
+            ]
+        )
+        assert [r.slug for r in rows][:2] == ["whatsapp", "slack"]
+
+    def test_everything_unranked_is_alphabetical(self):
+        rows = curate(
+            [
+                _toolkit("zeta", name="Zeta", categories=("team chat",)),
+                _toolkit("alpha", name="Alpha", categories=("team chat",)),
+                _toolkit("mid", name="Mid", categories=("team chat",)),
+            ]
+        )
+        assert [r.name for r in rows] == ["Alpha", "Mid", "Zeta"]
+
+    def test_setup_never_decides_the_order(self):
+        """Razorpay needs a pasted key and every Indian business uses it.
+        Sorting one-click first would bury it under an app nobody has heard
+        of; the setup kind is a badge on the row, not a ranking."""
+        rows = curate(
+            [
+                _toolkit(
+                    "obscure",
+                    name="Obscure",
+                    categories=("payment processing",),
+                    composio_managed_auth_schemes=["OAUTH2"],
+                ),
+                _toolkit(
+                    "razorpay",
+                    name="Razorpay",
+                    categories=("payment processing",),
+                    auth_schemes=["API_KEY"],
+                ),
+            ]
+        )
+        assert rows[0].slug == "razorpay"
+
+
+class TestSearch:
+    def _rows(self):
+        return curate(
+            [
+                _toolkit(
+                    "whatsapp",
+                    name="WhatsApp",
+                    categories=("team chat",),
+                    composio_managed_auth_schemes=["OAUTH2"],
+                ),
+                _toolkit("whatagraph", name="Whatagraph", categories=("analytics",)),
+                _toolkit("2chat", name="2chat", categories=("team chat",)),
+                _toolkit("klaviyo", name="Klaviyo", categories=("marketing",)),
+            ]
+        )
+
+    def test_a_name_that_starts_with_the_query_wins(self):
+        """Somebody typing "what" wants WhatsApp, not Whatagraph."""
+        found = search(self._rows(), "what")
+        assert found[0].slug == "whatsapp"
+
+    def test_a_description_match_ranks_below_a_name_match(self):
+        rows = [
+            *curate([_toolkit("klaviyo", name="Klaviyo", categories=("marketing",))]),
+            *curate([_toolkit("chatapp", name="Chatapp", categories=("team chat",))]),
+        ]
+        found = search(rows, "chat")
+        assert found[0].slug == "chatapp"
+
+    def test_the_slug_is_searchable_when_the_name_is_not(self):
+        """Google Sheets is "googlesheets" in every URL an operator has seen."""
+        rows = curate(
+            [
+                _toolkit(
+                    "googlesheets", name="Google Sheets", categories=("spreadsheets",)
+                )
+            ]
+        )
+        assert search(rows, "googlesheets")
+
+    def test_search_is_case_and_space_insensitive(self):
+        assert search(self._rows(), "  WHATSAPP ")[0].slug == "whatsapp"
+
+    def test_an_empty_query_returns_everything_untouched(self):
+        rows = self._rows()
+        assert search(rows, "") == rows
+        assert search(rows, "   ") == rows
+
+    def test_a_query_matching_nothing_returns_nothing(self):
+        assert search(self._rows(), "zzzznope") == []

@@ -136,36 +136,97 @@ GROUPS: list[tuple[str, set[str]]] = [
     ("Learning", {"education", "online courses"}),
     ("Events", {"event management"}),
     ("Devices", {"internet of things"}),
+    # Below here is the long tail. Still listed -- an operator who wants GitHub
+    # should be able to have GitHub -- but after everything a business asks for
+    # first, and reached mostly by typing a name into the search box rather
+    # than by scrolling.
+    ("Media", {"images & design", "video & audio", "news & lifestyle"}),
+    (
+        "AI",
+        {
+            "artificial intelligence",
+            "ai models",
+            "ai agents",
+            "ai chatbots",
+            "ai content generation",
+            "ai web scraping",
+            "ai document extraction",
+            "ai safety compliance detection",
+            "model context protocol",
+        },
+    ),
+    (
+        "Developer",
+        {
+            "developer tools",
+            "it operations",
+            "server monitoring",
+            "security & identity tools",
+            "app builder",
+            "website builders",
+            "website & app building",
+            "databases & storage",
+        },
+    ),
 ]
 
-#: Categories that belong to somebody else's product. A toolkit is dropped only
-#: when *every* category it claims is in here -- Google Maps is filed under
-#: "developer tools" and is perfectly useful to a business, so a toolkit that
-#: is also anything else survives and lands in its group, or in OTHER_GROUP.
+#: The names an Indian business actually asks for, in the order they get asked
+#: for. Editorial, not measured -- Composio publishes no popularity figure, and
+#: inventing one from `tools_count` would rank by size of API surface, which is
+#: not the same thing and would put Salesforce above WhatsApp.
 #:
-#: This is a blocklist because the allowlist it replaced failed silently. It
-#: had no entry for "commerce", so Starshipit, HitPay, Order Desk and Lightspeed
-#: were dropped and nothing said so -- and every category Composio adds after
-#: today would have been dropped the same way. A blocklist fails the other
-#: direction: the worst case is a row nobody wanted, which somebody notices.
-HIDDEN_CATEGORIES: set[str] = {
-    "developer tools",
-    "artificial intelligence",
-    "ai web scraping",
-    "ai content generation",
-    "ai models",
-    "ai agents",
-    "ai chatbots",
-    "ai safety compliance detection",
-    "model context protocol",
-    "server monitoring",
-    "it operations",
-    "security & identity tools",
-    "app builder",
-    "website & app building",
-    "website builders",
-    "gaming",
-}
+#: Everything not on this list sorts alphabetically inside its group, so the
+#: list only has to be right about the top, and being short is a feature: it is
+#: a claim about what a receptionist agent reaches for, and a hundred entries
+#: would be a claim about nothing.
+POPULAR: tuple[str, ...] = (
+    "whatsapp",
+    "gmail",
+    "googlesheets",
+    "googlecalendar",
+    "googledrive",
+    "googledocs",
+    "slack",
+    "razorpay",
+    "stripe",
+    "shopify",
+    "zoho_books",
+    "zoho_invoice",
+    "zoho_bigin",
+    "zoho_mail",
+    "zoho_desk",
+    "hubspot",
+    "salesforce",
+    "outlook",
+    "calendly",
+    "cal",
+    "airtable",
+    "notion",
+    "typeform",
+    "square",
+    "quickbooks",
+    "freshdesk",
+    "zendesk",
+    "intercom",
+    "shippo",
+    "mailchimp",
+    "microsoft_teams",
+    "zoom",
+    "googlemeet",
+    "excel",
+    "trello",
+    "asana",
+    "clickup",
+    "linear",
+    "jira",
+    "instagram",
+    "facebook",
+    "linkedin",
+    "youtube",
+)
+
+#: Rank for the sort. Anything unlisted sorts after every listed one.
+_POPULAR_RANK = {slug: index for index, slug in enumerate(POPULAR)}
 
 #: Where an offerable toolkit goes when it matches no group above. Last in the
 #: order, and deliberately not empty of meaning: "we can connect this and did
@@ -213,12 +274,14 @@ def _setup_kind(toolkit: dict[str, Any]) -> Optional[str]:
 
 
 def _group_for(categories: list[dict[str, Any]]) -> Optional[str]:
-    """Which shelf this goes on, or None if it is somebody else's product.
+    """Which shelf this goes on. Never None: nothing is dropped for its
+    category.
 
-    Order of the checks is the whole logic. A named group wins first, so an app
-    that is both "ecommerce" and "developer tools" is filed under Shop &
-    shipping rather than hidden. Only a toolkit whose every category is hidden
-    is dropped; anything left over is Other, never silently gone.
+    Order of the checks is the whole logic, because a toolkit claiming both
+    "ecommerce" and "developer tools" has to land on the shelf a business would
+    look under rather than the one a programmer would. GROUPS is ordered so the
+    business shelves are tried first and the long tail last, and anything
+    matching none of them is Other.
     """
     names = {
         str(c.get("name") or "").strip().lower()
@@ -233,8 +296,6 @@ def _group_for(categories: list[dict[str, Any]]) -> Optional[str]:
         if names & claimed:
             return group
 
-    if names <= HIDDEN_CATEGORIES:
-        return None
     return OTHER_GROUP
 
 
@@ -279,15 +340,20 @@ def curate(toolkits: list[dict[str, Any]]) -> list[Connector]:
             )
         )
 
+    # Popular first, then alphabetical. Not by setup: "one click" is a useful
+    # badge and a bad sort key, because it would bury Razorpay -- which every
+    # Indian business uses and which needs a pasted key -- under a one-click
+    # app nobody has heard of.
     order = {group: index for index, (group, _) in enumerate(GROUPS)}
     order[OTHER_GROUP] = len(GROUPS)
-    setup_order = {
-        SETUP_ONE_CLICK: 0,
-        SETUP_NO_AUTH: 1,
-        SETUP_API_KEY: 2,
-        SETUP_NEEDS_APPROVAL: 3,
-    }
-    out.sort(key=lambda c: (order[c.group], setup_order[c.setup], c.name.lower()))
+    unranked = len(POPULAR)
+    out.sort(
+        key=lambda c: (
+            order[c.group],
+            _POPULAR_RANK.get(c.slug, unranked),
+            c.name.lower(),
+        )
+    )
     return out
 
 
@@ -370,3 +436,37 @@ async def connectors(
             logger.debug("Could not write the Composio catalogue cache: {}", exc)
 
     return curated
+
+
+def search(rows: list[Connector], query: str) -> list[Connector]:
+    """Filter the catalogue by what somebody typed.
+
+    Three passes rather than one substring test, because the ranking is the
+    useful part. Somebody typing "what" wants WhatsApp at the top, not
+    Whatagraph; somebody typing "sheet" wants Google Sheets above an app whose
+    description happens to mention a sheet. So: name-prefix matches first, then
+    anything else in the name, then description matches, each keeping the
+    catalogue's own popular-first order within it.
+
+    An empty query returns the list untouched -- the caller should not have to
+    branch on whether a search box has anything in it.
+    """
+    needle = (query or "").strip().lower()
+    if not needle:
+        return rows
+
+    starts: list[Connector] = []
+    contains: list[Connector] = []
+    described: list[Connector] = []
+
+    for row in rows:
+        name = row.name.lower()
+        slug = row.slug.lower()
+        if name.startswith(needle) or slug.startswith(needle):
+            starts.append(row)
+        elif needle in name or needle in slug:
+            contains.append(row)
+        elif needle in row.description.lower():
+            described.append(row)
+
+    return starts + contains + described

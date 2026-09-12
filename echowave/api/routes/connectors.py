@@ -42,10 +42,16 @@ class ConnectorCatalogueResponse(BaseModel):
     available: bool
     groups: list[ConnectorGroupResponse]
     connected_count: int
+    total: int = 0
 
 
 @router.get("", response_model=ConnectorCatalogueResponse)
 async def list_connectors(
+    q: str = Query(
+        default="",
+        max_length=80,
+        description="Filter by name. Matches the app's name, slug or description.",
+    ),
     refresh: bool = Query(
         default=False,
         description="Bypass the cached catalogue and re-read it from Composio.",
@@ -66,6 +72,7 @@ async def list_connectors(
         return ConnectorCatalogueResponse(available=False, groups=[], connected_count=0)
 
     rows = await catalogue.connectors(refresh=refresh)
+    rows = catalogue.search(rows, q)
     # Best-effort: a catalogue we can show with every row marked unconnected is
     # far better than no screen, and the Connect flow re-checks anyway.
     connected = set(await connected_toolkits(organization_id))
@@ -97,4 +104,5 @@ async def list_connectors(
         available=True,
         groups=ordered,
         connected_count=len(connected),
+        total=len(rows),
     )

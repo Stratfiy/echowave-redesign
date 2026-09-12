@@ -2182,6 +2182,10 @@ export type ConnectorCatalogueResponse = {
      * Connected Count
      */
     connected_count: number;
+    /**
+     * Total
+     */
+    total?: number;
 };
 
 /**
@@ -21936,6 +21940,12 @@ export type ListConnectorsApiV1ConnectorsGetData = {
     };
     path?: never;
     query?: {
+        /**
+         * Q
+         *
+         * Filter by name. Matches the app's name, slug or description.
+         */
+        q?: string;
         /**
          * Refresh
          *
