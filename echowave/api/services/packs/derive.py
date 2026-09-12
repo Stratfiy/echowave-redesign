@@ -220,8 +220,16 @@ def _voice_steps(pack: AgentPack) -> list[dict[str, Any]]:
         {
             "key": STEP_INTERVIEW,
             "title": "Interview it",
-            "detail": "Ring the demo number and talk to it before you set anything up.",
+            # Phrased against whichever ways exist, because telling somebody
+            # to ring a number we do not have is worse than offering the link
+            # we do.
+            "detail": (
+                "Talk to it before you set anything up."
+                if pack.demo_url and not pack.demo_number
+                else "Ring it, or talk to it in the browser, before you set anything up."
+            ),
             "demo_number": pack.demo_number,
+            "demo_url": pack.demo_url,
             "blocking": False,
         }
     ]
@@ -413,6 +421,7 @@ def card(pack: AgentPack) -> dict[str, Any]:
         "industries": list(pack.industries),
         "languages": list(pack.languages),
         "demo_number": pack.demo_number,
+        "demo_url": pack.demo_url,
         "pricing": pricing(pack),
         "flow": flow(pack),
         "listed": pack.listed,

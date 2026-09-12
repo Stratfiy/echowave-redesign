@@ -20,6 +20,9 @@ from api.services.packs.catalogue import (
     get_pack,
     jobs,
     listed_packs,
+    resolve_listed_packs,
+    resolve_pack,
+    resolve_packs,
 )
 from api.services.packs.derive import (
     FLOW_STANDARD,
@@ -62,4 +65,7 @@ __all__ = [
     "jobs",
     "listed_packs",
     "pricing",
+    "resolve_listed_packs",
+    "resolve_pack",
+    "resolve_packs",
 ]

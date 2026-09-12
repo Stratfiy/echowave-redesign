@@ -3602,6 +3602,16 @@ export type DefaultConfigurationsResponse = {
 };
 
 /**
+ * DemoAgentRequest
+ */
+export type DemoAgentRequest = {
+    /**
+     * Demo
+     */
+    demo: boolean;
+};
+
+/**
  * DisplayOptions
  *
  * Conditional visibility rules.
@@ -5088,6 +5098,10 @@ export type HireStep = {
      * Demo Number
      */
     demo_number?: string | null;
+    /**
+     * Demo Url
+     */
+    demo_url?: string | null;
     /**
      * Facts
      */
@@ -7362,6 +7376,10 @@ export type PackCard = {
      * Demo Number
      */
     demo_number: string | null;
+    /**
+     * Demo Url
+     */
+    demo_url: string | null;
     pricing: PackPricing;
     /**
      * Flow
@@ -12823,6 +12841,97 @@ export type SetSharedOutboundApiV1AdminTelephonyPhoneNumbersPhoneNumberIdSharedO
 };
 
 export type SetSharedOutboundApiV1AdminTelephonyPhoneNumbersPhoneNumberIdSharedOutboundPostResponse = SetSharedOutboundApiV1AdminTelephonyPhoneNumbersPhoneNumberIdSharedOutboundPostResponses[keyof SetSharedOutboundApiV1AdminTelephonyPhoneNumbersPhoneNumberIdSharedOutboundPostResponses];
+
+export type ReadDemoAgentApiV1AdminTelephonyDemoAgentGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/telephony/demo-agent';
+};
+
+export type ReadDemoAgentApiV1AdminTelephonyDemoAgentGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadDemoAgentApiV1AdminTelephonyDemoAgentGetError = ReadDemoAgentApiV1AdminTelephonyDemoAgentGetErrors[keyof ReadDemoAgentApiV1AdminTelephonyDemoAgentGetErrors];
+
+export type ReadDemoAgentApiV1AdminTelephonyDemoAgentGetResponses = {
+    /**
+     * Response Read Demo Agent Api V1 Admin Telephony Demo Agent Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ReadDemoAgentApiV1AdminTelephonyDemoAgentGetResponse = ReadDemoAgentApiV1AdminTelephonyDemoAgentGetResponses[keyof ReadDemoAgentApiV1AdminTelephonyDemoAgentGetResponses];
+
+export type SetDemoAgentApiV1AdminTelephonyAgentsWorkflowIdDemoPostData = {
+    body: DemoAgentRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/telephony/agents/{workflow_id}/demo';
+};
+
+export type SetDemoAgentApiV1AdminTelephonyAgentsWorkflowIdDemoPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetDemoAgentApiV1AdminTelephonyAgentsWorkflowIdDemoPostError = SetDemoAgentApiV1AdminTelephonyAgentsWorkflowIdDemoPostErrors[keyof SetDemoAgentApiV1AdminTelephonyAgentsWorkflowIdDemoPostErrors];
+
+export type SetDemoAgentApiV1AdminTelephonyAgentsWorkflowIdDemoPostResponses = {
+    /**
+     * Response Set Demo Agent Api V1 Admin Telephony Agents  Workflow Id  Demo Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetDemoAgentApiV1AdminTelephonyAgentsWorkflowIdDemoPostResponse = SetDemoAgentApiV1AdminTelephonyAgentsWorkflowIdDemoPostResponses[keyof SetDemoAgentApiV1AdminTelephonyAgentsWorkflowIdDemoPostResponses];
 
 export type ImpersonateApiV1SuperuserImpersonatePostData = {
     body: ImpersonateRequest;

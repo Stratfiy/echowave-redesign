@@ -6,8 +6,16 @@ from sqlalchemy import func, or_, update
 from sqlalchemy.future import select
 from sqlalchemy.orm import load_only, selectinload
 
+from api.constants import PUBLIC_BASE_URL
 from api.db.base_client import BaseDBClient
-from api.db.models import WorkflowDefinitionModel, WorkflowModel, WorkflowRunModel
+from api.db.models import (
+    EmbedTokenModel,
+    TelephonyPhoneNumberModel,
+    WorkflowDefinitionModel,
+    WorkflowModel,
+    WorkflowRunModel,
+)
+from api.enums import WorkflowStatus
 from api.schemas.workflow_configurations import new_agent_workflow_configurations
 
 
@@ -1001,3 +1009,113 @@ class WorkflowClient(BaseDBClient):
                 .scalars()
                 .first()
             )
+
+    async def demo_contact(self) -> dict[str, Optional[str]]:
+        """How a prospect can reach the agent we publish as the demo.
+
+        Two ways, both derived from one flag on the agent. The share link needs
+        no telephony at all and its text chat works on a locked-down network
+        where WebRTC never connects; a number pointed at the same agent is
+        stronger proof for a product whose pitch is that it answers your phone.
+        Either one is enough to list a role -- requiring the number would gate
+        the whole shelf on a telephony purchase.
+
+        Unscoped by organization on purpose: the demo agent is ours, and which
+        organization we happen to have parked it in is an implementation detail
+        of where we built it. Staff-only to set, at the route.
+        """
+        async with self.async_session() as session:
+            workflow = (
+                (
+                    await session.execute(
+                        select(WorkflowModel)
+                        .where(
+                            WorkflowModel.is_demo.is_(True),
+                            WorkflowModel.status == WorkflowStatus.ACTIVE.value,
+                            # A paused demo agent answers nothing. Publishing its
+                            # link would teach every prospect that the demo is
+                            # broken, which is worse than showing no demo.
+                            WorkflowModel.is_live.is_(True),
+                        )
+                        .order_by(WorkflowModel.id)
+                        .limit(1)
+                    )
+                )
+                .scalars()
+                .first()
+            )
+
+            if workflow is None:
+                return {"workflow_id": None, "url": None, "number": None}
+
+            token = (
+                (
+                    await session.execute(
+                        select(EmbedTokenModel.token)
+                        .where(EmbedTokenModel.workflow_id == workflow.id)
+                        .order_by(EmbedTokenModel.id.desc())
+                        .limit(1)
+                    )
+                )
+                .scalars()
+                .first()
+            )
+
+            number = (
+                (
+                    await session.execute(
+                        select(TelephonyPhoneNumberModel.address)
+                        .where(
+                            TelephonyPhoneNumberModel.inbound_workflow_id
+                            == workflow.id,
+                            TelephonyPhoneNumberModel.is_active.is_(True),
+                            TelephonyPhoneNumberModel.status == "active",
+                        )
+                        .order_by(TelephonyPhoneNumberModel.id)
+                        .limit(1)
+                    )
+                )
+                .scalars()
+                .first()
+            )
+
+        # A token with no public origin configured cannot be turned into a
+        # link. Returning None rather than a relative path: half a URL on a
+        # card is a broken link, and a broken demo link is worse than none.
+        url = (
+            f"{PUBLIC_BASE_URL.rstrip('/')}/talk/{token}"
+            if token and PUBLIC_BASE_URL
+            else None
+        )
+        return {
+            "workflow_id": str(workflow.id),
+            "url": url,
+            "number": number,
+        }
+
+    async def set_demo_agent(self, workflow_id: int, *, demo: bool = True):
+        """Make one agent the one prospects hear, or stop.
+
+        Clears the flag from every other agent when setting it. One demo at a
+        time, enforced here rather than left to whoever clicks: two agents
+        marked would make which one a prospect hears depend on an id ordering,
+        and a demo that changes depending on row order is not a demo anybody
+        can rehearse a pitch against.
+        """
+        async with self.async_session() as session:
+            row = await session.get(WorkflowModel, workflow_id)
+            if row is None:
+                return None
+            if demo:
+                await session.execute(
+                    update(WorkflowModel)
+                    .where(
+                        WorkflowModel.is_demo.is_(True),
+                        WorkflowModel.id != workflow_id,
+                    )
+                    .values(is_demo=False)
+                )
+            row.is_demo = demo
+            await session.commit()
+            await session.refresh(row)
+            return row

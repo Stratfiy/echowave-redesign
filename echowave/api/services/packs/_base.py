@@ -185,11 +185,19 @@ class AgentPack(BaseModel):
     #: with neither, one, or both.
     after_call_apps: list[RequiredConnector] = Field(default_factory=list)
 
-    #: A number a prospect can ring to hear this agent before hiring it.
-    #: Mandatory for anything that makes or takes calls: a voice agent sold on
-    #: a screenshot is sold on a promise, and the demo is the highest-
-    #: converting screen in the product.
+    #: How a prospect hears this agent before hiring it. **One of these is
+    #: mandatory for anything that makes or takes calls** -- a voice agent sold
+    #: on a screenshot is sold on a promise, and the demo is the
+    #: highest-converting screen in the product.
+    #:
+    #: Either will do, and requiring the number specifically would gate the
+    #: whole shelf on a telephony purchase. The link costs nothing per demo,
+    #: works from the card, reaches a prospect abroad, and its text chat still
+    #: works on a network where WebRTC will not connect. The number is
+    #: stronger proof for a product whose pitch is that it answers your phone,
+    #: so where both exist a card can offer both.
     demo_number: Optional[str] = None
+    demo_url: Optional[str] = None
 
     #: What the publisher charges on top of our seat or platform fee, in paise.
     #: Zero for ours. Theirs to set, like a listing on any marketplace.
@@ -252,10 +260,11 @@ class AgentPack(BaseModel):
                 f"{self.template_id!r} is inbound only"
             )
 
-        if calls and self.listed and not self.demo_number:
+        if calls and self.listed and not (self.demo_number or self.demo_url):
             raise ValueError(
-                f"pack {self.slug!r} makes or takes calls and must carry a "
-                "demo number before it can be listed"
+                f"pack {self.slug!r} makes or takes calls and needs a way to "
+                "be heard before it can be listed: a demo number, a share "
+                "link, or both"
             )
 
         if self.creator_price_paise < 0:

@@ -51,13 +51,13 @@ from api.services.integrations.composio.client import (
 from api.services.integrations.composio.client import (
     toolkit_name as composio_toolkit_name,
 )
-from api.services.packs import badges, pricing
+from api.services.packs import badges, pricing, resolve_listed_packs
 from api.services.packs.search import search_packs
 from api.services.workflow.dto import ReactFlowDTO
 from api.services.workflow.workflow_graph import WorkflowGraph
 
 
-def _suggest_roles(query: str | None) -> dict[str, Any]:
+async def _suggest_roles(query: str | None) -> dict[str, Any]:
     """Roles from the shelf that match what the user described.
 
     Hiring is offered before building, deliberately. A listed role carries a
@@ -70,7 +70,7 @@ def _suggest_roles(query: str | None) -> dict[str, Any]:
     received `[]` would conclude we have nothing to offer and start building --
     which is the wrong answer to a configuration problem.
     """
-    roles = search_packs(query or "")
+    roles = search_packs(query or "", packs=await resolve_listed_packs())
     if not roles:
         return {
             "roles": [],
@@ -356,7 +356,7 @@ async def dispatch(
     """
     try:
         if name == "suggest_roles":
-            return _suggest_roles(arguments.get("query"))
+            return await _suggest_roles(arguments.get("query"))
         if name == "list_agent_templates":
             return _list_templates(arguments.get("query"))
         if name == "get_agent_template":

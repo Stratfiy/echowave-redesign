@@ -6,12 +6,13 @@ chat, exactly like a role we do not have.
 """
 
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from api.routes.packs import pack_detail, shelf
 from api.services.agent_builder.tools import _suggest_roles, tool_schemas
-from api.services.packs import catalogue
+from api.services.packs import catalogue, hire_steps
 from api.services.packs.search import filter_packs, search_packs
 
 SHELF = catalogue._packs("+911234567890")
@@ -74,7 +75,9 @@ class TestFilters:
 class TestTheShelfEndpoint:
     @pytest.mark.asyncio
     async def test_search_and_filters_narrow_together(self, monkeypatch):
-        monkeypatch.setattr("api.routes.packs.search_packs", lambda q: SHELF)
+        monkeypatch.setattr(
+            "api.routes.packs.resolve_listed_packs", AsyncMock(return_value=SHELF)
+        )
         response = await shelf(
             q="phone",
             job=None,
@@ -87,7 +90,9 @@ class TestTheShelfEndpoint:
 
     @pytest.mark.asyncio
     async def test_a_card_carries_the_computed_price_not_a_typed_one(self, monkeypatch):
-        monkeypatch.setattr("api.routes.packs.search_packs", lambda q: SHELF)
+        monkeypatch.setattr(
+            "api.routes.packs.resolve_listed_packs", AsyncMock(return_value=SHELF)
+        )
         response = await shelf(
             q=None,
             job=None,
@@ -108,7 +113,9 @@ class TestTheShelfEndpoint:
         saying "you may not see this" leaks that it exists."""
         from fastapi import HTTPException
 
-        monkeypatch.setattr("api.routes.packs.get_pack", lambda slug: None)
+        monkeypatch.setattr(
+            "api.routes.packs.resolve_pack", AsyncMock(return_value=None)
+        )
         with pytest.raises(HTTPException) as raised:
             await pack_detail(slug="front_desk_clinic", user=_user())
         assert raised.value.status_code == 404
@@ -116,8 +123,10 @@ class TestTheShelfEndpoint:
     @pytest.mark.asyncio
     async def test_detail_carries_the_steps_and_the_compliance_notes(self, monkeypatch):
         monkeypatch.setattr(
-            "api.routes.packs.get_pack",
-            lambda slug: next(p for p in SHELF if p.slug == slug),
+            "api.routes.packs.resolve_pack",
+            AsyncMock(
+                return_value=next(p for p in SHELF if p.slug == "front_desk_clinic")
+            ),
         )
         detail = await pack_detail(slug="front_desk_clinic", user=_user())
         assert [step.key for step in detail.steps][0] == "interview"
@@ -133,11 +142,13 @@ class TestTheChatOffersHiringFirst:
         assert names[0] == "suggest_roles"
         assert names.index("suggest_roles") < names.index("list_agent_templates")
 
-    def test_it_answers_with_roles_the_model_can_read_out(self, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_it_answers_with_roles_the_model_can_read_out(self, monkeypatch):
         monkeypatch.setattr(
-            "api.services.agent_builder.tools.search_packs", lambda q: SHELF
+            "api.services.agent_builder.tools.resolve_listed_packs",
+            AsyncMock(return_value=SHELF),
         )
-        result = _suggest_roles("dental clinic in hosur")
+        result = await _suggest_roles("dental clinic in hosur")
         assert result["roles"]
         first = result["roles"][0]
         assert first["does"]
@@ -145,21 +156,128 @@ class TestTheChatOffersHiringFirst:
         assert first["priced_as"] == "a hire, per agent"
         assert first["needs_connected"]
 
-    def test_at_most_four_roles_so_the_reply_stays_readable(self, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_at_most_four_roles_so_the_reply_stays_readable(self, monkeypatch):
         monkeypatch.setattr(
-            "api.services.agent_builder.tools.search_packs", lambda q: SHELF
+            "api.services.agent_builder.tools.resolve_listed_packs",
+            AsyncMock(return_value=SHELF),
         )
-        assert len(_suggest_roles("")["roles"]) <= 4
+        assert len((await _suggest_roles(""))["roles"]) <= 4
 
-    def test_an_empty_shelf_is_reported_as_empty_not_as_nothing_to_offer(
+    @pytest.mark.asyncio
+    async def test_an_empty_shelf_is_reported_as_empty_not_as_nothing_to_offer(
         self, monkeypatch
     ):
-        """With no demo number configured every calling role is unlisted. A
-        model handed a bare `[]` concludes we have nothing and starts building,
-        which is the wrong answer to a configuration problem."""
+        """With no demo line marked every calling role is unlisted. A model
+        handed a bare `[]` concludes we have nothing and starts building, which
+        is the wrong answer to a configuration problem."""
         monkeypatch.setattr(
-            "api.services.agent_builder.tools.search_packs", lambda q: ()
+            "api.services.agent_builder.tools.resolve_listed_packs",
+            AsyncMock(return_value=()),
         )
-        result = _suggest_roles("clinic")
+        result = await _suggest_roles("clinic")
         assert result["roles"] == []
         assert "note" in result and result["note"]
+
+
+class TestHowAProspectHearsIt:
+    """Marking one agent as the demo is what takes the shelf from empty to
+    listed, and it must take effect without a redeploy.
+
+    A share link or a number will do. Requiring the number specifically would
+    gate the whole shelf on a telephony purchase, which is the wrong thing for
+    a listing to depend on.
+    """
+
+    def _contact(self, url=None, number=None):
+        return {"workflow_id": "1", "url": url, "number": number}
+
+    @pytest.mark.asyncio
+    async def test_a_share_link_alone_lists_every_calling_role(self):
+        """The link costs nothing per demo, works from the card, reaches a
+        prospect abroad, and its text chat still works on a network where
+        WebRTC will not connect."""
+        with patch(
+            "api.services.packs.catalogue.db_client.demo_contact",
+            AsyncMock(return_value=self._contact(url="https://app/talk/abc")),
+        ):
+            shelf_packs = await catalogue.resolve_listed_packs()
+        assert shelf_packs
+        assert all(pack.demo_url == "https://app/talk/abc" for pack in shelf_packs)
+        assert all(pack.demo_number is None for pack in shelf_packs)
+
+    @pytest.mark.asyncio
+    async def test_a_number_alone_also_lists_them(self):
+        with patch(
+            "api.services.packs.catalogue.db_client.demo_contact",
+            AsyncMock(return_value=self._contact(number="+911234567890")),
+        ):
+            shelf_packs = await catalogue.resolve_listed_packs()
+        assert shelf_packs
+        assert all(pack.demo_number == "+911234567890" for pack in shelf_packs)
+
+    @pytest.mark.asyncio
+    async def test_both_are_offered_when_both_exist(self):
+        """The number is stronger proof for a product whose pitch is that it
+        answers your phone, so a card should be able to offer both."""
+        with patch(
+            "api.services.packs.catalogue.db_client.demo_contact",
+            AsyncMock(
+                return_value=self._contact(
+                    url="https://app/talk/abc", number="+911234567890"
+                )
+            ),
+        ):
+            pack = (await catalogue.resolve_listed_packs())[0]
+        assert pack.demo_url and pack.demo_number
+        step = next(s for s in hire_steps(pack) if s["key"] == "interview")
+        assert step["demo_url"] and step["demo_number"]
+
+    @pytest.mark.asyncio
+    async def test_the_interview_step_never_tells_them_to_ring_a_number_we_lack(self):
+        with patch(
+            "api.services.packs.catalogue.db_client.demo_contact",
+            AsyncMock(return_value=self._contact(url="https://app/talk/abc")),
+        ):
+            pack = (await catalogue.resolve_listed_packs())[0]
+        step = next(s for s in hire_steps(pack) if s["key"] == "interview")
+        assert "Ring" not in step["detail"]
+
+    @pytest.mark.asyncio
+    async def test_no_demo_agent_leaves_the_shelf_empty(self):
+        """An empty shelf is a missing configuration somebody notices; a shelf
+        full of dead demo links is one nobody reports."""
+        with patch(
+            "api.services.packs.catalogue.db_client.demo_contact",
+            AsyncMock(return_value=self._contact()),
+        ):
+            assert await catalogue.resolve_listed_packs() == ()
+
+    @pytest.mark.asyncio
+    async def test_a_database_that_will_not_answer_falls_back_rather_than_failing(
+        self,
+    ):
+        """Worst case the calling roles stay unlisted, which is the same state
+        as having marked no demo agent. A shelf that 500s teaches nobody
+        anything."""
+        with patch(
+            "api.services.packs.catalogue.db_client.demo_contact",
+            AsyncMock(side_effect=RuntimeError("database on fire")),
+        ):
+            assert await catalogue.resolve_listed_packs() == ()
+
+    @pytest.mark.asyncio
+    async def test_it_is_not_cached_so_marking_one_takes_effect_immediately(self):
+        """Caching it would mean somebody marking a demo agent and then
+        wondering why the shelf is still empty -- the exact confusion an
+        environment variable caused."""
+        with patch(
+            "api.services.packs.catalogue.db_client.demo_contact",
+            AsyncMock(return_value=self._contact()),
+        ):
+            assert await catalogue.resolve_listed_packs() == ()
+        with patch(
+            "api.services.packs.catalogue.db_client.demo_contact",
+            AsyncMock(return_value=self._contact(url="https://app/talk/xyz")),
+        ):
+            assert len(await catalogue.resolve_listed_packs()) == len(SHELF)

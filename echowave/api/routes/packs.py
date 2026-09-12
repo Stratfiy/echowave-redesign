@@ -25,10 +25,11 @@ from api.services.packs import (
     blank_flow,
     card,
     flow,
-    get_pack,
     hire_steps,
     jobs,
-    listed_packs,
+    resolve_listed_packs,
+    resolve_pack,
+    resolve_packs,
 )
 from api.services.packs.search import filter_packs, search_packs
 
@@ -67,6 +68,10 @@ class PackCard(BaseModel):
     industries: list[str]
     languages: list[str]
     demo_number: Optional[str]
+    #: The share link. Either this or a number is enough to list a calling
+    #: role -- requiring the number would gate the shelf on a telephony
+    #: purchase.
+    demo_url: Optional[str]
     pricing: PackPricing
     #: "voice" | "standard" -- which hiring flow this role uses.
     flow: str
@@ -86,6 +91,7 @@ class HireStep(BaseModel):
     #: True when going live is blocked until this step is done.
     blocking: bool
     demo_number: Optional[str] = None
+    demo_url: Optional[str] = None
     facts: list[dict[str, Any]] = []
     connectors: list[dict[str, Any]] = []
     #: Names where the choices come from rather than carrying them, so a
@@ -123,7 +129,8 @@ async def shelf(
     industry=Clinics behaves the way somebody typing both expects rather than
     intersecting two independent lists.
     """
-    found = search_packs(q or "")
+    shelf = await resolve_listed_packs()
+    found = search_packs(q or "", packs=shelf)
     narrowed = filter_packs(
         job=job,
         industry=industry,
@@ -132,7 +139,7 @@ async def shelf(
         packs=found,
     )
     return ShelfResponse(
-        jobs=list(jobs()),
+        jobs=list(jobs(shelf)),
         packs=[PackCard(**card(pack)) for pack in narrowed],
     )
 
@@ -143,7 +150,7 @@ async def pack_detail(
     user: UserModel = Depends(get_user),
 ) -> PackDetail:
     """One role in full, with the steps hiring it will walk through."""
-    pack = get_pack(slug)
+    pack = await resolve_pack(slug)
     # An unlisted pack is one still being written or awaiting review. It is not
     # a 403: from outside, a role that is not on the shelf does not exist.
     if pack is None or not pack.listed:
@@ -167,10 +174,8 @@ async def unlisted(user: UserModel = Depends(get_user)) -> ShelfResponse:
     number configured every calling role is unlisted, and a screen showing an
     empty shelf should be able to say *why* rather than looking broken.
     """
-    from api.services.packs import all_packs
-
-    listed = {pack.slug for pack in listed_packs()}
-    hidden = [pack for pack in all_packs() if pack.slug not in listed]
+    shelf = await resolve_packs()
+    hidden = [pack for pack in shelf if not pack.listed]
     return ShelfResponse(jobs=[], packs=[PackCard(**card(pack)) for pack in hidden])
 
 

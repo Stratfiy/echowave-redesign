@@ -866,6 +866,19 @@ class WorkflowModel(Base):
         default=True,
         server_default=text("true"),
     )
+    #: This is the agent a prospect hears when they want to try a published
+    #: role before hiring it.
+    #:
+    #: On the agent rather than on a phone number, because the agent is the
+    #: thing being demonstrated and there are two ways to reach it: the share
+    #: link, which needs no telephony at all and whose text chat works on a
+    #: locked-down network where WebRTC never connects, and a phone number
+    #: pointed at it, which is stronger proof for a product whose pitch is
+    #: that it answers your phone. One flag, both derived -- a number is nice
+    #: to have, not the thing that gates a listing.
+    is_demo = Column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     workflow_definition = Column(JSON, nullable=False, default=dict)
     template_context_variables = Column(JSON, nullable=False, default=dict)
     call_disposition_codes = Column(JSON, nullable=False, default=dict)

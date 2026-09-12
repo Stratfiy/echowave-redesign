@@ -9,9 +9,19 @@ stack and the compliance notes, and adds the three things hiring needs: what
 the agent has to know about the business, what it needs connected, and where it
 works. The card, the price and the setup steps are computed from those.
 
-Every calling pack is unlisted until ``PACK_DEMO_NUMBER`` is configured. That
-is the rule doing its job rather than a gap: a voice agent on a card with no
-number to ring is a promise, and the demo call is the thing that sells it.
+Every calling pack is unlisted until a demo line exists. That is the rule doing
+its job rather than a gap: a voice agent on a card with no number to ring is a
+promise, and the demo call is the thing that sells it.
+
+How a prospect reaches it comes from the database -- one agent marked
+``is_demo`` -- rather than from configuration, so changing which agent
+demonstrates the product needs no redeploy. Two ways are derived from that one
+flag: its share link, which needs no telephony at all, and a number pointed at
+it, which is stronger proof for a product whose pitch is that it answers your
+phone. Either is enough to list a role; requiring the number would gate the
+whole shelf on a telephony purchase. ``PACK_DEMO_NUMBER`` remains as a fallback
+for a deployment with no demo agent, and for synchronous callers that cannot
+await a query.
 """
 
 from __future__ import annotations
@@ -19,7 +29,10 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Iterable, Optional
 
+from loguru import logger
+
 from api.constants import PACK_DEMO_NUMBER
+from api.db import db_client
 from api.services.packs._base import (
     AgentPack,
     Channel,
@@ -78,14 +91,16 @@ _GOOGLE_CALENDAR = RequiredConnector(
 )
 
 
-def _packs(demo_number: Optional[str]) -> tuple[AgentPack, ...]:
-    """Build the catalogue against a demo number.
+def _packs(
+    demo_number: Optional[str], demo_url: Optional[str] = None
+) -> tuple[AgentPack, ...]:
+    """Build the catalogue against whatever ways a prospect can hear the demo.
 
-    Takes the number as an argument rather than reading the constant directly
-    so the rule is testable: the same catalogue with and without a number must
-    produce a listed and an unlisted shelf.
+    Takes them as arguments rather than reading configuration directly so the
+    rule is testable: the same catalogue with and without a way to be heard
+    must produce a listed and an unlisted shelf.
     """
-    listed = bool(demo_number)
+    listed = bool(demo_number or demo_url)
 
     return (
         AgentPack(
@@ -120,6 +135,7 @@ def _packs(demo_number: Optional[str]) -> tuple[AgentPack, ...]:
             required_connectors=[_GOOGLE_CALENDAR],
             after_call_apps=[_WHATSAPP_CONFIRMATION],
             demo_number=demo_number,
+            demo_url=demo_url,
             listed=listed,
         ),
         AgentPack(
@@ -158,6 +174,7 @@ def _packs(demo_number: Optional[str]) -> tuple[AgentPack, ...]:
             ],
             after_call_apps=[_WHATSAPP_CONFIRMATION],
             demo_number=demo_number,
+            demo_url=demo_url,
             listed=listed,
         ),
         AgentPack(
@@ -182,6 +199,7 @@ def _packs(demo_number: Optional[str]) -> tuple[AgentPack, ...]:
             ],
             after_call_apps=[_WHATSAPP_CONFIRMATION],
             demo_number=demo_number,
+            demo_url=demo_url,
             listed=listed,
         ),
         AgentPack(
@@ -207,6 +225,7 @@ def _packs(demo_number: Optional[str]) -> tuple[AgentPack, ...]:
             ],
             after_call_apps=[_WHATSAPP_CONFIRMATION],
             demo_number=demo_number,
+            demo_url=demo_url,
             listed=listed,
         ),
         AgentPack(
@@ -239,6 +258,7 @@ def _packs(demo_number: Optional[str]) -> tuple[AgentPack, ...]:
             ],
             after_call_apps=[_WHATSAPP_CONFIRMATION],
             demo_number=demo_number,
+            demo_url=demo_url,
             listed=listed,
         ),
         AgentPack(
@@ -266,6 +286,7 @@ def _packs(demo_number: Optional[str]) -> tuple[AgentPack, ...]:
             ],
             after_call_apps=[_WHATSAPP_CONFIRMATION],
             demo_number=demo_number,
+            demo_url=demo_url,
             listed=listed,
         ),
     )
@@ -273,7 +294,47 @@ def _packs(demo_number: Optional[str]) -> tuple[AgentPack, ...]:
 
 @lru_cache(maxsize=1)
 def _cached() -> tuple[AgentPack, ...]:
+    """The shelf as configuration alone describes it.
+
+    Cached because it is pure. Callers that can await a query should prefer
+    :func:`resolve_packs`, which asks the database which number is the demo
+    line; this is the answer for synchronous callers and for a deployment that
+    has not marked one.
+    """
     return _packs(PACK_DEMO_NUMBER)
+
+
+async def resolve_packs() -> tuple[AgentPack, ...]:
+    """Every pack, with the demo line read from the telephony admin.
+
+    Not cached. The query is one indexed boolean lookup, and caching it would
+    mean somebody marking a demo line in the admin and then wondering why the
+    shelf is still empty -- which is exactly the confusion the env var caused.
+    """
+    contact: dict[str, Optional[str]] = {}
+    try:
+        contact = await db_client.demo_contact()
+    except Exception as error:  # noqa: BLE001
+        # A shelf that cannot read the demo agent falls back to configuration
+        # rather than failing. Worst case the calling roles stay unlisted,
+        # which is the same state as having marked no demo agent.
+        logger.warning("Could not read the demo agent: {}", error)
+    return _packs(
+        contact.get("number") or PACK_DEMO_NUMBER,
+        contact.get("url"),
+    )
+
+
+async def resolve_listed_packs() -> tuple[AgentPack, ...]:
+    """The shelf a customer browses, with the live demo line."""
+    return tuple(pack for pack in await resolve_packs() if pack.listed)
+
+
+async def resolve_pack(slug: str) -> Optional[AgentPack]:
+    for pack in await resolve_packs():
+        if pack.slug == slug:
+            return pack
+    return None
 
 
 def all_packs() -> tuple[AgentPack, ...]:
@@ -282,7 +343,7 @@ def all_packs() -> tuple[AgentPack, ...]:
 
 
 def listed_packs() -> tuple[AgentPack, ...]:
-    """The shelf a customer browses."""
+    """The shelf a customer browses, as configuration describes it."""
     return tuple(pack for pack in _cached() if pack.listed)
 
 
