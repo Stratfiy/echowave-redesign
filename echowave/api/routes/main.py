@@ -30,6 +30,7 @@ from api.routes.notifications import router as notifications_router
 from api.routes.organization import router as organization_router
 from api.routes.organization_members import router as organization_members_router
 from api.routes.organization_usage import router as organization_usage_router
+from api.routes.packs import router as packs_router
 from api.routes.partner_admin import router as partner_admin_router
 from api.routes.partners import router as partners_router
 from api.routes.payments import router as payments_router
@@ -93,6 +94,7 @@ router.include_router(user_router)
 router.include_router(campaign_router)
 router.include_router(credentials_router)
 router.include_router(connectors_router)
+router.include_router(packs_router)
 router.include_router(team_router)
 router.include_router(workflow_outcomes_router)
 router.include_router(tool_router)

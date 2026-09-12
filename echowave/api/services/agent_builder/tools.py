@@ -51,8 +51,68 @@ from api.services.integrations.composio.client import (
 from api.services.integrations.composio.client import (
     toolkit_name as composio_toolkit_name,
 )
+from api.services.packs import badges, pricing
+from api.services.packs.search import search_packs
 from api.services.workflow.dto import ReactFlowDTO
 from api.services.workflow.workflow_graph import WorkflowGraph
+
+
+def _suggest_roles(query: str | None) -> dict[str, Any]:
+    """Roles from the shelf that match what the user described.
+
+    Hiring is offered before building, deliberately. A listed role carries a
+    measured outcome rate across every business that hired it; an agent
+    assembled from a description in a chat window is a first draft about to go
+    on somebody's live phone line.
+
+    An empty shelf is reported as such rather than as an empty list. With no
+    demo number configured every calling role is unlisted, and a model that
+    received `[]` would conclude we have nothing to offer and start building --
+    which is the wrong answer to a configuration problem.
+    """
+    roles = search_packs(query or "")
+    if not roles:
+        return {
+            "roles": [],
+            "note": (
+                "No ready-made role matches, or none is published yet. Say so "
+                "plainly, then offer to build one from a template."
+            ),
+        }
+    return {
+        "roles": [
+            {
+                "slug": role.slug,
+                "name": role.name,
+                "job": role.job,
+                "summary": role.summary,
+                # The promise, not the channel name: "Answers calls" is what
+                # somebody hires, "inbound_call" is how we route it.
+                "does": badges(role),
+                "industries": list(role.industries),
+                "languages": list(role.languages),
+                "needs_connected": [
+                    {"app": connector.label, "for": connector.used_for}
+                    for connector in role.required_connectors
+                    if connector.required
+                ],
+                "monthly_price_rupees": pricing(role)["monthly_price_paise"] // 100,
+                "priced_as": (
+                    "a hire, per agent"
+                    if pricing(role)["is_hire"]
+                    else "included in the monthly plan"
+                ),
+                "demo_number": role.demo_number,
+                "template_id": role.template_id,
+            }
+            for role in roles[:4]
+        ],
+        "note": (
+            "Show these to the user with the price and what each needs "
+            "connected. Offer the demo number so they can interview it before "
+            "hiring. Build something custom only if they say none fit."
+        ),
+    }
 
 
 def tool_schemas() -> list[dict[str, Any]]:
@@ -63,6 +123,33 @@ def tool_schemas() -> list[dict[str, Any]]:
     a fourth dialect to keep in sync.
     """
     return [
+        {
+            "name": "suggest_roles",
+            "description": (
+                "Find ready-to-hire roles that match what the user just said "
+                "about their business. ALWAYS call this first, before "
+                "list_agent_templates and before asking any questions. A "
+                "listed role has a measured outcome rate across every "
+                "business that hired it; an agent you build from scratch has "
+                "none, so offering the proven one first is better for the "
+                "user. Show the user the roles it returns, with the price and "
+                "what each one needs connected, and let them pick. Only build "
+                "something custom if they say none of them fit."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": (
+                            "What the user's business does and what they want "
+                            "handled, in their own words. Omit to see the "
+                            "whole shelf."
+                        ),
+                    }
+                },
+            },
+        },
         {
             "name": "list_agent_templates",
             "description": (
@@ -268,6 +355,8 @@ async def dispatch(
     something it skipped.
     """
     try:
+        if name == "suggest_roles":
+            return _suggest_roles(arguments.get("query"))
         if name == "list_agent_templates":
             return _list_templates(arguments.get("query"))
         if name == "get_agent_template":

@@ -4934,6 +4934,44 @@ export type HealthResponse = {
 };
 
 /**
+ * HireStep
+ */
+export type HireStep = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Blocking
+     */
+    blocking: boolean;
+    /**
+     * Demo Number
+     */
+    demo_number?: string | null;
+    /**
+     * Facts
+     */
+    facts?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Connectors
+     */
+    connectors?: Array<{
+        [key: string]: unknown;
+    }>;
+};
+
+/**
  * HomeResponse
  */
 export type HomeResponse = {
@@ -6981,6 +7019,129 @@ export type OwnKeysRequest = {
 };
 
 /**
+ * PackCard
+ */
+export type PackCard = {
+    /**
+     * Slug
+     */
+    slug: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Summary
+     */
+    summary: string;
+    /**
+     * Job
+     */
+    job: string;
+    /**
+     * Version
+     */
+    version: string;
+    publisher: PackPublisher;
+    /**
+     * Badges
+     */
+    badges: Array<string>;
+    /**
+     * Industries
+     */
+    industries: Array<string>;
+    /**
+     * Languages
+     */
+    languages: Array<string>;
+    /**
+     * Demo Number
+     */
+    demo_number: string | null;
+    pricing: PackPricing;
+    /**
+     * Listed
+     */
+    listed: boolean;
+};
+
+/**
+ * PackDetail
+ */
+export type PackDetail = {
+    card: PackCard;
+    /**
+     * Steps
+     */
+    steps: Array<HireStep>;
+    /**
+     * Guardrails
+     */
+    guardrails: Array<string>;
+    /**
+     * Compliance Notes
+     */
+    compliance_notes: Array<string>;
+};
+
+/**
+ * PackPricing
+ */
+export type PackPricing = {
+    /**
+     * Is Hire
+     */
+    is_hire: boolean;
+    /**
+     * Seat Price Paise
+     */
+    seat_price_paise: number;
+    /**
+     * Platform Price Paise
+     */
+    platform_price_paise: number;
+    /**
+     * Creator Price Paise
+     */
+    creator_price_paise: number;
+    /**
+     * Monthly Price Paise
+     */
+    monthly_price_paise: number;
+    /**
+     * Included Minutes
+     */
+    included_minutes: number;
+    /**
+     * Included Executions
+     */
+    included_executions: number;
+    /**
+     * Overage Unit
+     */
+    overage_unit: string;
+};
+
+/**
+ * PackPublisher
+ */
+export type PackPublisher = {
+    /**
+     * Slug
+     */
+    slug: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * First Party
+     */
+    first_party: boolean;
+};
+
+/**
  * PartnerApplicationRequest
  */
 export type PartnerApplicationRequest = {
@@ -8765,6 +8926,20 @@ export type SharedOutboundRequest = {
      * Shared
      */
     shared?: boolean;
+};
+
+/**
+ * ShelfResponse
+ */
+export type ShelfResponse = {
+    /**
+     * Jobs
+     */
+    jobs: Array<string>;
+    /**
+     * Packs
+     */
+    packs: Array<PackCard>;
 };
 
 /**
@@ -22510,6 +22685,112 @@ export type ListConnectedAccountsApiV1ConnectorsAccountsGetResponses = {
 };
 
 export type ListConnectedAccountsApiV1ConnectorsAccountsGetResponse = ListConnectedAccountsApiV1ConnectorsAccountsGetResponses[keyof ListConnectedAccountsApiV1ConnectorsAccountsGetResponses];
+
+export type ShelfApiV1PacksGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Q
+         *
+         * Free text, in the user's words
+         */
+        q?: string | null;
+        /**
+         * Job
+         */
+        job?: string | null;
+        /**
+         * Industry
+         */
+        industry?: string | null;
+        /**
+         * Language
+         */
+        language?: string | null;
+        /**
+         * Calling
+         */
+        calling?: boolean | null;
+    };
+    url: '/api/v1/packs';
+};
+
+export type ShelfApiV1PacksGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ShelfApiV1PacksGetError = ShelfApiV1PacksGetErrors[keyof ShelfApiV1PacksGetErrors];
+
+export type ShelfApiV1PacksGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ShelfResponse;
+};
+
+export type ShelfApiV1PacksGetResponse = ShelfApiV1PacksGetResponses[keyof ShelfApiV1PacksGetResponses];
+
+export type PackDetailApiV1PacksSlugGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Slug
+         */
+        slug: string;
+    };
+    query?: never;
+    url: '/api/v1/packs/{slug}';
+};
+
+export type PackDetailApiV1PacksSlugGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PackDetailApiV1PacksSlugGetError = PackDetailApiV1PacksSlugGetErrors[keyof PackDetailApiV1PacksSlugGetErrors];
+
+export type PackDetailApiV1PacksSlugGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PackDetail;
+};
+
+export type PackDetailApiV1PacksSlugGetResponse = PackDetailApiV1PacksSlugGetResponses[keyof PackDetailApiV1PacksSlugGetResponses];
 
 export type TeamStatusApiV1TeamStatusGetData = {
     body?: never;
