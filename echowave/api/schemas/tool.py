@@ -24,6 +24,13 @@ DEFAULT_COMPOSIO_TIMEOUT_SECS = 12.0
 
 ToolParameterType = Literal["string", "number", "boolean", "object", "array"]
 HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE"]
+#: Every value of ``ToolCategory``, because ``category`` is derived from
+#: ``definition.type`` and then validated against this -- so a type missing
+#: here is a tool nobody can create, through the REST route, the service layer
+#: or MCP alike. ``composio`` was missing, which closed the last step of a
+#: working integration: the connector could be connected and never attached to
+#: an agent. ``test_every_tool_type_is_creatable`` now walks ``ToolDefinition``
+#: so the next type added cannot drift out of this list silently.
 ToolCategoryValue = Literal[
     "http_api",
     "end_call",
@@ -34,6 +41,7 @@ ToolCategoryValue = Literal[
     "mcp",
     "google_calendar",
     "rate_table",
+    "composio",
 ]
 
 
