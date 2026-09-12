@@ -63,10 +63,12 @@ _ESCALATION_NUMBER = RequiredFact(
     used_for="Handing the call to a person instead of guessing.",
 )
 
-_WHATSAPP = RequiredConnector(
+#: Filed under after-call, not requirements. It is not something the agent
+#: needs to do the job -- it is what the customer gets once the job is done.
+_WHATSAPP_CONFIRMATION = RequiredConnector(
     app="whatsapp",
     label="WhatsApp",
-    used_for="Sending the confirmation after the call, so there is a record the customer keeps.",
+    used_for="Sending the confirmation after the call, so the customer keeps a record.",
     required=False,
 )
 _GOOGLE_CALENDAR = RequiredConnector(
@@ -115,7 +117,8 @@ def _packs(demo_number: Optional[str]) -> tuple[AgentPack, ...]:
                 ),
                 _ESCALATION_NUMBER,
             ],
-            required_connectors=[_GOOGLE_CALENDAR, _WHATSAPP],
+            required_connectors=[_GOOGLE_CALENDAR],
+            after_call_apps=[_WHATSAPP_CONFIRMATION],
             demo_number=demo_number,
             listed=listed,
         ),
@@ -152,8 +155,8 @@ def _packs(demo_number: Optional[str]) -> tuple[AgentPack, ...]:
                     label="Shopify",
                     used_for="Reading the order and writing the confirmation back against it.",
                 ),
-                _WHATSAPP,
             ],
+            after_call_apps=[_WHATSAPP_CONFIRMATION],
             demo_number=demo_number,
             listed=listed,
         ),
@@ -177,7 +180,7 @@ def _packs(demo_number: Optional[str]) -> tuple[AgentPack, ...]:
                 ),
                 _ESCALATION_NUMBER,
             ],
-            required_connectors=[_WHATSAPP],
+            after_call_apps=[_WHATSAPP_CONFIRMATION],
             demo_number=demo_number,
             listed=listed,
         ),
@@ -202,7 +205,7 @@ def _packs(demo_number: Optional[str]) -> tuple[AgentPack, ...]:
                 ),
                 _ESCALATION_NUMBER,
             ],
-            required_connectors=[_WHATSAPP],
+            after_call_apps=[_WHATSAPP_CONFIRMATION],
             demo_number=demo_number,
             listed=listed,
         ),
@@ -234,7 +237,7 @@ def _packs(demo_number: Optional[str]) -> tuple[AgentPack, ...]:
                 ),
                 _ESCALATION_NUMBER,
             ],
-            required_connectors=[_WHATSAPP],
+            after_call_apps=[_WHATSAPP_CONFIRMATION],
             demo_number=demo_number,
             listed=listed,
         ),
@@ -261,7 +264,7 @@ def _packs(demo_number: Optional[str]) -> tuple[AgentPack, ...]:
                 ),
                 _ESCALATION_NUMBER,
             ],
-            required_connectors=[_WHATSAPP],
+            after_call_apps=[_WHATSAPP_CONFIRMATION],
             demo_number=demo_number,
             listed=listed,
         ),

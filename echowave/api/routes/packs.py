@@ -21,7 +21,15 @@ from pydantic import BaseModel
 
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
-from api.services.packs import card, get_pack, hire_steps, jobs, listed_packs
+from api.services.packs import (
+    blank_flow,
+    card,
+    flow,
+    get_pack,
+    hire_steps,
+    jobs,
+    listed_packs,
+)
 from api.services.packs.search import filter_packs, search_packs
 
 router = APIRouter(prefix="/packs", tags=["packs"])
@@ -60,6 +68,8 @@ class PackCard(BaseModel):
     languages: list[str]
     demo_number: Optional[str]
     pricing: PackPricing
+    #: "voice" | "standard" -- which hiring flow this role uses.
+    flow: str
     listed: bool
 
 
@@ -78,10 +88,17 @@ class HireStep(BaseModel):
     demo_number: Optional[str] = None
     facts: list[dict[str, Any]] = []
     connectors: list[dict[str, Any]] = []
+    #: Names where the choices come from rather than carrying them, so a
+    #: preset added to model_presets appears in the flow without an edit here.
+    presets_from: Optional[str] = None
 
 
 class PackDetail(BaseModel):
     card: PackCard
+    #: "voice" | "standard". The steps differ because hiring something that
+    #: talks to your customers and hiring something that works your back
+    #: office are different decisions.
+    flow: str
     steps: list[HireStep]
     #: What the role will do on a call, from the wrapped template. The "job"
     #: half of a job description.
@@ -135,6 +152,7 @@ async def pack_detail(
     template = pack.template
     return PackDetail(
         card=PackCard(**card(pack)),
+        flow=flow(pack),
         steps=[HireStep(**step) for step in hire_steps(pack)],
         guardrails=list(template.guardrails) if template else [],
         compliance_notes=list(template.compliance_notes) if template else [],
@@ -154,3 +172,18 @@ async def unlisted(user: UserModel = Depends(get_user)) -> ShelfResponse:
     listed = {pack.slug for pack in listed_packs()}
     hidden = [pack for pack in all_packs() if pack.slug not in listed]
     return ShelfResponse(jobs=[], packs=[PackCard(**card(pack)) for pack in hidden])
+
+
+class BlankFlowResponse(BaseModel):
+    steps: list[HireStep]
+
+
+@router.get("/_flow/blank", response_model=BlankFlowResponse)
+async def blank(user: UserModel = Depends(get_user)) -> BlankFlowResponse:
+    """The flow for "none of these fit".
+
+    Exposed as its own endpoint rather than as a pack with no slug, because it
+    is the one flow that starts before a role exists: say what the job is, see
+    what already does it, and only then build.
+    """
+    return BlankFlowResponse(steps=[HireStep(**step) for step in blank_flow()])

@@ -32,11 +32,21 @@ from api.services.packs import (
 )
 from api.services.packs.derive import (
     CHANNEL_LABELS,
-    STEP_CONNECT,
-    STEP_FACTS,
-    STEP_GO_LIVE,
-    STEP_HEAR_IT,
+    FLOW_STANDARD,
+    FLOW_VOICE,
+    STEP_AFTER_CALL,
+    STEP_CUSTOMISE,
+    STEP_DESCRIBE,
+    STEP_HIRE,
+    STEP_INTERVIEW,
     STEP_NUMBER,
+    STEP_ONBOARDING,
+    STEP_PREVIEW,
+    STEP_REQUIREMENTS,
+    STEP_TEST,
+    STEP_VOICE_AND_BRAIN,
+    blank_flow,
+    flow,
 )
 
 AGENCY = Publisher(slug="org_7", name="Some Agency")
@@ -154,16 +164,36 @@ class TestTheBadgeIsThePriceTag:
             assert pricing(pack)["is_hire"] == is_calling(pack)
 
 
-class TestTheStepsAreGenerated:
+class TestTheVoiceFlow:
     def test_hearing_it_comes_before_any_form(self):
         steps = [step["key"] for step in hire_steps(_pack())]
-        assert steps[0] == STEP_HEAR_IT
-        assert steps[-1] == STEP_GO_LIVE
+        assert steps[0] == STEP_INTERVIEW
+        assert steps[-1] == STEP_HIRE
+
+    def test_the_listening_happens_twice_and_both_are_needed(self):
+        """The interview is the published role, before setup, and it decides
+        whether somebody continues at all. The preview is their own agent with
+        their voice and their business name, and it catches a wrong voice
+        before a real caller hears it."""
+        steps = [step["key"] for step in hire_steps(_pack())]
+        assert steps.index(STEP_INTERVIEW) < steps.index(STEP_PREVIEW)
+        assert steps.index(STEP_PREVIEW) < steps.index(STEP_TEST)
+
+    def test_the_preset_is_picked_before_anything_is_heard_or_tested(self):
+        steps = [step["key"] for step in hire_steps(_pack())]
+        assert steps.index(STEP_VOICE_AND_BRAIN) < steps.index(STEP_PREVIEW)
+
+    def test_the_preset_chips_are_named_not_inlined(self):
+        """So a preset added to model_presets appears in the flow without an
+        edit here, and the price a chip shows is the one that gets charged."""
+        step = next(s for s in hire_steps(_pack()) if s["key"] == STEP_VOICE_AND_BRAIN)
+        assert step["presets_from"] == "model_presets"
 
     def test_a_pack_that_asks_for_nothing_does_not_get_an_empty_form(self):
         steps = [step["key"] for step in hire_steps(_pack())]
-        assert STEP_FACTS not in steps
-        assert STEP_CONNECT not in steps
+        assert STEP_ONBOARDING not in steps
+        assert STEP_REQUIREMENTS not in steps
+        assert STEP_AFTER_CALL not in steps
 
     def test_only_an_inbound_pack_is_asked_to_choose_a_number(self):
         inbound = [step["key"] for step in hire_steps(_pack())]
@@ -185,7 +215,7 @@ class TestTheStepsAreGenerated:
                 RequiredFact(key="opening_hours", question="When are you open?")
             ]
         )
-        step = next(s for s in hire_steps(pack) if s["key"] == STEP_FACTS)
+        step = next(s for s in hire_steps(pack) if s["key"] == STEP_ONBOARDING)
         assert step["facts"][0]["question"] == "When are you open?"
         assert step["blocking"] is True
 
@@ -195,8 +225,165 @@ class TestTheStepsAreGenerated:
                 RequiredFact(key="tagline", question="Any tagline?", required=False)
             ]
         )
-        step = next(s for s in hire_steps(pack) if s["key"] == STEP_FACTS)
+        step = next(s for s in hire_steps(pack) if s["key"] == STEP_ONBOARDING)
         assert step["blocking"] is False
+
+
+class TestWhatHappensAfterTheCall:
+    def _with_after_call(self, **kwargs):
+        return _pack(
+            after_call_apps=[
+                RequiredConnector(
+                    app="whatsapp",
+                    label="WhatsApp",
+                    used_for="Sending the confirmation.",
+                    required=False,
+                )
+            ],
+            **kwargs,
+        )
+
+    def test_it_is_set_up_before_the_test_not_after(self):
+        """The thing most worth testing is whether the confirmation actually
+        arrived, and it cannot arrive if this has not been set up."""
+        steps = [step["key"] for step in hire_steps(self._with_after_call())]
+        assert steps.index(STEP_AFTER_CALL) < steps.index(STEP_TEST)
+
+    def test_it_carries_the_apps_so_credentials_can_be_connected_there(self):
+        step = next(
+            s
+            for s in hire_steps(self._with_after_call())
+            if s["key"] == STEP_AFTER_CALL
+        )
+        assert step["connectors"][0]["app"] == "whatsapp"
+
+    def test_an_app_cannot_be_both_a_requirement_and_an_after_call_app(self):
+        """Two connect buttons for one credential, and connecting the first
+        leaves the second sitting red."""
+        connector = RequiredConnector(app="whatsapp", label="WhatsApp", used_for="x")
+        with pytest.raises(ValidationError) as raised:
+            _pack(required_connectors=[connector], after_call_apps=[connector])
+        assert "actually used" in str(raised.value)
+
+    def test_the_same_after_call_app_twice_is_refused(self):
+        connector = RequiredConnector(app="whatsapp", label="WhatsApp", used_for="x")
+        with pytest.raises(ValidationError):
+            _pack(after_call_apps=[connector, connector])
+
+
+class TestTheStandardFlow:
+    """A back-office role: nothing to hear, everything to fit.
+
+    Built against a synthetic non-voice template rather than a real one,
+    because the point of the test is that the format now permits this at all.
+    """
+
+    def _silent_template(self, monkeypatch):
+        from api.services.agent_templates._base import (
+            AgentTemplate,
+            CallDirection,
+            RecommendedStack,
+            ScheduleShape,
+        )
+
+        template = AgentTemplate(
+            id="stuck_orders_sweep",
+            name="Stuck Orders Sweep",
+            vertical="E-commerce operations",
+            direction=CallDirection.scheduled,
+            summary="Finds orders stuck at one status too long and lists them.",
+            languages=["en"],
+            stack=RecommendedStack(llm_provider="anthropic"),
+            schedule_shape=ScheduleShape(runs="every morning"),
+            nodes=[],
+            edges=[],
+            guardrails=[],
+            compliance_notes=[],
+            example_requests=["orders stuck in transit"],
+        )
+        monkeypatch.setattr(
+            "api.services.packs._base.get_template",
+            lambda template_id: template if template_id == template.id else None,
+        )
+        return template
+
+    def test_a_silent_role_can_now_exist_at_all(self, monkeypatch):
+        """It could not before: speech and telephony were mandatory on every
+        template, so the monthly plan had nothing to sell."""
+        self._silent_template(monkeypatch)
+        pack = _pack(
+            channels=[Channel.SCHEDULED],
+            template_id="stuck_orders_sweep",
+            demo_number=None,
+        )
+        assert flow(pack) == FLOW_STANDARD
+        assert pricing(pack)["is_hire"] is False
+
+    def test_it_is_never_asked_to_be_heard_or_given_a_number(self, monkeypatch):
+        self._silent_template(monkeypatch)
+        pack = _pack(
+            channels=[Channel.SCHEDULED],
+            template_id="stuck_orders_sweep",
+            demo_number=None,
+        )
+        steps = [step["key"] for step in hire_steps(pack)]
+        assert STEP_INTERVIEW not in steps
+        assert STEP_PREVIEW not in steps
+        assert STEP_NUMBER not in steps
+        assert STEP_VOICE_AND_BRAIN not in steps
+
+    def test_the_dry_run_blocks_going_live(self, monkeypatch):
+        """What decides whether a back-office agent is any good is whether it
+        read the right rows and wrote the right thing. Only the dry run shows
+        that, so it is not skippable."""
+        self._silent_template(monkeypatch)
+        pack = _pack(
+            channels=[Channel.SCHEDULED],
+            template_id="stuck_orders_sweep",
+            demo_number=None,
+        )
+        steps = hire_steps(pack)
+        assert [step["key"] for step in steps][-1] == STEP_HIRE
+        test_step = next(s for s in steps if s["key"] == STEP_TEST)
+        assert test_step["blocking"] is True
+        assert STEP_CUSTOMISE in {s["key"] for s in steps}
+
+    def test_after_call_apps_are_refused_on_something_that_never_calls(
+        self, monkeypatch
+    ):
+        self._silent_template(monkeypatch)
+        with pytest.raises(ValidationError):
+            _pack(
+                channels=[Channel.SCHEDULED],
+                template_id="stuck_orders_sweep",
+                demo_number=None,
+                after_call_apps=[
+                    RequiredConnector(app="whatsapp", label="WhatsApp", used_for="x")
+                ],
+            )
+
+
+class TestNoneOfTheseFit:
+    def test_it_asks_what_the_job_is_then_shows_what_already_does_it(self):
+        """Most of the time something already does. A role somebody has hired a
+        hundred times beats a first draft."""
+        steps = [step["key"] for step in blank_flow()]
+        assert steps[0] == STEP_DESCRIBE
+        assert steps[1] == "similar"
+        assert steps[-1] == STEP_HIRE
+
+    def test_nothing_is_built_without_a_test_first(self):
+        test_step = next(s for s in blank_flow() if s["key"] == STEP_TEST)
+        assert test_step["blocking"] is True
+
+
+class TestEveryPackDeclaresAFlow:
+    def test_calling_roles_use_the_voice_flow(self):
+        for pack in all_packs():
+            assert flow(pack) == (FLOW_VOICE if is_calling(pack) else FLOW_STANDARD)
+
+    def test_the_card_says_which_flow_hiring_will_use(self):
+        assert card(get_pack("front_desk_clinic"))["flow"] == FLOW_VOICE
 
 
 class TestTheShelf:

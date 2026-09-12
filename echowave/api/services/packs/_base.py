@@ -170,7 +170,20 @@ class AgentPack(BaseModel):
     languages: list[str] = Field(default_factory=list)
 
     required_facts: list[RequiredFact] = Field(default_factory=list)
+    #: Apps the agent needs *during* the conversation -- the calendar it reads
+    #: to find a free slot, the store it reads the order from.
     required_connectors: list[RequiredConnector] = Field(default_factory=list)
+    #: Apps it uses *after* the call, to confirm what happened: the WhatsApp
+    #: message, the email receipt, the row written into a sheet.
+    #:
+    #: A separate list rather than a flag on the one above, because the two are
+    #: separate in the runtime too -- in-call tools hang off the node, post-call
+    #: actions off ``outcome_actions`` -- and because they are separate
+    #: decisions for the person hiring. "What does it need to do the job" and
+    #: "what should the customer get afterwards" are asked at different
+    #: moments and answered differently, and an agent can be perfectly useful
+    #: with neither, one, or both.
+    after_call_apps: list[RequiredConnector] = Field(default_factory=list)
 
     #: A number a prospect can ring to hear this agent before hiring it.
     #: Mandatory for anything that makes or takes calls: a voice agent sold on
@@ -205,14 +218,26 @@ class AgentPack(BaseModel):
 
         calls = bool(set(self.channels) & CALLING_CHANNELS)
 
-        # The contradiction that would otherwise cost money quietly. A voice
-        # template behind a pack that declares no calling channel would be
-        # badged as text, priced as text, and would still dial real people.
-        if not calls:
+        # The contradiction that would otherwise cost money quietly, in both
+        # directions. A voice template behind a pack declaring no calling
+        # channel would be badged as text, priced as text, and would still dial
+        # real people. A silent template behind a pack claiming it calls would
+        # charge a seat for something that can never ring anybody.
+        #
+        # Scoped to what the template actually is. Written unconditionally the
+        # first time, when every template was a voice template, it made a
+        # non-calling role impossible to publish at all.
+        if template.speaks and not calls:
             raise ValueError(
                 f"pack {self.slug!r} declares no calling channel but wraps "
                 f"voice template {self.template_id!r}; declare inbound_call "
                 "or outbound_call, or wrap a non-voice template"
+            )
+        if calls and not template.speaks:
+            raise ValueError(
+                f"pack {self.slug!r} declares a calling channel but template "
+                f"{self.template_id!r} never makes a call; it would be priced "
+                "as a hire and could never ring anybody"
             )
 
         # And the reverse: an inbound-only template behind a pack claiming it
@@ -243,6 +268,27 @@ class AgentPack(BaseModel):
         apps = [connector.app for connector in self.required_connectors]
         if len(apps) != len(set(apps)):
             raise ValueError(f"pack {self.slug!r} requires the same app twice")
+
+        after = [connector.app for connector in self.after_call_apps]
+        if len(after) != len(set(after)):
+            raise ValueError(f"pack {self.slug!r} names the same after-call app twice")
+
+        # The same app in both lists would render two connect buttons for one
+        # credential, and an operator who connected the first would still see
+        # the second sitting red.
+        both = set(apps) & set(after)
+        if both:
+            raise ValueError(
+                f"pack {self.slug!r} lists {', '.join(sorted(both))} as both a "
+                "requirement and an after-call app; pick the moment it is "
+                "actually used"
+            )
+
+        if self.after_call_apps and not calls:
+            raise ValueError(
+                f"pack {self.slug!r} declares after-call apps but takes no "
+                "calls; there is no call for them to follow"
+            )
 
         return self
 

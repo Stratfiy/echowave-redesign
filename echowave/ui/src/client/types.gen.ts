@@ -1211,6 +1211,16 @@ export type BillingProfileRequest = {
 };
 
 /**
+ * BlankFlowResponse
+ */
+export type BlankFlowResponse = {
+    /**
+     * Steps
+     */
+    steps: Array<HireStep>;
+};
+
+/**
  * Body_import_contacts_api_v1_contact_lists__contact_list_id__import_post
  */
 export type BodyImportContactsApiV1ContactListsContactListIdImportPost = {
@@ -4969,6 +4979,10 @@ export type HireStep = {
     connectors?: Array<{
         [key: string]: unknown;
     }>;
+    /**
+     * Presets From
+     */
+    presets_from?: string | null;
 };
 
 /**
@@ -7061,6 +7075,10 @@ export type PackCard = {
     demo_number: string | null;
     pricing: PackPricing;
     /**
+     * Flow
+     */
+    flow: string;
+    /**
      * Listed
      */
     listed: boolean;
@@ -7071,6 +7089,10 @@ export type PackCard = {
  */
 export type PackDetail = {
     card: PackCard;
+    /**
+     * Flow
+     */
+    flow: string;
     /**
      * Steps
      */
@@ -22791,6 +22813,45 @@ export type PackDetailApiV1PacksSlugGetResponses = {
 };
 
 export type PackDetailApiV1PacksSlugGetResponse = PackDetailApiV1PacksSlugGetResponses[keyof PackDetailApiV1PacksSlugGetResponses];
+
+export type BlankApiV1PacksFlowBlankGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/packs/_flow/blank';
+};
+
+export type BlankApiV1PacksFlowBlankGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type BlankApiV1PacksFlowBlankGetError = BlankApiV1PacksFlowBlankGetErrors[keyof BlankApiV1PacksFlowBlankGetErrors];
+
+export type BlankApiV1PacksFlowBlankGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: BlankFlowResponse;
+};
+
+export type BlankApiV1PacksFlowBlankGetResponse = BlankApiV1PacksFlowBlankGetResponses[keyof BlankApiV1PacksFlowBlankGetResponses];
 
 export type TeamStatusApiV1TeamStatusGetData = {
     body?: never;

@@ -15,7 +15,7 @@ close enough to zero that metering it would only discourage use.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 from api.services.packs._base import CALLING_CHANNELS, AgentPack, Channel
 
@@ -70,11 +70,46 @@ _BADGE_ORDER: tuple[Channel, ...] = (
     Channel.SCHEDULED,
 )
 
-STEP_HEAR_IT = "hear_it"
-STEP_FACTS = "facts"
-STEP_CONNECT = "connect"
+#: Two flows, because hiring a voice agent and hiring a back-office agent are
+#: different decisions. A voice agent is judged by how it sounds, so the
+#: listening happens twice -- once on the published demo before any setup, and
+#: again on your own configuration before it goes live. A back-office agent is
+#: judged by what it does with your data, so the work is fitting it to the
+#: business and the listening steps would be theatre.
+FLOW_VOICE = "voice"
+FLOW_STANDARD = "standard"
+
+#: Hear the published role before touching a form. A voice agent sold on a
+#: screenshot is sold on a promise.
+STEP_INTERVIEW = "interview"
+#: What the agent has to know about this business. Answered once for the
+#: organisation, not once per agent.
+STEP_ONBOARDING = "onboarding"
+#: The apps it needs access to, framed as the job's requirements rather than
+#: as a setup chore.
+STEP_REQUIREMENTS = "requirements"
+#: Which apps confirm what happened, once the call has ended, and the
+#: credentials they need. Optional: plenty of agents are useful without it.
+STEP_AFTER_CALL = "after_call"
+#: Voice and brain: a named preset, priced per minute, not a model dropdown.
+STEP_VOICE_AND_BRAIN = "voice_and_brain"
+#: Hear your own configuration speak, instantly, and change it if it is wrong.
+#: Distinct from the test: this costs nothing and takes a second.
+STEP_PREVIEW = "preview"
+#: A real run. A call to your own number for a voice agent; a dry run over
+#: real data for everything else.
+STEP_TEST = "test"
+#: Only for an agent that answers a number.
 STEP_NUMBER = "number"
-STEP_GO_LIVE = "go_live"
+#: Adjust the steps and the integrations before going live. Where a standard
+#: agent is actually made to fit.
+STEP_CUSTOMISE = "customise"
+#: What "go live" is called now. You are hiring somebody.
+STEP_HIRE = "hire"
+#: Only on the build-from-nothing flow: say what it should do, then see what
+#: already exists.
+STEP_DESCRIBE = "describe"
+STEP_SIMILAR = "similar"
 
 
 def is_calling(pack: AgentPack) -> bool:
@@ -127,56 +162,135 @@ def pricing(pack: AgentPack) -> dict[str, Any]:
     }
 
 
+def flow(pack: AgentPack) -> str:
+    """Which hiring flow this role uses."""
+    return FLOW_VOICE if is_calling(pack) else FLOW_STANDARD
+
+
+def _onboarding_step(pack: AgentPack) -> Optional[dict[str, Any]]:
+    if not pack.required_facts:
+        return None
+    return {
+        "key": STEP_ONBOARDING,
+        "title": "Tell it about your business",
+        "detail": "Answered once. Every agent you hire after this already knows.",
+        "facts": [fact.model_dump(mode="json") for fact in pack.required_facts],
+        "blocking": any(fact.required for fact in pack.required_facts),
+    }
+
+
+def _requirements_step(pack: AgentPack) -> Optional[dict[str, Any]]:
+    if not pack.required_connectors:
+        return None
+    return {
+        "key": STEP_REQUIREMENTS,
+        "title": "Requirements",
+        "detail": "What this role needs access to in order to do the job.",
+        "connectors": [
+            connector.model_dump(mode="json") for connector in pack.required_connectors
+        ],
+        "blocking": any(connector.required for connector in pack.required_connectors),
+    }
+
+
 def hire_steps(pack: AgentPack) -> list[dict[str, Any]]:
-    """The guided flow for hiring this pack, generated from its declaration.
+    """The guided flow for hiring this role, generated from its declaration.
 
-    Ordered the way the decision actually happens. Hearing it comes first: a
-    voice agent sold on a screenshot is sold on a promise, and every form
-    before the demo is a chance to leave.
-
-    A step only appears when the pack needs it. A pack asking for nothing does
-    not get an empty form, and one that takes no inbound calls is not asked to
-    choose a phone number.
+    A step only appears when the role needs it. A role asking for nothing does
+    not get an empty form, and one that takes no inbound calls is never asked
+    to choose a phone number.
     """
-    steps: list[dict[str, Any]] = []
-
     if is_calling(pack):
-        steps.append(
-            {
-                "key": STEP_HEAR_IT,
-                "title": "Hear it first",
-                "detail": "Ring the demo number and talk to it before you set anything up.",
-                "demo_number": pack.demo_number,
-                "blocking": False,
-            }
-        )
+        return _voice_steps(pack)
+    return _standard_steps(pack)
 
-    if pack.required_facts:
-        steps.append(
-            {
-                "key": STEP_FACTS,
-                "title": "Tell it about your business",
-                "detail": "Answered once. Every agent you hire after this already knows.",
-                "facts": [fact.model_dump(mode="json") for fact in pack.required_facts],
-                "blocking": any(fact.required for fact in pack.required_facts),
-            }
-        )
 
-    if pack.required_connectors:
+def _voice_steps(pack: AgentPack) -> list[dict[str, Any]]:
+    """Hear it, fit it, hear yours, test it, hire it.
+
+    The listening happens twice and the two are not redundant. The interview is
+    the *published* role on our demo number, before any setup, and it is what
+    decides whether somebody continues at all. The preview is *their* agent
+    with their voice, their preset and their business name, and it is what
+    catches a wrong voice or an unreadable Tamil greeting before a real caller
+    hears it. Collapsing them would mean either a form before any proof, or a
+    customer going live on a voice they never heard.
+    """
+    steps: list[dict[str, Any]] = [
+        {
+            "key": STEP_INTERVIEW,
+            "title": "Interview it",
+            "detail": "Ring the demo number and talk to it before you set anything up.",
+            "demo_number": pack.demo_number,
+            "blocking": False,
+        }
+    ]
+
+    onboarding = _onboarding_step(pack)
+    if onboarding:
+        steps.append(onboarding)
+
+    requirements = _requirements_step(pack)
+    if requirements:
+        steps.append(requirements)
+
+    # What the customer gets after they hang up. Before the test on purpose:
+    # the thing most worth testing is whether the confirmation actually
+    # arrived, and it cannot arrive if this has not been set up.
+    if pack.after_call_apps:
         steps.append(
             {
-                "key": STEP_CONNECT,
-                "title": "Connect what it needs",
-                "detail": "So the work it does lands where you already keep it.",
+                "key": STEP_AFTER_CALL,
+                "title": "What happens after the call",
+                "detail": (
+                    "Send the confirmation, write the record. Connect the "
+                    "accounts it should use."
+                ),
                 "connectors": [
                     connector.model_dump(mode="json")
-                    for connector in pack.required_connectors
+                    for connector in pack.after_call_apps
                 ],
                 "blocking": any(
-                    connector.required for connector in pack.required_connectors
+                    connector.required for connector in pack.after_call_apps
                 ),
             }
         )
+
+    steps.append(
+        {
+            "key": STEP_VOICE_AND_BRAIN,
+            "title": "Pick its voice and how sharp it is",
+            "detail": (
+                "Four presets, each with one price a minute. Standard suits "
+                "most lines; Smart is for calls that use tools or go off "
+                "script."
+            ),
+            # The chips come from model_presets, which already prices each one
+            # and marks the ones we hold no key for. Named here rather than
+            # inlined so a preset added there appears here without an edit.
+            "presets_from": "model_presets",
+            "blocking": False,
+        }
+    )
+    steps.append(
+        {
+            "key": STEP_PREVIEW,
+            "title": "Hear how it sounds",
+            "detail": "Its own greeting, in your voice and language. Change it if it is wrong.",
+            "blocking": False,
+        }
+    )
+    steps.append(
+        {
+            "key": STEP_TEST,
+            "title": "Test it on a real call",
+            "detail": (
+                "It rings your phone. Talk to it the way a customer would, "
+                "then check the confirmation arrived."
+            ),
+            "blocking": False,
+        }
+    )
 
     if Channel.INBOUND_CALL in pack.channels:
         steps.append(
@@ -188,15 +302,102 @@ def hire_steps(pack: AgentPack) -> list[dict[str, Any]]:
             }
         )
 
+    steps.append(_hire_step())
+    return steps
+
+
+def _standard_steps(pack: AgentPack) -> list[dict[str, Any]]:
+    """Fit it, customise it, dry-run it, hire it.
+
+    No interview and no preview: there is nothing to hear. What decides whether
+    a back-office agent is any good is whether it read the right rows and wrote
+    the right thing, which only the dry run can show.
+    """
+    steps: list[dict[str, Any]] = []
+
+    onboarding = _onboarding_step(pack)
+    if onboarding:
+        steps.append(onboarding)
+
+    requirements = _requirements_step(pack)
+    if requirements:
+        steps.append(requirements)
+
     steps.append(
         {
-            "key": STEP_GO_LIVE,
-            "title": "Go live",
-            "detail": "One switch. You can pause it any time, and a paused agent is not billed.",
+            "key": STEP_CUSTOMISE,
+            "title": "Make it fit",
+            "detail": "Adjust what it does and where it writes, before it touches anything.",
             "blocking": False,
         }
     )
+    steps.append(
+        {
+            "key": STEP_TEST,
+            "title": "Dry run it",
+            "detail": (
+                "It reads your real data and shows you what it would do, "
+                "without doing it."
+            ),
+            "blocking": True,
+        }
+    )
+    steps.append(_hire_step())
     return steps
+
+
+def _hire_step() -> dict[str, Any]:
+    return {
+        "key": STEP_HIRE,
+        "title": "Hire it",
+        "detail": "You can pause it any time, and a paused agent is not billed.",
+        "blocking": False,
+    }
+
+
+def blank_flow() -> list[dict[str, Any]]:
+    """Hiring nothing: the flow for "none of these fit".
+
+    Starts by asking what the job is and then showing what already exists,
+    because most of the time something does -- and a role somebody else has
+    hired a hundred times is a better answer than a first draft. Building is
+    the fallback, and the three times a week this flow reaches the end are the
+    market telling us which role to write next.
+    """
+    return [
+        {
+            "key": STEP_DESCRIBE,
+            "title": "What should it do?",
+            "detail": "In your words. One or two sentences is enough.",
+            "blocking": True,
+        },
+        {
+            "key": STEP_SIMILAR,
+            "title": "Roles that already do this",
+            "detail": "Somebody has probably hired one. Proven beats new.",
+            "blocking": False,
+        },
+        {
+            "key": STEP_ONBOARDING,
+            "title": "Tell it about your business",
+            "detail": "Answered once. Every agent you hire after this already knows.",
+            "facts": [],
+            "blocking": True,
+        },
+        {
+            "key": STEP_CUSTOMISE,
+            "title": "Make it fit",
+            "detail": "Adjust the steps and connect what it needs.",
+            "blocking": False,
+        },
+        {
+            "key": STEP_TEST,
+            "title": "Test it",
+            "detail": "Before it touches anything real.",
+            "blocking": True,
+        },
+        _hire_step(),
+    ]
 
 
 def card(pack: AgentPack) -> dict[str, Any]:
@@ -213,5 +414,6 @@ def card(pack: AgentPack) -> dict[str, Any]:
         "languages": list(pack.languages),
         "demo_number": pack.demo_number,
         "pricing": pricing(pack),
+        "flow": flow(pack),
         "listed": pack.listed,
     }

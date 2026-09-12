@@ -120,7 +120,8 @@ class TestTheShelfEndpoint:
             lambda slug: next(p for p in SHELF if p.slug == slug),
         )
         detail = await pack_detail(slug="front_desk_clinic", user=_user())
-        assert [step.key for step in detail.steps][0] == "hear_it"
+        assert [step.key for step in detail.steps][0] == "interview"
+        assert detail.flow == "voice"
         assert detail.compliance_notes
 
 

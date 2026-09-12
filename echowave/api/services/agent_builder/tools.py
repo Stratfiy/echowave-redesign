@@ -439,8 +439,8 @@ def _get_template(template_id: str) -> dict[str, Any]:
             for key in required_variables(template)
         ],
         "compliance_notes": template.compliance_notes,
-        "typical_call_seconds": template.call_shape.typical_call_seconds,
-        "typical_calls_per_month": template.call_shape.typical_calls_per_month,
+        "typical_call_seconds": template.call_seconds,
+        "typical_calls_per_month": template.calls_per_month,
     }
 
 
@@ -454,6 +454,22 @@ async def _estimate(
     template = get_template(template_id)
     if template is None:
         return {"error": f"No template {template_id!r}."}
+
+    # An agent that never speaks has no minutes, so a per-minute quote would
+    # be a number with no unit behind it. The honest answer is the plan it runs
+    # inside, and that reads better to an owner than a rupee figure rounding to
+    # zero would.
+    if not template.speaks:
+        return {
+            "priced_as": "included in the monthly plan",
+            "rupees_per_minute": None,
+            "monthly": None,
+            "note": (
+                "This agent makes no calls, so it uses no minutes. It runs "
+                "against the tasks included in the monthly plan. Tell the "
+                "user that plainly rather than quoting a per-minute figure."
+            ),
+        }
 
     stack = template.stack
     estimate = await estimate_cost_per_minute(
@@ -472,8 +488,8 @@ async def _estimate(
     )
 
     per_minute = estimate.total_paise_per_minute / 100
-    calls = calls_per_month or template.call_shape.typical_calls_per_month
-    minutes = round(calls * template.call_shape.typical_call_seconds / 60)
+    calls = calls_per_month or template.calls_per_month or 0
+    minutes = round(calls * (template.call_seconds or 0) / 60)
 
     result: dict[str, Any] = {
         "rupees_per_minute": round(per_minute, 2),
