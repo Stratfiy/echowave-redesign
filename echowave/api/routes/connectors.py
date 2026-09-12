@@ -9,15 +9,17 @@ idea which one their agent uses.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel
 
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
 from api.services.integrations.composio import catalogue
 from api.services.integrations.composio.client import (
+    connect_link,
     connected_toolkits,
     is_configured,
+    toolkit_name,
 )
 
 router = APIRouter(prefix="/connectors")
@@ -105,4 +107,61 @@ async def list_connectors(
         groups=ordered,
         connected_count=len(connected),
         total=len(rows),
+    )
+
+
+class ConnectLinkResponse(BaseModel):
+    app: str
+    app_name: str
+    connect_url: str
+    expires_at: str | None = None
+
+
+@router.post("/{slug}/connect", response_model=ConnectLinkResponse)
+async def start_connecting(
+    slug: str = Path(description="The connector's slug, e.g. gmail."),
+    user: UserModel = Depends(get_user),
+) -> ConnectLinkResponse:
+    """A link the operator opens to authorize one app for this account.
+
+    Minted per request and short-lived, so it is fetched when the button is
+    pressed rather than with the page. A link issued alongside a catalogue of
+    1,500 rows would be expired by the time anybody scrolled to the one they
+    wanted, and 1,500 of them would be absurd.
+
+    Refuses an app this account has already connected. Two live authorizations
+    for one app leave an operator unable to say which one their agent is using,
+    and the fix afterwards is worse than the refusal now.
+    """
+    organization_id = user.selected_organization_id
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+    if not is_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Connecting outside apps is not switched on for this platform.",
+        )
+
+    wanted = slug.strip().lower()
+    if wanted.upper() in set(await connected_toolkits(organization_id)):
+        raise HTTPException(
+            status_code=409,
+            detail=f"{wanted} is already connected to this account.",
+        )
+
+    # Checked against Composio's own catalogue rather than ours: the cached
+    # list is a day old and a slug typed into a URL is not from the list at all.
+    display_name = await toolkit_name(wanted)
+    if not display_name:
+        raise HTTPException(status_code=404, detail=f"No app called '{wanted}'.")
+
+    link = await connect_link(toolkit=wanted, organization_id=organization_id)
+    if "error" in link:
+        raise HTTPException(status_code=502, detail=link["error"])
+
+    return ConnectLinkResponse(
+        app=wanted,
+        app_name=display_name,
+        connect_url=link["url"],
+        expires_at=link.get("expires_at"),
     )

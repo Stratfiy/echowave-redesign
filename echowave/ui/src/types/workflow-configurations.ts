@@ -3,6 +3,7 @@ import type {
     OrganizationAiModelConfigurationV2,
     WorkflowConfigurationDefaults as GeneratedWorkflowConfigurationDefaults,
 } from "@/client/types.gen";
+import type { OutcomeAction } from "@/client/types.gen";
 import type { CallOutcome } from "@/constants/callOutcomes";
 
 export type WorkflowConfigurationDefaults = GeneratedWorkflowConfigurationDefaults;
@@ -24,6 +25,7 @@ export type WorkflowConfigurationDefaults = GeneratedWorkflowConfigurationDefaul
  * receptionist.
  */
 export type { CallOutcome };
+export type { OutcomeAction };
 
 export type PronunciationEntry = {
     /** What appears in the text. */
@@ -295,6 +297,7 @@ export type WorkflowConfigurations = WorkflowConfigurationBase & {
      * rather than an empty column somebody has to discover is empty.
      */
     call_outcomes?: CallOutcome[];
+    outcome_actions?: OutcomeAction[];
     /**
      * Whether the agent switches language when the caller does. Off unless
      * turned on: nothing follows today, so a default of on would change every

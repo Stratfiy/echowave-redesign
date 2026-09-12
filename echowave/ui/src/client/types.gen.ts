@@ -2167,6 +2167,28 @@ export type ConfirmRequest = {
 };
 
 /**
+ * ConnectLinkResponse
+ */
+export type ConnectLinkResponse = {
+    /**
+     * App
+     */
+    app: string;
+    /**
+     * App Name
+     */
+    app_name: string;
+    /**
+     * Connect Url
+     */
+    connect_url: string;
+    /**
+     * Expires At
+     */
+    expires_at?: string | null;
+};
+
+/**
  * ConnectorCatalogueResponse
  */
 export type ConnectorCatalogueResponse = {
@@ -22026,6 +22048,52 @@ export type ListConnectorsApiV1ConnectorsGetResponses = {
 };
 
 export type ListConnectorsApiV1ConnectorsGetResponse = ListConnectorsApiV1ConnectorsGetResponses[keyof ListConnectorsApiV1ConnectorsGetResponses];
+
+export type StartConnectingApiV1ConnectorsSlugConnectPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Slug
+         *
+         * The connector's slug, e.g. gmail.
+         */
+        slug: string;
+    };
+    query?: never;
+    url: '/api/v1/connectors/{slug}/connect';
+};
+
+export type StartConnectingApiV1ConnectorsSlugConnectPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StartConnectingApiV1ConnectorsSlugConnectPostError = StartConnectingApiV1ConnectorsSlugConnectPostErrors[keyof StartConnectingApiV1ConnectorsSlugConnectPostErrors];
+
+export type StartConnectingApiV1ConnectorsSlugConnectPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ConnectLinkResponse;
+};
+
+export type StartConnectingApiV1ConnectorsSlugConnectPostResponse = StartConnectingApiV1ConnectorsSlugConnectPostResponses[keyof StartConnectingApiV1ConnectorsSlugConnectPostResponses];
 
 export type ListToolsApiV1ToolsGetData = {
     body?: never;
