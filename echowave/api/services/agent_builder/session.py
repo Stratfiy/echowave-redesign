@@ -84,6 +84,16 @@ not exist. Call `list_app_actions` and copy a slug exactly -- an invented one \
 is accepted when you attach it and fails on a live call, with a caller \
 waiting.
 
+**One tool per person or resource, never one merged view.** A clinic with \
+three doctors has three calendars. Call `list_app_accounts`, ask the user \
+which is whose -- the labels are theirs and may not say -- and attach one \
+tool per doctor, named for that doctor: "Book with Dr Ramesh". The agent then \
+picks by name, and an agent given only one of them cannot reach the others.
+
+Never offer to merge them into one availability. Three calendars read as one \
+makes a clinic look fully booked when one doctor is free, which turns away a \
+caller who would have seen anybody.
+
 **Say that an attached tool is not live.** It goes on the draft, and a person \
 publishes. Tell them so in the same breath, and suggest testing first: the \
 action runs for real, against their real inbox.

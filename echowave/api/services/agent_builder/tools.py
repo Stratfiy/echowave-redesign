@@ -25,7 +25,7 @@ end rather than a correction loop.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,6 +42,9 @@ from api.services.billing.addons import DEFAULT_AGENT_ADDONS
 from api.services.billing.estimator import estimate_cost_per_minute
 from api.services.integrations.composio.client import (
     connect_link as composio_connect_link,
+)
+from api.services.integrations.composio.client import (
+    connected_accounts as composio_connected_accounts,
 )
 from api.services.integrations.composio.client import (
     connected_toolkits,
@@ -357,6 +360,28 @@ def tool_schemas() -> list[dict[str, Any]]:
             },
         },
         {
+            "name": "list_app_accounts",
+            "description": (
+                "List the individual accounts of one connected app -- which "
+                "Google Calendar, not whether Google Calendar. Call this when "
+                "a business has more than one of something: three doctors' "
+                "calendars, two shared inboxes, a calendar per chair. If more "
+                "than one comes back, ask the user which the agent should act "
+                "on; the labels are theirs and may not say whose is whose, so "
+                "do not guess."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "app": {
+                        "type": "string",
+                        "description": "Connected app slug, e.g. googlecalendar.",
+                    },
+                },
+                "required": ["app"],
+            },
+        },
+        {
             "name": "attach_app_tool",
             "description": (
                 "Give one agent the ability to do one thing in a connected "
@@ -401,6 +426,16 @@ def tool_schemas() -> list[dict[str, Any]]:
                             "When the agent should use it, e.g. 'After the "
                             "booking is confirmed and the caller gave an "
                             "email address.' Optional but strongly advised."
+                        ),
+                    },
+                    "connected_account_id": {
+                        "type": "string",
+                        "description": (
+                            "Which account of that app to act on, from "
+                            "list_app_accounts. Use it when the business has "
+                            "more than one -- one tool per doctor's calendar, "
+                            "named for that doctor. Omit it when there is only "
+                            "one. Never invent an id."
                         ),
                     },
                 },
@@ -469,6 +504,11 @@ async def dispatch(
                 organization_id=organization_id,
                 app=arguments.get("app", ""),
             )
+        if name == "list_app_accounts":
+            return await _list_app_accounts(
+                organization_id=organization_id,
+                app=arguments.get("app", ""),
+            )
         if name == "attach_app_tool":
             return await _attach_app_tool(
                 session=session,
@@ -479,6 +519,7 @@ async def dispatch(
                 action=arguments.get("action", ""),
                 name=arguments.get("name", ""),
                 description=arguments.get("description", ""),
+                connected_account_id=arguments.get("connected_account_id", ""),
             )
         if name == "create_agent":
             return await _create_agent(
@@ -998,6 +1039,61 @@ async def _list_app_actions(*, organization_id: int, app: str) -> dict[str, Any]
     }
 
 
+async def _list_app_accounts(*, organization_id: int, app: str) -> dict[str, Any]:
+    """Which *individual* account of one app this organization has authorized.
+
+    The question a clinic with three doctors asks. ``list_connected_apps``
+    answers "is Google Calendar connected"; this answers "whose", and the
+    difference is the whole of per-doctor booking: three calendars authorized
+    under one account identity, and "Book with Dr Ramesh" and "Book with
+    Dr Priya" become two tools differing only by which one they act on.
+
+    Deliberately not merged into one availability view. Merging three doctors'
+    calendars would make a clinic look fully booked when one doctor is free,
+    which is the same bug as refusing an open slot wearing a different hat.
+
+    Composio exposes no email address -- an opaque id and a generated word-id,
+    tokens redacted -- so the label is whatever the operator called it. In a
+    clinic "Dr Ramesh's calendar" is a better label than a Google address
+    anyway, but the model must not pretend to know which doctor is which: if
+    the labels are not obvious it has to ask.
+    """
+    if not composio_configured():
+        return {
+            "error": "Connecting outside apps is not switched on for this platform."
+        }
+
+    slug = (app or "").strip().lower()
+    if not slug:
+        return {"error": "Which app? Pass the slug from list_connected_apps."}
+
+    accounts = [
+        account
+        for account in (await composio_connected_accounts(organization_id))
+        if (account.get("app") or "") == slug
+    ]
+    if not accounts:
+        return {
+            "accounts": [],
+            "note": (
+                f"No {slug} account is connected. Offer connect_app. Each "
+                "person or resource that needs its own is connected separately."
+            ),
+        }
+    return {
+        "accounts": [
+            {"id": a["connected_account_id"], "label": a["label"]} for a in accounts
+        ],
+        "note": (
+            "If there is more than one, ask the user which it should act on "
+            "rather than choosing -- the labels are theirs and may not say "
+            "which person each belongs to. Pass the id as "
+            "connected_account_id to attach_app_tool. Omit it only when there "
+            "is exactly one and the user has not distinguished them."
+        ),
+    }
+
+
 def _attach_to_nodes(definition: dict[str, Any], tool_uuid: str) -> int:
     """Add ``tool_uuid`` to every node that can hold one. Returns how many.
 
@@ -1031,6 +1127,7 @@ async def _attach_app_tool(
     action: str,
     name: str,
     description: str,
+    connected_account_id: str = "",
 ) -> dict[str, Any]:
     """Give one agent the ability to do one thing in a connected app.
 
@@ -1118,6 +1215,28 @@ async def _attach_app_tool(
             )
         }
 
+    # Which account of that app, when the organization has more than one --
+    # three doctors' calendars under one identity. Checked against this
+    # organization's own accounts rather than trusted: an id from elsewhere
+    # would be a tool pointed at somebody else's calendar, and Composio
+    # refusing it later is a failure on a live call rather than here.
+    account_id = (connected_account_id or "").strip()
+    account_label: Optional[str] = None
+    if account_id:
+        mine = {
+            a["connected_account_id"]: a
+            for a in (await composio_connected_accounts(organization_id))
+            if (a.get("app") or "") == slug
+        }
+        if account_id not in mine:
+            return {
+                "error": (
+                    f"{account_id} is not a {slug} account on this account. "
+                    "Call list_app_accounts and use an id from it."
+                )
+            }
+        account_label = mine[account_id].get("label")
+
     # The real user rather than a stand-in object. `create_tool_for_user`
     # reads `selected_organization_id` off it to scope the row, and a fake
     # carrying an org id we passed in would be us asserting the scoping
@@ -1138,7 +1257,11 @@ async def _attach_app_tool(
                 description=(description or "").strip() or None,
                 definition={
                     "type": "composio",
-                    "config": {"toolkit": slug, "tool_slug": action_slug},
+                    "config": {
+                        "toolkit": slug,
+                        "tool_slug": action_slug,
+                        **({"connected_account_id": account_id} if account_id else {}),
+                    },
                 },
             ),
             actor,
@@ -1181,6 +1304,7 @@ async def _attach_app_tool(
         "tool_uuid": str(tool_uuid),
         "app": slug,
         "action": action_slug,
+        "acts_on": account_label,
         "published": False,
         "open_url": f"/workflow/{workflow_id}",
         "next_steps": [

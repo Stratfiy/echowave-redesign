@@ -325,3 +325,177 @@ class TestTheDispatcherRoutesThem:
                 )
             assert result == {"ok": True}, name
             handler.assert_awaited_once()
+
+
+class TestOneToolPerPersonOrResource:
+    """A clinic with three doctors has three calendars.
+
+    `list_connected_apps` answers "is Google Calendar connected";
+    `list_app_accounts` answers "whose", and that difference is the whole of
+    per-doctor booking: one tool per calendar, named for that doctor, so the
+    agent picks by name and an agent given one cannot reach the others.
+
+    The alternative -- reading three calendars as one availability -- is the
+    thing these tests exist to keep out. It would make a clinic look fully
+    booked when one doctor is free, turning away a caller who would have seen
+    anybody. Same bug as refusing an open slot, wearing a different hat.
+    """
+
+    ACCOUNTS = [
+        {"connected_account_id": "ca_1", "app": "googlecalendar", "label": "Dr Ramesh"},
+        {"connected_account_id": "ca_2", "app": "googlecalendar", "label": "Dr Priya"},
+        {"connected_account_id": "ca_9", "app": "gmail", "label": "Front desk inbox"},
+    ]
+
+    @pytest.mark.asyncio
+    async def test_it_lists_only_that_apps_accounts(self):
+        with (
+            patch.object(builder, "composio_configured", lambda: True),
+            patch.object(
+                builder,
+                "composio_connected_accounts",
+                AsyncMock(return_value=self.ACCOUNTS),
+            ),
+        ):
+            result = await builder._list_app_accounts(
+                organization_id=42, app="googlecalendar"
+            )
+        assert [a["label"] for a in result["accounts"]] == ["Dr Ramesh", "Dr Priya"]
+
+    @pytest.mark.asyncio
+    async def test_it_tells_the_model_to_ask_rather_than_choose(self):
+        """The labels are the operator's words. "Dr Ramesh" is obvious and
+        "calendar-2" is not, and a tool pointed at the wrong doctor books the
+        wrong doctor."""
+        with (
+            patch.object(builder, "composio_configured", lambda: True),
+            patch.object(
+                builder,
+                "composio_connected_accounts",
+                AsyncMock(return_value=self.ACCOUNTS),
+            ),
+        ):
+            result = await builder._list_app_accounts(
+                organization_id=42, app="googlecalendar"
+            )
+        assert "ask the user which" in result["note"]
+
+    @pytest.mark.asyncio
+    async def test_nothing_connected_is_not_an_error(self):
+        with (
+            patch.object(builder, "composio_configured", lambda: True),
+            patch.object(
+                builder, "composio_connected_accounts", AsyncMock(return_value=[])
+            ),
+        ):
+            result = await builder._list_app_accounts(organization_id=42, app="slack")
+        assert result["accounts"] == []
+        assert "connect_app" in result["note"]
+
+    async def _attach(self, **overrides):
+        args = {
+            "session": AsyncMock(),
+            "organization_id": 42,
+            "user_id": 1,
+            "workflow_id": 7,
+            "app": "googlecalendar",
+            "action": "GOOGLECALENDAR_CREATE_EVENT",
+            "name": "Book with Dr Ramesh",
+            "description": "",
+            "connected_account_id": "ca_1",
+        }
+        args.update(overrides)
+        return await builder._attach_app_tool(**args)
+
+    def _patches(self, created=None):
+        actions = [{"slug": "GOOGLECALENDAR_CREATE_EVENT", "does": "Create an event"}]
+        return (
+            patch.object(builder, "composio_configured", lambda: True),
+            patch.object(
+                builder,
+                "connected_toolkits",
+                AsyncMock(return_value=["googlecalendar"]),
+            ),
+            patch.object(
+                builder, "composio_toolkit_actions", AsyncMock(return_value=actions)
+            ),
+            patch.object(
+                builder,
+                "composio_connected_accounts",
+                AsyncMock(return_value=self.ACCOUNTS),
+            ),
+            patch.object(
+                builder,
+                "create_tool_for_user",
+                AsyncMock(return_value=created or SimpleNamespace(tool_uuid="t1")),
+            ),
+        )
+
+    @pytest.mark.asyncio
+    async def test_the_account_reaches_the_tool_config(self):
+        """Without this the tool acts on whichever calendar Composio picks,
+        and "Book with Dr Ramesh" books somebody else."""
+        p1, p2, p3, p4, p5 = self._patches()
+        with p1, p2, p3, p4, p5 as create, patch.object(builder, "db_client") as db:
+            db.get_workflow = AsyncMock(return_value=_agent())
+            db.get_user_by_id = AsyncMock(
+                return_value=SimpleNamespace(
+                    id=1, selected_organization_id=42, provider_id="p"
+                )
+            )
+            db.update_workflow = AsyncMock()
+            result = await self._attach()
+
+        assert result["attached"] is True
+        assert result["acts_on"] == "Dr Ramesh"
+        config = create.await_args.args[0].definition.config
+        assert config.connected_account_id == "ca_1"
+
+    @pytest.mark.asyncio
+    async def test_an_account_from_another_tenant_is_refused(self):
+        """Checked against this organization's own accounts rather than
+        trusted. Letting it through would point a tool at somebody else's
+        calendar and fail on a live call instead of here."""
+        p1, p2, p3, p4, p5 = self._patches()
+        with p1, p2, p3, p4, p5 as create, patch.object(builder, "db_client") as db:
+            db.get_workflow = AsyncMock(return_value=_agent())
+            result = await self._attach(connected_account_id="ca_someone_else")
+
+        assert "error" in result and "ca_someone_else" in result["error"]
+        create.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_an_account_belonging_to_a_different_app_is_refused(self):
+        """`ca_9` is real and is a Gmail account. Attaching it to a calendar
+        action is a tool that cannot work, created without complaint."""
+        p1, p2, p3, p4, p5 = self._patches()
+        with p1, p2, p3, p4, p5 as create, patch.object(builder, "db_client") as db:
+            db.get_workflow = AsyncMock(return_value=_agent())
+            result = await self._attach(connected_account_id="ca_9")
+
+        assert "error" in result
+        create.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_omitting_it_is_allowed_for_a_business_with_only_one(self):
+        """Most accounts have one of everything. Requiring the id would make
+        every attach two round trips for no gain."""
+        p1, p2, p3, p4, p5 = self._patches()
+        with p1, p2, p3, p4, p5 as create, patch.object(builder, "db_client") as db:
+            db.get_workflow = AsyncMock(return_value=_agent())
+            db.get_user_by_id = AsyncMock(
+                return_value=SimpleNamespace(
+                    id=1, selected_organization_id=42, provider_id="p"
+                )
+            )
+            db.update_workflow = AsyncMock()
+            result = await self._attach(connected_account_id="")
+
+        assert result["attached"] is True
+        assert create.await_args.args[0].definition.config.connected_account_id is None
+
+    def test_the_instructions_refuse_to_merge_calendars(self):
+        from api.services.agent_builder.session import SYSTEM_PROMPT
+
+        assert "list_app_accounts" in SYSTEM_PROMPT
+        assert "fully booked when one doctor is free" in SYSTEM_PROMPT
