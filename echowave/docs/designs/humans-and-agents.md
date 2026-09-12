@@ -431,3 +431,104 @@ most important unmeasured quantity in the company.
 
 The field visit stays on the list. It answers what the human in the loop actually does. This
 answers whether anyone but you can run the product at all, and it gates the hiring model.
+
+---
+
+# Revision 3 — non-voice agents, cross-app triggers, and the line
+
+Added 12 September 2026, same session. Two more inputs:
+
+1. *"Even non-voice agents, like a content poster, where the user says every day from
+   Drive take this file and post it on Meta."*
+2. *"Instead of a webhook trigger it should be some action in an app logically
+   triggering another app. Like every time a shipment fails, notify the customer. But
+   across apps."* Plus: agents with KPIs.
+
+Those two examples fall on opposite sides of the line that defines this company, and
+naming the line is the whole of this revision.
+
+## The line
+
+| Test | Content poster | Shipment-failure notification |
+|---|---|---|
+| Needs judgment? | No | Yes |
+| Can fail in a way a human must catch? | No | Yes |
+| Outcome beyond an HTTP 200? | No | Yes |
+| Anyone sets a KPI on it? | No | Yes |
+
+**Four noes: it is an n8n node and someone else should run it. Four yeses: it is a
+Decibyl agent.** Apply this before building anything.
+
+The content poster is a four-node n8n workflow. Building it makes Decibyl a worse
+Zapier. The shipment-failure notification is already voice- and WhatsApp-shaped, has a
+conversation that can go wrong, and has a business outcome worth measuring.
+
+## Why the trigger layer is the wrong thing to build
+
+1. **It competes with the tool that produced the only demand evidence in this session.**
+   The clients asking for voice agents chose n8n. An orchestration layer asks them to
+   migrate off the thing that made them customers.
+2. **We do not have it.** `api/services/integrations/composio/` is actions-only; there
+   is no trigger, webhook or subscribe path in the client. Cross-app triggers are not a
+   capability to surface, they are a system to build.
+3. **The hard part is that the events mostly do not exist.** Most SaaS applications do
+   not emit the event anyone actually wants. Courier "shipment failed" and bank "payment
+   bounced" are polled, not pushed. So "an action in app A triggers app B" means polling
+   infrastructure, change detection, deduplication, per-vendor rate limits and OAuth
+   token refresh, across every connector, permanently.
+4. **The moat in that category is connector count and maintenance, not logic.** Zapier
+   is at roughly 8,000 integrations over two decades; Make is past a thousand; n8n has
+   hundreds. Five people do not win a connector treadmill, and the treadmill is the
+   entire product.
+
+**Decision: rent orchestration and actions. n8n or the customer's own tool orchestrates.
+Composio supplies actions (1,540 toolkits). Decibyl supplies the agent, the outcome and
+the human backstop.**
+
+## What is actually ours: the outcome layer
+
+Zapier, n8n and Make are step executors. They report that a *run* succeeded. None of
+them reports whether the *business goal* was met. That gap is unclaimed and we are
+already half-built into it:
+
+- `api/routes/workflow_outcomes.py` ships `/{workflow_id}/outcome-rate` and
+  `/{workflow_id}/readiness`.
+- `api/services/review/`, `api/routes/evals.py`, and `organisation_memory`'s
+  confirm-and-reject loop are the correction half.
+- `PRD.md` §8 already names the metric that closes deals: *"Cost per completed outcome.
+  Spend ÷ successful dispositions. The number a customer actually cares about."*
+- The 7 September audit raised this as finding #8 and it is still open:
+  `api/services/reports/org_metrics.py:133` emits only `cost_per_call_paise`, with no
+  successful-outcome denominator.
+
+**Positioning that follows from it:**
+
+> **Zapier runs steps. We run jobs that have to work.**
+
+An agent with a job, a target, a human backstop, and a number that says whether the goal
+was met.
+
+## Non-voice is not new work, it is unfinished work
+
+`api/services/messaging/` already contains `email.py`, `platform_whatsapp.py`,
+`announce.py`, `follow_up.py` and `send.py`, and `api/services/workflow/dto.py` already
+exposes a `channel` property with WhatsApp among its options. The channel abstraction
+exists; it is not surfaced as a product.
+
+Per `pricing-and-unit-economics.md`, WhatsApp runs at 88% gross margin against voice at
+35-65%. **Non-voice is the higher-margin half of the business, not a dilution of it.**
+
+## Effect on the plan
+
+No change to the Revision 2 sequencing, and one addition to the build list.
+
+**Added to the now-list**
+5. **A KPI per agent.** One target, one measured rate, one cost-per-successful-outcome,
+   visible to the customer. Close audit finding #8 by giving `cost_by_outcome` its second
+   denominator. This is a small change to an existing report and it is the number that
+   differentiates the product from every automation tool.
+
+**Added to the not-now list**
+- Any cross-app trigger, polling or event-detection infrastructure. Rent it.
+- Any agent that passes the four-noes test. A content poster is an n8n workflow.
+- A connector catalogue of our own. Composio is the catalogue.
