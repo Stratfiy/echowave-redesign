@@ -25,6 +25,19 @@ from api.services.agent_templates.materialise import (
 
 ALL = list_templates()
 
+#: Split, because most of the invariants below are about a phone call and were
+#: written when every template was a voice template. ``_base.py`` already
+#: scoped its own validator this way -- "the rule that used to be enforced by
+#: making the fields mandatory, now scoped to the templates it is actually
+#: about" -- and these tests had not followed, so the first non-speaking
+#: template failed nine of them on rules that do not apply to it.
+#:
+#: Scoped rather than relaxed. Each voice rule still holds for every calling
+#: template, and the quiet ones get their own class below with the invariants
+#: that *are* theirs.
+CALLING = [t for t in ALL if t.speaks]
+QUIET = [t for t in ALL if not t.speaks]
+
 
 def test_catalogue_is_not_empty():
     assert ALL
@@ -43,11 +56,9 @@ class TestEveryTemplate:
         starts = [n for n in template.nodes if n.type == "startCall"]
         assert len(starts) == 1
 
-    def test_start_node_has_a_greeting(self, template):
-        """The first words are the template's job, not the model's."""
+    def test_has_a_start_node_at_all(self, template):
         start = template.start_node
         assert start is not None
-        assert start.greeting
 
     def test_reaches_an_end_node(self, template):
         """Every template must be able to finish a call."""
@@ -102,9 +113,13 @@ class TestEveryTemplate:
         test has to be what notices if someone does.
         """
         joined = " ".join(template.guardrails).lower()
-        assert "one question per turn" in joined
-        assert "read back" in joined
-        assert "language" in joined
+        # The one rule that is about every agent rather than about a call: do
+        # not make things up. The conversational rules -- one question a turn,
+        # read the number back, follow their language -- are asserted for
+        # calling templates in TestEveryCallingTemplate, because a bot running
+        # at eight in the morning against a spreadsheet has no turns, no
+        # number to read back and nobody whose language to follow.
+        assert "never invent" in joined
 
     def test_declares_compliance_notes(self, template):
         """Every vertical here touches personal data over a phone line."""
@@ -145,6 +160,37 @@ class TestEveryTemplate:
         undeclared = used - set(template.template_variables) - runtime_supplied
         assert not undeclared, f"undeclared variables: {sorted(undeclared)}"
 
+    def test_the_stack_names_a_language_model_and_says_why(self, template):
+        """Every agent has a brain, whatever else it has."""
+        assert template.stack.llm_provider
+        assert template.stack.rationale
+
+
+@pytest.mark.parametrize("template", CALLING, ids=lambda t: t.id)
+class TestEveryCallingTemplate:
+    """Invariants about being on a phone call.
+
+    These were in TestEveryTemplate until a template arrived that answers no
+    phone. They are unchanged -- only the set they run over is narrower.
+    """
+
+    def test_the_start_node_opens_with_words(self, template):
+        """The first words are the template's job, not the model's."""
+        assert template.start_node is not None
+        assert template.start_node.greeting
+
+    def test_carries_the_conversational_guardrails(self, template):
+        """The house rules for talking to somebody.
+
+        Copied into each template rather than referenced, precisely so that
+        editing one cannot silently drop them -- which means a test has to be
+        what notices.
+        """
+        joined = " ".join(template.guardrails).lower()
+        assert "one question per turn" in joined
+        assert "read back" in joined
+        assert "language" in joined
+
     def test_priced_stack_names_a_provider_for_every_component(self, template):
         """`estimate_agent_cost` prices what it is given. A blank provider is a
         quote with a hole in it, and the hole is usually the voice."""
@@ -153,7 +199,56 @@ class TestEveryTemplate:
         assert stack.llm_provider
         assert stack.tts_provider
         assert stack.telephony_provider
-        assert stack.rationale
+
+    def test_it_is_offered_voices_to_choose_from(self, template):
+        """A voice agent sold without a voice to hear is sold on a promise."""
+        assert template.suggested_voices
+
+
+@pytest.mark.parametrize("template", QUIET, ids=lambda t: t.id)
+class TestEveryQuietTemplate:
+    """Invariants for an agent nobody hears.
+
+    Not the voice rules relaxed -- a different set. What can go wrong with a
+    bot that reads data and writes a summary is not a bad greeting, it is a
+    confident figure nobody can trace.
+    """
+
+    def test_it_names_no_speech_or_telephony_provider(self, template):
+        """A stack with a voice on a bot that never speaks is a rate we would
+        quote, and a cost we would predict, for a component that never runs."""
+        assert not template.stack.stt_provider
+        assert not template.stack.tts_provider
+        assert not template.stack.telephony_provider
+
+    def test_it_is_offered_no_voices(self, template):
+        """The gallery fell back to six default voices for any template
+        without its own, which for a silent one is a choice offered, stored,
+        and then ignored on every run."""
+        assert template.suggested_voices == []
+
+    def test_it_has_no_call_shape_and_a_schedule_shape_if_scheduled(self, template):
+        assert template.call_shape is None
+        if template.direction is CallDirection.scheduled:
+            assert template.schedule_shape is not None
+            assert template.schedule_shape.runs
+
+    def test_it_is_told_not_to_invent_a_figure(self, template):
+        """The failure mode of this family. A summary carrying a plausible
+        number nobody can trace is worse than one that admits a gap, because
+        somebody forwards it to their accountant."""
+        joined = " ".join(template.guardrails).lower()
+        assert "never invent" in joined
+
+    def test_it_is_told_to_say_where_a_figure_came_from(self, template):
+        joined = " ".join(template.guardrails).lower()
+        assert "where it came from" in joined or "which invoice" in joined
+
+    def test_it_defaults_to_reading_rather_than_writing(self, template):
+        """An unsupervised run that spends money or messages a customer
+        without being asked is the one failure here that cannot be undone."""
+        joined = " ".join(template.guardrails).lower()
+        assert "reading is the default" in joined
 
 
 # --- the constraints that are legal rather than stylistic -------------------
@@ -247,7 +342,19 @@ def test_catalogue_covers_both_call_directions():
     """Inbound and outbound need different plans — numbers versus concurrency —
     so a catalogue that only covered one would only sell one shape of account."""
     directions = {t.direction for t in ALL}
-    assert directions == {CallDirection.inbound, CallDirection.outbound}
+    assert {CallDirection.inbound, CallDirection.outbound} <= directions
+
+
+def test_catalogue_has_something_that_does_not_speak():
+    """Otherwise the non-voice plan has nothing to sell.
+
+    Asserted rather than assumed: every template was a voice template for the
+    whole life of this file, the pack format's non-calling branch was
+    unreachable, and the cheapest tier we intend to charge for had no product
+    behind it. A catalogue that drifts back to voice-only should fail here
+    rather than on a pricing page.
+    """
+    assert QUIET
 
 
 class TestMaterialising:

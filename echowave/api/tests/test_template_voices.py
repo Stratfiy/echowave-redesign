@@ -1,11 +1,20 @@
-"""Every template offers voices to hear: both genders, several languages."""
+"""Every speaking template offers voices to hear: both genders, several
+languages.
+
+Scoped to the ones that speak. A template that never makes a sound -- a
+scheduled bot, an internal knowledge bot -- would otherwise be required to
+carry a gallery of six voices with play buttons, which is a choice offered,
+stored, and then ignored on every run.
+"""
 
 from api.services.agent_templates import get_template, list_templates
 from api.services.configuration import voice_samples
 
 
 def test_every_template_suggests_a_man_and_a_woman_in_more_than_one_language():
-    for template in list_templates():
+    speaking = [t for t in list_templates() if t.speaks]
+    assert speaking, "the catalogue lost every voice template"
+    for template in speaking:
         voices = template.suggested_voices
         assert voices, template.id
         assert {v.gender for v in voices} >= {"male", "female"}, template.id
@@ -19,6 +28,19 @@ def test_one_template_carries_the_same_voices_when_fetched_alone():
     assert [v.voice_id for v in single.suggested_voices] == [
         v.voice_id for v in listed.suggested_voices
     ]
+
+
+def test_a_silent_template_is_offered_no_voices():
+    """The other half of the rule above, asserted rather than left implied.
+
+    The fallback gave any template without its own list six default voices,
+    so the first non-speaking one inherited a gallery. Nothing would have
+    failed -- the voice would simply never be used.
+    """
+    silent = [t for t in list_templates() if not t.speaks]
+    assert silent, "the catalogue has nothing that does not speak"
+    for template in silent:
+        assert template.suggested_voices == [], template.id
 
 
 def test_every_sample_language_has_a_line_to_record():

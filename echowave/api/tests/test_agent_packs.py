@@ -399,14 +399,39 @@ class TestTheShelf:
         slugs = [pack.slug for pack in all_packs()]
         assert len(slugs) == len(set(slugs))
 
-    def test_the_shelf_is_empty_until_a_demo_number_is_configured(self):
-        """An empty shelf is a missing configuration somebody notices; a shelf
-        full of dead demo links is one nobody reports."""
+    def test_no_calling_role_is_listed_until_a_demo_is_configured(self):
+        """A shelf full of dead demo links is one nobody reports.
+
+        Narrowed to the roles it is about. It used to assert the whole shelf
+        goes dark without a demo number, which was true only while every role
+        answered a phone -- a role that never calls has nothing to demonstrate
+        and is correctly listed regardless.
+
+        That is a better product, not a loosened test: with no demo number
+        configured at all there are still two roles somebody can hire.
+        """
         without = catalogue._packs(None)
-        assert all(not pack.listed for pack in without)
+        calling = [p for p in without if is_calling(p)]
+        quiet = [p for p in without if not is_calling(p)]
+        assert calling and quiet, "this test needs both kinds on the shelf"
+        assert all(not pack.listed for pack in calling)
+        assert all(pack.listed for pack in quiet)
+
         with_number = catalogue._packs("+911234567890")
         assert all(pack.listed for pack in with_number)
-        assert all(pack.demo_number == "+911234567890" for pack in with_number)
+        assert all(
+            pack.demo_number == "+911234567890"
+            for pack in with_number
+            if is_calling(pack)
+        )
+
+    def test_a_role_that_never_calls_is_given_no_demo_number(self):
+        """A demo number on a bot that cannot answer one is a link to nowhere,
+        printed on the card as proof."""
+        for pack in catalogue._packs("+911234567890"):
+            if not is_calling(pack):
+                assert pack.demo_number is None, pack.slug
+                assert pack.demo_url is None, pack.slug
 
     def test_listed_packs_never_includes_an_unlisted_one(self):
         assert all(pack.listed for pack in listed_packs())
@@ -415,13 +440,29 @@ class TestTheShelf:
         assert get_pack("front_desk_clinic").name == "Front Desk Bot"
         assert get_pack("nope") is None
 
-    def test_every_pack_asks_who_to_transfer_to(self):
+    def test_every_calling_pack_asks_who_to_transfer_to(self):
         """An agent with no way to hand a call to a person is an agent that
-        guesses when something is real."""
+        guesses when something is real.
+
+        Calling packs only: there is no call to transfer out of a bot that
+        answers a question in a chat or runs at eight in the morning. Asking
+        for an escalation number anyway would be a required field with nothing
+        behind it, which teaches people to type anything into our forms.
+        """
         for pack in all_packs():
+            if not is_calling(pack):
+                continue
             assert "escalation_number" in {fact.key for fact in pack.required_facts}, (
                 pack.slug
             )
+
+    def test_a_non_calling_pack_declares_no_after_call_apps(self):
+        """Enforced by the format too; asserted here so the catalogue is
+        checked as well as the schema."""
+        for pack in all_packs():
+            if is_calling(pack):
+                continue
+            assert pack.after_call_apps == [], pack.slug
 
     def test_facts_shared_between_packs_use_the_same_key(self):
         """The reason hiring a second agent is quicker than the first: the
