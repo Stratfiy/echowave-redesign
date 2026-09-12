@@ -98,10 +98,14 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
   {
     items: [
       {
-        title: "Overview",
+        // "Home", not "Overview". The screen stopped being an overview the
+        // day it opened on a greeting and a composer: it says what happened
+        // and lets you act, and the charts it used to lead with are below the
+        // fold. "Overview" told a reader to expect a dashboard.
+        title: "Home",
         url: "/overview",
         icon: Home,
-        keywords: ["home", "dashboard", "start"],
+        keywords: ["home", "dashboard", "overview", "start"],
       },
       // The partner programme is a commercial arrangement on the account, so
       // it lives as a tab on Billing rather than as its own door in WORKSPACE.
@@ -132,12 +136,21 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       // properties of an agent, chosen on its Models tab. The workspace
       // default is a setting, under Settings → Model defaults.
       {
-        title: "Agents",
+        // "Team". They are listed like people, with a line saying what each
+        // one just did, and they are hired rather than built -- so the rail
+        // should call them what the rest of the product calls them. "Agents"
+        // is kept as a search keyword because it is what somebody types.
+        title: "Team",
         url: "/workflow",
         // The old models page redirects here; keep it lit while it does.
         activePaths: ["/model-configurations"],
         icon: Bot,
         keywords: [
+          // "agents" first: it is what the rail used to say and what most
+          // people still type. A rename that makes a destination unsearchable
+          // is a rename that loses it.
+          "agents",
+          "agent",
           "workflow",
           "voice agent",
           "builder",
