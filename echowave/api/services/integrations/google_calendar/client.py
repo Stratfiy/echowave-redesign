@@ -184,9 +184,51 @@ async def _find_conflicting_event(
         return None
 
     for item in response.json().get("items") or []:
-        if item.get("status") != "cancelled":
+        if _occupies_the_chair(item):
             return item
     return None
+
+
+def _occupies_the_chair(event: Dict[str, Any]) -> bool:
+    """Whether an event on the calendar means the slot is actually taken.
+
+    ``events.list`` returns everything that *overlaps* the window, which is
+    not the same question, so two kinds of overlap are not a busy chair.
+
+    **An event the owner marked Free is not busy.** Google calls it
+    ``transparency: "transparent"`` and it is the operator's own statement of
+    intent, made in the Busy/Free control beside every event. A reminder, a
+    held placeholder, a travel note, and every entry on Google's own holiday
+    and birthday calendars.
+
+    **A cancelled event is not an event.**
+
+    Everything else is busy, **including an all-day event**, and that is the
+    line worth defending. An all-day entry on the calendar a business books
+    against is almost always the business closing itself: "Dr Anitha on
+    leave", "Clinic shut for Diwali", "Equipment service". Treating those as
+    free books a patient who then travels to a locked door, which is a worse
+    failure than a slot we declined to offer -- they can ring back for another
+    time, they cannot get the morning back.
+
+    Public holidays do not arrive this way. They live on a separate holiday
+    calendar, which this integration does not read, and they are published
+    ``transparent`` in any case -- so the rule above already lets them
+    through twice over.
+
+    I had this wrong: an earlier version excluded every all-day event on the
+    theory that a holiday was refusing a free noon slot. The refusal turned
+    out not to come from this function at all -- the tool was never called --
+    and the exclusion silently stopped leave and closures from blocking
+    anything. Being wrong in this direction is expensive and invisible, which
+    is why it is now one rule the operator can see rather than an inference
+    about event shapes.
+    """
+    if event.get("status") == "cancelled":
+        return False
+    if str(event.get("transparency") or "").lower() == "transparent":
+        return False
+    return True
 
 
 def _combine_start_end(
@@ -279,11 +321,31 @@ async def execute_google_calendar_tool(
         )
         if conflict:
             conflict_summary = conflict.get("summary") or "an existing event"
+            start_field = conflict.get("start")
+            conflict_start = start_field if isinstance(start_field, dict) else {}
             logger.info(
-                "Google Calendar booking for org {} skipped -- conflicts with '{}'",
+                "Google Calendar booking for org {} at {} skipped -- conflicts "
+                "with '{}' (start={}, transparency={}, status={})",
                 organization_id,
+                start_iso,
                 conflict_summary,
+                conflict_start.get("dateTime") or conflict_start.get("date"),
+                conflict.get("transparency"),
+                conflict.get("status"),
             )
+            # A closure and a clash need different answers from the agent. A
+            # taken slot means offer another time; a day the business has shut
+            # means offer another day, and telling the agent to try 12:30
+            # instead would walk it through every slot of a closed day.
+            if conflict_start.get("date") and not conflict_start.get("dateTime"):
+                return {
+                    "status": "error",
+                    "error": (
+                        f"The business is closed that day ({conflict_summary}). "
+                        "Offer the caller a different date -- no time on this "
+                        "day can be booked."
+                    ),
+                }
             return {
                 "status": "error",
                 "error": (

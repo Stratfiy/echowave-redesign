@@ -40,6 +40,7 @@ import { useAuth } from "@/lib/auth";
 
 type DemoContact = {
     workflow_id?: string | null;
+    name?: string | null;
     url?: string | null;
     number?: string | null;
 };
@@ -132,7 +133,19 @@ export default function DemoAgentPage() {
                                     Unreachable
                                 </Badge>
                             )}
-                            <span className="text-sm">Agent #{current}</span>
+                            {/* The name leads. "Agent #3" identifies the demo
+                                to nobody -- whoever opens this page has to see
+                                which agent a prospect will hear without going
+                                and looking the id up. The id stays, quietly,
+                                because it is what the field below takes. */}
+                            <span className="text-sm font-medium">
+                                {contact?.name || `Agent #${current}`}
+                            </span>
+                            {contact?.name ? (
+                                <span className="text-xs text-muted-foreground">
+                                    #{current}
+                                </span>
+                            ) : null}
                         </div>
 
                         <div className="space-y-1.5 text-sm">

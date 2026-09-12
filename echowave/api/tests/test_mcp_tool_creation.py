@@ -150,17 +150,18 @@ async def test_mcp_create_tool_schema_includes_validation_and_llm_hints():
     definition_schema = request_schema["properties"]["definition"]
     http_config = definition_schema["oneOf"][0]["properties"]["config"]
 
-    assert request_schema["properties"]["category"]["enum"] == [
-        "http_api",
-        "end_call",
-        "transfer_call",
-        "calculator",
-        "native",
-        "integration",
-        "mcp",
-        "google_calendar",
-        "rate_table",
-    ]
+    # Derived, not restated. This assertion used to carry the nine categories
+    # as a literal list, which froze the gap it was meant to catch: "composio"
+    # was a definition type that no caller could pass as a category, and this
+    # test agreed with the bug. Comparing against ToolCategoryValue means the
+    # next type added is covered by adding it once.
+    from typing import get_args
+
+    from api.schemas.tool import ToolCategoryValue
+
+    assert request_schema["properties"]["category"]["enum"] == list(
+        get_args(ToolCategoryValue)
+    )
     assert http_config["properties"]["method"]["enum"] == [
         "GET",
         "POST",

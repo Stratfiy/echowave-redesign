@@ -1046,7 +1046,12 @@ class WorkflowClient(BaseDBClient):
             )
 
             if workflow is None:
-                return {"workflow_id": None, "url": None, "number": None}
+                return {
+                    "workflow_id": None,
+                    "name": None,
+                    "url": None,
+                    "number": None,
+                }
 
             token = (
                 (
@@ -1089,6 +1094,11 @@ class WorkflowClient(BaseDBClient):
         )
         return {
             "workflow_id": str(workflow.id),
+            # The name, because "Agent #3" identifies the demo to nobody. Whoever
+            # opens this screen has to be able to see which agent a prospect
+            # will hear without going and looking the id up -- and the row is
+            # already in memory, so it costs nothing to say.
+            "name": workflow.name,
             "url": url,
             "number": number,
         }

@@ -53,7 +53,24 @@ USERINFO_ENDPOINT = "https://www.googleapis.com/oauth2/v2/userinfo"
 # also grants managing calendar *settings* (sharing, deleting calendars,
 # adding new ones) that a booking tool has no use for and should not be able
 # to ask a customer for.
-SCOPE = "https://www.googleapis.com/auth/calendar.events"
+#: calendar.events to write the booking, and the email scope so the screen can
+#: say *which* Google account a clinic connected.
+#:
+#: Without the email scope the userinfo endpoint answers without an email, so
+#: ``connected_email`` was null for every connection ever made and the screen
+#: rendered "Connected as ." with a blank. Adding it here fixes new
+#: connections; one made before this still has no email and never will, which
+#: is why the screen also has to read correctly without one.
+#:
+#: Deliberately still not calendar.readonly or calendar: we write events and
+#: never list somebody's calendars, and a consent screen that asks for less is
+#: one more clinic that says yes.
+SCOPE = " ".join(
+    (
+        "https://www.googleapis.com/auth/calendar.events",
+        "https://www.googleapis.com/auth/userinfo.email",
+    )
+)
 
 # Refresh this long before actual expiry so a slow request never straddles the
 # boundary and gets a 401 mid-call.

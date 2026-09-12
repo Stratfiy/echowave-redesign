@@ -25,12 +25,13 @@ end rather than a correction loop.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db import db_client
+from api.schemas.tool import CreateToolRequest
 from api.services.agent_builder.assemble import (
     AssemblyError,
     assemble,
@@ -43,16 +44,23 @@ from api.services.integrations.composio.client import (
     connect_link as composio_connect_link,
 )
 from api.services.integrations.composio.client import (
+    connected_accounts as composio_connected_accounts,
+)
+from api.services.integrations.composio.client import (
     connected_toolkits,
 )
 from api.services.integrations.composio.client import (
     is_configured as composio_configured,
 )
 from api.services.integrations.composio.client import (
+    toolkit_actions as composio_toolkit_actions,
+)
+from api.services.integrations.composio.client import (
     toolkit_name as composio_toolkit_name,
 )
 from api.services.packs import badges, pricing, resolve_listed_packs
 from api.services.packs.search import search_packs
+from api.services.tool_management import create_tool_for_user
 from api.services.workflow.dto import ReactFlowDTO
 from api.services.workflow.workflow_graph import WorkflowGraph
 
@@ -328,6 +336,112 @@ def tool_schemas() -> list[dict[str, Any]]:
                 "required": ["app"],
             },
         },
+        {
+            "name": "list_app_actions",
+            "description": (
+                "List what one connected app can actually be asked to do, as "
+                "exact action slugs. Call this before attach_app_tool, always, "
+                "and use a slug exactly as returned. Never write an action "
+                "slug from memory -- an invented one is accepted here and "
+                "fails on a live call with a customer on the line."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "app": {
+                        "type": "string",
+                        "description": (
+                            "The app's Composio slug from list_connected_apps, "
+                            "e.g. gmail. It must already be connected."
+                        ),
+                    },
+                },
+                "required": ["app"],
+            },
+        },
+        {
+            "name": "list_app_accounts",
+            "description": (
+                "List the individual accounts of one connected app -- which "
+                "Google Calendar, not whether Google Calendar. Call this when "
+                "a business has more than one of something: three doctors' "
+                "calendars, two shared inboxes, a calendar per chair. If more "
+                "than one comes back, ask the user which the agent should act "
+                "on; the labels are theirs and may not say whose is whose, so "
+                "do not guess."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "app": {
+                        "type": "string",
+                        "description": "Connected app slug, e.g. googlecalendar.",
+                    },
+                },
+                "required": ["app"],
+            },
+        },
+        {
+            "name": "attach_app_tool",
+            "description": (
+                "Give one agent the ability to do one thing in a connected "
+                "app -- send the confirmation email, add the row to the "
+                "sheet, post to the channel. Connecting an app does NOT give "
+                "an agent access to it; this is the step that does, so call it "
+                "after the user has connected the app and said what they want "
+                "the agent to do with it.\n\n"
+                "Saves to the agent's draft and does not publish. Tell the "
+                "user it is not live until they publish, and suggest testing "
+                "first -- the action runs for real."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "workflow_id": {
+                        "type": "number",
+                        "description": "The agent's id, from list_my_agents.",
+                    },
+                    "app": {
+                        "type": "string",
+                        "description": "Connected app slug, e.g. gmail.",
+                    },
+                    "action": {
+                        "type": "string",
+                        "description": (
+                            "An exact action slug from list_app_actions, e.g. "
+                            "GMAIL_SEND_EMAIL. Do not modify or invent it."
+                        ),
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": (
+                            "What the agent should call this, in the user's "
+                            "words, e.g. 'Email the confirmation'. The agent "
+                            "reads this when deciding whether to use it."
+                        ),
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": (
+                            "When the agent should use it, e.g. 'After the "
+                            "booking is confirmed and the caller gave an "
+                            "email address.' Optional but strongly advised."
+                        ),
+                    },
+                    "connected_account_id": {
+                        "type": "string",
+                        "description": (
+                            "Which account of that app to act on, from "
+                            "list_app_accounts. Use it when the business has "
+                            "more than one -- one tool per doctor's calendar, "
+                            "named for that doctor. Omit it when there is only "
+                            "one. Never invent an id."
+                        ),
+                    },
+                },
+                "required": ["workflow_id", "app", "action", "name"],
+            },
+        },
     ]
 
 
@@ -384,6 +498,28 @@ async def dispatch(
             return await _connect_app(
                 organization_id=organization_id,
                 app=arguments.get("app", ""),
+            )
+        if name == "list_app_actions":
+            return await _list_app_actions(
+                organization_id=organization_id,
+                app=arguments.get("app", ""),
+            )
+        if name == "list_app_accounts":
+            return await _list_app_accounts(
+                organization_id=organization_id,
+                app=arguments.get("app", ""),
+            )
+        if name == "attach_app_tool":
+            return await _attach_app_tool(
+                session=session,
+                organization_id=organization_id,
+                user_id=user_id,
+                workflow_id=arguments.get("workflow_id"),
+                app=arguments.get("app", ""),
+                action=arguments.get("action", ""),
+                name=arguments.get("name", ""),
+                description=arguments.get("description", ""),
+                connected_account_id=arguments.get("connected_account_id", ""),
             )
         if name == "create_agent":
             return await _create_agent(
@@ -839,4 +975,341 @@ async def _connect_app(*, organization_id: int, app: str) -> dict[str, Any]:
             f"complete this for them. When they say they have finished, call "
             f"list_connected_apps to confirm it worked."
         ),
+    }
+
+
+#: Nodes that can hold a tool. An agent built from a template has one talking
+#: node; a graph drawn on the canvas may have several, and attaching to the
+#: wrong one gives the tool to a part of the call that never needs it.
+_TOOL_BEARING_NODES = ("agentNode", "conversationNode")
+
+
+async def _list_app_actions(*, organization_id: int, app: str) -> dict[str, Any]:
+    """What a connected app can be asked to do, from Composio's own catalogue.
+
+    Read rather than remembered. A model asked to send email writes
+    ``GMAIL_SEND``, which does not exist, and an invented slug fails at call
+    time with a caller on the line -- so the choice is made from what Composio
+    says the app has.
+
+    Refuses an app this organization has not connected. Listing actions for
+    something unauthorized would have the chat describe a capability, the user
+    agree to it, and the attach fail one turn later.
+    """
+    if not composio_configured():
+        return {
+            "error": "Connecting outside apps is not switched on for this platform."
+        }
+
+    slug = (app or "").strip().lower()
+    if not slug:
+        return {"error": "Which app? Pass the slug from list_connected_apps."}
+
+    connected = {t.lower() for t in (await connected_toolkits(organization_id))}
+    if slug not in connected:
+        return {
+            "error": (
+                f"{slug} is not connected for this account, so its actions "
+                "cannot be attached yet. Offer connect_app first."
+            )
+        }
+
+    actions = await composio_toolkit_actions(slug)
+    if actions is None:
+        return {
+            "error": (
+                f"Could not read what {slug} can do just now. Do not guess a "
+                "slug -- say you will try again."
+            )
+        }
+    if not actions:
+        return {
+            "actions": [],
+            "note": (
+                f"{slug} is connected but exposes nothing we can attach. Do "
+                "not invent an action."
+            ),
+        }
+    return {
+        "actions": actions,
+        "note": (
+            "Pick the one slug that matches what the user asked for and pass "
+            "it to attach_app_tool exactly as written. Do not modify it."
+        ),
+    }
+
+
+async def _list_app_accounts(*, organization_id: int, app: str) -> dict[str, Any]:
+    """Which *individual* account of one app this organization has authorized.
+
+    The question a clinic with three doctors asks. ``list_connected_apps``
+    answers "is Google Calendar connected"; this answers "whose", and the
+    difference is the whole of per-doctor booking: three calendars authorized
+    under one account identity, and "Book with Dr Ramesh" and "Book with
+    Dr Priya" become two tools differing only by which one they act on.
+
+    Deliberately not merged into one availability view. Merging three doctors'
+    calendars would make a clinic look fully booked when one doctor is free,
+    which is the same bug as refusing an open slot wearing a different hat.
+
+    Composio exposes no email address -- an opaque id and a generated word-id,
+    tokens redacted -- so the label is whatever the operator called it. In a
+    clinic "Dr Ramesh's calendar" is a better label than a Google address
+    anyway, but the model must not pretend to know which doctor is which: if
+    the labels are not obvious it has to ask.
+    """
+    if not composio_configured():
+        return {
+            "error": "Connecting outside apps is not switched on for this platform."
+        }
+
+    slug = (app or "").strip().lower()
+    if not slug:
+        return {"error": "Which app? Pass the slug from list_connected_apps."}
+
+    accounts = [
+        account
+        for account in (await composio_connected_accounts(organization_id))
+        if (account.get("app") or "") == slug
+    ]
+    if not accounts:
+        return {
+            "accounts": [],
+            "note": (
+                f"No {slug} account is connected. Offer connect_app. Each "
+                "person or resource that needs its own is connected separately."
+            ),
+        }
+    return {
+        "accounts": [
+            {"id": a["connected_account_id"], "label": a["label"]} for a in accounts
+        ],
+        "note": (
+            "If there is more than one, ask the user which it should act on "
+            "rather than choosing -- the labels are theirs and may not say "
+            "which person each belongs to. Pass the id as "
+            "connected_account_id to attach_app_tool. Omit it only when there "
+            "is exactly one and the user has not distinguished them."
+        ),
+    }
+
+
+def _attach_to_nodes(definition: dict[str, Any], tool_uuid: str) -> int:
+    """Add ``tool_uuid`` to every node that can hold one. Returns how many.
+
+    Appended rather than replacing the list: an agent that already has a
+    calendar and is given Gmail must end up with both, and a tool list that
+    silently drops what was there is the failure this codebase keeps finding.
+    """
+    touched = 0
+    for node in definition.get("nodes") or []:
+        if not isinstance(node, dict) or node.get("type") not in _TOOL_BEARING_NODES:
+            continue
+        data = node.setdefault("data", {})
+        if not isinstance(data, dict):
+            continue
+        existing = data.get("tool_uuids")
+        uuids = list(existing) if isinstance(existing, list) else []
+        if tool_uuid not in uuids:
+            uuids.append(tool_uuid)
+            data["tool_uuids"] = uuids
+            touched += 1
+    return touched
+
+
+async def _attach_app_tool(
+    *,
+    session: AsyncSession,
+    organization_id: int,
+    user_id: int,
+    workflow_id: Any,
+    app: str,
+    action: str,
+    name: str,
+    description: str,
+    connected_account_id: str = "",
+) -> dict[str, Any]:
+    """Give one agent the ability to do one thing in a connected app.
+
+    The step the chat was missing. It could authorize Gmail and say so, and the
+    agent still could not send email -- nothing attached the app to the agent,
+    and nothing said so either. A user who has just agreed to connect
+    something has been told a capability exists; the silence afterwards is the
+    worst shape this codebase has, because it looks exactly like success.
+
+    Writes a draft and never publishes, the same boundary ``revise_agent_facts``
+    keeps: a chat that can silently change what is answering a clinic's phone
+    is a chat one bad turn away from an outage. A person publishes.
+
+    Every input a model produced is checked against the thing it names -- the
+    workflow against this organization, the app against what is connected, the
+    action against Composio's catalogue -- because all three arrive as strings
+    the model may have invented.
+    """
+    if not composio_configured():
+        return {
+            "error": "Connecting outside apps is not switched on for this platform."
+        }
+    if not isinstance(workflow_id, int):
+        return {"error": "workflow_id must be the number from list_my_agents."}
+
+    slug = (app or "").strip().lower()
+    action_slug = (action or "").strip()
+    if not slug or not action_slug:
+        return {
+            "error": (
+                "Both app and action are required. Call list_app_actions and "
+                "use a slug from it."
+            )
+        }
+    if not (name or "").strip():
+        return {
+            "error": (
+                "Give the tool a name the agent will read, e.g. 'Email the "
+                "confirmation'."
+            )
+        }
+
+    # Scoped, deliberately not `get_workflow_by_id`: a workflow_id a model
+    # produced is a request-supplied id however it came by it.
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=organization_id
+    )
+    if workflow is None:
+        return {"error": f"No agent {workflow_id} in this account."}
+
+    definition = dict(getattr(workflow, "workflow_definition", None) or {})
+    if not definition.get("nodes"):
+        return {
+            "error": (
+                f"Agent {workflow_id} has no nodes to attach a tool to. Open "
+                f"it in the editor instead: /workflow/{workflow_id}"
+            )
+        }
+
+    connected = {t.lower() for t in (await connected_toolkits(organization_id))}
+    if slug not in connected:
+        return {
+            "error": (
+                f"{slug} is not connected for this account. Offer connect_app "
+                "first, then attach the tool once they have authorized it."
+            )
+        }
+
+    # The action has to exist. An invented slug is accepted by every layer
+    # below this one and fails at call time, mid-conversation.
+    actions = await composio_toolkit_actions(slug)
+    if actions is None:
+        return {
+            "error": (
+                f"Could not check {action_slug} against {slug} just now. Do "
+                "not attach an unverified action -- say you will try again."
+            )
+        }
+    known = {a["slug"] for a in actions}
+    if action_slug not in known:
+        return {
+            "error": (
+                f"{slug} has no action called {action_slug}. Call "
+                "list_app_actions and use one of the slugs it returns."
+            )
+        }
+
+    # Which account of that app, when the organization has more than one --
+    # three doctors' calendars under one identity. Checked against this
+    # organization's own accounts rather than trusted: an id from elsewhere
+    # would be a tool pointed at somebody else's calendar, and Composio
+    # refusing it later is a failure on a live call rather than here.
+    account_id = (connected_account_id or "").strip()
+    account_label: Optional[str] = None
+    if account_id:
+        mine = {
+            a["connected_account_id"]: a
+            for a in (await composio_connected_accounts(organization_id))
+            if (a.get("app") or "") == slug
+        }
+        if account_id not in mine:
+            return {
+                "error": (
+                    f"{account_id} is not a {slug} account on this account. "
+                    "Call list_app_accounts and use an id from it."
+                )
+            }
+        account_label = mine[account_id].get("label")
+
+    # The real user rather than a stand-in object. `create_tool_for_user`
+    # reads `selected_organization_id` off it to scope the row, and a fake
+    # carrying an org id we passed in would be us asserting the scoping
+    # instead of it being checked.
+    actor = await db_client.get_user_by_id(user_id)
+    if actor is None or actor.selected_organization_id != organization_id:
+        return {
+            "error": (
+                "This chat's account could not be confirmed, so no tool was "
+                "created. Attach it from the editor instead."
+            )
+        }
+
+    try:
+        created = await create_tool_for_user(
+            CreateToolRequest(
+                name=name.strip()[:255],
+                description=(description or "").strip() or None,
+                definition={
+                    "type": "composio",
+                    "config": {
+                        "toolkit": slug,
+                        "tool_slug": action_slug,
+                        **({"connected_account_id": account_id} if account_id else {}),
+                    },
+                },
+            ),
+            actor,
+            source="agent_builder",
+        )
+    except Exception as exc:  # noqa: BLE001 - reported, never raised at a chat
+        logger.exception("Could not create a Composio tool for org %s", organization_id)
+        return {"error": f"Could not create the tool: {exc}"}
+
+    tool_uuid = getattr(created, "tool_uuid", None) or getattr(created, "uuid", None)
+    if not tool_uuid:
+        return {
+            "error": (
+                "The tool was created but returned no id, so it could not be "
+                "attached. Attach it from the editor instead."
+            )
+        }
+
+    attached = _attach_to_nodes(definition, str(tool_uuid))
+    if not attached:
+        return {
+            "error": (
+                f"The tool exists but agent {workflow_id} has no node that can "
+                f"hold one. Attach it from the editor: /workflow/{workflow_id}"
+            )
+        }
+
+    await db_client.update_workflow(
+        workflow_id=workflow_id,
+        name=None,
+        workflow_definition=definition,
+        template_context_variables=None,
+        workflow_configurations=None,
+        organization_id=organization_id,
+    )
+
+    return {
+        "attached": True,
+        "workflow_id": workflow_id,
+        "tool_uuid": str(tool_uuid),
+        "app": slug,
+        "action": action_slug,
+        "acts_on": account_label,
+        "published": False,
+        "open_url": f"/workflow/{workflow_id}",
+        "next_steps": [
+            f"Tell the user {name.strip()} is on the draft, not live yet.",
+            "They publish it from the agent's page when they are happy.",
+            "Suggest testing it first -- the action runs for real.",
+        ],
     }

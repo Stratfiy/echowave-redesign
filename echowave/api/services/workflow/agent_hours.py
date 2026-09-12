@@ -19,7 +19,7 @@ behave exactly as today.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Mapping, Optional
 from zoneinfo import ZoneInfo
 
@@ -167,3 +167,76 @@ def effective_schedule(agent_schedule: Any, organization_hours: Any = None) -> A
     if isinstance(agent_schedule, Mapping) and agent_schedule.get("enabled", False):
         return agent_schedule
     return organization_hours
+
+
+#: Midnight to midnight, in minutes. The answer whenever hours are unknown.
+DAY = (0, 24 * 60)
+
+
+def open_windows(schedule: Any, day: date) -> list[tuple[int, int]]:
+    """The minutes of ``day`` this agent is open, as merged windows.
+
+    ``is_open`` answers "now"; offering a caller a time needs "when". Same
+    slots, same fail-open contract: a schedule that is absent, disabled, empty
+    or wholly unreadable returns the whole day, because a clinic whose hours
+    nobody configured must not have every slot refused.
+
+    Windows are returned sorted and merged, so two overlapping slots for one
+    day cannot make a caller hear the same hour offered twice.
+
+    An overnight slot contributes twice: its head on its own day and its tail
+    on the following one. That is the same two-sided reading ``is_open`` does
+    with ``_tail_of_yesterday``, and leaving the tail out would close a
+    support line at midnight for callers it is meant to be answering.
+    """
+    if not isinstance(schedule, Mapping) or not schedule.get("enabled", False):
+        return [DAY]
+
+    slots = schedule.get("slots")
+    if not isinstance(slots, list) or not slots:
+        return [DAY]
+
+    weekday = day.weekday()
+    yesterday = (weekday - 1) % 7
+
+    usable = 0
+    spans: list[tuple[int, int]] = []
+    for slot in slots:
+        if not isinstance(slot, Mapping):
+            continue
+        start = _minutes(slot.get("start_time"))
+        end = _minutes(slot.get("end_time"))
+        if start is None or end is None:
+            continue
+        usable += 1
+
+        if slot.get("day_of_week") == weekday:
+            if end > start:
+                spans.append((start, end))
+            elif end < start:
+                # Runs to midnight; the rest belongs to tomorrow.
+                spans.append((start, DAY[1]))
+            # end == start is a zero-length window: closed, per _slot_covers.
+        if slot.get("day_of_week") == yesterday and end < start:
+            spans.append((0, end))
+
+    if not usable:
+        logger.warning(
+            "Agent schedule has {} slot(s) and none could be read; treating "
+            "the whole day as open.",
+            len(slots),
+        )
+        return [DAY]
+
+    return _merge(spans)
+
+
+def _merge(spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Sorted, with overlapping and touching spans joined into one."""
+    merged: list[tuple[int, int]] = []
+    for start, end in sorted(spans):
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged

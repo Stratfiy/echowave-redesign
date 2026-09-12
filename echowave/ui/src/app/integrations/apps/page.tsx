@@ -19,122 +19,25 @@
  * choosing rather than before. Four states, worst case named plainly.
  */
 
-import { Check, ExternalLink, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
     connectorActivityApiV1ConnectorsActivityGet,
     listConnectorsApiV1ConnectorsGet,
-    startConnectingApiV1ConnectorsSlugConnectPost,
 } from "@/client/sdk.gen";
 import type {
     ConnectorActivity,
     ConnectorGroupResponse,
     ConnectorResponse,
 } from "@/client/types.gen";
+import { ConnectorCard } from "@/components/integrations/ConnectorCard";
 import { GoogleCalendarConnect } from "@/components/integrations/GoogleCalendarConnect";
 import { IntegrationsTabs } from "@/components/integrations/IntegrationsTabs";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-
-/** What the badge says, in the words of the work the operator has to do. */
-const SETUP_LABELS: Record<string, string> = {
-    one_click: "One click",
-    no_auth: "No setup",
-    api_key: "Needs your key",
-    needs_approval: "Ask us",
-};
-
-const SETUP_HINTS: Record<string, string> = {
-    one_click: "Sign in and it is connected.",
-    no_auth: "Nothing to connect.",
-    api_key: "Paste a key from that app. We will add a screen for this next.",
-    needs_approval:
-        "We have to register with this provider before anyone can connect it. Tell us you want it and it moves up the list.",
-};
-
-function ConnectorCard({
-    connector,
-    onConnected,
-}: {
-    connector: ConnectorResponse;
-    onConnected: () => void;
-}) {
-    const [busy, setBusy] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    const connect = async () => {
-        setBusy(true);
-        setError(null);
-        try {
-            const response = await startConnectingApiV1ConnectorsSlugConnectPost({
-                path: { slug: connector.slug },
-            });
-            const url = response.data?.connect_url;
-            if (!url) {
-                setError("Could not start connecting just now.");
-                return;
-            }
-            // A new tab rather than a redirect: the operator is mid-way through
-            // setting an agent up, and sending them to Google and back would
-            // lose whatever else they had open on this screen.
-            window.open(url, "_blank", "noopener");
-            onConnected();
-        } catch {
-            setError("Could not start connecting just now.");
-        } finally {
-            setBusy(false);
-        }
-    };
-
-    return (
-        <Card className="flex flex-col">
-            <CardHeader className="pb-3">
-                <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-sm font-medium">{connector.name}</CardTitle>
-                    {connector.connected ? (
-                        <Badge variant="secondary" className="shrink-0 gap-1">
-                            <Check className="h-3 w-3" />
-                            Connected
-                        </Badge>
-                    ) : (
-                        <Badge variant="outline" className="shrink-0">
-                            {SETUP_LABELS[connector.setup] ?? connector.setup}
-                        </Badge>
-                    )}
-                </div>
-                {connector.description ? (
-                    <CardDescription className="line-clamp-2 text-xs">
-                        {connector.description}
-                    </CardDescription>
-                ) : null}
-            </CardHeader>
-            <CardContent className="mt-auto space-y-2 pt-0">
-                {connector.connected ? (
-                    <p className="text-xs text-muted-foreground">
-                        Ready to use in an agent&rsquo;s tools and after-call steps.
-                    </p>
-                ) : (
-                    <>
-                        <p className="text-xs text-muted-foreground">
-                            {SETUP_HINTS[connector.setup]}
-                        </p>
-                        {connector.setup === "one_click" ? (
-                            <Button size="sm" onClick={connect} disabled={busy} className="w-full">
-                                {busy ? "Opening…" : "Connect"}
-                                <ExternalLink className="ml-1 h-3 w-3" />
-                            </Button>
-                        ) : null}
-                        {error ? <p className="text-xs text-destructive">{error}</p> : null}
-                    </>
-                )}
-            </CardContent>
-        </Card>
-    );
-}
 
 /** How the apps this account connected have actually behaved.
  *
@@ -197,9 +100,17 @@ function ActivitySection() {
 }
 
 export default function AppsPage() {
+    const [popular, setPopular] = useState<ConnectorResponse[]>([]);
     const [groups, setGroups] = useState<ConnectorGroupResponse[]>([]);
+    const [other, setOther] = useState<ConnectorResponse[]>([]);
     const [available, setAvailable] = useState(true);
     const [loading, setLoading] = useState(true);
+    //: The screen could not tell "we have no apps for that" from "the
+    //: catalogue did not load", and reported the second as the first. A
+    //: failure shown as an empty result is a customer concluding we have
+    //: nothing, and a 401 on our own vendor key looked exactly like a search
+    //: that matched nothing for an hour today.
+    const [failed, setFailed] = useState(false);
     const [query, setQuery] = useState("");
 
     const load = useCallback(async (search: string) => {
@@ -208,10 +119,39 @@ export default function AppsPage() {
             const response = await listConnectorsApiV1ConnectorsGet({
                 query: search ? { q: search } : undefined,
             });
-            setGroups(response.data?.groups ?? []);
-            setAvailable(response.data?.available ?? false);
+            // The generated client resolves rather than throws on a 4xx or
+            // 5xx, so without this a backend failure fell through as
+            // `available: false` and rendered "not switched on for this
+            // deployment" -- a broken vendor call reported as a deployment
+            // setting.
+            if (response.error) {
+                setFailed(true);
+                setGroups([]);
+                setPopular([]);
+                setOther([]);
+                return;
+            }
+            const fetched = response.data?.groups ?? [];
+            const tail = response.data?.other ?? [];
+            const configured = response.data?.available ?? false;
+            // The catalogue is fifteen hundred rows. Configured, no error, no
+            // search term and nothing back is not an empty catalogue -- it is
+            // a vendor call that did not work.
+            //
+            // `other` counts here. A search whose only match is an
+            // uncategorised app returns no groups, and judging emptiness on
+            // groups alone would report the vendor as broken over a result we
+            // actually have.
+            setFailed(configured && !search && fetched.length === 0 && tail.length === 0);
+            setGroups(fetched);
+            setPopular(response.data?.popular ?? []);
+            setOther(tail);
+            setAvailable(configured);
         } catch {
+            setFailed(true);
             setGroups([]);
+            setPopular([]);
+            setOther([]);
         } finally {
             setLoading(false);
         }
@@ -224,9 +164,15 @@ export default function AppsPage() {
         return () => clearTimeout(timer);
     }, [query, load]);
 
+    // Everything reachable from this screen, `other` included. Counting only
+    // the grouped apps would render "Nothing matches" over a search that did
+    // match -- the same silent-absence shape that dropped the Other bucket
+    // from the API in the first place.
     const total = useMemo(
-        () => groups.reduce((sum, group) => sum + group.connectors.length, 0),
-        [groups],
+        () =>
+            groups.reduce((sum, group) => sum + group.connectors.length, 0) +
+            other.length,
+        [groups, other],
     );
 
     return (
@@ -265,6 +211,30 @@ export default function AppsPage() {
                 />
             </div>
 
+            {/* The apps a business asks for by name, across every category.
+                A collection rather than a category, because the thing somebody
+                wants is almost never the thing they would look for a *heading*
+                for: nobody opens "Messaging" to find WhatsApp, they scan for
+                WhatsApp. Hidden while searching -- a row of favourites above a
+                filtered result is a second ranking arguing with the one the
+                user typed. */}
+            {available && !query.trim() && popular.length > 0 ? (
+                <section className="space-y-3">
+                    <h2 className="text-sm font-medium text-muted-foreground">
+                        Most asked for
+                    </h2>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                        {popular.map((connector) => (
+                            <ConnectorCard
+                                key={`popular:${connector.slug}`}
+                                connector={connector}
+                                onConnected={() => void load(query.trim())}
+                            />
+                        ))}
+                    </div>
+                </section>
+            ) : null}
+
             {!available ? (
                 <Card>
                     <CardContent className="py-8 text-center text-sm text-muted-foreground">
@@ -273,6 +243,22 @@ export default function AppsPage() {
                 </Card>
             ) : loading && groups.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Loading…</p>
+            ) : failed ? (
+                <Card>
+                    <CardContent className="space-y-2 py-8 text-center">
+                        <p className="text-sm">The app catalogue could not be loaded.</p>
+                        <p className="text-xs text-muted-foreground">
+                            This is us, not you — nothing is wrong with your account.
+                        </p>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void load(query)}
+                        >
+                            Try again
+                        </Button>
+                    </CardContent>
+                </Card>
             ) : total === 0 ? (
                 <Card>
                     <CardContent className="space-y-2 py-8 text-center">
@@ -288,22 +274,74 @@ export default function AppsPage() {
                     </CardContent>
                 </Card>
             ) : (
-                groups.map((group) => (
-                    <section key={group.group} className="space-y-3">
-                        <h2 className="text-sm font-medium text-muted-foreground">
-                            {group.group}
-                        </h2>
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                            {group.connectors.map((connector) => (
-                                <ConnectorCard
-                                    key={connector.slug}
-                                    connector={connector}
-                                    onConnected={() => void load(query.trim())}
-                                />
-                            ))}
-                        </div>
-                    </section>
-                ))
+                <>
+                    {groups.map((group) => (
+                        <section key={group.group} className="space-y-3">
+                            <h2 className="text-sm font-medium text-muted-foreground">
+                                {group.group}
+                            </h2>
+                            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                                {group.connectors.map((connector) => (
+                                    <ConnectorCard
+                                        key={connector.slug}
+                                        connector={connector}
+                                        onConnected={() => void load(query.trim())}
+                                    />
+                                ))}
+                            </div>
+                        </section>
+                    ))}
+
+                    {/* The long tail, behind a door rather than at the bottom
+                        of this one. These are the apps our categoriser could
+                        not place -- hundreds of them, in no order a business
+                        would recognise -- and ending the main screen on them
+                        buries the categories above.
+
+                        Not hidden, though: they were being dropped entirely
+                        before, and an absence nobody can see is one nobody
+                        reports. While a search is running they render here
+                        instead, because somebody who typed a name wants the
+                        match, not a link to go and look for it. */}
+                    {other.length > 0 ? (
+                        query.trim() ? (
+                            <section className="space-y-3">
+                                <h2 className="text-sm font-medium text-muted-foreground">
+                                    Other
+                                </h2>
+                                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                                    {other.map((connector) => (
+                                        <ConnectorCard
+                                            key={connector.slug}
+                                            connector={connector}
+                                            onConnected={() => void load(query.trim())}
+                                        />
+                                    ))}
+                                </div>
+                            </section>
+                        ) : (
+                            <Card>
+                                <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+                                    <div>
+                                        <p className="text-sm font-medium">
+                                            {other.length} more app
+                                            {other.length === 1 ? "" : "s"}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                            Everything that did not fit a category above.
+                                            Searching covers these too.
+                                        </p>
+                                    </div>
+                                    <Button asChild size="sm" variant="outline">
+                                        <Link href="/integrations/apps/more">
+                                            Browse all
+                                        </Link>
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        )
+                    ) : null}
+                </>
             )}
         </div>
     );

@@ -30,6 +30,7 @@ from api.services.integrations.composio.client import (
 from api.services.integrations.composio.client import (
     execute_tool as execute_composio_tool,
 )
+from api.services.integrations.google_calendar import availability as gcal_availability
 from api.services.integrations.google_calendar.client import (
     execute_google_calendar_tool,
     google_calendar_function_schema,
@@ -375,19 +376,32 @@ class CustomToolManager:
                     continue
 
                 if _is_google_calendar_tool(tool):
-                    raw_schema = google_calendar_function_schema(tool)
-                    schemas.append(
-                        get_function_schema(
-                            raw_schema["function"]["name"],
-                            raw_schema["function"]["description"],
-                            properties=raw_schema["function"]["parameters"].get(
-                                "properties", {}
-                            ),
-                            required=raw_schema["function"]["parameters"].get(
-                                "required", []
-                            ),
+                    # Two functions from one configured tool, the way the
+                    # calculator already does it: booking, and asking what is
+                    # free before offering a time. One tool rather than two so
+                    # every agent that already has a calendar gains the second
+                    # without anybody reconfiguring it -- an agent that can
+                    # only write has to guess availability, and a guess on a
+                    # clinic line turns away callers whose slot was open.
+                    #
+                    # Availability first. Order in the catalogue is a hint the
+                    # model reads, and the right sequence is check, then book.
+                    for raw_schema in (
+                        gcal_availability.function_schema(tool),
+                        google_calendar_function_schema(tool),
+                    ):
+                        schemas.append(
+                            get_function_schema(
+                                raw_schema["function"]["name"],
+                                raw_schema["function"]["description"],
+                                properties=raw_schema["function"]["parameters"].get(
+                                    "properties", {}
+                                ),
+                                required=raw_schema["function"]["parameters"].get(
+                                    "required", []
+                                ),
+                            )
                         )
-                    )
                     continue
 
                 if tool.category == ToolCategory.MCP.value:
@@ -471,6 +485,16 @@ class CustomToolManager:
                     continue
 
                 if _is_google_calendar_tool(tool):
+                    availability_name = gcal_availability.function_schema(tool)[
+                        "function"
+                    ]["name"]
+                    self._register(
+                        availability_name,
+                        self._create_availability_handler(tool, availability_name),
+                        kind=ToolCategory.GOOGLE_CALENDAR.value,
+                        app="googlecalendar",
+                        timeout_secs=15.0,
+                    )
                     gcal_schema = google_calendar_function_schema(tool)
                     gcal_function_name = gcal_schema["function"]["name"]
                     self._register(
@@ -766,6 +790,38 @@ class CustomToolManager:
                 )
 
         return google_calendar_handler
+
+    def _create_availability_handler(self, tool: Any, function_name: str):
+        """Create a handler that reports which times are free.
+
+        Reads the agent from ``_interaction_context`` rather than from the
+        engine, because that is where the run's workflow id is already
+        resolved and cached -- and because the agent's own schedule is what
+        decides its hours when it has one.
+        """
+
+        async def availability_handler(
+            function_call_params: FunctionCallParams,
+        ) -> None:
+            logger.info(f"Calendar availability EXECUTED: {function_name}")
+            logger.info(f"Arguments: {function_call_params.arguments}")
+
+            try:
+                context = await self._interaction_context()
+                result = await gcal_availability.execute_check_availability(
+                    tool=tool,
+                    arguments=function_call_params.arguments,
+                    organization_id=context.get("organization_id"),
+                    workflow_id=context.get("workflow_id"),
+                )
+                await function_call_params.result_callback(result)
+            except Exception as e:
+                logger.error(f"Calendar availability '{function_name}' failed: {e}")
+                await function_call_params.result_callback(
+                    {"status": "error", "error": str(e)}
+                )
+
+        return availability_handler
 
     def _create_composio_handler(self, tool: Any, function_name: str):
         """Create a handler that runs one Composio tool for this organization.
