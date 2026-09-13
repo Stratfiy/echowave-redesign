@@ -44,11 +44,14 @@ describe("what the rail shows", () => {
         expect(screen.getByText("sales")).toBeTruthy();
     });
 
-    it("renders nothing at all with no channels", async () => {
+    it("still offers the plus with no channels", async () => {
+        // An account with no channels needs the door to make one more than
+        // one with eight does. The heading stays; only the rows are absent.
         listFolders.mockResolvedValue({ data: [] });
-        const { container } = render(<SidebarChannels collapsed={false} />);
+        render(<SidebarChannels collapsed={false} />);
         await waitFor(() => expect(listFolders).toHaveBeenCalled());
-        expect(container.textContent).toBe("");
+        expect(screen.getByLabelText("New channel").getAttribute("href")).toBe("/workflow");
+        expect(screen.queryByRole("link", { name: "operations" })).toBeNull();
     });
 
     it("renders nothing when collapsed", async () => {
@@ -68,9 +71,11 @@ describe("what the rail shows", () => {
 
     it("does not take the sidebar down when the request fails", async () => {
         listFolders.mockRejectedValue(new Error("down"));
-        const { container } = render(<SidebarChannels collapsed={false} />);
+        render(<SidebarChannels collapsed={false} />);
         await waitFor(() => expect(listFolders).toHaveBeenCalled());
-        expect(container.textContent).toBe("");
+        // No rows, no error, and the plus is still there: a failed read
+        // costs the list, not the door.
+        expect(screen.getByLabelText("New channel")).toBeTruthy();
     });
 });
 

@@ -6,7 +6,8 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 
 import { AppSidebar } from "../AppSidebar";
 const route = vi.hoisted(() => ({ pathname: "/overview" }));
-vi.mock("next/navigation", () => ({ usePathname: () => route.pathname }));
+const router = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock("next/navigation", () => ({ usePathname: () => route.pathname, useRouter: () => router }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ provider: "local" }) }));
 vi.mock("@/context/AppConfigContext", () => ({ useAppConfig: () => ({ config: null }) }));
 vi.mock("@/context/TelephonyConfigWarningsContext", () => ({ useTelephonyConfigWarnings: () => ({}) }));
@@ -94,6 +95,33 @@ describe("sidebar interactions", () => {
     // Billing, not Settings: WORKSPACE is folded by default, so asserting on
     // a link inside it would be testing the fold rather than the panel.
     expect(screen.getByRole("link", { name: "Billing" })).toBeTruthy();
+  });
+  it("the rail's Home button goes home, since the panel no longer lists it", () => {
+    /* The Home row was removed from the panel so the panel could be the
+       workspace -- channels and bots -- rather than a menu with "Home" in it
+       twice. That leaves the rail button as the only way to /overview from
+       the sidebar, so it navigates. The other contexts stay browse-only:
+       looking at what is in Setup without leaving the page you are on is a
+       thing people do. */
+    route.pathname = "/billing";
+    router.push.mockReset();
+    render(<SidebarProvider><AppSidebar /></SidebarProvider>);
+    fireEvent.click(screen.getByRole("tab", { name: "Home" }));
+    expect(router.push).toHaveBeenCalledWith("/overview");
+    router.push.mockReset();
+    fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
+    expect(router.push).not.toHaveBeenCalled();
+  });
+  it("the Home panel is channels and bots, not a menu", () => {
+    route.pathname = "/overview";
+    render(<SidebarProvider><AppSidebar /></SidebarProvider>);
+    // No nav rows in the Home panel: the rail says Home, YOUR BOTS says bots.
+    expect(screen.queryByRole("link", { name: "Home" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Bots" })).toBeNull();
+    // The two sections' doors are there even before anything has loaded.
+    expect(screen.getByLabelText("New channel")).toBeTruthy();
+    expect(screen.getByLabelText("Hire a bot")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Company knowledge/ }).getAttribute("href")).toBe("/files");
   });
   it("does not offer staff contexts to a customer", () => {
     render(<SidebarProvider defaultOpen={false}><AppSidebar /></SidebarProvider>);

@@ -6,7 +6,7 @@ import {
     Folder as FolderIcon,
     FolderInput,
     Inbox,
-    Pencil,
+    MessagesSquare, Pencil,
     RotateCcw,
     Users,
 } from 'lucide-react';
@@ -339,14 +339,28 @@ export function WorkflowTable({
                                 </TableCell>
                                 <TableCell className="text-right">
                                     <div className="flex justify-end gap-2">
+                                        {/* Chat first. A bot is a teammate you talk
+                                            to; how it is configured is a tab away once
+                                            you are there. "Edit" as the primary action
+                                            was the single thing that made this screen
+                                            read as a builder rather than a team. */}
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            onClick={() => handleEdit(workflow.id)}
+                                            onClick={() => router.push(`/workflow/${workflow.id}/thread`)}
                                             className="flex items-center gap-2"
                                         >
+                                            <MessagesSquare size={16} />
+                                            Chat
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleEdit(workflow.id)}
+                                            aria-label={`Edit ${workflow.name}`}
+                                            title="Edit"
+                                        >
                                             <Pencil size={16} />
-                                            Edit
                                         </Button>
                                         {folders && (
                                             <DropdownMenu>

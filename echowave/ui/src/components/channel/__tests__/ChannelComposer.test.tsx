@@ -108,6 +108,28 @@ describe('offering the roster', () => {
     });
 });
 
+describe('the @ button', () => {
+    it('types an @ and opens the roster', async () => {
+        composer();
+        fireEvent.mouseDown(screen.getByLabelText('Mention a bot'));
+        const box = screen.getByLabelText('Message clinic') as HTMLTextAreaElement;
+        await waitFor(() => expect(box.value).toBe('@'));
+        // The roster opens on the empty fragment: every bot in the channel.
+        expect(await screen.findByText('Narayani Dental front desk')).toBeTruthy();
+        expect(screen.getByText('Sales bot')).toBeTruthy();
+    });
+
+    it('puts a space first when the caret is mid-word', async () => {
+        composer();
+        const box = screen.getByLabelText('Message clinic') as HTMLTextAreaElement;
+        fireEvent.change(box, { target: { value: 'ask' } });
+        box.setSelectionRange(3, 3);
+        fireEvent.mouseDown(screen.getByLabelText('Mention a bot'));
+        // "ask@" would not be a mention by the server's rule; "ask @" is.
+        await waitFor(() => expect(box.value).toBe('ask @'));
+    });
+});
+
 describe('sending', () => {
     it('posts the message to this channel', async () => {
         composer();

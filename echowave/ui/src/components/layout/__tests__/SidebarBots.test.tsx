@@ -43,11 +43,15 @@ beforeEach(() => {
 });
 
 describe("the bots in the rail", () => {
-    it("lists them by name, linking each to its own screen", async () => {
+    it("lists them by name, each opening its thread", async () => {
+        // The thread, not the editor. A bot in the workspace panel is a
+        // teammate you talk to; how it is configured is a tab away once you
+        // are there. Landing on the model form was what made the rail read as
+        // a builder rather than a team.
         render(<SidebarBots collapsed={false} />);
         const link = await screen.findByRole("link", { name: /Front desk/ });
-        expect(link.getAttribute("href")).toBe("/workflow/1");
-        expect(screen.getByRole("link", { name: /Quote desk/ }).getAttribute("href")).toBe("/workflow/2");
+        expect(link.getAttribute("href")).toBe("/workflow/1/thread");
+        expect(screen.getByRole("link", { name: /Quote desk/ }).getAttribute("href")).toBe("/workflow/2/thread");
     });
 
     it("keeps the server's worst-first order instead of re-sorting", async () => {
@@ -56,7 +60,12 @@ describe("the bots in the rail", () => {
         });
         render(<SidebarBots collapsed={false} />);
         await screen.findByRole("link", { name: /Needs help/ });
-        const names = screen.getAllByRole("link").map((a) => a.textContent);
+        // Bot rows only: the section heading and its plus are links too, and
+        // they come first in the DOM by design.
+        const names = screen
+            .getAllByRole("link")
+            .filter((a) => /^\/workflow\/\d+\/thread$/.test(a.getAttribute("href") ?? ""))
+            .map((a) => a.textContent);
         // Alphabetical would put "Aaa quiet" first; the endpoint's order must win.
         expect(names[0]).toMatch(/Needs help/);
     });
@@ -77,18 +86,23 @@ describe("the bots in the rail", () => {
         expect(container.textContent).toBe("");
     });
 
-    it("renders nothing on an account with no bots", async () => {
+    it("still offers to hire on an account with no bots", async () => {
+        // The heading and its plus stay: a fresh account needs the door to
+        // its first bot more than a full one needs the ninth row.
         teamStatus.mockResolvedValue({ data: { hours: 24, members: [] } });
-        const { container } = render(<SidebarBots collapsed={false} />);
+        render(<SidebarBots collapsed={false} />);
         await waitFor(() => expect(teamStatus).toHaveBeenCalled());
-        expect(container.textContent).toBe("");
+        expect(screen.getByLabelText("Hire a bot").getAttribute("href")).toBe("/workflow/create");
+        expect(screen.queryByRole("link", { name: /Front desk/ })).toBeNull();
     });
 
     it("survives a failed roster request without throwing", async () => {
         teamStatus.mockRejectedValue(new Error("network"));
-        const { container } = render(<SidebarBots collapsed={false} />);
+        render(<SidebarBots collapsed={false} />);
         await waitFor(() => expect(teamStatus).toHaveBeenCalled());
-        expect(container.textContent).toBe("");
+        // No rows and no error; the door is still there.
+        expect(screen.getByLabelText("Hire a bot")).toBeTruthy();
+        expect(screen.queryByRole("link", { name: /Front desk/ })).toBeNull();
     });
 });
 

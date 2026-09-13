@@ -17,7 +17,7 @@
  * channel has no record of.
  */
 
-import { Loader2, SendHorizontal } from 'lucide-react';
+import { AtSign, Loader2, SendHorizontal } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
 import { postMessageApiV1TimelineMessagePost } from '@/client/sdk.gen';
@@ -195,6 +195,36 @@ export function ChannelComposer({
                 )}
 
                 <div className="flex items-end gap-2">
+                    {/* The mockup's affordance, and the discoverable half of
+                        the autocomplete: typing @ opens the roster, and this
+                        types the @ for somebody who did not know that. */}
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Mention a bot"
+                        title="Mention a bot"
+                        className="shrink-0 text-muted-foreground"
+                        onMouseDown={(event) => {
+                            event.preventDefault();
+                            const element = input.current;
+                            const caret = element?.selectionStart ?? text.length;
+                            const before = text.slice(0, caret);
+                            // A space first if the caret is mid-word, so the
+                            // mention starts at a boundary the server accepts.
+                            const lead = before && !/\s$/.test(before) ? ' ' : '';
+                            const next = `${before}${lead}@${text.slice(caret)}`;
+                            setText(next);
+                            const at = before.length + lead.length + 1;
+                            requestAnimationFrame(() => {
+                                element?.focus();
+                                element?.setSelectionRange(at, at);
+                                syncFragment(next, at);
+                            });
+                        }}
+                    >
+                        <AtSign className="h-4 w-4" />
+                    </Button>
                     <textarea
                         ref={input}
                         rows={1}

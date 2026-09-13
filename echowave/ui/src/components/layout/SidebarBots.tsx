@@ -20,6 +20,7 @@
  * rows above it either way.
  */
 
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -43,6 +44,16 @@ const TONE_DOT: Record<string, string> = {
   idle: "bg-muted-foreground/40",
   paused: "bg-amber-500",
 };
+
+/** Two letters from a name, for the tile beside it. The same tile the Home
+ *  screen already draws ("KL", "ND"), so a bot looks like one thing on two
+ *  screens rather than a dot here and a monogram there. */
+export function initials(name: string): string {
+  const words = (name || "").trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "?";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
 
 /**
  * How many bots the rail will hold before it stops.
@@ -84,21 +95,38 @@ export function SidebarBots({ collapsed }: { collapsed: boolean }) {
   }, [authLoading, user]);
 
   // Icon mode has no room for names, and a column of bare dots is a puzzle.
-  if (collapsed || bots.length === 0) return null;
+  if (collapsed) return null;
 
   const shown = bots.slice(0, RAIL_LIMIT);
 
   return (
     <SidebarGroup className="py-1">
-      <SidebarGroupLabel className="h-7 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Your bots
+      {/* Label opens the full list, plus hires a new one. Shown even with
+          nothing under it: the plus is the door a fresh account needs. */}
+      <SidebarGroupLabel className="h-7 justify-between text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <Link href="/workflow" className="hover:text-foreground">
+          Your bots
+        </Link>
+        <Link
+          href="/workflow/create"
+          aria-label="Hire a bot"
+          title="Hire a bot"
+          className="rounded p-0.5 hover:bg-sidebar-accent hover:text-foreground"
+        >
+          <Plus aria-hidden="true" className="h-3.5 w-3.5" />
+        </Link>
       </SidebarGroupLabel>
       <SidebarMenu>
         {shown.map((bot) => {
-          const href = `/workflow/${bot.workflow_id}`;
+          // The thread, not the editor. A bot in the workspace panel is a
+          // teammate you talk to; how it is configured is a tab away once you
+          // are there. Landing on the model form was the single thing that
+          // made this read as a builder rather than a team.
+          const href = `/workflow/${bot.workflow_id}/thread`;
+          const active = pathname.startsWith(`/workflow/${bot.workflow_id}`);
           return (
             <SidebarMenuItem key={bot.workflow_id}>
-              <SidebarMenuButton asChild isActive={pathname === href} tooltip={bot.status}>
+              <SidebarMenuButton asChild isActive={active} tooltip={bot.status} className="h-9">
                 {/* `title` as well as the status tooltip: a name long enough
                     to truncate is exactly the name somebody needs to read in
                     full, and the tooltip slot is already spent on what the bot
@@ -106,12 +134,18 @@ export function SidebarBots({ collapsed }: { collapsed: boolean }) {
                 <Link href={href} title={bot.name}>
                   <span
                     aria-hidden="true"
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--accent-brand-soft)] text-[10px] font-semibold text-[var(--accent-brand)]"
+                  >
+                    {initials(bot.name)}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{bot.name}</span>
+                  <span
+                    aria-hidden="true"
                     className={cn(
                       "h-1.5 w-1.5 shrink-0 rounded-full",
                       TONE_DOT[bot.tone] ?? TONE_DOT.idle,
                     )}
                   />
-                  <span className="truncate">{bot.name}</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
