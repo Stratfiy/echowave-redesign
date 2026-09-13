@@ -155,3 +155,28 @@ async def run_agent_routine(_ctx, routine_id: int) -> None:
     await _ctx["redis"].enqueue_job(
         FunctionNames.PROCESS_WORKFLOW_COMPLETION, int(run_id)
     )
+
+
+async def answer_channel_message(
+    _ctx, workflow_id: int, folder_id: int, text: str
+) -> None:
+    """One bot answers one thing somebody said in a channel, then the run is
+    processed like any other.
+
+    The second half matters as much as the first. Until the routine wiring
+    landed, PROCESS_WORKFLOW_COMPLETION was enqueued only from the two voice
+    paths -- so a bot that could not answer a question in a channel would have
+    left no gap for the business to see, which is the whole point of asking it
+    there.
+    """
+    from api.services.workflow.channel_reply import answer_in_channel
+
+    run_id = await answer_in_channel(int(workflow_id), int(folder_id), text)
+    if run_id is None:
+        # No run happened: the bot vanished, or there was no credit. Nothing to
+        # cost and nothing to learn from.
+        return
+
+    await _ctx["redis"].enqueue_job(
+        FunctionNames.PROCESS_WORKFLOW_COMPLETION, int(run_id)
+    )

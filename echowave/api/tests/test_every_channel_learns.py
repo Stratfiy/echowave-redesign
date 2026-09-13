@@ -141,3 +141,94 @@ class TestTheEvidenceNumberCannotInflate:
 
         assert written == 0
         remember.assert_not_awaited()
+
+
+class TestABotAnsweringInAChannel:
+    """The other half of @mentions, and the reason silence is the one outcome
+    that must not happen: the person who typed the message is watching for a
+    reply, and nothing at all is indistinguishable from being ignored."""
+
+    @pytest.mark.asyncio
+    async def test_an_answer_is_processed_like_any_other_run(self):
+        """Not decoration. Until routines were wired, completion was enqueued
+        only from the two voice paths -- so a bot that could not answer a
+        question in a channel left no gap for the business to see, which is
+        the whole point of having asked it there."""
+        from api.tasks.routines import answer_channel_message
+
+        ctx = _ctx()
+        with patch(
+            "api.services.workflow.channel_reply.answer_in_channel",
+            AsyncMock(return_value=336),
+        ):
+            await answer_channel_message(ctx, 7, 3, "chase the suppliers")
+
+        ctx["redis"].enqueue_job.assert_awaited_once_with(
+            FunctionNames.PROCESS_WORKFLOW_COMPLETION, 336
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_bot_that_never_ran_is_not_processed(self):
+        from api.tasks.routines import answer_channel_message
+
+        ctx = _ctx()
+        with patch(
+            "api.services.workflow.channel_reply.answer_in_channel",
+            AsyncMock(return_value=None),
+        ):
+            await answer_channel_message(ctx, 7, 3, "chase the suppliers")
+
+        ctx["redis"].enqueue_job.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_a_vanished_bot_says_so_rather_than_raising(self):
+        """This runs on a worker serving every tenant. One bot throwing would
+        take the worker with it."""
+        from api.services.workflow.channel_reply import answer_in_channel
+
+        with patch(
+            "api.services.workflow.channel_reply.db_client.get_workflow_by_id",
+            AsyncMock(return_value=None),
+        ):
+            assert await answer_in_channel(7, 3, "hello") is None
+
+    @pytest.mark.asyncio
+    async def test_no_credit_is_reported_in_the_channel_not_swallowed(self):
+        """A bot that stops because the balance ran out looks exactly like one
+        that is broken, and the difference is the one thing an operator can
+        fix."""
+        from api.services.workflow import channel_reply
+
+        recorded = []
+
+        async def _record(**kwargs):
+            recorded.append(kwargs)
+
+        with (
+            patch(
+                "api.services.workflow.channel_reply.db_client.get_workflow_by_id",
+                AsyncMock(
+                    return_value=SimpleNamespace(
+                        id=7, organization_id=42, name="Ops bot"
+                    )
+                ),
+            ),
+            patch(
+                "api.services.workflow.channel_reply.db_client.create_workflow_run",
+                AsyncMock(return_value=SimpleNamespace(id=336)),
+            ),
+            patch(
+                "api.services.workflow.channel_reply.authorize_workflow_run_start",
+                AsyncMock(
+                    return_value=SimpleNamespace(
+                        has_quota=False, error_message="no credit for this run"
+                    )
+                ),
+            ),
+            patch.object(channel_reply.agent_timeline, "record", _record),
+        ):
+            assert await channel_reply.answer_in_channel(7, 3, "hello") is None
+
+        assert recorded, "a bot that could not answer said nothing at all"
+        assert recorded[0]["folder_id"] == 3
+        assert "no credit" in recorded[0]["summary"]
