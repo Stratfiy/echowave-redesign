@@ -213,3 +213,30 @@ class TestTheEngineReadsItOncePerCall:
             assert await engine._get_remembered_block() == ""
 
         assert recall.await_count == 1
+
+
+class TestALookupThatFailsDoesNotFailTheCall:
+    @pytest.mark.asyncio
+    async def test_a_failed_run_lookup_is_an_empty_block(self):
+        """`recall_for_bot` guards its own read; the run-to-bot lookup before
+        it did not, and it raises inside set_node -- on the path that starts
+        the conversation. The first thing that did in CI was fail a pipeline
+        test whose fake run id matched no row, and then hang the run."""
+        from api.services.workflow.pipecat_engine import PipecatEngine
+
+        engine = PipecatEngine.__new__(PipecatEngine)
+        engine._workflow_run_id = 1
+        engine._organization_id = 7
+        engine._workflow_id = None
+        engine._remembered_block = None
+
+        with patch(
+            "api.services.workflow.pipecat_engine.db_client."
+            "get_workflow_id_by_workflow_run_id",
+            new=AsyncMock(side_effect=ConnectionRefusedError("no database")),
+        ) as lookup:
+            assert await engine._get_remembered_block() == ""
+            # Looked, failed, held: a call does not retry the database on
+            # every node transition either.
+            assert await engine._get_remembered_block() == ""
+        assert lookup.await_count == 1

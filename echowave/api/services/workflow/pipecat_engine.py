@@ -339,13 +339,25 @@ class PipecatEngine:
         them was until this was wired up at all.
         """
         if self._remembered_block is None:
-            remembered = await organisation_memory.recall_for_bot(
-                organization_id=await self._get_organization_id(),
-                workflow_id=await self._get_workflow_id(),
-            )
-            self._remembered_block = (
-                organisation_memory.remembered_block(remembered) or ""
-            )
+            try:
+                remembered = await organisation_memory.recall_for_bot(
+                    organization_id=await self._get_organization_id(),
+                    workflow_id=await self._get_workflow_id(),
+                )
+                self._remembered_block = (
+                    organisation_memory.remembered_block(remembered) or ""
+                )
+            except Exception as exc:  # noqa: BLE001 - the call must go on
+                # The run lookup is not inside recall_for_bot's guard, and a
+                # raise here happens inside set_node, on the path that starts
+                # the conversation: the first thing this did in CI was fail
+                # a pipeline test whose fake run id no table row matches.
+                logger.warning(
+                    "Could not read what the business remembers; the agent "
+                    "goes on without it: {}",
+                    exc,
+                )
+                self._remembered_block = ""
         return self._remembered_block
 
     def _get_otel_context(self):
