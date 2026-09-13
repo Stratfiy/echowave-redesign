@@ -14,7 +14,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { PostHogEvent } from '@/constants/posthog-events';
-import { downloadFile, getSignedUrl } from '@/lib/files';
+import { downloadFile, getSignedUrl, getTextArtifact } from '@/lib/files';
 
 export function MediaPreviewDialog() {
     const [isOpen, setIsOpen] = useState(false);
@@ -52,7 +52,9 @@ export function MediaPreviewDialog() {
 
             const [audioResult, transcriptResult] = await Promise.all([
                 recordingUrl ? getSignedUrl(recordingUrl) : null,
-                transcriptUrl ? getSignedUrl(transcriptUrl, true) : null,
+                // Read through the API, not signed to storage: see
+                // getTextArtifact. The recording above keeps its signed URL.
+                transcriptUrl ? getTextArtifact(transcriptUrl) : null,
             ]);
 
             const failures: string[] = [];
@@ -63,33 +65,20 @@ export function MediaPreviewDialog() {
                 failures.push(`Recording: ${audioResult.error}`);
             }
 
-            if (transcriptResult?.url) {
-                try {
-                    const response = await fetch(transcriptResult.url);
-                    if (!response.ok) {
-                        // The signed URL was issued and storage still refused
-                        // it. Usually an object the key points at that is not
-                        // there — worth distinguishing from being denied the
-                        // URL in the first place.
-                        throw new Error(`storage returned ${response.status}`);
-                    }
-                    const text = await response.text();
-                    setTranscriptContent(text);
-                    posthog.capture(PostHogEvent.TRANSCRIPT_VIEWED, {
-                        run_id: runId,
-                        source: 'media_preview_dialog',
-                        transcript_length: text.length,
-                    });
-                } catch (error) {
-                    console.error('Error fetching transcript:', error);
-                    failures.push(
-                        `Transcript: could not be downloaded (${
-                            error instanceof Error ? error.message : 'unknown error'
-                        }).`,
-                    );
-                }
-            } else if (transcriptResult?.error) {
+            if (transcriptResult?.error) {
                 failures.push(`Transcript: ${transcriptResult.error}`);
+            } else if (transcriptResult?.text !== null && transcriptResult !== null) {
+                const text = transcriptResult.text;
+                setTranscriptContent(
+                    transcriptResult.truncated
+                        ? `${text}\n\n[This transcript is longer than can be shown here. Use Download Transcript for the whole of it.]`
+                        : text,
+                );
+                posthog.capture(PostHogEvent.TRANSCRIPT_VIEWED, {
+                    run_id: runId,
+                    source: 'media_preview_dialog',
+                    transcript_length: text.length,
+                });
             }
 
             setLoadError(failures.length > 0 ? failures.join(' ') : null);

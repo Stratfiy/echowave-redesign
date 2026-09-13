@@ -10373,6 +10373,20 @@ export type TelnyxConfigurationResponse = {
 };
 
 /**
+ * TextArtifactResponse
+ */
+export type TextArtifactResponse = {
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Truncated
+     */
+    truncated: boolean;
+};
+
+/**
  * TierMappingRequest
  *
  * Point a managed tier at a vendor and model.
@@ -10430,6 +10444,76 @@ export type TimeSlotResponse = {
      * End Time
      */
     end_time: string;
+};
+
+/**
+ * TimelineEvent
+ */
+export type TimelineEvent = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * At
+     */
+    at: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Actor
+     */
+    actor: string;
+    /**
+     * Summary
+     */
+    summary: string;
+    /**
+     * Payload
+     */
+    payload: {
+        [key: string]: unknown;
+    };
+    /**
+     * Is Deliverable
+     */
+    is_deliverable: boolean;
+    /**
+     * Workflow Id
+     */
+    workflow_id: number | null;
+    /**
+     * Workflow Run Id
+     */
+    workflow_run_id: number | null;
+    /**
+     * Folder Id
+     */
+    folder_id: number | null;
+};
+
+/**
+ * TimelineResponse
+ */
+export type TimelineResponse = {
+    /**
+     * Events
+     */
+    events: Array<TimelineEvent>;
+    /**
+     * Next Before At
+     */
+    next_before_at: string | null;
+    /**
+     * Next Before Id
+     */
+    next_before_id: number | null;
+    /**
+     * Truncated
+     */
+    truncated?: boolean;
 };
 
 /**
@@ -24141,6 +24225,82 @@ export type AgentReadinessApiV1WorkflowWorkflowIdReadinessGetResponses = {
 
 export type AgentReadinessApiV1WorkflowWorkflowIdReadinessGetResponse = AgentReadinessApiV1WorkflowWorkflowIdReadinessGetResponses[keyof AgentReadinessApiV1WorkflowWorkflowIdReadinessGetResponses];
 
+export type TimelineApiV1TimelineGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Workflow Id
+         */
+        workflow_id?: number | null;
+        /**
+         * Workflow Run Id
+         */
+        workflow_run_id?: number | null;
+        /**
+         * Folder Id
+         */
+        folder_id?: number | null;
+        /**
+         * Kinds
+         */
+        kinds?: Array<string> | null;
+        /**
+         * Deliverables Only
+         */
+        deliverables_only?: boolean;
+        /**
+         * Include Transcripts
+         */
+        include_transcripts?: boolean;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Before At
+         */
+        before_at?: string | null;
+        /**
+         * Before Id
+         */
+        before_id?: number | null;
+    };
+    url: '/api/v1/timeline';
+};
+
+export type TimelineApiV1TimelineGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TimelineApiV1TimelineGetError = TimelineApiV1TimelineGetErrors[keyof TimelineApiV1TimelineGetErrors];
+
+export type TimelineApiV1TimelineGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TimelineResponse;
+};
+
+export type TimelineApiV1TimelineGetResponse = TimelineApiV1TimelineGetResponses[keyof TimelineApiV1TimelineGetResponses];
+
 export type ListToolsApiV1ToolsGetData = {
     body?: never;
     headers?: {
@@ -25699,6 +25859,56 @@ export type GetCampaignDefaultsApiV1OrganizationsCampaignDefaultsGetResponses = 
 };
 
 export type GetCampaignDefaultsApiV1OrganizationsCampaignDefaultsGetResponse = GetCampaignDefaultsApiV1OrganizationsCampaignDefaultsGetResponses[keyof GetCampaignDefaultsApiV1OrganizationsCampaignDefaultsGetResponses];
+
+export type GetTextArtifactApiV1S3TextGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query: {
+        /**
+         * Key
+         *
+         * S3 object key
+         */
+        key: string;
+        /**
+         * Storage Backend
+         */
+        storage_backend?: string | null;
+    };
+    url: '/api/v1/s3/text';
+};
+
+export type GetTextArtifactApiV1S3TextGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetTextArtifactApiV1S3TextGetError = GetTextArtifactApiV1S3TextGetErrors[keyof GetTextArtifactApiV1S3TextGetErrors];
+
+export type GetTextArtifactApiV1S3TextGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TextArtifactResponse;
+};
+
+export type GetTextArtifactApiV1S3TextGetResponse = GetTextArtifactApiV1S3TextGetResponses[keyof GetTextArtifactApiV1S3TextGetResponses];
 
 export type GetSignedUrlApiV1S3SignedUrlGetData = {
     body?: never;

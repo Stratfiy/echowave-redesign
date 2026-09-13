@@ -289,6 +289,26 @@ class MinioFileSystem(BaseFileSystem):
             logger.error(f"Error generating MinIO upload URL: {e}")
             return None
 
+    async def aread_bytes(self, file_path: str, max_bytes: int) -> bytes | None:
+        def _read():
+            response = None
+            try:
+                response = self.client.get_object(
+                    self.bucket_name, file_path, length=max_bytes + 1
+                )
+                return response.read()
+            finally:
+                if response is not None:
+                    response.close()
+                    response.release_conn()
+
+        try:
+            return await asyncio.to_thread(_read)
+        except S3Error as exc:
+            if getattr(exc, "code", None) in ("NoSuchKey", "InvalidRange"):
+                return None
+            raise
+
     async def adownload_file(self, source_path: str, local_path: str) -> bool:
         """Download a file from MinIO to local path."""
         try:
