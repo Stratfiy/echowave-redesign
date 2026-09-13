@@ -14,6 +14,18 @@ _CURRENT_TIME_PREFIX = "current_time"
 _CURRENT_WEEKDAY_PREFIX = "current_weekday"
 _INITIAL_CONTEXT_PREFIX = "initial_context."
 
+# Both patterns are compiled once at import. _render_string runs per node per
+# turn, and the timezone pattern used to be rebuilt from re.escape() on every
+# call before the regex cache was even consulted.
+_TEMPLATE_VAR_RE = re.compile(TEMPLATE_VAR_PATTERN)
+_BUILTIN_TZ_RE = re.compile(
+    r"\{\{\s*(?:"
+    + re.escape(_CURRENT_TIME_PREFIX)
+    + r"|"
+    + re.escape(_CURRENT_WEEKDAY_PREFIX)
+    + r")_([^|\s}]+)"
+)
+
 
 def get_nested_value(obj: Any, path: str) -> Any:
     """
@@ -98,14 +110,7 @@ def _extract_timezone_from_template(template_str: str) -> Optional[str]:
 
     Returns the first IANA timezone found, or None.
     """
-    pattern = (
-        r"\{\{\s*(?:"
-        + re.escape(_CURRENT_TIME_PREFIX)
-        + r"|"
-        + re.escape(_CURRENT_WEEKDAY_PREFIX)
-        + r")_([^|\s}]+)"
-    )
-    match = re.search(pattern, template_str)
+    match = _BUILTIN_TZ_RE.search(template_str)
     return match.group(1).strip() if match else None
 
 
@@ -216,7 +221,7 @@ def _render_string(template_str: str, context: Dict[str, Any]) -> str:
         return str(value)
 
     # Replace template variables
-    result = re.sub(TEMPLATE_VAR_PATTERN, _replace, template_str)
+    result = _TEMPLATE_VAR_RE.sub(_replace, template_str)
 
     # Handle line breaks (convert literal \n to actual newlines)
     result = result.replace("\\n", "\n")

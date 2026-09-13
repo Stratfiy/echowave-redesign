@@ -715,11 +715,9 @@ class TelnyxProvider(TelephonyProvider):
     def generate_validation_error_response(error_type) -> tuple:
         from fastapi import Response
 
-        from api.errors.telephony_errors import TELEPHONY_ERROR_MESSAGES, TelephonyError
+        from api.errors.telephony_errors import message_for
 
-        message = TELEPHONY_ERROR_MESSAGES.get(
-            error_type, TELEPHONY_ERROR_MESSAGES[TelephonyError.GENERAL_AUTH_FAILED]
-        )
+        message = message_for(error_type)
         return Response(
             content=json.dumps({"error": str(error_type), "message": message}),
             media_type="application/json",

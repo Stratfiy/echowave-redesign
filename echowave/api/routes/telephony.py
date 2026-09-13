@@ -459,18 +459,14 @@ async def initiate_call(
             f"&organization_id={user.selected_organization_id}"
         )
 
-        keywords = {
-            "workflow_id": workflow.id,
-            "organization_id": user.selected_organization_id,
-        }
-
         # Initiate call via provider
         result = await provider.initiate_call(
             to_number=phone_number,
             webhook_url=webhook_url,
             workflow_run_id=workflow_run_id,
             from_number=from_number,
-            **keywords,
+            workflow_id=workflow.id,
+            organization_id=user.selected_organization_id,
         )
     except Exception:
         await call_concurrency.release_workflow_run_slot(workflow_run_id)

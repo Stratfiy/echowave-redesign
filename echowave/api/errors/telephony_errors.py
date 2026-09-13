@@ -31,3 +31,14 @@ TELEPHONY_ERROR_MESSAGES = {
     TelephonyError.QUOTA_EXCEEDED: "Service temporarily unavailable: Your account has exceeded usage limits. Please contact your administrator or upgrade your plan to continue receiving calls.",
     TelephonyError.GENERAL_AUTH_FAILED: "Authentication failed: Please check your webhook URL configuration and ensure your telephony provider settings match your dashboard configuration.",
 }
+
+
+def message_for(error_type) -> str:
+    """The operator-facing message for *error_type*.
+
+    Every provider needs this lookup with the same GENERAL_AUTH_FAILED
+    fallback, so it lives here rather than being restated six times.
+    """
+    return TELEPHONY_ERROR_MESSAGES.get(
+        error_type, TELEPHONY_ERROR_MESSAGES[TelephonyError.GENERAL_AUTH_FAILED]
+    )

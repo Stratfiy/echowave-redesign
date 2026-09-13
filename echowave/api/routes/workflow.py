@@ -1945,20 +1945,14 @@ async def update_workflow(
                 trigger_paths=trigger_paths,
             )
 
-        # Return draft content if one exists (save creates a draft)
+        # The active definition is the draft if a save created one, else the
+        # published release. Both branches read the same fields off it, so
+        # pick the object once rather than fanning out and then re-deriving it.
         draft = await db_client.get_draft_version(workflow_id)
-        if draft:
-            workflow_def = draft.workflow_json
-            workflow_configs = draft.workflow_configurations
-            template_vars = draft.template_context_variables
-        else:
-            published = workflow.released_definition
-            workflow_def = published.workflow_json
-            workflow_configs = published.workflow_configurations
-            template_vars = published.template_context_variables
-
-        # Include version info from the active definition (draft or published)
         active_def = draft or workflow.released_definition
+        workflow_def = active_def.workflow_json
+        workflow_configs = active_def.workflow_configurations
+        template_vars = active_def.template_context_variables
         return {
             "id": workflow.id,
             "name": workflow.name,
@@ -1970,8 +1964,8 @@ async def update_workflow(
             "template_context_variables": template_vars,
             "call_disposition_codes": workflow.call_disposition_codes,
             "workflow_configurations": mask_workflow_configurations(workflow_configs),
-            "version_number": active_def.version_number if active_def else None,
-            "version_status": active_def.status if active_def else None,
+            "version_number": active_def.version_number,
+            "version_status": active_def.status,
         }
     except HTTPException:
         raise

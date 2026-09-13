@@ -786,11 +786,9 @@ class PlivoProvider(TelephonyProvider):
     def generate_validation_error_response(error_type) -> tuple:
         from fastapi import Response
 
-        from api.errors.telephony_errors import TELEPHONY_ERROR_MESSAGES, TelephonyError
+        from api.errors.telephony_errors import message_for
 
-        message = TELEPHONY_ERROR_MESSAGES.get(
-            error_type, TELEPHONY_ERROR_MESSAGES[TelephonyError.GENERAL_AUTH_FAILED]
-        )
+        message = message_for(error_type)
 
         plivo_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>

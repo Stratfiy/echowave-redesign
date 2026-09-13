@@ -191,7 +191,16 @@ class OrganizationAIModelConfigurationV2(BaseModel):
 class OrganizationAIModelConfigurationResponse(BaseModel):
     configuration: dict | None
     effective_configuration: dict
-    source: Literal["organization_v2", "legacy_user_v1", "empty"]
+    #: Mirrors ``AIModelConfigurationSource`` in
+    #: ``api.services.configuration.ai_model_configuration``, which cannot be
+    #: imported here: that module already imports from this one, so the alias
+    #: has to be restated rather than shared. Restating it is how
+    #: ``managed_default`` went missing -- ``get_resolved_ai_model_configuration``
+    #: returns only ``organization_v2`` or ``managed_default``, so every
+    #: organization without a stored v2 configuration failed validation on this
+    #: response and the model screen answered 500. Keep the two in step, or
+    #: move the alias down into this module and have the service import it.
+    source: Literal["organization_v2", "legacy_user_v1", "managed_default", "empty"]
 
 
 def compile_ai_model_configuration_v2(

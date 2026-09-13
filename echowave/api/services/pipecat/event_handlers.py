@@ -80,7 +80,7 @@ def register_event_handlers(
     in_memory_logs_buffer: InMemoryLogsBuffer,
     transcript_log_coordinator: TranscriptLogCoordinator,
     pipeline_metrics_aggregator: PipelineMetricsAggregator,
-    audio_config=AudioConfig,
+    audio_config: AudioConfig | None = None,
     pre_call_fetch_task: asyncio.Task | None = None,
     user_provider_id: str | None = None,
     integration_runtime_sessions: list[IntegrationRuntimeSession] | None = None,
@@ -93,6 +93,9 @@ def register_event_handlers(
         In-memory recording buffers for use by other handlers.
     """
     # Initialize in-memory buffers with proper audio configuration
+    # The default used to be the AudioConfig *class*, whose class-level
+    # pipeline_sample_rate is None -- always truthy, so this fallback never
+    # ran and a caller that omitted audio_config got sample_rate=None.
     sample_rate = audio_config.pipeline_sample_rate if audio_config else 16000
     num_channels = 1  # Pipeline audio is always mono
 
@@ -438,10 +441,11 @@ def register_event_handlers(
         # so without a tag it is only ever found by someone reading a
         # transcript. See stuck_agent.py for why the turn threshold is four.
         try:
+            user_turns = in_memory_logs_buffer.count_user_turns()
             if stuck_agent.looks_stuck(
                 nodes_visited=gathered_context.get("nodes_visited"),
                 workflow_node_count=len(getattr(engine.workflow, "nodes", {}) or {}),
-                user_turns=in_memory_logs_buffer.count_user_turns(),
+                user_turns=user_turns,
             ):
                 if stuck_agent.TAG not in call_tags:
                     call_tags.append(stuck_agent.TAG)
@@ -449,7 +453,7 @@ def register_event_handlers(
                     "Run {} never left its first node after {} caller turns; "
                     "tagged {}.",
                     workflow_run_id,
-                    in_memory_logs_buffer.count_user_turns(),
+                    user_turns,
                     stuck_agent.TAG,
                 )
         except Exception as exc:  # noqa: BLE001 - a missing tag beats a lost call
