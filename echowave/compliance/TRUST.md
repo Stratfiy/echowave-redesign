@@ -110,9 +110,10 @@ The honest section, and the one that earns the rest of the page.
 
 ## Reporting a vulnerability
 
-[TO CONFIRM — the mailbox, the response commitment, and whether you offer safe
-harbour for good-faith research. A trust page without a route to report a
-problem tells a researcher to post it publicly instead.]
+Report a vulnerability to **security@decibyl.ai**. We acknowledge within two
+business days and will tell you what we found and when it is fixed. We will not
+pursue a researcher who reports in good faith, stays within their own test
+account, and does not access, alter or retain anyone else's data.
 
 ---
 

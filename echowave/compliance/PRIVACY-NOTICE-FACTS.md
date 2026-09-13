@@ -65,7 +65,7 @@ permit it.]
 | Call recordings | **90 days** by default | A voice is among the most identifying data there is, and is rarely useful a month after the call |
 | Transcripts | **365 days** by default | Text, far less sensitive, and what quality review and reporting actually read |
 | Billing and tax records | Longer — required by Indian GST law | Retained after the conversation itself is deleted. What remains is a duration and an amount, which identifies nobody. |
-| Account details | While the account is open | [TO CONFIRM — plus what period after closure] |
+| Account details | While the account is open, then 90 days | After 90 days the account and its agents are deleted. **Financial records are the exception**: Companies Act 2013 s128 requires books of account to be kept for eight years, so invoices, the credit ledger and payment records outlive the account by law rather than by choice. |
 | Record that someone asked for erasure | Kept | It is the evidence the request was honoured. It contains a one-way hash of the number, not the number. |
 
 Deletion is automatic, not on request: a job runs every night and deletes what
@@ -116,13 +116,10 @@ called you. If you cannot identify them, contact us and we will help — but we
 will not confirm whether your number appears in a particular customer's account,
 because doing so would itself disclose information about you to whoever asked.
 
-**Grievance officer (DPDP s13):** [TO CONFIRM — name, email, postal address. Set
-via `GRIEVANCE_OFFICER_NAME`, `GRIEVANCE_OFFICER_EMAIL` and
-`GRIEVANCE_OFFICER_ADDRESS`, so the site and the product cannot disagree about
-who it is.]
+**Grievance officer (DPDP s13):** Nithishkalyan Pulluru Rajasekar, Nautomation Labs Private Limited, No. 86/16, Papanna Thottam, Brindhavan Nagar, TNHB Phase 7, Hosur, Krishnagiri – 635109, Tamil Nadu, India. Email: grievances@decibyl.ai
 
-Response time: [TO CONFIRM — GDPR Art 12(3) sets one month; DPDP Rules set
-specific periods. State one and meet it.]
+Response time: we answer within **30 days**, which satisfies GDPR Art 12(3) and
+is the shorter of the two regimes we operate under.
 
 ---
 
