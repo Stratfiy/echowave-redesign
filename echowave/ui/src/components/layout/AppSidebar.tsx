@@ -6,10 +6,11 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Database,
   UserRound,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import posthog from "posthog-js";
 import React, { useEffect, useRef, useState } from "react";
 
@@ -57,6 +58,7 @@ const TELEPHONY_WARNING_COPY = "Action required";
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { state, isMobile, setOpenMobile, setOpen } = useSidebar();
   const { provider } = useAuth();
   const { config } = useAppConfig();
@@ -113,9 +115,17 @@ export function AppSidebar() {
    * intact, the five labelled contexts, was the thing being dropped. Nothing
    * becomes unreachable: every context is one click from here, and clicking
    * one opens the panel it names. */
-  const contextSections = isCollapsed
-    ? []
-    : getContextSections(activeContext, navSections);
+  // Home shows places, not features. The nav rows -- a Home link, a Bots
+  // link under a BUILD heading -- are the app's own table of contents, and in
+  // the one panel that is supposed to be the workspace they read as chrome:
+  // "Home" twice (the rail already says it), and "Bots" above a section
+  // called YOUR BOTS. So Home renders the channels and the bots and nothing
+  // else, the way the reference does. The rail's Home button carries the
+  // navigation the removed link used to.
+  const contextSections =
+    isCollapsed || activeContext === "home"
+      ? []
+      : getContextSections(activeContext, navSections);
   const activeSection = navSections.find(section => section.items.some(item => item.url === activeUrl))?.label;
   const [closedSections, setClosedSections] = useState<string[]>(["MONITOR", "DEVELOPERS", "WORKSPACE"]);
   useEffect(() => {
@@ -399,6 +409,15 @@ export function AppSidebar() {
                     // a context you cannot then see is a click that does
                     // nothing, so opening is part of the same gesture.
                     if (isCollapsed) setOpen(true);
+                    // Home is the one context whose panel has no link to its
+                    // own landing -- the row was removed so the panel could
+                    // be the workspace rather than a menu -- so the button
+                    // itself goes there. The others stay browse-only: picking
+                    // Setup to look at what is in it, without leaving the
+                    // page you are reading, is a thing people do.
+                    if (context.id === "home" && pathname !== "/overview") {
+                      router.push("/overview");
+                    }
                   }}
                   className={cn(
                     "flex w-11 flex-col items-center gap-0.5 rounded-md px-1 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-accent",
@@ -460,22 +479,19 @@ export function AppSidebar() {
               ))}
             </SidebarMenu>
           </SidebarGroup>
-          {/* Straight after Home, and above every feature door: the largest
-              section of the rail should be the team, not the tooling.
-
-              Channels first, then the bots. A channel is a place you work; a
-              bot on its own is a thing you configure, and every workspace
-              product leads with the places. Both stay — opening one bot is
-              still right when you want to change how it behaves rather than
-              ask it for something. */}
-          {activeContext === "home" && section.label === undefined && (
-            <>
-              <SidebarChannels collapsed={isCollapsed} />
-              <SidebarBots collapsed={isCollapsed} />
-            </>
-          )}
           </React.Fragment>
         ))}
+        {/* The Home panel. Channels first, then the bots: a channel is a
+            place you work, a bot on its own is a thing you configure, and
+            every workspace product leads with the places. Rendered outside
+            the section loop because Home has no sections any more -- see
+            contextSections. */}
+        {!isCollapsed && activeContext === "home" && (
+          <>
+            <SidebarChannels collapsed={isCollapsed} />
+            <SidebarBots collapsed={isCollapsed} />
+          </>
+        )}
         </div>
       </SidebarContent>
 
@@ -483,6 +499,23 @@ export function AppSidebar() {
         className={cn("bg-sidebar p-3 notranslate", isCollapsed && "p-2")}
         translate="no"
       >
+        {/* What every bot draws on, in the place the reference puts it: the
+            foot of the workspace panel, above the account's own actions.
+            Home only -- Setup already lists it as a door. */}
+        {!isCollapsed && activeContext === "home" && (
+          <Link
+            href="/files"
+            className="mb-2 flex items-start gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-sidebar-accent"
+          >
+            <Database aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="min-w-0">
+              <span className="block truncate">Company knowledge</span>
+              <span className="block truncate text-xs text-muted-foreground">
+                Shared context for every bot
+              </span>
+            </span>
+          </Link>
+        )}
         <div className={cn("flex", isCollapsed ? "justify-center" : "justify-stretch [&>button]:w-full")}>
           {setupCallButton}
         </div>

@@ -18,10 +18,10 @@
  * fresh account is noise, and `/workflow` is the door to making one.
  */
 
-import { Hash } from "lucide-react";
+import { Hash, Plus } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { listFoldersApiV1FolderGet } from "@/client/sdk.gen";
 import type { FolderResponse } from "@/client/types.gen";
@@ -32,6 +32,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { useAuth } from "@/lib/auth";
 
 /**
  * How many the rail will hold. Same reasoning as the bot cap: an account with
@@ -42,9 +43,16 @@ export const CHANNEL_LIMIT = 8;
 
 export function SidebarChannels({ collapsed }: { collapsed: boolean }) {
   const pathname = usePathname();
+  const { user, loading: authLoading } = useAuth();
   const [channels, setChannels] = useState<FolderResponse[]>([]);
+  const started = useRef(false);
 
   useEffect(() => {
+    // Wait for auth -- same reason as SidebarBots, and the same bug: this was
+    // written by copying that component, guard omitted and all. See
+    // ui/AGENTS.md.
+    if (authLoading || !user || started.current) return;
+    started.current = true;
     let cancelled = false;
     (async () => {
       try {
@@ -58,17 +66,31 @@ export function SidebarChannels({ collapsed }: { collapsed: boolean }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authLoading, user]);
 
   // Icon mode has no room for names, and a column of bare hashes is a puzzle.
-  if (collapsed || channels.length === 0) return null;
+  if (collapsed) return null;
 
   const shown = channels.slice(0, CHANNEL_LIMIT);
 
   return (
     <SidebarGroup className="py-1">
-      <SidebarGroupLabel className="h-7 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Channels
+      {/* The heading is a door and carries its own action, the way the
+          reference does it: the label opens the full list, the plus makes a
+          new one. Shown even with nothing under it -- an account with no
+          channels needs the plus more than one with eight. */}
+      <SidebarGroupLabel className="h-7 justify-between text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <Link href="/workflow" className="hover:text-foreground">
+          Channels
+        </Link>
+        <Link
+          href="/workflow"
+          aria-label="New channel"
+          title="New channel"
+          className="rounded p-0.5 hover:bg-sidebar-accent hover:text-foreground"
+        >
+          <Plus aria-hidden="true" className="h-3.5 w-3.5" />
+        </Link>
       </SidebarGroupLabel>
       <SidebarMenu>
         {shown.map((channel) => {

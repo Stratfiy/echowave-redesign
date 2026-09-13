@@ -293,6 +293,27 @@ class WorkflowRunClient(BaseDBClient):
             )
             return result.scalar_one_or_none()
 
+    async def get_workflow_id_by_workflow_run_id(
+        self, run_id: int | None
+    ) -> int | None:
+        """Which bot a run belongs to.
+
+        The engine holds a run id and, deliberately, no workflow id — an
+        assumption that it did is the defect `api/AGENTS.md` opens with, where
+        `getattr(self._engine, "_workflow_id", None)` wrote a NULL into every
+        row of a new table and nothing failed. So the id is fetched rather than
+        assumed, once per call, the same shape as the organization lookup above.
+        """
+        if not run_id:
+            return None
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(WorkflowRunModel.workflow_id).where(
+                    WorkflowRunModel.id == run_id
+                )
+            )
+            return result.scalar_one_or_none()
+
     async def get_workflow_runs_by_workflow_id(
         self,
         workflow_id: int,

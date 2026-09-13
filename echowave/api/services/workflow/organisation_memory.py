@@ -277,3 +277,63 @@ def merge_for_prompt(
         {k: v for k, v in (operator_data or {}).items() if v not in (None, "")}
     )
     return merged
+
+
+#: How many remembered facts reach one prompt.
+#:
+#: A cap rather than a scroll: every line here is tokens on every turn of every
+#: call, and an account that has confirmed two hundred facts would otherwise
+#: quietly triple its own bill and bury the node's actual instruction under a
+#: wall of trivia. Most-seen first is the order `organisation_memory` already
+#: returns, so the cap keeps what the business says most often.
+MAX_REMEMBERED = 40
+
+
+def remembered_block(remembered: Mapping[str, str] | None) -> Optional[str]:
+    """Confirmed memory, stated to the model as fact.
+
+    The counterpart to :func:`known_values_block`, and the same argument: a
+    node prompt is an unconditional instruction, and a model told "ask what
+    their opening hours are" will ask, even where the business confirmed those
+    hours last month. Facts it is *told* outrank a table it could have looked
+    in.
+
+    Everything here has been confirmed by a person -- ``recall_for_bot`` filters
+    to ``status='confirmed'`` and ``kind='fact'`` -- which is what makes stating
+    it flatly safe. A learned fact has been overheard on one call and would be
+    the agent repeating a caller's guess back to the next caller in the
+    business's own voice. Gaps are excluded for the same reason in reverse: a
+    gap is something nobody could answer, and an agent that reads its own gap
+    list starts announcing what it does not know.
+
+    **This block is byte-identical for the life of a call**, which is why the
+    engine reads it once and why it is placed above the known-values block
+    rather than below. Everything above a changing block stops being cacheable,
+    and on a real call here cache reads were 9,088 of 9,608 prompt tokens.
+
+    Returns ``None`` for an empty memory, so a business that has confirmed
+    nothing gets no heading announcing that it knows nothing.
+    """
+    if not remembered:
+        return None
+
+    lines = []
+    for key, value in list(remembered.items())[:MAX_REMEMBERED]:
+        text = str(value or "").strip()
+        if not text:
+            continue
+        # The key as written, not slugged. These were composed to be read --
+        # "cancellation policy", not "cancellation_policy" -- and a prompt is
+        # the one place the machine-readable form has no advantage.
+        lines.append(f"- {key}: {text}")
+
+    if not lines:
+        return None
+
+    return (
+        "WHAT THIS BUSINESS HAS CONFIRMED.\n"
+        "These are settled facts about the business, confirmed by the people "
+        "who run it. Treat them as true and do not ask a caller to confirm "
+        "them. If a caller contradicts one, do not argue and do not correct "
+        "your records out loud -- take what they say and carry on.\n" + "\n".join(lines)
+    )

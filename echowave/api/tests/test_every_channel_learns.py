@@ -163,9 +163,15 @@ class TestABotAnsweringInAChannel:
         ):
             await answer_channel_message(ctx, 7, 3, "chase the suppliers")
 
-        ctx["redis"].enqueue_job.assert_awaited_once_with(
-            FunctionNames.PROCESS_WORKFLOW_COMPLETION, 336
-        )
+        # Completion first, then the channel's own housekeeping. Two jobs
+        # rather than one, and the order is load-bearing: costing and
+        # learning are about *this* run and must not queue behind a model
+        # call whose only purpose is tidying the thread for the next one.
+        awaited = [call.args for call in ctx["redis"].enqueue_job.await_args_list]
+        assert awaited == [
+            (FunctionNames.PROCESS_WORKFLOW_COMPLETION, 336),
+            (FunctionNames.COMPACT_CHANNEL_CONTEXT, 3, 336),
+        ]
 
     @pytest.mark.asyncio
     async def test_a_bot_that_never_ran_is_not_processed(self):

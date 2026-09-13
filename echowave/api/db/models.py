@@ -809,6 +809,14 @@ class FolderModel(Base):
     name = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
+    #: A précis of this channel's conversation before the verbatim window a
+    #: bot is shown, and the ``agent_events.id`` watermark it covers up to.
+    #: Together they are how a channel's context compacts instead of dropping
+    #: its oldest messages -- see services/workflow/channel_context.py. NULL
+    #: is a channel that has never overflowed its window.
+    context_summary = Column(Text, nullable=True)
+    context_summarised_through = Column(Integer, nullable=True)
+
     workflows = relationship("WorkflowModel", back_populates="folder")
 
     # Folder names must be unique within an organization.

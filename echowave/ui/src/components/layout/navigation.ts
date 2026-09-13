@@ -109,31 +109,9 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         icon: Home,
         keywords: ["home", "dashboard", "overview", "start"],
       },
-      // The partner programme is a commercial arrangement on the account, so
-      // it lives as a tab on Billing rather than as its own door in WORKSPACE.
-      {
-        title: "Billing",
-        url: "/billing",
-        activePaths: ["/partner"],
-        icon: Wallet,
-        keywords: [
-          "credit",
-          "top up",
-          "invoice",
-          "payment",
-          "balance",
-          "partner",
-          "reseller",
-          "agency",
-          "commission",
-          "referral",
-        ],
-      },
-    ],
-  },
-  {
-    label: "BUILD",
-    items: [
+      // Beside Home rather than under a BUILD heading of its own. In the Home
+      // panel that heading had exactly one item under it, and a group label
+      // over a single row is a heading that explains nothing and costs a line.
       // Models live on the agent — a voice, an LLM and a transcriber are
       // properties of an agent, chosen on its Models tab. The workspace
       // default is a setting, under Settings → Model defaults.
@@ -177,6 +155,31 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
           "provider",
         ],
       },
+      // The partner programme is a commercial arrangement on the account, so
+      // it lives as a tab on Billing rather than as its own door in WORKSPACE.
+      {
+        title: "Billing",
+        url: "/billing",
+        activePaths: ["/partner"],
+        icon: Wallet,
+        keywords: [
+          "credit",
+          "top up",
+          "invoice",
+          "payment",
+          "balance",
+          "partner",
+          "reseller",
+          "agency",
+          "commission",
+          "referral",
+        ],
+      },
+    ],
+  },
+  {
+    label: "BUILD",
+    items: [
       // Pre-recorded audio clips are agent material, like documents: both are
       // things an agent draws on mid-call, so they share one door with a tab
       // between them.

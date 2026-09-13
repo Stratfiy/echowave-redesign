@@ -27,7 +27,11 @@ import { cn } from "@/lib/utils"
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
-const SIDEBAR_WIDTH = "16rem"
+// 17.5rem, not 16. The panel's widest content is a list of bot names, and a
+// business names its bots after itself -- "Narayani Dental front desk",
+// "Meera - Decibyl Sales Assistant". At 16rem four of five truncated, which
+// turns a roster into a column of prefixes you have to hover to read.
+const SIDEBAR_WIDTH = "17.5rem"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
 // 3.5rem, not 3: collapsed, the sidebar is the rail — five labelled context
 // buttons, the same 56px column it occupies when expanded. At 3rem the labels
