@@ -8770,6 +8770,16 @@ export type ReleaseRequest = {
 };
 
 /**
+ * RenameOrganizationRequest
+ */
+export type RenameOrganizationRequest = {
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
  * ResetPasswordRequest
  */
 export type ResetPasswordRequest = {
@@ -24729,6 +24739,45 @@ export type ListMyOrganizationsApiV1OrganizationsMineGetResponses = {
 };
 
 export type ListMyOrganizationsApiV1OrganizationsMineGetResponse = ListMyOrganizationsApiV1OrganizationsMineGetResponses[keyof ListMyOrganizationsApiV1OrganizationsMineGetResponses];
+
+export type RenameOrganizationApiV1OrganizationsSelectedPatchData = {
+    body: RenameOrganizationRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations/selected';
+};
+
+export type RenameOrganizationApiV1OrganizationsSelectedPatchErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RenameOrganizationApiV1OrganizationsSelectedPatchError = RenameOrganizationApiV1OrganizationsSelectedPatchErrors[keyof RenameOrganizationApiV1OrganizationsSelectedPatchErrors];
+
+export type RenameOrganizationApiV1OrganizationsSelectedPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserOrganizationResponse;
+};
+
+export type RenameOrganizationApiV1OrganizationsSelectedPatchResponse = RenameOrganizationApiV1OrganizationsSelectedPatchResponses[keyof RenameOrganizationApiV1OrganizationsSelectedPatchResponses];
 
 export type SwitchOrganizationApiV1OrganizationsSelectedPutData = {
     body: SwitchOrganizationRequest;

@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from loguru import logger
-from sqlalchemy import exists, func
+from sqlalchemy import exists, func, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.future import select
 
@@ -117,6 +117,17 @@ class OrganizationClient(BaseDBClient):
             user.selected_organization_id = organization_id
             await session.commit()
             return True
+
+    async def rename_organization(self, organization_id: int, name: str) -> bool:
+        """Set the workspace name. False if there is no such organization."""
+        async with self.async_session() as session:
+            result = await session.execute(
+                update(OrganizationModel)
+                .where(OrganizationModel.id == organization_id)
+                .values(name=name)
+            )
+            await session.commit()
+            return result.rowcount == 1
 
     async def get_membership(
         self, user_id: int, organization_id: int

@@ -128,6 +128,10 @@ class OrganizationModel(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     provider_id = Column(String, unique=True, index=True, nullable=False)
+    # What the people in it call it -- the workspace name in the sidebar. NULL
+    # until an admin types one; readers fall back to "Organization {id}".
+    # Distinct from billing_name, which is the legal name on the invoice.
+    name = Column(String(120), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     # Deprecated: MPS owns quota and credit ledger state.

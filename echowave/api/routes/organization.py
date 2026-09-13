@@ -12,7 +12,7 @@ from api.constants import (
 from api.db import db_client
 from api.db.models import UserModel
 from api.db.telephony_configuration_client import TelephonyConfigurationInUseError
-from api.enums import OrganizationConfigurationKey, PostHogEvent
+from api.enums import OrganizationConfigurationKey, OrganizationRole, PostHogEvent
 from api.schemas.ai_model_configuration import (
     DECIBYL_DEFAULT_LANGUAGE,
     DECIBYL_DEFAULT_VOICE,
@@ -43,6 +43,7 @@ from api.schemas.telephony_phone_number import (
 from api.services.auth.depends import (
     get_user,
     get_user_with_selected_organization,
+    require_organization_role,
 )
 from api.services.configuration import (
     byok_resolution,
@@ -164,6 +165,18 @@ class SwitchOrganizationRequest(BaseModel):
     organization_id: int
 
 
+ORGANIZATION_NAME_MAX = 120
+
+
+class RenameOrganizationRequest(BaseModel):
+    name: str
+
+
+def _organization_name(row) -> str:
+    """The name the switcher shows: what an admin typed, or the id until then."""
+    return row[1] or f"Organization {row[0]}"
+
+
 @router.get("/mine", response_model=List[UserOrganizationResponse])
 async def list_my_organizations(user: UserModel = Depends(get_user)):
     """The organizations this user belongs to, for the switcher.
@@ -175,7 +188,7 @@ async def list_my_organizations(user: UserModel = Depends(get_user)):
     return [
         UserOrganizationResponse(
             id=row[0],
-            name=row[1] or f"Organization {row[0]}",
+            name=_organization_name(row),
             role=str(getattr(row[2], "value", row[2])),
             is_selected=row[0] == user.selected_organization_id,
         )
@@ -203,16 +216,47 @@ async def switch_organization(
         # organization look the same from here.
         raise HTTPException(status_code=404, detail="No such organization")
 
-    rows = await db_client.list_user_organizations(user.id)
+    return await _selected_organization(user.id, request.organization_id)
+
+
+async def _selected_organization(
+    user_id: int, organization_id: int
+) -> UserOrganizationResponse:
+    rows = await db_client.list_user_organizations(user_id)
     for row in rows:
-        if row[0] == request.organization_id:
+        if row[0] == organization_id:
             return UserOrganizationResponse(
                 id=row[0],
-                name=row[1] or f"Organization {row[0]}",
+                name=_organization_name(row),
                 role=str(getattr(row[2], "value", row[2])),
                 is_selected=True,
             )
     raise HTTPException(status_code=404, detail="No such organization")
+
+
+@router.patch("/selected", response_model=UserOrganizationResponse)
+async def rename_organization(
+    request: RenameOrganizationRequest,
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
+):
+    """Give the selected organization the name its people use for it.
+
+    Admin and up: the name is on every member's screen, so one person's typo
+    is everybody's. Whitespace is trimmed and an empty name is refused rather
+    than stored -- a blank would fall back to "Organization {id}" and look
+    like the rename never happened.
+    """
+    name = request.name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Give the organization a name")
+    if len(name) > ORGANIZATION_NAME_MAX:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Keep the name under {ORGANIZATION_NAME_MAX} characters",
+        )
+    if not await db_client.rename_organization(user.selected_organization_id, name):
+        raise HTTPException(status_code=404, detail="No such organization")
+    return await _selected_organization(user.id, user.selected_organization_id)
 
 
 @router.get("/context", response_model=OrganizationContextResponse)
