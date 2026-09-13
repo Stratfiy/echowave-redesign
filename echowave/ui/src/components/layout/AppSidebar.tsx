@@ -15,6 +15,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { BrandLogo } from "@/components/BrandLogo";
 import { OrganizationSwitcher } from "@/components/layout/OrganizationSwitcher";
+import { SidebarBots } from "@/components/layout/SidebarBots";
 import { SidebarTeamSwitcher } from "@/components/layout/SidebarTeamSwitcher";
 import { Button } from "@/components/ui/button";
 import {
@@ -311,8 +312,8 @@ export function AppSidebar() {
           the final entry read as clipped rather than as scrolled. */}
       <SidebarContent className={cn("notranslate gap-1 pb-2 group-data-[collapsible=icon]:overflow-y-auto", isCollapsed && "px-0")} translate="no">
         {navSections.map((section) => (
+          <React.Fragment key={section.label ?? "overview"}>
           <SidebarGroup
-            key={section.label ?? "overview"}
             className="py-1"
           >
             {section.label && (
@@ -348,6 +349,10 @@ export function AppSidebar() {
               ))}
             </SidebarMenu>
           </SidebarGroup>
+          {/* Straight after Home, and above every feature door: the largest
+              section of the rail should be the team, not the tooling. */}
+          {section.label === undefined && <SidebarBots collapsed={isCollapsed} />}
+          </React.Fragment>
         ))}
       </SidebarContent>
 
