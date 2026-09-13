@@ -46,6 +46,9 @@ class NullFileSystem(BaseFileSystem):
     ) -> str | None:
         self._fail("aget_presigned_put_url")
 
+    async def aread_bytes(self, file_path: str, max_bytes: int) -> bytes | None:
+        self._fail("aread_bytes")
+
     async def adownload_file(self, source_path: str, local_path: str) -> bool:
         self._fail("adownload_file")
 

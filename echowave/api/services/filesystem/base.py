@@ -132,6 +132,27 @@ class BaseFileSystem(ABC):
         """
 
     @abstractmethod
+    async def aread_bytes(self, file_path: str, max_bytes: int) -> bytes | None:
+        """Read an object into memory, or ``None`` if it is not there.
+
+        The interface had only two ways to get at an object: sign a URL the
+        browser fetches, or write it to local disk. A small text artifact the
+        server itself wants to read had to go the long way round -- and the
+        signed-URL route makes the browser's success depend on a signature, an
+        expiry, a CORS policy and whichever credentials the process holds at
+        that moment. Four things to get right to hand somebody a few kilobytes
+        of text.
+
+        ``max_bytes`` is required rather than defaulted. A caller that has not
+        thought about the size of what it is pulling into memory is the caller
+        that pulls a two-hour recording into it.
+
+        Returns ``None`` for a missing object and raises for anything else, so
+        "there is no transcript" stays distinguishable from "we could not read
+        the transcript" -- the distinction the whole of this evening was about.
+        """
+        raise NotImplementedError
+
     async def adownload_file(self, source_path: str, local_path: str) -> bool:
         """Download a file from storage to local path.
 

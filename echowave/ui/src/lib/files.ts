@@ -1,4 +1,7 @@
-import { getSignedUrlApiV1S3SignedUrlGet } from "@/client/sdk.gen";
+import {
+    getSignedUrlApiV1S3SignedUrlGet,
+    getTextArtifactApiV1S3TextGet,
+} from "@/client/sdk.gen";
 import { detailFromResult } from "@/lib/apiError";
 
 /**
@@ -83,4 +86,50 @@ export async function getSignedUrl(
 ): Promise<SignedUrlResult> {
     if (!url) return { url: null, error: null };
     return requestSignedUrl(url, inline);
+}
+
+/**
+ * The text of a small artifact, read through the API rather than from storage.
+ *
+ * A signed URL makes the browser's success depend on four separate things at
+ * once — the signature, the expiry, the bucket's CORS policy, and whichever
+ * credentials the server held when it signed. Run 336's transcript failed on
+ * one of them for a day and reported `SignatureDoesNotMatch`, which names the
+ * signature and identifies none of the four.
+ *
+ * None of them are needed to fetch a few kilobytes of text from our own API,
+ * same-origin, with the session that is already authenticated. Recordings keep
+ * the signed URL: megabytes of audio belong nowhere near a uvicorn worker that
+ * is also carrying live calls.
+ */
+export interface TextArtifactResult {
+    text: string | null;
+    truncated: boolean;
+    error: string | null;
+}
+
+export async function getTextArtifact(key: string | null): Promise<TextArtifactResult> {
+    if (!key) return { text: null, truncated: false, error: null };
+    try {
+        const response = await getTextArtifactApiV1S3TextGet({ query: { key } });
+        if (response.error) {
+            return {
+                text: null,
+                truncated: false,
+                error: detailFromResult(response, 'Could not read this file'),
+            };
+        }
+        return {
+            text: response.data?.text ?? '',
+            truncated: Boolean(response.data?.truncated),
+            error: null,
+        };
+    } catch (error) {
+        console.error('Error reading text artifact:', error);
+        return {
+            text: null,
+            truncated: false,
+            error: 'Could not reach the server. Check your connection and try again.',
+        };
+    }
 }

@@ -297,6 +297,28 @@ class S3FileSystem(BaseFileSystem):
         except ClientError:
             return None
 
+    async def aread_bytes(self, file_path: str, max_bytes: int) -> bytes | None:
+        try:
+            async with self.session.client("s3", **self._client_kwargs()) as s3_client:
+                response = await s3_client.get_object(
+                    Bucket=self.bucket_name,
+                    Key=file_path,
+                    # Asked for as a range so an unexpectedly large object costs
+                    # one range request rather than a full download that is then
+                    # thrown away. One byte over the cap is read deliberately:
+                    # it is how the caller can tell a file that exactly fits
+                    # from one that was cut off.
+                    Range=f"bytes=0-{max_bytes}",
+                )
+                return await response["Body"].read()
+        except ClientError as exc:
+            code = exc.response.get("Error", {}).get("Code")
+            if code in ("NoSuchKey", "404", "InvalidRange"):
+                # InvalidRange means a zero-length object: there is nothing to
+                # read, which is the same answer as nothing being there.
+                return None
+            raise
+
     async def adownload_file(self, source_path: str, local_path: str) -> bool:
         """Download a file from S3 to local path."""
         try:

@@ -23,6 +23,15 @@ class S3SignedUrlResponse(TypedDict):
     expires_in: int
 
 
+class TextArtifactResponse(TypedDict):
+    text: str
+    #: True when the object was larger than this endpoint will serve. The text
+    #: is then the first ``MAX_TEXT_BYTES`` of it and the caller is told so,
+    #: because a transcript that stops mid-sentence and claims to be whole is
+    #: worse than one that admits where it stopped.
+    truncated: bool
+
+
 class FileMetadataResponse(TypedDict):
     key: str
     metadata: dict[str, Any] | None
@@ -195,6 +204,96 @@ async def _authorize_and_get_workflow_run(
         workflow_run = await db_client.get_workflow_run_by_id(run_id)
 
     return workflow_run
+
+
+#: What this endpoint will read into memory. A transcript of an hour-long call
+#: is tens of kilobytes; two megabytes is far past anything real and still
+#: small enough that a burst of requests cannot hurt the process.
+MAX_TEXT_BYTES = 2 * 1024 * 1024
+
+
+@router.get(
+    "/text",
+    response_model=TextArtifactResponse,
+    summary="Read a small text artifact through the API",
+)
+async def get_text_artifact(
+    key: Annotated[str, Query(description="S3 object key")],
+    storage_backend: Annotated[str | None, Query()] = None,
+    user=Depends(get_user),
+) -> TextArtifactResponse:
+    """Serve a small text artifact directly instead of signing a URL for it.
+
+    A signed URL makes the browser's success depend on four separate things
+    being right at once: the signature, the expiry, the bucket's CORS policy,
+    and whichever credentials the process holds at the moment of signing. Run
+    336's transcript failed on one of them for a day and answered
+    ``SignatureDoesNotMatch``, an error that names the signature and says
+    nothing about which of the four it was.
+
+    None of those four are needed to hand somebody a few kilobytes of text.
+    The request is already authenticated, the tenancy check is the same one
+    the signed-URL route performs, and the read is a single GET the server
+    makes with credentials it is already using successfully to write
+    recordings. So the transcript comes back through the API.
+
+    Deliberately not the recordings. Those are megabytes of audio that the
+    browser should stream from object storage rather than through a uvicorn
+    worker that is also carrying live calls -- see AGENTS.md on what those
+    processes are. A signed URL is the right shape for a recording and the
+    wrong shape for a transcript, and this is the second one.
+    """
+    workflow_run = None
+
+    org_id = _extract_org_id_from_key(key)
+    if org_id is not None:
+        if not _is_superadmin(user) and org_id != user.selected_organization_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+    else:
+        run_id = _extract_legacy_workflow_run_id(key)
+        if run_id is None:
+            raise HTTPException(status_code=400, detail="Invalid key format")
+        workflow_run = await _authorize_and_get_workflow_run(run_id, user)
+
+    if storage_backend:
+        storage = get_storage_for_backend(storage_backend)
+    elif (
+        workflow_run
+        and hasattr(workflow_run, "storage_backend")
+        and workflow_run.storage_backend
+    ):
+        storage = _storage_for_recorded_backend(workflow_run.storage_backend, key)
+    else:
+        storage = storage_fs
+
+    try:
+        raw = await storage.aread_bytes(key, MAX_TEXT_BYTES)
+    except Exception as exc:  # noqa: BLE001 - the caller is owed the reason
+        # Named rather than swallowed to None. "No transcript" and "we could
+        # not read the transcript" need different words on screen and
+        # different actions from whoever reads them.
+        logger.error("Could not read text artifact {}: {}", key, exc)
+        raise HTTPException(
+            status_code=502, detail="Could not read this file from storage"
+        ) from exc
+
+    if raw is None:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    truncated = len(raw) > MAX_TEXT_BYTES
+    body = raw[:MAX_TEXT_BYTES]
+
+    await _record_signed_url_access(
+        key=key,
+        user=user,
+        workflow_run=workflow_run,
+        organization_id=org_id if org_id is not None else user.selected_organization_id,
+    )
+
+    # errors="replace" rather than strict: a transcript with one bad byte
+    # should render with one replacement character, not 500. The content is
+    # the point, not its encoding.
+    return {"text": body.decode("utf-8", errors="replace"), "truncated": truncated}
 
 
 @router.get(
