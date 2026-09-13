@@ -124,7 +124,59 @@ async def fire_due_routines(ctx) -> None:
 
 
 async def run_agent_routine(_ctx, routine_id: int) -> None:
-    """Do the run itself, off the tick."""
+    """Do the run itself, off the tick, then process it like any other run.
+
+    The second half is the part that was missing. ``learn_from_run`` — gaps,
+    confirmations, everything the business finds out about itself — hangs off
+    ``PROCESS_WORKFLOW_COMPLETION``, and that was enqueued from exactly two
+    places, both of them voice: the pipecat teardown and the telephony status
+    processor. So a routine could fail to reach the same system every morning
+    for a month and the organisation learned nothing from it.
+
+    Nothing about the machinery was voice-specific — ``learn_from_run`` takes a
+    ``workflow_run_id``, an intent and a set of interactions, and none of those
+    imply a phone. Only the wiring was. AGENTS.md names this exact shape:
+    ``CallDirection`` has four values, two of them ring no phone, and "anything
+    that assumes 'agent' means 'call' is a bug waiting to happen".
+
+    Costing is idempotent — ``cost_workflow_run`` skips a run with a
+    ``costed_at`` — so this cannot double-charge. It costs these runs promptly
+    instead of leaving them to the settlement backstop, which is a second small
+    improvement rather than a risk.
+    """
     from api.services.workflow.routine_runner import run_routine
 
-    await run_routine(int(routine_id))
+    run_id = await run_routine(int(routine_id))
+    if run_id is None:
+        # No run happened: the routine vanished, or there was no credit for it.
+        # There is nothing to cost and nothing to learn from.
+        return
+
+    await _ctx["redis"].enqueue_job(
+        FunctionNames.PROCESS_WORKFLOW_COMPLETION, int(run_id)
+    )
+
+
+async def answer_channel_message(
+    _ctx, workflow_id: int, folder_id: int, text: str
+) -> None:
+    """One bot answers one thing somebody said in a channel, then the run is
+    processed like any other.
+
+    The second half matters as much as the first. Until the routine wiring
+    landed, PROCESS_WORKFLOW_COMPLETION was enqueued only from the two voice
+    paths -- so a bot that could not answer a question in a channel would have
+    left no gap for the business to see, which is the whole point of asking it
+    there.
+    """
+    from api.services.workflow.channel_reply import answer_in_channel
+
+    run_id = await answer_in_channel(int(workflow_id), int(folder_id), text)
+    if run_id is None:
+        # No run happened: the bot vanished, or there was no credit. Nothing to
+        # cost and nothing to learn from.
+        return
+
+    await _ctx["redis"].enqueue_job(
+        FunctionNames.PROCESS_WORKFLOW_COMPLETION, int(run_id)
+    )

@@ -796,6 +796,16 @@ class AgentEventKind(str, Enum):
     #: The agent could not do what was asked. Its own kind because a failure
     #: nobody sees is the defect this whole log exists to end.
     COULD_NOT = "could_not"
+    #: Somebody typed something in a channel, or a bot answered them there.
+    #:
+    #: The only kind a person authors. Everything else here is the system
+    #: reporting what happened; this is the thing that happened.
+    #:
+    #: ``summary`` is 500 characters and truncates, which is correct for a
+    #: generated line and wrong for words a person chose -- so the full text
+    #: lives in ``payload["body"]`` and the summary is the display line. A
+    #: message quietly cut at 500 characters is the product editing somebody.
+    MESSAGE = "message"
 
 
 class AgentEventActor(str, Enum):

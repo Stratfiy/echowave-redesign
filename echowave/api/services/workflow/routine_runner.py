@@ -50,8 +50,13 @@ def _last_assistant_text(text_session: Any) -> Optional[str]:
     return (turns[-1].get("assistant_message") or {}).get("text")
 
 
-async def run_routine(routine_id: int) -> None:
+async def run_routine(routine_id: int) -> Optional[int]:
     """Do one run of one routine. Never raises.
+
+    Returns the id of the run it finished, or ``None`` when no run happened —
+    the routine vanished, or there was no credit for it. The caller uses that
+    to put the run through the same post-run processing a call gets, and a run
+    that never started has nothing to process.
 
     Never raises because the caller is a cron tick serving every tenant: one
     routine throwing would end the tick, and every other business's routines would
@@ -153,7 +158,10 @@ async def run_routine(routine_id: int) -> None:
                 workflow_run_id=run_id,
                 payload={"routine_id": routine_id},
             )
-            return
+            # A run that produced nothing is still a run: it consumed context,
+            # reached for tools and may have failed to find one. That is
+            # exactly the sort of thing the business should learn about itself.
+            return run_id
 
         await agent_timeline.record(
             organization_id=organization_id,
@@ -163,6 +171,7 @@ async def run_routine(routine_id: int) -> None:
             workflow_run_id=run_id,
             payload={"routine_id": routine_id, "routine": routine["name"]},
         )
+        return run_id
     except Exception as exc:  # noqa: BLE001 - see the docstring
         logger.exception("Routine {} failed: {}", routine_id, exc)
         await agent_timeline.record(
@@ -173,6 +182,11 @@ async def run_routine(routine_id: int) -> None:
             workflow_run_id=run_id,
             payload={"routine_id": routine_id, "error": str(exc)[:500]},
         )
+        # A failed run is the most informative kind. A routine that cannot
+        # reach a system every morning is the business finding out it has a
+        # system it cannot reach, and that only becomes visible if the run is
+        # processed like any other.
+        return run_id
 
 
 async def _load(routine_id: int) -> Optional[dict[str, Any]]:

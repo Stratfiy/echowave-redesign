@@ -64,7 +64,11 @@ from api.tasks.rental_billing import (
     charge_recurring_rentals,
     reconcile_carrier_numbers,
 )
-from api.tasks.routines import fire_due_routines, run_agent_routine
+from api.tasks.routines import (
+    answer_channel_message,
+    fire_due_routines,
+    run_agent_routine,
+)
 from api.tasks.run_integrations import run_integrations_post_workflow_run
 from api.tasks.settlement import sweep_uncosted_runs
 from api.tasks.tax_invoices import issue_monthly_tax_invoices
@@ -101,6 +105,7 @@ class WorkerSettings:
         watch_margins,
         run_eval_case,
         run_agent_routine,
+        answer_channel_message,
     ]
     cron_jobs = [
         # Every minute, and at startup so a deployment is not indistinguishable

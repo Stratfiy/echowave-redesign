@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -364,6 +364,55 @@ class WorkflowRunClient(BaseDBClient):
                 for run in result.scalars().all()
             ]
             return runs, total_count
+
+    async def claim_run_for_learning(self, run_id: int) -> bool:
+        """Claim this run as the one time it teaches the organisation anything.
+
+        ``times_seen`` on ``organisation_facts`` increments through an
+        ``ON CONFLICT DO UPDATE``, so learning from the same run twice inflates
+        it -- and that number is not bookkeeping. It is the sentence a customer
+        is shown to justify a suggestion: "seven callers asked this and no
+        agent could answer". A retried job that turns seven into nine makes the
+        product state a number that is not true, which is worse than making no
+        suggestion at all.
+
+        Arq retries, and ``process_workflow_completion`` swallows the
+        integration error so the job is marked succeeded either way -- so the
+        double-run is reachable today on the voice path, before any new caller
+        is wired in.
+
+        One conditional UPDATE, not a read then a write: two workers racing on
+        read-modify-write would both see an unclaimed run and both proceed,
+        which is the failure this is here to prevent.
+
+        Returns True for the caller that won the claim. A caller that loses
+        should do nothing -- the work is already done or being done.
+
+        The failure direction is deliberate. A run claimed here and then lost
+        to a crash is never learned from, and the gap it would have recorded
+        goes unrecorded until the next time somebody asks the same question.
+        Under-counting resolves itself; over-counting tells the customer
+        something false.
+        """
+        async with self.async_session() as session:
+            result = await session.execute(
+                text(
+                    """
+                    UPDATE workflow_runs
+                    SET annotations = (
+                        COALESCE(annotations, '{}')::jsonb
+                        || '{"learned_from": true}'::jsonb
+                    )::json
+                    WHERE id = :run_id
+                      AND NOT (COALESCE(annotations, '{}')::jsonb ? 'learned_from')
+                    RETURNING id
+                    """
+                ),
+                {"run_id": run_id},
+            )
+            claimed = result.first() is not None
+            await session.commit()
+            return claimed
 
     async def update_workflow_run(
         self,

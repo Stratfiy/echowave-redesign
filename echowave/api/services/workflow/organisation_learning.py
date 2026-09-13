@@ -193,6 +193,28 @@ async def learn_from_run(
     if not observations:
         return 0
 
+    # Claimed before anything is written. `times_seen` is the number a
+    # suggestion quotes back to a customer -- "seven callers asked this" -- and
+    # a retried job that makes it nine has the product state something untrue.
+    # See `claim_run_for_learning` for why this is one conditional UPDATE
+    # rather than a read and a write.
+    try:
+        if not await db_client.claim_run_for_learning(workflow_run_id):
+            logger.debug(
+                "Run {} has already taught the organisation what it knows",
+                workflow_run_id,
+            )
+            return 0
+    except Exception as error:  # noqa: BLE001 - see the docstring
+        # Refusing rather than proceeding. An unclaimable run is a run we
+        # cannot prove is unlearned, and the safe direction here is to record
+        # nothing: a missing gap comes back the next time somebody asks, an
+        # inflated count never corrects itself.
+        logger.warning(
+            "Could not claim run {} for learning: {}", workflow_run_id, error
+        )
+        return 0
+
     try:
         await db_client.remember_organisation_observations(
             organization_id=organization_id,
