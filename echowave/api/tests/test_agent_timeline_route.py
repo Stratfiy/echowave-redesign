@@ -52,6 +52,13 @@ def _owns_workflow(found=True):
     )
 
 
+def _owns_folder(found=True):
+    return patch(
+        "api.routes.agent_timeline.db_client.get_folder",
+        AsyncMock(return_value=SimpleNamespace(id=3) if found else None),
+    )
+
+
 def _owns_run(found=True):
     return patch(
         "api.routes.agent_timeline.db_client.get_workflow_run",
@@ -87,6 +94,18 @@ class TestOwnership:
         read.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_another_accounts_folder_is_not_found(self):
+        """The org filter on agent_events means a foreign folder_id leaks no
+        rows -- but it returned an empty list, which is the ambiguity the other
+        two ids are checked to avoid. Empty and "not yours" must not read the
+        same."""
+        with _owns_folder(found=False), _events([]) as read:
+            with pytest.raises(HTTPException) as raised:
+                await timeline(folder_id=3, user=_user())
+        assert raised.value.status_code == 404
+        read.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_the_organisation_comes_from_the_session_not_the_request(self):
         with _events([]) as read:
             await timeline(user=_user(org=42))
@@ -117,17 +136,30 @@ class TestConsent:
 
 class TestPaging:
     @pytest.mark.asyncio
-    async def test_a_full_page_hands_back_a_cursor(self):
+    async def test_a_full_page_hands_back_both_halves_of_the_cursor(self):
+        """An id alone is not a cursor here. The rows are ordered by (at, id),
+        and a cursor narrower than the sort drops rows off every later page
+        without saying so."""
         rows = [_row(id=i) for i in range(9, 6, -1)]
         with _events(rows):
             response = await timeline(limit=3, user=_user())
         assert response.next_before_id == 7
+        assert response.next_before_at == rows[-1].at
+
+    @pytest.mark.asyncio
+    async def test_both_halves_reach_the_query(self):
+        at = datetime.now(UTC)
+        with _events([]) as read:
+            await timeline(before_at=at, before_id=7, user=_user())
+        assert read.await_args.kwargs["before_at"] == at
+        assert read.await_args.kwargs["before_id"] == 7
 
     @pytest.mark.asyncio
     async def test_a_short_page_is_the_end(self):
         with _events([_row(id=9)]):
             response = await timeline(limit=3, user=_user())
         assert response.next_before_id is None
+        assert response.next_before_at is None
 
     @pytest.mark.asyncio
     async def test_one_call_is_never_paged_backwards(self):
@@ -137,6 +169,24 @@ class TestPaging:
         with _owns_run(), _events(rows):
             response = await timeline(workflow_run_id=336, limit=3, user=_user())
         assert response.next_before_id is None
+
+    @pytest.mark.asyncio
+    async def test_a_call_cut_off_at_the_limit_says_so(self):
+        """The single-call path has no cursor by design, so a call long enough
+        to fill the page would end mid-story with nothing marking the edge.
+        A truncated history that looks complete is the exact failure this
+        module exists to stop."""
+        rows = [_row(id=i, workflow_run_id=336) for i in (7, 8, 9)]
+        with _owns_run(), _events(rows):
+            response = await timeline(workflow_run_id=336, limit=3, user=_user())
+        assert response.truncated is True
+
+    @pytest.mark.asyncio
+    async def test_a_whole_call_is_not_marked_truncated(self):
+        rows = [_row(id=i, workflow_run_id=336) for i in (7, 8)]
+        with _owns_run(), _events(rows):
+            response = await timeline(workflow_run_id=336, limit=3, user=_user())
+        assert response.truncated is False
 
 
 class TestShape:
