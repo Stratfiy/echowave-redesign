@@ -19,7 +19,8 @@ import {
     setProviderKeyApiV1ProviderKeysPut,
 } from "@/client/sdk.gen";
 import { useConfirm } from "@/components/ConfirmDialog";
-import { IntegrationsTabs } from "@/components/integrations/IntegrationsTabs";
+import { useIntegrationsTabs } from "@/components/integrations/integrationsTabs";
+import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import {
     COMPONENTS,
     type ComponentValue,
@@ -88,6 +89,7 @@ interface ProviderRow {
 function IntegrationsScreen() {
     const auth = useAuth();
     const ownKeysAllowed = useOwnKeysAllowed();
+    const integrationsTabs = useIntegrationsTabs();
     const hasFetched = useRef(false);
     // Presentation only — the server refuses these three regardless. This
     // stops a member being handed a button whose only possible answer is 403.
@@ -389,12 +391,12 @@ function IntegrationsScreen() {
     if (loading) {
         return (
             <>
-                <IntegrationsTabs />
-                <div className="container mx-auto max-w-4xl px-4 py-8 space-y-6">
+                <PageHeader tabs={integrationsTabs} title="Provider keys" />
+                <PageBody className="mx-auto max-w-4xl space-y-6">
                     <Skeleton className="h-10 w-72" />
                     <Skeleton className="h-48 w-full" />
                     <Skeleton className="h-48 w-full" />
-                </div>
+                </PageBody>
             </>
         );
     }
@@ -402,16 +404,11 @@ function IntegrationsScreen() {
     if (ownKeysAllowed === false) {
         return (
             <>
-                <IntegrationsTabs />
-                <div className="container mx-auto max-w-4xl px-4 py-8">
-                    <h1 className="text-3xl font-bold">Provider keys</h1>
-                    <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-                        Every model runs on Decibyl&apos;s keys at the published rate, so there is
-                        nothing to connect. Bringing your own vendor keys is switched on per
-                        account — if you have an agreement with a vendor you would rather bill
-                        through, ask us and we will enable it here.
-                    </p>
-                </div>
+                <PageHeader
+                    tabs={integrationsTabs}
+                    title="Provider keys"
+                    description="Every model runs on Decibyl's keys at the published rate, so there is nothing to connect. Bringing your own vendor keys is switched on per account — if you have an agreement with a vendor you would rather bill through, ask us and we will enable it here."
+                />
             </>
         );
     }
@@ -419,11 +416,11 @@ function IntegrationsScreen() {
     return (
         <>
         {dialog}
-        <IntegrationsTabs />
-        <div className="container mx-auto max-w-4xl px-4 py-8 space-y-6">
-            <div>
-                <h1 className="text-3xl font-bold">Provider keys</h1>
-                <p className="mt-2 text-sm text-muted-foreground">
+        <PageHeader
+            tabs={integrationsTabs}
+            title="Provider keys"
+            description={
+                <>
                     Connect the vendors you already have an account with. One key per
                     vendor, entered once — we work out which parts of the pipeline it
                     covers.{" "}
@@ -432,7 +429,11 @@ function IntegrationsScreen() {
                         at the published rate
                     </span>{" "}
                     — you never have to bring a key to get an agent working.
-                </p>
+                </>
+            }
+        />
+        <PageBody className="mx-auto max-w-4xl space-y-6">
+            <div>
             </div>
 
             {!encryptionConfigured && (
@@ -768,7 +769,7 @@ function IntegrationsScreen() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div>
+        </PageBody>
         </>
     );
 

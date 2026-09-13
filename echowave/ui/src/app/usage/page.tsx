@@ -13,7 +13,8 @@ import { CallTypeCell } from '@/components/CallTypeCell';
 import { DailyUsageTable } from '@/components/DailyUsageTable';
 import { EmptyState } from '@/components/EmptyState';
 import { FilterBuilder } from '@/components/filters/FilterBuilder';
-import { CALLS_TABS, SectionTabs } from "@/components/layout/SectionTabs";
+import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import { CALLS_TABS } from "@/components/layout/SectionTabs";
 import { MediaPreviewButton, MediaPreviewDialog } from '@/components/MediaPreviewDialog';
 import { OutcomesSummary } from '@/components/OutcomesSummary';
 import { Badge } from '@/components/ui/badge';
@@ -466,14 +467,11 @@ export default function UsagePage() {
 
     return (
         <>
-        <SectionTabs tabs={CALLS_TABS} label="Calls" />
-        <div className="container mx-auto p-6 space-y-6">
-            <div>
-                <div className="flex justify-between items-start">
-                    <div>
-                        <h1 className="mb-2 text-[26px] leading-tight">Calls</h1>
-                        <p className="text-muted-foreground">See all your Agent Runs across all Voice Agents. You can use filters to filter out required Agent Runs.</p>
-                    </div>
+        <PageHeader
+            tabs={CALLS_TABS}
+            title="Calls"
+            description="See all your Agent Runs across all Voice Agents. You can use filters to filter out required Agent Runs."
+            actions={
                         <div className="flex items-center gap-2">
                             <Globe className="h-4 w-4 text-muted-foreground" />
                             <div className="w-full max-w-[300px]">
@@ -547,8 +545,9 @@ export default function UsagePage() {
                                 />
                             </div>
                         </div>
-                    </div>
-                </div>
+            }
+        />
+        <PageBody className="space-y-6">
 
                 {/* Daily Usage Table - Only for paid organizations */}
                 {organizationPricing?.price_per_second_usd && (
@@ -772,7 +771,7 @@ export default function UsagePage() {
 
                 {/* Media Preview Dialog */}
                 {mediaPreview.dialog}
-        </div>
+        </PageBody>
         </>
     );
 }

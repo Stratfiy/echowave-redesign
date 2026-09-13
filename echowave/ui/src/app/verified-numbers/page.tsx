@@ -13,7 +13,7 @@ import {
 import type { VerificationOptions, VerifiedNumber } from "@/client/types.gen";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
-import { TelephonyTabs } from "@/components/telephony/TelephonyTabs";
+import { TELEPHONY_TABS } from "@/components/layout/SectionTabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -200,8 +200,8 @@ export default function VerifiedNumbersPage() {
   return (
     <>
       {dialog}
-      <TelephonyTabs />
       <PageHeader
+        tabs={TELEPHONY_TABS}
         title="Verified numbers"
         description="Numbers you have proved you can answer. A test call only goes to a number on this list."
         actions={

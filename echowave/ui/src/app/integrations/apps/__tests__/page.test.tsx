@@ -16,8 +16,11 @@ vi.mock("@/client/sdk.gen", () => ({
 vi.mock("@/components/integrations/GoogleCalendarConnect", () => ({
     GoogleCalendarConnect: () => <div>calendar</div>,
 }));
-vi.mock("@/components/integrations/IntegrationsTabs", () => ({
-    IntegrationsTabs: () => null,
+// The section strip is `PageHeader`'s now, fed by this hook. Mocked because
+// the real one fetches the organization's preferences to decide whether
+// Providers is offered, which this test has no server for.
+vi.mock("@/components/integrations/integrationsTabs", () => ({
+    useIntegrationsTabs: () => [],
 }));
 
 const app = (slug: string, name: string) => ({

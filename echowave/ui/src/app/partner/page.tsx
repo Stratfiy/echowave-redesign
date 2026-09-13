@@ -30,7 +30,8 @@ import {
     getStatementsApiV1PartnersStatementsGet,
     submitApplicationApiV1PartnersApplicationPost,
 } from "@/client/sdk.gen";
-import { BILLING_TABS, SectionTabs } from "@/components/layout/SectionTabs";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { BILLING_TABS } from "@/components/layout/SectionTabs";
 import { Button } from "@/components/ui/button";
 import {
     Card,
@@ -223,18 +224,12 @@ export default function PartnerPage() {
 
     return (
         <>
-        <SectionTabs tabs={BILLING_TABS} label="Billing" />
-        <div className="mx-auto max-w-2xl space-y-6 p-6">
-            <div>
-                <h1 className="text-[26px] leading-tight">Partner programme</h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    For developers building on the API, agencies running accounts for
-                    clients, and resellers. Your account keeps working exactly as it
-                    does now — this adds a commercial arrangement, not a different
-                    product.
-                </p>
-            </div>
-
+        <PageHeader
+            tabs={BILLING_TABS}
+            title="Partner programme"
+            description="For developers building on the API, agencies running accounts for clients, and resellers. Your account keeps working exactly as it does now — this adds a commercial arrangement, not a different product."
+        />
+        <div className="mx-auto max-w-2xl space-y-6 px-6 pb-6 pt-6">
             {approved && commission && (
                 <Card>
                     <CardHeader>

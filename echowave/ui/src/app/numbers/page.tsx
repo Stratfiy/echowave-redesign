@@ -41,8 +41,9 @@ import {
     searchNumbersApiV1ManagedNumbersSearchPost,
 } from "@/client/sdk.gen";
 import { AgreementsDialog, useAgreements } from "@/components/AgreementsDialog";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { TELEPHONY_TABS } from "@/components/layout/SectionTabs";
 import { KeepYourNumber } from "@/components/telephony/KeepYourNumber";
-import { TelephonyTabs } from "@/components/telephony/TelephonyTabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -426,17 +427,18 @@ export default function BuyNumberPage() {
 
     return (
         <>
-            <TelephonyTabs />
-            <div className="container mx-auto max-w-3xl space-y-4 p-6">
-            <div>
-                <h1 className="mb-1 text-3xl font-bold">Get a phone number</h1>
-                <p className="text-muted-foreground">
-                    An Indian number of your own
-                    {numberPrice ? `, ${numberPrice} a month,` : ","} on our
-                    carrier account.
-                </p>
-            </div>
-
+            <PageHeader
+                tabs={TELEPHONY_TABS}
+                title="Get a phone number"
+                description={
+                    <>
+                        An Indian number of your own
+                        {numberPrice ? `, ${numberPrice} a month,` : ","} on our
+                        carrier account.
+                    </>
+                }
+            />
+            <div className="mx-auto w-full max-w-3xl space-y-4 px-6 pb-6 pt-6">
             {/* Offered before the rental flow, not after it. A clinic whose
                 number is painted on the board outside does not need a second
                 number — it needs the first one to stop going unanswered, and

@@ -56,7 +56,7 @@ const TELEPHONY_WARNING_COPY = "Action required";
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { state, isMobile, setOpenMobile } = useSidebar();
+  const { state, isMobile, setOpenMobile, setOpen } = useSidebar();
   const { provider } = useAuth();
   const { config } = useAppConfig();
   const {
@@ -103,11 +103,17 @@ export function AppSidebar() {
     setPickedContext(null);
   }, [pathname]);
 
-  /* Icon mode has no room for the strip, so it shows every destination
-   * rather than one context's worth — a collapsed rail that silently drops
-   * twelve doors is the regression this whole model has to avoid. */
+  /* Collapsed is the rail on its own, so there is no panel to fill.
+   *
+   * It used to be the opposite: the rail was hidden and all seventeen
+   * destinations were listed as bare glyphs in a column that needed its own
+   * scrollbar. Seventeen unlabelled icons is not a navigation, it is a
+   * memory test — and the one thing that *would* have survived the squeeze
+   * intact, the five labelled contexts, was the thing being dropped. Nothing
+   * becomes unreachable: every context is one click from here, and clicking
+   * one opens the panel it names. */
   const contextSections = isCollapsed
-    ? navSections
+    ? []
     : getContextSections(activeContext, navSections);
   const activeSection = navSections.find(section => section.items.some(item => item.url === activeUrl))?.label;
   const [closedSections, setClosedSections] = useState<string[]>(["MONITOR", "DEVELOPERS", "WORKSPACE"]);
@@ -345,8 +351,8 @@ export function AppSidebar() {
           Every context is always rendered, which is the point. Filtering the
           panel without offering a way back to the others is how a destination
           silently stops being reachable. */}
-      <SidebarContent className={cn("notranslate flex-row gap-0 pb-2 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:overflow-y-auto", isCollapsed && "px-0")} translate="no">
-        {!isCollapsed && (
+      <SidebarContent className={cn("notranslate flex-row gap-0 pb-2", isCollapsed && "px-0")} translate="no">
+        {(
           <div
             role="tablist"
             aria-label="Workspace"
@@ -361,7 +367,12 @@ export function AppSidebar() {
              * It also puts the mark at the top of the rail rather than above
              * the panel, so the brand sits on the chrome and the workspace name
              * gets the panel to itself. */
-            className="flex w-14 shrink-0 flex-col items-center gap-1 self-stretch rounded-l-[inherit] bg-rail py-2 text-rail-foreground"
+            className={cn(
+              "flex w-14 shrink-0 flex-col items-center gap-1 self-stretch bg-rail py-2 text-rail-foreground",
+              // Collapsed it is the whole sidebar, so it rounds on both sides
+              // rather than butting up against a panel that is not there.
+              isCollapsed ? "w-full rounded-[inherit]" : "rounded-l-[inherit]",
+            )}
           >
             <Link
               href="/"
@@ -381,7 +392,13 @@ export function AppSidebar() {
                   aria-selected={selected}
                   aria-label={context.title}
                   title={context.title}
-                  onClick={() => setPickedContext(context.id)}
+                  onClick={() => {
+                    setPickedContext(context.id);
+                    // Collapsed, the panel this names is not on screen. Picking
+                    // a context you cannot then see is a click that does
+                    // nothing, so opening is part of the same gesture.
+                    if (isCollapsed) setOpen(true);
+                  }}
                   className={cn(
                     "flex w-11 flex-col items-center gap-0.5 rounded-md px-1 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-accent",
                     selected
@@ -403,7 +420,7 @@ export function AppSidebar() {
           </div>
         )}
 
-        <div className={cn("min-w-0 flex-1 overflow-y-auto", !isCollapsed && "pl-1")}>
+        <div className={cn("min-w-0 flex-1 overflow-y-auto", isCollapsed ? "hidden" : "pl-1")}>
         {contextSections.map((section) => (
           <React.Fragment key={section.label ?? "overview"}>
           <SidebarGroup

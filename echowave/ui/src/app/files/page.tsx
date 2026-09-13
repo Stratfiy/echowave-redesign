@@ -4,7 +4,7 @@ import { ExternalLink, Upload } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
-import { KNOWLEDGE_TABS, SectionTabs } from "@/components/layout/SectionTabs";
+import { KNOWLEDGE_TABS } from "@/components/layout/SectionTabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,8 +49,8 @@ export default function FilesPage() {
 
     return (
         <>
-            <SectionTabs tabs={KNOWLEDGE_TABS} label="Knowledge base" />
             <PageHeader
+                tabs={KNOWLEDGE_TABS}
                 title={
                     <span className="flex flex-wrap items-center gap-2">
                         Knowledge base

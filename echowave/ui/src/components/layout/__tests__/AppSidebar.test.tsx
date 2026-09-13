@@ -72,11 +72,32 @@ describe("sidebar interactions", () => {
     expect(screen.getByRole("link", { name: "Integrations" }).getAttribute("aria-current")).toBe("page");
     expect(screen.getByRole("button", { name: "BUILD" }).getAttribute("aria-expanded")).toBe("true");
   });
-  it("keeps all customer destinations accessible in the collapsed rail", () => {
+  /* Collapsed is the rail, and nothing may become unreachable from it.
+   *
+   * The old shape hid the rail and listed all seventeen destinations as bare
+   * glyphs in a scrolling column; this assertion is the same guarantee read
+   * against the shape that replaced it. Every context is one click away, and
+   * the click opens the panel that holds the destinations — so the check is
+   * that the doors are there and that using one works, not that seventeen
+   * links are crammed into a 56px column. */
+  it("offers every context in the collapsed rail", () => {
     render(<SidebarProvider defaultOpen={false}><AppSidebar /></SidebarProvider>);
-    expect(screen.getByRole("link", { name: "Settings" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Calls" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Compliance" })).toBeTruthy();
+    for (const title of ["Home", "Activity", "Marketplace", "Setup", "Account"]) {
+      expect(screen.getByRole("tab", { name: title })).toBeTruthy();
+    }
+    // No panel while collapsed: a 56px column cannot hold a destination list.
+    expect(screen.queryByRole("link", { name: "Billing" })).toBeNull();
+  });
+  it("opens the panel when a context is picked from the collapsed rail", () => {
+    render(<SidebarProvider defaultOpen={false}><AppSidebar /></SidebarProvider>);
+    fireEvent.click(screen.getByRole("tab", { name: "Account" }));
+    // Billing, not Settings: WORKSPACE is folded by default, so asserting on
+    // a link inside it would be testing the fold rather than the panel.
+    expect(screen.getByRole("link", { name: "Billing" })).toBeTruthy();
+  });
+  it("does not offer staff contexts to a customer", () => {
+    render(<SidebarProvider defaultOpen={false}><AppSidebar /></SidebarProvider>);
+    fireEvent.click(screen.getByRole("tab", { name: "Account" }));
     expect(screen.queryByRole("link", { name: "Review queue" })).toBeNull();
   });
 });

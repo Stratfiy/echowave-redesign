@@ -17,7 +17,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { listMissedCallsApiV1MissedCallsGet } from "@/client/sdk.gen";
 import type { MissedCallOut } from "@/client/types.gen";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
-import { TelephonyTabs } from "@/components/telephony/TelephonyTabs";
+import { TELEPHONY_TABS } from "@/components/layout/SectionTabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -91,12 +91,8 @@ export default function MissedCallsPage() {
 
   return (
     <>
-      {/* Tabs sit above the header on every other screen in this section
-          (verified-numbers, telephony-configurations, numbers, verification).
-          Rendering them below it here made the tab row jump ~70px down the
-          page on the one click that should have moved nothing. */}
-      <TelephonyTabs />
       <PageHeader
+        tabs={TELEPHONY_TABS}
         title="Missed calls"
         description="Someone rang a callback number and hung up. Here is what happened next."
         actions={

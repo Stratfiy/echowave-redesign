@@ -14,6 +14,7 @@ import {
 } from '@/client/sdk.gen';
 import type { ApiKeyResponse, CreateApiKeyResponse, CreateServiceKeyResponse,ServiceKeyResponse } from '@/client/types.gen';
 import { useConfirm } from '@/components/ConfirmDialog';
+import { PageBody, PageHeader } from '@/components/layout/PageHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -380,13 +381,12 @@ export default function APIKeysPage() {
     return (
         <div className="min-h-screen">
             {dialog}
-            <div className="container mx-auto px-4 py-8">
+            <PageHeader
+                title="API keys & SDKs"
+                description="Manage your API keys to access Decibyl services programmatically"
+            />
+            <PageBody>
                 <div className="max-w-6xl mx-auto">
-                    <div className="mb-8">
-                        <h1 className="mb-2 text-[26px] leading-tight">API keys &amp; SDKs</h1>
-                        <p className="text-muted-foreground">Manage your API keys to access Decibyl services programmatically</p>
-                    </div>
-
                     {error && (
                         <div className="mb-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive">
                             {error}
@@ -632,7 +632,7 @@ export default function APIKeysPage() {
                         </p>
                     </div>
                 </div>
-            </div>
+            </PageBody>
 
             {/* Create API Key Dialog */}
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>

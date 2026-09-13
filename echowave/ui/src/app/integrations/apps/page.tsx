@@ -34,7 +34,8 @@ import type {
 } from "@/client/types.gen";
 import { ConnectorCard } from "@/components/integrations/ConnectorCard";
 import { GoogleCalendarConnect } from "@/components/integrations/GoogleCalendarConnect";
-import { IntegrationsTabs } from "@/components/integrations/IntegrationsTabs";
+import { useIntegrationsTabs } from "@/components/integrations/integrationsTabs";
+import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -100,6 +101,7 @@ function ActivitySection() {
 }
 
 export default function AppsPage() {
+    const integrationsTabs = useIntegrationsTabs();
     const [popular, setPopular] = useState<ConnectorResponse[]>([]);
     const [groups, setGroups] = useState<ConnectorGroupResponse[]>([]);
     const [other, setOther] = useState<ConnectorResponse[]>([]);
@@ -176,17 +178,13 @@ export default function AppsPage() {
     );
 
     return (
-        <div className="space-y-6 p-6">
-            <IntegrationsTabs />
-
-            <div>
-                <h1 className="text-xl font-semibold">Apps</h1>
-                <p className="text-sm text-muted-foreground">
-                    What your agents can read from and write to. Connect one here and it
-                    becomes available as a tool during a call and as a step after one.
-                </p>
-            </div>
-
+        <>
+            <PageHeader
+                tabs={integrationsTabs}
+                title="Apps"
+                description="What your agents can read from and write to. Connect one here and it becomes available as a tool during a call and as a step after one."
+            />
+            <PageBody className="space-y-6">
             <ActivitySection />
 
             {/* Google Calendar first, and not as one of the cards below.
@@ -343,6 +341,7 @@ export default function AppsPage() {
                     ) : null}
                 </>
             )}
-        </div>
+            </PageBody>
+        </>
     );
 }

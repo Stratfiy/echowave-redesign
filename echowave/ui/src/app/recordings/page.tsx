@@ -3,7 +3,8 @@
 import { ExternalLink, Upload } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { KNOWLEDGE_TABS, SectionTabs } from "@/components/layout/SectionTabs";
+import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import { KNOWLEDGE_TABS } from "@/components/layout/SectionTabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -36,20 +37,21 @@ export default function RecordingsPage() {
 
     return (
         <>
-        <SectionTabs tabs={KNOWLEDGE_TABS} label="Knowledge base" />
-        <div className="container mx-auto px-4 py-8">
-            <div className="mb-8">
-                <h1 className="text-[26px] leading-tight mb-2">Audio clips</h1>
-                <p className="text-muted-foreground">
+        <PageHeader
+            tabs={KNOWLEDGE_TABS}
+            title="Audio clips"
+            description={
+                <>
                     Manage audio recordings for your organization. Use{" "}
                     <code className="rounded bg-muted px-1 text-xs">@</code> in prompt fields to insert them,
                     or as transition messages in tool calls.{" "}
                     <a href="https://docs.decibyl.ai/voice-agent/pre-recorded-audio" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline">
                         Learn more <ExternalLink className="h-3 w-3" />
                     </a>
-                </p>
-            </div>
-
+                </>
+            }
+        />
+        <PageBody>
             <Card>
                 <CardHeader>
                     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -75,7 +77,7 @@ export default function RecordingsPage() {
                 onOpenChange={setIsUploadOpen}
                 onUploadComplete={() => setRefreshKey((k) => k + 1)}
             />
-        </div>
+        </PageBody>
         </>
     );
 }
