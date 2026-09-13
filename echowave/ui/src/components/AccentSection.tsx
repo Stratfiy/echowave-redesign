@@ -34,7 +34,7 @@ const PRESET_IDS = new Set(ACCENTS.map((a) => a.id));
 export function AccentSection() {
   const customInputId = useId();
   const [accent, setAccent] = useState<Accent>(() => resolveAccent(null));
-  const [custom, setCustom] = useState("#e15b35");
+  const [custom, setCustom] = useState("#e15b53");
   const [tooPale, setTooPale] = useState<string | null>(null);
 
   // Read on mount, not during render: localStorage does not exist on the

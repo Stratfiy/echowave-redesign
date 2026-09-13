@@ -41,7 +41,7 @@ describe("the accent palette", () => {
 
   it("starts on the colour the app already ships, so settings match the screen", () => {
     expect(ACCENTS[0].id).toBe(DEFAULT_ACCENT_ID);
-    expect(ACCENTS[0].bright).toBe("#e15b35");
+    expect(ACCENTS[0].bright).toBe("#e15b53");
   });
 
   it("has no duplicate ids", () => {
