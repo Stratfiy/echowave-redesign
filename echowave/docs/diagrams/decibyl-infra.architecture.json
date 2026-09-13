@@ -1,0 +1,271 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Decibyl production, September 2026",
+    "output": "decibyl-infra.html",
+    "visual_preset": "blueprint",
+    "animation": "none",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "call-path",
+        "label": "A call arrives",
+        "focus": [
+          "callers",
+          "carriers",
+          "nginx",
+          "api",
+          "models"
+        ],
+        "note": "Public traffic reaches one nginx on one EC2 instance."
+      },
+      {
+        "id": "managed-state",
+        "label": "State is managed",
+        "focus": [
+          "api",
+          "worker",
+          "valkey",
+          "rds"
+        ],
+        "note": "Postgres and Valkey are Multi-AZ managed services, cut over this month."
+      },
+      {
+        "id": "the-gap",
+        "label": "What still pins us to one box",
+        "focus": [
+          "api",
+          "worker",
+          "minio"
+        ],
+        "note": "Recordings sit on a local MinIO volume. Until they move to S3, a second node cannot read them."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "callers",
+      "type": "external",
+      "label": "Customers",
+      "sublabel": "phone, WhatsApp, web",
+      "pos": [
+        38,
+        300
+      ],
+      "size": [
+        126,
+        62
+      ]
+    },
+    {
+      "id": "carriers",
+      "type": "external",
+      "label": "Carriers",
+      "sublabel": "SIP + Meta",
+      "pos": [
+        238,
+        300
+      ],
+      "size": [
+        126,
+        62
+      ]
+    },
+    {
+      "id": "nginx",
+      "type": "security",
+      "label": "nginx",
+      "sublabel": "TLS :443",
+      "pos": [
+        438,
+        300
+      ],
+      "size": [
+        126,
+        62
+      ],
+      "tag": "single node"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "API",
+      "sublabel": "FastAPI + pipecat",
+      "pos": [
+        638,
+        195
+      ],
+      "size": [
+        136,
+        62
+      ],
+      "tag": "single node"
+    },
+    {
+      "id": "worker",
+      "type": "backend",
+      "label": "Worker",
+      "sublabel": "arq jobs",
+      "pos": [
+        638,
+        405
+      ],
+      "size": [
+        136,
+        62
+      ],
+      "tag": "single node"
+    },
+    {
+      "id": "valkey",
+      "type": "database",
+      "label": "ElastiCache",
+      "sublabel": "Valkey, Multi-AZ",
+      "pos": [
+        860,
+        195
+      ],
+      "size": [
+        136,
+        62
+      ],
+      "tag": "managed"
+    },
+    {
+      "id": "rds",
+      "type": "database",
+      "label": "RDS PostgreSQL",
+      "sublabel": "18.3, Multi-AZ, PITR",
+      "pos": [
+        860,
+        405
+      ],
+      "size": [
+        136,
+        62
+      ],
+      "tag": "managed"
+    },
+    {
+      "id": "minio",
+      "type": "database",
+      "label": "MinIO",
+      "sublabel": "local volume",
+      "pos": [
+        638,
+        555
+      ],
+      "size": [
+        136,
+        62
+      ],
+      "tag": "not replicated"
+    },
+    {
+      "id": "models",
+      "type": "cloud",
+      "label": "Model vendors",
+      "sublabel": "STT, LLM, TTS",
+      "pos": [
+        1080,
+        300
+      ],
+      "size": [
+        136,
+        62
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "AWS ap-south-1 (Mumbai)",
+      "wraps": [
+        "nginx",
+        "api",
+        "worker",
+        "valkey",
+        "rds",
+        "minio"
+      ],
+      "pad": 22
+    },
+    {
+      "kind": "security-group",
+      "label": "EC2 Decibyl-india \u2014 one instance, no replacement",
+      "wraps": [
+        "nginx",
+        "api",
+        "worker",
+        "minio"
+      ],
+      "pad": 14
+    }
+  ],
+  "connections": [
+    {
+      "from": "callers",
+      "to": "carriers",
+      "label": "dials / messages",
+      "variant": "emphasis",
+      "labelDy": 55
+    },
+    {
+      "from": "carriers",
+      "to": "nginx",
+      "label": "SIP + webhooks",
+      "variant": "security"
+    },
+    {
+      "from": "nginx",
+      "to": "api",
+      "label": "proxy",
+      "variant": "emphasis",
+      "route": "orthogonal-h"
+    },
+    {
+      "from": "api",
+      "to": "valkey",
+      "label": "cache + queue",
+      "route": "straight"
+    },
+    {
+      "from": "api",
+      "to": "rds",
+      "label": "SQL",
+      "route": "orthogonal-h"
+    },
+    {
+      "from": "worker",
+      "to": "rds",
+      "route": "straight"
+    },
+    {
+      "from": "api",
+      "to": "models",
+      "label": "streaming",
+      "variant": "dashed",
+      "labelAt": [
+        990,
+        282
+      ]
+    },
+    {
+      "from": "worker",
+      "to": "minio",
+      "label": "recordings",
+      "variant": "dashed",
+      "route": "straight",
+      "labelDy": 30
+    },
+    {
+      "from": "api",
+      "to": "worker",
+      "label": "enqueues via Valkey",
+      "variant": "dashed",
+      "route": "straight",
+      "labelDy": 45
+    }
+  ]
+}
