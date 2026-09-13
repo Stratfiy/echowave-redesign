@@ -132,6 +132,24 @@ class BaseFileSystem(ABC):
         """
 
     @abstractmethod
+    async def aopen_range(
+        self, file_path: str, byte_range: str | None = None
+    ) -> tuple[Any, int, int | None, str] | None:
+        """Open an object for streaming, optionally a byte range of it.
+
+        Audio is the reason this exists separately from ``aread_bytes``. A
+        recording is megabytes, and a browser seeking in an ``<audio>`` element
+        asks for ranges -- so reading the whole object into memory to answer
+        "give me the ten seconds from 4:10" would be wrong twice.
+
+        Returns ``(stream, total_size, range_start, content_type)`` or ``None``
+        when the object is not there. ``range_start`` is ``None`` for a whole
+        object and the first byte offset for a range, which is what the caller
+        needs to build a 206 response.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     async def aread_bytes(self, file_path: str, max_bytes: int) -> bytes | None:
         """Read an object into memory, or ``None`` if it is not there.
 

@@ -1,3 +1,4 @@
+import { client } from "@/client/client.gen";
 import {
     getSignedUrlApiV1S3SignedUrlGet,
     getTextArtifactApiV1S3TextGet,
@@ -129,6 +130,52 @@ export async function getTextArtifact(key: string | null): Promise<TextArtifactR
         return {
             text: null,
             truncated: false,
+            error: 'Could not reach the server. Check your connection and try again.',
+        };
+    }
+}
+
+/**
+ * A playable object URL for a recording, fetched through the API.
+ *
+ * Run 336 settled why this is not a signed URL. The transcript came back fine
+ * through `/s3/text` while the recording, presigned by the same process
+ * against the same bucket with the same credentials, would not play — so the
+ * credentials read S3 correctly and it is the presigning that produces a
+ * signature S3 rejects.
+ *
+ * Fetched into a blob rather than pointed at with `<audio src>`, because an
+ * `<audio>` element sends no Authorization header and this endpoint is
+ * authenticated. A blob URL also seeks perfectly, which a stream behind an
+ * auth header would not without a token in the query string — a recording URL
+ * that carries its own credential is a recording URL somebody can paste.
+ *
+ * The cost is that playback waits for the whole file. A call recording is
+ * megabytes, so on any ordinary connection that is not perceptible; if it ever
+ * is, the `/s3/stream` endpoint already speaks Range and the fix is a token
+ * scheme rather than a rewrite.
+ *
+ * Caller owns the returned URL and must `URL.revokeObjectURL` it.
+ */
+export async function getPlayableUrl(key: string | null): Promise<SignedUrlResult> {
+    if (!key) return { url: null, error: null };
+    try {
+        const response = await client.get({
+            url: '/api/v1/s3/stream',
+            query: { key },
+            parseAs: 'blob',
+        });
+        if (response.error || !response.data) {
+            return {
+                url: null,
+                error: detailFromResult(response, 'Could not open this recording'),
+            };
+        }
+        return { url: URL.createObjectURL(response.data as Blob), error: null };
+    } catch (error) {
+        console.error('Error fetching recording:', error);
+        return {
+            url: null,
             error: 'Could not reach the server. Check your connection and try again.',
         };
     }

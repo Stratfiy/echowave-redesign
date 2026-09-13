@@ -46,6 +46,9 @@ class NullFileSystem(BaseFileSystem):
     ) -> str | None:
         self._fail("aget_presigned_put_url")
 
+    async def aopen_range(self, file_path: str, byte_range: str | None = None):
+        self._fail("aopen_range")
+
     async def aread_bytes(self, file_path: str, max_bytes: int) -> bytes | None:
         self._fail("aread_bytes")
 
