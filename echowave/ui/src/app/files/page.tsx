@@ -69,7 +69,7 @@ export default function FilesPage() {
                 }
                 description={
                     <>
-                        Upload and manage documents for your voice agents to reference.{" "}
+                        Upload and manage documents for your bots to answer from.{" "}
                         <a href="https://docs.decibyl.ai/voice-agent/knowledge-base" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline">
                             Learn more <ExternalLink className="h-3 w-3" />
                         </a>

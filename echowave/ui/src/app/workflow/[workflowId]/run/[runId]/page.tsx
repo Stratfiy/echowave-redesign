@@ -124,7 +124,7 @@ const RUN_OUTCOME_COPY: Record<RunOutcome, { title: string; description: string;
     completed: {
         title: "Agent Run Completed",
         description:
-            "Your voice agent run has been completed successfully. You can preview or download the transcript and recording.",
+            "This run finished. You can preview or download the transcript and recording.",
         badgeClass: "bg-emerald-500/20",
     },
     degraded: {
@@ -991,7 +991,7 @@ export default function WorkflowRunPage() {
                     tooltipKey="customize_workflow"
                     title='Customize Your Workflow'
                     targetRef={customizeButtonRef}
-                    message="Edit your workflow to adjust the voice agent's behavior, add new steps, or modify the conversation flow."
+                    message="Edit the graph to change how this bot behaves, add new steps, or change the conversation."
                     showNext={false}
                 />
             )}
