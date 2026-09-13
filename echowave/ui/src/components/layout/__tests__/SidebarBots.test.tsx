@@ -12,8 +12,10 @@ import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const teamStatus = vi.hoisted(() => vi.fn());
+const auth = vi.hoisted(() => ({ user: { id: 1 } as { id: number } | null, loading: false }));
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/overview" }));
+vi.mock("@/lib/auth", () => ({ useAuth: () => auth }));
 vi.mock("@/client/sdk.gen", () => ({ teamStatusApiV1TeamStatusGet: teamStatus }));
 vi.mock("@/components/ui/sidebar", () => ({
     SidebarGroup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -35,6 +37,8 @@ function member(id: number, name: string, tone = "working") {
 
 beforeEach(() => {
     teamStatus.mockReset();
+    auth.user = { id: 1 };
+    auth.loading = false;
     teamStatus.mockResolvedValue({ data: { hours: 24, members: [member(1, "Front desk"), member(2, "Quote desk")] } });
 });
 
@@ -85,5 +89,31 @@ describe("the bots in the rail", () => {
         const { container } = render(<SidebarBots collapsed={false} />);
         await waitFor(() => expect(teamStatus).toHaveBeenCalled());
         expect(container.textContent).toBe("");
+    });
+});
+
+describe("it waits for auth", () => {
+    /* The bug that shipped. The interceptor that attaches the token is
+       registered only once auth has loaded, so a fetch sent before that is
+       unauthenticated and fails quietly -- and this component renders nothing
+       on a quiet failure, by design. On the loads where the fetch beat the
+       interceptor the rail simply had no bots, and every test here passed
+       because none of them said when the fetch was allowed to happen. */
+    it("does not fetch while auth is still loading", () => {
+        auth.loading = true;
+        render(<SidebarBots collapsed={false} />);
+        expect(teamStatus).not.toHaveBeenCalled();
+    });
+
+    it("does not fetch with no user", () => {
+        auth.user = null;
+        render(<SidebarBots collapsed={false} />);
+        expect(teamStatus).not.toHaveBeenCalled();
+    });
+
+    it("fetches exactly once when auth is ready", async () => {
+        render(<SidebarBots collapsed={false} />);
+        await waitFor(() => expect(screen.getByText("Front desk")).toBeTruthy());
+        expect(teamStatus).toHaveBeenCalledTimes(1);
     });
 });

@@ -22,7 +22,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { teamStatusApiV1TeamStatusGet } from "@/client/sdk.gen";
 import type { TeamMember } from "@/client/types.gen";
@@ -33,6 +33,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 /** Same four tones as the home screen and the bot list. One vocabulary. */
@@ -54,9 +55,19 @@ export const RAIL_LIMIT = 8;
 
 export function SidebarBots({ collapsed }: { collapsed: boolean }) {
   const pathname = usePathname();
+  const { user, loading: authLoading } = useAuth();
   const [bots, setBots] = useState<TeamMember[]>([]);
+  const started = useRef(false);
 
   useEffect(() => {
+    // Wait for auth. The interceptor that attaches the token is registered
+    // only once auth has loaded; a request sent before that is unauthenticated,
+    // fails quietly, and this renders nothing -- which is exactly what the
+    // deployed rail did on the loads where the fetch beat the interceptor.
+    // The list was there one deploy and gone the next, and nothing was
+    // broken but the order of two things. See ui/AGENTS.md.
+    if (authLoading || !user || started.current) return;
+    started.current = true;
     let cancelled = false;
     (async () => {
       try {
@@ -70,7 +81,7 @@ export function SidebarBots({ collapsed }: { collapsed: boolean }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authLoading, user]);
 
   // Icon mode has no room for names, and a column of bare dots is a puzzle.
   if (collapsed || bots.length === 0) return null;

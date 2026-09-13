@@ -21,7 +21,7 @@
 import { Hash } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { listFoldersApiV1FolderGet } from "@/client/sdk.gen";
 import type { FolderResponse } from "@/client/types.gen";
@@ -32,6 +32,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { useAuth } from "@/lib/auth";
 
 /**
  * How many the rail will hold. Same reasoning as the bot cap: an account with
@@ -42,9 +43,16 @@ export const CHANNEL_LIMIT = 8;
 
 export function SidebarChannels({ collapsed }: { collapsed: boolean }) {
   const pathname = usePathname();
+  const { user, loading: authLoading } = useAuth();
   const [channels, setChannels] = useState<FolderResponse[]>([]);
+  const started = useRef(false);
 
   useEffect(() => {
+    // Wait for auth -- same reason as SidebarBots, and the same bug: this was
+    // written by copying that component, guard omitted and all. See
+    // ui/AGENTS.md.
+    if (authLoading || !user || started.current) return;
+    started.current = true;
     let cancelled = false;
     (async () => {
       try {
@@ -58,7 +66,7 @@ export function SidebarChannels({ collapsed }: { collapsed: boolean }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authLoading, user]);
 
   // Icon mode has no room for names, and a column of bare hashes is a puzzle.
   if (collapsed || channels.length === 0) return null;
