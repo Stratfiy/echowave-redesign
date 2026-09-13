@@ -1,7 +1,7 @@
 import "./globals.css";
 
 import type { Metadata } from "next";
-import { Geist_Mono,Inter } from "next/font/google";
+import { Geist_Mono,Inter, Outfit } from "next/font/google";
 import { Suspense } from "react";
 
 import ChatwootWidget from "@/components/ChatwootWidget";
@@ -43,6 +43,27 @@ const appSans = Inter({
   display: "swap",
 });
 
+/* The display face, for page titles only.
+ *
+ * The comment above says the reference pairs Inter with a display face we do
+ * not have, and takes Inter at 500 as the substitute. We have one now: Outfit
+ * is the geometric face named as the stand-in for Slack's Salesforce-Avant-
+ * Garde, it is on Google Fonts under the OFL, and next/font self-hosts it at
+ * build time — so a deployment with no egress to fonts.gstatic.com still
+ * renders it instead of silently falling back to the system stack.
+ *
+ * Only h1 and h2. A marketing page sets its headlines at 64-96px and the wide
+ * circular forms are the whole point; a dashboard at those sizes is a worse
+ * dashboard. Slack's own product UI does not use its display face either —
+ * look at the screenshots inside their marketing page and the channel list is
+ * a plain humanist sans. The display face sells; the body face works. */
+const appDisplay = Outfit({
+  variable: "--font-app-display",
+  subsets: ["latin"],
+  weight: ["500", "600"],
+  display: "swap",
+});
+
 const appMono = Geist_Mono({
   variable: "--font-app-mono",
   subsets: ["latin"],
@@ -65,7 +86,7 @@ export default function RootLayout({
     // carry it resolves to nothing — which makes the whole declaration invalid
     // and drops the element to the browser default serif. That failure looks
     // like a font bug and is actually a scoping bug.
-    <html lang="en" className={`${appSans.variable} ${appMono.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${appSans.variable} ${appDisplay.variable} ${appMono.variable}`} suppressHydrationWarning>
       <head>
         {/* The anti-flash script that used to live here restored a stored 'dark'
             class before hydration. The app is light-only now, so it would only
