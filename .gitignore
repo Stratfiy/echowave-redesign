@@ -86,3 +86,8 @@ android-sdk/
 credentials.json
 *.key
 .credentials
+
+# Untracked files a deploy had to move out of the way of a checkout.
+# See scripts/ci_deploy.sh — kept rather than deleted, because the box's copy
+# may be the only record of what was run during an incident.
+.deploy-displaced/

@@ -9,6 +9,7 @@ from api.routes.agent_builder import router as agent_builder_router
 from api.routes.agent_options import router as agent_options_router
 from api.routes.agent_stream import router as agent_stream_router
 from api.routes.agent_templates import router as agent_templates_router
+from api.routes.agent_timeline import router as agent_timeline_router
 from api.routes.auth import router as auth_router
 from api.routes.billing_dashboard import router as billing_dashboard_router
 from api.routes.campaign import router as campaign_router
@@ -103,6 +104,7 @@ router.include_router(organisation_memory_router)
 router.include_router(packs_router)
 router.include_router(team_router)
 router.include_router(workflow_outcomes_router)
+router.include_router(agent_timeline_router)
 router.include_router(tool_router)
 router.include_router(organization_router)
 router.include_router(s3_router)

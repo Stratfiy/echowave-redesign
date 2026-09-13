@@ -126,6 +126,43 @@ say "Currently on $PREVIOUS_SHA — rolling back to this if the deploy fails"
 # the part that matters: a deploy that silently ships a different commit than
 # it was asked for is worse than one that stops.
 TARGET_SHA="$(git -C "$GIT_DIR" rev-parse FETCH_HEAD)"
+
+# An untracked file on the box that the incoming commit also ships is a hard
+# stop for checkout, not a warning:
+#
+#     error: The following untracked working tree files would be overwritten
+#     by checkout: echowave/scripts/cutover_to_managed_postgres.sh
+#
+# That is exactly right of git and exactly wrong for a deploy. The file gets
+# there the ordinary way -- somebody scp's or writes a script onto the box to
+# get through an incident, the same script is committed afterwards, and from
+# then on every deploy aborts on a file whose tracked version is the one
+# everyone wants.
+#
+# Moved aside rather than deleted, and named so it can be found. The box's
+# copy may be the only record of what was actually run during an incident,
+# and a deploy that quietly deletes evidence is the failure mode this script
+# spent four runs on in the other direction.
+#
+# Narrow on purpose: `git clean -fd` would take the whole untracked tree,
+# including the cutover dump directories, which is not a decision a deploy
+# gets to make at 3am. Only the files the checkout itself names are touched.
+collisions="$(
+    git -C "$GIT_DIR" checkout --detach "$TARGET_SHA" 2>&1 >/dev/null \
+        | sed -n 's/^\t\(.*\)$/\1/p' || true
+)"
+if [ -n "$collisions" ]; then
+    stash_dir="$GIT_DIR/.deploy-displaced/$(date -u +%Y%m%dT%H%M%SZ)"
+    say "Untracked files are in the way of the checkout; moving them to $stash_dir"
+    printf "%s\n" "$collisions" | while IFS= read -r path; do
+        [ -n "$path" ] || continue
+        [ -e "$GIT_DIR/$path" ] || continue
+        mkdir -p "$stash_dir/$(dirname "$path")"
+        mv "$GIT_DIR/$path" "$stash_dir/$path"
+        say "  displaced $path"
+    done
+fi
+
 git -C "$GIT_DIR" checkout --detach "$TARGET_SHA"
 git -C "$GIT_DIR" submodule update --init --recursive
 
