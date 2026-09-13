@@ -14,6 +14,7 @@ from api.db.models import (
     WorkflowModel,
 )
 from api.enums import StaffRole
+from api.services.compliance.agreements import CURRENT_VERSIONS
 
 
 def _staff_client(user):
@@ -54,7 +55,11 @@ async def test_the_audit_lists_acceptances_and_attestations(db_session, async_se
             organization_id=org_id,
             user_id=member_id,
             agreement="terms",
-            version="2026-07",
+            # Tracks the registry rather than a literal. Bumping a version is
+            # the intended way to re-ask every account, and a test pinned to
+            # the old string turns that into a CI failure every time somebody
+            # does it correctly.
+            version=CURRENT_VERSIONS["terms"],
             ip_address="10.0.0.1",
         )
     )
@@ -84,7 +89,7 @@ async def test_the_audit_lists_acceptances_and_attestations(db_session, async_se
     assert [
         (a["agreement"], a["version"], a["user_email"], a["ip_address"])
         for a in body["agreements"]
-    ] == [("terms", "2026-07", "m@example.com", "10.0.0.1")]
+    ] == [("terms", CURRENT_VERSIONS["terms"], "m@example.com", "10.0.0.1")]
     assert body["agreements"][0]["current"] is True
     assert [(c["name"], c["attested_by_email"]) for c in body["campaigns"]] == [
         ("September", "m@example.com")
