@@ -59,7 +59,20 @@ class TimelineResponse(BaseModel):
     events: list[TimelineEvent]
     #: The cursor for the next page, or null when this page is the end. Null
     #: rather than omitted so a client can branch on it without guessing.
+    #:
+    #: A PAIR, because the rows are ordered by (at, id) and a cursor that
+    #: compares less than the sort does silently drops rows -- see the note in
+    #: db/agent_event_client.py. Both halves are passed back together or
+    #: neither is.
+    next_before_at: Optional[datetime]
     next_before_id: Optional[int]
+    #: True when this page hit the limit and more rows exist that this
+    #: response gives no way to ask for. Only reachable on the single-call
+    #: path, which is deliberately uncursored; everywhere else `next_before_id`
+    #: is the answer. Said out loud rather than left as a short list, because
+    #: a truncated history that looks complete is the failure this whole
+    #: module exists to stop.
+    truncated: bool = False
 
 
 def _as_event(row: Any) -> TimelineEvent:
@@ -86,6 +99,7 @@ async def timeline(
     deliverables_only: Annotated[bool, Query()] = False,
     include_transcripts: Annotated[bool, Query()] = False,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    before_at: Annotated[Optional[datetime], Query()] = None,
     before_id: Annotated[Optional[int], Query()] = None,
     user: UserModel = Depends(get_user),
 ) -> TimelineResponse:
@@ -119,6 +133,11 @@ async def timeline(
         if not run:
             raise HTTPException(status_code=404, detail="Run not found")
 
+    if folder_id is not None:
+        folder = await db_client.get_folder(folder_id, organization_id=organization_id)
+        if not folder:
+            raise HTTPException(status_code=404, detail="Folder not found")
+
     rows = await db_client.agent_events(
         organization_id=organization_id,
         workflow_id=workflow_id,
@@ -128,6 +147,7 @@ async def timeline(
         deliverables_only=deliverables_only,
         include_on_request=include_transcripts,
         limit=limit,
+        before_at=before_at,
         before_id=before_id,
     )
 
@@ -136,8 +156,23 @@ async def timeline(
     # A cursor only where paging exists. One call is returned whole and in
     # ascending order, so handing back its last id would page a client
     # backwards through a story it is reading forwards.
+    next_before_at = None
     next_before_id = None
-    if workflow_run_id is None and len(events) == limit and events:
-        next_before_id = events[-1].id
+    truncated = False
+    full_page = bool(events) and len(events) == limit
+    if workflow_run_id is None:
+        if full_page:
+            next_before_at = events[-1].at
+            next_before_id = events[-1].id
+    elif full_page:
+        # One call is returned whole and ascending, so there is no cursor to
+        # hand back -- but a call long enough to fill the page would otherwise
+        # end mid-story with nothing saying so.
+        truncated = True
 
-    return TimelineResponse(events=events, next_before_id=next_before_id)
+    return TimelineResponse(
+        events=events,
+        next_before_at=next_before_at,
+        next_before_id=next_before_id,
+        truncated=truncated,
+    )

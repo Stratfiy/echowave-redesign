@@ -289,11 +289,31 @@ class TestReading:
         for kwargs in ({}, {"include_on_request": True}, {"deliverables_only": True}):
             assert AgentEventVisibility.OFF.value not in self._query(**kwargs), kwargs
 
-    def test_paging_uses_the_id_not_the_timestamp(self):
-        """Two events in the same millisecond are ordinary on a busy call, and
-        a timestamp cursor would either skip one or return it twice."""
-        sql = self._query(before_id=5000)
-        assert "agent_events.id < 5000" in sql
+    def test_the_cursor_compares_the_same_pair_the_rows_are_sorted_by(self):
+        """This test used to assert `agent_events.id < 5000` against an ORDER
+        BY of `at DESC, id DESC`, which is the bug rather than the behaviour.
+
+        A predicate narrower than the sort drops rows. Two workers, A reading
+        now() at .100 and B at .050 with B committing first and taking the
+        lower id: ordering by `at` puts A first, a page ending on A filters
+        `id < A.id`, and B is excluded from that page and from every later one.
+        Silently -- which in a history somebody may rely on in a dispute is the
+        worst place in the system for it.
+        """
+        from datetime import UTC, datetime
+
+        at = datetime(2026, 9, 13, 12, 0, tzinfo=UTC)
+        sql = self._query(before_at=at, before_id=5000)
+        # A row-value comparison, not an id comparison.
+        assert "agent_events.id < 5000" not in sql
+        assert "(agent_events.at, agent_events.id) < " in sql
+
+    def test_half_a_cursor_narrows_nothing(self):
+        """An id with no timestamp is the old, lossy predicate. Refused by
+        doing nothing rather than by silently paging badly -- the caller gets
+        the first page again, which is visible, instead of a history with
+        holes, which is not."""
+        assert "agent_events.id < 5000" not in self._query(before_id=5000)
 
     def test_the_limit_is_capped(self):
         """A caller asking for a million rows gets five hundred, not a

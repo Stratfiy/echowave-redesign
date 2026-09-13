@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from typing import Any, Optional, Sequence
 
-from sqlalchemy import select
+from sqlalchemy import select, tuple_
 
 from api.db.base_client import BaseDBClient
 from api.db.models import AgentEventModel
@@ -69,6 +69,7 @@ class AgentEventClient(BaseDBClient):
         deliverables_only: bool = False,
         include_on_request: bool = False,
         limit: int = 200,
+        before_at: Optional[datetime] = None,
         before_id: Optional[int] = None,
     ) -> list[AgentEventModel]:
         """The timeline, newest first.
@@ -116,11 +117,35 @@ class AgentEventClient(BaseDBClient):
         if reading_one_call:
             query = query.order_by(AgentEventModel.at.asc(), AgentEventModel.id.asc())
         else:
-            # Paged by id rather than by timestamp: two events in the same
-            # millisecond are ordinary on a busy call, and a timestamp cursor
-            # would either skip one or return it twice.
-            if before_id is not None:
-                query = query.where(AgentEventModel.id < before_id)
+            # The cursor compares the SAME pair the rows are ordered by, and
+            # that is the whole point.
+            #
+            # It used to filter on `id < before_id` alone while ordering by
+            # `at DESC, id DESC`, on the reasoning that two events in the same
+            # millisecond are ordinary and an `at` cursor would skip or repeat
+            # one. True as far as it goes, and it made the predicate disagree
+            # with the sort.
+            #
+            # They disagree whenever insert order and timestamp order differ,
+            # which two workers manage without trying: A reads now() at
+            # .100 and B at .050, B commits first and takes the lower id. Order
+            # by `at` puts A first; a page ending on A then filters
+            # `id < A.id`, and B -- which belongs on the NEXT page -- is
+            # excluded from that page and from every page after it, because
+            # each one filters by a smaller id still.
+            #
+            # No error, no log, no gap anybody can see: a row that simply never
+            # appears in a history somebody may rely on in a dispute. The
+            # silent-absence failure api/AGENTS.md is about, in the one place
+            # that can least afford it.
+            #
+            # A row-value comparison is exact and still uses the index the
+            # ORDER BY wants, so the fix costs nothing.
+            if before_at is not None and before_id is not None:
+                query = query.where(
+                    tuple_(AgentEventModel.at, AgentEventModel.id)
+                    < tuple_(before_at, before_id)
+                )
             query = query.order_by(AgentEventModel.at.desc(), AgentEventModel.id.desc())
 
         async with self.async_session() as session:
