@@ -335,22 +335,22 @@ export function AppSidebar() {
           viewport once MANAGE has six entries, so the last item scrolls under
           the footer. Without a background on the footer it showed through and
           the final entry read as clipped rather than as scrolled. */}
-      <SidebarContent className={cn("notranslate gap-1 pb-2 group-data-[collapsible=icon]:overflow-y-auto", isCollapsed && "px-0")} translate="no">
-        {/* The context strip.
-            Five doors instead of seventeen, each opening its own panel below.
-            Horizontal rather than a left column for now: it is the same
-            model — pick a context, the panel swaps — without restructuring
-            the shell's chrome, and the vertical rail is a visual change on
-            top of it rather than a different idea.
+      {/* Rail on the left, panel on the right.
+          The model landed as a horizontal strip; this is the column it was
+          always meant to be — five contexts down the edge, one panel beside
+          them that swaps entirely. Same behaviour, and the tests that guard
+          it are unchanged, because what they assert is which destinations a
+          context offers rather than where the buttons sit.
 
-            Every context is always rendered, which is the point. Filtering
-            the panel without offering a way back to the others is how a
-            destination silently stops being reachable. */}
+          Every context is always rendered, which is the point. Filtering the
+          panel without offering a way back to the others is how a destination
+          silently stops being reachable. */}
+      <SidebarContent className={cn("notranslate flex-row gap-0 pb-2 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:overflow-y-auto", isCollapsed && "px-0")} translate="no">
         {!isCollapsed && (
           <div
             role="tablist"
             aria-label="Workspace"
-            className="flex items-center gap-0.5 px-2 pb-1"
+            className="flex w-14 shrink-0 flex-col items-center gap-1 border-r border-sidebar-border py-1"
           >
             {NAV_CONTEXTS.map((context) => {
               const Icon = context.icon;
@@ -365,19 +365,25 @@ export function AppSidebar() {
                   title={context.title}
                   onClick={() => setPickedContext(context.id)}
                   className={cn(
-                    "flex h-8 flex-1 items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+                    "flex w-11 flex-col items-center gap-0.5 rounded-md px-1 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
                     selected
                       ? "bg-sidebar-accent text-sidebar-accent-foreground"
                       : "text-muted-foreground hover:bg-sidebar-accent/50",
                   )}
                 >
-                  <Icon aria-hidden="true" className="h-4 w-4" />
+                  <Icon aria-hidden="true" className="h-[18px] w-[18px]" />
+                  {/* The label, not just the icon. Slack ships icons+text by
+                      default and offers icons-only as a setting; five unlabelled
+                      glyphs is a memory test on a product somebody uses once a
+                      week. */}
+                  <span className="text-[10px] leading-none">{context.title}</span>
                 </button>
               );
             })}
           </div>
         )}
 
+        <div className={cn("min-w-0 flex-1 overflow-y-auto", !isCollapsed && "pl-1")}>
         {contextSections.map((section) => (
           <React.Fragment key={section.label ?? "overview"}>
           <SidebarGroup
@@ -423,6 +429,7 @@ export function AppSidebar() {
           )}
           </React.Fragment>
         ))}
+        </div>
       </SidebarContent>
 
       <SidebarFooter
