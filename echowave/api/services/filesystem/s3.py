@@ -54,13 +54,38 @@ class S3FileSystem(BaseFileSystem):
         else:
             self.session = aioboto3.Session()
 
-        # Build a botocore Config only when an override is requested so that the
-        # default behavior is byte-for-byte unchanged when no env vars are set.
+        # Signing, and why it is pinned rather than left to botocore.
+        #
+        # A presigned URL signs the *host* it is addressed to. If S3 answers
+        # with a redirect, the browser follows it to a different host and the
+        # signature it is carrying no longer matches — which arrives as
+        # ``SignatureDoesNotMatch``, a 403 that reads like a permissions
+        # problem and is not one. That is exactly what recordings did on the
+        # first day they lived in S3: the object was there, the IAM policy was
+        # right, and every playback failed.
+        #
+        # Two defaults remove the whole class of failure on real AWS:
+        #
+        #   virtual addressing — the bucket is in the hostname, so the signed
+        #     host is already the final host and there is no path-style
+        #     redirect to follow.
+        #   s3v4 — every region opened after January 2014, ap-south-1 among
+        #     them, accepts only SigV4. Botocore's presigning default is not
+        #     guaranteed to be SigV4, and a SigV2 URL is simply rejected in
+        #     Mumbai.
+        #
+        # Both stay overridable, because they are the wrong defaults for an
+        # S3-compatible store: MinIO and Ceph generally need path addressing.
+        # An explicit ``endpoint_url`` is the signal that this is not AWS, so
+        # nothing is assumed for those deployments.
+        is_aws = endpoint_url is None
         config_kwargs: dict[str, Any] = {}
-        if signature_version:
-            config_kwargs["signature_version"] = signature_version
-        if addressing_style:
-            config_kwargs["s3"] = {"addressing_style": addressing_style}
+        resolved_signature = signature_version or ("s3v4" if is_aws else None)
+        resolved_addressing = addressing_style or ("virtual" if is_aws else None)
+        if resolved_signature:
+            config_kwargs["signature_version"] = resolved_signature
+        if resolved_addressing:
+            config_kwargs["s3"] = {"addressing_style": resolved_addressing}
         self._config = Config(**config_kwargs) if config_kwargs else None
 
     def _client_kwargs(self) -> dict[str, Any]:

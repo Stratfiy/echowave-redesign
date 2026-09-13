@@ -48,7 +48,7 @@ export interface Accent {
  * whose default is not the current appearance reads as broken.
  */
 export const ACCENTS: readonly Accent[] = [
-  { id: "coral", label: "Coral", bright: "#e15b35", deep: "#b24747" },
+  { id: "coral", label: "Coral", bright: "#e15b53", deep: "#ab3f38" },
   { id: "aubergine", label: "Aubergine", bright: "#8b2fa8", deep: "#6b2280" },
   { id: "indigo", label: "Indigo", bright: "#4f46e5", deep: "#4338ca" },
   { id: "teal", label: "Teal", bright: "#0d9488", deep: "#0f766e" },

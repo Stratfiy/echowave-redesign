@@ -33,10 +33,37 @@ describe("sidebar interactions", () => {
   });
   it("expands developers without removing its routes and remembers the choice", () => {
     render(<SidebarProvider><AppSidebar /></SidebarProvider>);
+    // The developer doors live in the Setup panel now, so reaching them is two
+    // moves: pick the context, then open the folded group inside it.
+    expect(screen.queryByRole("button", { name: "DEVELOPERS" })).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
+
     expect(screen.queryByRole("link", { name: "API keys & SDKs" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "DEVELOPERS" }));
     expect(screen.getByRole("link", { name: "API keys & SDKs" })).toBeTruthy();
     expect(JSON.parse(localStorage.getItem("decibyl.sidebar.closedSections")!)).not.toContain("DEVELOPERS");
+  });
+
+  it("offers every context, and opens the one the current page belongs to", () => {
+    route.pathname = "/billing";
+    render(<SidebarProvider><AppSidebar /></SidebarProvider>);
+    const tabs = screen.getAllByRole("tab").map((t) => t.getAttribute("aria-label"));
+    expect(tabs).toEqual(["Home", "Activity", "Marketplace", "Setup", "Account"]);
+    // A rail pointing somewhere other than the screen you are reading is
+    // worse than no rail.
+    expect(screen.getByRole("tab", { name: "Account" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("link", { name: "Billing" })).toBeTruthy();
+  });
+
+  it("lets you browse another panel without leaving the page", () => {
+    route.pathname = "/billing";
+    render(<SidebarProvider><AppSidebar /></SidebarProvider>);
+    fireEvent.click(screen.getByRole("tab", { name: "Activity" }));
+    expect(screen.getByRole("tab", { name: "Activity" }).getAttribute("aria-selected")).toBe("true");
+    // Campaigns, not Calls: MONITOR is one of the groups folded by default, so
+    // asserting on a link inside it would be testing the fold, not the panel.
+    expect(screen.getByRole("link", { name: "Campaigns" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Billing" })).toBeNull();
   });
   it("opens a saved closed group when navigating to a related page", () => {
     localStorage.setItem("decibyl.sidebar.closedSections", JSON.stringify(["BUILD"]));

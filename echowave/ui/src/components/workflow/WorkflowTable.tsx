@@ -12,15 +12,16 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
 import {
     moveWorkflowToFolderApiV1WorkflowWorkflowIdFolderPut,
+    teamStatusApiV1TeamStatusGet,
     updateWorkflowLiveApiV1WorkflowWorkflowIdLivePut,
     updateWorkflowStatusApiV1WorkflowWorkflowIdStatusPut,
 } from '@/client/sdk.gen';
-import type { FolderResponse } from '@/client/types.gen';
+import type { FolderResponse, TeamMember } from '@/client/types.gen';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -40,6 +41,56 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+/** The dot beside the sentence. Four states, because "paused" and "quiet" mean
+ *  different things and only one of them is worth looking into. Same vocabulary
+ *  as the home screen's team panel — they read the same endpoint, so they must
+ *  not invent two different colour languages for one set of tones. */
+const TONE_DOT: Record<string, string> = {
+    attention: 'bg-destructive',
+    working: 'bg-emerald-500',
+    idle: 'bg-muted-foreground/40',
+    paused: 'bg-amber-500',
+};
+
+/**
+ * What each agent has actually been doing, keyed by workflow id.
+ *
+ * `/team/status` already composes this sentence for the home screen — "9
+ * calls, 6 answered, 4 bookings" — and this screen was showing a database id
+ * and a creation date instead. One request for the whole table, not one per
+ * row.
+ *
+ * A failure returns an empty map rather than blocking the table: the columns
+ * that come from the workflow list still render, and a missing sentence shows
+ * as an em dash. Losing the roster must not lose the agents.
+ */
+function useAgentActivity(enabled: boolean): Record<number, TeamMember> {
+    const [byWorkflow, setByWorkflow] = useState<Record<number, TeamMember>>({});
+
+    useEffect(() => {
+        if (!enabled) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const response = await teamStatusApiV1TeamStatusGet({ query: { hours: 24 } });
+                if (cancelled) return;
+                const next: Record<number, TeamMember> = {};
+                for (const member of response.data?.members ?? []) {
+                    next[member.workflow_id] = member;
+                }
+                setByWorkflow(next);
+            } catch {
+                /* see the docstring: the table stands without it */
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [enabled]);
+
+    return byWorkflow;
+}
+
 interface Workflow {
     id: number;
     name: string;
@@ -79,6 +130,9 @@ export function WorkflowTable({
     const [movingWorkflowId, setMovingWorkflowId] = useState<number | null>(null);
     // Optimistic overrides, keyed by agent id, cleared when the server answers.
     const [pendingLive, setPendingLive] = useState<Record<number, boolean>>({});
+    // Archived agents have no last-24-hours to speak of, and squads are
+    // fronts rather than workers, so neither pays for the request.
+    const activity = useAgentActivity(!showArchived);
 
     const handleEdit = (id: number) => {
         router.push(`/workflow/${id}`);
@@ -186,13 +240,18 @@ export function WorkflowTable({
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead className="font-semibold">ID</TableHead>
                             <TableHead className="font-semibold">Agent Name</TableHead>
+                            {/* What it has been doing, not when it was made. A
+                              * creation date and a database id tell an owner
+                              * nothing; this column is the reason to open the
+                              * screen. */}
+                            {!showArchived && (
+                                <TableHead className="font-semibold">Last 24 hours</TableHead>
+                            )}
                             {!showArchived && (
                                 <TableHead className="font-semibold text-center">Live</TableHead>
                             )}
-                            <TableHead className="font-semibold">Created At</TableHead>
-                            <TableHead className="font-semibold text-center">Total Runs</TableHead>
+                            <TableHead className="font-semibold text-center">Runs</TableHead>
                             <TableHead className="font-semibold text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -202,12 +261,35 @@ export function WorkflowTable({
                                 key={workflow.id}
                                 className={`hover:bg-accent transition-colors ${showArchived ? 'opacity-60' : ''}`}
                             >
-                                <TableCell className="text-muted-foreground">
-                                    {workflow.id}
-                                </TableCell>
                                 <TableCell className="font-medium">
                                     {workflow.name}
                                 </TableCell>
+                                {!showArchived && (
+                                    <TableCell className="max-w-[22rem]">
+                                        {activity[workflow.id] ? (
+                                            <div className="flex items-start gap-2">
+                                                <span
+                                                    className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${TONE_DOT[activity[workflow.id].tone] ?? TONE_DOT.idle}`}
+                                                />
+                                                <div className="min-w-0">
+                                                    <p className="truncate text-sm">
+                                                        {activity[workflow.id].status}
+                                                    </p>
+                                                    {activity[workflow.id].last_action ? (
+                                                        <p className="truncate text-xs text-muted-foreground">
+                                                            {activity[workflow.id].last_action!.label}
+                                                            {activity[workflow.id].last_action!.app
+                                                                ? ` · ${activity[workflow.id].last_action!.app}`
+                                                                : ''}
+                                                        </p>
+                                                    ) : null}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <span className="text-sm text-muted-foreground">—</span>
+                                        )}
+                                    </TableCell>
+                                )}
                                 {/*
                                   * Hidden on the archived list: an archived agent
                                   * does not take calls whatever this said, and a
@@ -231,13 +313,6 @@ export function WorkflowTable({
                                         </div>
                                     </TableCell>
                                 )}
-                                <TableCell>
-                                    {new Date(workflow.created_at).toLocaleDateString('en-US', {
-                                        year: 'numeric',
-                                        month: 'short',
-                                        day: 'numeric',
-                                    })}
-                                </TableCell>
                                 <TableCell className="text-center">
                                     <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-1 text-sm font-semibold bg-muted rounded-full">
                                         {workflow.total_runs || 0}

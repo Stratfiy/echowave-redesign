@@ -86,7 +86,7 @@ async function WorkflowList() {
             <>
                 {/* Active Workflows Section */}
                 <div className="mb-8">
-                    <h2 className="text-xl font-semibold mb-4">Active Agents</h2>
+                    <h2 className="text-xl font-semibold mb-4">Working</h2>
                     {activeWorkflows.length > 0 || folders.length > 0 ? (
                         <AgentFolderView workflows={activeWorkflows} folders={folders} />
                     ) : (
@@ -197,8 +197,8 @@ export default function WorkflowPage() {
     return (
         <>
             <PageHeader
-                title="Voice agents"
-                description="Design a conversation, publish it, and point a number at it."
+                title="Your bots"
+                description="Each one does a job — on the phone, on WhatsApp, or on a schedule."
                 actions={
                     <>
                         <UploadWorkflowButton />

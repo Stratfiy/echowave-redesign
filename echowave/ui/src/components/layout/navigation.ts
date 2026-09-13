@@ -16,6 +16,8 @@ import {
   Settings,
   Shield,
   ShieldCheck,
+  ShoppingBag,
+  SlidersHorizontal,
   Wallet,
   Workflow,
 } from "lucide-react";
@@ -404,4 +406,114 @@ export function getActiveNavUrl(pathname: string, sections: SidebarNavSection[])
     .flatMap(item => [item.url, ...(item.activePaths ?? [])].map(path => ({ path, url: item.url })))
     .filter(({ path }) => pathname === path || pathname.startsWith(`${path}/`))
     .sort((a, b) => b.path.length - a.path.length)[0]?.url;
+}
+
+
+/* ------------------------------------------------------------------------ *
+ * The rail
+ * ------------------------------------------------------------------------ */
+
+/**
+ * The five contexts the rail offers, each opening its own panel.
+ *
+ * Seventeen destinations in one scrolling list is a control panel. Every
+ * workspace tool the market has settled on uses the same shape instead: a
+ * narrow rail of a few contexts, and one wide panel that swaps entirely. Slack
+ * has five — Home, DMs, Activity, More, Admin — and "Agents & tools" gets a
+ * panel of its own rather than three entries in a list.
+ *
+ * `NAV_SECTIONS` stays the single source of truth for the items themselves, so
+ * search, the role filter and the active-URL match are untouched by this. A
+ * context only says which panel an item is reached through.
+ */
+export type NavContextId = "home" | "activity" | "marketplace" | "setup" | "account";
+
+export type NavContext = {
+  id: NavContextId;
+  title: string;
+  icon: LucideIcon;
+  /** Item urls reached through this panel. See CONTEXT_FALLBACK for the rest. */
+  urls: string[];
+};
+
+/**
+ * Where an unassigned destination goes.
+ *
+ * A rail built from an allowlist is the silent-absence bug with a map: add a
+ * nav entry, forget to place it, and it does not appear anywhere — no error,
+ * no symptom, just a screen nobody can reach. Account is the catch-all, and
+ * `every nav item reaches a panel` in the tests is what proves nothing falls
+ * through. Deliberately a blocklist-shaped rule: the worst case is a
+ * destination filed under the wrong heading, which somebody notices.
+ */
+export const CONTEXT_FALLBACK: NavContextId = "account";
+
+export const NAV_CONTEXTS: NavContext[] = [
+  {
+    id: "home",
+    title: "Home",
+    icon: Home,
+    // The bots are listed under Home by SidebarBots, which reads the roster
+    // rather than this list — this is the door to all of them.
+    urls: ["/overview", "/workflow"],
+  },
+  {
+    id: "activity",
+    title: "Activity",
+    icon: ChartColumnBig,
+    // What the bots have been doing, and the work being pushed at them.
+    urls: ["/review", "/usage", "/analytics", "/campaigns", "/contacts"],
+  },
+  {
+    id: "marketplace",
+    title: "Marketplace",
+    icon: ShoppingBag,
+    // Connectors today; the shelf of bots joins them here. Until that shelf
+    // exists this panel is one entry, which is honest — a Marketplace door
+    // that opens on nothing advertises a shop and shows dust.
+    urls: ["/integrations/apps"],
+  },
+  {
+    id: "setup",
+    title: "Setup",
+    icon: SlidersHorizontal,
+    // The things a bot needs before it can work: a number, what it knows,
+    // where it is embedded, and the keys other software reaches it with.
+    urls: [
+      "/telephony-configurations",
+      "/files",
+      "/deploy/web-widget",
+      "/api-keys",
+      "/deploy/connect",
+    ],
+  },
+  {
+    id: "account",
+    title: "Account",
+    icon: Settings,
+    // Plus anything unplaced, and the whole staff section.
+    urls: ["/billing", "/privacy", "/settings"],
+  },
+];
+
+/** Which panel a destination is reached through. Never undefined. */
+export function contextIdForUrl(url: string): NavContextId {
+  return NAV_CONTEXTS.find(context => context.urls.includes(url))?.id ?? CONTEXT_FALLBACK;
+}
+
+/**
+ * The sections to render in one panel, keeping each section's own label and
+ * order. A section contributing no items to this context is dropped rather
+ * than rendered as an empty heading.
+ */
+export function getContextSections(
+  contextId: NavContextId,
+  sections: SidebarNavSection[],
+): SidebarNavSection[] {
+  return sections
+    .map(section => ({
+      ...section,
+      items: section.items.filter(item => contextIdForUrl(item.url) === contextId),
+    }))
+    .filter(section => section.items.length > 0);
 }
