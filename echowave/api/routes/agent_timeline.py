@@ -30,11 +30,16 @@ from datetime import datetime
 from typing import Annotated, Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from loguru import logger
+from pydantic import BaseModel, Field
 
 from api.db import db_client
 from api.db.models import UserModel
+from api.enums import AgentEventActor, AgentEventKind
 from api.services.auth.depends import get_user
+from api.services.workflow import agent_timeline, mentions
+from api.tasks.arq import enqueue_job
+from api.tasks.function_names import FunctionNames
 
 router = APIRouter(prefix="/timeline", tags=["agent-timeline"])
 
@@ -175,4 +180,120 @@ async def timeline(
         next_before_at=next_before_at,
         next_before_id=next_before_id,
         truncated=truncated,
+    )
+
+
+#: What one message may carry. Long enough for anything a person types into a
+#: channel and short enough that a paste of a whole document is refused rather
+#: than silently stored and truncated somewhere downstream.
+MAX_MESSAGE = 8000
+
+
+class PostMessageRequest(BaseModel):
+    folder_id: int
+    text: str = Field(min_length=1, max_length=MAX_MESSAGE)
+
+
+class PostMessageResponse(BaseModel):
+    #: Bots this message was handed to. Empty is an ordinary outcome: a person
+    #: talking to their colleagues in a channel has addressed nobody, and that
+    #: is not a failure.
+    asked: list[int]
+    #: Handles that matched no bot in this channel. Returned so the screen can
+    #: say "there is nobody here called @op-bot" rather than leaving somebody
+    #: waiting on a reply that was never going to come.
+    unknown: list[str]
+    #: Handles that matched more than one bot here. Answering with whichever
+    #: came back first would hide a naming collision behind a bot that
+    #: sometimes replies and sometimes does not.
+    ambiguous: list[str]
+
+
+@router.post("/message", response_model=PostMessageResponse)
+async def post_message(
+    body: PostMessageRequest,
+    user: UserModel = Depends(get_user),
+) -> PostMessageResponse:
+    """Say something in a channel, and hand it to whichever bots it addressed.
+
+    The message is recorded as an ``agent_event`` rather than in a table of its
+    own. That is not thrift: a channel is a thread of what happened there, and
+    a person asking for something is one of the things that happened. Keeping
+    messages beside outcomes, failures and deliverables means the timeline
+    reads as a conversation instead of two logs interleaved by a screen -- and
+    every reader already has tenancy, the visibility gate and the cursor.
+
+    The reply is enqueued rather than awaited. A bot's turn is an LLM call and
+    a person who has just pressed enter should see their own message
+    immediately; a request that blocks until a bot has thought is a request
+    that times out on the one occasion the model is slow.
+    """
+    organization_id = user.selected_organization_id
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    folder = await db_client.get_folder(body.folder_id, organization_id=organization_id)
+    if not folder:
+        raise HTTPException(status_code=404, detail="Channel not found")
+
+    # The roster is the bots in this channel, not every bot the account owns.
+    # A bot that is not here cannot be addressed here, the same rule Slack
+    # applies to apps -- and it is what makes putting a bot in a channel mean
+    # something rather than being decoration.
+    workflows = await db_client.get_all_workflows_for_listing(
+        organization_id=organization_id
+    )
+    roster = [
+        {"id": workflow.id, "name": workflow.name}
+        for workflow in workflows
+        if getattr(workflow, "folder_id", None) == body.folder_id
+    ]
+    resolution = mentions.resolve(body.text, roster)
+
+    await agent_timeline.record(
+        organization_id=organization_id,
+        kind=AgentEventKind.MESSAGE.value,
+        actor=AgentEventActor.HUMAN.value,
+        # The summary is the display line and truncates at 500; the words the
+        # person actually chose are kept whole in the payload. A message
+        # silently cut short is the product editing somebody.
+        summary=body.text,
+        folder_id=body.folder_id,
+        payload={
+            "body": body.text,
+            "author_id": user.id,
+            "asked": [m.workflow_id for m in resolution.mentioned],
+        },
+    )
+
+    for mention in resolution.mentioned:
+        try:
+            await enqueue_job(
+                FunctionNames.ANSWER_CHANNEL_MESSAGE,
+                mention.workflow_id,
+                body.folder_id,
+                body.text,
+            )
+        except Exception as exc:  # noqa: BLE001 - one bot failing is not all of them
+            # Said out loud, because the alternative is a bot that was
+            # addressed, never answered, and left no trace of having been
+            # asked -- which reads to the person as being ignored.
+            logger.error(
+                "Could not ask workflow {} to answer in channel {}: {}",
+                mention.workflow_id,
+                body.folder_id,
+                exc,
+            )
+            await agent_timeline.record(
+                organization_id=organization_id,
+                kind=AgentEventKind.COULD_NOT.value,
+                summary=f"@{mention.handle} could not be reached to answer that",
+                workflow_id=mention.workflow_id,
+                folder_id=body.folder_id,
+            )
+
+    return PostMessageResponse(
+        asked=[m.workflow_id for m in resolution.mentioned],
+        unknown=resolution.unknown,
+        ambiguous=resolution.ambiguous,
     )
