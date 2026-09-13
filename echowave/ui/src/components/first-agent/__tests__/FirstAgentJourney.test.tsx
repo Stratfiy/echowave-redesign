@@ -156,7 +156,11 @@ describe("first-agent journey", () => {
         render(<FirstAgentJourney />);
         expect(await screen.findByText("Now hear it.")).toBeTruthy();
         fireEvent.click(screen.getByRole("radio", { name: /call my phone/i }));
-        // Only the verified one is offered.
+        // Only the verified one is offered. Waiting for it to appear first is
+        // what makes the absence below mean something: assert on the list while
+        // it still reads "Checking your verified numbers…" and every number is
+        // missing, so the test passes for the wrong reason.
+        expect(await screen.findByText(/9999999999/)).toBeTruthy();
         expect(screen.queryByText(/8888888888/)).toBeNull();
         fireEvent.click(screen.getByRole("button", { name: /call me/i }));
         await waitFor(() => expect(api.initiateCall).toHaveBeenCalled());
@@ -175,7 +179,12 @@ describe("first-agent journey", () => {
         render(<FirstAgentJourney />);
         expect(await screen.findByText("Now hear it.")).toBeTruthy();
         fireEvent.click(screen.getByRole("radio", { name: /call my phone/i }));
-        expect(screen.getByRole("link", { name: /verify my number/i }).getAttribute("href")).toBe("/verified-numbers?next=/start");
+        // findBy, not getBy: the verified-numbers fetch resolves on its own
+        // tick, and until it does the panel reads "Checking your verified
+        // numbers…" with no link in it. On a loaded CI runner that tick lands
+        // after the click, which is what made this test flake.
+        const link = await screen.findByRole("link", { name: /verify my number/i });
+        expect(link.getAttribute("href")).toBe("/verified-numbers?next=/start");
     });
 
     it("reports a create failure and stays on the name step", async () => {
