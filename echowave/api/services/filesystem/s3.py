@@ -297,6 +297,57 @@ class S3FileSystem(BaseFileSystem):
         except ClientError:
             return None
 
+    async def aopen_range(
+        self, file_path: str, byte_range: str | None = None
+    ) -> tuple[Any, int, int | None, str] | None:
+        # The client is NOT closed here, and that is the whole subtlety: the
+        # caller streams from the body after this returns, so closing the
+        # client on the way out would hand back a stream whose connection is
+        # already gone. Ownership passes to the caller with the stream.
+        client_context = self.session.client("s3", **self._client_kwargs())
+        s3_client = await client_context.__aenter__()
+        try:
+            kwargs: dict[str, Any] = {"Bucket": self.bucket_name, "Key": file_path}
+            if byte_range:
+                kwargs["Range"] = byte_range
+            response = await s3_client.get_object(**kwargs)
+        except ClientError as exc:
+            await client_context.__aexit__(None, None, None)
+            code = exc.response.get("Error", {}).get("Code")
+            if code in ("NoSuchKey", "404"):
+                return None
+            raise
+        except BaseException:
+            await client_context.__aexit__(None, None, None)
+            raise
+
+        body = response["Body"]
+
+        # ContentRange is "bytes 100-199/1024" on a 206 and absent on a 200, so
+        # it is the only place the object's FULL size is reported when a range
+        # was asked for. ContentLength would be the length of the slice, and a
+        # Content-Range header built from it would tell the browser the file is
+        # as long as the piece it just received -- which is how a seek bar ends
+        # up claiming a two-minute call lasted four seconds.
+        content_range = response.get("ContentRange")
+        if content_range and "/" in content_range:
+            total = int(content_range.rsplit("/", 1)[1])
+            start = int(content_range.split()[1].split("-")[0])
+        else:
+            total = int(response.get("ContentLength") or 0)
+            start = None
+
+        content_type = response.get("ContentType") or "application/octet-stream"
+
+        async def stream():
+            try:
+                async for chunk in body.iter_chunks(64 * 1024):
+                    yield chunk
+            finally:
+                await client_context.__aexit__(None, None, None)
+
+        return stream(), total, start, content_type
+
     async def aread_bytes(self, file_path: str, max_bytes: int) -> bytes | None:
         try:
             async with self.session.client("s3", **self._client_kwargs()) as s3_client:

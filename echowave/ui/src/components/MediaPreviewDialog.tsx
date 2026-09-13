@@ -2,7 +2,7 @@
 
 import { AlertTriangle,Headphones, Loader2 } from 'lucide-react';
 import posthog from 'posthog-js';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -14,11 +14,23 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { PostHogEvent } from '@/constants/posthog-events';
-import { downloadFile, getSignedUrl, getTextArtifact } from '@/lib/files';
+import { downloadFile, getPlayableUrl, getTextArtifact } from '@/lib/files';
 
 export function MediaPreviewDialog() {
     const [isOpen, setIsOpen] = useState(false);
     const [audioSignedUrl, setAudioSignedUrl] = useState<string | null>(null);
+    // A blob URL holds its bytes until revoked, so a session of previewing ten
+    // calls would otherwise keep ten recordings in memory. Tracked in a ref
+    // rather than derived from state because the cleanup has to run with the
+    // OLD value, after state has already moved on.
+    const objectUrl = useRef<string | null>(null);
+    const releaseAudio = useCallback(() => {
+        if (objectUrl.current) {
+            URL.revokeObjectURL(objectUrl.current);
+            objectUrl.current = null;
+        }
+    }, []);
+    useEffect(() => releaseAudio, [releaseAudio]);
     const [transcriptContent, setTranscriptContent] = useState<string | null>(null);
     const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
     const [recordingKey, setRecordingKey] = useState<string | null>(null);
@@ -42,6 +54,7 @@ export function MediaPreviewDialog() {
         async (recordingUrl: string | null, transcriptUrl: string | null, runId: number) => {
             if (!recordingUrl && !transcriptUrl) return;
             setMediaLoading(true);
+            releaseAudio();
             setAudioSignedUrl(null);
             setTranscriptContent(null);
             setLoadError(null);
@@ -51,7 +64,8 @@ export function MediaPreviewDialog() {
             setIsOpen(true);
 
             const [audioResult, transcriptResult] = await Promise.all([
-                recordingUrl ? getSignedUrl(recordingUrl) : null,
+                // Through the API, not a signed URL: see getPlayableUrl.
+                recordingUrl ? getPlayableUrl(recordingUrl) : null,
                 // Read through the API, not signed to storage: see
                 // getTextArtifact. The recording above keeps its signed URL.
                 transcriptUrl ? getTextArtifact(transcriptUrl) : null,
@@ -60,6 +74,7 @@ export function MediaPreviewDialog() {
             const failures: string[] = [];
 
             if (audioResult?.url) {
+                objectUrl.current = audioResult.url;
                 setAudioSignedUrl(audioResult.url);
             } else if (audioResult?.error) {
                 failures.push(`Recording: ${audioResult.error}`);
@@ -84,7 +99,7 @@ export function MediaPreviewDialog() {
             setLoadError(failures.length > 0 ? failures.join(' ') : null);
             setMediaLoading(false);
         },
-        [],
+        [releaseAudio],
     );
 
     return {

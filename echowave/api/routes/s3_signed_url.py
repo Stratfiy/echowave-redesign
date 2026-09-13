@@ -3,7 +3,8 @@ import uuid
 from typing import Annotated, Any
 
 from botocore.exceptions import ClientError
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
 from loguru import logger
 from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
@@ -294,6 +295,103 @@ async def get_text_artifact(
     # should render with one replacement character, not 500. The content is
     # the point, not its encoding.
     return {"text": body.decode("utf-8", errors="replace"), "truncated": truncated}
+
+
+@router.get("/stream", summary="Stream a stored artifact through the API")
+async def stream_artifact(
+    request: Request,
+    key: Annotated[str, Query(description="S3 object key")],
+    storage_backend: Annotated[str | None, Query()] = None,
+    range_header: Annotated[str | None, Header(alias="range")] = None,
+    user=Depends(get_user),
+):
+    """Stream a recording, instead of signing a URL the browser fetches.
+
+    The transcript moved to ``/s3/text`` for four reasons, and run 336 then
+    settled which of them was live: the text came back fine through the API
+    while the recording, on a presigned URL from the same process against the
+    same bucket with the same credentials, still would not play. So the
+    credentials read S3 correctly and it is the *presigning* that produces a
+    signature S3 rejects. Nothing about a recording will fix that.
+
+    Streamed rather than read into memory like the transcript, because a
+    recording is megabytes and a browser seeking in an ``<audio>`` element asks
+    for byte ranges. Answering "the ten seconds from 4:10" by loading the whole
+    file would be wrong twice over.
+
+    The cost is honest and worth naming: these bytes now pass through a uvicorn
+    worker, and those workers are the same processes that carry live calls (see
+    the header of ``scripts/start_services_docker.sh``). At this scale that is
+    a fair trade for a recording that plays. If presigning is ever fixed, the
+    recording can go back to a signed URL and this endpoint can go.
+    """
+    workflow_run = None
+
+    org_id = _extract_org_id_from_key(key)
+    if org_id is not None:
+        if not _is_superadmin(user) and org_id != user.selected_organization_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+    else:
+        run_id = _extract_legacy_workflow_run_id(key)
+        if run_id is None:
+            raise HTTPException(status_code=400, detail="Invalid key format")
+        workflow_run = await _authorize_and_get_workflow_run(run_id, user)
+
+    if storage_backend:
+        storage = get_storage_for_backend(storage_backend)
+    elif (
+        workflow_run
+        and hasattr(workflow_run, "storage_backend")
+        and workflow_run.storage_backend
+    ):
+        storage = _storage_for_recorded_backend(workflow_run.storage_backend, key)
+    else:
+        storage = storage_fs
+
+    try:
+        opened = await storage.aopen_range(key, range_header)
+    except Exception as exc:  # noqa: BLE001 - the caller is owed the reason
+        logger.error("Could not stream {}: {}", key, exc)
+        raise HTTPException(
+            status_code=502, detail="Could not read this file from storage"
+        ) from exc
+
+    if opened is None:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    stream, total, start, content_type = opened
+
+    await _record_signed_url_access(
+        key=key,
+        user=user,
+        workflow_run=workflow_run,
+        organization_id=org_id if org_id is not None else user.selected_organization_id,
+    )
+
+    # Accept-Ranges on every response, including the whole-file one. Without it
+    # the browser will not offer a seek bar at all, and a recording you can
+    # only play from the start is most of the way to a broken one.
+    headers = {"Accept-Ranges": "bytes", "Cache-Control": "private, max-age=300"}
+
+    if start is None:
+        headers["Content-Length"] = str(total)
+        return StreamingResponse(stream, media_type=content_type, headers=headers)
+
+    # A 206 must report the range AND the object's real total length. S3's
+    # ContentRange is the only place that total appears when a range was asked
+    # for; deriving it from the slice would tell the browser the file is as
+    # long as the piece it just received.
+    end = total - 1
+    if range_header and "-" in range_header:
+        _, _, spec = range_header.partition("=")
+        _, _, requested_end = spec.partition("-")
+        if requested_end.strip().isdigit():
+            end = min(int(requested_end), total - 1)
+    headers["Content-Range"] = f"bytes {start}-{end}/{total}"
+    headers["Content-Length"] = str(end - start + 1)
+    return StreamingResponse(
+        stream, status_code=206, media_type=content_type, headers=headers
+    )
 
 
 @router.get(

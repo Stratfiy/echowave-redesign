@@ -17,7 +17,11 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import HTTPException
 
-from api.routes.s3_signed_url import MAX_TEXT_BYTES, get_text_artifact
+from api.routes.s3_signed_url import (
+    MAX_TEXT_BYTES,
+    get_text_artifact,
+    stream_artifact,
+)
 
 KEY = "transcripts/336.txt"
 
@@ -137,3 +141,107 @@ class TestItNeverLiesAboutWhatItReturned:
         with _authorized(), _storage(read), _audited():
             await get_text_artifact(key=KEY, user=_user())
         assert read.await_args.args[1] == MAX_TEXT_BYTES
+
+
+class TestTheRecordingStreams:
+    """Run 336 settled which failure was live.
+
+    The transcript came back fine through the API while the recording, on a
+    presigned URL from the same process against the same bucket with the same
+    credentials, still would not play. So the credentials read S3 correctly and
+    it is the presigning that produces a signature S3 rejects.
+    """
+
+    @staticmethod
+    async def _stream():
+        yield b"RIFF"
+
+    def _opened(self, total=1024, start=None, ctype="audio/wav"):
+        return patch(
+            "api.routes.s3_signed_url.storage_fs",
+            SimpleNamespace(
+                aopen_range=AsyncMock(
+                    return_value=(self._stream(), total, start, ctype)
+                )
+            ),
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_whole_recording_advertises_that_it_can_be_seeked(self):
+        """Without Accept-Ranges the browser offers no seek bar, and a
+        recording you can only play from the start is most of the way to a
+        broken one."""
+        with _authorized(), self._opened(), _audited():
+            response = await stream_artifact(
+                request=SimpleNamespace(),
+                key="recordings/336.wav",
+                user=_user(),
+            )
+        assert response.status_code == 200
+        assert response.headers["accept-ranges"] == "bytes"
+        assert response.headers["content-length"] == "1024"
+
+    @pytest.mark.asyncio
+    async def test_a_range_reports_the_objects_real_length_not_the_slices(self):
+        """Content-Range built from the slice would tell the browser the file
+        is as long as the piece it just received -- which is how a seek bar
+        claims a two-minute call lasted four seconds."""
+        with _authorized(), self._opened(total=1024, start=100), _audited():
+            response = await stream_artifact(
+                request=SimpleNamespace(),
+                key="recordings/336.wav",
+                range_header="bytes=100-199",
+                user=_user(),
+            )
+        assert response.status_code == 206
+        assert response.headers["content-range"] == "bytes 100-199/1024"
+        assert response.headers["content-length"] == "100"
+
+    @pytest.mark.asyncio
+    async def test_an_open_ended_range_runs_to_the_end_of_the_object(self):
+        with _authorized(), self._opened(total=1024, start=512), _audited():
+            response = await stream_artifact(
+                request=SimpleNamespace(),
+                key="recordings/336.wav",
+                range_header="bytes=512-",
+                user=_user(),
+            )
+        assert response.headers["content-range"] == "bytes 512-1023/1024"
+
+    @pytest.mark.asyncio
+    async def test_another_accounts_recording_never_reaches_storage(self):
+        opens = AsyncMock()
+        denied = AsyncMock(side_effect=HTTPException(status_code=403, detail="no"))
+        with (
+            patch("api.routes.s3_signed_url._authorize_and_get_workflow_run", denied),
+            patch(
+                "api.routes.s3_signed_url.storage_fs",
+                SimpleNamespace(aopen_range=opens),
+            ),
+        ):
+            with pytest.raises(HTTPException) as raised:
+                await stream_artifact(
+                    request=SimpleNamespace(),
+                    key="recordings/336.wav",
+                    user=_user(),
+                )
+        assert raised.value.status_code == 403
+        opens.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_a_missing_recording_is_404_not_a_silent_empty_stream(self):
+        with (
+            _authorized(),
+            patch(
+                "api.routes.s3_signed_url.storage_fs",
+                SimpleNamespace(aopen_range=AsyncMock(return_value=None)),
+            ),
+            _audited(),
+        ):
+            with pytest.raises(HTTPException) as raised:
+                await stream_artifact(
+                    request=SimpleNamespace(),
+                    key="recordings/336.wav",
+                    user=_user(),
+                )
+        assert raised.value.status_code == 404
