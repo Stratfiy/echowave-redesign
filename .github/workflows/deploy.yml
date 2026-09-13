@@ -133,10 +133,24 @@ jobs:
           # so the next deploy starts from the old script again — a loop in
           # which a fix to this script can never take effect.
           #
-          # Copying first costs nothing and breaks it. This workflow file is
-          # read by Actions from the commit being deployed, so unlike the
-          # script it cannot be undone by a checkout mid-run, which is why the
-          # fix belongs here rather than in the script it is fixing.
+          # `git show FETCH_HEAD:<path>`, not `cp`. A copy taken here would be
+          # a copy of the script ALREADY ON DISK — which, after a failed
+          # deploy has rolled the tree back, is the old one again. That is the
+          # loop: the fix to the script is on the commit being deployed, and
+          # the script that runs is the one the last rollback restored, so it
+          # never arrives.
+          #
+          # `show` reads the file straight out of the fetched commit without
+          # touching the working tree, so the NEW script runs while the tree is
+          # still on the OLD commit. That ordering is load-bearing: ci_deploy.sh
+          # captures PREVIOUS_SHA from the tree before it checks anything out,
+          # and checking out here first would make the rollback target the
+          # commit being deployed.
+          #
+          # This workflow file is read by Actions from the commit being
+          # deployed, so unlike the script it cannot be undone by a rollback —
+          # which is why the fix belongs here rather than in the script it is
+          # fixing.
           jq -n \
             --arg dir "$PROJECT_DIR" \
             --arg ref "$DEPLOY_REF" \
@@ -146,7 +160,8 @@ jobs:
                "export HOME=\"${HOME:-/root}\"",
                "git config --system --replace-all safe.directory \"*\" || true",
                "cd \($dir)",
-               "cp \($dir)/scripts/ci_deploy.sh /tmp/ci_deploy.running.sh",
+               "git -C \($dir) fetch --prune origin \($ref)",
+               "git -C \($dir) show FETCH_HEAD:echowave/scripts/ci_deploy.sh > /tmp/ci_deploy.running.sh",
                "REF=\($ref) PROJECT_DIR=\($dir) RUN_AS=\($user) bash /tmp/ci_deploy.running.sh"
              ]}' > /tmp/ssm-params.json
 

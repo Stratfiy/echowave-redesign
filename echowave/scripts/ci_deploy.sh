@@ -104,11 +104,36 @@ git -C "$GIT_DIR" fetch --prune --recurse-submodules origin "$REF"
 PREVIOUS_SHA="$(git -C "$GIT_DIR" rev-parse HEAD)"
 say "Currently on $PREVIOUS_SHA — rolling back to this if the deploy fails"
 
-git -C "$GIT_DIR" checkout --detach "origin/$REF" 2>/dev/null \
-  || git -C "$GIT_DIR" checkout --detach "$REF"
+# Check out what was just fetched, and prove it.
+#
+# This line used to read:
+#
+#     git checkout --detach "origin/$REF" 2>/dev/null || git checkout --detach "$REF"
+#
+# and it deployed the wrong commit on every single run. `2>/dev/null` hid why
+# the first form failed, and the fallback checked out the *local* branch of
+# that name — which on this box nobody has ever updated, because the deploy
+# only ever detaches. It was frozen at 8d9c9c5, 243 commits behind main and
+# older than the rollback target.
+#
+# So the box built ancient code, the api exited 255 against a database 243
+# commits ahead of it, and the deploy rolled back and reported a failure that
+# looked like a bad build. Four deploys were spent on that, and the log said
+# "Now on 8d9c9c5" every time.
+#
+# FETCH_HEAD is what the fetch above actually retrieved, so there is no second
+# name to get stale. The error is no longer swallowed, and the assertion is
+# the part that matters: a deploy that silently ships a different commit than
+# it was asked for is worse than one that stops.
+TARGET_SHA="$(git -C "$GIT_DIR" rev-parse FETCH_HEAD)"
+git -C "$GIT_DIR" checkout --detach "$TARGET_SHA"
 git -C "$GIT_DIR" submodule update --init --recursive
 
 NEW_SHA="$(git -C "$GIT_DIR" rev-parse HEAD)"
+if [ "$NEW_SHA" != "$TARGET_SHA" ]; then
+    say "REFUSING TO DEPLOY — asked for $REF ($TARGET_SHA) but the tree is on $NEW_SHA"
+    exit 1
+fi
 say "Now on $NEW_SHA"
 
 # The revision the database is actually at, or empty if it cannot be read.

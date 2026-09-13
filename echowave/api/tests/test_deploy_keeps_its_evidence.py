@@ -102,3 +102,74 @@ class TestCredentialsNeverReachTheDeployLog:
     def test_it_leaves_a_line_with_no_url_alone(self):
         out = self._redact("Traceback (most recent call last):\n")
         assert out.strip() == "Traceback (most recent call last):"
+
+
+class TestTheDeployShipsTheCommitItWasAskedFor:
+    """The box deployed a commit 243 behind main, on every run, for months.
+
+    The checkout read::
+
+        git checkout --detach "origin/$REF" 2>/dev/null || git checkout --detach "$REF"
+
+    `2>/dev/null` hid why the first form failed, and the fallback checked out
+    the *local* branch of that name — which nobody on that box has ever
+    updated, because the deploy only ever detaches. It sat at 8d9c9c5, older
+    than the rollback target. The api then exited 255 against a database 243
+    commits ahead of the code, and the failure read as a bad build.
+    """
+
+    def test_it_checks_out_what_it_just_fetched(self):
+        assert "FETCH_HEAD" in _source()
+
+    def test_it_no_longer_falls_back_to_a_local_branch(self):
+        # The fallback is the whole bug: a name that resolves locally and is
+        # never updated will always resolve, and always to the wrong thing.
+        #
+        # Comments are skipped deliberately — the note above the fix quotes the
+        # old line, and a test that cannot tell an explanation from an
+        # instruction would force the explanation to be deleted.
+        code = [
+            line for line in _source().splitlines() if not line.strip().startswith("#")
+        ]
+        for line in code:
+            assert 'checkout --detach "$REF"' not in line
+
+    def test_it_does_not_swallow_the_checkout_error(self):
+        checkout_lines = [
+            line
+            for line in _source().splitlines()
+            if "checkout --detach" in line and not line.strip().startswith("#")
+        ]
+        assert checkout_lines, "the checkout disappeared"
+        for line in checkout_lines:
+            assert "2>/dev/null" not in line
+
+    def test_it_refuses_to_deploy_a_different_commit_than_asked_for(self):
+        # Shipping the wrong commit quietly is worse than stopping.
+        source = _source()
+        assert 'if [ "$NEW_SHA" != "$TARGET_SHA" ]' in source
+        assert "REFUSING TO DEPLOY" in source
+
+
+class TestTheWorkflowRunsTheNewScript:
+    """The loop that stopped every fix to the deploy from ever running."""
+
+    WORKFLOW = SCRIPT.parents[2] / ".github" / "workflows" / "deploy.yml"
+
+    def _workflow(self) -> str:
+        return self.WORKFLOW.read_text()
+
+    def test_it_reads_the_script_out_of_the_fetched_commit(self):
+        # Not `cp`: a copy is of the file already on disk, which after a
+        # rollback is the old one again — so the fix never arrives.
+        assert "show FETCH_HEAD:echowave/scripts/ci_deploy.sh" in self._workflow()
+
+    def test_it_does_not_check_out_before_running_the_script(self):
+        # Ordering is load-bearing. ci_deploy.sh captures PREVIOUS_SHA from the
+        # tree before it checks anything out; checking out in the workflow
+        # first would make the rollback target the commit being deployed.
+        commands = self._workflow().split("{commands:", 1)[1].split("]}", 1)[0]
+        assert "checkout" not in commands
+
+    def test_it_still_runs_the_script_from_tmp(self):
+        assert "bash /tmp/ci_deploy.running.sh" in self._workflow()
