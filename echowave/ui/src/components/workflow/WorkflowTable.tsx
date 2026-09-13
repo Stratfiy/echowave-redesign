@@ -110,7 +110,7 @@ interface WorkflowTableProps {
     workflows: Workflow[];
     showArchived: boolean;
     /**
-     * When provided, each row gets a "Move to folder" action listing these
+     * When provided, each row gets a "Move to channel" action listing these
      * folders. Omit it (e.g. for the archived list) to hide the control.
      */
     folders?: FolderResponse[];
@@ -347,7 +347,7 @@ export function WorkflowTable({
                                                     </Button>
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end" className="w-52">
-                                                    <DropdownMenuLabel>Move to folder</DropdownMenuLabel>
+                                                    <DropdownMenuLabel>Move to channel</DropdownMenuLabel>
                                                     <DropdownMenuSeparator />
                                                     <DropdownMenuItem
                                                         disabled={currentFolderId === null}

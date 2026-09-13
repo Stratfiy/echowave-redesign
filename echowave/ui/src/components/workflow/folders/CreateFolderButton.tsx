@@ -20,7 +20,7 @@ export function CreateFolderButton() {
             // 409 = duplicate name; surface the server's message when present.
             const detail =
                 (response.error as { detail?: string })?.detail ??
-                'Failed to create folder';
+                'Failed to create channel';
             toast.error(detail);
             throw new Error(detail);
         }
@@ -37,7 +37,7 @@ export function CreateFolderButton() {
             <FolderFormDialog
                 open={isOpen}
                 onOpenChange={setIsOpen}
-                title="Create folder"
+                title="Create channel"
                 submitLabel="Create"
                 onSubmit={handleCreate}
             />

@@ -8,9 +8,15 @@
  * theme-aware one with a "Workflow Settings" eyebrow above the name, which
  * stopped being true the moment the tabs below it covered Tools and Logs too.
  *
- * So: one bar, the agent's name, and the way back. The canvas keeps its own —
- * it carries save, publish, test and version history, which none of these
- * have, and its darkness belongs to the node editor rather than to the agent.
+ * So: one bar, the agent's name, and the way back. The canvas keeps its own,
+ * because it carries save, publish, test and version history and none of these
+ * do.
+ *
+ * That bar used to be dark, on the reasoning that darkness belonged to the
+ * node editor. It does not any more: the rail is the app's chrome now, and a
+ * second dark surface beside it made the agent screen read as two frames with
+ * the content squeezed between them. Chrome is the rail; everything inside it
+ * is content and takes the content surface, including the editor's own header.
  */
 
 "use client";

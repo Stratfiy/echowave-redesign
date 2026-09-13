@@ -60,7 +60,7 @@ interface FolderSectionProps {
     /** Required when kind === 'folder'; ignored otherwise. */
     folder?: FolderResponse | null;
     workflows: WorkflowListResponse[];
-    /** All folders, passed through so each row's "Move to folder" menu has targets. */
+    /** All folders, passed through so each row's "Move to channel" menu has targets. */
     allFolders?: FolderResponse[];
     /** Defaults to open only for Uncategorized; folders and Archived start collapsed. */
     defaultOpen?: boolean;
@@ -93,11 +93,11 @@ export function FolderSection({
         if (response.error) {
             const detail =
                 (response.error as { detail?: string })?.detail ??
-                'Failed to rename folder';
+                'Failed to rename channel';
             toast.error(detail);
             throw new Error(detail);
         }
-        toast.success('Folder renamed');
+        toast.success('Channel renamed');
         router.refresh();
     };
 
@@ -109,14 +109,14 @@ export function FolderSection({
                 path: { folder_id: folder.id },
             });
             if (response.error) {
-                throw new Error('Failed to delete folder');
+                throw new Error('Failed to delete channel');
             }
-            toast.success(`Folder "${folder.name}" deleted`);
+            toast.success(`Channel "${folder.name}" deleted`);
             setConfirmDelete(false);
             router.refresh();
         } catch (err) {
             logger.error(`Error deleting folder: ${err}`);
-            toast.error('Failed to delete folder');
+            toast.error('Failed to delete channel');
         } finally {
             setIsDeleting(false);
         }
@@ -167,7 +167,7 @@ export function FolderSection({
                                     variant="ghost"
                                     size="icon"
                                     className="h-8 w-8 text-muted-foreground"
-                                    aria-label="Folder actions"
+                                    aria-label="Channel actions"
                                 >
                                     <MoreVertical size={16} />
                                 </Button>
@@ -204,7 +204,7 @@ export function FolderSection({
                                 {isArchived
                                     ? 'No archived agents.'
                                     : isFolder
-                                      ? 'This folder is empty. Use “Move to folder” on an agent to add it here.'
+                                      ? 'This channel is empty. Use “Move to channel” on a bot to add it here.'
                                       : 'No uncategorized agents.'}
                             </div>
                         )}
@@ -217,7 +217,7 @@ export function FolderSection({
                     <FolderFormDialog
                         open={isRenaming}
                         onOpenChange={setIsRenaming}
-                        title="Rename folder"
+                        title="Rename channel"
                         initialName={folder.name}
                         submitLabel="Rename"
                         onSubmit={handleRename}
@@ -243,7 +243,7 @@ export function FolderSection({
                                     disabled={isDeleting}
                                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                 >
-                                    {isDeleting ? 'Deleting...' : 'Delete folder'}
+                                    {isDeleting ? 'Deleting...' : 'Delete channel'}
                                 </AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>
