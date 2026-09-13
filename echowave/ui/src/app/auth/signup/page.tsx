@@ -197,7 +197,7 @@ function LegalLinks() {
       </a>{" "}
       and{" "}
       <a
-        href="https://decibyl.ai/privacy"
+        href="https://decibyl.ai/legal/privacy"
         target="_blank"
         rel="noreferrer"
         className="font-medium text-foreground underline-offset-4 hover:underline"

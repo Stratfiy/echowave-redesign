@@ -60,14 +60,24 @@ AGREEMENTS: tuple[Agreement, ...] = (
     Agreement(
         key="dpa",
         title="Data Processing Agreement",
-        version="2026-07",
+        # Bumped because the page this points at returned 404 until it was
+        # published. Every acceptance recorded before that is an acceptance of
+        # a document the customer demonstrably could not read, which is the
+        # "terms accessible before acceptance" limb failing -- and a stored row
+        # saying otherwise is evidence against us, not for us. Asking again is
+        # the only way to hold a defensible acceptance.
+        version="2026-09",
         url="https://decibyl.ai/legal/dpa",
         required=True,
     ),
     Agreement(
         key="terms",
         title="Terms of Service",
-        version="2026-07",
+        # Bumped for the acceptable use policy: twelve prohibitions that were
+        # drafted but never published, including medical advice, emergency
+        # reliance, and advice needing SEBI/IRDAI registration. That changes
+        # what a customer is agreeing to, so every account is asked again.
+        version="2026-09",
         url="https://decibyl.ai/legal/terms",
         required=True,
     ),
