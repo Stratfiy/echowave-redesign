@@ -173,3 +173,92 @@ class TestTheWorkflowRunsTheNewScript:
 
     def test_it_still_runs_the_script_from_tmp(self):
         assert "bash /tmp/ci_deploy.running.sh" in self._workflow()
+
+
+class TestAnUntrackedFileDoesNotStopTheDeploy:
+    """The next thing that was in the way, once the deploy stopped lying.
+
+    Run 253 -- the first deploy on the FETCH_HEAD fix -- got eleven seconds in
+    and said::
+
+        error: The following untracked working tree files would be
+        overwritten by checkout:
+            echowave/scripts/cutover_to_managed_postgres.sh
+
+    Which is git being right. A script was written onto the box by hand during
+    this morning's RDS cutover and committed to the repo afterwards, so from
+    the moment that commit landed, every checkout aborted on a file whose
+    tracked version is the one everybody wants. Nothing about it is rare: it
+    is what happens after any incident somebody scripted their way out of.
+    """
+
+    def test_the_collision_is_handled_rather_than_hit(self):
+        source = _source()
+        assert "checkout --detach" in source
+        assert ".deploy-displaced" in source
+
+    def test_the_displaced_file_is_moved_and_not_deleted(self):
+        """The box's copy may be the only record of what was actually run
+        during an incident. A deploy does not get to delete that."""
+        source = _source()
+        assert "mv " in source
+        code = [
+            line for line in source.splitlines() if not line.strip().startswith("#")
+        ]
+        for line in code:
+            # `git clean -fd` would take the cutover dump directories with it.
+            assert "git clean" not in line
+            assert "rm -rf" not in line
+
+    def test_it_parses_the_paths_out_of_a_real_git_refusal(self):
+        """The load-bearing half, run rather than read.
+
+        git prints the offending paths tab-indented under a sentence. If that
+        extraction is wrong the script moves nothing, the second checkout
+        fails exactly as the first did, and the deploy is back where it
+        started -- with a log that now claims it handled the case.
+        """
+        import re
+        import subprocess
+        import tempfile
+        from pathlib import Path as _Path
+
+        extractor = re.search(r"\| *(sed -n [^\n]*p')", _source())
+        assert extractor, "the collision extractor is no longer a sed expression"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _Path(tmp)
+            run = lambda *a: subprocess.run(  # noqa: E731
+                a, cwd=repo, capture_output=True, text=True
+            )
+            run("git", "init", "-q", "-b", "main")
+            run("git", "config", "user.email", "t@t")
+            run("git", "config", "user.name", "t")
+            (repo / "keep.txt").write_text("base\n")
+            run("git", "add", "-A")
+            run("git", "commit", "-qm", "base")
+            base = run("git", "rev-parse", "HEAD").stdout.strip()
+
+            # A commit that ships the file, exactly like the cutover script.
+            (repo / "scripts").mkdir()
+            (repo / "scripts" / "cutover.sh").write_text("tracked\n")
+            run("git", "add", "-A")
+            run("git", "commit", "-qm", "ships the script")
+            target = run("git", "rev-parse", "HEAD").stdout.strip()
+
+            # Back to the base commit, then put an untracked copy in its place
+            # -- the state the box was actually in.
+            run("git", "checkout", "-q", "--detach", base)
+            (repo / "scripts").mkdir(exist_ok=True)
+            (repo / "scripts" / "cutover.sh").write_text("written by hand\n")
+
+            collisions = subprocess.run(
+                f'git checkout --detach "{target}" 2>&1 >/dev/null | '
+                + extractor.group(1),
+                cwd=repo,
+                shell=True,
+                capture_output=True,
+                text=True,
+            ).stdout.split()
+
+            assert collisions == ["scripts/cutover.sh"], collisions
