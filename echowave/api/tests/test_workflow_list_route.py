@@ -32,6 +32,7 @@ def test_workflow_fetch_list_includes_workflow_uuid():
         folder_id=3,
         workflow_uuid="workflow-uuid-123",
         is_live=True,
+        handle="sales-agent",
     )
 
     with patch("api.routes.workflow.db_client") as mock_db:
@@ -54,6 +55,12 @@ def test_workflow_fetch_list_includes_workflow_uuid():
             "total_runs": 9,
             "folder_id": workflow.folder_id,
             "workflow_uuid": workflow.workflow_uuid,
+            # The address @mentions resolve against, which is why it rides the
+            # list: the list is where somebody reads the roster and works out
+            # what to type. Accessed as an attribute rather than through a
+            # getattr default, so a handle dropped from the listing query
+            # fails here instead of turning every bot's address into null.
+            "handle": workflow.handle,
             # Read from the agent's current version, so the list can show
             # squads apart from single agents without loading definitions.
             "is_squad": True,

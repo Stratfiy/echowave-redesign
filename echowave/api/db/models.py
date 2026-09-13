@@ -841,6 +841,24 @@ class WorkflowModel(Base):
     )
     folder = relationship("FolderModel", back_populates="workflows")
     name = Column(String, index=True, nullable=False)
+    # What people type to address this bot, as distinct from what it is called.
+    #
+    # The two jobs pull in opposite directions. A display name is written by a
+    # person and says what the bot is -- "Narayani Dental front desk". A handle
+    # is typed by a person mid-sentence and has to be unique, short and above
+    # all *stable*: deriving it from the name would mean a rename silently
+    # changes the bot's address and every message that referenced it is
+    # addressing nothing.
+    #
+    # Nullable on purpose. A bot with no handle yet cannot be @-mentioned and
+    # is otherwise entirely normal; NOT NULL here would make an insert fail on
+    # any path that has not been taught about handles, and the path that
+    # matters most is the one creating a customer's first agent.
+    #
+    # Unique per organisation, enforced by the partial index
+    # ix_workflows_organization_handle rather than by a column constraint,
+    # because NULL must stay repeatable.
+    handle = Column(String(64), nullable=True, index=True)
     status = Column(
         Enum(*[status.value for status in WorkflowStatus], name="workflow_status"),
         nullable=False,
