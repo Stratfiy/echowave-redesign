@@ -12,6 +12,7 @@ import {
     listContactsApiV1ContactListsContactListIdContactsGet,
 } from "@/client/sdk.gen";
 import type { ContactListResponse, ContactResponse } from "@/client/types.gen";
+import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -170,17 +171,12 @@ export default function ContactsPage() {
     const selected = lists.find((l) => l.id === selectedId) ?? null;
 
     return (
-        <div className="mx-auto max-w-6xl space-y-6 p-6">
-            <div>
-                <h1 className="text-2xl font-semibold">Contacts</h1>
-                <p className="text-sm text-muted-foreground">
-                    Lists an inbound number matches its callers against. When a
-                    caller is recognised, everything you know about them is
-                    loaded before the agent speaks — attach a list on the
-                    number, under Telephony.
-                </p>
-            </div>
-
+        <>
+            <PageHeader
+                title="Contacts"
+                description="Lists an inbound number matches its callers against. When a caller is recognised, everything you know about them is loaded before the agent speaks — attach a list on the number, under Telephony."
+            />
+            <PageBody className="mx-auto max-w-6xl space-y-6">
             <div className="grid gap-6 md:grid-cols-[16rem_1fr]">
                 <div className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -382,6 +378,7 @@ export default function ContactsPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div>
+            </PageBody>
+        </>
     );
 }

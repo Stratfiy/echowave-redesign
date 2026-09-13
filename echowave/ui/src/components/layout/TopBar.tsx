@@ -121,7 +121,7 @@ function GlobalSearch() {
 
   return (
     <div ref={wrapRef} className="relative w-full max-w-xl">
-      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-rail-foreground/60" />
       <Input
         ref={inputRef}
         value={query}
@@ -133,7 +133,7 @@ function GlobalSearch() {
         onKeyDown={onKeyDown}
         placeholder="Search pages…"
         aria-label="Search pages"
-        className="h-9 rounded-full border-transparent bg-muted pl-9 pr-3 text-sm shadow-none focus-visible:border-input focus-visible:bg-card"
+        className="h-9 rounded-full border-transparent bg-white/10 pl-9 pr-3 text-sm text-rail-foreground shadow-none placeholder:text-rail-foreground/60 focus-visible:border-rail-accent focus-visible:bg-white/15"
       />
       {open && query.trim() !== "" && (
         <div className="absolute left-0 right-0 top-11 z-50 overflow-hidden rounded-xl border border-border bg-popover py-1 shadow-[var(--shadow-raised)]">
@@ -193,7 +193,7 @@ export function TopBar() {
       .join("") || "U";
 
   return (
-    <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-3 bg-[var(--background)]/85 px-4 backdrop-blur-sm">
+    <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-3 bg-rail px-4 text-rail-foreground">
       <Button
         variant="ghost"
         size="icon"

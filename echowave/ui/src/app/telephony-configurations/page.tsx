@@ -24,8 +24,9 @@ import type {
   TelephonyConfigurationDetail,
   TelephonyConfigurationListItem,
 } from "@/client/types.gen";
+import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import { TELEPHONY_TABS } from "@/components/layout/SectionTabs";
 import { ConfigFormDialog } from "@/components/telephony/ConfigFormDialog";
-import { TelephonyTabs } from "@/components/telephony/TelephonyTabs";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -151,28 +152,30 @@ export default function TelephonyConfigurationsPage() {
 
   return (
     <div className="min-h-screen">
-      <TelephonyTabs />
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex items-start justify-between gap-4 mb-6">
-          <div>
-            <h1 className="mb-2 text-[26px] leading-tight">Phone numbers</h1>
-            <p className="text-muted-foreground">
-              Connect one or more telephony provider accounts. Each campaign uses one
-              configuration; inbound calls are routed to the right one by account ID.{" "}
-              <a
-                href="https://docs.decibyl.ai/integrations/telephony/overview"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-0.5 underline"
-              >
-                Learn more <ExternalLink className="h-3 w-3" />
-              </a>
-            </p>
-          </div>
+      <PageHeader
+        tabs={TELEPHONY_TABS}
+        title="Phone numbers"
+        description={
+          <>
+            Connect one or more telephony provider accounts. Each campaign uses one
+            configuration; inbound calls are routed to the right one by account ID.{" "}
+            <a
+              href="https://docs.decibyl.ai/integrations/telephony/overview"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-0.5 underline"
+            >
+              Learn more <ExternalLink className="h-3 w-3" />
+            </a>
+          </>
+        }
+        actions={
           <Button onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4 mr-2" /> Add configuration
           </Button>
-        </div>
+        }
+      />
+      <PageBody>
 
         {telnyxMissingWebhookPublicKeyCount > 0 && (
           <div className="mb-6 rounded-md border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
@@ -320,7 +323,7 @@ export default function TelephonyConfigurationsPage() {
             ))}
           </div>
         )}
-      </div>
+      </PageBody>
 
       <ConfigFormDialog
         open={createOpen}

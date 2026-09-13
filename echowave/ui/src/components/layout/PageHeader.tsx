@@ -32,30 +32,45 @@ interface PageHeaderProps {
 }
 
 export function PageTabs({ tabs }: { tabs: PageTab[] }) {
-  const pathname = usePathname();
+  // Null outside the app router (unit tests render pages bare), and a strip
+  // with nothing lit is the right answer there.
+  const pathname = usePathname() ?? "";
 
   return (
-    <nav className="-mb-px flex items-center gap-1 overflow-x-auto" aria-label="Section">
+    // The strip carries the rule under it, so a page needs only to hand
+    // `PageHeader` its tabs to get the underline that separates the header
+    // band from the content.
+    <nav
+      className="w-full overflow-x-auto border-b border-border/70"
+      aria-label="Section"
+    >
+      <ul className="-mb-px flex min-w-max items-center gap-1 px-6">
       {tabs.map((tab) => {
         const active = tab.prefix
           ? pathname.startsWith(tab.href)
           : pathname === tab.href;
         return (
-          <Link
-            key={tab.href}
-            href={tab.href}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "whitespace-nowrap border-b-2 px-3 py-2.5 text-sm transition-colors",
-              active
-                ? "border-primary font-medium text-foreground"
-                : "border-transparent text-muted-foreground hover:border-border hover:text-foreground"
-            )}
-          >
-            {tab.label}
-          </Link>
+          <li key={tab.href}>
+            <Link
+              href={tab.href}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "-mb-px inline-block border-b-2 px-3 py-2.5 text-sm whitespace-nowrap transition-colors",
+                // The brand coral, not `--primary`. `--primary` is #171717 —
+                // near-black, and a near-black underline on a near-black label
+                // does not read as "this one". The section strip already used
+                // the accent; this is the same strip now.
+                active
+                  ? "border-[var(--accent-brand)] font-medium text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {tab.label}
+            </Link>
+          </li>
         );
       })}
+      </ul>
     </nav>
   );
 }
@@ -90,11 +105,10 @@ export function PageHeader({
           )}
         </div>
       </div>
-      {tabs && tabs.length > 0 && (
-        <div className="px-6">
-          <PageTabs tabs={tabs} />
-        </div>
-      )}
+      {/* Full-bleed: the rule under the strip runs the width of the content
+          well, so the header band ends on a line rather than on a gap. The
+          gutter is on the tabs themselves. */}
+      {tabs && tabs.length > 0 && <PageTabs tabs={tabs} />}
     </div>
   );
 }

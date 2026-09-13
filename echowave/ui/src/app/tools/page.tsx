@@ -13,7 +13,8 @@ import {
 import type { CreateToolRequest, ToolResponse } from "@/client/types.gen";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { CredentialSelector } from "@/components/http";
-import { IntegrationsTabs } from "@/components/integrations/IntegrationsTabs";
+import { useIntegrationsTabs } from "@/components/integrations/integrationsTabs";
+import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import {
     type LibraryTool,
     ToolLibraryDialog,
@@ -60,6 +61,7 @@ import {
 } from "./config";
 
 export default function ToolsPage() {
+    const integrationsTabs = useIntegrationsTabs();
     const { user, getAccessToken, redirectToLogin, loading } = useAuth();
     const router = useRouter();
 
@@ -357,7 +359,7 @@ export default function ToolsPage() {
     if (loading || !user) {
         return (
             <>
-                <IntegrationsTabs />
+                <PageHeader tabs={integrationsTabs} title="Tools" />
                 <div className="min-h-screen flex items-center justify-center">
                     <div className="space-y-4">
                         <Skeleton className="h-12 w-64" />
@@ -370,21 +372,22 @@ export default function ToolsPage() {
 
     return (
         <>
-        <IntegrationsTabs />
+        <PageHeader
+            tabs={integrationsTabs}
+            title="Tools"
+            description={
+                <>
+                    Manage reusable tools that can be used across your workflows.{" "}
+                    <a href="https://docs.decibyl.ai/voice-agent/tools/introduction" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline">
+                        Learn more <ExternalLink className="h-3 w-3" />
+                    </a>
+                </>
+            }
+        />
         <div className="min-h-screen">
             {confirmDialog}
-            <div className="container mx-auto px-4 py-8">
+            <PageBody>
                 <div className="max-w-6xl mx-auto">
-                    <div className="mb-8">
-                        <h1 className="text-3xl font-bold mb-2">Tools</h1>
-                        <p className="text-muted-foreground">
-                            Manage reusable tools that can be used across your workflows.{" "}
-                            <a href="https://docs.decibyl.ai/voice-agent/tools/introduction" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline">
-                                Learn more <ExternalLink className="h-3 w-3" />
-                            </a>
-                        </p>
-                    </div>
-
                     {error && (
                         <div className="mb-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive">
                             {error}
@@ -577,7 +580,7 @@ export default function ToolsPage() {
                         </CardContent>
                     </Card>
                 </div>
-            </div>
+            </PageBody>
 
             {/* Create Tool Dialog */}
             <ToolLibraryDialog

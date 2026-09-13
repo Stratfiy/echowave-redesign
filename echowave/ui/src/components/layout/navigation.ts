@@ -138,11 +138,20 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       // properties of an agent, chosen on its Models tab. The workspace
       // default is a setting, under Settings → Model defaults.
       {
-        // "Team". They are listed like people, with a line saying what each
-        // one just did, and they are hired rather than built -- so the rail
-        // should call them what the rest of the product calls them. "Agents"
-        // is kept as a search keyword because it is what somebody types.
-        title: "Team",
+        // "Bots", not "Team", and not because "Team" was unfriendly.
+        //
+        // It meant three different things in one product: this list of bots,
+        // `organization_members` (the people), and the Hire-an-Expert form
+        // (hiring a human). A word that names three things names none of
+        // them, and the one it named least well is this one -- a list of
+        // software you hired, shown with a line about what each just did.
+        //
+        // Channels are the groups inside this list. A bot belongs to at most
+        // one, which is what `WorkflowModel.folder_id` has always modelled.
+        //
+        // "agents" and "team" both stay as search keywords: a rename that
+        // makes a destination unsearchable is a rename that loses it.
+        title: "Bots",
         url: "/workflow",
         // The old models page redirects here; keep it lit while it does.
         activePaths: ["/model-configurations"],
@@ -153,6 +162,8 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
           // is a rename that loses it.
           "agents",
           "agent",
+          "team",
+          "bots",
           "workflow",
           "voice agent",
           "builder",

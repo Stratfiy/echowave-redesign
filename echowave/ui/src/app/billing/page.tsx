@@ -43,7 +43,7 @@ import {
 import { AutoTopupSection } from "@/components/billing/AutoTopupSection";
 import { PlanSection } from "@/components/billing/PlanSection";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
-import { BILLING_TABS, SectionTabs } from "@/components/layout/SectionTabs";
+import { BILLING_TABS } from "@/components/layout/SectionTabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -506,8 +506,8 @@ export default function BillingPage() {
      */
     const shell = (body: ReactNode) => (
         <>
-            <SectionTabs tabs={BILLING_TABS} label="Billing" />
             <PageHeader
+                tabs={BILLING_TABS}
                 title="Billing"
                 description="Decibyl is prepaid. Calls run while there is credit on the account."
             />

@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getCampaignsApiV1CampaignGet } from '@/client/sdk.gen';
 import type { CampaignsResponse } from '@/client/types.gen';
 import { EmptyState } from '@/components/EmptyState';
+import { PageBody, PageHeader } from '@/components/layout/PageHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -95,21 +96,18 @@ export default function CampaignsPage() {
     };
 
     return (
-        <div className="container mx-auto p-6 space-y-6">
-            {/* Wraps rather than overflowing: the button is 172px and the
-                narrowest phone we support is 320px, so on one line the two
-                together pushed the whole page sideways. */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                    <h1 className="text-3xl font-bold mb-2">Campaigns</h1>
-                    <p>Manage your bulk workflow execution campaigns</p>
-                </div>
-                <Button onClick={handleCreateCampaign}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Campaign
-                </Button>
-            </div>
-
+        <>
+            <PageHeader
+                title="Campaigns"
+                description="Manage your bulk workflow execution campaigns"
+                actions={
+                    <Button onClick={handleCreateCampaign}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Create Campaign
+                    </Button>
+                }
+            />
+            <PageBody>
                 <Card>
                     <CardHeader>
                         <CardTitle>All Campaigns</CardTitle>
@@ -189,6 +187,7 @@ export default function CampaignsPage() {
                         )}
                     </CardContent>
                 </Card>
-        </div>
+            </PageBody>
+        </>
     );
 }

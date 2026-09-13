@@ -30,7 +30,8 @@ import {
     submitKycApiV1KycSubmitPost,
     uploadDocumentApiV1KycDocumentsPost,
 } from "@/client/sdk.gen";
-import { TelephonyTabs } from "@/components/telephony/TelephonyTabs";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { TELEPHONY_TABS } from "@/components/layout/SectionTabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -268,19 +269,12 @@ export default function VerificationPage() {
 
     return (
         <div className="glass-canvas min-h-full">
-            <TelephonyTabs />
-            <div className="mx-auto w-full max-w-3xl px-6 pb-12 pt-8">
-                <header className="mb-6">
-                    <h1 className="text-[2.125rem] font-semibold leading-[1.1] tracking-[-0.045em] text-foreground">
-                        Telephony verification
-                    </h1>
-                    <p className="mt-1.5 text-[0.9375rem] leading-relaxed tracking-[-0.011em] text-muted-foreground">
-                        Indian regulation requires the licensed telecom operator to verify
-                        every business using a phone number. Testing your agent in the
-                        browser needs none of this.
-                    </p>
-                </header>
-
+            <PageHeader
+                tabs={TELEPHONY_TABS}
+                title="Telephony verification"
+                description="Indian regulation requires the licensed telecom operator to verify every business using a phone number. Testing your agent in the browser needs none of this."
+            />
+            <div className="mx-auto w-full max-w-3xl px-6 pb-12 pt-6">
                 {loading ? (
                     <Skeleton className="h-[420px] w-full rounded-2xl" />
                 ) : view && !view.verification_open ? (

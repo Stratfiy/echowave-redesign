@@ -67,7 +67,7 @@ export function FolderFormDialog({
                     <DialogTitle>{title}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-2 py-2">
-                    <Label htmlFor="folder-name">Folder name</Label>
+                    <Label htmlFor="folder-name">Channel name</Label>
                     <Input
                         id="folder-name"
                         value={name}

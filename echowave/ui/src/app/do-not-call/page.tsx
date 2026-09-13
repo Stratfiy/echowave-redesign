@@ -12,7 +12,7 @@ import {
 import type { DoNotCallEntry } from "@/client/types.gen";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
-import { COMPLIANCE_TABS, SectionTabs } from "@/components/layout/SectionTabs";
+import { COMPLIANCE_TABS } from "@/components/layout/SectionTabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -185,8 +185,8 @@ export default function DoNotCallPage() {
   return (
     <>
       {dialog}
-      <SectionTabs tabs={COMPLIANCE_TABS} label="Compliance" />
       <PageHeader
+          tabs={COMPLIANCE_TABS}
         title="Do not call"
         description="Numbers this account will never dial. Checked immediately before every call, including every row of a campaign."
         actions={

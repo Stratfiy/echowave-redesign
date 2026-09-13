@@ -42,7 +42,8 @@ import {
     requestErasureApiV1PrivacyErasurePost,
     setRetentionApiV1PrivacyRetentionPut,
 } from "@/client/sdk.gen";
-import { COMPLIANCE_TABS, SectionTabs } from "@/components/layout/SectionTabs";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { COMPLIANCE_TABS } from "@/components/layout/SectionTabs";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -394,17 +395,13 @@ export default function PrivacyPage() {
 
     return (
         <>
-        <SectionTabs tabs={COMPLIANCE_TABS} label="Compliance" />
-        <div className="flex justify-center py-12 px-4">
+        <PageHeader
+            tabs={COMPLIANCE_TABS}
+            title="Privacy"
+            description="The people you call have rights over their data. These are the tools to honour them."
+        />
+        <div className="flex justify-center px-4 pb-12 pt-6">
             <div className="w-full max-w-4xl space-y-6">
-                <div>
-                    <h1 className="text-[26px] leading-tight">Privacy</h1>
-                    <p className="text-muted-foreground">
-                        The people you call have rights over their data. These are the
-                        tools to honour them.
-                    </p>
-                </div>
-
                 {error && (
                     <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
                         <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />

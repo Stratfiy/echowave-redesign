@@ -1,74 +1,66 @@
 "use client";
 
 /**
- * A tab strip for destinations that share one sidebar entry.
+ * The tab lists for destinations that share one sidebar entry.
  *
  * The sidebar names a job — Calls, Compliance, Knowledge base, Billing — and
  * the screens that make up that job sit a tab apart from each other rather
  * than each taking a row in the navigation. The routes are unchanged: every
- * deep link and bookmark still lands where it did. Same treatment as the
- * telephony strip, which is the pattern this generalises.
+ * deep link and bookmark still lands where it did.
+ *
+ * This file is now only the lists. The strip itself is `PageTabs`, rendered by
+ * `PageHeader` beneath the page title, because there were two tab strips in
+ * this product that looked and sat differently: this one drew its active tab
+ * in `--accent-brand` and hung *above* the `<h1>`, while `PageHeader`'s drew it
+ * in `--primary` and hung below. Whether the title came before or after the
+ * tabs depended on which screen you had clicked, which is the kind of thing a
+ * reader feels without being able to name.
+ *
+ * `prefix: true` on every entry: a detail page keeps its tab lit rather than
+ * dropping the reader out of the section they are standing in.
  */
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import type { PageTab } from "./PageHeader";
 
-import { cn } from "@/lib/utils";
+export type SectionTab = PageTab;
 
-export type SectionTab = { href: string; label: string };
-
-export const CALLS_TABS: SectionTab[] = [
-  { href: "/usage", label: "Calls" },
-  { href: "/reports", label: "Daily reports" },
+export const CALLS_TABS: PageTab[] = [
+  { href: "/usage", label: "Calls", prefix: true },
+  { href: "/reports", label: "Daily reports", prefix: true },
 ];
 
-export const KNOWLEDGE_TABS: SectionTab[] = [
-  { href: "/files", label: "Documents" },
-  { href: "/recordings", label: "Audio clips" },
+export const KNOWLEDGE_TABS: PageTab[] = [
+  { href: "/files", label: "Documents", prefix: true },
+  { href: "/recordings", label: "Audio clips", prefix: true },
 ];
 
-export const COMPLIANCE_TABS: SectionTab[] = [
-  { href: "/privacy", label: "Privacy" },
-  { href: "/do-not-call", label: "Do not call" },
+export const COMPLIANCE_TABS: PageTab[] = [
+  { href: "/privacy", label: "Privacy", prefix: true },
+  { href: "/do-not-call", label: "Do not call", prefix: true },
 ];
 
-export const BILLING_TABS: SectionTab[] = [
-  { href: "/billing", label: "Billing" },
-  { href: "/partner", label: "Partner programme" },
+export const BILLING_TABS: PageTab[] = [
+  { href: "/billing", label: "Billing", prefix: true },
+  { href: "/partner", label: "Partner programme", prefix: true },
 ];
 
-export function SectionTabs({ tabs, label }: { tabs: SectionTab[]; label: string }) {
-  // Null outside the app router (unit tests render pages bare), and a strip
-  // with nothing lit is the right answer there.
-  const pathname = usePathname() ?? "";
-
-  return (
-    <nav aria-label={label} className="w-full overflow-x-auto border-b border-border/70 px-6">
-      <ul className="flex min-w-max gap-1">
-        {tabs.map((tab) => {
-          // startsWith, so a detail page keeps its tab lit rather than dropping
-          // the reader out of the section they are standing in.
-          const active = pathname === tab.href || pathname.startsWith(`${tab.href}/`);
-          return (
-            <li key={tab.href}>
-              <Link
-                href={tab.href}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "-mb-px inline-block border-b-2 px-3 py-2.5 text-sm whitespace-nowrap transition-colors",
-                  active
-                    ? "border-[var(--accent-brand)] font-medium text-foreground"
-                    : "border-transparent text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {tab.label}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
-  );
-}
-
-export default SectionTabs;
+/**
+ * Everything to do with phone numbers.
+ *
+ * Carriers, verification, test numbers and buying a number were four separate
+ * entries in the left navigation — a quarter of it — for a set of screens that
+ * are one job done in sequence: get verified, then buy a number, then point it
+ * at an agent. Presented as peers they read as four unrelated features, and
+ * the order they have to be done in was visible only to somebody who already
+ * knew it.
+ *
+ * Ordered the way the work happens, not alphabetically. A customer arriving
+ * for the first time reads this left to right and gets the sequence.
+ */
+export const TELEPHONY_TABS: PageTab[] = [
+  { href: "/verification", label: "Verification", prefix: true },
+  { href: "/numbers", label: "Get a number", prefix: true },
+  { href: "/telephony-configurations", label: "Carriers & numbers", prefix: true },
+  { href: "/verified-numbers", label: "Test numbers", prefix: true },
+  { href: "/missed-calls", label: "Missed calls", prefix: true },
+];

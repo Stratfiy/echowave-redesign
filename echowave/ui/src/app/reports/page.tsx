@@ -11,7 +11,8 @@ import {
   getWorkflowOptionsApiV1OrganizationsReportsWorkflowsGet
 } from '@/client/sdk.gen';
 import type { WorkflowRunDetail } from '@/client/types.gen';
-import { CALLS_TABS, SectionTabs } from "@/components/layout/SectionTabs";
+import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import { CALLS_TABS } from "@/components/layout/SectionTabs";
 import { Button } from '@/components/ui/button';
 import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 import { Card } from '@/components/ui/card';
@@ -200,15 +201,10 @@ export default function ReportsPage() {
 
   return (
     <>
-    <SectionTabs tabs={CALLS_TABS} label="Calls" />
-    <div className="container mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold">Daily Reports</h1>
-        </div>
-
-        {/* Date Navigation & Workflow Selector */}
+    <PageHeader
+      tabs={CALLS_TABS}
+      title="Daily reports"
+      actions={
         <div className="flex flex-col flex-wrap gap-4 sm:flex-row sm:items-center items-start">
           {/* Workflow Selector */}
           <Select value={selectedWorkflow} onValueChange={setSelectedWorkflow}>
@@ -262,7 +258,9 @@ export default function ReportsPage() {
             </Button>
           </div>
         </div>
-      </div>
+      }
+    />
+    <PageBody className="space-y-6">
 
       {/* Timezone Display and Download Button */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
@@ -331,7 +329,7 @@ export default function ReportsPage() {
           )}
         </>
       )}
-    </div>
+    </PageBody>
     </>
   );
 }
