@@ -11,8 +11,16 @@ The expensive failure here was never silence. It is the wrong bot answering
 confidently, which reads to a customer as the product ignoring what they typed.
 """
 
-from api.services.workflow.mentions import handle_for, resolve
+from api.services.workflow.mentions import (
+    MAX_HANDLE,
+    available_handle,
+    handle_for,
+    resolve,
+)
 
+#: Deliberately carries no ``handle``, so every test written against it also
+#: exercises the fallback for a bot whose handle was never assigned. The stored
+#: column is covered by ``TestTheStoredHandleIsTheAddress`` below.
 ROSTER = [
     {"id": 1, "name": "Ops bot"},
     {"id": 2, "name": "Sales bot"},
@@ -20,6 +28,91 @@ ROSTER = [
     {"id": 4, "name": "Narayani Dental front desk"},
     {"id": 5, "name": "Meera — Decibyl Sales Assistant"},
 ]
+
+
+class TestTheStoredHandleIsTheAddress:
+    """The column decides, not the name.
+
+    This is the whole reason the handle stopped being derived. A business
+    should be able to call its bot "Narayani Dental front desk" -- which is
+    what the people who work there call it -- and still have somebody reach it
+    by typing five characters.
+    """
+
+    def test_the_column_is_what_resolves(self):
+        roster = [{"id": 7, "name": "Narayani Dental front desk", "handle": "front"}]
+        assert resolve("@front are we open?", roster).mentioned == [(7, "front")]
+
+    def test_the_display_name_no_longer_addresses_anything(self):
+        roster = [{"id": 7, "name": "Narayani Dental front desk", "handle": "front"}]
+        result = resolve("@narayani-dental-front-desk hello", roster)
+        assert result.mentioned == []
+        assert result.unknown == ["narayani-dental-front-desk"]
+
+    def test_a_rename_does_not_move_the_address(self):
+        """The failure storing it exists to prevent: a derived handle changes
+        when somebody edits the name, and every message that used the old one
+        is suddenly addressed to nobody."""
+        before = [{"id": 7, "name": "Front desk", "handle": "front-desk"}]
+        after = [{"id": 7, "name": "Reception (Hosur)", "handle": "front-desk"}]
+        assert resolve("@front-desk hello", before).mentioned == [(7, "front-desk")]
+        assert resolve("@front-desk hello", after).mentioned == [(7, "front-desk")]
+
+    def test_case_in_the_stored_handle_does_not_matter(self):
+        roster = [{"id": 7, "name": "Ops", "handle": "Front-Desk"}]
+        assert resolve("@front-desk hi", roster).mentioned == [(7, "front-desk")]
+
+    def test_a_bot_with_no_handle_falls_back_to_its_name(self):
+        """Not tidiness: a bot created on a path that has not been taught to
+        assign a handle would otherwise be addressable by nothing at all, and
+        nobody would find out. The fallback makes that case visible instead."""
+        roster = [{"id": 8, "name": "Ops bot", "handle": None}]
+        assert resolve("@ops-bot hi", roster).mentioned == [(8, "ops-bot")]
+
+    def test_a_stored_handle_and_a_derived_one_can_collide_and_are_refused(self):
+        roster = [
+            {"id": 1, "name": "Something else", "handle": "ops-bot"},
+            {"id": 2, "name": "Ops bot"},
+        ]
+        result = resolve("@ops-bot hi", roster)
+        assert result.mentioned == []
+        assert result.ambiguous == ["ops-bot"]
+
+
+class TestPickingAFreeHandle:
+    def test_the_obvious_handle_when_it_is_free(self):
+        assert available_handle("Ops bot", []) == "ops-bot"
+
+    def test_a_taken_handle_is_numbered_rather_than_refused(self):
+        """The standalone script refused collisions, and that was right when
+        the handle *was* the display name -- picking a winner would have
+        quietly renamed somebody's bot. Nothing is lost now: both keep their
+        names, and the second gets an address instead of none."""
+        assert available_handle("Customer Support", ["customer-support"]) == (
+            "customer-support-2"
+        )
+
+    def test_it_keeps_counting(self):
+        taken = ["customer-support", "customer-support-2"]
+        assert available_handle("Customer Support", taken) == "customer-support-3"
+
+    def test_comparison_ignores_case(self):
+        assert available_handle("Ops bot", ["OPS-BOT"]) == "ops-bot-2"
+
+    def test_a_name_with_nothing_sluggable_gets_no_handle(self):
+        """Empty rather than "workflow-41": an address nobody could guess is
+        no better than no address, and the caller stores NULL."""
+        assert available_handle("!!!", []) == ""
+        assert available_handle("", []) == ""
+
+    def test_a_suffix_never_pushes_it_past_the_column(self):
+        long_name = "a" * 200
+        first = available_handle(long_name, [])
+        assert len(first) <= MAX_HANDLE
+        second = available_handle(long_name, [first])
+        assert len(second) <= MAX_HANDLE
+        assert second != first
+        assert second.endswith("-2")
 
 
 class TestTheHandleADisplayNameEarns:

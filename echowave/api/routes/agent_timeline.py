@@ -244,7 +244,14 @@ async def post_message(
         organization_id=organization_id
     )
     roster = [
-        {"id": workflow.id, "name": workflow.name}
+        {
+            "id": workflow.id,
+            "handle": getattr(workflow, "handle", None),
+            # Carried alongside the handle for the fallback in `resolve`: a bot
+            # whose handle never got assigned is still addressable by the one
+            # its name implies, rather than silently addressable by nothing.
+            "name": workflow.name,
+        }
         for workflow in workflows
         if getattr(workflow, "folder_id", None) == body.folder_id
     ]

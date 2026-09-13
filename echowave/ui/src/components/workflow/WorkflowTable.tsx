@@ -104,6 +104,13 @@ interface Workflow {
     created_at: string;
     total_runs?: number | null;
     folder_id?: number | null;
+    /**
+     * What somebody types to @-mention this bot in a channel. Separate from
+     * `name`, and deliberately not derived from it: an address that changed
+     * when the bot was renamed would break every message that used the old
+     * one. Optional — a bot whose name reduces to nothing sluggable has none.
+     */
+    handle?: string | null;
 }
 
 interface WorkflowTableProps {
@@ -263,6 +270,18 @@ export function WorkflowTable({
                             >
                                 <TableCell className="font-medium">
                                     {workflow.name}
+                                    {/* The address, under the name rather than
+                                        instead of it. A bot is called what the
+                                        business calls it; the handle is the
+                                        short thing you type to reach it in a
+                                        channel, and somebody who never sees it
+                                        here has no way to find out what it
+                                        is. */}
+                                    {workflow.handle && (
+                                        <span className="mt-0.5 block font-normal text-xs text-muted-foreground">
+                                            @{workflow.handle}
+                                        </span>
+                                    )}
                                 </TableCell>
                                 {!showArchived && (
                                     <TableCell className="max-w-[22rem]">

@@ -229,7 +229,6 @@ COPY --chown=decibyl:decibyl \
      ./scripts/diagnose_call.py \
      ./scripts/verify_region_migration.py \
      ./scripts/seed_subscription_plans.py \
-     ./scripts/rename_bots_to_handles.py \
      ./scripts/
 
 # ts_validator Node deps (built in ts-deps stage with full node:22-slim image).

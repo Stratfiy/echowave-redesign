@@ -349,6 +349,11 @@ class WorkflowListResponse(BaseModel):
     total_runs: int
     folder_id: int | None = None
     workflow_uuid: str | None = None
+    # What somebody types to @-mention this bot in a channel, as distinct from
+    # its name. It comes back with the list because the list is where a person
+    # reads the roster and works out what to type; an address they have to open
+    # a settings screen to discover is an address nobody uses.
+    handle: str | None = None
     # Hands the call to other agents — a squad, in Vapi's word. Listed apart
     # from single agents because it is a different thing to build and to
     # test: its members are agents in their own right.
@@ -954,6 +959,7 @@ async def get_workflows(
             total_runs=run_counts.get(workflow.id, 0),
             folder_id=workflow.folder_id,
             workflow_uuid=workflow.workflow_uuid,
+            handle=workflow.handle,
             is_squad=workflow.id in squads,
         )
         for workflow in workflows

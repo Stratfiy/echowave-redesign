@@ -17,6 +17,7 @@ from api.db.models import (
 )
 from api.enums import WorkflowStatus
 from api.schemas.workflow_configurations import new_agent_workflow_configurations
+from api.services.workflow.mentions import available_handle
 
 
 class WorkflowClient(BaseDBClient):
@@ -30,6 +31,28 @@ class WorkflowClient(BaseDBClient):
         current_max = result.scalar()
         return (current_max or 0) + 1
 
+    async def _available_handle(
+        self, session, name: str, organization_id: int | None
+    ) -> str | None:
+        """A free handle for a new bot, scoped to the account that owns it.
+
+        Read inside the caller's session and written in the same transaction,
+        so the window between choosing and inserting is as small as it can be
+        made in application code. It is not zero -- two agents created in the
+        same instant can still pick the same handle -- which is why
+        ``ix_workflows_organization_handle`` exists. The index is the
+        guarantee; this is the part that makes hitting it rare.
+        """
+        taken = (
+            await session.scalars(
+                select(WorkflowModel.handle).where(
+                    WorkflowModel.organization_id == organization_id,
+                    WorkflowModel.handle.is_not(None),
+                )
+            )
+        ).all()
+        return available_handle(name, taken) or None
+
     async def create_workflow(
         self,
         name: str,
@@ -42,6 +65,11 @@ class WorkflowClient(BaseDBClient):
             try:
                 new_workflow = WorkflowModel(
                     name=name,
+                    # The address, assigned once at creation and not touched by
+                    # a later rename. That is the point of storing it: an
+                    # address that changed with the name would break every
+                    # message that had already used it.
+                    handle=await self._available_handle(session, name, organization_id),
                     workflow_definition=workflow_definition,  # Keep for backwards compatibility
                     user_id=user_id,
                     organization_id=organization_id,
@@ -445,6 +473,13 @@ class WorkflowClient(BaseDBClient):
                     WorkflowModel.created_at,
                     WorkflowModel.folder_id,
                     WorkflowModel.workflow_uuid,
+                    # The address @mentions resolve against. It has to be in
+                    # this SELECT for the same reason is_live does, and for a
+                    # sharper one: the channel roster is built from this query,
+                    # so a handle left out is not a slow screen but a bot that
+                    # cannot be addressed at all -- reading, to the person who
+                    # typed it, as the product ignoring them.
+                    WorkflowModel.handle,
                 )
             )
 

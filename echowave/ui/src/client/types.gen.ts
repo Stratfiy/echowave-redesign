@@ -7960,6 +7960,38 @@ export type PlivoConfigurationResponse = {
 };
 
 /**
+ * PostMessageRequest
+ */
+export type PostMessageRequest = {
+    /**
+     * Folder Id
+     */
+    folder_id: number;
+    /**
+     * Text
+     */
+    text: string;
+};
+
+/**
+ * PostMessageResponse
+ */
+export type PostMessageResponse = {
+    /**
+     * Asked
+     */
+    asked: Array<number>;
+    /**
+     * Unknown
+     */
+    unknown: Array<string>;
+    /**
+     * Ambiguous
+     */
+    ambiguous: Array<string>;
+};
+
+/**
  * PresetToolParameter
  *
  * A parameter injected by Decibyl at runtime.
@@ -11781,6 +11813,10 @@ export type WorkflowListResponse = {
      * Workflow Uuid
      */
     workflow_uuid?: string | null;
+    /**
+     * Handle
+     */
+    handle?: string | null;
     /**
      * Is Squad
      */
@@ -24301,6 +24337,45 @@ export type TimelineApiV1TimelineGetResponses = {
 
 export type TimelineApiV1TimelineGetResponse = TimelineApiV1TimelineGetResponses[keyof TimelineApiV1TimelineGetResponses];
 
+export type PostMessageApiV1TimelineMessagePostData = {
+    body: PostMessageRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/timeline/message';
+};
+
+export type PostMessageApiV1TimelineMessagePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PostMessageApiV1TimelineMessagePostError = PostMessageApiV1TimelineMessagePostErrors[keyof PostMessageApiV1TimelineMessagePostErrors];
+
+export type PostMessageApiV1TimelineMessagePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: PostMessageResponse;
+};
+
+export type PostMessageApiV1TimelineMessagePostResponse = PostMessageApiV1TimelineMessagePostResponses[keyof PostMessageApiV1TimelineMessagePostResponses];
+
 export type ListToolsApiV1ToolsGetData = {
     body?: never;
     headers?: {
@@ -25909,6 +25984,58 @@ export type GetTextArtifactApiV1S3TextGetResponses = {
 };
 
 export type GetTextArtifactApiV1S3TextGetResponse = GetTextArtifactApiV1S3TextGetResponses[keyof GetTextArtifactApiV1S3TextGetResponses];
+
+export type StreamArtifactApiV1S3StreamGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Range
+         */
+        range?: string | null;
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query: {
+        /**
+         * Key
+         *
+         * S3 object key
+         */
+        key: string;
+        /**
+         * Storage Backend
+         */
+        storage_backend?: string | null;
+    };
+    url: '/api/v1/s3/stream';
+};
+
+export type StreamArtifactApiV1S3StreamGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StreamArtifactApiV1S3StreamGetError = StreamArtifactApiV1S3StreamGetErrors[keyof StreamArtifactApiV1S3StreamGetErrors];
+
+export type StreamArtifactApiV1S3StreamGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
 
 export type GetSignedUrlApiV1S3SignedUrlGetData = {
     body?: never;
