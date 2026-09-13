@@ -26,6 +26,10 @@ services:
     # stopped stays stopped across a reboot, which is what an operator taking
     # something out of service means by it.
     restart: unless-stopped
+    # A ceiling, so one runaway service cannot take the host down, and every
+    # live call with it. api is the one service left unbounded: it is the
+    # media tier, and its ceiling is the box.
+    mem_limit: 1g
     # Raised from the default 100. Each API worker holds up to
     # DB_POOL_SIZE + DB_POOL_MAX_OVERFLOW connections, and the arq worker and
     # campaign dispatcher hold their own pools on top. At FASTAPI_WORKERS=4 that
@@ -93,6 +97,8 @@ services:
     # stopped stays stopped across a reboot, which is what an operator taking
     # something out of service means by it.
     restart: unless-stopped
+    # Ceiling; see the note on postgres.
+    mem_limit: 512m
     image: redis:7
     ports:
       - "6379:6379"
@@ -127,6 +133,8 @@ services:
     # stopped stays stopped across a reboot, which is what an operator taking
     # something out of service means by it.
     restart: unless-stopped
+    # Ceiling; see the note on postgres.
+    mem_limit: 512m
     image: minio/minio
     container_name: minio
     command: server /data --console-address ":9001"
@@ -196,6 +204,8 @@ services:
     # stopped stays stopped across a reboot, which is what an operator taking
     # something out of service means by it.
     restart: unless-stopped
+    # Ceiling; see the note on postgres.
+    mem_limit: 256m
     image: nginx:alpine
     container_name: nginx_https
     profiles: ["remote"]
@@ -232,6 +242,8 @@ services:
     image: coturn/coturn:4.8.0
     container_name: coturn
     restart: unless-stopped
+    # Ceiling; see the note on postgres.
+    mem_limit: 256m
     profiles: ["remote", "local-turn"]
     depends_on:
       decibyl-init:
@@ -481,6 +493,8 @@ services:
     volumes:
       - embeddings-cache:/data
     restart: unless-stopped
+    # Ceiling; see the note on postgres.
+    mem_limit: 3g
     # Deliberately not published to the host. Only the api container needs to
     # reach it, over the compose network — an embeddings endpoint on a public
     # port is an open inference server.
@@ -514,6 +528,8 @@ services:
     # stopped stays stopped across a reboot, which is what an operator taking
     # something out of service means by it.
     restart: unless-stopped
+    # Ceiling; see the note on postgres.
+    mem_limit: 1g
     # Same registry and tag rules as api -- see the note there.
     image: ${REGISTRY:-decibylai}/decibyl-ui:${IMAGE_TAG:-latest}
     environment:
@@ -569,6 +585,8 @@ services:
     container_name: cloudflared-tunnel
     profiles: ["tunnel"]
     restart: unless-stopped
+    # Ceiling; see the note on postgres.
+    mem_limit: 128m
     environment:
       # cloudflared automatically picks up the token from TUNNEL_TOKEN when
       # running `tunnel run`. Leave empty to fall back to a quick tunnel.
