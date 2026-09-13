@@ -297,9 +297,6 @@ export function AppSidebar() {
             >
               <BrandLogo mark className="h-6" />
             </Link>
-            {/* Which account you are looking at, where the build number used
-                to be. A customer needs the first far more than the second. */}
-            <OrganizationSwitcher collapsed={isCollapsed} />
             {isBehind && latestRelease && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -441,6 +438,14 @@ export function AppSidebar() {
         )}
 
         <div className={cn("min-w-0 flex-1 overflow-y-auto", isCollapsed ? "hidden" : "pl-1")}>
+        {/* The workspace name heads the panel, the way Slack heads its
+            sidebar with the workspace: it names everything below it, and the
+            menu behind it is where you switch to another account or rename
+            this one. It used to sit beside the mark in the header, where it
+            read as part of the brand. */}
+        <div className="px-1 pb-1 pt-1">
+          <OrganizationSwitcher collapsed={isCollapsed} />
+        </div>
         {contextSections.map((section) => (
           <React.Fragment key={section.label ?? "overview"}>
           <SidebarGroup
