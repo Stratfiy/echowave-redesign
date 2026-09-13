@@ -359,13 +359,17 @@
     font-family: inherit;
   }
 
-  /* Display type. The reference's signature is medium weight with tightened
-     tracking — confident without shouting — rather than the light weight that
-     stood here. It also names the substitute to use when its display face is
-     unavailable: Inter at weight 500 with -0.02em, which is exactly this.
-     Display treatment applies from 36px up; everything smaller is body type
-     and takes the semibold step below. */
+  /* Display type. Medium weight with tightened tracking — confident without
+     shouting. Outfit rather than Inter now: it is the geometric face named as
+     the substitute for the reference's own display face, which we could not
+     license. Weight and tracking are unchanged, so this is a change of
+     letterforms and not of the type system.
+
+     h1 and h2 only. Everything smaller is body type in Inter and takes the
+     semibold step below — a product UI that sets its headings in a display
+     face at 16px just looks unsettled. */
   h1, h2 {
+    font-family: var(--font-app-display), var(--font-app-sans), ui-sans-serif, system-ui, sans-serif;
     font-weight: 500;
     letter-spacing: -0.02em;
   }
