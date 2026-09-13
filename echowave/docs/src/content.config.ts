@@ -33,6 +33,16 @@ export const collections = {
         // for contributors and would otherwise appear in the sidebar as
         // orphans with no nav entry.
         "!AGENTS.md",
+        // Internal assessments, written for us rather than for customers: a
+        // platform review naming its own baseline commit and unmet scope, and
+        // an ABDM/UHI assessment weighing which vendors to build on. They have
+        // no nav entry, so they would publish as orphan pages — and the build
+        // fails on them first for the more ordinary reason that neither
+        // carries the frontmatter `title` the schema requires.
+        //
+        // Excluded rather than given a title, because a title would make them
+        // public pages, which is the outcome to avoid rather than the fix.
+        "!audits/**",
         "!CLAUDE.md",
         "!README.md",
         "!DEPLOY-GITHUB-ACTIONS.md",
