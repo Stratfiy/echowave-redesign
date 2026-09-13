@@ -350,8 +350,26 @@ export function AppSidebar() {
           <div
             role="tablist"
             aria-label="Workspace"
-            className="flex w-14 shrink-0 flex-col items-center gap-1 border-r border-sidebar-border py-1"
+            /* Dark, because this is chrome rather than content.
+             *
+             * The five contexts were a light strip inside the panel, which made
+             * them read as the panel's first group rather than as the frame
+             * around it — and a frame the same colour as what it frames is not
+             * doing the one job a frame has. Slack's rail is aubergine in light
+             * mode for the same reason.
+             *
+             * It also puts the mark at the top of the rail rather than above
+             * the panel, so the brand sits on the chrome and the workspace name
+             * gets the panel to itself. */
+            className="flex w-14 shrink-0 flex-col items-center gap-1 self-stretch rounded-l-[inherit] bg-rail py-2 text-rail-foreground"
           >
+            <Link
+              href="/"
+              aria-label="Decibyl"
+              className="mb-1 flex h-9 w-9 items-center justify-center rounded-lg bg-rail-accent text-rail-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-accent"
+            >
+              <span className="text-sm font-semibold leading-none">d</span>
+            </Link>
             {NAV_CONTEXTS.map((context) => {
               const Icon = context.icon;
               const selected = context.id === activeContext;
@@ -365,10 +383,12 @@ export function AppSidebar() {
                   title={context.title}
                   onClick={() => setPickedContext(context.id)}
                   className={cn(
-                    "flex w-11 flex-col items-center gap-0.5 rounded-md px-1 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+                    "flex w-11 flex-col items-center gap-0.5 rounded-md px-1 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-accent",
                     selected
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                      : "text-muted-foreground hover:bg-sidebar-accent/50",
+                      ? "bg-rail-accent text-rail-accent-foreground"
+                      // 80% rather than a muted token: muted-foreground is read
+                      // against the light panel and disappears on the rail.
+                      : "text-rail-foreground/70 hover:bg-white/10 hover:text-rail-foreground",
                   )}
                 >
                   <Icon aria-hidden="true" className="h-[18px] w-[18px]" />
