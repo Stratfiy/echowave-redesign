@@ -16,6 +16,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { BrandLogo } from "@/components/BrandLogo";
 import { OrganizationSwitcher } from "@/components/layout/OrganizationSwitcher";
 import { SidebarBots } from "@/components/layout/SidebarBots";
+import { SidebarChannels } from "@/components/layout/SidebarChannels";
 import { SidebarTeamSwitcher } from "@/components/layout/SidebarTeamSwitcher";
 import { Button } from "@/components/ui/button";
 import {
@@ -460,9 +461,18 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroup>
           {/* Straight after Home, and above every feature door: the largest
-              section of the rail should be the team, not the tooling. */}
+              section of the rail should be the team, not the tooling.
+
+              Channels first, then the bots. A channel is a place you work; a
+              bot on its own is a thing you configure, and every workspace
+              product leads with the places. Both stay — opening one bot is
+              still right when you want to change how it behaves rather than
+              ask it for something. */}
           {activeContext === "home" && section.label === undefined && (
-            <SidebarBots collapsed={isCollapsed} />
+            <>
+              <SidebarChannels collapsed={isCollapsed} />
+              <SidebarBots collapsed={isCollapsed} />
+            </>
           )}
           </React.Fragment>
         ))}
