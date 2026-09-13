@@ -2,6 +2,7 @@
 
 import { ExternalLink } from "lucide-react";
 
+import { AccentSection } from "@/components/AccentSection";
 import { CredentialsSection } from "@/components/CredentialsSection";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { MCPSection } from "@/components/MCPSection";
@@ -43,6 +44,18 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             <OrganizationPreferencesSection />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Appearance</CardTitle>
+            <CardDescription>
+              The accent colour used for links, focus rings and active states.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AccentSection />
           </CardContent>
         </Card>
 
