@@ -1,11 +1,19 @@
 # Build the API and UI images from this checkout instead of pulling them.
 #
-# `docker-compose.yaml` pulls `${REGISTRY:-decibylai}/decibyl-api:latest`, and
-# `scripts/start_docker.sh` defaults REGISTRY to `ghcr.io/decibyl-hq`. Both are
-# registries nobody here controls, and whatever is in them is *upstream's*
-# build — not this fork. Running the stack without this override therefore
-# either fails to pull or, worse, succeeds and quietly runs somebody else's
-# image with none of the billing, prepaid or GST work in it.
+# THIS IS NO LONGER THE DEPLOY PATH. `.github/workflows/build-images.yml` builds
+# both images in CI and pushes them to `ghcr.io/<owner>/decibyl-{api,ui}`, and
+# the box pulls. Building on the box is what filled a 145GB disk to 82% with
+# build cache and made every deploy compete with live calls for CPU.
+#
+# Use this override for LOCAL work, and for a machine that cannot reach the
+# registry.
+#
+# The defaults in `docker-compose.yaml` (`decibylai`) and `start_docker.sh`
+# (`ghcr.io/decibyl-hq`) are registries nobody here controls, and whatever is in
+# them is *upstream's* build — not this fork. Set REGISTRY to your own GHCR
+# namespace in `.env`; running the stack against a default either fails to pull
+# or, worse, succeeds and quietly runs somebody else's image with none of the
+# billing, prepaid or GST work in it.
 #
 # Use it whenever you are deploying your own code:
 #

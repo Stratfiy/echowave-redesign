@@ -46,6 +46,17 @@ services:
       # You can manually change the password using psql in the container
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-postgres}"
       POSTGRES_DB: postgres
+    # EVERY LONG-RUNNING SERVICE IN THIS FILE NEEDS THIS BLOCK.
+    #
+    # Docker's default json-file driver has NO size limit, so a container's log
+    # grows until the disk is full -- and then Postgres cannot write, calls
+    # cannot be costed, and recordings cannot be saved. One unbounded log takes
+    # the platform down, and the symptom is "no space left on device" from
+    # whichever service happened to write next, never from the one at fault.
+    #
+    # For a long time only this service had the cap, which meant the database
+    # was the one thing that could not cause the outage and everything else
+    # could. 30MB a service is generous for debugging and bounded for a box.
     logging:
       driver: "json-file"
       options:
@@ -64,6 +75,12 @@ services:
       - app-network
 
   redis:
+    # Bounded, like every other service here -- see the note on postgres.
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     # Comes back on its own after a reboot or a daemon restart.
     #
     # Six of the nine services had no restart policy, so a box that rebooted —
@@ -92,6 +109,12 @@ services:
       - app-network
 
   minio:
+    # Bounded, like every other service here -- see the note on postgres.
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     # Comes back on its own after a reboot or a daemon restart.
     #
     # Six of the nine services had no restart policy, so a box that rebooted —
@@ -155,6 +178,12 @@ services:
       - /workspace/scripts/run_decibyl_init.sh
 
   nginx:
+    # Bounded, like every other service here -- see the note on postgres.
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     # Comes back on its own after a reboot or a daemon restart.
     #
     # Six of the nine services had no restart policy, so a box that rebooted —
@@ -194,6 +223,12 @@ services:
       - app-network
 
   coturn:
+    # Bounded, like every other service here -- see the note on postgres.
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     image: coturn/coturn:4.8.0
     container_name: coturn
     restart: unless-stopped
@@ -216,6 +251,12 @@ services:
       - app-network
 
   api:
+    # Bounded, like every other service here -- see the note on postgres.
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     # Comes back on its own after a reboot or a daemon restart.
     #
     # Six of the nine services had no restart policy, so a box that rebooted —
@@ -228,7 +269,14 @@ services:
     # stopped stays stopped across a reboot, which is what an operator taking
     # something out of service means by it.
     restart: unless-stopped
-    image: ${REGISTRY:-decibylai}/decibyl-api:latest
+    # Built and pushed by .github/workflows/build-images.yml, never on this box.
+    #
+    # REGISTRY is the GHCR namespace -- set REGISTRY=ghcr.io/stratfiy in .env.
+    # IMAGE_TAG defaults to latest and takes a commit SHA for a pinned deploy or
+    # a rollback: IMAGE_TAG=<sha> ./remote_up.sh pulls the exact image that
+    # commit produced, rather than rebuilding it on four cores that are carrying
+    # calls.
+    image: ${REGISTRY:-decibylai}/decibyl-api:${IMAGE_TAG:-latest}
     # Compose reads .env for *interpolation* only — values there do not reach a
     # container unless something puts them there. Every variable this file does
     # not name explicitly was therefore silently absent inside the API: Razorpay
@@ -326,6 +374,23 @@ services:
       # Number of uvicorn worker processes (each is its own process bound to a
       # distinct port starting at 8000). decibyl-init renders nginx upstreams
       # from this value and nginx load-balances across them with least_conn.
+      # Which of the four services in this container actually start.
+      #
+      #   all      (default)  everything. One box, as it has always been.
+      #   media               uvicorn only -- safe on as many machines as you like.
+      #   control             migrations, the two singletons and arq. Exactly one.
+      #
+      # The campaign orchestrator and ARI manager are singletons that nothing
+      # enforces: a second copy of either does not error, it doubles the work,
+      # and the first evidence is the carrier bill. Adding a second machine
+      # means DECIBYL_ROLE=media on it, and bringing the control node up first
+      # so the schema is at head before anything serves against it.
+      DECIBYL_ROLE: "${DECIBYL_ROLE:-all}"
+
+      # How many uvicorn processes, and therefore HOW MANY CPU CORES CAN CARRY
+      # CALLS AT ALL: the media pipeline runs inside the provider's WebSocket
+      # handler, so these processes are the media workers, and asyncio is
+      # single-threaded. At the default of 1 a 4-vCPU box uses one of them.
       FASTAPI_WORKERS: "${FASTAPI_WORKERS:-1}"
 
       # Trust X-Forwarded-* headers from any peer so uvicorn honors nginx's
@@ -400,6 +465,12 @@ services:
   # model; check free memory on the box before enabling it, because the thing
   # it would starve is the call pipeline.
   embeddings:
+    # Bounded, like every other service here -- see the note on postgres.
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.5
     container_name: decibyl_embeddings
     profiles: ["embeddings"]
@@ -425,6 +496,12 @@ services:
       - app-network
 
   ui:
+    # Bounded, like every other service here -- see the note on postgres.
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     # Comes back on its own after a reboot or a daemon restart.
     #
     # Six of the nine services had no restart policy, so a box that rebooted —
@@ -437,7 +514,8 @@ services:
     # stopped stays stopped across a reboot, which is what an operator taking
     # something out of service means by it.
     restart: unless-stopped
-    image: ${REGISTRY:-decibylai}/decibyl-ui:latest
+    # Same registry and tag rules as api -- see the note there.
+    image: ${REGISTRY:-decibylai}/decibyl-ui:${IMAGE_TAG:-latest}
     environment:
       # Bind the Next.js standalone server to all interfaces
       HOSTNAME: "0.0.0.0"
@@ -481,6 +559,12 @@ services:
   #     *.trycloudflare.com URL the API discovers from the metrics endpoint
   #     (api/utils/tunnel.py). Convenient for local dev.
   cloudflared:
+    # Bounded, like every other service here -- see the note on postgres.
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     image: cloudflare/cloudflared:latest
     container_name: cloudflared-tunnel
     profiles: ["tunnel"]

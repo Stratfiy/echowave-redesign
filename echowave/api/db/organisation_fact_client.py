@@ -4,7 +4,7 @@ import re
 from datetime import UTC, datetime
 from typing import Any, Optional
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy import update as sa_update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
@@ -14,6 +14,44 @@ from api.db.models import OrganisationFactModel
 #: The subject facts about the business itself hang off, as opposed to facts
 #: about one of its customers.
 SUBJECT_ORGANISATION = "organisation"
+
+#: ``workflow_id IS NULL`` -- the organisation's own memory, which every bot
+#: reads. The predicate is spelled the same way as the partial unique index it
+#: infers against, and with no bound parameter, so Postgres either matches the
+#: index or refuses the statement. A near-miss here would write duplicate rows
+#: rather than raise, which is the one failure this table must not have.
+ORG_SCOPE = OrganisationFactModel.workflow_id.is_(None)
+#: ``workflow_id IS NOT NULL`` -- one bot's own memory.
+BOT_SCOPE = OrganisationFactModel.workflow_id.isnot(None)
+
+
+def _scope(workflow_id: Optional[int]):
+    """The conflict target for a write at this scope.
+
+    Two partial unique indexes, so an upsert has to say which one it means.
+    Returned together because getting the pair out of step is the way to write
+    a row that collides with nothing.
+    """
+    if workflow_id is None:
+        return (
+            [
+                OrganisationFactModel.organization_id,
+                OrganisationFactModel.subject_type,
+                OrganisationFactModel.subject_key,
+                OrganisationFactModel.key,
+            ],
+            ORG_SCOPE,
+        )
+    return (
+        [
+            OrganisationFactModel.organization_id,
+            OrganisationFactModel.workflow_id,
+            OrganisationFactModel.subject_type,
+            OrganisationFactModel.subject_key,
+            OrganisationFactModel.key,
+        ],
+        BOT_SCOPE,
+    )
 
 
 #: ``key`` is 128 characters and carries the identity of an observation, so a
@@ -34,6 +72,7 @@ class OrganisationFactClient(BaseDBClient):
         subject_key: str,
         facts: dict[str, str],
         source_run_id: Optional[int],
+        workflow_id: Optional[int] = None,
     ) -> int:
         """Write what this call taught us, one row per fact.
 
@@ -46,6 +85,11 @@ class OrganisationFactClient(BaseDBClient):
         ``times_seen`` increments only when the value is unchanged. A caller who
         corrects their address is not corroborating the old one, and counting it
         as corroboration is how a wrong fact becomes an entrenched one.
+
+        ``workflow_id`` defaults to None, which is the organisation's memory --
+        what a call learns about a caller belongs to the business, not to
+        whichever bot happened to answer. Pass a workflow id only for something
+        true of that bot alone.
         """
         if not facts:
             return 0
@@ -54,6 +98,7 @@ class OrganisationFactClient(BaseDBClient):
         rows = [
             {
                 "organization_id": organization_id,
+                "workflow_id": workflow_id,
                 "subject_type": subject_type,
                 "subject_key": subject_key,
                 "key": key,
@@ -66,14 +111,11 @@ class OrganisationFactClient(BaseDBClient):
             for key, value in facts.items()
         ]
 
+        index_elements, index_where = _scope(workflow_id)
         statement = pg_insert(OrganisationFactModel).values(rows)
         statement = statement.on_conflict_do_update(
-            index_elements=[
-                OrganisationFactModel.organization_id,
-                OrganisationFactModel.subject_type,
-                OrganisationFactModel.subject_key,
-                OrganisationFactModel.key,
-            ],
+            index_elements=index_elements,
+            index_where=index_where,
             set_={
                 "value": statement.excluded.value,
                 "source_run_id": statement.excluded.source_run_id,
@@ -91,16 +133,43 @@ class OrganisationFactClient(BaseDBClient):
         return len(rows)
 
     async def recall_facts(
-        self, *, organization_id: int, subject_type: str, subject_key: str
+        self,
+        *,
+        organization_id: int,
+        subject_type: str,
+        subject_key: str,
+        workflow_id: Optional[int] = None,
     ) -> dict[str, Any]:
-        """Everything known about one subject, as a flat mapping."""
+        """Everything known about one subject, as a flat mapping.
+
+        With a ``workflow_id`` this is the organisation's memory UNION that
+        bot's own, and the bot's wins on a shared key. That direction is the
+        whole point of the scope: an organisation fact is the default every bot
+        inherits, and a bot fact is that bot having been told otherwise. If the
+        organisation's answer won, the bot's own memory could never say
+        anything, and the column would be decoration.
+
+        Without one it is the organisation's memory alone -- which is what
+        every existing caller gets, unchanged.
+        """
+        scope = (
+            ORG_SCOPE
+            if workflow_id is None
+            else or_(ORG_SCOPE, OrganisationFactModel.workflow_id == workflow_id)
+        )
         async with self.async_session() as session:
             result = await session.execute(
-                select(OrganisationFactModel).where(
+                select(OrganisationFactModel)
+                .where(
                     OrganisationFactModel.organization_id == organization_id,
                     OrganisationFactModel.subject_type == subject_type,
                     OrganisationFactModel.subject_key == subject_key,
+                    scope,
                 )
+                # The bot's rows land last and overwrite the organisation's in
+                # the dict comprehension below. Ordering is load-bearing, which
+                # is why it is not left to whatever the planner returns.
+                .order_by(OrganisationFactModel.workflow_id.is_(None).desc())
             )
             return {row.key: row.value for row in result.scalars().all()}
 
@@ -135,6 +204,10 @@ class OrganisationFactClient(BaseDBClient):
             rows.append(
                 {
                     "organization_id": organization_id,
+                    # A gap is something the BUSINESS cannot answer. Scoping it
+                    # to the bot that ran into it would hide from every other
+                    # bot the one question worth answering.
+                    "workflow_id": None,
                     "subject_type": SUBJECT_ORGANISATION,
                     "subject_key": str(observation.get("key") or "")[:255],
                     "key": _slug(value),
@@ -150,14 +223,11 @@ class OrganisationFactClient(BaseDBClient):
         if not rows:
             return 0
 
+        index_elements, index_where = _scope(None)
         statement = pg_insert(OrganisationFactModel).values(rows)
         statement = statement.on_conflict_do_update(
-            index_elements=[
-                OrganisationFactModel.organization_id,
-                OrganisationFactModel.subject_type,
-                OrganisationFactModel.subject_key,
-                OrganisationFactModel.key,
-            ],
+            index_elements=index_elements,
+            index_where=index_where,
             set_={
                 "last_seen_at": statement.excluded.last_seen_at,
                 "source_run_id": statement.excluded.source_run_id,
@@ -182,13 +252,19 @@ class OrganisationFactClient(BaseDBClient):
         facts: dict[str, str],
         source_run_id: Optional[int] = None,
         status: str = "confirmed",
+        workflow_id: Optional[int] = None,
     ) -> int:
-        """What the business told us about itself.
+        """What the business told us about itself -- or about one of its bots.
 
         Confirmed by default, because the path into here is a person answering
         a question on the onboarding form or typing it into the chat. That is
         the same person who would confirm it afterwards, so asking twice would
         be ceremony.
+
+        With a ``workflow_id`` the same write becomes that bot's own standing
+        instruction: "read the morning numbers in Hindi" is true of this bot
+        and false of the one answering the phone, and storing it on the
+        organisation would put it in both their mouths.
         """
         if not facts:
             return 0
@@ -197,6 +273,7 @@ class OrganisationFactClient(BaseDBClient):
         rows = [
             {
                 "organization_id": organization_id,
+                "workflow_id": workflow_id,
                 "subject_type": SUBJECT_ORGANISATION,
                 "subject_key": "self",
                 "key": key,
@@ -215,14 +292,11 @@ class OrganisationFactClient(BaseDBClient):
         if not rows:
             return 0
 
+        index_elements, index_where = _scope(workflow_id)
         statement = pg_insert(OrganisationFactModel).values(rows)
         statement = statement.on_conflict_do_update(
-            index_elements=[
-                OrganisationFactModel.organization_id,
-                OrganisationFactModel.subject_type,
-                OrganisationFactModel.subject_key,
-                OrganisationFactModel.key,
-            ],
+            index_elements=index_elements,
+            index_where=index_where,
             set_={
                 "value": statement.excluded.value,
                 "status": statement.excluded.status,
@@ -242,6 +316,8 @@ class OrganisationFactClient(BaseDBClient):
         organization_id: int,
         kind: Optional[str] = None,
         status: Optional[str] = None,
+        workflow_id: Optional[int] = None,
+        include_bots: bool = False,
         limit: int = 200,
     ) -> list[Any]:
         """What this business knows and what it still cannot answer.
@@ -249,12 +325,36 @@ class OrganisationFactClient(BaseDBClient):
         Most-seen first: the question forty callers asked is the one worth
         reading, and burying it under thirty-nine one-offs would make the
         screen useless at exactly the size where it starts to matter.
+
+        Three scopes, and the caller has to mean one of them:
+
+        * neither argument -- the organisation's own memory, which is what
+          every caller before bot scope existed was already getting.
+        * ``workflow_id`` -- the organisation's plus that bot's, the union a
+          bot's own screen shows.
+        * ``include_bots`` -- everything, for the screen that has to be able to
+          review a bot fact somebody wants to correct. Rows carry
+          ``workflow_id``, so that screen can say whose each one is rather than
+          presenting a bot's private instruction as the business's position.
+
+        Deliberately no scope that hides bot facts from every screen. A fact
+        nobody can find is a fact nobody can correct, and it would still be in
+        a prompt.
         """
+        if include_bots:
+            scope = None
+        elif workflow_id is None:
+            scope = ORG_SCOPE
+        else:
+            scope = or_(ORG_SCOPE, OrganisationFactModel.workflow_id == workflow_id)
+
         async with self.async_session() as session:
             query = select(OrganisationFactModel).where(
                 OrganisationFactModel.organization_id == organization_id,
                 OrganisationFactModel.subject_type == SUBJECT_ORGANISATION,
             )
+            if scope is not None:
+                query = query.where(scope)
             if kind:
                 query = query.where(OrganisationFactModel.kind == kind)
             if status:

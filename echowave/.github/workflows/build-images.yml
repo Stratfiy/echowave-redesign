@@ -1,0 +1,105 @@
+# Build the api and ui images here, so the production box never builds anything.
+#
+# WHY THIS EXISTS. Deploys used to run `docker compose build` on the box. Two
+# consequences, and the second is the expensive one:
+#
+#   1. Build cache accumulated until the disk was 82% full -- 419 entries,
+#      116GB, on a 145GB volume. When that disk fills, Postgres cannot write,
+#      calls cannot be costed and recordings cannot be saved, and the error
+#      surfaces from whichever service happened to write next rather than from
+#      the one at fault.
+#
+#   2. A Next.js production build saturates all four vCPU. THOSE ARE THE SAME
+#      CORES THAT CARRY LIVE CALLS -- run_pipeline_telephony runs inside the
+#      uvicorn workers -- so deploying during business hours degraded every
+#      conversation in progress, and it presented as the model being slow.
+#
+# Building here fixes both by removing the builder from the box entirely. A
+# deploy becomes `docker compose pull && up`, which is seconds and no CPU.
+#
+# It also makes rollback real. Every image is tagged with its commit SHA, so
+# going back is `IMAGE_TAG=<sha> ./remote_up.sh` -- a pull, not a rebuild on a
+# loaded four-core box.
+
+name: Build images
+
+on:
+  push:
+    branches: [main]
+  # So a release can be rebuilt without an empty commit, and so the first run
+  # can be triggered by hand before anything merges.
+  workflow_dispatch:
+
+# One build per ref. A second push while the first is still going cancels it:
+# the older image is about to be replaced anyway, and two builds racing to push
+# `latest` is how a box ends up running a commit nobody chose.
+concurrency:
+  group: build-images-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      # api and ui are independent, and one failing should not hide whether the
+      # other is buildable.
+      fail-fast: false
+      matrix:
+        include:
+          - name: api
+            dockerfile: api/Dockerfile
+          - name: ui
+            dockerfile: ui/Dockerfile
+
+    steps:
+      - name: Check out, with pipecat
+        uses: actions/checkout@v4
+        with:
+          # THE API BUILD FAILS WITHOUT THIS. pipecat is a submodule and the
+          # API Dockerfile installs from it; a default checkout leaves the
+          # directory empty and the failure reads like a broken dependency
+          # rather than a missing checkout flag.
+          submodules: recursive
+
+      - name: Registry namespace
+        id: ns
+        # GHCR rejects an uppercase path, and the owner here is "Stratfiy".
+        run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          # The repository root for both, not the service directory: the API
+          # Dockerfile needs pipecat/ beside api/, and the UI Dockerfile copies
+          # from ui/ by path.
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          # The box is x86. Building arm64 as well would roughly double the
+          # build for an architecture nothing runs.
+          platforms: linux/amd64
+          tags: |
+            ghcr.io/${{ steps.ns.outputs.owner }}/decibyl-${{ matrix.name }}:latest
+            ghcr.io/${{ steps.ns.outputs.owner }}/decibyl-${{ matrix.name }}:${{ github.sha }}
+          # Cache lives with the Actions runner, not on the production disk,
+          # which is the entire point of moving the build here.
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+          provenance: false
+
+      - name: Say what to deploy
+        run: |
+          echo "::notice title=Image published::ghcr.io/${{ steps.ns.outputs.owner }}/decibyl-${{ matrix.name }}:${{ github.sha }}"

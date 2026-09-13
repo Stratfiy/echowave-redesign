@@ -1,6 +1,19 @@
 # Compliance documents
 
-Five documents a regulator, an auditor or an enterprise customer's security team
+**These are source drafts. The PUBLISHED documents live in the
+`Stratfiy/decibyl` site**, at `/legal/dpa`, `/legal/terms`, `/legal/privacy`,
+`/legal/dpdp`, `/legal/refund` and `/security`, and that is what a customer
+reads and accepts. Change the site when the obligation changes; change these
+when the underlying fact does.
+
+Which way the drift runs matters. A fact here that the site does not carry is a
+gap somebody can close. A claim on the site that is not true here is what costs
+a deal in diligence -- and one was found: the site advertised US and EU regions
+that do not exist. `api/tests/test_legal_documents_are_publishable.py` binds the
+click-wrap URLs to pages the site actually publishes, which is the half of the
+problem this repository can check.
+
+Six documents a regulator, an auditor or an enterprise customer's security team
 will ask for. They are drafts, and the split between what is drafted here and
 what is not is deliberate.
 

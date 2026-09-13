@@ -78,7 +78,12 @@ AGREEMENTS: tuple[Agreement, ...] = (
         key="privacy",
         title="Privacy Policy",
         version="2026-07",
-        url="https://decibyl.ai/privacy",
+        # /privacy was a 404: the page is published at /legal/privacy, beside
+        # the terms. A click-wrap URL that does not resolve is worse than no
+        # click-wrap -- it produces a recorded acceptance of a document the
+        # customer demonstrably could not read, which is the "terms accessible
+        # before acceptance" limb of enforceability failing silently.
+        url="https://decibyl.ai/legal/privacy",
         required=False,
     ),
 )
