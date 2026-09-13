@@ -117,6 +117,26 @@ jobs:
           # "fatal: $HOME not set" (exit 128) — including the safe.directory
           # line below and every command in ci_deploy.sh. Setting it is the
           # difference between the deploy running and not running at all.
+          #
+          # RUN A COPY, NOT THE FILE IN THE CHECKOUT.
+          #
+          # bash reads a script by byte offset from the file on disk, re-reading
+          # as it goes. ci_deploy.sh checks out a different commit partway
+          # through — rewriting the very file the running shell is reading from
+          # — so every line after that point came from the new content at the
+          # old offset. Whatever bash found there is what ran.
+          #
+          # That is not theoretical. Deploy 251 shipped a change to rollback()
+          # that captures the api logs before tearing the container down, and
+          # the capture never happened: the shell was still executing the
+          # pre-checkout rollback(). Worse, the rollback restores the old file,
+          # so the next deploy starts from the old script again — a loop in
+          # which a fix to this script can never take effect.
+          #
+          # Copying first costs nothing and breaks it. This workflow file is
+          # read by Actions from the commit being deployed, so unlike the
+          # script it cannot be undone by a checkout mid-run, which is why the
+          # fix belongs here rather than in the script it is fixing.
           jq -n \
             --arg dir "$PROJECT_DIR" \
             --arg ref "$DEPLOY_REF" \
@@ -126,7 +146,8 @@ jobs:
                "export HOME=\"${HOME:-/root}\"",
                "git config --system --replace-all safe.directory \"*\" || true",
                "cd \($dir)",
-               "REF=\($ref) PROJECT_DIR=\($dir) RUN_AS=\($user) bash \($dir)/scripts/ci_deploy.sh"
+               "cp \($dir)/scripts/ci_deploy.sh /tmp/ci_deploy.running.sh",
+               "REF=\($ref) PROJECT_DIR=\($dir) RUN_AS=\($user) bash /tmp/ci_deploy.running.sh"
              ]}' > /tmp/ssm-params.json
 
           COMMAND_ID=$(aws ssm send-command \
