@@ -15,6 +15,7 @@ import { AppConfigProvider } from "@/context/AppConfigContext";
 import { OnboardingProvider } from "@/context/OnboardingContext";
 import { OrgConfigProvider } from "@/context/OrgConfigContext";
 import { TelephonyConfigWarningsProvider } from "@/context/TelephonyConfigWarningsContext";
+import { ACCENT_BOOT_SCRIPT } from "@/lib/accent";
 import { AuthProvider } from "@/lib/auth";
 
 
@@ -69,7 +70,13 @@ export default function RootLayout({
         {/* The anti-flash script that used to live here restored a stored 'dark'
             class before hydration. The app is light-only now, so it would only
             reintroduce a theme nothing styles — and a stale localStorage entry
-            from a previous visit would have kept doing so indefinitely. */}
+            from a previous visit would have kept doing so indefinitely.
+
+            The accent is a different matter: it is a real preference, and
+            restoring it after hydration would repaint every link and focus
+            ring a beat late. This runs before first paint and only replays
+            what the settings screen already computed — see lib/accent.ts. */}
+        <script dangerouslySetInnerHTML={{ __html: ACCENT_BOOT_SCRIPT }} />
       </head>
       <body className="antialiased">
         {/* forcedTheme keeps the provider mounted — every consumer of useTheme

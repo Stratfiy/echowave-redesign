@@ -25,6 +25,7 @@ silently agrees with whatever the code says.
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 from urllib.parse import urlparse
@@ -118,3 +119,53 @@ class TestTheManifestIsHonest:
         referenced = {urlparse(a.url).path.rstrip("/") for a in AGREEMENTS}
         assert referenced <= PUBLISHED_PAGES
         assert len(PUBLISHED_PAGES) >= len(referenced)
+
+
+# ── The signup form's own links ──────────────────────────────────────────────
+#
+# The manifest above binds `agreements.py` to the pages the site publishes, and
+# it did its job: it caught `/privacy` there. It could not catch the same URL
+# hardcoded a second time in the signup form, which kept pointing at the 404
+# for a release after the backend was fixed.
+#
+# That is the shape worth testing. A click-wrap has two halves — the record
+# written by the API and the link the customer actually clicks — and only one
+# of them was bound to anything. A recorded acceptance of a document the
+# customer could not open is worse than no record at all: it is evidence, and
+# it is evidence against us.
+
+SIGNUP_FORM = ROOT / "ui" / "src" / "app" / "auth" / "signup" / "page.tsx"
+
+
+def _signup_form_source() -> str:
+    return SIGNUP_FORM.read_text(encoding="utf-8")
+
+
+def test_signup_form_exists_where_this_test_expects_it():
+    """A moved file must fail loudly rather than vacuously passing."""
+    assert SIGNUP_FORM.is_file(), f"{SIGNUP_FORM} is gone; this test is now blind"
+
+
+def test_every_decibyl_link_on_the_signup_form_is_a_published_page():
+    source = _signup_form_source()
+    links = re.findall(rf'https://{re.escape(SITE)}(/[^"\'\s]*)', source)
+    assert links, "the signup form links to no Decibyl pages at all"
+    for path in links:
+        assert path in PUBLISHED_PAGES, (
+            f"the signup form links to {SITE}{path}, which the site does not "
+            f"publish. A click-wrap link that 404s produces a recorded "
+            f"acceptance of a document the customer could not read."
+        )
+
+
+def test_the_signup_form_links_to_every_agreement_it_collects():
+    """The checkbox posts SIGNUP_AGREEMENTS; the form must show each of them."""
+    source = _signup_form_source()
+    by_key = {a.key: a for a in AGREEMENTS}
+    for key in SIGNUP_AGREEMENTS:
+        url = by_key[key].url
+        assert url in source, (
+            f"signup collects acceptance of {key!r} but the form does not link "
+            f"to {url}. Terms accessible before acceptance is a limb of "
+            f"enforceability, not a nicety."
+        )
