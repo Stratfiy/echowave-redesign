@@ -88,7 +88,11 @@ export function SidebarBots({ collapsed }: { collapsed: boolean }) {
           return (
             <SidebarMenuItem key={bot.workflow_id}>
               <SidebarMenuButton asChild isActive={pathname === href} tooltip={bot.status}>
-                <Link href={href}>
+                {/* `title` as well as the status tooltip: a name long enough
+                    to truncate is exactly the name somebody needs to read in
+                    full, and the tooltip slot is already spent on what the bot
+                    is doing. The browser's own is free and does not fight it. */}
+                <Link href={href} title={bot.name}>
                   <span
                     aria-hidden="true"
                     className={cn(
