@@ -71,6 +71,7 @@ class AgentEventClient(BaseDBClient):
         limit: int = 200,
         before_at: Optional[datetime] = None,
         before_id: Optional[int] = None,
+        after_id: Optional[int] = None,
     ) -> list[AgentEventModel]:
         """The timeline, newest first.
 
@@ -112,6 +113,13 @@ class AgentEventClient(BaseDBClient):
             query = query.where(AgentEventModel.kind.in_(list(kinds)))
         if deliverables_only:
             query = query.where(AgentEventModel.is_deliverable.is_(True))
+        if after_id is not None:
+            # A watermark, not a cursor. The channel-context fold covers every
+            # row with id <= watermark by construction, so filtering on id
+            # alone is exact here even though the rows sort by (at, id) -- the
+            # predicate/sort mismatch the cursor note below warns about only
+            # bites when the same value is used to page, and this never pages.
+            query = query.where(AgentEventModel.id > after_id)
 
         reading_one_call = workflow_run_id is not None
         if reading_one_call:

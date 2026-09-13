@@ -1,4 +1,4 @@
-from sqlalchemy import func
+from sqlalchemy import func, or_, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.future import select
 
@@ -47,6 +47,46 @@ class FolderClient(BaseDBClient):
                 .order_by(FolderModel.name.asc())
             )
             return result.scalars().all()
+
+    async def set_folder_context_summary(
+        self,
+        folder_id: int,
+        organization_id: int,
+        *,
+        summary: str,
+        summarised_through: int,
+    ) -> bool:
+        """Advance a channel's rolling summary and its watermark together.
+
+        Together, in one statement, because they are one fact: "this text
+        covers every event up to this id". A summary written without its
+        watermark would show the folded rows verbatim as well; a watermark
+        without its summary would hide rows nothing covers. Neither is
+        recoverable from the other.
+
+        Only ever forwards. A fold that raced another and lost must not move
+        the watermark back over rows the winner already covered.
+
+        Returns True when the row was advanced.
+        """
+        async with self.async_session() as session:
+            result = await session.execute(
+                update(FolderModel)
+                .where(
+                    FolderModel.id == folder_id,
+                    FolderModel.organization_id == organization_id,
+                    or_(
+                        FolderModel.context_summarised_through.is_(None),
+                        FolderModel.context_summarised_through < summarised_through,
+                    ),
+                )
+                .values(
+                    context_summary=summary,
+                    context_summarised_through=summarised_through,
+                )
+            )
+            await session.commit()
+            return result.rowcount > 0
 
     async def rename_folder(
         self, folder_id: int, name: str, organization_id: int

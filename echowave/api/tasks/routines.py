@@ -180,3 +180,32 @@ async def answer_channel_message(
     await _ctx["redis"].enqueue_job(
         FunctionNames.PROCESS_WORKFLOW_COMPLETION, int(run_id)
     )
+    # Housekeeping for the channel the bot just spoke in, after the reply and
+    # as its own job: folding the thread's oldest end into its summary is a
+    # model call, and the person waiting for the answer should not wait on it.
+    # Handed this run so the fold runs on the bot's own LLM and bills against
+    # it -- see services/workflow/channel_context.py.
+    await _ctx["redis"].enqueue_job(
+        FunctionNames.COMPACT_CHANNEL_CONTEXT, int(folder_id), int(run_id)
+    )
+
+
+async def compact_channel_context(_ctx, folder_id: int, run_id: int) -> None:
+    """Fold a channel's oldest unsummarised messages into its rolling précis.
+
+    A no-op until enough has accumulated above the watermark; see
+    ``channel_context.COMPACT_AFTER``. Never raises: a fold that fails leaves
+    the channel exactly as it was.
+    """
+    from api.services.workflow.channel_context import compact
+
+    organization_id = await db_client.get_organization_id_by_workflow_run_id(
+        int(run_id)
+    )
+    if organization_id is None:
+        return
+    await compact(
+        organization_id=int(organization_id),
+        folder_id=int(folder_id),
+        run_id=int(run_id),
+    )

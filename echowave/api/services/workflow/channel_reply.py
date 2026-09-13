@@ -29,7 +29,7 @@ from pipecat.utils.run_context import set_current_run_id
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind, WorkflowRunMode
 from api.services.quota_service import authorize_workflow_run_start
-from api.services.workflow import agent_timeline
+from api.services.workflow import agent_timeline, channel_context
 from api.services.workflow.text_chat_runner import default_text_chat_checkpoint
 from api.services.workflow.text_chat_session_service import (
     append_text_chat_user_message,
@@ -122,10 +122,29 @@ async def answer_in_channel(
             workflow_id=workflow_id, run_id=run_id, text_session=text_session
         )
 
+        # The channel's own conversation, in front of the question.
+        #
+        # This is the whole of "a bot in a channel knows what is going on in
+        # it": what people asked, what they corrected, and what other bots
+        # already did here -- three context sources, one read, no new table
+        # and no permissions screen, because being filed in the channel is the
+        # permission. See services/workflow/channel_context.py.
+        #
+        # Read here rather than at enqueue time so it is the thread as it
+        # stands when the bot actually answers: two bots addressed in one
+        # message run as two jobs, and the second should see the first's
+        # reply rather than a snapshot from before either had spoken.
+        thread = await channel_context.recent_thread(
+            organization_id=organization_id, folder_id=folder_id
+        )
         text_session = await append_text_chat_user_message(
             run_id=run_id,
             text_session=text_session,
-            user_text=text,
+            # One message rather than two turns: a separate context turn would
+            # be a turn the bot answers, and the person is waiting for a reply
+            # to what they actually asked. The question goes last so it is the
+            # most recent thing in the window.
+            user_text=f"{thread}\n\n{text}" if thread else text,
             expected_revision=text_session.revision,
         )
         text_session = await execute_pending_text_chat_turn(

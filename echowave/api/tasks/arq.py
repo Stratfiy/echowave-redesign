@@ -66,6 +66,7 @@ from api.tasks.rental_billing import (
 )
 from api.tasks.routines import (
     answer_channel_message,
+    compact_channel_context,
     fire_due_routines,
     run_agent_routine,
 )
@@ -106,6 +107,7 @@ class WorkerSettings:
         run_eval_case,
         run_agent_routine,
         answer_channel_message,
+        compact_channel_context,
     ]
     cron_jobs = [
         # Every minute, and at startup so a deployment is not indistinguishable

@@ -8,5 +8,6 @@ class FunctionNames:
     RUN_EVAL_CASE = "run_eval_case"
     RUN_AGENT_ROUTINE = "run_agent_routine"
     ANSWER_CHANNEL_MESSAGE = "answer_channel_message"
+    COMPACT_CHANNEL_CONTEXT = "compact_channel_context"
     EMAIL_TAX_DOCUMENT = "email_tax_document"
     PLACE_MISSED_CALL_CALLBACK = "place_missed_call_callback"
