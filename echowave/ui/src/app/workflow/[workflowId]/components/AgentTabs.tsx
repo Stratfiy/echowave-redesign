@@ -28,6 +28,7 @@
 import {
     BarChart3,
     Bot,
+    MessagesSquare,
     ScrollText,
     Share2,
     Variable,
@@ -55,6 +56,12 @@ import type { TabId } from "../settings/tabs";
  * their own routes.
  */
 export const AGENT_TABS = [
+    // First, and first deliberately. The strip below is Vapi's, and Vapi
+    // sells to developers: it opens on how the agent is configured. Decibyl
+    // sells a teammate, and what you want from a teammate is what they have
+    // been doing. Configuration is a thing you set once; the thread is the
+    // thing you come back for.
+    { key: "thread", label: "Thread", icon: MessagesSquare },
     { key: "assistant", label: "Assistant", icon: Bot },
     { key: "logs", label: "Logs", icon: ScrollText },
     { key: "tools", label: "Tools", icon: Wrench },
@@ -69,6 +76,8 @@ function hrefFor(tab: Tab, workflowId: number): string {
     const base = `/workflow/${workflowId}`;
     if ("settingsTab" in tab) return `${base}/settings?tab=${tab.settingsTab}`;
     switch (tab.key) {
+        case "thread":
+            return `${base}/thread`;
         case "logs":
             return `${base}/runs`;
         case "tools":
@@ -94,6 +103,7 @@ export function AgentTabs({
 
     const isActive = (tab: Tab) => {
         if ("settingsTab" in tab) return settingsTab === tab.settingsTab;
+        if (tab.key === "thread") return pathname.startsWith(`${base}/thread`);
         if (tab.key === "logs") return pathname.startsWith(`${base}/runs`);
         if (tab.key === "tools") return pathname.startsWith(`${base}/tools`);
         // The canvas, and only the canvas. `startsWith` would light it on
