@@ -11,6 +11,8 @@ playback failed with a 403. The fix is two signing defaults, and these tests
 exist so nobody removes them believing them to be cosmetic.
 """
 
+from unittest.mock import patch
+
 from botocore.config import Config
 
 from api.services.filesystem.s3 import S3FileSystem
@@ -70,3 +72,104 @@ class TestS3CompatibleStores:
         fs = S3FileSystem(bucket_name="b", addressing_style="path")
         assert _config(fs).signature_version == "s3v4"
         assert _config(fs).s3["addressing_style"] == "path"
+
+
+class TestThePresignChecksItsOwnOutput:
+    """Run 336 spent a night reading as a credentials problem.
+
+    S3's answer was ``SignatureDoesNotMatch``, which names the signature and
+    says nothing about *why* it does not match. The signature covers the query
+    string, so a URL signed with a ``Response*`` override and delivered without
+    it fails exactly that way -- and the only evidence sits in an XML page in
+    somebody's browser, hours later.
+
+    So the presign now checks that the URL it returns carries what it signed.
+    It cannot repair anything; it can stop the next one being a night.
+    """
+
+    @staticmethod
+    def _collect(messages):
+        """loguru formats lazily, so the template and its arguments arrive
+        separately. Rendering here is what lets a test assert on the sentence
+        an operator actually reads."""
+
+        def record(template, *args):
+            messages.append(template.format(*args))
+
+        return record
+
+    def test_it_says_which_override_went_missing(self):
+        from api.services.filesystem.s3 import (
+            _warn_if_the_url_lost_what_was_signed as check,
+        )
+
+        stripped = (
+            "https://b.s3.ap-south-1.amazonaws.com/transcripts/336.txt"
+            "?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=abc"
+        )
+        messages = []
+        with patch("api.services.filesystem.s3.logger.error", self._collect(messages)):
+            check(
+                stripped,
+                {
+                    "Bucket": "b",
+                    "Key": "transcripts/336.txt",
+                    "ResponseContentType": "text/plain",
+                    "ResponseContentDisposition": "inline",
+                },
+                "transcripts/336.txt",
+            )
+
+        assert messages, "a URL missing a signed parameter said nothing"
+        assert "response-content-disposition" in messages[0]
+        assert "SignatureDoesNotMatch" in messages[0]
+
+    def test_a_complete_url_is_quiet(self):
+        from api.services.filesystem.s3 import (
+            _warn_if_the_url_lost_what_was_signed as check,
+        )
+
+        intact = (
+            "https://b.s3.ap-south-1.amazonaws.com/transcripts/336.txt"
+            "?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=abc"
+            "&response-content-type=text%2Fplain"
+            "&response-content-disposition=inline"
+        )
+        messages = []
+        with patch("api.services.filesystem.s3.logger.error", self._collect(messages)):
+            check(
+                intact,
+                {
+                    "ResponseContentType": "text/plain",
+                    "ResponseContentDisposition": "inline",
+                },
+                "transcripts/336.txt",
+            )
+        assert messages == []
+
+    def test_a_download_with_no_overrides_is_not_flagged(self):
+        """A recording asked for without force_inline signs no overrides, so
+        there is nothing to lose and nothing to say."""
+        from api.services.filesystem.s3 import (
+            _warn_if_the_url_lost_what_was_signed as check,
+        )
+
+        messages = []
+        with patch("api.services.filesystem.s3.logger.error", self._collect(messages)):
+            check(
+                "https://b.s3.ap-south-1.amazonaws.com/recordings/336.wav"
+                "?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=abc",
+                {"Bucket": "b", "Key": "recordings/336.wav"},
+                "recordings/336.wav",
+            )
+        assert messages == []
+
+    def test_a_url_with_no_signature_at_all_is_reported(self):
+        from api.services.filesystem.s3 import (
+            _warn_if_the_url_lost_what_was_signed as check,
+        )
+
+        messages = []
+        with patch("api.services.filesystem.s3.logger.error", self._collect(messages)):
+            check("https://b.s3.ap-south-1.amazonaws.com/a.txt", {}, "a.txt")
+        assert any("no signature" in m for m in messages)

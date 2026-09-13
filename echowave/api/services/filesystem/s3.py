@@ -1,4 +1,5 @@
 from typing import Any
+from urllib.parse import parse_qs, urlsplit
 
 import aioboto3
 from botocore.config import Config
@@ -6,6 +7,60 @@ from botocore.exceptions import ClientError
 from loguru import logger
 
 from .base import AsyncReadable, BaseFileSystem
+
+#: The ``Params`` keys above that become *signed query parameters* rather than
+#: part of the request line, and the names they take in the URL.
+_OVERRIDE_PARAMS = {
+    "ResponseContentType": "response-content-type",
+    "ResponseContentDisposition": "response-content-disposition",
+}
+
+
+def _warn_if_the_url_lost_what_was_signed(
+    url: str | None, params: dict[str, Any], file_path: str
+) -> None:
+    """Check that the URL carries everything the signature covers.
+
+    A presigned URL's signature is computed over its query string. Every
+    ``Response*`` override is part of that string, so a URL that is signed with
+    one and delivered without it fails with ``SignatureDoesNotMatch`` -- an
+    error that names the signature and says nothing about the missing
+    parameter, and therefore reads for hours as a credentials or region
+    problem. It cost exactly that on run 336.
+
+    Signing is local, so this costs a string parse and no round trip. It
+    cannot repair the URL; what it can do is make the next occurrence say
+    which parameter went missing instead of leaving the evidence only in an
+    XML error in somebody's browser.
+    """
+    if not url:
+        return
+
+    try:
+        query = parse_qs(urlsplit(url).query)
+    except Exception as exc:  # noqa: BLE001 - a diagnostic must not break a download
+        logger.warning("Could not parse the presigned URL for {}: {}", file_path, exc)
+        return
+
+    missing = [
+        name
+        for key, name in _OVERRIDE_PARAMS.items()
+        if key in params and name not in query
+    ]
+    if missing:
+        # Loud, because the failure it predicts is silent everywhere else.
+        logger.error(
+            "Presigned URL for {} was signed with {} but the URL does not "
+            "carry {} -- S3 will answer SignatureDoesNotMatch",
+            file_path,
+            ", ".join(
+                sorted(_OVERRIDE_PARAMS[k] for k in params if k in _OVERRIDE_PARAMS)
+            ),
+            ", ".join(missing),
+        )
+
+    if "X-Amz-Signature" not in query:
+        logger.error("Presigned URL for {} carries no signature at all", file_path)
 
 
 class S3FileSystem(BaseFileSystem):
@@ -168,6 +223,7 @@ class S3FileSystem(BaseFileSystem):
                     Params=params,
                     ExpiresIn=expiration,
                 )
+            _warn_if_the_url_lost_what_was_signed(url, params, file_path)
             return url
         except Exception as e:
             # Signing is local (no round trip to S3), so a failure here is a
