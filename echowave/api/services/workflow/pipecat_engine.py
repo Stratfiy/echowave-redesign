@@ -50,6 +50,7 @@ from loguru import logger
 from api.services.billing.addons import KNOWLEDGE_BASE as ADDON_KNOWLEDGE_BASE
 from api.services.managed_model_services import MPS_CORRELATION_ID_CONTEXT_KEY
 from api.services.pipecat import agent_end_call
+from api.services.workflow import organisation_memory
 from api.services.workflow import pipecat_engine_callbacks as engine_callbacks
 from api.services.workflow.mcp_tool_session import McpToolSession
 from api.services.workflow.pipecat_engine_context_composer import (
@@ -195,6 +196,15 @@ class PipecatEngine:
         self._timezone: Optional[str] = None
         #: "Now", fixed at the first node of the call. See _get_today_line.
         self._today_line: Optional[str] = None
+        #: Which bot this run belongs to. Fetched rather than assumed: the
+        #: engine has never carried one, and assuming it did is the defect
+        #: `api/AGENTS.md` opens with. See _get_workflow_id.
+        self._workflow_id: Optional[int] = None
+        #: What the business has confirmed, rendered once. See
+        #: _get_remembered_block. Empty string means "looked, found nothing" --
+        #: distinct from None, which means "not looked yet", so a business with
+        #: no confirmed memory is not re-queried on every node transition.
+        self._remembered_block: Optional[str] = None
 
         # Open MCP tool sessions for this call, keyed by tool_uuid
         self._mcp_sessions: Dict[str, McpToolSession] = {}
@@ -301,6 +311,42 @@ class PipecatEngine:
         if self._today_line is None:
             self._today_line = compose_today_line(await self._get_timezone())
         return self._today_line
+
+    async def _get_workflow_id(self) -> Optional[int]:
+        """Which bot is running, cached for the call."""
+        if self._workflow_id is None:
+            self._workflow_id = await db_client.get_workflow_id_by_workflow_run_id(
+                self._workflow_run_id
+            )
+        return self._workflow_id
+
+    async def _get_remembered_block(self) -> str:
+        """What the business has confirmed, read once and then held.
+
+        Same argument as `_get_today_line`, and the reason both are cached here
+        rather than composed per node: the system prompt is re-sent every turn
+        and is the part providers cache, so a prefix that changes between nodes
+        throws that cache away. On a real call here cache reads were 9,088 of
+        9,608 prompt tokens.
+
+        It is also one database round trip that must not happen on the path
+        between a caller finishing a sentence and the agent starting one. Once
+        per call, at the first node, is affordable; once per transition is not.
+
+        Failure is empty rather than fatal. `recall_for_bot` already swallows
+        and logs, and a business whose memory could not be read still has a
+        working agent that simply knows less -- which is where every one of
+        them was until this was wired up at all.
+        """
+        if self._remembered_block is None:
+            remembered = await organisation_memory.recall_for_bot(
+                organization_id=await self._get_organization_id(),
+                workflow_id=await self._get_workflow_id(),
+            )
+            self._remembered_block = (
+                organisation_memory.remembered_block(remembered) or ""
+            )
+        return self._remembered_block
 
     def _get_otel_context(self):
         """Extract the OTel Context from the task's TracingContext.
@@ -797,6 +843,7 @@ class PipecatEngine:
             today_line=await self._get_today_line(),
             agent_can_end_call=self._agent_can_end_call,
             known_values=self._gathered_context,
+            remembered=await self._get_remembered_block(),
         )
         functions = await compose_functions_for_node(
             node=node,

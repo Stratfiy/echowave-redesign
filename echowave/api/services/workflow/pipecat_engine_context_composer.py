@@ -102,6 +102,7 @@ def compose_system_prompt_for_node(
     today_line: str | None = None,
     agent_can_end_call: bool = False,
     known_values: dict | None = None,
+    remembered: str | None = None,
 ) -> str:
     """Compose the full system prompt text for a workflow node.
 
@@ -133,6 +134,11 @@ def compose_system_prompt_for_node(
             call by the engine so the prompt stays byte-identical across node
             transitions and therefore stays cacheable. Composed here from the
             deployment default when a caller does not supply it.
+        remembered: What the business has confirmed — its own memory plus this
+            bot's, already rendered by `organisation_memory.remembered_block`.
+            Read once per call by the engine, for the same caching reason as
+            `today_line`, which is also why it sits above the known-values
+            block rather than below it.
 
     Returns:
         The composed system prompt text.
@@ -172,6 +178,14 @@ def compose_system_prompt_for_node(
     # up, but not whether it may tell a caller something happened that did not.
     parts.append(action_honesty_instructions())
     parts.append(fact_honesty_instructions())
+
+    # Before the known-values block and after the instructions: like them it is
+    # byte-identical for the life of a call, so it belongs on the stable side of
+    # the boundary. Below the caller's own answers it would also read as less
+    # current than them, which is backwards -- these are settled facts about the
+    # business and that is a caller's guess.
+    if remembered:
+        parts.append(remembered)
 
     # After every instruction block, because those are byte-identical for the
     # life of a call and this is not: a value collected on turn six would
