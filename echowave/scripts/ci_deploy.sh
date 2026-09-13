@@ -130,9 +130,47 @@ db_revision() {
     # old unguarded path and rolled back past migrations — which is precisely
     # the outage of 24 Aug 2026 that the guard was added to prevent. The guard
     # was correct and had simply never once been able to run.
-    docker compose exec -T postgres \
-        psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-postgres}" \
-        -tAc 'select version_num from alembic_version' 2>/dev/null | tr -d '[:space:]'
+    # Ask the database the APPLICATION uses, which since the managed-Postgres
+    # cutover is not the `postgres` service in this compose file. That service
+    # is still running and still answers — it simply holds a schema nothing
+    # reads any more — so the old query returned a plausible revision from the
+    # wrong database, which is worse than returning nothing. A guard that
+    # answers confidently about the wrong thing does not fail loudly; it
+    # approves an unsafe rollback.
+    #
+    # `run --rm --no-deps`, not `exec`: this function runs precisely when the
+    # api container is dead, so there is nothing to exec into. A one-off
+    # container off the same image works, and that image already ships
+    # postgresql-client.
+    #
+    # psql does not understand the SQLAlchemy driver suffix, so `+asyncpg` is
+    # stripped. Everything else about the URL is left alone — host, port, user,
+    # password and database all come from the one place the app reads them.
+    docker compose run --rm --no-deps -T api sh -c '
+        psql "$(printf "%s" "$DATABASE_URL" | sed "s/+asyncpg//")" \
+            -tAc "select version_num from alembic_version"
+    ' 2>/dev/null | tr -d '[:space:]'
+}
+
+# Everything the api said before it died.
+#
+# The compose-up failure path used to roll back without capturing this, so the
+# only evidence of why a deploy failed existed for about two seconds inside a
+# container that was then replaced. Three deploys failed that way on 13 Sep
+# 2026 and none of them could be diagnosed from the log they produced — the
+# "never became healthy" path below has dumped logs for a long time, and this
+# only brings the other failure path up to the same standard.
+#
+# Redacted, because this is the one place a startup traceback is most likely to
+# print a connection string: `sqlalchemy.exc.OperationalError` renders the URL
+# it failed on, password included, and this log is readable by anyone with read
+# access to the repository. The substitution masks the credentials in any
+# scheme://user:pass@host it finds, wherever in the line they appear.
+capture_api_logs() {
+    say "api logs before rollback (credentials redacted)"
+    docker compose logs --tail "${FAILURE_LOG_LINES:-80}" api 2>&1 \
+        | sed -E 's#([a-zA-Z0-9+.-]+://[^:/@[:space:]]+):[^@[:space:]]*@#\1:***@#g' \
+        >&2 || say "  (could not read api logs)"
 }
 
 # Whether a commit's migration set contains a given revision.
@@ -167,6 +205,9 @@ commit_has_revision() {
 # dead one.
 rollback() {
     local revision
+    # Before anything is replaced — the container that failed is still there,
+    # and in a moment it will not be.
+    capture_api_logs
     revision="$(db_revision)"
 
     if [ -n "$revision" ] && ! commit_has_revision "$PREVIOUS_SHA" "$revision"; then
