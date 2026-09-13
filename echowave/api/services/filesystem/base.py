@@ -149,6 +149,7 @@ class BaseFileSystem(ABC):
         """
         raise NotImplementedError
 
+    @abstractmethod
     async def aread_bytes(self, file_path: str, max_bytes: int) -> bytes | None:
         """Read an object into memory, or ``None`` if it is not there.
 

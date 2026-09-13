@@ -309,6 +309,53 @@ class MinioFileSystem(BaseFileSystem):
                 return None
             raise
 
+    async def aopen_range(
+        self, file_path: str, byte_range: str | None = None
+    ) -> tuple[Any, int, int | None, str] | None:
+        def _open():
+            headers = {"Range": byte_range} if byte_range else None
+            response = self.client.get_object(
+                self.bucket_name, file_path, request_headers=headers
+            )
+            # Content-Range is "bytes 100-199/1024": the only place the whole
+            # object's length appears once a range was asked for. Content-Length
+            # is the slice, and a seek bar built from it claims a two-minute
+            # call lasted four seconds.
+            content_range = response.headers.get("Content-Range")
+            if content_range and "/" in content_range:
+                total = int(content_range.rsplit("/", 1)[1])
+                start = int(content_range.split()[1].split("-")[0])
+            else:
+                total = int(response.headers.get("Content-Length") or 0)
+                start = None
+            content_type = (
+                response.headers.get("Content-Type") or "application/octet-stream"
+            )
+            return response, total, start, content_type
+
+        try:
+            response, total, start, content_type = await asyncio.to_thread(_open)
+        except S3Error as exc:
+            if getattr(exc, "code", None) in ("NoSuchKey", "InvalidRange"):
+                return None
+            raise
+
+        async def stream():
+            try:
+                while True:
+                    chunk = await asyncio.to_thread(response.read, 64 * 1024)
+                    if not chunk:
+                        break
+                    yield chunk
+            finally:
+                # The connection is only returned to the pool on release, and a
+                # leaked one is a worker that slowly stops being able to read
+                # anything at all.
+                await asyncio.to_thread(response.close)
+                await asyncio.to_thread(response.release_conn)
+
+        return stream(), total, start, content_type
+
     async def adownload_file(self, source_path: str, local_path: str) -> bool:
         """Download a file from MinIO to local path."""
         try:
