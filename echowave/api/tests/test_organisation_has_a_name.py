@@ -33,12 +33,19 @@ async def _account(async_session, *, name, role):
     return user, org
 
 
+# Every database test takes `db_session` as well as `async_session`: the
+# fixture points the global db_client at the test transaction, so what the
+# test flushed is what the route reads. Without it the route reads a real,
+# empty database and the first test here fails with [] -- which is exactly
+# what it did in CI.
+
+
 def _client(app):
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
 
 @pytest.mark.asyncio
-async def test_the_name_reaches_the_switcher(async_session):
+async def test_the_name_reaches_the_switcher(async_session, db_session):
     from api.app import app
     from api.db import db_client
     from api.services.auth.depends import get_user
@@ -60,7 +67,7 @@ async def test_the_name_reaches_the_switcher(async_session):
 
 
 @pytest.mark.asyncio
-async def test_an_unnamed_organisation_shows_its_number(async_session):
+async def test_an_unnamed_organisation_shows_its_number(async_session, db_session):
     from api.app import app
     from api.services.auth.depends import get_user
 
@@ -75,7 +82,7 @@ async def test_an_unnamed_organisation_shows_its_number(async_session):
 
 
 @pytest.mark.asyncio
-async def test_an_admin_can_rename_it(async_session):
+async def test_an_admin_can_rename_it(async_session, db_session):
     from api.app import app
     from api.db import db_client
     from api.services.auth.depends import get_user_with_selected_organization
@@ -101,7 +108,7 @@ async def test_an_admin_can_rename_it(async_session):
 
 
 @pytest.mark.asyncio
-async def test_a_member_cannot(async_session):
+async def test_a_member_cannot(async_session, db_session):
     from api.app import app
     from api.services.auth.depends import get_user_with_selected_organization
 
