@@ -105,14 +105,57 @@ The honest section, and the one that earns the rest of the page.
   compliance is required by **13 May 2027**; penalties commence **13 November
   2026**.
 - **GDPR:** processor-side controls under Arts 5, 17, 20, 28, 30, 32 and 33 are
-  implemented. [TO CONFIRM — transfers out of the EEA require SCCs and a
-  transfer impact assessment before this section can say more.]
+  implemented. Our Data Processing Agreement covers customers established in the
+  EEA and the UK, and incorporates the European Commission's Standard
+  Contractual Clauses for the transfer. Where processing must remain inside the
+  EEA, say so before contracting and we will scope it with you.
+
+## Infrastructure
+
+**Where it runs.** Amazon Web Services, **`ap-south-1` (Mumbai)**, a single
+region. The region is a deliberate choice rather than a default: call
+recordings and transcripts are conversations with people in India, and the
+region holding them is where that personal data comes to rest under the DPDP
+Act. Putting the recordings in Mumbai and the database elsewhere would undo
+that, so nothing is split across regions.
+
+**What it is made of.** The application and the media pipeline, a PostgreSQL
+database, a Redis cache and queue, and object storage for recordings and
+transcripts. Speech, language and telephony are third-party services, listed
+in full under Sub-processors above.
+
+**Encryption.** TLS to the application and to every provider. Storage is
+encrypted at rest by the hosting layer. Platform credentials and customer
+provider keys are encrypted in the database; API keys are stored as hashes and
+are never recoverable, not even by us.
+
+**Backups.** Taken automatically, encrypted, retained 30 days, and **a backup
+older than 36 hours raises an alert** — so a backup job that quietly stops is
+noticed rather than discovered during a restore. Restores are rehearsed with a
+script that restores into a scratch database and reconciles the ledger, because
+an untested backup is a hypothesis.
+
+**Capacity.** Concurrency is set per account and raised on request. A campaign
+is rate-limited and circuit-broken: a failure-rate spike pauses it
+automatically rather than burning a contact list. Calls that cannot get a
+resource fail fast rather than leaving a caller in silence.
+
+**Deployment.** Updates are rolled out with active calls drained first — a
+worker finishes the conversations it is holding before it is replaced, so a
+deploy does not drop a call in progress.
+
+**What we are changing, and when.** The database, cache and object storage are
+moving to managed AWS services this quarter. That takes the recovery point from
+the last backup to any second within the retention window, and makes the
+application servers replaceable without touching customer data. We would rather
+tell you this is in progress than describe it as finished.
 
 ## Reporting a vulnerability
 
-[TO CONFIRM — the mailbox, the response commitment, and whether you offer safe
-harbour for good-faith research. A trust page without a route to report a
-problem tells a researcher to post it publicly instead.]
+Report a vulnerability to **security@decibyl.ai**. We acknowledge within two
+business days and will tell you what we found and when it is fixed. We will not
+pursue a researcher who reports in good faith, stays within their own test
+account, and does not access, alter or retain anyone else's data.
 
 ---
 

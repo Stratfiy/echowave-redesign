@@ -272,9 +272,11 @@ confidentiality, and at the Customer's cost — save where the audit reveals
 material non-compliance.
 
 11.3 Decibyl may satisfy an audit request by providing a current third-party
-certification or report where one exists. `[TO CONFIRM — Decibyl holds no
-security certification at the date of this template. Do not state or imply
-otherwise.]`
+certification or report where one exists. **Decibyl holds no security
+certification.** It is not SOC 2 audited, not ISO 27001 certified, and has not
+commissioned an independent penetration test. Annex B states the measures that
+are in place and which of them are enforced by code rather than by intention,
+and is offered in place of a certificate.
 
 ## 12. Liability
 
@@ -290,7 +292,13 @@ to place — sits outside the cap. That asymmetry is deliberate and defensible:
 Decibyl cannot inspect a Customer's consent records, cannot verify a lead list,
 and would otherwise carry uncapped exposure for a decision it has no way to see.
 
-`[TO CONFIRM — this is a starting position, not advice. A single shared cap is
+`[TO CONFIRM — counsel to confirm. The drafted position is the SaaS standard:
+each party's total liability is capped at the fees paid by the Customer in the
+twelve months before the claim, with no cap on breach of confidentiality, a
+data protection breach caused by that party, infringement of the other's
+intellectual property, fraud, or anything the law does not permit to be capped.
+It must remain identical to § 9.2 of the Terms of Service — two different caps
+in two documents is the first thing a counterparty's counsel finds. A starting position, not advice. A single shared cap is
 the norm for a company at this stage; larger customers will push for a
 data-protection "super-cap" at a multiple of fees. Have counsel confirm it, and
 decide in advance how far you will move, because you will be asked.]`
@@ -301,10 +309,9 @@ decide in advance how far you will move, because you will be asked.]`
 for as long as Decibyl processes Personal Data on the Customer's behalf.
 
 13.2 This DPA is governed by the laws of India, and the courts at
-**Chennai** have exclusive jurisdiction. `[TO CONFIRM — Chennai is the seat of
-the High Court for Tamil Nadu, where Decibyl is registered, so it is the natural
-default. Change it if your counsel prefers the Krishnagiri district courts or a
-neutral commercial seat.]`
+**Chennai** have exclusive jurisdiction — confirmed. The company is registered in
+Krishnagiri district, Tamil Nadu, and Chennai is the chosen seat within that
+state. 
 
 13.3 In the event of conflict, this DPA prevails over the Agreement in respect
 of data protection.
@@ -375,7 +382,7 @@ the omission rather than by a sentence.
 
 | | |
 |---|---|
-| Grievance Officer | `[TO CONFIRM — name]` |
+| Grievance Officer | Nithishkalyan Pulluru Rajasekar, Nautomation Labs Private Limited, No. 86/16, Papanna Thottam, Brindhavan Nagar, TNHB Phase 7, Hosur, Krishnagiri – 635109, Tamil Nadu, India — grievances@decibyl.ai |
 | Email | privacy@decibyl.ai |
 | Postal | No.86/16, Papanna Thottam, Brindhavan Nagar, TNHB PH-7, Hosur – 635109, Krishnagiri District, Tamil Nadu, India |
 | Security contact | security@decibyl.ai |

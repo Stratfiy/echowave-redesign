@@ -29,6 +29,18 @@ conservative -- see :data:`EPHEMERAL_SUFFIXES`.
 operator hearing their agent state something wrong has to be able to find where
 it came from, and a fact nobody can falsify is worse in front of an agent than
 no fact at all.
+
+**Memory has two scopes, and the narrower one wins.** A fact with no
+``workflow_id`` belongs to the organisation and every bot reads it; one with a
+``workflow_id`` belongs to that bot alone. A bot's own answer beats the
+organisation's on a shared key, because the organisation layer is the default
+and the bot layer is that bot having been told otherwise -- the other direction
+would make a bot's memory unable to say anything.
+
+What a call learns about a *caller* stays at the organisation scope, always.
+The clinic's patients are the clinic's, not the property of whichever bot
+happened to pick up, and scoping them per bot would make the second bot ask
+every question again -- the exact failure this module exists to end.
 """
 
 from __future__ import annotations
@@ -40,6 +52,10 @@ from loguru import logger
 from api.db import db_client
 from api.services.compliance.dnd import normalise_number
 from api.services.workflow.known_values import INTERNAL_KEYS
+from api.services.workflow.organisation_learning import (
+    KIND_FACT,
+    STATUS_CONFIRMED,
+)
 
 SUBJECT_CONTACT = "contact"
 
@@ -186,9 +202,16 @@ async def promote_from_run(
 
 
 async def recall_for_subject(
-    *, organization_id: Optional[int], subject_key: Optional[str]
+    *,
+    organization_id: Optional[int],
+    subject_key: Optional[str],
+    workflow_id: Optional[int] = None,
 ) -> dict[str, str]:
-    """What is already known about this caller. Empty on any failure."""
+    """What is already known about this caller. Empty on any failure.
+
+    With a ``workflow_id`` this is the organisation's memory plus that bot's
+    own, the bot's winning where both have an answer.
+    """
     if not organization_id or not subject_key:
         return {}
     try:
@@ -196,10 +219,46 @@ async def recall_for_subject(
             organization_id=organization_id,
             subject_type=SUBJECT_CONTACT,
             subject_key=subject_key,
+            workflow_id=workflow_id,
         )
     except Exception as exc:  # noqa: BLE001
         logger.warning("Could not recall facts for {}: {}", subject_key, exc)
         return {}
+
+
+async def recall_for_bot(
+    *, organization_id: Optional[int], workflow_id: Optional[int]
+) -> dict[str, str]:
+    """What this bot knows about the business, including its own instructions.
+
+    The organisation's confirmed facts UNION this bot's, the bot's winning on a
+    shared key -- so "we answer in English" can be the house rule and "answer
+    in Hindi" this one bot's standing exception, without either being written
+    twice or the exception leaking into every other bot's mouth.
+
+    Only confirmed facts. Everything inferred from a call arrives as
+    ``learned`` and stays out of every prompt until a person says yes; that
+    gate is the reason this whole table is safe to write to on every call, and
+    a bot's own scope does not get to be the exception to it.
+    """
+    if not organization_id:
+        return {}
+    try:
+        rows = await db_client.organisation_memory(
+            organization_id=organization_id,
+            kind=KIND_FACT,
+            status=STATUS_CONFIRMED,
+            workflow_id=workflow_id,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not recall memory for bot {}: {}", workflow_id, exc)
+        return {}
+
+    # The organisation's rows first so a bot's own overwrite them, matching
+    # recall_facts. Same rule in both places on purpose: a reader who learns it
+    # once should not have to check whether it holds here too.
+    ordered = sorted(rows, key=lambda row: row.workflow_id is not None)
+    return {row.key: row.value for row in ordered}
 
 
 def merge_for_prompt(
