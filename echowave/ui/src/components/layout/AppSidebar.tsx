@@ -43,8 +43,12 @@ import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 import {
+  contextIdForUrl,
   getActiveNavUrl,
+  getContextSections,
   getVisibleNavSections,
+  NAV_CONTEXTS,
+  type NavContextId,
   type SidebarNavItem,
 } from "./navigation";
 
@@ -84,6 +88,27 @@ export function AppSidebar() {
 
   const navSections = getVisibleNavSections(roles);
   const activeUrl = getActiveNavUrl(pathname, navSections);
+
+  /* Which panel the rail is showing.
+   *
+   * Seeded from the page you are on, so arriving at /billing from a link opens
+   * Account rather than leaving the rail pointing somewhere else — a rail that
+   * disagrees with the screen is worse than no rail. Clicking a rail icon then
+   * overrides it until you navigate, which is what makes browsing another
+   * panel possible without leaving the page you are reading. */
+  const [pickedContext, setPickedContext] = useState<NavContextId | null>(null);
+  const routeContext = activeUrl ? contextIdForUrl(activeUrl) : "home";
+  const activeContext = pickedContext ?? routeContext;
+  useEffect(() => {
+    setPickedContext(null);
+  }, [pathname]);
+
+  /* Icon mode has no room for the strip, so it shows every destination
+   * rather than one context's worth — a collapsed rail that silently drops
+   * twelve doors is the regression this whole model has to avoid. */
+  const contextSections = isCollapsed
+    ? navSections
+    : getContextSections(activeContext, navSections);
   const activeSection = navSections.find(section => section.items.some(item => item.url === activeUrl))?.label;
   const [closedSections, setClosedSections] = useState<string[]>(["MONITOR", "DEVELOPERS", "WORKSPACE"]);
   useEffect(() => {
@@ -311,7 +336,49 @@ export function AppSidebar() {
           the footer. Without a background on the footer it showed through and
           the final entry read as clipped rather than as scrolled. */}
       <SidebarContent className={cn("notranslate gap-1 pb-2 group-data-[collapsible=icon]:overflow-y-auto", isCollapsed && "px-0")} translate="no">
-        {navSections.map((section) => (
+        {/* The context strip.
+            Five doors instead of seventeen, each opening its own panel below.
+            Horizontal rather than a left column for now: it is the same
+            model — pick a context, the panel swaps — without restructuring
+            the shell's chrome, and the vertical rail is a visual change on
+            top of it rather than a different idea.
+
+            Every context is always rendered, which is the point. Filtering
+            the panel without offering a way back to the others is how a
+            destination silently stops being reachable. */}
+        {!isCollapsed && (
+          <div
+            role="tablist"
+            aria-label="Workspace"
+            className="flex items-center gap-0.5 px-2 pb-1"
+          >
+            {NAV_CONTEXTS.map((context) => {
+              const Icon = context.icon;
+              const selected = context.id === activeContext;
+              return (
+                <button
+                  key={context.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  aria-label={context.title}
+                  title={context.title}
+                  onClick={() => setPickedContext(context.id)}
+                  className={cn(
+                    "flex h-8 flex-1 items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+                    selected
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                      : "text-muted-foreground hover:bg-sidebar-accent/50",
+                  )}
+                >
+                  <Icon aria-hidden="true" className="h-4 w-4" />
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {contextSections.map((section) => (
           <React.Fragment key={section.label ?? "overview"}>
           <SidebarGroup
             className="py-1"
@@ -351,7 +418,9 @@ export function AppSidebar() {
           </SidebarGroup>
           {/* Straight after Home, and above every feature door: the largest
               section of the rail should be the team, not the tooling. */}
-          {section.label === undefined && <SidebarBots collapsed={isCollapsed} />}
+          {activeContext === "home" && section.label === undefined && (
+            <SidebarBots collapsed={isCollapsed} />
+          )}
           </React.Fragment>
         ))}
       </SidebarContent>
