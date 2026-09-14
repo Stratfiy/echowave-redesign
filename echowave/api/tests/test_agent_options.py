@@ -267,7 +267,13 @@ class TestThePresetChips:
         cards = await agent_options.preset_options(
             async_session, organization_id=org.id
         )
-        assert [c["slug"] for c in cards] == ["basic", "standard", "smart", "global"]
+        assert [c["slug"] for c in cards] == [
+            "basic",
+            "standard",
+            "natural",
+            "smart",
+            "global",
+        ]
         assert all("available" in c and "paise_per_minute" in c for c in cards)
 
     async def test_the_ladder_climbs_in_price(self, db_session, async_session):
