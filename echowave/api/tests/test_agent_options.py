@@ -235,6 +235,7 @@ class TestThePresetChips:
                 rate("sarvam", CostComponent.TTS, RateUnit.THOUSAND_CHARS, 1500),
                 rate("rumik", CostComponent.TTS, RateUnit.THOUSAND_CHARS, 500),
                 rate("elevenlabs", CostComponent.TTS, RateUnit.THOUSAND_CHARS, 9000),
+                rate("smallest", CostComponent.TTS, RateUnit.THOUSAND_CHARS, 1700),
                 rate(
                     "sarvam",
                     CostComponent.LLM,
