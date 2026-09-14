@@ -50,6 +50,9 @@ beforeEach(() => {
     post.mockReset();
     post.mockResolvedValue({ data: { asked: [1], unknown: [], ambiguous: [] } });
     upload.mockReset();
+    // The brain picked for a chat is remembered on the device; one test's
+    // choice must not become the next test's default.
+    localStorage.clear();
 });
 
 describe('a file is a message', () => {
@@ -70,6 +73,7 @@ describe('a file is a message', () => {
             workflow_id: 3,
             text: '',
             attachments: [{ document_uuid: 'd1', filename: 'rates.pdf', size_bytes: 12 }],
+            preset: null,
         });
     });
 
@@ -80,6 +84,18 @@ describe('a file is a message', () => {
         fireEvent.change(picker, { target: { files: [new File(['x'], 'menu.pdf')] } });
         await waitFor(() => expect(upload).toHaveBeenCalled());
         expect(upload.mock.calls[0][1]).toEqual({ scope: 'channel', folderId: 9 });
+    });
+
+    it('remembers the brain picked for this chat and sends it with the message', async () => {
+        composer();
+        fireEvent.keyDown(screen.getByRole('button', { name: 'Brain for this message' }), { key: 'Enter' });
+        fireEvent.click(await screen.findByText('Deep'));
+        const box = screen.getByRole('textbox') as HTMLTextAreaElement;
+        fireEvent.change(box, { target: { value: 'think' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+        await waitFor(() => expect(post).toHaveBeenCalled());
+        expect(post.mock.calls[0][0].body.preset).toBe('deep');
+        expect(JSON.parse(localStorage.getItem('decibyl.chat-preset') || '{}')).toEqual({ 'channel:9': 'deep' });
     });
 
     it('refuses a file type nothing can read, before uploading', async () => {
@@ -183,7 +199,7 @@ describe('sending', () => {
         fireEvent.click(screen.getByLabelText('Send'));
         await waitFor(() =>
             expect(post).toHaveBeenCalledWith({
-                body: { folder_id: 9, text: '@front are we open?', attachments: [] },
+                body: { folder_id: 9, text: '@front are we open?', attachments: [], preset: null },
             }),
         );
     });
@@ -262,7 +278,7 @@ describe("on a bot's own chat", () => {
         fireEvent.change(box, { target: { value: 'Book Meera at 4' } });
         fireEvent.keyDown(box, { key: 'Enter' });
         await waitFor(() =>
-            expect(post).toHaveBeenCalledWith({ body: { workflow_id: 3, text: 'Book Meera at 4', attachments: [] } }),
+            expect(post).toHaveBeenCalledWith({ body: { workflow_id: 3, text: 'Book Meera at 4', attachments: [], preset: null } }),
         );
     });
 });

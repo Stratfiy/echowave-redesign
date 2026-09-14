@@ -455,6 +455,15 @@ async def execute_text_chat_pending_turn(
     run_definition = workflow_run.definition
     run_configs = run_definition.workflow_configurations or {}
 
+    # The brain the person picked for this chat, if they picked one. One
+    # message's choice, carried in the session rather than written to the
+    # bot -- see services/configuration/chat_presets.py.
+    from api.services.configuration import chat_presets
+
+    run_configs = chat_presets.apply(
+        run_configs, session_data.get(chat_presets.SESSION_KEY)
+    )
+
     from api.services.configuration.ai_model_configuration import (
         get_effective_ai_model_configuration_for_workflow,
     )

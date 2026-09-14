@@ -52,9 +52,16 @@ def _last_assistant_text(text_session: Any) -> Optional[str]:
 
 
 async def answer_in_channel(
-    workflow_id: int, folder_id: Optional[int], text: str
+    workflow_id: int,
+    folder_id: Optional[int],
+    text: str,
+    preset: Optional[str] = None,
 ) -> Optional[int]:
     """Have one bot answer one message. Returns the run id, or None.
+
+    ``preset`` is the brain the person chose for this message, a chat preset
+    slug; None is the bot's own stack. It is written into the run's session
+    data and read once, where the runner resolves the model.
 
     ``folder_id`` None is a direct message on the bot's own chat: the context
     is the bot's thread rather than a channel's, and nothing it says is filed
@@ -111,9 +118,14 @@ async def answer_in_channel(
             )
             return None
 
+        session_data = default_text_chat_session_data()
+        if preset:
+            from api.services.configuration import chat_presets
+
+            session_data[chat_presets.SESSION_KEY] = preset
         text_session = await db_client.ensure_workflow_run_text_session(
             run_id,
-            session_data=default_text_chat_session_data(),
+            session_data=session_data,
             checkpoint=default_text_chat_checkpoint(),
         )
         text_session = await initialize_text_chat_session(

@@ -159,7 +159,7 @@ class TestTalkingToABotDirectly:
         assert kwargs["payload"]["direct"] is True
         # The bot is asked with no channel: the reply path then reads the
         # bot's own thread for context and files nothing in a channel.
-        assert enqueue.await_args.args[1:] == (3, None, "Book Meera at 4")
+        assert enqueue.await_args.args[1:] == (3, None, "Book Meera at 4", None)
 
     async def test_it_must_be_a_channel_or_a_bot_not_both(self):
         from api.app import app

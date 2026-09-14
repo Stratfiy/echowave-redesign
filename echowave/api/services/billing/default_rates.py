@@ -152,6 +152,14 @@ LLM_RATES = (
     # have been a managed model billed at a thirteenth of its cost.
     DefaultRate(
         "openai",
+        "gpt-5",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _blend(1.25, 10.00),
+        "$1.25/$10.00 per 1M, blended — the Advanced brain",
+    ),
+    DefaultRate(
+        "openai",
         "gpt-4.1",
         CostComponent.LLM,
         RateUnit.THOUSAND_TOKENS,

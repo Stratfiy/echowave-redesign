@@ -159,7 +159,11 @@ async def run_agent_routine(_ctx, routine_id: int) -> None:
 
 
 async def answer_channel_message(
-    _ctx, workflow_id: int, folder_id: Optional[int], text: str
+    _ctx,
+    workflow_id: int,
+    folder_id: Optional[int],
+    text: str,
+    preset: Optional[str] = None,
 ) -> None:
     """One bot answers one thing somebody said in a channel, then the run is
     processed like any other.
@@ -173,7 +177,10 @@ async def answer_channel_message(
     from api.services.workflow.channel_reply import answer_in_channel
 
     run_id = await answer_in_channel(
-        int(workflow_id), int(folder_id) if folder_id is not None else None, text
+        int(workflow_id),
+        int(folder_id) if folder_id is not None else None,
+        text,
+        preset=preset or None,
     )
     if run_id is None:
         # No run happened: the bot vanished, or there was no credit. Nothing to

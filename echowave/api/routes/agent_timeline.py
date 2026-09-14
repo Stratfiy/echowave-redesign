@@ -37,6 +37,7 @@ from api.db import db_client
 from api.db.models import UserModel
 from api.enums import AgentEventActor, AgentEventKind
 from api.services.auth.depends import get_user
+from api.services.configuration import chat_presets
 from api.services.workflow import agent_timeline, decisions, mentions
 from api.tasks.arq import enqueue_job
 from api.tasks.function_names import FunctionNames
@@ -204,6 +205,9 @@ class PostMessageRequest(BaseModel):
     #: Empty is allowed only alongside an attachment: a file is a message.
     text: str = Field(default="", max_length=MAX_MESSAGE)
     attachments: list[Attachment] = Field(default_factory=list, max_length=10)
+    #: The brain for this message: a chat preset slug (everyday, smart, deep,
+    #: advanced), or nothing for the bot's own. See chat_presets.
+    preset: Optional[str] = Field(default=None, max_length=32)
 
 
 class PostMessageResponse(BaseModel):
@@ -277,7 +281,7 @@ async def post_message(
         for workflow in workflows
         if getattr(workflow, "folder_id", None) == body.folder_id
     ]
-    text, attachments, line = await _what_was_said(body, organization_id)
+    text, attachments, line, preset = await _what_was_said(body, organization_id)
 
     resolution = mentions.resolve(text, roster)
 
@@ -295,6 +299,7 @@ async def post_message(
             "author_id": user.id,
             "asked": [m.workflow_id for m in resolution.mentioned],
             "attachments": attachments,
+            "preset": preset,
         },
     )
 
@@ -305,6 +310,7 @@ async def post_message(
                 mention.workflow_id,
                 body.folder_id,
                 line,
+                preset,
             )
         except Exception as exc:  # noqa: BLE001 - one bot failing is not all of them
             # Said out loud, because the alternative is a bot that was
@@ -341,8 +347,8 @@ class DecideRequest(BaseModel):
 
 async def _what_was_said(
     body: PostMessageRequest, organization_id: int
-) -> tuple[str, list[dict[str, Any]], str]:
-    """The text, the checked attachments, and the one display line.
+) -> tuple[str, list[dict[str, Any]], str, Optional[str]]:
+    """The text, the checked attachments, the display line, and the brain.
 
     An attachment names a document; the document has to be this
     organisation's, and a uuid from another tenant is refused rather than
@@ -353,6 +359,10 @@ async def _what_was_said(
     text = body.text.strip()
     if not text and not body.attachments:
         raise HTTPException(status_code=422, detail="Say something or attach a file")
+    try:
+        preset = chat_presets.normalise(body.preset)
+    except chat_presets.UnknownPreset as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     attachments: list[dict[str, Any]] = []
     for attachment in body.attachments:
@@ -371,7 +381,7 @@ async def _what_was_said(
 
     # The display line: what was typed, or the file's name when nothing was.
     line = text or "Shared " + ", ".join(a["filename"] for a in attachments)
-    return text, attachments, line
+    return text, attachments, line, preset
 
 
 async def _post_direct_message(
@@ -389,7 +399,7 @@ async def _post_direct_message(
     )
     if workflow is None:
         raise HTTPException(status_code=404, detail="No such bot")
-    text, attachments, line = await _what_was_said(body, organization_id)
+    text, attachments, line, preset = await _what_was_said(body, organization_id)
 
     await agent_timeline.record(
         organization_id=organization_id,
@@ -403,11 +413,14 @@ async def _post_direct_message(
             "asked": [workflow.id],
             "direct": True,
             "attachments": attachments,
+            "preset": preset,
         },
         in_channel=False,
     )
     try:
-        await enqueue_job(FunctionNames.ANSWER_CHANNEL_MESSAGE, workflow.id, None, line)
+        await enqueue_job(
+            FunctionNames.ANSWER_CHANNEL_MESSAGE, workflow.id, None, line, preset
+        )
     except Exception as exc:  # noqa: BLE001 - said out loud, as in the channel path
         logger.error(
             "Could not ask workflow {} to answer directly: {}", workflow.id, exc

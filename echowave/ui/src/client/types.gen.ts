@@ -8029,6 +8029,10 @@ export type PostMessageRequest = {
      * Attachments
      */
     attachments?: Array<Attachment>;
+    /**
+     * Preset
+     */
+    preset?: string | null;
 };
 
 /**
