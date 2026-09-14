@@ -1006,6 +1006,16 @@ async def razorpay_webhook(
             raise HTTPException(status_code=400, detail="Invalid webhook") from exc
         await session.commit()
 
+    # A payment landed: if this account was invited by a friend and this is
+    # its first payment, both sides earn their credits now (KAN-133). After
+    # the commit and in a session of its own, so the referral can neither
+    # roll the payment back nor be lost with it; never raises.
+    referral = result.get("referral_after_commit")
+    if referral:
+        from api.services.billing import referral_rewards
+
+        await referral_rewards.settle_in_own_session(**referral)
+
     # A prepaid top-up reports its voucher at the top level; an autopay
     # collection reports it under "voucher", because that branch settles a
     # mandate rather than crediting an order. Both are money the customer's

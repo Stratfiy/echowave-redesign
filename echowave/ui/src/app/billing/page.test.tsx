@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const api = vi.hoisted(() => ({ balance: vi.fn(), payments: vi.fn(), profile: vi.fn(), documents: vi.fn(), topup: vi.fn() }));
 vi.mock("@/client/sdk.gen", () => ({
   getBalanceApiV1BillingBalanceGet: api.balance,
+  // The invite card (KAN-133) reads this on mount; the page tests are not about it.
+  getReferralsApiV1ReferralsGet: vi.fn().mockResolvedValue({ data: null }),
   listPaymentsApiV1BillingPaymentsGet: api.payments,
   getBillingProfileApiV1BillingProfileGet: api.profile,
   listTaxDocumentsApiV1BillingDocumentsGet: api.documents,

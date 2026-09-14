@@ -688,3 +688,24 @@ Seven decisions taken one at a time, each recorded on KAN-47, applied here.
   instrument path is still INR), and dollar subscriptions beyond the pinned
   export plan ids that already existed.
 
+## 23. Notes from the friend referral (KAN-133, 15 Sept)
+
+- **One door, two rewards.** The partner programme already minted codes and
+  attributed signups write-once at provisioning. Every account now has a
+  code (minted on first read of the invite card) and the same link. What
+  the attribution pays depends on who referred: a live partner arrangement
+  pays commission on spend; anyone else pays 200 credits to each side on
+  the referred account's first payment, as ``trial`` rows keyed on the
+  referred account and unique per side. Never both.
+- **Nothing on signup.** A signup costs nothing to fake; a payment does.
+  The payout hangs off the payment webhook, after the credit commits, in a
+  session of its own, on both a paid top-up and a plan collection.
+- **Guards.** Self-referral refused at attribution; internal accounts earn
+  nothing on either side (a referred internal account pays nobody, or a
+  tester could mint credits for a friend); the referrer is capped at 20
+  paid referrals a calendar month, raisable per account by staff, and the
+  cap stops the referrer's credit only.
+- **Cost.** ₹200 of credit per paid referral, against a first payment of
+  at least ₹999. Twenty a month per account bounds the exposure at ₹4,000
+  a referrer a month without staff raising it.
+

@@ -17,49 +17,52 @@
  * it are the next two steps rather than a directory of subsystems.
  */
 
-import { HomeAboveTheFold } from '@/components/home/HomeAboveTheFold';
-import { LazySection } from '@/components/home/LazySection';
-import { OnboardingChecklist } from '@/components/home/OnboardingChecklist';
-import { PageBody, PageHeader } from '@/components/layout/PageHeader';
-import { OverviewDashboard } from '@/components/overview/OverviewDashboard';
-import { useAuth } from '@/lib/auth';
+import { HomeAboveTheFold } from "@/components/home/HomeAboveTheFold";
+import { InviteCard } from "@/components/home/InviteCard";
+import { LazySection } from "@/components/home/LazySection";
+import { OnboardingChecklist } from "@/components/home/OnboardingChecklist";
+import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import { OverviewDashboard } from "@/components/overview/OverviewDashboard";
+import { useAuth } from "@/lib/auth";
 
 export default function OverviewPage() {
-    const { user } = useAuth();
-    const firstName = user?.displayName?.split(' ')[0];
+  const { user } = useAuth();
+  const firstName = user?.displayName?.split(" ")[0];
 
-    return (
-        <>
-            <PageHeader
-                title="Decibyl"
-                // The greeting moved into the body, where it can say what
-                // actually happened rather than what the page contains.
-                description="Your team's assistant. Ask what happened, or build a new bot."
-                tabs={[
-                    { href: "/overview", label: "Messages" },
-                    { href: "/review", label: "History", prefix: true },
-                    { href: "/overview/about", label: "About" },
-                ]}
-            />
-            {/* The one screen that keeps a reading-width column inside the body.
+  return (
+    <>
+      <PageHeader
+        title="Decibyl"
+        // The greeting moved into the body, where it can say what
+        // actually happened rather than what the page contains.
+        description="Your team's assistant. Ask what happened, or build a new bot."
+        tabs={[
+          { href: "/overview", label: "Messages" },
+          { href: "/review", label: "History", prefix: true },
+          { href: "/overview/about", label: "About" },
+        ]}
+      />
+      {/* The one screen that keeps a reading-width column inside the body.
                 Everything below is a chat composer and two prose cards; run
                 full-bleed at 1440 the input alone would be over a metre of
                 line, which is worse than the gutter the shell exists to remove. */}
-            <PageBody className="space-y-6">
-                {/* What happened, in sentences: the greeting, the composer,
+      <PageBody className="space-y-6">
+        {/* What happened, in sentences: the greeting, the composer,
                     chips built from this account's own state, and the team. */}
-                <HomeAboveTheFold firstName={firstName} />
-                {/* Six steps that pay the free credits, until they are all done. */}
-                <OnboardingChecklist />
-                {/* How it is trending, in charts — and not before somebody
+        <HomeAboveTheFold firstName={firstName} />
+        {/* Six steps that pay the free credits, until they are all done. */}
+        <OnboardingChecklist />
+        {/* The referral link, and who came through it (KAN-133). */}
+        <InviteCard compact />
+        {/* How it is trending, in charts — and not before somebody
                     scrolls to them. These are four analytics endpoints and a
                     charting library; paying for them on first paint made the
                     screen that decides whether the product feels alive the
                     slowest one in it. */}
-                <LazySection>
-                    <OverviewDashboard firstName={firstName} />
-                </LazySection>
-            </PageBody>
-        </>
-    );
+        <LazySection>
+          <OverviewDashboard firstName={firstName} />
+        </LazySection>
+      </PageBody>
+    </>
+  );
 }
