@@ -25,6 +25,7 @@ from api.services.billing.addons import (
     record_addon_used,
 )
 from api.services.billing.cost_engine import RateSpec, UsageItem, compute_call_cost
+from api.services.billing.credits import round_up_to_credits
 from api.services.billing.money import DEFAULT_PLATFORM_RATE_MPAISE
 from api.services.billing.usage import byok_platform_tier
 
@@ -244,8 +245,8 @@ def test_invoice_reconciles_against_its_own_line_items_with_fees_applied():
             ),
         )
 
-        assert cost.total_charged_paise == sum(
-            line.cost_paise for line in cost.line_items
+        assert cost.total_charged_paise == round_up_to_credits(
+            sum(line.cost_paise for line in cost.line_items)
         )
         # Fees never leak into provider cost, at any duration.
         assert cost.total_provider_cost_paise == sum(

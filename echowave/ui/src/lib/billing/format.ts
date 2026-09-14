@@ -51,26 +51,23 @@ export function formatPaise(paise: number | null | undefined): string {
 }
 
 /**
- * The in-product spending unit. One credit is one rupee, always.
+ * The in-product spending unit. One credit is fifty paise.
  *
- * Credits exist so the app can show one number to a domestic account and an
- * export account alike, and so a provider's dollar-denominated price does not
- * move on screen when the rupee does. They are a *display* unit and nothing
- * more: the ledger is integer paise, money.py rounds exactly once, and a
- * second unit with its own arithmetic would be a second rounding — which is
- * how the two halves of a bill stop agreeing.
- *
- * The peg is deliberately 1:1 and deliberately public. Any prepaid system
- * publishes its own exchange rate the moment someone pays ₹1,000 and watches
- * the balance move, so a peg chosen to obscure the rate obscures nothing and
- * costs the trust of whoever works it out.
+ * Decided 14 Sept 2026 (KAN-52): a credit is ₹0.50 of composed cost, a
+ * charge is rounded up to whole credits per event, a balance is shown
+ * rounded down. The engine owns the rule (api/services/billing/credits.py)
+ * and the balance response carries `paise_per_credit`; this constant is the
+ * same number so a screen can format a figure before the response lands,
+ * and a test holds the two together.
  *
  * Rupees stay on invoices, receipts and every tax document, where they are a
  * legal requirement rather than a preference.
  */
+export const PAISE_PER_CREDIT = 50;
+
 export function formatCredits(paise: number | null | undefined): string {
     if (paise === null || paise === undefined) return "—";
-    return integers.format(Math.round(paise / PAISE_PER_RUPEE));
+    return integers.format(Math.trunc(paise / PAISE_PER_CREDIT));
 }
 
 /** A per-minute rate in credits, e.g. "8.5". One decimal, because these are
@@ -80,13 +77,13 @@ export function formatCredits(paise: number | null | undefined): string {
  *  credit in a wallet. */
 export function formatCreditsRate(paise: number | null | undefined): string {
     if (paise === null || paise === undefined) return "—";
-    return (paise / PAISE_PER_RUPEE).toFixed(1);
+    return (paise / PAISE_PER_CREDIT).toFixed(1);
 }
 
 /** With the unit spelled out, e.g. "1,250 credits". Use in running prose. */
 export function formatCreditsLabel(paise: number | null | undefined): string {
     if (paise === null || paise === undefined) return "— credits";
-    const rounded = Math.round(paise / PAISE_PER_RUPEE);
+    const rounded = Math.trunc(paise / PAISE_PER_CREDIT);
     return `${integers.format(rounded)} ${rounded === 1 ? "credit" : "credits"}`;
 }
 

@@ -58,6 +58,10 @@ MARKED_UP_COMPONENTS = frozenset(
         CostComponent.EMBEDDING.value,
     }
 )
+from api.services.billing.credits import (
+    credits_for_charge,
+    round_up_to_credits,
+)
 from api.services.billing.money import (
     DEFAULT_PULSE_SECONDS,
     cost_paise,
@@ -121,6 +125,37 @@ class CostLine:
     provider_cost_paise: int = 0
 
 
+#: The provider name on the line that lifts a call to whole credits.
+CREDIT_ROUNDING_PROVIDER = "credits"
+
+
+def _lift_to_credits(lines: list[CostLine]) -> int:
+    """Append the rounding line and return the total.
+
+    The customer is charged in credits, per event, rounded up (KAN-52). The
+    line items keep their exact paise so the receipt itemises what each
+    component cost; the difference between their sum and the next whole
+    credit is its own line, provider ``credits``, with no provider cost --
+    it is house revenue and the margin report should see it as such. So
+    the line items still sum to the total, the total is what the ledger
+    deducts, and nothing is rounded twice.
+    """
+    exact = sum(line.cost_paise for line in lines)
+    lifted = round_up_to_credits(exact)
+    if lifted > exact:
+        lines.append(
+            CostLine(
+                component=CostComponent.PLATFORM.value,
+                provider=CREDIT_ROUNDING_PROVIDER,
+                units=0,
+                unit_rate_mpaise=0,
+                cost_paise=lifted - exact,
+                provider_cost_paise=0,
+            )
+        )
+    return lifted
+
+
 @dataclass(frozen=True)
 class CallCost:
     line_items: tuple[CostLine, ...]
@@ -147,6 +182,12 @@ class CallCost:
     # than silently costed at zero, which would understate provider cost and
     # overstate margin.
     uncosted: tuple[UsageItem, ...] = field(default_factory=tuple)
+
+    @property
+    def credits(self) -> int:
+        """What the customer sees deducted. Exact, because the total was
+        lifted to a whole number of credits when it was composed."""
+        return credits_for_charge(self.total_charged_paise)
 
 
 def compute_call_cost(
@@ -314,7 +355,7 @@ def compute_call_cost(
             platform_fee_waived=platform_fee_waived,
             addon_fee_paise=0,
             total_provider_cost_paise=provider_total,
-            total_charged_paise=sum(line.cost_paise for line in lines),
+            total_charged_paise=_lift_to_credits(lines),
             pulse_seconds=pulse_seconds,
             billed_seconds=billed,
             uncosted=tuple(uncosted),
@@ -374,8 +415,9 @@ def compute_call_cost(
             )
         )
 
-    # Defined as the sum of the rounded line items — see money.py.
-    total = sum(line.cost_paise for line in lines)
+    # The sum of the rounded line items (see money.py), lifted to a whole
+    # number of credits by one more line -- see _lift_to_credits.
+    total = _lift_to_credits(lines)
 
     return CallCost(
         line_items=tuple(lines),

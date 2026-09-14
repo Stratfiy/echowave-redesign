@@ -265,7 +265,10 @@ class TestCostWorkflowRun:
         charged_llm = round_half_up_div(12 * MANAGED_PROVIDER_MARKUP_BPS, 10_000)
         # 450 is the platform fee asserted above; #125 moved the fee to ₹3
         # and updated that line but not this one, so the sum went stale.
-        assert cost.total_charged_paise == 450 + charged_llm
+        # Lifted to a whole number of credits (50 paise) -- the customer is
+        # charged in credits, per call, rounded up. See billing/credits.py.
+        assert cost.total_charged_paise == round_up_to_credits(450 + charged_llm)
+        assert cost.credits == credits_for_charge(450 + charged_llm)
 
         items = (
             await async_session.scalars(

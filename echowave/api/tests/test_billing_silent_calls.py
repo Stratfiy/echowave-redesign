@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from api.enums import CostComponent, RateUnit
 from api.services.billing.cost_engine import RateSpec, UsageItem, compute_call_cost
+from api.services.billing.credits import round_up_to_credits
 from api.services.billing.delivery import (
     agent_spoke,
     platform_fee_is_waived,
@@ -169,8 +170,8 @@ class TestWhatTheReceiptShows:
             platform_fee_waived=True,
         )
         assert cost.total_provider_cost_paise > 0
-        assert cost.total_charged_paise == sum(
-            line.cost_paise for line in cost.line_items
+        assert cost.total_charged_paise == round_up_to_credits(
+            sum(line.cost_paise for line in cost.line_items)
         )
 
     def test_the_same_call_unwaived_charges_one_pulse(self):
