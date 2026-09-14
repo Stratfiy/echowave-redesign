@@ -310,9 +310,25 @@ export function ModelRow({
                             credits/min
                         </span>
                     </p>
+                    {barTotal > 0 && stacked && (
+                        // A bar in a side column: the donut is a badge for a
+                        // band, and in 380px it is a circle beside a list.
+                        <div
+                            className="mt-3 flex h-2.5 w-full overflow-hidden rounded-full bg-muted"
+                            role="img"
+                            aria-label={`Cost split: ${segments.map((s) => s.label).join(", ")}`}
+                        >
+                            {segments.map((s) => (
+                                <span
+                                    key={s.label}
+                                    style={{ width: `${(s.paise / barTotal) * 100}%`, backgroundColor: s.colour }}
+                                />
+                            ))}
+                        </div>
+                    )}
                     {barTotal > 0 && (
                         <div className="mt-3 flex items-center gap-3">
-                            <CostDonut segments={segments} total={barTotal} />
+                            {!stacked && <CostDonut segments={segments} total={barTotal} />}
                             <div className="flex flex-col gap-1 text-[11px] text-muted-foreground">
                                 {segments.map((s) => (
                                     <span key={s.label} className="inline-flex items-center gap-1.5">

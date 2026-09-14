@@ -11,7 +11,7 @@
  * prompt is the page and the profile is the column beside it.
  */
 
-import { Brain, Database, Wrench } from 'lucide-react';
+import { Brain, Database, Plug, Wrench } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -41,6 +41,73 @@ export function documentCountOf(nodes: FlowNode[]): number {
     return seen.size;
 }
 
+/** Outside software, as opposed to something the bot does on its own. */
+export function isIntegration(category: string | undefined): boolean {
+    return category === 'composio' || category === 'mcp' || category === 'http_api' || category === 'google_calendar';
+}
+
+/** One tint per category. Kept in step with app/tools/config.tsx. */
+const CHIP_COLOURS: Record<string, string> = {
+    http_api: '#3B82F6',
+    end_call: '#EF4444',
+    transfer_call: '#10B981',
+    calculator: '#F59E0B',
+    rate_table: '#D97706',
+    mcp: '#8B5CF6',
+    google_calendar: '#0F9D58',
+    composio: '#EC4899',
+};
+
+type Chip = { id: string; label: string; colour: string };
+
+function chipOf(id: string, tool: { name: string; category: string } | undefined): Chip {
+    return {
+        id,
+        label: tool?.name ?? 'Skill',
+        colour: (tool && CHIP_COLOURS[tool.category]) || '#6B7280',
+    };
+}
+
+function ChipSection({
+    icon: Icon,
+    title,
+    chips,
+    empty,
+}: {
+    icon: typeof Wrench;
+    title: string;
+    chips: Chip[];
+    empty: React.ReactNode;
+}) {
+    return (
+        <section>
+            <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <Icon className="h-3.5 w-3.5" aria-hidden />
+                {title}
+            </h3>
+            {chips.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{empty}</p>
+            ) : (
+                <ul className="flex flex-wrap gap-1.5" aria-label={title}>
+                    {chips.map((chip) => (
+                        <li
+                            key={chip.id}
+                            className="rounded-md border px-2 py-0.5 text-xs font-medium"
+                            style={{
+                                borderColor: `${chip.colour}55`,
+                                backgroundColor: `${chip.colour}1a`,
+                                color: chip.colour,
+                            }}
+                        >
+                            {chip.label}
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </section>
+    );
+}
+
 export function AgentProfilePanel({
     workflowId,
     name,
@@ -55,7 +122,7 @@ export function AgentProfilePanel({
 }) {
     const { user, loading: authLoading } = useAuth();
     const fetched = useRef(false);
-    const [toolNames, setToolNames] = useState<Record<string, string>>({});
+    const [tools, setTools] = useState<Record<string, { name: string; category: string }>>({});
     const [facts, setFacts] = useState<Fact[] | null>(null);
 
     const skillIds = useMemo(() => skillIdsOf(nodes), [nodes]);
@@ -68,9 +135,9 @@ export function AgentProfilePanel({
         void (async () => {
             const response = await listToolsApiV1ToolsGet();
             if (response.error || !response.data) return;
-            const names: Record<string, string> = {};
-            for (const tool of response.data) names[tool.tool_uuid] = tool.name;
-            setToolNames(names);
+            const byId: Record<string, { name: string; category: string }> = {};
+            for (const tool of response.data) byId[tool.tool_uuid] = { name: tool.name, category: tool.category };
+            setTools(byId);
         })();
         void (async () => {
             // What the business has confirmed about itself: the memory every
@@ -100,31 +167,36 @@ export function AgentProfilePanel({
                 </div>
             </div>
 
-            <section>
-                <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    <Wrench className="h-3.5 w-3.5" aria-hidden />
-                    Skills
-                </h3>
-                {skillIds.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
+            {/* Two lists, the way the reference splits them: skills are what
+                the bot itself can do, integrations are the outside software it
+                reaches. Each chip wears its category's colour, so a calendar
+                reads as a calendar before the label is read. */}
+            <ChipSection
+                icon={Wrench}
+                title="Skills"
+                chips={skillIds.filter((id) => !isIntegration(tools[id]?.category)).map((id) => chipOf(id, tools[id]))}
+                empty={
+                    <>
                         None yet.{' '}
                         <Link href={`/workflow/${workflowId}/tools`} className="underline underline-offset-2">
                             Add a skill
                         </Link>
-                    </p>
-                ) : (
-                    <ul className="flex flex-wrap gap-1.5" aria-label="Skills">
-                        {skillIds.map((id) => (
-                            <li
-                                key={id}
-                                className="rounded-md border border-border bg-background px-2 py-0.5 text-xs"
-                            >
-                                {toolNames[id] ?? 'Skill'}
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </section>
+                    </>
+                }
+            />
+            <ChipSection
+                icon={Plug}
+                title="Integrations & tools"
+                chips={skillIds.filter((id) => isIntegration(tools[id]?.category)).map((id) => chipOf(id, tools[id]))}
+                empty={
+                    <>
+                        Nothing connected.{' '}
+                        <Link href="/integrations/apps" className="underline underline-offset-2">
+                            Marketplace
+                        </Link>
+                    </>
+                }
+            />
 
             <section>
                 <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">

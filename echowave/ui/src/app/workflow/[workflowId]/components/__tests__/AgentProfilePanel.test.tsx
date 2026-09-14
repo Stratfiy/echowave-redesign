@@ -33,13 +33,20 @@ describe('what the graph says', () => {
 
 describe('the panel', () => {
     it('shows skills by name, knowledge, and what the business confirmed', async () => {
-        tools.mockResolvedValue({ data: [{ tool_uuid: 't1', name: 'Check availability' }, { tool_uuid: 't2', name: 'Book slot' }] });
+        tools.mockResolvedValue({
+            data: [
+                { tool_uuid: 't1', name: 'Check availability', category: 'google_calendar' },
+                { tool_uuid: 't2', name: 'Book slot', category: 'rate_table' },
+            ],
+        });
         memory.mockResolvedValue({ data: { facts: [{ key: 'Opening hours', value: '9 to 6' }], gaps: [] } });
         render(<AgentProfilePanel workflowId={3} name="Narayani Dental front desk" nodes={NODES} />);
         expect(screen.getByText('Narayani Dental front desk')).toBeTruthy();
         expect(screen.getByText('2 steps')).toBeTruthy();
-        expect(await screen.findByText('Check availability')).toBeTruthy();
-        expect(screen.getByText('Book slot')).toBeTruthy();
+        // A calendar is outside software; a rate lookup is the bot's own.
+        const integrations = await screen.findByRole('list', { name: 'Integrations & tools' });
+        expect(integrations.textContent).toContain('Check availability');
+        expect(screen.getByRole('list', { name: 'Skills' }).textContent).toContain('Book slot');
         expect(screen.getByText(/2 documents of its own/)).toBeTruthy();
         expect(await screen.findByText('9 to 6')).toBeTruthy();
     });
