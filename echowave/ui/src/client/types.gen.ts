@@ -10860,6 +10860,16 @@ export type TransferCallToolDefinition = {
 };
 
 /**
+ * TranslateDocumentRequest
+ */
+export type TranslateDocumentRequest = {
+    /**
+     * Target Language Code
+     */
+    target_language_code?: string;
+};
+
+/**
  * TranslateRequest
  */
 export type TranslateRequest = {
@@ -28526,6 +28536,50 @@ export type SearchChunksApiV1KnowledgeBaseSearchPostResponses = {
 };
 
 export type SearchChunksApiV1KnowledgeBaseSearchPostResponse = SearchChunksApiV1KnowledgeBaseSearchPostResponses[keyof SearchChunksApiV1KnowledgeBaseSearchPostResponses];
+
+export type TranslateDocumentRouteApiV1KnowledgeBaseDocumentsDocumentUuidTranslatePostData = {
+    body: TranslateDocumentRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Document Uuid
+         */
+        document_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/knowledge-base/documents/{document_uuid}/translate';
+};
+
+export type TranslateDocumentRouteApiV1KnowledgeBaseDocumentsDocumentUuidTranslatePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TranslateDocumentRouteApiV1KnowledgeBaseDocumentsDocumentUuidTranslatePostError = TranslateDocumentRouteApiV1KnowledgeBaseDocumentsDocumentUuidTranslatePostErrors[keyof TranslateDocumentRouteApiV1KnowledgeBaseDocumentsDocumentUuidTranslatePostErrors];
+
+export type TranslateDocumentRouteApiV1KnowledgeBaseDocumentsDocumentUuidTranslatePostResponses = {
+    /**
+     * Successful Response
+     */
+    202: DocumentResponseSchema;
+};
+
+export type TranslateDocumentRouteApiV1KnowledgeBaseDocumentsDocumentUuidTranslatePostResponse = TranslateDocumentRouteApiV1KnowledgeBaseDocumentsDocumentUuidTranslatePostResponses[keyof TranslateDocumentRouteApiV1KnowledgeBaseDocumentsDocumentUuidTranslatePostResponses];
 
 export type GetUploadUrlsApiV1WorkflowRecordingsUploadUrlPostData = {
     body: BatchRecordingUploadRequestSchema;
