@@ -221,7 +221,7 @@ class TestAFileIsAMessage:
         assert kwargs["summary"] == "Shared rates.pdf"
         assert kwargs["payload"]["attachments"][0]["document_uuid"] == "d1"
         # The bot is told what was shared, so its turn is not an empty line.
-        assert enqueue.await_args.args[-1] == "Shared rates.pdf"
+        assert enqueue.await_args.args[3] == "Shared rates.pdf"
 
     async def test_nothing_at_all_is_refused(self):
         response, record, _ = await self._post(

@@ -43,7 +43,7 @@ from api.enums import CostComponent
 #: way the screen encouraged. The retired names still resolve — see
 #: ``_RETIRED_LLM_TIERS`` — so a stored configuration naming one keeps the
 #: cheap model it chose rather than being quietly upgraded.
-LLM_TIERS = ("lite", "default", "accurate")
+LLM_TIERS = ("lite", "default", "accurate", "advanced")
 
 #: Names no longer offered, mapped to what they always were. Resolving them to
 #: ``default`` instead would move an account from the cheapest model to the
@@ -66,6 +66,13 @@ LLM_TIER_LABELS: dict[str, tuple[str, str]] = {
     "accurate": (
         "Smart",
         "For calls where getting it wrong is expensive.",
+    ),
+    # A chat brain first. It reasons before it answers, which is the point in
+    # a chat and a silence on a call; the blurb says so rather than letting
+    # somebody find out on a live line.
+    "advanced": (
+        "Advanced",
+        "The strongest model. Thinks before it answers: best in chat, slow on a call.",
     ),
 }
 #: Two, and the second one is a latency choice with a language price attached.
@@ -243,6 +250,7 @@ def _defaults() -> dict[tuple[str, str], ManagedUpstream]:
         ("llm", "lite"): _tier("llm", "lite", "sarvam", "sarvam-105b-conversations"),
         ("llm", "default"): _tier("llm", "default", "openai", "gpt-4.1-mini"),
         ("llm", "accurate"): _tier("llm", "accurate", "openai", "gpt-4.1"),
+        ("llm", "advanced"): _tier("llm", "advanced", "openai", "gpt-5"),
         # Retired names, kept resolving to the model they always served.
         ("llm", "fast"): _tier("llm", "fast", "sarvam", "sarvam-105b-conversations"),
         ("llm", "zen"): _tier("llm", "zen", "sarvam", "sarvam-105b-conversations"),

@@ -17,12 +17,19 @@
  * channel has no record of.
  */
 
-import { AtSign, FileText, Loader2, Paperclip, SendHorizontal, X } from 'lucide-react';
+import { AtSign, Brain, Check, ChevronDown, FileText, Loader2, Paperclip, SendHorizontal, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
 import { postMessageApiV1TimelineMessagePost } from '@/client/sdk.gen';
 import { Button } from '@/components/ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { detailFromResult } from '@/lib/apiError';
+import { CHAT_PRESETS, OWN_BRAIN, rememberedPreset,rememberPreset } from '@/lib/chatPresets';
 import {
     ACCEPTED_FILE_TYPES,
     type KnowledgeTarget,
@@ -91,6 +98,15 @@ export function ChannelComposer({
     const [uploadingFile, setUploadingFile] = useState<string | null>(null);
     const filePicker = useRef<HTMLInputElement | null>(null);
 
+    // The brain for this message. Remembered per chat on this device.
+    const chatKey = workflowId != null ? `bot:${workflowId}` : `channel:${folderId}`;
+    const [preset, setPreset] = useState<string>(() => rememberedPreset(chatKey));
+    const choosePreset = (slug: string) => {
+        setPreset(slug);
+        rememberPreset(chatKey, slug);
+    };
+    const presetLabel = CHAT_PRESETS.find((p) => p.slug === preset)?.label ?? OWN_BRAIN.label;
+
     // Where a dropped file is knowledge for: this chat, and nowhere else.
     const target: KnowledgeTarget | null =
         workflowId != null
@@ -157,7 +173,7 @@ export function ChannelComposer({
         setNotice(null);
         const where = workflowId != null ? { workflow_id: workflowId } : { folder_id: folderId };
         const response = await postMessageApiV1TimelineMessagePost({
-            body: { ...where, text: body, attachments },
+            body: { ...where, text: body, attachments, preset: preset || null },
         });
         setSending(false);
         if (response.error) {
@@ -396,6 +412,45 @@ export function ChannelComposer({
                             }
                         }}
                     />
+                    {/* How hard the bot should think about this one. A
+                        product choice, not a vendor: each is a managed tier
+                        the platform prices and resolves. */}
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                aria-label="Brain for this message"
+                                title="Brain for this message"
+                                className="shrink-0 gap-1 px-2 text-xs text-muted-foreground"
+                            >
+                                <Brain className="h-4 w-4" />
+                                <span className="hidden sm:inline">{presetLabel}</span>
+                                <ChevronDown className="h-3 w-3" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-64">
+                            {[OWN_BRAIN, ...CHAT_PRESETS].map((option) => (
+                                <DropdownMenuItem
+                                    key={option.slug || 'own'}
+                                    onSelect={() => choosePreset(option.slug)}
+                                    className="flex items-start gap-2"
+                                >
+                                    <Check
+                                        className={cn(
+                                            'mt-0.5 h-3.5 w-3.5 shrink-0',
+                                            (preset || '') === option.slug ? 'opacity-100' : 'opacity-0',
+                                        )}
+                                    />
+                                    <span className="flex flex-col">
+                                        <span className="text-sm">{option.label}</span>
+                                        <span className="text-xs text-muted-foreground">{option.blurb}</span>
+                                    </span>
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                     <Button
                         onClick={() => void send()}
                         disabled={(!text.trim() && attachments.length === 0) || sending || !!uploadingFile}
