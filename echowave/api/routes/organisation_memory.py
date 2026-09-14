@@ -78,7 +78,7 @@ def _item(row) -> MemoryItem:
         first_seen_at=row.first_seen_at,
         last_seen_at=row.last_seen_at,
         source_run_id=row.source_run_id,
-        workflow_id=row.workflow_id,
+        workflow_id=getattr(row, "workflow_id", None),
     )
 
 
