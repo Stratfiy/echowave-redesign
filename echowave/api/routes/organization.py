@@ -45,6 +45,11 @@ from api.services.auth.depends import (
     get_user_with_selected_organization,
     require_organization_role,
 )
+from api.services.billing import subscription_plans
+from api.services.billing.subscription_plans import (
+    VoiceNotIncluded,
+    voice_not_included_detail,
+)
 from api.services.configuration import (
     byok_resolution,
     managed_resolution,
@@ -958,6 +963,18 @@ async def create_phone_number(
     if not user.selected_organization_id:
         raise HTTPException(status_code=400, detail="No organization selected")
     cfg = await _ensure_config_belongs_to_org(config_id, user.selected_organization_id)
+
+    # A number on a bot is a bot on the phone, and Free and Everyday do not
+    # include that (KAN-53). Checked before anything is written.
+    async with db_client.async_session() as session:
+        try:
+            await subscription_plans.assert_voice_allowed(
+                session, organization_id=user.selected_organization_id
+            )
+        except VoiceNotIncluded as exc:
+            raise HTTPException(
+                status_code=403, detail=voice_not_included_detail(exc)
+            ) from exc
 
     if request.inbound_workflow_id is not None:
         await _ensure_workflow_belongs_to_org(

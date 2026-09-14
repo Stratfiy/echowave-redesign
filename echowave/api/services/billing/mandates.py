@@ -205,6 +205,8 @@ async def _ensure_plan(
     description: str,
     price_paise: int,
     client: httpx.AsyncClient | None = None,
+    period: str = "monthly",
+    currency: str = "INR",
 ) -> str:
     """The provider plan id a subscription is created against.
 
@@ -232,12 +234,15 @@ async def _ensure_plan(
     created = await _post(
         "/plans",
         {
-            "period": "monthly",
+            # Razorpay's word for a year is "yearly"; ours is "annual".
+            "period": "yearly" if period == "annual" else "monthly",
             "interval": 1,
             "item": {
                 "name": name,
+                # In the currency's minor unit: paise, or cents for a dollar
+                # plan. The caller passes whichever the plan is priced in.
                 "amount": int(price_paise),
-                "currency": "INR",
+                "currency": currency,
                 "description": description,
             },
         },
@@ -340,6 +345,9 @@ async def ensure_starter_plan(
     price_paise: int,
     pinned: str | None = None,
     client: httpx.AsyncClient | None = None,
+    period: str = "monthly",
+    currency: str = "INR",
+    name: str | None = None,
 ) -> str:
     """The plan id a plan subscription is created against.
 
@@ -348,12 +356,23 @@ async def ensure_starter_plan(
     RAZORPAY_STARTER_PLAN_ID that could be right for all of them.
     """
     return await _ensure_plan(
-        pinned=pinned or RAZORPAY_STARTER_PLAN_ID,
+        pinned=pinned
+        or (
+            RAZORPAY_STARTER_PLAN_ID
+            if period == "monthly" and currency == "INR"
+            else None
+        ),
         env_var="RAZORPAY_STARTER_PLAN_ID",
-        name="Decibyl starter plan",
-        description="Monthly: a phone number and a call balance",
+        name=name or "Decibyl starter plan",
+        description=(
+            "Yearly: a plan's credits and numbers, ten months for twelve"
+            if period == "annual"
+            else "Monthly: a phone number and a call balance"
+        ),
         price_paise=price_paise,
         client=client,
+        period=period,
+        currency=currency,
     )
 
 
@@ -494,8 +513,13 @@ async def create_plan_mandate(
     plan=None,
     price_paise: int | None = None,
     client: httpx.AsyncClient | None = None,
+    period: str = "monthly",
 ) -> PaymentMandateModel:
-    """Start the autopay authorisation for the starter plan.
+    """Start the autopay authorisation for a plan.
+
+    ``period`` is ``monthly`` or ``annual``. A year is collected once at the
+    plan's annual price (ten months for twelve) and grants twelve months of
+    credits at once; the mandate records which it is so the grant knows.
 
     The same shape as :func:`create_rental_mandate` and for the same reasons —
     nothing is collected here, the mandate becomes usable only when the
@@ -521,11 +545,19 @@ async def create_plan_mandate(
     # The plan decides the price and which provider plan to subscribe to. The
     # constants remain the fallback for a deployment that has not run the plans
     # migration, so this function keeps working before the table exists.
-    net_paise = int(
-        price_paise
-        if price_paise is not None
-        else (plan.price_paise if plan is not None else STARTER_PLAN_PRICE_PAISE)
-    )
+    if period not in ("monthly", "annual"):
+        raise MandateError(f"Unknown billing period {period!r}.")
+    if period == "annual":
+        if plan is None or not plan.annual_price_paise:
+            raise MandateError("This plan has no annual option.")
+        list_paise = int(plan.annual_price_paise)
+    else:
+        list_paise = int(
+            price_paise
+            if price_paise is not None
+            else (plan.price_paise if plan is not None else STARTER_PLAN_PRICE_PAISE)
+        )
+    net_paise = list_paise
     profile = await get_profile(session, organization_id=organization_id)
     try:
         breakdown = compute_tax(
@@ -542,27 +574,52 @@ async def create_plan_mandate(
     # amount into another once the bank holds the instruction.
     is_export = breakdown.supply_type == "export"
     gross_paise = breakdown.total_paise
+    currency = "INR"
+    amount = gross_paise
     pinned = None
     if plan is not None:
-        pinned = plan.razorpay_plan_id_export if is_export else plan.razorpay_plan_id
+        if period == "annual":
+            pinned = (
+                plan.razorpay_plan_id_annual_export
+                if is_export
+                else plan.razorpay_plan_id_annual
+            )
+        else:
+            pinned = (
+                plan.razorpay_plan_id_export if is_export else plan.razorpay_plan_id
+            )
 
-    if is_export and plan is not None and not pinned:
-        # Refused, with the figure to create it at. The alternative is
-        # subscribing them to the domestic plan, which overcharges them by the
-        # tax every month for as long as the mandate lives.
-        raise MandateError(
-            f"This account is zero-rated for GST, so it owes the net "
-            f"₹{net_paise / 100:,.2f} — not the domestic amount the "
-            f"{plan.code} plan is pinned at. Create a second Razorpay plan at "
-            f"₹{net_paise / 100:,.2f} and put its id in the export field at "
-            "/superadmin/billing/plans, or keep this account on prepaid "
-            "top-ups."
-        )
+    if is_export and plan is not None:
+        # A foreign account pays in dollars and only for a text plan: voice is
+        # India-only, so every voice plan is (KAN-53). A plan with no dollar
+        # price is refused rather than sold in rupees at the net -- the site
+        # quotes dollars and the invoice is zero-rated in dollars.
+        if plan.price_usd_cents is None:
+            raise MandateError(
+                f"The {plan.label} plan is available in India only. Accounts "
+                "outside India can take Everyday, which is text only."
+            )
+        currency = "USD"
+        amount = int(plan.price_usd_cents) * (10 if period == "annual" else 1)
+        if not pinned:
+            # Refused, with the figure to create it at. The alternative is
+            # subscribing them to the domestic plan, which overcharges them by
+            # the tax every month for as long as the mandate lives.
+            raise MandateError(
+                f"This account is outside India and pays ${amount / 100:,.2f} "
+                f"{'a year' if period == 'annual' else 'a month'} for "
+                f"{plan.label}. Create a Razorpay plan in USD at that amount "
+                "and put its id in the export field at /superadmin/billing/plans, "
+                "or keep this account on prepaid top-ups."
+            )
 
     plan_id = await ensure_starter_plan(
-        price_paise=gross_paise,
+        price_paise=amount,
         pinned=pinned,
         client=client,
+        period=period,
+        currency=currency,
+        name=f"Decibyl {plan.label}" if plan is not None else None,
     )
 
     created = await _post(
@@ -595,6 +652,7 @@ async def create_plan_mandate(
         # and by the balance grant, so it has to be recorded at the moment of
         # sale rather than re-derived from a catalogue that may have moved.
         plan_code=(plan.code if plan is not None else None),
+        billing_period=period,
         provider_payload=created,
     )
     session.add(mandate)

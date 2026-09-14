@@ -226,6 +226,7 @@ const FAMILIES = {
     blurb: "Balance, plan, payments and tax documents. Read what the app shows; top up and subscribe from here too.",
     methods: [
       ["balance", "GET /api/v1/billing/balance", "Credit balance."],
+      ["plans", "GET /api/v1/billing/plans", "The plan ladder, prices, credits and caps. No sign-in needed."],
       ["plan", "GET /api/v1/billing/plan", "The current plan."],
       ["subscribe", "POST /api/v1/billing/plan", "Subscribe to a plan."],
       ["topup", "POST /api/v1/billing/topup", "Buy credit."],

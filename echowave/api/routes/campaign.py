@@ -15,6 +15,11 @@ from api.db import db_client
 from api.db.models import UserModel
 from api.enums import OrganizationConfigurationKey, PostHogEvent
 from api.services.auth.depends import get_user, require_verified_email
+from api.services.billing import subscription_plans
+from api.services.billing.subscription_plans import (
+    VoiceNotIncluded,
+    voice_not_included_detail,
+)
 from api.services.campaign import consent
 from api.services.campaign.runner import campaign_runner_service
 from api.services.campaign.source_sync import CampaignSourceSyncService
@@ -577,6 +582,18 @@ async def start_campaign(
         )
     except consent.ConsentNotAttested as exc:
         raise HTTPException(status_code=428, detail=str(exc)) from exc
+
+    # A campaign is bots on the phone, and Free and Everyday do not include
+    # that (KAN-53). Refused with the rung that does.
+    async with db_client.async_session() as session:
+        try:
+            await subscription_plans.assert_voice_allowed(
+                session, organization_id=user.selected_organization_id
+            )
+        except VoiceNotIncluded as exc:
+            raise HTTPException(
+                status_code=403, detail=voice_not_included_detail(exc)
+            ) from exc
 
     # Check Decibyl quota before starting campaign (apply per-workflow
     # model_overrides so we evaluate the keys this campaign will use).

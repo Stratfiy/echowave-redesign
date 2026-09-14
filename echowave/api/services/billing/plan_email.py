@@ -52,9 +52,9 @@ def compose(
     contents = ""
     if plan is not None:
         lines = [
-            f"  · {_rupees(plan.balance_paise)} of call balance, fresh each cycle "
-            "— unused plan balance does not carry over (top-ups you buy never "
-            "expire)"
+            f"  · {plan.credits:,} credits ({_rupees(plan.balance_paise)}) each "
+            "cycle — unused plan credits expire at the end of the cycle "
+            "(top-ups you buy never expire)"
         ]
         if plan.included_numbers == 1:
             lines.append("  · 1 phone number")

@@ -375,6 +375,7 @@
                 "pages": [
                   "api-reference/billing",
                   "api-reference/billing/balance",
+                  "api-reference/billing/plans",
                   "api-reference/billing/plan",
                   "api-reference/billing/subscribe",
                   "api-reference/billing/topup",

@@ -3417,8 +3417,53 @@ class SubscriptionPlanModel(Base):
     #: do — a visible refusal rather than an invisible 18% overcharge.
     razorpay_plan_id_export = Column(String(64), nullable=True)
 
+    #: May deployed bots on this plan use the phone? Everyday and Free say
+    #: no (KAN-53): an account on them cannot attach a number or start a
+    #: campaign. Building and test-calling a bot in the app is not gated;
+    #: putting it on a line is.
+    voice_allowed = Column(Boolean, nullable=False, default=True, server_default="true")
+    #: Is this plan bought? Free and Campus Builder are granted, not sold, and
+    #: are the only plans allowed to cost nothing.
+    purchasable = Column(Boolean, nullable=False, default=True, server_default="true")
+    #: What a foreign, text-only account pays, in US cents. Null means the plan
+    #: is India-only (every voice plan is, because voice is India-only).
+    price_usd_cents = Column(Integer, nullable=True)
+    #: A year, net of GST. Ten months for twelve by decision. Null means the
+    #: plan has no annual option.
+    annual_price_paise = Column(BigInteger, nullable=True)
+    #: Provider plans collecting the annual figure, domestic and export, for
+    #: the same reason the monthly ones are pinned.
+    razorpay_plan_id_annual = Column(String(64), nullable=True)
+    razorpay_plan_id_annual_export = Column(String(64), nullable=True)
+
     enabled = Column(Boolean, nullable=False, default=True, server_default="true")
     sort_order = Column(Integer, nullable=False, default=0, server_default="0")
+
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+
+class PlanLimitModel(Base):
+    """One cap on one plan. Every cap is a row here and never a constant.
+
+    ``value`` null is unlimited; zero is a real cap ("none of these"). The
+    keys are the registry in ``services/billing/plan_limits.py``, which is
+    also where the seed and the "raise this" path live. See KAN-53.
+    """
+
+    __tablename__ = "plan_limits"
+    __table_args__ = (
+        Index("uq_plan_limits_plan_key", "plan_code", "key", unique=True),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    plan_code = Column(String(32), nullable=False)
+    key = Column(String(48), nullable=False)
+    value = Column(BigInteger, nullable=True)
 
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     updated_at = Column(
@@ -3488,6 +3533,12 @@ class PaymentMandateModel(Base):
     #: it by default, which is why this is nullable rather than backfilled to a
     #: code that might not be the one they signed up on.
     plan_code = Column(String(32), nullable=True)
+    #: ``monthly`` or ``annual``: which period each collection pays for, so
+    #: the grant on a collection knows whether it is one month's credits or
+    #: twelve. Recorded at sale like ``plan_code``, for the same reason.
+    billing_period = Column(
+        String(16), nullable=False, default="monthly", server_default="monthly"
+    )
 
     authorised_at = Column(DateTime(timezone=True), nullable=True)
     cancelled_at = Column(DateTime(timezone=True), nullable=True)

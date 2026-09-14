@@ -27,14 +27,15 @@ class TestTheCostOfWhatAPlanIncludes:
     async def test_a_plan_that_cannot_pay_its_carrier_rent_is_refused(
         self, db_session, async_session
     ):
-        """₹1,990 of balance and a ₹250 number out of ₹2,000 collected."""
+        """₹3,000 of balance (₹1,860 at cost) and a ₹250 number out of
+        ₹2,000 collected: the balance alone clears, the rent tips it."""
         with pytest.raises(PlanError) as caught:
             await subscription_plans.save(
                 async_session,
                 code="thin",
                 label="Thin",
                 price_paise=200_000,
-                balance_paise=199_000,
+                balance_paise=300_000,
                 included_numbers=1,
                 razorpay_plan_id="plan_thin",
             )
@@ -42,12 +43,13 @@ class TestTheCostOfWhatAPlanIncludes:
         assert "carrier" in message
         # Named in rupees, not paise: an operator has to know how far to move
         # the balance, and a figure in paise reads as a hundredfold error.
-        assert "240.00" in message, message
+        assert "110.00" in message, message
 
-    async def test_the_old_guard_alone_would_have_let_that_through(self):
-        """Why this is a second check rather than a stricter first one. The
-        original compares balance against price, and ₹1,990 < ₹2,000 passes."""
-        assert 199_000 < 200_000
+    async def test_the_balance_alone_would_have_let_that_through(self):
+        """Why the rent is in the sum. Balance is checked at cost (a credit is
+        marked-up cost, KAN-52), and ₹3,000 at cost is ₹1,860, which
+        ₹2,000 covers; only the ₹250 of rent makes it a loss."""
+        assert 300_000 * subscription_plans.BALANCE_COST_BPS // 10_000 < 200_000
 
     async def test_the_shortfall_scales_with_the_numbers_included(
         self, db_session, async_session
@@ -60,12 +62,13 @@ class TestTheCostOfWhatAPlanIncludes:
                 code="four",
                 label="Four",
                 price_paise=200_000,
-                balance_paise=150_000,
+                balance_paise=200_000,
                 included_numbers=4,
                 razorpay_plan_id="plan_four",
             )
-        # 150,000 + 4 x 25,000 = 250,000 against 200,000 collected.
-        assert "500.00" in str(caught.value), str(caught.value)
+        # 200,000 at cost is 124,000; plus 4 x 25,000 is 224,000 against
+        # 200,000 collected.
+        assert "240.00" in str(caught.value), str(caught.value)
 
     async def test_a_solvent_plan_saves(self, db_session, async_session):
         """The shape actually being sold: ₹2,999 net covers ₹2,500 of balance
@@ -112,7 +115,7 @@ class TestTheCostOfWhatAPlanIncludes:
                 code="levers",
                 label="Levers",
                 price_paise=200_000,
-                balance_paise=199_000,
+                balance_paise=300_000,
                 included_numbers=1,
             )
         message = str(caught.value)

@@ -131,9 +131,9 @@ class TestThePlanConfirmation:
             app_url="https://app.decibyl.ai",
         )
 
-        assert "₹2,500.00 of call balance" in notice.body
-        # Balance that expires has to be stated where the money is committed.
-        assert "does not carry over" in notice.body
+        assert "5,000 credits (₹2,500.00)" in notice.body
+        # Credits that expire have to be stated where the money is committed.
+        assert "expire at the end of the cycle" in notice.body
         assert "1 phone number" in notice.body
         assert "₹559.00" in notice.body
 

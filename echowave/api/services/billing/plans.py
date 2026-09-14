@@ -70,6 +70,9 @@ REF_TYPE_EXPIRY = "plan_expiry"
 #: from somebody who paid for it.
 CYCLE_GRACE_DAYS = 34
 
+#: The same grace for an annual collection: a year plus the same few days.
+ANNUAL_CYCLE_GRACE_DAYS = 365 + 4
+
 #: Ledger kinds that reduce what an account can spend. Used to work out how
 #: much of a cycle's grant is left: everything else is money arriving, and a
 #: top-up bought after the grant is not plan balance and must not be expired
@@ -222,6 +225,10 @@ async def grant_plan_cycle(
             session, code=getattr(mandate, "plan_code", None)
         )
         granted = plan.balance_paise if plan is not None else STARTER_PLAN_BALANCE_PAISE
+        # A year's collection pays for a year's credits, granted at once and
+        # expiring at the end of the annual cycle like any plan credit.
+        if getattr(mandate, "billing_period", "monthly") == "annual":
+            granted = granted * 12
     granted = int(granted)
 
     payment = ((event.get("payload") or {}).get("payment") or {}).get("entity") or {}
@@ -378,6 +385,7 @@ async def sweep_lapsed_plan_balance(
     """
     now = now or datetime.now(UTC)
     cutoff = now - timedelta(days=CYCLE_GRACE_DAYS)
+    annual_cutoff = now - timedelta(days=ANNUAL_CYCLE_GRACE_DAYS)
 
     # The most recent grant per account, taken older-than-cutoff. Anything with
     # a newer grant was already retired at the moment that grant landed.
@@ -404,6 +412,24 @@ async def sweep_lapsed_plan_balance(
 
     counters = {"considered": len(grants), "expired": 0, "paise": 0}
     for grant in grants:
+        # An annual grant is twelve months of credits and lives a year: the
+        # mandate that collected it says which period it paid for.
+        mandate = await session.scalar(
+            select(PaymentMandateModel)
+            .where(
+                PaymentMandateModel.organization_id == grant.organization_id,
+                PaymentMandateModel.purpose == "starter_plan",
+            )
+            .order_by(PaymentMandateModel.id.desc())
+        )
+        if (
+            mandate is not None
+            and getattr(mandate, "billing_period", "monthly") == "annual"
+            and grant.created_at is not None
+            and grant.created_at.replace(tzinfo=grant.created_at.tzinfo or UTC)
+            >= annual_cutoff
+        ):
+            continue
         expired = await expire_grant(session, grant=grant, now=now)
         if expired:
             counters["expired"] += 1

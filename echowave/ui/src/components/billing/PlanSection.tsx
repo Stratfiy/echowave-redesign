@@ -46,7 +46,21 @@ type Plan = {
     extra_number_paise: number;
     period: string;
     is_current: boolean;
+    /** The monthly grant in the unit the customer sees (KAN-52). */
+    credits: number;
+    /** Free and Everyday keep bots off the phone (KAN-53). */
+    voice_allowed: boolean;
+    /** Free and Campus Builder are granted, not bought. */
+    purchasable: boolean;
+    /** A year, net; null when the plan has no annual option. */
+    annual_price_paise: number | null;
+    annual_gross_paise: number | null;
+    annual_credits: number | null;
+    /** Which period the account's own mandate collects for. */
+    billing_period?: string;
 };
+
+type Period = "monthly" | "annual";
 
 type Numbers = {
     included: number;
@@ -67,6 +81,7 @@ type PlanResponse = {
     mandate: Mandate;
     configured: boolean;
     billing_profile_complete: boolean;
+    plan_credits_expire: boolean;
 };
 
 /** Mandate states in which the customer still has to go and authorise. */
@@ -92,6 +107,9 @@ export function PlanSection({
     const [starting, setStarting] = useState<string | null>(null);
     const [cancelling, setCancelling] = useState(false);
     const [confirmingCancel, setConfirmingCancel] = useState(false);
+    // Ten months for twelve. A toggle rather than twice the cards, because the
+    // plans are the same plans; only the collection differs.
+    const [period, setPeriod] = useState<Period>("monthly");
 
     const refresh = useCallback(async () => {
         const result = await client.get({ url: "/api/v1/billing/plan" });
@@ -114,7 +132,7 @@ export function PlanSection({
             setError(null);
             const result = await client.post({
                 url: "/api/v1/billing/plan",
-                body: { plan_code: code },
+                body: { plan_code: code, period },
             });
             setStarting(null);
             if (result.error) {
@@ -131,7 +149,7 @@ export function PlanSection({
             await refresh();
             onSubscribed?.();
         },
-        [refresh, onSubscribed],
+        [refresh, onSubscribed, period],
     );
 
     const cancel = useCallback(async () => {
@@ -153,14 +171,44 @@ export function PlanSection({
     const { numbers, mandate, current } = data;
     const awaitingAuthorisation =
         mandate !== null && NEEDS_AUTHORISING.has(mandate.status);
+    // Every account is on some plan now (Free when it has no mandate), so
+    // "already subscribed" is the mandate, not the current plan.
+    const subscribed = mandate !== null;
+    const hasAnnual = data.plans.some((p) => p.annual_price_paise !== null);
 
     return (
         <section className="rounded-xl border bg-card p-6">
             <h2 className="text-lg font-medium">Plan</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-                A phone number and a call balance on one monthly payment, collected
-                by your bank.
+                Credits every month, collected by your bank. From Business up, a
+                phone number too. Plan credits are for the month; top-ups you buy
+                never expire.
             </p>
+
+            {hasAnnual && (
+                <div
+                    role="group"
+                    aria-label="Billing period"
+                    className="mt-4 inline-flex items-center gap-1 rounded-full border border-border bg-card p-1"
+                >
+                    {(["monthly", "annual"] as Period[]).map((p) => (
+                        <button
+                            key={p}
+                            type="button"
+                            aria-pressed={period === p}
+                            onClick={() => setPeriod(p)}
+                            className={cn(
+                                "rounded-full px-3 py-1 text-sm transition-colors",
+                                period === p
+                                    ? "bg-primary text-primary-foreground"
+                                    : "text-muted-foreground hover:text-foreground",
+                            )}
+                        >
+                            {p === "monthly" ? "Monthly" : "Annual · 2 months free"}
+                        </button>
+                    ))}
+                </div>
+            )}
 
             {!data.configured && (
                 <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
@@ -202,57 +250,86 @@ export function PlanSection({
                             </p>
                         )}
 
-                        <p className="mt-3">
-                            <span className="text-2xl font-semibold tabular-nums">
-                                {formatPaise(plan.price_paise)}
-                            </span>
-                            <span className="text-sm text-muted-foreground">
-                                {" "}
-                                a month
-                            </span>
-                        </p>
-                        {/* What the bank is actually told to take. Shown next to
-                            the headline rather than discovered at the card. */}
-                        {plan.gross_paise !== null &&
-                            plan.gross_paise !== plan.price_paise && (
-                                <p className="text-xs text-muted-foreground">
-                                    {formatPaise(plan.gross_paise)} charged, including
-                                    GST
-                                </p>
-                            )}
-                        {plan.gross_paise === null && (
-                            <p className="text-xs text-amber-600 dark:text-amber-400">
-                                Complete your billing details to see what will be
-                                charged.
-                            </p>
-                        )}
+                        {(() => {
+                            const annual =
+                                period === "annual" && plan.annual_price_paise !== null;
+                            const price = annual
+                                ? (plan.annual_price_paise as number)
+                                : plan.price_paise;
+                            const gross = annual ? plan.annual_gross_paise : plan.gross_paise;
+                            return (
+                                <>
+                                    <p className="mt-3">
+                                        <span className="text-2xl font-semibold tabular-nums">
+                                            {plan.purchasable ? formatPaise(price) : "Free"}
+                                        </span>
+                                        {plan.purchasable && (
+                                            <span className="text-sm text-muted-foreground">
+                                                {" "}
+                                                {annual ? "a year" : "a month"}
+                                            </span>
+                                        )}
+                                    </p>
+                                    {annual && (
+                                        <p className="text-xs text-muted-foreground">
+                                            Ten months for twelve.
+                                        </p>
+                                    )}
+                                    {/* What the bank is actually told to take. Shown
+                                        next to the headline rather than discovered at
+                                        the card. */}
+                                    {plan.purchasable &&
+                                        gross !== null &&
+                                        gross !== price && (
+                                            <p className="text-xs text-muted-foreground">
+                                                {formatPaise(gross)} charged, including GST
+                                            </p>
+                                        )}
+                                    {plan.purchasable && gross === null && (
+                                        <p className="text-xs text-amber-600 dark:text-amber-400">
+                                            Complete your billing details to see what will
+                                            be charged.
+                                        </p>
+                                    )}
+                                </>
+                            );
+                        })()}
 
                         <ul className="mt-3 space-y-1 text-sm">
-                            <li className="flex items-start gap-2">
-                                <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
-                                <span>
-                                    {formatCreditsLabel(plan.balance_paise)} of call
-                                    balance each month
-                                    {/* Stated at the point of purchase, which is
-                                        the only place stating it counts. Balance
-                                        that expires is what makes a plan worth
-                                        more than a top-up of the same size, and a
-                                        customer who finds out from a debit on
-                                        their statement reads it as us taking
-                                        money back. */}
-                                    <span className="block text-xs text-muted-foreground">
-                                        Fresh each cycle — unused plan balance does
-                                        not carry over. Top-ups you buy never expire.
+                            {plan.credits > 0 && (
+                                <li className="flex items-start gap-2">
+                                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                                    <span>
+                                        {formatCreditsLabel(plan.balance_paise)} each month
+                                        {/* Stated at the point of purchase, which is
+                                            the only place stating it counts. A customer
+                                            who finds the rule out from a debit on their
+                                            statement reads it as us taking money back. */}
+                                        <span className="block text-xs text-muted-foreground">
+                                            Fresh each cycle — unused plan credits expire
+                                            at the end of the cycle. Top-ups you buy never
+                                            expire.
+                                        </span>
                                     </span>
-                                </span>
-                            </li>
+                                </li>
+                            )}
                             <li className="flex items-start gap-2">
                                 <Phone className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                                 <span>
-                                    {plan.included_numbers === 1
-                                        ? "1 phone number included"
-                                        : `${plan.included_numbers} phone numbers included`}
-                                    {plan.included_numbers > 0 && (
+                                    {!plan.voice_allowed ? (
+                                        <>
+                                            Text only: WhatsApp, email and web chat.
+                                            <span className="block text-xs text-muted-foreground">
+                                                No phone line. Move to Business to put a
+                                                bot on a number.
+                                            </span>
+                                        </>
+                                    ) : plan.included_numbers === 1 ? (
+                                        "1 phone number included"
+                                    ) : (
+                                        `${plan.included_numbers} phone numbers included`
+                                    )}
+                                    {plan.voice_allowed && plan.included_numbers > 0 && (
                                         <span className="text-muted-foreground">
                                             {" "}
                                             — extra numbers{" "}
@@ -264,7 +341,7 @@ export function PlanSection({
                             </li>
                         </ul>
 
-                        {!plan.is_current && (
+                        {!plan.is_current && plan.purchasable && (
                             <Button
                                 type="button"
                                 className="mt-4 w-full"
@@ -274,10 +351,12 @@ export function PlanSection({
                                     !isOrganizationAdmin ||
                                     starting !== null ||
                                     !billingProfileComplete ||
+                                    (period === "annual" &&
+                                        plan.annual_price_paise === null) ||
                                     // One plan at a time. Switching is a cancel
                                     // and a re-subscribe, because the bank holds
                                     // an instruction for a specific amount.
-                                    current !== null
+                                    subscribed
                                 }
                                 onClick={() => void subscribe(plan.code)}
                             >
@@ -316,7 +395,7 @@ export function PlanSection({
                 </p>
             )}
 
-            {current !== null && (
+            {subscribed && current !== null && (
                 <>
                     {awaitingAuthorisation && mandate?.short_url && (
                         <p className="mt-4 text-sm text-amber-600 dark:text-amber-400">

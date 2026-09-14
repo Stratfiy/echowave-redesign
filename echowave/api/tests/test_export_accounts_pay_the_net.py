@@ -140,10 +140,12 @@ class TestWhichPlanAMandateSubscribesTo:
 
         source = inspect.getsource(mandates.create_plan_mandate)
 
-        assert "if is_export and plan is not None and not pinned:" in source
+        assert "if is_export and plan is not None:" in source
+        assert "if not pinned:" in source
         assert "raise MandateError(" in source
         # The refusal has to name the amount to create it at; an operator
-        # reading "cannot subscribe" with no figure has to derive the net
-        # price from a tax rule to act on it.
-        assert "zero-rated for GST" in source
+        # reading "cannot subscribe" with no figure has to derive the figure
+        # from a tax rule to act on it. Since KAN-53 a foreign account pays
+        # in dollars, so the figure named is the dollar amount.
+        assert "outside India and pays $" in source
         assert "/superadmin/billing/plans" in source
