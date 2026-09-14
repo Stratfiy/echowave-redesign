@@ -1,104 +1,85 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HomeAboveTheFold } from "../HomeAboveTheFold";
 
-const api = vi.hoisted(() => ({ home: vi.fn() }));
+const api = vi.hoisted(() => ({ home: vi.fn(), post: vi.fn() }));
+const seen = vi.hoisted(() => ({ stream: [] as unknown[], composer: [] as unknown[] }));
 
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
-vi.mock("@/client/sdk.gen", () => ({ teamHomeApiV1TeamHomeGet: api.home }));
+vi.mock("@/client/sdk.gen", () => ({
+    teamHomeApiV1TeamHomeGet: api.home,
+    postMessageApiV1TimelineMessagePost: api.post,
+}));
+vi.mock("@/components/channel/ChannelStream", () => ({
+    ChannelStream: (props: Record<string, unknown>) => {
+        seen.stream.push(props);
+        return <div data-testid="stream" />;
+    },
+}));
+vi.mock("@/components/channel/ChannelComposer", () => ({
+    ChannelComposer: (props: Record<string, unknown>) => {
+        seen.composer.push(props);
+        return <div data-testid="composer" />;
+    },
+}));
 
-function member(overrides: Record<string, unknown> = {}) {
-    return {
-        workflow_id: 1,
-        workflow_uuid: "a",
-        name: "Front Desk",
-        is_live: true,
-        status: "9 calls, 6 answered",
-        tone: "working",
-        at: null,
-        calls: 9,
-        answered: 6,
-        outcomes: 4,
-        failures: 0,
-        last_action: null,
-        ...overrides,
-    };
-}
+const headline = { agents: 1, live: 1, calls: 9, answered: 6, outcomes: 2, needs_attention: 0 };
 
 beforeEach(() => {
     api.home.mockReset();
+    api.post.mockReset();
+    seen.stream.length = 0;
+    seen.composer.length = 0;
 });
 
-describe("the home screen above the fold", () => {
-    it("opens on what happened, in a sentence", async () => {
-        api.home.mockResolvedValue({
-            data: {
-                hours: 24,
-                headline: { agents: 2, live: 2, calls: 14, answered: 9, outcomes: 6, needs_attention: 1 },
-                suggestions: [],
-                members: [member()],
-            },
-        });
+describe("home is Decibyl's thread", () => {
+    it("says hello with the numbers, and mounts the thread and composer in assistant mode", async () => {
+        api.home.mockResolvedValue({ data: { hours: 24, headline, suggestions: [], members: [] } });
         render(<HomeAboveTheFold firstName="Nithish" />);
-        expect(await screen.findByText(/14 calls today, 9 answered, 6 finished\. 1 agent needs you\./)).toBeTruthy();
-        expect(screen.getByText(/Nithish/)).toBeTruthy();
+        expect(screen.getByText(/Hi, I'm Decibyl/)).toBeTruthy();
+        expect(await screen.findByText(/9 calls today, 6 answered, 2 finished/)).toBeTruthy();
+        expect(screen.getByTestId("stream")).toBeTruthy();
+        expect(screen.getByTestId("composer")).toBeTruthy();
+        expect((seen.stream[0] as { assistant: boolean }).assistant).toBe(true);
+        expect((seen.composer[0] as { assistant: boolean; channelName: string }).channelName).toBe("Decibyl");
     });
 
-    it("says nothing has come in rather than leaving the line blank", async () => {
-        // A blank line reads as a screen that failed to load, and an owner who
-        // cannot tell "quiet morning" from "broken" stops reading the screen.
-        api.home.mockResolvedValue({
-            data: {
-                hours: 24,
-                headline: { agents: 1, live: 1, calls: 0, answered: 0, outcomes: 0, needs_attention: 0 },
-                suggestions: [],
-                members: [member()],
-            },
-        });
+    it("an opener is sent to Decibyl as a message, then the thread waits for the reply", async () => {
+        api.home.mockResolvedValue({ data: { hours: 24, headline, suggestions: [], members: [] } });
+        api.post.mockResolvedValue({ data: { asked: [], unknown: [], ambiguous: [] } });
         render(<HomeAboveTheFold />);
-        expect(await screen.findByText(/Nothing has come in yet today\./)).toBeTruthy();
-    });
-
-    it("a prompt chip opens the shelf, now that the builder box is gone", async () => {
-        api.home.mockResolvedValue({
-            data: {
-                hours: 24,
-                headline: { agents: 1, live: 1, calls: 0, answered: 0, outcomes: 0, needs_attention: 0 },
-                suggestions: [
-                    { kind: "hire", text: "What else could an agent take off my hands?", action: "prompt", prompt: "What else could an agent take off my hands?", href: null },
-                ],
-                members: [member()],
-            },
+        fireEvent.click(screen.getByRole("button", { name: "What happened this week?" }));
+        await waitFor(() => expect(api.post).toHaveBeenCalled());
+        expect(api.post.mock.calls[0][0].body).toEqual({ assistant: true, text: "What happened this week?" });
+        await waitFor(() => {
+            const last = seen.stream[seen.stream.length - 1] as { waitingFor: { bots: number[] } | null };
+            expect(last.waitingFor?.bots).toEqual([0]);
         });
-        render(<HomeAboveTheFold />);
-        const chip = await screen.findByRole("link", { name: /what else could an agent/i });
-        expect(chip.getAttribute("href")).toBe("/marketplace");
-        // Neither the builder box nor the team table sits on Home any more.
-        expect(screen.queryByText(/Build an agent by chatting/)).toBeNull();
-        expect(screen.queryByText(/Your team/)).toBeNull();
     });
 
-    it("renders an urgent chip as a link to the screen that fixes it", async () => {
+    it("a link chip opens the screen that fixes it; a prompt chip opens the shelf", async () => {
         api.home.mockResolvedValue({
             data: {
                 hours: 24,
-                headline: { agents: 1, live: 1, calls: 9, answered: 9, outcomes: 0, needs_attention: 1 },
+                headline,
                 suggestions: [
                     { kind: "connector_failing", text: "Googlecalendar failed 6 times this week — reconnect it", action: "link", prompt: null, href: "/integrations/apps" },
+                    { kind: "hire", text: "What else could an agent take off my hands?", action: "prompt", prompt: "x", href: null },
                 ],
-                members: [member()],
+                members: [],
             },
         });
         render(<HomeAboveTheFold />);
-        const link = await screen.findByRole("link", { name: /googlecalendar failed 6 times/i });
-        expect(link.getAttribute("href")).toBe("/integrations/apps");
+        expect((await screen.findByRole("link", { name: /googlecalendar failed/i })).getAttribute("href")).toBe("/integrations/apps");
+        expect(screen.getByRole("link", { name: /what else could an agent/i }).getAttribute("href")).toBe("/marketplace");
     });
 
-    it("still says hello when the numbers fail to load", async () => {
+    it("still says hello when the numbers fail to load", () => {
         api.home.mockResolvedValue({ error: { detail: "boom" } });
         render(<HomeAboveTheFold />);
         expect(screen.getByText(/Hi, I'm Decibyl/)).toBeTruthy();
+        expect(screen.getByTestId("composer")).toBeTruthy();
     });
 });

@@ -1,28 +1,31 @@
 "use client";
 
 /**
- * The half of the home screen you see before scrolling.
+ * Home is a conversation with Decibyl.
  *
- * Decibyl says hello, answers the two questions an owner opens the app with,
- * and offers the chips built from what is actually true of this account.
- * Nothing else: the builder has its own door (Hire, the marketplace) and the
- * bots have the panel and the rail. A home that also carried a builder box
- * and a team table was three screens stacked, and the one that mattered was
- * the one people scrolled past.
+ * The way a Slack workspace opens on Slackbot: a hello, the thread, and a
+ * composer. Decibyl is the workspace's own assistant -- it knows the team's
+ * numbers, the company's documents, what the business has confirmed, and
+ * what every bot did lately (see services/workflow/decibyl.py). The two
+ * openers are the questions an owner arrives with, sent as messages so the
+ * answer comes from the same brain as everything else typed here.
  *
- * One request feeds all of it. The greeting, the answers and the chips are
- * readings of the same rows, so fetching them separately would be three
- * round trips to say one thing — and would let them disagree.
+ * The chips under the hello are built from the account's own state: a
+ * failing connector, a paused bot, a missed call to return. A link chip
+ * opens the screen that fixes it; a prompt chip opens the shelf.
  */
 
 import { AlertTriangle, ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { teamHomeApiV1TeamHomeGet } from "@/client/sdk.gen";
-import type { Headline, Suggestion, TeamMember } from "@/client/types.gen";
-import { DecibylOpeners } from "@/components/home/DecibylOpeners";
+import { postMessageApiV1TimelineMessagePost, teamHomeApiV1TeamHomeGet } from "@/client/sdk.gen";
+import type { Headline, Suggestion } from "@/client/types.gen";
+import { ChannelComposer } from "@/components/channel/ChannelComposer";
+import { ChannelStream } from "@/components/channel/ChannelStream";
 import { useAuth } from "@/lib/auth";
+
+export const OPENERS = ["What happened this week?", "What needs my attention today?"] as const;
 
 /** Built from the reader's own clock. The server's is in a data centre, and
  *  half the accounts would be wished good morning at nine in the evening. */
@@ -33,26 +36,20 @@ function partOfDay(now: Date): string {
     return "Good evening";
 }
 
-/** What the team did, as a sentence rather than a row of tiles.
- *
- *  Silence is stated, never left blank: "Nothing has come in yet today" is
- *  information, an empty line is a screen somebody stops trusting. */
+/** What the team did, as a sentence rather than a row of tiles. */
 function summarise(headline: Headline): string {
     if (headline.agents === 0) return "Let's put your first agent to work.";
-
     const parts: string[] = [];
     if (headline.calls > 0) {
         parts.push(`${headline.calls} ${headline.calls === 1 ? "call" : "calls"} today`);
         if (headline.answered > 0) parts.push(`${headline.answered} answered`);
         if (headline.outcomes > 0) parts.push(`${headline.outcomes} finished`);
     }
-
     if (parts.length === 0) {
         return headline.live === 0
             ? "No agent is taking calls right now."
             : "Nothing has come in yet today.";
     }
-
     const sentence = `${parts.join(", ")}.`;
     if (headline.needs_attention > 0) {
         return `${sentence} ${headline.needs_attention} ${
@@ -65,12 +62,6 @@ function summarise(headline: Headline): string {
 function Chip({ chip }: { chip: Suggestion }) {
     const className =
         "inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
-
-    // A link chip opens the screen that fixes the thing. A prompt chip used
-    // to fill the builder box that sat here; the builder now lives behind
-    // Hire, so the chip opens the shelf instead. Nothing here runs anything
-    // — a chip that silently started calling customers is how an account is
-    // lost.
     if (chip.action === "link" && chip.href) {
         return (
             <Link href={chip.href} className={className}>
@@ -92,30 +83,26 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
     const { user, loading: authLoading } = useAuth();
     const [headline, setHeadline] = useState<Headline | null>(null);
     const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-    const [members, setMembers] = useState<TeamMember[] | null>(null);
+    const [waitingFor, setWaitingFor] = useState<{ since: string; bots: number[] } | null>(null);
+    const [sendingOpener, setSendingOpener] = useState<string | null>(null);
+    const refreshStream = useRef<() => void>(() => {});
+    const registerRefresh = useCallback((refresh: () => void) => {
+        refreshStream.current = refresh;
+    }, []);
 
-    // Computed once per mount. Reading the clock during render would make the
-    // greeting change under a re-render at a boundary hour.
     const greeting = useMemo(() => partOfDay(new Date()), []);
 
     useEffect(() => {
-        // The auth interceptor only attaches the token once auth has settled;
-        // fetching earlier sends an unauthenticated request that fails quietly.
         if (authLoading || !user) return;
-
         let cancelled = false;
         (async () => {
             try {
                 const response = await teamHomeApiV1TeamHomeGet({ query: { hours: 24 } });
                 if (cancelled || response.error || !response.data) return;
-                // Defaulted rather than trusted. The shapes come from our own
-                // schema, but a field that arrives missing must leave the
-                // screen a sentence short — not throw the whole home page away.
                 setHeadline(response.data.headline ?? null);
                 setSuggestions(response.data.suggestions ?? []);
-                setMembers(response.data.members ?? []);
             } catch {
-                // The composer below still works. A greeting that failed to
+                // The thread below still works. A greeting that failed to
                 // load is a missing sentence, not a broken screen.
             }
         })();
@@ -124,12 +111,21 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         };
     }, [authLoading, user]);
 
+    // Decibyl has no workflow id; the thinking row is keyed on 0 and the
+    // stream, in assistant mode, clears it on any reply after `since`.
+    const asked = () => setWaitingFor({ since: new Date().toISOString(), bots: [0] });
+
+    const sendOpener = async (text: string) => {
+        setSendingOpener(text);
+        const response = await postMessageApiV1TimelineMessagePost({ body: { assistant: true, text } });
+        setSendingOpener(null);
+        if (response.error) return;
+        asked();
+        refreshStream.current();
+    };
+
     return (
-        <div className="space-y-5">
-            {/* Home is a conversation with Decibyl, the way a Slack workspace
-                opens on Slackbot: a mark, an introduction, and two questions
-                it already knows the answer to. The builder composer below is
-                the reply box. */}
+        <div className="flex h-[calc(100vh-9rem)] min-h-[28rem] flex-col gap-4">
             <div className="flex items-start gap-3">
                 <div
                     aria-hidden="true"
@@ -146,10 +142,6 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
                 </div>
             </div>
 
-            {headline ? (
-                <DecibylOpeners headline={headline} members={members ?? []} suggestions={suggestions} />
-            ) : null}
-
             {suggestions.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                     {suggestions.map((chip) => (
@@ -157,6 +149,41 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
                     ))}
                 </div>
             ) : null}
+
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
+                <ChannelStream
+                    assistant
+                    assistantName="Decibyl"
+                    botNames={{}}
+                    onRegisterRefresh={registerRefresh}
+                    waitingFor={waitingFor}
+                />
+                {/* The two questions an owner opens the app with, sent as
+                    messages so they are answered from the same readings as
+                    anything typed. */}
+                <div className="flex flex-wrap gap-2 border-t border-border px-4 py-2" aria-label="Ask Decibyl">
+                    {OPENERS.map((text) => (
+                        <button
+                            key={text}
+                            type="button"
+                            disabled={sendingOpener !== null}
+                            onClick={() => void sendOpener(text)}
+                            className="rounded-full border border-border bg-muted/30 px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60"
+                        >
+                            {sendingOpener === text ? "Asking…" : text}
+                        </button>
+                    ))}
+                </div>
+                <ChannelComposer
+                    assistant
+                    bots={[]}
+                    channelName="Decibyl"
+                    onSent={() => {
+                        asked();
+                        refreshStream.current();
+                    }}
+                />
+            </div>
         </div>
     );
 }

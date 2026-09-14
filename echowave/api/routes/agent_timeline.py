@@ -40,6 +40,7 @@ from api.services.auth.depends import get_user, require_organization_role
 from api.services.configuration import chat_presets
 from api.services.workflow import (
     agent_timeline,
+    decibyl,
     decisions,
     mentions,
     secrets_request,
@@ -107,6 +108,7 @@ async def timeline(
     workflow_id: Annotated[Optional[int], Query()] = None,
     workflow_run_id: Annotated[Optional[int], Query()] = None,
     folder_id: Annotated[Optional[int], Query()] = None,
+    assistant: Annotated[bool, Query()] = False,
     kinds: Annotated[Optional[list[str]], Query()] = None,
     deliverables_only: Annotated[bool, Query()] = False,
     include_transcripts: Annotated[bool, Query()] = False,
@@ -155,7 +157,8 @@ async def timeline(
         workflow_id=workflow_id,
         workflow_run_id=workflow_run_id,
         folder_id=folder_id,
-        kinds=kinds or None,
+        kinds=(kinds or None) if not assistant else [AgentEventKind.MESSAGE.value],
+        assistant_thread=assistant,
         deliverables_only=deliverables_only,
         include_on_request=include_transcripts,
         limit=limit,
@@ -205,9 +208,11 @@ class Attachment(BaseModel):
 
 
 class PostMessageRequest(BaseModel):
-    #: Where it is said: a channel, or one bot's own chat. Exactly one.
+    #: Where it is said: a channel, one bot's own chat, or Decibyl's thread.
+    #: Exactly one.
     folder_id: Optional[int] = None
     workflow_id: Optional[int] = None
+    assistant: bool = False
     #: Empty is allowed only alongside an attachment: a file is a message.
     text: str = Field(default="", max_length=MAX_MESSAGE)
     attachments: list[Attachment] = Field(default_factory=list, max_length=10)
@@ -254,10 +259,26 @@ async def post_message(
     if not organization_id:
         raise HTTPException(status_code=400, detail="No organization selected")
 
-    if (body.folder_id is None) == (body.workflow_id is None):
+    places = sum(1 for p in (body.folder_id, body.workflow_id) if p is not None) + int(
+        body.assistant
+    )
+    if places != 1:
         raise HTTPException(
-            status_code=422, detail="Say it in a channel or to a bot, one or the other"
+            status_code=422,
+            detail="Say it in a channel, to a bot, or to Decibyl, one of the three",
         )
+
+    if body.assistant:
+        text, attachments, line, preset = await _what_was_said(body, organization_id)
+        asked = await decibyl.ask(
+            organization_id=organization_id,
+            user_id=user.id,
+            text=text,
+            attachments=attachments,
+            line=line,
+            preset=preset,
+        )
+        return PostMessageResponse(asked=asked, unknown=[], ambiguous=[])
 
     if body.workflow_id is not None:
         return await _post_direct_message(
