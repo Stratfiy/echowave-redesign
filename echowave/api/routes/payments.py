@@ -41,6 +41,7 @@ from api.services.billing import (
     auto_topup,
     auto_topup_runner,
     billing_profile,
+    credits,
     document_email,
     documents,
     payments,
@@ -129,6 +130,15 @@ async def get_balance(user: UserModel = Depends(get_user)) -> dict[str, Any]:
     )
     return {
         "balance_paise": balance,
+        # The unit the customer sees. Fifty paise, rounded toward zero for a
+        # balance; the app reads the peg from here rather than carrying its
+        # own copy. See services/billing/credits.py.
+        "balance_credits": credits.credits_of_balance(balance),
+        "paise_per_credit": credits.PAISE_PER_CREDIT,
+        "min_balance_credits": credits.credits_for_charge(MIN_BALANCE_PAISE),
+        "suggested_topup_credits": (
+            credits.credits_for_charge(suggested) if suggested else None
+        ),
         # What a week costs at recent burn, less what is left: the nudge the
         # chip shows instead of "running low".
         "daily_burn_paise": burn,
@@ -464,6 +474,13 @@ async def list_payments(user: UserModel = Depends(get_user)) -> dict[str, Any]:
     organization_id = _organization_id(user)
     async with db_client.async_session() as session:
         rows = await payments.list_payments(session, organization_id=organization_id)
+    for row in rows:
+        # The credits a top-up bought, beside the rupees it cost: the
+        # statement shows both, so the owner can see the rate they paid.
+        amount = row.get("amount_paise")
+        row["credits"] = (
+            credits.credits_of_balance(int(amount)) if amount is not None else None
+        )
     return {"payments": rows}
 
 
@@ -631,6 +648,10 @@ async def get_plan(user: UserModel = Depends(get_user)) -> dict[str, Any]:
             "price_paise": plan.price_paise,
             "gross_paise": gross_paise,
             "balance_paise": plan.balance_paise,
+            # The grant, in the unit the customer sees. A plan grants a whole
+            # number of credits by decision; a seed that does not is a bug,
+            # and rounding toward zero here keeps the screen honest about it.
+            "credits": credits.credits_of_balance(plan.balance_paise),
             "included_numbers": plan.included_numbers,
             "extra_number_paise": plan.extra_number_price_paise,
             "period": "monthly",

@@ -11,10 +11,12 @@ import pytest
 
 from api.enums import CostComponent, RateUnit
 from api.services.billing.cost_engine import (
+    CREDIT_ROUNDING_PROVIDER,
     RateSpec,
     UsageItem,
     compute_call_cost,
 )
+from api.services.billing.credits import PAISE_PER_CREDIT, round_up_to_credits
 from api.services.billing.money import (
     DEFAULT_PLATFORM_RATE_MPAISE,
     DEFAULT_PULSE_SECONDS,
@@ -65,8 +67,14 @@ class TestDefaultRate:
             usage=_usage(seconds=60, chars=1000, tokens=1000),
             provider_rates=RATES,
         )
-        by_component = {line.component: line for line in cost.line_items}
+        by_component = {
+            line.component: line
+            for line in cost.line_items
+            if line.provider != CREDIT_ROUNDING_PROVIDER
+        }
         assert set(by_component) == {"stt", "tts", "llm", "telephony", "platform"}
+        # And one more line, the lift from 432 paise to nine whole credits.
+        assert _rounding(cost) == 18
 
         assert by_component["stt"].cost_paise == 25  # 1 min @ 25_000 mpaise
         assert by_component["tts"].cost_paise == 40  # 1k chars @ 40_000
@@ -75,7 +83,8 @@ class TestDefaultRate:
         assert by_component["platform"].cost_paise == 300  # 1 min @ ₹3.00
 
         assert cost.total_provider_cost_paise == 25 + 40 + 12 + 55
-        assert cost.total_charged_paise == 132 + 300
+        # Lifted to whole credits (50 paise): 432 becomes 450, nine credits.
+        assert cost.total_charged_paise == round_up_to_credits(132 + 300)
 
 
 class TestNoMarkupOnInference:
@@ -105,14 +114,16 @@ class TestNoMarkupOnInference:
             provider_rates=RATES,
         )
         platform_lines = [
-            line for line in cost.line_items if line.component == "platform"
+            line
+            for line in cost.line_items
+            if line.component == "platform" and line.provider is None
         ]
         assert len(platform_lines) == 1
-        assert platform_lines[0].provider is None
-        # Provider total excludes the fee; margin is exactly the fee.
+        # Provider total excludes the fee; margin is exactly the fee plus the
+        # lift to whole credits, which is its own line (billing/credits.py).
         assert (
             cost.total_charged_paise - cost.total_provider_cost_paise
-            == cost.platform_fee_paise
+            == cost.platform_fee_paise + _rounding(cost)
         )
 
     def test_margin_on_a_managed_call_equals_the_platform_fee_alone(self):
@@ -125,7 +136,17 @@ class TestNoMarkupOnInference:
                 provider_rates=RATES,
             )
             margin = cost.total_charged_paise - cost.total_provider_cost_paise
-            assert margin == cost.platform_fee_paise
+            assert margin == cost.platform_fee_paise + _rounding(cost)
+            assert _rounding(cost) < PAISE_PER_CREDIT
+
+
+def _rounding(cost) -> int:
+    """The lift to whole credits, as the receipt shows it."""
+    return sum(
+        line.cost_paise
+        for line in cost.line_items
+        if line.provider == CREDIT_ROUNDING_PROVIDER
+    )
 
 
 class TestAccountOverrideAndRateChanges:
@@ -134,7 +155,9 @@ class TestAccountOverrideAndRateChanges:
         cost = compute_call_cost(billable_seconds=180, platform_rate_mpaise=120_000)
         assert cost.billable_minutes == 3
         assert cost.platform_fee_paise == 360  # 3 * 120 paise
-        assert cost.total_charged_paise == 360
+        assert cost.total_charged_paise == round_up_to_credits(
+            360
+        )  # 400, eight credits
 
     def test_same_usage_at_two_rates_differs_only_in_the_platform_line(self):
         """An effective-dated rate change must not disturb provider costs.
@@ -254,7 +277,7 @@ class TestInvoiceReconciliation:
             summed_line_items += sum(li.cost_paise for li in cost.line_items)
             summed_totals += cost.total_charged_paise
             summed_provider += cost.total_provider_cost_paise
-            summed_platform += cost.platform_fee_paise
+            summed_platform += cost.platform_fee_paise + _rounding(cost)
 
         # Across the whole run: no drift accumulated.
         assert summed_line_items == summed_totals

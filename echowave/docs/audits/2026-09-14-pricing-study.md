@@ -137,10 +137,12 @@ section 4) and no discount is assumed.
    from 556 to 600 paise, with volume tiers at 550 from 2,000 minutes and 500
    from 8,000 minutes a month, so the same rate applies whether a minute is
    inside the grant or over it.
-2. **Fix the Scale grant.** 40,000 credits at Rs 19,999 is a loss. Grants
-   should be 5,000 / 14,000 / 34,000 credits (Rs 2,500 / 7,000 / 17,000 of
-   composed cost) so every tier keeps 15% after the included numbers, and
-   the discount for going up a tier is the per-minute rate, not free credit.
+2. **The Scale grant stands at 40,000 credits.** An earlier draft of this
+   section read "composed cost" as provider cost and called the grant a
+   loss; it is not. A credit is Rs 0.50 of *marked-up* cost (provider cost
+   times the component multipliers), so 40,000 credits is Rs 20,000 of
+   sell value for Rs 19,999, with the margin inside every credit spent, and
+   the model assumes 60 to 80% of plan credits are consumed.
 3. **Credits at Rs 0.50 stay internal for the first hundred customers.** Show
    minutes and rupees on every screen ("about 410 minutes left"), with the
    credit figure on the statement only. An owner in Hosur does not want a
@@ -292,14 +294,16 @@ check that the flat rate never falls below what the parts would fetch.
 | Language model (gpt-4.1-mini) | 0.26 | 2.0x | 0.52 | the prompt, memory and tools are ours; the model is not |
 | Text to speech (bulbul v3) | 1.22 | 1.8x | 2.20 | the largest line and the one negotiated; premium voices 1.4x |
 | **Components** | **2.36** | | **3.81** | |
-| Platform fee | | | 2.19 / 1.69 / 1.19 | Business / Growth / Scale |
-| **Minute** | | | **6.00 / 5.50 / 5.00** | 12 / 11 / 10 credits |
+| **Minute, sold** | | | **6.00 / 5.50 / 5.00** | 12 / 11 / 10 credits by decision; no platform fee on calls (founder, 14 Sept) |
 
-The platform fee is the tier discount. Component markups do not change by
-tier, so a Scale customer on an enterprise itemised quote pays the same
-component prices and a lower fee. If a vendor discount arrives later the
-components fall and the fee stays, so the managed rate holds and the margin
-widens: a discount goes to margin, never into the card.
+There is no platform fee on a voice minute. The sold rate is a decision,
+12 / 11 / 10 credits by tier; the multipliers are the floor beneath it.
+At the estimator's 405 characters a minute the floor is Rs 3.81 (8
+credits) and the sold rate carries 4 credits of headroom; at the spec's
+850 characters the floor is Rs 6.05 and 12 credits is exactly the
+computation. Which of those is true is the characters-per-minute
+measurement again. If a vendor discount arrives later the floor falls and
+the sold rate holds: a discount goes to margin, never into the card.
 
 Speech to speech: one line, markup 1.9x, so Natural at 5.10 sells at Rs 10
 (20 credits) and Premium at 16.83 would need Rs 32; Premium is quote-only.
@@ -343,8 +347,8 @@ is the number at which the company stops costing money to keep alive.
 - Per-component markup table in `services/billing/markup.py` seeded with
   1.15 / 1.3 / 2.0 / 1.8 (TTS premium 1.4), applied when no bundle flat
   rate resolves; the managed bundle keeps its flat rate.
-- Platform fee per tier on the plan row (`platform_rate_mpaise`): 2.19 /
-  1.69 / 1.19 rupees, replacing the site's 2.5 / 2.0 / 1.5.
+- No platform fee on voice: `platform_rate_mpaise` goes to zero on every
+  plan row and the site's 2.5 / 2.0 / 1.5 lines come off.
 - WhatsApp marketing templates priced separately from utility
   (`WHATSAPP_MESSAGE_PRICE_PAISE` becomes two constants).
 - Margin watch (`margin_watch.py`) alerts on any component whose realised

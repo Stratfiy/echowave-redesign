@@ -37,7 +37,9 @@ from api.db.models import (
 )
 from api.enums import CostComponent, RateUnit
 from api.services.billing.addons import CALL_QA, KNOWLEDGE_BASE
+from api.services.billing.cost_engine import CREDIT_ROUNDING_PROVIDER
 from api.services.billing.costing import cost_workflow_run
+from api.services.billing.credits import round_up_to_credits
 from api.services.billing.estimator import (
     DEFAULT_CHARACTERS_PER_MINUTE,
     DEFAULT_TOKENS_PER_MINUTE,
@@ -213,7 +215,10 @@ class TestTheQuoteEqualsTheInvoice:
             async_session, workflow, _one_minute_usage(byok=byok, addons=addons)
         )
 
-        assert estimate.total_paise_per_minute == cost.total_charged_paise
+        assert (
+            round_up_to_credits(estimate.total_paise_per_minute)
+            == cost.total_charged_paise
+        )
 
     async def test_they_agree_across_randomised_rate_cards(
         self, async_session, charges_switched_on
@@ -275,7 +280,13 @@ class TestTheQuoteEqualsTheInvoice:
                 async_session, workflow, _one_minute_usage(byok=byok, addons=addons)
             )
 
-            assert estimate.total_paise_per_minute == cost.total_charged_paise, (
+            # The quote is a rate; the invoice is that rate lifted to whole
+            # credits once per call (KAN-52). One minute quoted, one minute
+            # billed: the lift is the only difference allowed.
+            assert (
+                round_up_to_credits(estimate.total_paise_per_minute)
+                == cost.total_charged_paise
+            ), (
                 f"case {case}: quote {estimate.total_paise_per_minute} != "
                 f"invoice {cost.total_charged_paise} at rates {rates}, "
                 f"byok={byok}, addons={addons}"
@@ -288,6 +299,11 @@ class TestTheQuoteEqualsTheInvoice:
             )
             assert cost.total_charged_paise == sum(
                 line.cost_paise for line in cost.line_items
+            )
+            assert estimate.total_paise_per_minute == sum(
+                line.cost_paise
+                for line in cost.line_items
+                if line.provider != CREDIT_ROUNDING_PROVIDER
             )
 
             # Retire this case's rates so the next iteration's rows are the
