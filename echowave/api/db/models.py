@@ -4050,6 +4050,13 @@ class PaymentModel(Base):
     # Credit bought, net of GST. This is what reaches the ledger, and the ledger
     # is GST-exclusive throughout — see services/billing/tax.py.
     amount_paise = Column(BigInteger, nullable=False)
+    # Balance granted beyond ``amount_paise`` by a top-up pack (KAN-55): the
+    # ₹5,000 pack invoices ₹5,000 and credits ₹5,250. Tax and the voucher read
+    # ``amount_paise``; the ledger is credited the sum of the two.
+    bonus_paise = Column(
+        BigInteger, nullable=False, default=0, server_default=text("0")
+    )
+    pack_code = Column(String(16), nullable=True)
     # What the customer is actually charged: amount_paise plus tax. The webhook
     # checks the payload against *this*, because this is what Razorpay collected.
     # Equal to amount_paise for a zero-rated export.

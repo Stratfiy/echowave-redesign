@@ -101,6 +101,9 @@ class TopupOrder:
     tax_paise: int
     currency: str
     key_id: str
+    #: Balance granted beyond the price, for a pack (KAN-55). Zero otherwise.
+    bonus_paise: int = 0
+    pack_code: str | None = None
 
 
 def _require_api_credentials() -> tuple[str, str]:
@@ -155,10 +158,15 @@ async def create_topup_order(
     session: AsyncSession,
     *,
     organization_id: int,
-    amount_paise: int,
+    amount_paise: int | None = None,
     created_by: int | None,
+    pack_code: str | None = None,
 ) -> TopupOrder:
     """Ask Razorpay for an order and record our side of it.
+
+    A pack (``pack_code``, KAN-55) fixes the amount and may grant a bonus on
+    top; the bonus is recorded on the payment and credited with the amount
+    when the money lands. A free amount buys credit at face.
 
     ``amount_paise`` is the **credit** the customer is buying, net of GST. The
     card is charged that plus tax. Keeping the argument net rather than gross is
@@ -174,8 +182,20 @@ async def create_topup_order(
     # and which one fires decides what the customer is told: an amount they can
     # correct, or a configuration problem that is ours. Reading the environment
     # first meant a mistyped ₹137 came back as "Razorpay is not configured".
+    from api.services.billing.topup_packs import pack_for
+
+    pack = None
+    if pack_code:
+        pack = pack_for(pack_code)
+        if pack is None:
+            raise PaymentError(f"There is no top-up pack called {pack_code!r}.")
+        amount_paise = pack.price_paise
+    if amount_paise is None:
+        raise PaymentError("Choose a pack or an amount.")
+    bonus_paise = pack.bonus_paise if pack else 0
+
     minimum = await minimum_topup_paise(session, organization_id=organization_id)
-    if amount_paise < minimum:
+    if amount_paise < minimum and pack is None:
         raise PaymentError(f"The minimum top-up is ₹{minimum / 100:,.0f}.")
     if amount_paise > MAX_TOPUP_PAISE:
         raise PaymentError(
@@ -191,6 +211,15 @@ async def create_topup_order(
             f"₹{amount_paise / 100:,.2f} is not one — try "
             f"₹{(amount_paise // TOPUP_INCREMENT_PAISE + 1) * TOPUP_INCREMENT_PAISE / 100:,.0f}."
         )
+
+    # After the amount rules and before the credentials: an amount the
+    # customer can correct is reported first, then the plan's ceiling on what
+    # they may hold, and only then anything that is ours to fix.
+    await _refuse_over_the_topup_ceiling(
+        session,
+        organization_id=organization_id,
+        adding_paise=amount_paise + bonus_paise,
+    )
 
     key_id, key_secret = _require_api_credentials()
 
@@ -250,6 +279,8 @@ async def create_topup_order(
             provider=PROVIDER,
             order_id=order_id,
             amount_paise=amount_paise,
+            bonus_paise=bonus_paise,
+            pack_code=pack.code if pack else None,
             gross_paise=tax.total_paise,
             cgst_paise=tax.cgst_paise,
             sgst_paise=tax.sgst_paise,
@@ -274,7 +305,41 @@ async def create_topup_order(
         tax_paise=tax.tax_paise,
         currency="INR",
         key_id=key_id,
+        bonus_paise=bonus_paise,
+        pack_code=pack.code if pack else None,
     )
+
+
+async def _refuse_over_the_topup_ceiling(
+    session: AsyncSession, *, organization_id: int, adding_paise: int
+) -> None:
+    """The plan's top-up balance ceiling (``topup_balance_ceiling_credits``).
+
+    Read through ``plan_limits`` so the refusal names where "raise this" goes
+    — the next rung with a higher ceiling, or support. An account holding
+    more prepaid balance than its plan allows is an account we owe more than
+    we meant to; the cap is on the balance held, not on the purchase.
+    """
+    from api.services.billing import credits, plan_limits, plans
+
+    limit = await plan_limits.limit_for_organization(
+        session, organization_id=organization_id, key="topup_balance_ceiling_credits"
+    )
+    if limit.value is None:
+        return
+    pools = await plans.pool_balances(session, organization_id=organization_id)
+    held = credits.credits_of_balance(pools.topup_paise)
+    after = held + credits.credits_of_balance(adding_paise)
+    if after > limit.value:
+        where = (
+            f"upgrade to {limit.raise_to.capitalize()}"
+            if limit.raise_to
+            else "contact support"
+        )
+        raise PaymentError(
+            f"Your plan holds up to {limit.value:,} top-up credits and you have "
+            f"{held:,}; this would take you to {after:,}. To hold more, {where}."
+        )
 
 
 async def remember_token(
@@ -739,6 +804,8 @@ async def handle_webhook(
     # Falls back to the net amount for rows written before GST existed, where
     # gross and net were the same number.
     expected_gross = int(payment.gross_paise or payment.amount_paise)
+    # What a full payment credits: the amount invoiced plus any pack bonus.
+    granted = int(payment.amount_paise) + int(payment.bonus_paise or 0)
 
     if paid_paise <= 0:
         raise PaymentError("Refusing to credit a non-positive amount")
@@ -753,7 +820,7 @@ async def handle_webhook(
             order_id,
             expected_gross,
         )
-        credited = int(payment.amount_paise)
+        credited = granted
     elif paid_paise < expected_gross:
         # A partial capture. Credit the **proportional** share of net credit,
         # so an underpayment cannot buy full credit and cannot buy less than it
@@ -773,11 +840,9 @@ async def handle_webhook(
             order_id,
             expected_gross,
         )
-        credited = round_half_up_div(
-            paid_paise * int(payment.amount_paise), expected_gross
-        )
+        credited = round_half_up_div(paid_paise * granted, expected_gross)
     else:
-        credited = int(payment.amount_paise)
+        credited = granted
 
     if credited <= 0:
         raise PaymentError("Refusing to credit a non-positive amount")
@@ -792,7 +857,15 @@ async def handle_webhook(
         ref_type="payment",
         ref_id=payment_id,
         balance_after_paise=balance + credited,
-        note=f"Razorpay {payment_id}",
+        note=(
+            f"Razorpay {payment_id}"
+            + (
+                f" — {payment.pack_code} pack, "
+                f"{int(payment.bonus_paise or 0) // 50:,} bonus credits"
+                if payment.pack_code
+                else ""
+            )
+        ),
     )
     session.add(entry)
     await session.flush()

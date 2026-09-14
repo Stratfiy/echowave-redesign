@@ -462,3 +462,30 @@ on a receipt. Refreshing the production card is a button on the rate-card
 screen (or `scripts/seed_provider_rates --confirm --refresh-seeded`): rows
 still on the seeded default take these figures, rows somebody typed
 (Smallest and Cartesia contracted, the FX) do not.
+
+## 15. Notes from the top-up step (KAN-55, 14 Sept)
+
+1. **Packs, as the spec:** Rs 500 = 1,000, Rs 1,000 = 2,000, Rs 5,000 =
+   10,500, Rs 20,000 = 44,000 credits. The bonus above face (500 and 4,000
+   credits on the two large packs) is recorded on the payment as
+   `bonus_paise` so the invoice stays at what was paid and the ledger at
+   what was granted. A free amount in Rs 100 steps still buys at face.
+2. **Top-ups never expire and are spent after plan credits.** No second
+   ledger: the ordering already in `plans._consumed_since` (plan first) is
+   what makes a top-up a pool of its own. `plans.pool_balances` reports the
+   split; the Billing page and `GET /billing/balance` show it.
+3. **Overage is the next rung's rate**, decided per call on what is left of
+   the plan grant *before* the call: a call that starts with plan credits is
+   charged at the plan's rate in full, the next one at the next tier's
+   (Business 12 → Growth's 11, Growth → Scale's 10, Scale pays its own 10;
+   Starter climbs from Business). The alternative, splitting one call across
+   the two rates, was not chosen: it would put two rates on one receipt line
+   for a difference of a credit a minute.
+4. **The top-up ceiling is now enforced** at purchase, through
+   `plan_limits` (proposed figures: 2,000 / 20,000 / 100,000 / 500,000,
+   unlimited on Scale), and the refusal names the rung that raises it.
+5. **USD packs are not shipped.** The ticket says "international card for
+   USD" and gives no dollar figures; Razorpay already takes USD for an export
+   account's plan. Proposed for the decision: $6 = 1,000, $12 = 2,000,
+   $60 = 10,500, $240 = 44,000 (the rupee packs at Rs 96 plus a rounding
+   margin), collected through the same Razorpay USD order. Open on KAN-47.
