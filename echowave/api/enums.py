@@ -788,6 +788,9 @@ class AgentEventKind(str, Enum):
     #: ``payload["decided"]`` so the card that asked is the card that shows
     #: the answer. See services/workflow/decisions.py.
     NEEDS_DECISION = "needs_decision"
+    #: The bot proposed a change to itself; the card shows the diff and the
+    #: person publishes or discards the draft. See services/workflow/self_edit.
+    EDIT_PROPOSED = "edit_proposed"
     #: The organisation learned something from what an agent did.
     MEMORY_LEARNED = "memory_learned"
     ROUTINE_FIRED = "routine_fired"

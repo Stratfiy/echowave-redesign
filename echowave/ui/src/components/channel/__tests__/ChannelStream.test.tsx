@@ -201,3 +201,25 @@ describe('a bot that was asked shows as thinking', () => {
         await waitFor(() => expect(screen.queryByLabelText('Front desk is thinking')).toBeNull(), { timeout: 7000 });
     }, 10000);
 });
+
+describe('a proposed change to the bot', () => {
+    it('is a card with the diff on the thread', async () => {
+        timeline.mockResolvedValue({
+            data: {
+                events: [
+                    event({
+                        id: 9,
+                        kind: 'edit_proposed',
+                        summary: 'Proposed a change to Rules',
+                        payload: { step: 'Rules', why: 'Never quote a price', diff: '@@ -1 +1 @@\n-Be polite.\n+Be polite. Never quote a price.\n' },
+                    }),
+                ],
+                next_before_at: null,
+                next_before_id: null,
+            },
+        });
+        render(<ChannelStream workflowId={3} botNames={{ 3: 'Front desk' }} />);
+        expect(await screen.findByText('Change to Rules')).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Publish' })).toBeTruthy();
+    });
+});

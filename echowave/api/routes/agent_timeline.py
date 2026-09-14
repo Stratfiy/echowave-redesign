@@ -38,7 +38,7 @@ from api.db.models import UserModel
 from api.enums import AgentEventActor, AgentEventKind
 from api.services.auth.depends import get_user
 from api.services.configuration import chat_presets
-from api.services.workflow import agent_timeline, decisions, mentions
+from api.services.workflow import agent_timeline, decisions, mentions, self_edit
 from api.tasks.arq import enqueue_job
 from api.tasks.function_names import FunctionNames
 
@@ -462,4 +462,38 @@ async def decide(body: DecideRequest, user: UserModel = Depends(get_user)):
     )
     if row is None:
         raise HTTPException(status_code=404, detail="That question is not here")
+    return _as_event(row)
+
+
+class SettleEditRequest(BaseModel):
+    event_id: int
+    #: "publish" puts the draft live; "discard" throws it away.
+    action: str = Field(max_length=16)
+
+
+@router.post("/edits/settle", response_model=TimelineEvent)
+async def settle_edit(body: SettleEditRequest, user: UserModel = Depends(get_user)):
+    """Publish or discard a change a bot proposed to itself, from its card.
+
+    The action is written into the card's own row, so everyone who opens the
+    thread afterwards sees what was decided and by whom; the draft is
+    published or discarded in the same call.
+    """
+    organization_id = user.selected_organization_id
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+    try:
+        await self_edit.settle(
+            organization_id=organization_id,
+            event_id=body.event_id,
+            action=body.action.strip().lower(),
+            user_id=user.id,
+        )
+    except self_edit.EditError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    row = await db_client.get_agent_event(
+        body.event_id, organization_id=organization_id
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="That change is not here")
     return _as_event(row)

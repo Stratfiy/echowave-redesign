@@ -580,6 +580,9 @@ async def execute_text_chat_pending_turn(
         call_context_vars=initial_context,
         workflow_run_id=workflow_run_id,
         is_voice=False,
+        # A staff chat -- a channel or the bot's own Chat tab -- may ask the
+        # bot to change itself. The web tester and the share link may not.
+        can_edit_self=bool(session_data.get("staff_chat")),
         node_transition_callback=send_node_transition,
         embeddings_api_key=embeddings_api_key,
         embeddings_model=embeddings_model,
