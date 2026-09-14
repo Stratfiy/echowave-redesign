@@ -128,6 +128,15 @@ export function withAlpha(hex: string, alpha: number): string {
   return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`;
 }
 
+/** Mix a colour toward near-black: the rail, the frame's darkest tone. `keep`
+ *  is how much of the colour survives; the rest is #141414. */
+export function shade(hex: string, keep: number): string {
+  const rgb = parseHex(hex);
+  if (!rgb) return "#2a1a19";
+  const mixed = rgb.map((c) => Math.round(20 + (c - 20) * keep));
+  return `#${mixed.map((c) => c.toString(16).padStart(2, "0")).join("")}`;
+}
+
 /** Mix a colour toward white — the pale wash behind a badge, never a large surface. */
 export function tint(hex: string, weight: number): string {
   const rgb = parseHex(hex);
@@ -150,13 +159,10 @@ export function accentById(id: string | null | undefined): Accent | null {
  * unstyled.
  */
 export function resolveAccent(stored: string | null | undefined): Accent {
-  const preset = accentById(stored);
-  if (preset) return preset;
-  if (stored && parseHex(stored) && contrastOnWhite(stored) >= MIN_BRIGHT_CONTRAST) {
-    const bright = stored.startsWith("#") ? stored : `#${stored}`;
-    return { id: bright, label: "Custom", bright, deep: deepen(bright) };
-  }
-  return accentById(DEFAULT_ACCENT_ID) ?? ACCENTS[0];
+  // Presets only. A custom hex from an older build falls back to the
+  // default: the picker no longer offers one, because a theme is eleven
+  // derived tones and a colour somebody typed is not a theme.
+  return accentById(stored) ?? accentById(DEFAULT_ACCENT_ID) ?? ACCENTS[0];
 }
 
 /**
@@ -169,7 +175,19 @@ export function resolveAccent(stored: string | null | undefined): Accent {
  * picking an "accent colour" is asking for.
  */
 export function accentVariables(accent: Accent): Record<string, string> {
+  // The frame follows the accent, the way a Slack theme colours the rail,
+  // the column and the top bar together: dark rail, tinted panel, the bright
+  // half on active states. Content stays white whatever is chosen.
+  const railForeground = tint(accent.bright, 0.93);
   return {
+    "--rail": shade(accent.bright, 0.15),
+    "--rail-foreground": railForeground,
+    "--rail-accent": accent.deep,
+    "--rail-accent-foreground": "#ffffff",
+    "--rail-border": withAlpha(railForeground, 0.12),
+    "--sidebar": tint(accent.bright, 0.9),
+    "--sidebar-accent": tint(accent.bright, 0.78),
+    "--sidebar-border": tint(accent.bright, 0.7),
     "--accent-brand": accent.bright,
     "--accent-brand-soft": withAlpha(accent.bright, 0.1),
     "--accent-brand-tint": tint(accent.bright, 0.88),

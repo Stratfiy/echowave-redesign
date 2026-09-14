@@ -381,8 +381,13 @@ export function AppSidebar() {
             sidebar with the workspace: it names everything below it, and the
             menu behind it is where you switch to another account or rename
             this one. */}
-        <div className="border-b border-sidebar-border px-2 py-2">
-          <div className="flex items-center gap-2">
+        {/* The head is the rail's colour, so the dark band runs across the
+            top of the frame -- rail, workspace name, top bar -- as one
+            piece, the way Slack's does. The switcher's own styling is for
+            a light panel; it is recoloured here rather than taught about
+            the rail. */}
+        <div className="flex min-h-11 items-center bg-rail px-2 text-rail-foreground [&_button]:text-rail-foreground [&_button:hover]:bg-white/10 [&_button_svg]:text-rail-foreground/70">
+          <div className="flex w-full items-center gap-2">
             <div className="min-w-0 flex-1">
               <OrganizationSwitcher collapsed={isCollapsed} />
             </div>
