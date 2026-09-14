@@ -24,7 +24,22 @@ class DocumentUploadResponseSchema(BaseModel):
     s3_key: str = Field(..., description="S3 key where file should be uploaded")
 
 
-class ProcessDocumentRequestSchema(BaseModel):
+class KnowledgeScopeFields(BaseModel):
+    """Who a document is knowledge for. See api.enums.KnowledgeScope."""
+
+    scope: str = Field(
+        default="library",
+        description=(
+            "library: read only by a node that names it. org: every bot in the "
+            "organisation. channel: the bots answering in folder_id. bot: the "
+            "one bot in workflow_id."
+        ),
+    )
+    folder_id: Optional[int] = Field(default=None, description="For scope=channel.")
+    workflow_id: Optional[int] = Field(default=None, description="For scope=bot.")
+
+
+class ProcessDocumentRequestSchema(KnowledgeScopeFields):
     """Request schema for triggering document processing."""
 
     document_uuid: str = Field(..., description="Document UUID to process")
@@ -56,6 +71,9 @@ class DocumentResponseSchema(BaseModel):
     custom_metadata: Dict[str, Any]
     docling_metadata: Dict[str, Any]
     source_url: Optional[str] = None
+    scope: str = "library"
+    folder_id: Optional[int] = None
+    workflow_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
     organization_id: int

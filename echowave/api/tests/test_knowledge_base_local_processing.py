@@ -488,9 +488,10 @@ class TestThePickerAndTheReaderAgree:
             Path(__file__).resolve().parents[2]
             / "ui"
             / "src"
-            / "app"
-            / "files"
-            / "DocumentUpload.tsx"
+            / "lib"
+            # The list moved out of the upload screen when the composer's
+            # paperclip started sharing it; one declaration, two pickers.
+            / "uploadKnowledge.ts"
         )
         source = picker.read_text(encoding="utf-8")
 

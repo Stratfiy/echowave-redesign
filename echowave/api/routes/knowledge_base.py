@@ -8,7 +8,7 @@ from loguru import logger
 from pydantic import BaseModel
 
 from api.db import db_client
-from api.enums import PostHogEvent
+from api.enums import KnowledgeScope, PostHogEvent
 from api.schemas.knowledge_base import (
     ChunkSearchRequestSchema,
     ChunkSearchResponseSchema,
@@ -159,6 +159,38 @@ async def get_upload_url(
         ) from exc
 
 
+async def _checked_scope(
+    organization_id: int, request
+) -> tuple[str, int | None, int | None]:
+    """The scope as it will be stored, or a 4xx that says what was wrong."""
+    scope = (request.scope or KnowledgeScope.LIBRARY.value).strip().lower()
+    if scope not in {k.value for k in KnowledgeScope}:
+        raise HTTPException(status_code=422, detail=f"Unknown scope {scope!r}")
+    if scope == KnowledgeScope.CHANNEL.value:
+        if request.folder_id is None:
+            raise HTTPException(
+                status_code=422, detail="A channel document needs folder_id"
+            )
+        folder = await db_client.get_folder(
+            request.folder_id, organization_id=organization_id
+        )
+        if folder is None:
+            raise HTTPException(status_code=404, detail="No such channel")
+        return scope, request.folder_id, None
+    if scope == KnowledgeScope.BOT.value:
+        if request.workflow_id is None:
+            raise HTTPException(
+                status_code=422, detail="A bot document needs workflow_id"
+            )
+        workflow = await db_client.get_workflow(
+            request.workflow_id, organization_id=organization_id
+        )
+        if workflow is None:
+            raise HTTPException(status_code=404, detail="No such bot")
+        return scope, None, request.workflow_id
+    return scope, None, None
+
+
 @router.post(
     "/process-document",
     response_model=DocumentResponseSchema,
@@ -220,6 +252,13 @@ async def process_document(
     # presigned URL issued before the account filled up or its plan lapsed.
     await _assert_room_to_ingest(user.selected_organization_id)
 
+    # The scope is checked against this organisation before anything is
+    # stored: a folder or workflow id from another tenant would otherwise make
+    # a document readable by that tenant's bots.
+    scope, folder_id, workflow_id = await _checked_scope(
+        user.selected_organization_id, request
+    )
+
     try:
         # Extract filename from s3_key
         filename = request.s3_key.split("/")[-1]
@@ -235,6 +274,9 @@ async def process_document(
             custom_metadata={"s3_key": request.s3_key},
             document_uuid=request.document_uuid,  # Use UUID from upload
             retrieval_mode=request.retrieval_mode,
+            scope=scope,
+            folder_id=folder_id,
+            workflow_id=workflow_id,
         )
 
         # Enqueue background task for processing
@@ -279,6 +321,9 @@ async def process_document(
             custom_metadata={"s3_key": request.s3_key},
             docling_metadata={},
             source_url=None,
+            scope=document.scope,
+            folder_id=document.folder_id,
+            workflow_id=document.workflow_id,
             created_at=document.created_at,
             updated_at=document.updated_at,
             organization_id=user.selected_organization_id,
@@ -346,6 +391,11 @@ async def list_documents(
         Optional[str],
         Query(description="Filter by processing status"),
     ] = None,
+    scope: Annotated[
+        Optional[str], Query(description="library | org | channel | bot")
+    ] = None,
+    folder_id: Annotated[Optional[int], Query()] = None,
+    workflow_id: Annotated[Optional[int], Query()] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
     user=Depends(get_user),
@@ -360,6 +410,9 @@ async def list_documents(
         documents = await db_client.get_documents_for_organization(
             organization_id=user.selected_organization_id,
             processing_status=status,
+            scope=scope,
+            folder_id=folder_id,
+            workflow_id=workflow_id,
             limit=limit,
             offset=offset,
         )
@@ -397,6 +450,9 @@ async def list_documents(
                 custom_metadata=doc.custom_metadata,
                 docling_metadata=doc.docling_metadata,
                 source_url=doc.source_url,
+                scope=doc.scope,
+                folder_id=doc.folder_id,
+                workflow_id=doc.workflow_id,
                 created_at=doc.created_at,
                 updated_at=doc.updated_at,
                 organization_id=doc.organization_id,
@@ -456,6 +512,9 @@ async def get_document(
             custom_metadata=document.custom_metadata,
             docling_metadata=document.docling_metadata,
             source_url=document.source_url,
+            scope=document.scope,
+            folder_id=document.folder_id,
+            workflow_id=document.workflow_id,
             created_at=document.created_at,
             updated_at=document.updated_at,
             organization_id=document.organization_id,

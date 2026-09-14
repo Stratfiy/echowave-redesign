@@ -565,6 +565,26 @@ export type AssemblyAisttConfiguration = {
 };
 
 /**
+ * Attachment
+ *
+ * A file dropped into the channel, already uploaded and being read.
+ */
+export type Attachment = {
+    /**
+     * Document Uuid
+     */
+    document_uuid: string;
+    /**
+     * Filename
+     */
+    filename: string;
+    /**
+     * Size Bytes
+     */
+    size_bytes?: number;
+};
+
+/**
  * AuthResponse
  */
 export type AuthResponse = {
@@ -3819,6 +3839,18 @@ export type DocumentResponseSchema = {
      * Source Url
      */
     source_url?: string | null;
+    /**
+     * Scope
+     */
+    scope?: string;
+    /**
+     * Folder Id
+     */
+    folder_id?: number | null;
+    /**
+     * Workflow Id
+     */
+    workflow_id?: number | null;
     /**
      * Created At
      */
@@ -7992,7 +8024,11 @@ export type PostMessageRequest = {
     /**
      * Text
      */
-    text: string;
+    text?: string;
+    /**
+     * Attachments
+     */
+    attachments?: Array<Attachment>;
 };
 
 /**
@@ -8093,6 +8129,24 @@ export type PresignedUploadUrlResponse = {
  * Request schema for triggering document processing.
  */
 export type ProcessDocumentRequestSchema = {
+    /**
+     * Scope
+     *
+     * library: read only by a node that names it. org: every bot in the organisation. channel: the bots answering in folder_id. bot: the one bot in workflow_id.
+     */
+    scope?: string;
+    /**
+     * Folder Id
+     *
+     * For scope=channel.
+     */
+    folder_id?: number | null;
+    /**
+     * Workflow Id
+     *
+     * For scope=bot.
+     */
+    workflow_id?: number | null;
     /**
      * Document Uuid
      *
@@ -28164,6 +28218,20 @@ export type ListDocumentsApiV1KnowledgeBaseDocumentsGetData = {
          * Filter by processing status
          */
         status?: string | null;
+        /**
+         * Scope
+         *
+         * library | org | channel | bot
+         */
+        scope?: string | null;
+        /**
+         * Folder Id
+         */
+        folder_id?: number | null;
+        /**
+         * Workflow Id
+         */
+        workflow_id?: number | null;
         /**
          * Limit
          */

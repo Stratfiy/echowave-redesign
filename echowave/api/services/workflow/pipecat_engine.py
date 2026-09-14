@@ -57,6 +57,7 @@ from api.services.workflow.pipecat_engine_context_composer import (
     compose_functions_for_node,
     compose_system_prompt_for_node,
     compose_today_line,
+    knowledge_for_run,
 )
 from api.services.workflow.pipecat_engine_context_summarizer import (
     ContextSummarizationManager,
@@ -205,6 +206,10 @@ class PipecatEngine:
         #: distinct from None, which means "not looked yet", so a business with
         #: no confirmed memory is not re-queried on every node transition.
         self._remembered_block: Optional[str] = None
+        #: Documents this run reads without a node naming them -- company
+        #: knowledge, the channel's files, the bot's own. Read once per call,
+        #: for the same reasons as the memory block. None means not looked.
+        self._scoped_document_uuids: Optional[list[str]] = None
 
         # Open MCP tool sessions for this call, keyed by tool_uuid
         self._mcp_sessions: Dict[str, McpToolSession] = {}
@@ -319,6 +324,36 @@ class PipecatEngine:
                 self._workflow_run_id
             )
         return self._workflow_id
+
+    async def _get_scoped_document_uuids(self) -> list[str]:
+        """Company, channel and bot knowledge for this run, read once.
+
+        Empty rather than fatal on any failure: a bot whose shared knowledge
+        could not be listed still answers from what its node names.
+        """
+        if self._scoped_document_uuids is None:
+            try:
+                organization_id = await self._get_organization_id()
+                workflow_id = await self._get_workflow_id()
+                folder_id = None
+                if organization_id and workflow_id:
+                    workflow = await db_client.get_workflow(
+                        workflow_id, organization_id=organization_id
+                    )
+                    folder_id = (
+                        getattr(workflow, "folder_id", None) if workflow else None
+                    )
+                self._scoped_document_uuids = (
+                    await db_client.scoped_document_uuids(
+                        organization_id, workflow_id=workflow_id, folder_id=folder_id
+                    )
+                    if organization_id
+                    else []
+                )
+            except Exception as exc:  # noqa: BLE001 - the call must go on
+                logger.warning("Could not list shared knowledge for this run: {}", exc)
+                self._scoped_document_uuids = []
+        return self._scoped_document_uuids
 
     async def _get_remembered_block(self) -> str:
         """What the business has confirmed, read once and then held.
@@ -848,9 +883,13 @@ class PipecatEngine:
                 mcp_tool_filters=getattr(node, "mcp_tool_filters", None),
             )
 
-        # Register knowledge base retrieval handler if node has documents
-        if node.document_uuids:
-            await self._register_knowledge_base_function(node.document_uuids)
+        # Register knowledge base retrieval over what the node names plus
+        # what the run reads unasked (company, channel, bot). Same union the
+        # composer offers, so the tool the model sees is the tool that runs.
+        scoped_document_uuids = await self._get_scoped_document_uuids()
+        run_documents = knowledge_for_run(node.document_uuids, scoped_document_uuids)
+        if run_documents:
+            await self._register_knowledge_base_function(run_documents)
 
         # Compose prompt and functions via the context composer module
         system_prompt = compose_system_prompt_for_node(
@@ -870,6 +909,7 @@ class PipecatEngine:
             custom_tool_manager=self._custom_tool_manager,
             agent_can_end_call=self._agent_can_end_call,
             can_ask_for_decision=not self._is_voice,
+            scoped_document_uuids=scoped_document_uuids,
         )
         await self._update_llm_context(system_prompt, functions)
 

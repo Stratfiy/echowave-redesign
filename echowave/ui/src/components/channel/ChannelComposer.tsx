@@ -17,12 +17,19 @@
  * channel has no record of.
  */
 
-import { AtSign, Loader2, SendHorizontal } from 'lucide-react';
+import { AtSign, FileText, Loader2, Paperclip, SendHorizontal, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
 import { postMessageApiV1TimelineMessagePost } from '@/client/sdk.gen';
 import { Button } from '@/components/ui/button';
 import { detailFromResult } from '@/lib/apiError';
+import {
+    ACCEPTED_FILE_TYPES,
+    type KnowledgeTarget,
+    rejectFile,
+    type Uploaded,
+    uploadKnowledge,
+} from '@/lib/uploadKnowledge';
 import { cn } from '@/lib/utils';
 
 export type ChannelBot = { id: number; name: string; handle?: string | null };
@@ -77,6 +84,40 @@ export function ChannelComposer({
     const [fragment, setFragment] = useState<string | null>(null);
     const [highlighted, setHighlighted] = useState(0);
     const input = useRef<HTMLTextAreaElement | null>(null);
+    // Files already uploaded and waiting to go with the next message. The
+    // upload happens on pick, not on send: a 5MB PDF takes a moment, and a
+    // send button that stalls for it reads as broken.
+    const [attachments, setAttachments] = useState<Uploaded[]>([]);
+    const [uploadingFile, setUploadingFile] = useState<string | null>(null);
+    const filePicker = useRef<HTMLInputElement | null>(null);
+
+    // Where a dropped file is knowledge for: this chat, and nowhere else.
+    const target: KnowledgeTarget | null =
+        workflowId != null
+            ? { scope: 'bot', workflowId }
+            : folderId != null
+              ? { scope: 'channel', folderId }
+              : null;
+
+    const attach = async (file: File) => {
+        if (!target) return;
+        const why = rejectFile(file);
+        if (why) {
+            setError(why);
+            return;
+        }
+        setError(null);
+        setUploadingFile(file.name);
+        try {
+            const uploaded = await uploadKnowledge(file, target);
+            setAttachments((have) => [...have, uploaded]);
+        } catch (failure) {
+            setError(failure instanceof Error ? failure.message : 'Could not upload that');
+        } finally {
+            setUploadingFile(null);
+            if (filePicker.current) filePicker.current.value = '';
+        }
+    };
 
     const suggestions = useMemo(() => {
         if (fragment === null) return [];
@@ -110,12 +151,13 @@ export function ChannelComposer({
 
     const send = async () => {
         const body = text.trim();
-        if (!body || sending) return;
+        if ((!body && attachments.length === 0) || sending || uploadingFile) return;
         setSending(true);
         setError(null);
         setNotice(null);
+        const where = workflowId != null ? { workflow_id: workflowId } : { folder_id: folderId };
         const response = await postMessageApiV1TimelineMessagePost({
-            body: workflowId != null ? { workflow_id: workflowId, text: body } : { folder_id: folderId, text: body },
+            body: { ...where, text: body, attachments },
         });
         setSending(false);
         if (response.error) {
@@ -123,6 +165,7 @@ export function ChannelComposer({
             return;
         }
         setText('');
+        setAttachments([]);
         setFragment(null);
 
         // The server refuses to guess, and the screen has to say so. A handle
@@ -198,7 +241,69 @@ export function ChannelComposer({
                     </ul>
                 )}
 
+                {(attachments.length > 0 || uploadingFile) && (
+                    <ul className="mb-2 flex flex-wrap gap-2" aria-label="Attachments">
+                        {attachments.map((file) => (
+                            <li
+                                key={file.document_uuid}
+                                className="flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs"
+                            >
+                                <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span className="max-w-[12rem] truncate">{file.filename}</span>
+                                <button
+                                    type="button"
+                                    aria-label={`Remove ${file.filename}`}
+                                    className="text-muted-foreground hover:text-foreground"
+                                    onClick={() =>
+                                        setAttachments((have) =>
+                                            have.filter((f) => f.document_uuid !== file.document_uuid),
+                                        )
+                                    }
+                                >
+                                    <X className="h-3 w-3" />
+                                </button>
+                            </li>
+                        ))}
+                        {uploadingFile && (
+                            <li className="flex items-center gap-1.5 rounded-md border border-dashed border-border px-2 py-1 text-xs text-muted-foreground">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                <span className="max-w-[12rem] truncate">{uploadingFile}</span>
+                            </li>
+                        )}
+                    </ul>
+                )}
+
                 <div className="flex items-end gap-2">
+                    {/* A file is a message. It is uploaded as knowledge for
+                        this chat alone -- the channel's bots, or this one bot
+                        -- and never lands in company knowledge by accident. */}
+                    {target && (
+                        <>
+                            <input
+                                ref={filePicker}
+                                type="file"
+                                accept={ACCEPTED_FILE_TYPES.join(',')}
+                                className="hidden"
+                                aria-label="Attach a file"
+                                onChange={(event) => {
+                                    const file = event.target.files?.[0];
+                                    if (file) void attach(file);
+                                }}
+                            />
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                aria-label="Attach a file"
+                                title="Attach a file"
+                                disabled={!!uploadingFile}
+                                className="shrink-0 text-muted-foreground"
+                                onClick={() => filePicker.current?.click()}
+                            >
+                                <Paperclip className="h-4 w-4" />
+                            </Button>
+                        </>
+                    )}
                     {/* The mockup's affordance, and the discoverable half of
                         the autocomplete: typing @ opens the roster, and this
                         types the @ for somebody who did not know that. */}
@@ -293,7 +398,7 @@ export function ChannelComposer({
                     />
                     <Button
                         onClick={() => void send()}
-                        disabled={!text.trim() || sending}
+                        disabled={(!text.trim() && attachments.length === 0) || sending || !!uploadingFile}
                         aria-label="Send"
                     >
                         {sending ? (

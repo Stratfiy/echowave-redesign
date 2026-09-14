@@ -189,11 +189,21 @@ async def timeline(
 MAX_MESSAGE = 8000
 
 
+class Attachment(BaseModel):
+    """A file dropped into the channel, already uploaded and being read."""
+
+    document_uuid: str = Field(max_length=64)
+    filename: str = Field(max_length=500)
+    size_bytes: int = Field(default=0, ge=0)
+
+
 class PostMessageRequest(BaseModel):
     #: Where it is said: a channel, or one bot's own chat. Exactly one.
     folder_id: Optional[int] = None
     workflow_id: Optional[int] = None
-    text: str = Field(min_length=1, max_length=MAX_MESSAGE)
+    #: Empty is allowed only alongside an attachment: a file is a message.
+    text: str = Field(default="", max_length=MAX_MESSAGE)
+    attachments: list[Attachment] = Field(default_factory=list, max_length=10)
 
 
 class PostMessageResponse(BaseModel):
@@ -267,7 +277,9 @@ async def post_message(
         for workflow in workflows
         if getattr(workflow, "folder_id", None) == body.folder_id
     ]
-    resolution = mentions.resolve(body.text, roster)
+    text, attachments, line = await _what_was_said(body, organization_id)
+
+    resolution = mentions.resolve(text, roster)
 
     await agent_timeline.record(
         organization_id=organization_id,
@@ -276,12 +288,13 @@ async def post_message(
         # The summary is the display line and truncates at 500; the words the
         # person actually chose are kept whole in the payload. A message
         # silently cut short is the product editing somebody.
-        summary=body.text,
+        summary=line,
         folder_id=body.folder_id,
         payload={
-            "body": body.text,
+            "body": text,
             "author_id": user.id,
             "asked": [m.workflow_id for m in resolution.mentioned],
+            "attachments": attachments,
         },
     )
 
@@ -291,7 +304,7 @@ async def post_message(
                 FunctionNames.ANSWER_CHANNEL_MESSAGE,
                 mention.workflow_id,
                 body.folder_id,
-                body.text,
+                line,
             )
         except Exception as exc:  # noqa: BLE001 - one bot failing is not all of them
             # Said out loud, because the alternative is a bot that was
@@ -326,6 +339,41 @@ class DecideRequest(BaseModel):
     other: Optional[str] = Field(default=None, max_length=decisions.MAX_OPTION_CHARS)
 
 
+async def _what_was_said(
+    body: PostMessageRequest, organization_id: int
+) -> tuple[str, list[dict[str, Any]], str]:
+    """The text, the checked attachments, and the one display line.
+
+    An attachment names a document; the document has to be this
+    organisation's, and a uuid from another tenant is refused rather than
+    silently dropped -- a file card that points at nothing is a lie on the
+    screen. Empty text is allowed only beside an attachment: a file is a
+    message.
+    """
+    text = body.text.strip()
+    if not text and not body.attachments:
+        raise HTTPException(status_code=422, detail="Say something or attach a file")
+
+    attachments: list[dict[str, Any]] = []
+    for attachment in body.attachments:
+        document = await db_client.get_document_by_uuid(
+            attachment.document_uuid, organization_id=organization_id
+        )
+        if document is None:
+            raise HTTPException(status_code=404, detail="No such document here")
+        attachments.append(
+            {
+                "document_uuid": attachment.document_uuid,
+                "filename": attachment.filename or document.filename,
+                "size_bytes": attachment.size_bytes or (document.file_size_bytes or 0),
+            }
+        )
+
+    # The display line: what was typed, or the file's name when nothing was.
+    line = text or "Shared " + ", ".join(a["filename"] for a in attachments)
+    return text, attachments, line
+
+
 async def _post_direct_message(
     *, organization_id: int, user: UserModel, body: PostMessageRequest
 ) -> PostMessageResponse:
@@ -341,25 +389,25 @@ async def _post_direct_message(
     )
     if workflow is None:
         raise HTTPException(status_code=404, detail="No such bot")
+    text, attachments, line = await _what_was_said(body, organization_id)
 
     await agent_timeline.record(
         organization_id=organization_id,
         kind=AgentEventKind.MESSAGE.value,
         actor=AgentEventActor.HUMAN.value,
-        summary=body.text,
+        summary=line,
         workflow_id=workflow.id,
         payload={
-            "body": body.text,
+            "body": text,
             "author_id": user.id,
             "asked": [workflow.id],
             "direct": True,
+            "attachments": attachments,
         },
         in_channel=False,
     )
     try:
-        await enqueue_job(
-            FunctionNames.ANSWER_CHANNEL_MESSAGE, workflow.id, None, body.text
-        )
+        await enqueue_job(FunctionNames.ANSWER_CHANNEL_MESSAGE, workflow.id, None, line)
     except Exception as exc:  # noqa: BLE001 - said out loud, as in the channel path
         logger.error(
             "Could not ask workflow {} to answer directly: {}", workflow.id, exc

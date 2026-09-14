@@ -4,37 +4,30 @@ import { FileText, Info, Upload, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 
-import {
-  getUploadUrlApiV1KnowledgeBaseUploadUrlPost,
-  processDocumentApiV1KnowledgeBaseProcessDocumentPost,
-} from '@/client/sdk.gen';
-import type { DocumentUploadResponseSchema } from '@/client/types.gen';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useAppConfig } from '@/context/AppConfigContext';
 import logger from '@/lib/logger';
+import {
+  ACCEPTED_FILE_TYPES,
+  type KnowledgeTarget,
+  rejectFile,
+  uploadKnowledge,
+} from '@/lib/uploadKnowledge';
 
 interface DocumentUploadProps {
   onUploadSuccess: () => void;
+  /** Who the document is knowledge for. The page uploads company knowledge,
+   *  which every bot reads; the library is what a node has to name. */
+  target?: KnowledgeTarget;
 }
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-// Kept in step with api/services/knowledge_base/extraction.py. Legacy .doc is
-// deliberately absent: no pure-Python reader handles it, so offering it here
-// only produces an upload that fails after the customer has waited for it.
-const ACCEPTED_FILE_TYPES = [
-    '.pdf',
-    '.docx',
-    '.txt',
-    '.md',
-    '.json',
-    '.csv',
-    '.html',
-];
-
-export default function DocumentUpload({ onUploadSuccess }: DocumentUploadProps) {
+export default function DocumentUpload({
+  onUploadSuccess,
+  target = { scope: 'org' },
+}: DocumentUploadProps) {
   const { config } = useAppConfig();
   const isOSS = config?.deploymentMode === 'oss';
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -60,18 +53,9 @@ export default function DocumentUpload({ onUploadSuccess }: DocumentUploadProps)
   ) : null;
 
   const validateFile = (file: File): boolean => {
-    const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
-    if (!ACCEPTED_FILE_TYPES.includes(fileExtension)) {
-      toast.error(`Please select a supported file type: ${ACCEPTED_FILE_TYPES.join(', ')}`);
-      return false;
-    }
-
-    if (file.size > MAX_FILE_SIZE) {
-      toast.error('File size must be less than 5MB');
-      return false;
-    }
-
-    return true;
+    const why = rejectFile(file);
+    if (why) toast.error(why);
+    return !why;
   };
 
   const handleFileSelected = (file: File) => {
@@ -99,51 +83,11 @@ export default function DocumentUpload({ onUploadSuccess }: DocumentUploadProps)
     setUploadProgress(0);
 
     try {
-      logger.info('Requesting presigned upload URL for:', selectedFile.name);
-      const uploadUrlResponse = await getUploadUrlApiV1KnowledgeBaseUploadUrlPost({
-        body: {
-          filename: selectedFile.name,
-          mime_type: selectedFile.type || 'application/octet-stream',
-          custom_metadata: {
-            original_filename: selectedFile.name,
-            uploaded_at: new Date().toISOString(),
-          },
-        },
+      logger.info('Uploading knowledge:', selectedFile.name);
+      await uploadKnowledge(selectedFile, target, {
+        retrievalMode,
+        onProgress: setUploadProgress,
       });
-
-      if (uploadUrlResponse.error || !uploadUrlResponse.data) {
-        throw new Error('Failed to get upload URL');
-      }
-
-      const uploadData: DocumentUploadResponseSchema = uploadUrlResponse.data;
-      setUploadProgress(25);
-
-      const uploadResponse = await fetch(uploadData.upload_url, {
-        method: 'PUT',
-        body: selectedFile,
-        headers: {
-          'Content-Type': selectedFile.type || 'application/octet-stream',
-        },
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error('Failed to upload file to storage');
-      }
-
-      setUploadProgress(75);
-
-      const processResponse = await processDocumentApiV1KnowledgeBaseProcessDocumentPost({
-        body: {
-          document_uuid: uploadData.document_uuid,
-          s3_key: uploadData.s3_key,
-          retrieval_mode: retrievalMode,
-        },
-      });
-
-      if (processResponse.error) {
-        throw new Error('Failed to trigger processing');
-      }
-
       setUploadProgress(100);
       toast.success(`File uploaded: ${selectedFile.name}. Processing started.`);
       clearSelectedFile();

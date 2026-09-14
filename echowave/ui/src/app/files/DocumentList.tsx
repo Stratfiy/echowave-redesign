@@ -141,6 +141,21 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
     }
   };
 
+  // Who reads it. The scope is the one fact on this screen that changes what
+  // a bot does, so it is said on every row rather than hidden in a filter.
+  const whoReads = (doc: DocumentResponseSchema): string => {
+    switch (doc.scope) {
+      case 'org':
+        return 'Every bot';
+      case 'channel':
+        return 'One channel';
+      case 'bot':
+        return 'One bot';
+      default:
+        return 'Steps that name it';
+    }
+  };
+
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -303,6 +318,7 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
                         Needs re-ingesting
                       </Badge>
                     )}
+                    <Badge variant="secondary" className="text-xs">{whoReads(doc)}</Badge>
                     {doc.retrieval_mode === 'full_document' ? (
                       <Badge variant="outline" className="text-xs">Full Document</Badge>
                     ) : (
