@@ -10860,6 +10860,46 @@ export type TransferCallToolDefinition = {
 };
 
 /**
+ * TranslateRequest
+ */
+export type TranslateRequest = {
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Target Language Code
+     */
+    target_language_code?: string;
+    /**
+     * Mode
+     */
+    mode?: string;
+};
+
+/**
+ * TranslateResponse
+ */
+export type TranslateResponse = {
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Source Language Code
+     */
+    source_language_code?: string | null;
+    /**
+     * Target Language Code
+     */
+    target_language_code: string;
+    /**
+     * Mode
+     */
+    mode: string;
+};
+
+/**
  * TriggerCallRequest
  *
  * Request model for triggering a call via API
@@ -24569,6 +24609,45 @@ export type SettleEditApiV1TimelineEditsSettlePostResponses = {
 };
 
 export type SettleEditApiV1TimelineEditsSettlePostResponse = SettleEditApiV1TimelineEditsSettlePostResponses[keyof SettleEditApiV1TimelineEditsSettlePostResponses];
+
+export type TranslateTextApiV1TranslatePostData = {
+    body: TranslateRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/translate';
+};
+
+export type TranslateTextApiV1TranslatePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TranslateTextApiV1TranslatePostError = TranslateTextApiV1TranslatePostErrors[keyof TranslateTextApiV1TranslatePostErrors];
+
+export type TranslateTextApiV1TranslatePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: TranslateResponse;
+};
+
+export type TranslateTextApiV1TranslatePostResponse = TranslateTextApiV1TranslatePostResponses[keyof TranslateTextApiV1TranslatePostResponses];
 
 export type ListToolsApiV1ToolsGetData = {
     body?: never;
