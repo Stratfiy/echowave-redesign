@@ -8313,6 +8313,22 @@ export type PropertySpec = {
 export type PropertyType = 'string' | 'number' | 'boolean' | 'options' | 'multi_options' | 'fixed_collection' | 'json' | 'tool_refs' | 'document_refs' | 'recording_ref' | 'credential_ref' | 'agent_ref' | 'mention_textarea' | 'url';
 
 /**
+ * ProvideSecretRequest
+ */
+export type ProvideSecretRequest = {
+    /**
+     * Event Id
+     */
+    event_id: number;
+    /**
+     * Values
+     */
+    values?: {
+        [key: string]: string;
+    };
+};
+
+/**
  * ProviderRateRequest
  */
 export type ProviderRateRequest = {
@@ -24580,6 +24596,45 @@ export type DecideApiV1TimelineDecidePostResponses = {
 };
 
 export type DecideApiV1TimelineDecidePostResponse = DecideApiV1TimelineDecidePostResponses[keyof DecideApiV1TimelineDecidePostResponses];
+
+export type ProvideSecretApiV1TimelineSecretsProvidePostData = {
+    body: ProvideSecretRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/timeline/secrets/provide';
+};
+
+export type ProvideSecretApiV1TimelineSecretsProvidePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProvideSecretApiV1TimelineSecretsProvidePostError = ProvideSecretApiV1TimelineSecretsProvidePostErrors[keyof ProvideSecretApiV1TimelineSecretsProvidePostErrors];
+
+export type ProvideSecretApiV1TimelineSecretsProvidePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: TimelineEvent;
+};
+
+export type ProvideSecretApiV1TimelineSecretsProvidePostResponse = ProvideSecretApiV1TimelineSecretsProvidePostResponses[keyof ProvideSecretApiV1TimelineSecretsProvidePostResponses];
 
 export type SettleEditApiV1TimelineEditsSettlePostData = {
     body: SettleEditRequest;

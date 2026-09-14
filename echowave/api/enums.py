@@ -788,6 +788,11 @@ class AgentEventKind(str, Enum):
     #: ``payload["decided"]`` so the card that asked is the card that shows
     #: the answer. See services/workflow/decisions.py.
     NEEDS_DECISION = "needs_decision"
+    #: A bot needs a key or a password. The card is a secure form; the values
+    #: go to the credential store and the row is stamped with the credential's
+    #: uuid and a last-four hint, never the value. See
+    #: services/workflow/secrets_request.py.
+    NEEDS_SECRET = "needs_secret"
     #: The bot proposed a change to itself; the card shows the diff and the
     #: person publishes or discards the draft. See services/workflow/self_edit.
     EDIT_PROPOSED = "edit_proposed"

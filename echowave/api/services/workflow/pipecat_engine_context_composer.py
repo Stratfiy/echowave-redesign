@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from api.services.workflow.workflow_graph import Node, WorkflowGraph
 
 from api.constants import DEFAULT_ORGANIZATION_TIMEZONE
-from api.services.workflow import decisions, self_edit
+from api.services.workflow import decisions, secrets_request, self_edit
 from api.services.workflow.known_values import known_values_block
 from api.services.workflow.pipecat_engine_custom_tools import get_function_schema
 from api.services.workflow.speaking_style import CODE_MIXED_INSTRUCTIONS
@@ -299,6 +299,16 @@ async def compose_functions_for_node(
                 decisions.DESCRIPTION,
                 properties=decisions.tool_properties(),
                 required=["question", "options", "mode"],
+            )
+        )
+        # Asking for a key goes with asking a person: the form is on the
+        # same screen the decision card is, and a caller has no form.
+        functions.append(
+            get_function_schema(
+                secrets_request.TOOL_NAME,
+                secrets_request.DESCRIPTION,
+                properties=secrets_request.tool_properties(),
+                required=["name", "credential_type"],
             )
         )
 
