@@ -47,6 +47,7 @@ from api.constants import (
     RAZORPAY_KEY_SECRET,
     RAZORPAY_WEBHOOK_SECRET,
     TOPUP_INCREMENT_PAISE,
+    USD_TOPUPS_ENABLED,
 )
 from api.db.models import (
     CreditLedgerModel,
@@ -225,6 +226,8 @@ async def create_topup_order(
                     "Packs start at ₹999."
                 )
         currency = pack.currency
+        if currency == topup_packs.USD and not usd_topups_enabled():
+            raise PaymentError(USD_TOPUPS_PENDING_MESSAGE)
         if currency == topup_packs.USD:
             # The ledger, the voucher and the GST return all want rupees, so
             # the dollars are valued once, now, at the rate in force, and the
@@ -1156,6 +1159,22 @@ def _gross_minor(r: PaymentModel) -> int:
         # Zero-rated: what the card was charged is the net figure.
         return int(r.amount_minor or 0)
     return int(r.gross_paise) if r.gross_paise is not None else int(r.amount_paise)
+
+
+#: What a dollar account is told while the gateway cannot yet take dollars.
+USD_TOPUPS_PENDING_MESSAGE = (
+    "Dollar payments are being activated on our payment gateway. Email "
+    "support@decibyl.ai and we will add credit directly until then."
+)
+
+
+def usd_topups_enabled() -> bool:
+    """Whether a dollar order may be placed (KAN-135).
+
+    A function rather than the constant so a test can flip it and so the
+    check reads the same way as ``is_configured``.
+    """
+    return bool(USD_TOPUPS_ENABLED)
 
 
 def is_configured() -> bool:
