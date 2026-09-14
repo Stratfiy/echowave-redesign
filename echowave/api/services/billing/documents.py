@@ -52,6 +52,7 @@ from api.db.models import (
     WorkflowRunModel,
 )
 from api.services.billing.billing_profile import get_profile
+from api.services.billing.money import round_half_up_div
 from api.services.billing.tax import TaxBreakdown, compute_tax, net_of
 
 RECEIPT_VOUCHER = "receipt_voucher"
@@ -301,18 +302,43 @@ async def issue_receipt_voucher(
                 f", valued at ₹{int(payment.fx_paise_per_usd) / 100:,.2f}/USD"
             )
 
+    # A promo code prints as two lines that add to the taxable value: the
+    # list price, and the discount as a negative (KAN-134). Tax is computed
+    # on the net, above, so the return sees the discounted supply.
+    line_items = [
+        {
+            "description": description,
+            "sac_code": SUPPLIER_SAC_CODE,
+            "amount_paise": int(payment.amount_paise),
+        }
+    ]
+    discount_minor = int(getattr(payment, "discount_minor", 0) or 0)
+    if discount_minor and payment.promo_code:
+        if (getattr(payment, "currency", None) or "INR").upper() == "USD":
+            discount_paise = round_half_up_div(
+                discount_minor * int(payment.fx_paise_per_usd or 0), 100
+            )
+        else:
+            discount_paise = discount_minor
+        line_items = [
+            {
+                "description": description,
+                "sac_code": SUPPLIER_SAC_CODE,
+                "amount_paise": int(payment.amount_paise) + discount_paise,
+            },
+            {
+                "description": f"Discount: promo code {payment.promo_code}",
+                "sac_code": SUPPLIER_SAC_CODE,
+                "amount_paise": -discount_paise,
+            },
+        ]
+
     document = await _issue(
         session,
         organization_id=payment.organization_id,
         kind=RECEIPT_VOUCHER,
         breakdown=breakdown,
-        line_items=[
-            {
-                "description": description,
-                "sac_code": SUPPLIER_SAC_CODE,
-                "amount_paise": int(payment.amount_paise),
-            }
-        ],
+        line_items=line_items,
         customer=profile.as_snapshot(),
         issued_at=issued_at or payment.paid_at or datetime.now(UTC),
         payment_id=payment.id,

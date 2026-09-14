@@ -435,6 +435,11 @@ class BillingAuditAction(str, Enum):
     # MANAGED_MARKUP_CHANGED — moves one line's price, not every account's —
     # which is why it does not require the OTP code that one does.
     MANAGED_MARKUP_OVERRIDE_CHANGED = "managed_markup_override_changed"
+    # Promo codes (KAN-134): every create, edit and revoke is a row, because a
+    # code is a price change for whoever holds it.
+    PROMO_CODE_CREATED = "promo_code_created"
+    PROMO_CODE_CHANGED = "promo_code_changed"
+    PROMO_CODE_REVOKED = "promo_code_revoked"
 
 
 class KycStatus(str, Enum):

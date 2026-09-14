@@ -114,6 +114,11 @@ class TopupOrder:
     gross_minor: int = 0
     #: What a full payment lands on the balance, in credits.
     credits: int = 0
+    #: A promo code applied at the order (KAN-134): what it took off, in
+    #: minor units, and the bonus credits it will land on capture.
+    promo_code: str | None = None
+    discount_minor: int = 0
+    bonus_credits: int = 0
 
 
 def _require_api_credentials() -> tuple[str, str]:
@@ -171,6 +176,7 @@ async def create_topup_order(
     amount_paise: int | None = None,
     created_by: int | None,
     pack_code: str | None = None,
+    promo_code: str | None = None,
 ) -> TopupOrder:
     """Ask Razorpay for an order and record our side of it.
 
@@ -246,6 +252,8 @@ async def create_topup_order(
     credits_granted = (
         pack.credits if pack else (amount_paise + bonus_paise) // PAISE_PER_CREDIT
     )
+    # The price before any code, in the order's own minor units.
+    list_minor = pack.price_minor if pack else amount_paise
 
     minimum = await minimum_topup_paise(session, organization_id=organization_id)
     if amount_paise < minimum and pack is None:
@@ -271,13 +279,45 @@ async def create_topup_order(
             f"₹{(amount_paise // TOPUP_INCREMENT_PAISE + 1) * TOPUP_INCREMENT_PAISE / 100:,.0f}."
         )
 
+    # A promo code (KAN-134), checked after the amount rules and before the
+    # ceiling, so the ceiling sees the bonus it would land.
+    applied = None
+    discount_minor = 0
+    promo_bonus_credits = 0
+    if promo_code:
+        from api.services.billing import promo_codes
+
+        try:
+            applied = await promo_codes.validate(
+                session,
+                code=promo_code,
+                organization_id=organization_id,
+                purchase=promo_codes.Purchase(
+                    kind="pack" if pack else "amount",
+                    code=pack.code if pack else None,
+                    currency=currency,
+                    amount_minor=list_minor,
+                ),
+            )
+        except promo_codes.PromoError as exc:
+            raise PaymentError(str(exc)) from exc
+        discount_minor = applied.discount_minor
+        promo_bonus_credits = applied.bonus_credits
+        if discount_minor:
+            if currency == topup_packs.USD:
+                amount_paise = round_half_up_div(
+                    (list_minor - discount_minor) * (fx_paise_per_usd or 0), 100
+                )
+            else:
+                amount_paise = list_minor - discount_minor
+
     # After the amount rules and before the credentials: an amount the
     # customer can correct is reported first, then the plan's ceiling on what
     # they may hold, and only then anything that is ours to fix.
     await _refuse_over_the_topup_ceiling(
         session,
         organization_id=organization_id,
-        adding_paise=credits_granted * PAISE_PER_CREDIT,
+        adding_paise=(credits_granted + promo_bonus_credits) * PAISE_PER_CREDIT,
     )
 
     key_id, key_secret = _require_api_credentials()
@@ -302,7 +342,7 @@ async def create_topup_order(
         # customer a figure nobody can invoice.
         if tax.tax_paise:
             raise PaymentError("A dollar order cannot carry GST.")
-        amount_minor = pack.price_minor
+        amount_minor = list_minor - discount_minor
         gross_minor = amount_minor
     else:
         amount_minor = amount_paise
@@ -358,6 +398,8 @@ async def create_topup_order(
             amount_minor=amount_minor,
             fx_paise_per_usd=fx_paise_per_usd,
             credits_granted=credits_granted,
+            promo_code=applied.code if applied else None,
+            discount_minor=discount_minor,
             gross_paise=tax.total_paise,
             cgst_paise=tax.cgst_paise,
             sgst_paise=tax.sgst_paise,
@@ -387,6 +429,9 @@ async def create_topup_order(
         amount_minor=amount_minor,
         gross_minor=gross_minor,
         credits=credits_granted,
+        promo_code=applied.code if applied else None,
+        discount_minor=discount_minor,
+        bonus_credits=promo_bonus_credits,
     )
 
 
@@ -765,6 +810,24 @@ async def handle_webhook(
                 outcome["plan"] = await grant_plan_cycle(
                     session, mandate=mandate, event=event
                 )
+                # A bonus-credit promo code taken at subscription lands with
+                # the first collection (KAN-134); once, by index. Wrapped:
+                # the cycle is granted whatever happens here.
+                if outcome["plan"].get("status") == "granted" and mandate.promo_code:
+                    from api.services.billing import promo_codes
+
+                    try:
+                        async with session.begin_nested():
+                            outcome["promo"] = await promo_codes.settle_plan_collection(
+                                session, mandate=mandate, payment_ref=str(payment_id)
+                            )
+                    except Exception as exc:  # noqa: BLE001 - the cycle outranks the bonus
+                        logger.error(
+                            "Plan collection for org {} granted but promo {} failed: {}",
+                            mandate.organization_id,
+                            mandate.promo_code,
+                            exc,
+                        )
                 # A plan collection is a payment too: the friend who
                 # subscribed pays out the referral (KAN-133). Own session,
                 # after this one commits, so it can never roll the cycle back.
@@ -1024,6 +1087,27 @@ async def handle_webhook(
             exc,
         )
 
+    # The promo code's redemption and bonus (KAN-134), after the credit and
+    # in a savepoint like the voucher: the money is in, and a code must not
+    # be able to fail the payment it discounted.
+    promo = None
+    if payment.promo_code:
+        from api.services.billing import promo_codes
+
+        try:
+            async with session.begin_nested():
+                promo = await promo_codes.settle_payment(
+                    session, payment=payment, payment_ref=str(payment_id)
+                )
+        except Exception as exc:  # noqa: BLE001 - the credit outranks the code
+            logger.error(
+                "Credited org {} for Razorpay payment {} but promo {} failed: {}",
+                payment.organization_id,
+                payment_id,
+                payment.promo_code,
+                exc,
+            )
+
     logger.info(
         "Credited org {} with {} paise from Razorpay payment {}{}",
         payment.organization_id,
@@ -1046,6 +1130,7 @@ async def handle_webhook(
         "order_id": order_id,
         "credited_paise": credited,
         "receipt_voucher_id": voucher.id if voucher else None,
+        "promo": promo,
         # The friend's first paid top-up pays out the referral (KAN-133).
         # Settled by the route after this transaction commits, in a session
         # of its own, so it can never roll the credit back.
@@ -1159,6 +1244,8 @@ async def list_payments(
                 if r.credits_granted is not None
                 else (int(r.amount_paise) + int(r.bonus_paise or 0)) // PAISE_PER_CREDIT
             ),
+            "promo_code": r.promo_code,
+            "discount_minor": int(r.discount_minor or 0),
             "status": r.status,
             "firc_reference": getattr(r, "firc_reference", None),
             "created_at": r.created_at.isoformat() if r.created_at else None,

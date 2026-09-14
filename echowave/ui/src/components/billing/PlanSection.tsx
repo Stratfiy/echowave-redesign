@@ -20,11 +20,19 @@
  * find that out here rather than on an invoice.
  */
 
-import { AlertTriangle, ArrowUpRight, Check, Loader2, Phone } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  Check,
+  Loader2,
+  Phone,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { client } from "@/client/client.gen";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useAccessRoles } from "@/hooks/useAccessRoles";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
@@ -32,452 +40,471 @@ import { formatCreditsLabel, formatPaise } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
 
 type Plan = {
-    code: string;
-    label: string;
-    blurb: string;
-    /** Net of GST, like the ledger. */
-    price_paise: number;
-    /** What the bank is told to take. Null when the billing profile cannot be
-     *  taxed yet, in which case we say so rather than quoting a number that
-     *  changes at the card form. */
-    gross_paise: number | null;
-    balance_paise: number;
-    included_numbers: number;
-    extra_number_paise: number;
-    period: string;
-    is_current: boolean;
-    /** The monthly grant in the unit the customer sees (KAN-52). */
-    credits: number;
-    /** Free and Everyday keep bots off the phone (KAN-53). */
-    voice_allowed: boolean;
-    /** Free and Campus Builder are granted, not bought. */
-    purchasable: boolean;
-    /** A year, net; null when the plan has no annual option. */
-    annual_price_paise: number | null;
-    annual_gross_paise: number | null;
-    annual_credits: number | null;
-    /** Which period the account's own mandate collects for. */
-    billing_period?: string;
+  code: string;
+  label: string;
+  blurb: string;
+  /** Net of GST, like the ledger. */
+  price_paise: number;
+  /** What the bank is told to take. Null when the billing profile cannot be
+   *  taxed yet, in which case we say so rather than quoting a number that
+   *  changes at the card form. */
+  gross_paise: number | null;
+  balance_paise: number;
+  included_numbers: number;
+  extra_number_paise: number;
+  period: string;
+  is_current: boolean;
+  /** The monthly grant in the unit the customer sees (KAN-52). */
+  credits: number;
+  /** Free and Everyday keep bots off the phone (KAN-53). */
+  voice_allowed: boolean;
+  /** Free and Campus Builder are granted, not bought. */
+  purchasable: boolean;
+  /** A year, net; null when the plan has no annual option. */
+  annual_price_paise: number | null;
+  annual_gross_paise: number | null;
+  annual_credits: number | null;
+  /** Which period the account's own mandate collects for. */
+  billing_period?: string;
 };
 
 type Period = "monthly" | "annual";
 
 type Numbers = {
-    included: number;
-    used: number;
-    remaining: number;
-    extra_paise: number;
+  included: number;
+  used: number;
+  remaining: number;
+  extra_paise: number;
 };
 
 type Mandate = {
-    status: string;
-    short_url: string | null;
+  status: string;
+  short_url: string | null;
 } | null;
 
 type PlanResponse = {
-    plans: Plan[];
-    current: Plan | null;
-    numbers: Numbers;
-    mandate: Mandate;
-    configured: boolean;
-    billing_profile_complete: boolean;
-    plan_credits_expire: boolean;
+  plans: Plan[];
+  current: Plan | null;
+  numbers: Numbers;
+  mandate: Mandate;
+  configured: boolean;
+  billing_profile_complete: boolean;
+  plan_credits_expire: boolean;
 };
 
 /** Mandate states in which the customer still has to go and authorise. */
 const NEEDS_AUTHORISING = new Set(["created", "pending", "authenticated"]);
 
 export function PlanSection({
-    onSubscribed,
-    billingProfileComplete,
+  onSubscribed,
+  billingProfileComplete,
 }: {
-    onSubscribed?: () => void;
-    billingProfileComplete: boolean;
+  onSubscribed?: () => void;
+  billingProfileComplete: boolean;
 }) {
-    const { user, loading: authLoading } = useAuth();
-    // Both controls below call ADMIN routes — `POST /api/v1/billing/plan` and
-    // `POST /api/v1/billing/mandate/cancel`. Without this a member could read
-    // the prices, press "Start this plan", and collect a 403; and an account
-    // on a plan showed every member a live "Cancel plan" button for a standing
-    // bank instruction they cannot actually withdraw. Presentation only — the
-    // server is the boundary either way.
-    const { isOrganizationAdmin, loaded: rolesLoaded } = useAccessRoles();
-    const [data, setData] = useState<PlanResponse | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    const [starting, setStarting] = useState<string | null>(null);
-    const [cancelling, setCancelling] = useState(false);
-    const [confirmingCancel, setConfirmingCancel] = useState(false);
-    // Ten months for twelve. A toggle rather than twice the cards, because the
-    // plans are the same plans; only the collection differs.
-    const [period, setPeriod] = useState<Period>("monthly");
+  const { user, loading: authLoading } = useAuth();
+  // Both controls below call ADMIN routes — `POST /api/v1/billing/plan` and
+  // `POST /api/v1/billing/mandate/cancel`. Without this a member could read
+  // the prices, press "Start this plan", and collect a 403; and an account
+  // on a plan showed every member a live "Cancel plan" button for a standing
+  // bank instruction they cannot actually withdraw. Presentation only — the
+  // server is the boundary either way.
+  const { isOrganizationAdmin, loaded: rolesLoaded } = useAccessRoles();
+  const [data, setData] = useState<PlanResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [starting, setStarting] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
+  // Ten months for twelve. A toggle rather than twice the cards, because the
+  // plans are the same plans; only the collection differs.
+  const [period, setPeriod] = useState<Period>("monthly");
+  /** A bonus-credit promo code (KAN-134), honoured on the first collection. */
+  const [promoCode, setPromoCode] = useState("");
 
-    const refresh = useCallback(async () => {
-        const result = await client.get({ url: "/api/v1/billing/plan" });
-        if (result.error) {
-            setError(detailFromResult(result, "Could not load plans"));
-            return;
-        }
-        setData((result.data as PlanResponse) ?? null);
-        setError(null);
-    }, []);
+  const refresh = useCallback(async () => {
+    const result = await client.get({ url: "/api/v1/billing/plan" });
+    if (result.error) {
+      setError(detailFromResult(result, "Could not load plans"));
+      return;
+    }
+    setData((result.data as PlanResponse) ?? null);
+    setError(null);
+  }, []);
 
-    useEffect(() => {
-        if (authLoading || !user) return;
-        void refresh();
-    }, [authLoading, user, refresh]);
+  useEffect(() => {
+    if (authLoading || !user) return;
+    void refresh();
+  }, [authLoading, user, refresh]);
 
-    const subscribe = useCallback(
-        async (code: string) => {
-            setStarting(code);
-            setError(null);
-            const result = await client.post({
-                url: "/api/v1/billing/plan",
-                body: { plan_code: code, period },
-            });
-            setStarting(null);
-            if (result.error) {
-                setError(detailFromResult(result, "Could not start the plan"));
-                return;
-            }
-            const mandate = (result.data as { mandate: Mandate })?.mandate;
-            // The provider hosts the authorisation page. Opened in a new tab
-            // rather than navigated to, so closing it returns the customer to a
-            // billing page that still knows what it was doing.
-            if (mandate?.short_url) {
-                window.open(mandate.short_url, "_blank", "noopener");
-            }
-            await refresh();
-            onSubscribed?.();
+  const subscribe = useCallback(
+    async (code: string) => {
+      setStarting(code);
+      setError(null);
+      const result = await client.post({
+        url: "/api/v1/billing/plan",
+        body: {
+          plan_code: code,
+          period,
+          ...(promoCode.trim() ? { promo_code: promoCode.trim() } : {}),
         },
-        [refresh, onSubscribed, period],
-    );
+      });
+      setStarting(null);
+      if (result.error) {
+        setError(detailFromResult(result, "Could not start the plan"));
+        return;
+      }
+      const mandate = (result.data as { mandate: Mandate })?.mandate;
+      // The provider hosts the authorisation page. Opened in a new tab
+      // rather than navigated to, so closing it returns the customer to a
+      // billing page that still knows what it was doing.
+      if (mandate?.short_url) {
+        window.open(mandate.short_url, "_blank", "noopener");
+      }
+      await refresh();
+      onSubscribed?.();
+    },
+    [refresh, onSubscribed, period, promoCode],
+  );
 
-    const cancel = useCallback(async () => {
-        setCancelling(true);
-        setError(null);
-        const result = await client.post({ url: "/api/v1/billing/mandate/cancel" });
-        setCancelling(false);
-        setConfirmingCancel(false);
-        if (result.error) {
-            setError(detailFromResult(result, "Could not cancel the plan"));
-            return;
-        }
-        await refresh();
-        onSubscribed?.();
-    }, [refresh, onSubscribed]);
+  const cancel = useCallback(async () => {
+    setCancelling(true);
+    setError(null);
+    const result = await client.post({ url: "/api/v1/billing/mandate/cancel" });
+    setCancelling(false);
+    setConfirmingCancel(false);
+    if (result.error) {
+      setError(detailFromResult(result, "Could not cancel the plan"));
+      return;
+    }
+    await refresh();
+    onSubscribed?.();
+  }, [refresh, onSubscribed]);
 
-    if (!data || data.plans.length === 0) return null;
+  if (!data || data.plans.length === 0) return null;
 
-    const { numbers, mandate, current } = data;
-    const awaitingAuthorisation =
-        mandate !== null && NEEDS_AUTHORISING.has(mandate.status);
-    // Every account is on some plan now (Free when it has no mandate), so
-    // "already subscribed" is the mandate, not the current plan.
-    const subscribed = mandate !== null;
-    const hasAnnual = data.plans.some((p) => p.annual_price_paise !== null);
+  const { numbers, mandate, current } = data;
+  const awaitingAuthorisation =
+    mandate !== null && NEEDS_AUTHORISING.has(mandate.status);
+  // Every account is on some plan now (Free when it has no mandate), so
+  // "already subscribed" is the mandate, not the current plan.
+  const subscribed = mandate !== null;
+  const hasAnnual = data.plans.some((p) => p.annual_price_paise !== null);
 
-    return (
-        <section className="rounded-xl border bg-card p-6">
-            <h2 className="text-lg font-medium">Plan</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-                Credits every month, collected by your bank. From Business up, a
-                phone number too. Plan credits are for the month; top-ups you buy
-                never expire.
-            </p>
+  return (
+    <section className="rounded-xl border bg-card p-6">
+      <h2 className="text-lg font-medium">Plan</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Credits every month, collected by your bank. From Business up, a phone
+        number too. Plan credits are for the month; top-ups you buy never
+        expire.
+      </p>
 
-            {hasAnnual && (
-                <div
-                    role="group"
-                    aria-label="Billing period"
-                    className="mt-4 inline-flex items-center gap-1 rounded-full border border-border bg-card p-1"
-                >
-                    {(["monthly", "annual"] as Period[]).map((p) => (
-                        <button
-                            key={p}
-                            type="button"
-                            aria-pressed={period === p}
-                            onClick={() => setPeriod(p)}
-                            className={cn(
-                                "rounded-full px-3 py-1 text-sm transition-colors",
-                                period === p
-                                    ? "bg-primary text-primary-foreground"
-                                    : "text-muted-foreground hover:text-foreground",
-                            )}
-                        >
-                            {p === "monthly" ? "Monthly" : "Annual · 2 months free"}
-                        </button>
-                    ))}
-                </div>
+      {!subscribed && (
+        <div className="mt-4 flex flex-wrap items-end gap-2">
+          <div className="w-48">
+            <Label htmlFor="plan-promo">Promo code</Label>
+            <Input
+              id="plan-promo"
+              value={promoCode}
+              placeholder="Optional"
+              autoCapitalize="characters"
+              onChange={(event) =>
+                setPromoCode(event.target.value.toUpperCase())
+              }
+              className="mt-1.5 uppercase"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Bonus-credit codes apply to plans; they land with your first
+            payment.
+          </p>
+        </div>
+      )}
+
+      {hasAnnual && (
+        <div
+          role="group"
+          aria-label="Billing period"
+          className="mt-4 inline-flex items-center gap-1 rounded-full border border-border bg-card p-1"
+        >
+          {(["monthly", "annual"] as Period[]).map((p) => (
+            <button
+              key={p}
+              type="button"
+              aria-pressed={period === p}
+              onClick={() => setPeriod(p)}
+              className={cn(
+                "rounded-full px-3 py-1 text-sm transition-colors",
+                period === p
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {p === "monthly" ? "Monthly" : "Annual · 2 months free"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {!data.configured && (
+        <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            Plans are not available on this deployment yet. Add credit directly
+            instead.
+          </span>
+        </div>
+      )}
+
+      {error && (
+        <p className="mt-4 text-sm text-red-600 dark:text-red-400">{error}</p>
+      )}
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        {data.plans.map((plan) => (
+          <div
+            key={plan.code}
+            className={cn(
+              "rounded-lg border p-4",
+              plan.is_current
+                ? "border-primary ring-1 ring-primary"
+                : "border-border",
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <span className="font-medium">{plan.label}</span>
+              {plan.is_current && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[0.7rem] font-medium text-primary">
+                  <Check className="h-3 w-3" />
+                  Current
+                </span>
+              )}
+            </div>
+            {plan.blurb && (
+              <p className="mt-1 text-sm text-muted-foreground">{plan.blurb}</p>
             )}
 
-            {!data.configured && (
-                <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                    <span>
-                        Plans are not available on this deployment yet. Add credit
-                        directly instead.
+            {(() => {
+              const annual =
+                period === "annual" && plan.annual_price_paise !== null;
+              const price = annual
+                ? (plan.annual_price_paise as number)
+                : plan.price_paise;
+              const gross = annual ? plan.annual_gross_paise : plan.gross_paise;
+              return (
+                <>
+                  <p className="mt-3">
+                    <span className="text-2xl font-semibold tabular-nums">
+                      {plan.purchasable ? formatPaise(price) : "Free"}
                     </span>
-                </div>
-            )}
-
-            {error && (
-                <p className="mt-4 text-sm text-red-600 dark:text-red-400">{error}</p>
-            )}
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {data.plans.map((plan) => (
-                    <div
-                        key={plan.code}
-                        className={cn(
-                            "rounded-lg border p-4",
-                            plan.is_current
-                                ? "border-primary ring-1 ring-primary"
-                                : "border-border",
-                        )}
-                    >
-                        <div className="flex items-center gap-2">
-                            <span className="font-medium">{plan.label}</span>
-                            {plan.is_current && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[0.7rem] font-medium text-primary">
-                                    <Check className="h-3 w-3" />
-                                    Current
-                                </span>
-                            )}
-                        </div>
-                        {plan.blurb && (
-                            <p className="mt-1 text-sm text-muted-foreground">
-                                {plan.blurb}
-                            </p>
-                        )}
-
-                        {(() => {
-                            const annual =
-                                period === "annual" && plan.annual_price_paise !== null;
-                            const price = annual
-                                ? (plan.annual_price_paise as number)
-                                : plan.price_paise;
-                            const gross = annual ? plan.annual_gross_paise : plan.gross_paise;
-                            return (
-                                <>
-                                    <p className="mt-3">
-                                        <span className="text-2xl font-semibold tabular-nums">
-                                            {plan.purchasable ? formatPaise(price) : "Free"}
-                                        </span>
-                                        {plan.purchasable && (
-                                            <span className="text-sm text-muted-foreground">
-                                                {" "}
-                                                {annual ? "a year" : "a month"}
-                                            </span>
-                                        )}
-                                    </p>
-                                    {annual && (
-                                        <p className="text-xs text-muted-foreground">
-                                            Ten months for twelve.
-                                        </p>
-                                    )}
-                                    {/* What the bank is actually told to take. Shown
+                    {plan.purchasable && (
+                      <span className="text-sm text-muted-foreground">
+                        {" "}
+                        {annual ? "a year" : "a month"}
+                      </span>
+                    )}
+                  </p>
+                  {annual && (
+                    <p className="text-xs text-muted-foreground">
+                      Ten months for twelve.
+                    </p>
+                  )}
+                  {/* What the bank is actually told to take. Shown
                                         next to the headline rather than discovered at
                                         the card. */}
-                                    {plan.purchasable &&
-                                        gross !== null &&
-                                        gross !== price && (
-                                            <p className="text-xs text-muted-foreground">
-                                                {formatPaise(gross)} charged, including GST
-                                            </p>
-                                        )}
-                                    {plan.purchasable && gross === null && (
-                                        <p className="text-xs text-amber-600 dark:text-amber-400">
-                                            Complete your billing details to see what will
-                                            be charged.
-                                        </p>
-                                    )}
-                                </>
-                            );
-                        })()}
+                  {plan.purchasable && gross !== null && gross !== price && (
+                    <p className="text-xs text-muted-foreground">
+                      {formatPaise(gross)} charged, including GST
+                    </p>
+                  )}
+                  {plan.purchasable && gross === null && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      Complete your billing details to see what will be charged.
+                    </p>
+                  )}
+                </>
+              );
+            })()}
 
-                        <ul className="mt-3 space-y-1 text-sm">
-                            {plan.credits > 0 && (
-                                <li className="flex items-start gap-2">
-                                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
-                                    <span>
-                                        {formatCreditsLabel(plan.balance_paise)} each month
-                                        {/* Stated at the point of purchase, which is
+            <ul className="mt-3 space-y-1 text-sm">
+              {plan.credits > 0 && (
+                <li className="flex items-start gap-2">
+                  <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                  <span>
+                    {formatCreditsLabel(plan.balance_paise)} each month
+                    {/* Stated at the point of purchase, which is
                                             the only place stating it counts. A customer
                                             who finds the rule out from a debit on their
                                             statement reads it as us taking money back. */}
-                                        <span className="block text-xs text-muted-foreground">
-                                            Fresh each cycle — unused plan credits expire
-                                            at the end of the cycle. Top-ups you buy never
-                                            expire.
-                                        </span>
-                                    </span>
-                                </li>
-                            )}
-                            <li className="flex items-start gap-2">
-                                <Phone className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                                <span>
-                                    {!plan.voice_allowed ? (
-                                        <>
-                                            Text only: WhatsApp, email and web chat.
-                                            <span className="block text-xs text-muted-foreground">
-                                                No phone line. Move to Business to put a
-                                                bot on a number.
-                                            </span>
-                                        </>
-                                    ) : plan.included_numbers === 1 ? (
-                                        "1 phone number included"
-                                    ) : (
-                                        `${plan.included_numbers} phone numbers included`
-                                    )}
-                                    {plan.voice_allowed && plan.included_numbers > 0 && (
-                                        <span className="text-muted-foreground">
-                                            {" "}
-                                            — extra numbers{" "}
-                                            {formatPaise(plan.extra_number_paise)} a
-                                            month each
-                                        </span>
-                                    )}
-                                </span>
-                            </li>
-                        </ul>
+                    <span className="block text-xs text-muted-foreground">
+                      Fresh each cycle — unused plan credits expire at the end
+                      of the cycle. Top-ups you buy never expire.
+                    </span>
+                  </span>
+                </li>
+              )}
+              <li className="flex items-start gap-2">
+                <Phone className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span>
+                  {!plan.voice_allowed ? (
+                    <>
+                      Text only: WhatsApp, email and web chat.
+                      <span className="block text-xs text-muted-foreground">
+                        No phone line. Move to Business to put a bot on a
+                        number.
+                      </span>
+                    </>
+                  ) : plan.included_numbers === 1 ? (
+                    "1 phone number included"
+                  ) : (
+                    `${plan.included_numbers} phone numbers included`
+                  )}
+                  {plan.voice_allowed && plan.included_numbers > 0 && (
+                    <span className="text-muted-foreground">
+                      {" "}
+                      — extra numbers {formatPaise(plan.extra_number_paise)} a
+                      month each
+                    </span>
+                  )}
+                </span>
+              </li>
+            </ul>
 
-                        {!plan.is_current && plan.purchasable && (
-                            <Button
-                                type="button"
-                                className="mt-4 w-full"
-                                disabled={
-                                    !data.configured ||
-                                    !rolesLoaded ||
-                                    !isOrganizationAdmin ||
-                                    starting !== null ||
-                                    !billingProfileComplete ||
-                                    (period === "annual" &&
-                                        plan.annual_price_paise === null) ||
-                                    // One plan at a time. Switching is a cancel
-                                    // and a re-subscribe, because the bank holds
-                                    // an instruction for a specific amount.
-                                    subscribed
-                                }
-                                onClick={() => void subscribe(plan.code)}
-                            >
-                                {starting === plan.code ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Starting…
-                                    </>
-                                ) : (
-                                    <>
-                                        Start this plan
-                                        <ArrowUpRight className="ml-1.5 h-4 w-4" />
-                                    </>
-                                )}
-                            </Button>
-                        )}
-                    </div>
-                ))}
-            </div>
-
-            {!billingProfileComplete && (
-                <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">
-                    Add your billing details below before starting a plan — the tax
-                    on the collection depends on them.
-                </p>
+            {!plan.is_current && plan.purchasable && (
+              <Button
+                type="button"
+                className="mt-4 w-full"
+                disabled={
+                  !data.configured ||
+                  !rolesLoaded ||
+                  !isOrganizationAdmin ||
+                  starting !== null ||
+                  !billingProfileComplete ||
+                  (period === "annual" && plan.annual_price_paise === null) ||
+                  // One plan at a time. Switching is a cancel
+                  // and a re-subscribe, because the bank holds
+                  // an instruction for a specific amount.
+                  subscribed
+                }
+                onClick={() => void subscribe(plan.code)}
+              >
+                {starting === plan.code ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Starting…
+                  </>
+                ) : (
+                  <>
+                    Start this plan
+                    <ArrowUpRight className="ml-1.5 h-4 w-4" />
+                  </>
+                )}
+              </Button>
             )}
+          </div>
+        ))}
+      </div>
 
-            {/* Named rather than hidden, for the reason the numbers screen
+      {!billingProfileComplete && (
+        <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">
+          Add your billing details below before starting a plan — the tax on the
+          collection depends on them.
+        </p>
+      )}
+
+      {/* Named rather than hidden, for the reason the numbers screen
                 names it: a member can see the prices and what is included, so
                 the request they take to an admin is a specific one. */}
-            {rolesLoaded && !isOrganizationAdmin && (
-                <p className="mt-3 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-                    Starting or cancelling a plan authorises a monthly debit for
-                    the whole account, so only an organization Admin or Owner can
-                    do it. Ask one of them.
-                </p>
-            )}
+      {rolesLoaded && !isOrganizationAdmin && (
+        <p className="mt-3 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+          Starting or cancelling a plan authorises a monthly debit for the whole
+          account, so only an organization Admin or Owner can do it. Ask one of
+          them.
+        </p>
+      )}
 
-            {subscribed && current !== null && (
-                <>
-                    {awaitingAuthorisation && mandate?.short_url && (
-                        <p className="mt-4 text-sm text-amber-600 dark:text-amber-400">
-                            Your plan is waiting to be authorised at your bank.{" "}
-                            <a
-                                className="underline"
-                                href={mandate.short_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                            >
-                                Finish authorising
-                            </a>
-                            . Nothing is collected and no balance arrives until you do.
-                        </p>
-                    )}
+      {subscribed && current !== null && (
+        <>
+          {awaitingAuthorisation && mandate?.short_url && (
+            <p className="mt-4 text-sm text-amber-600 dark:text-amber-400">
+              Your plan is waiting to be authorised at your bank.{" "}
+              <a
+                className="underline"
+                href={mandate.short_url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Finish authorising
+              </a>
+              . Nothing is collected and no balance arrives until you do.
+            </p>
+          )}
 
-                    {/* The entitlement, stated as a count. It is a real limit:
+          {/* The entitlement, stated as a count. It is a real limit:
                         the plan pays the rent for the numbers it includes and
                         the next one bills every month on its own. */}
-                    <p className="mt-4 text-sm text-muted-foreground">
-                        Numbers: <span className="text-foreground">{numbers.used}</span>{" "}
-                        of {numbers.included} included
-                        {numbers.remaining > 0
-                            ? ` — you can claim ${numbers.remaining} more at no extra cost.`
-                            : ` — the next one is ${formatPaise(numbers.extra_paise)} a month.`}
-                    </p>
+          <p className="mt-4 text-sm text-muted-foreground">
+            Numbers: <span className="text-foreground">{numbers.used}</span> of{" "}
+            {numbers.included} included
+            {numbers.remaining > 0
+              ? ` — you can claim ${numbers.remaining} more at no extra cost.`
+              : ` — the next one is ${formatPaise(numbers.extra_paise)} a month.`}
+          </p>
 
-                    {/* Starting a standing instruction the customer cannot stop
+          {/* Starting a standing instruction the customer cannot stop
                         in the product is a support ticket at best. The endpoint
                         has always existed; nothing called it. */}
-                    {confirmingCancel ? (
-                        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm dark:border-amber-900/50 dark:bg-amber-950/30">
-                            <p className="text-amber-800 dark:text-amber-300">
-                                Cancelling stops the monthly collection and the
-                                balance that comes with it. Your number is{" "}
-                                <strong>not</strong> released — its rent falls back
-                                to your credit balance, and an unpaid rental
-                                suspends the number after seven days.
-                            </p>
-                            <div className="mt-3 flex gap-2">
-                                <Button
-                                    type="button"
-                                    variant="destructive"
-                                    size="sm"
-                                    disabled={cancelling}
-                                    onClick={() => void cancel()}
-                                >
-                                    {cancelling ? (
-                                        <>
-                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                            Cancelling…
-                                        </>
-                                    ) : (
-                                        "Cancel the plan"
-                                    )}
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setConfirmingCancel(false)}
-                                >
-                                    Keep it
-                                </Button>
-                            </div>
-                        </div>
-                    ) : (
-                        rolesLoaded &&
-                        isOrganizationAdmin && (
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="mt-3"
-                                onClick={() => setConfirmingCancel(true)}
-                            >
-                                Cancel plan
-                            </Button>
-                        )
-                    )}
-                </>
-            )}
-        </section>
-    );
+          {confirmingCancel ? (
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm dark:border-amber-900/50 dark:bg-amber-950/30">
+              <p className="text-amber-800 dark:text-amber-300">
+                Cancelling stops the monthly collection and the balance that
+                comes with it. Your number is <strong>not</strong> released —
+                its rent falls back to your credit balance, and an unpaid rental
+                suspends the number after seven days.
+              </p>
+              <div className="mt-3 flex gap-2">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  disabled={cancelling}
+                  onClick={() => void cancel()}
+                >
+                  {cancelling ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Cancelling…
+                    </>
+                  ) : (
+                    "Cancel the plan"
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setConfirmingCancel(false)}
+                >
+                  Keep it
+                </Button>
+              </div>
+            </div>
+          ) : (
+            rolesLoaded &&
+            isOrganizationAdmin && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={() => setConfirmingCancel(true)}
+              >
+                Cancel plan
+              </Button>
+            )
+          )}
+        </>
+      )}
+    </section>
+  );
 }

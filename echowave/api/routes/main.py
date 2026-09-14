@@ -41,6 +41,7 @@ from api.routes.partners import router as partners_router
 from api.routes.payments import router as payments_router
 from api.routes.platform_credentials import router as platform_credentials_router
 from api.routes.privacy import router as privacy_router
+from api.routes.promo_admin import router as promo_admin_router
 from api.routes.provider_keys import router as provider_keys_router
 from api.routes.public_agent import router as public_agent_router
 from api.routes.public_download import router as public_download_router
@@ -80,6 +81,7 @@ router.include_router(billing_dashboard_router)
 router.include_router(admin_kpis_router)
 router.include_router(onboarding_router)
 router.include_router(referrals_router)
+router.include_router(promo_admin_router)
 router.include_router(agent_builder_router)
 router.include_router(agent_templates_router)
 router.include_router(agent_options_router)

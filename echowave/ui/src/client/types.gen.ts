@@ -8266,6 +8266,134 @@ export type ProcessDocumentRequestSchema = {
 };
 
 /**
+ * PromoCreate
+ */
+export type PromoCreate = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Kind
+     *
+     * percent | amount | bonus_credits
+     */
+    kind: string;
+    /**
+     * Value
+     *
+     * Percent, minor units, or credits
+     */
+    value: number;
+    /**
+     * Currency
+     */
+    currency?: string | null;
+    /**
+     * Applies To
+     */
+    applies_to?: string;
+    /**
+     * Valid From
+     */
+    valid_from?: string | null;
+    /**
+     * Valid Until
+     */
+    valid_until?: string | null;
+    /**
+     * Max Redemptions
+     */
+    max_redemptions?: number | null;
+    /**
+     * Max Per Account
+     */
+    max_per_account?: number;
+    /**
+     * First Payment Only
+     */
+    first_payment_only?: boolean;
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+/**
+ * PromoPreviewRequest
+ *
+ * What the code would do to this purchase, before the customer pays.
+ */
+export type PromoPreviewRequest = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Pack
+     */
+    pack?: string | null;
+    /**
+     * Amount Paise
+     */
+    amount_paise?: number | null;
+    /**
+     * Plan Code
+     */
+    plan_code?: string | null;
+};
+
+/**
+ * PromoUpdate
+ */
+export type PromoUpdate = {
+    /**
+     * Kind
+     */
+    kind?: string | null;
+    /**
+     * Value
+     */
+    value?: number | null;
+    /**
+     * Currency
+     */
+    currency?: string | null;
+    /**
+     * Applies To
+     */
+    applies_to?: string | null;
+    /**
+     * Valid From
+     */
+    valid_from?: string | null;
+    /**
+     * Valid Until
+     */
+    valid_until?: string | null;
+    /**
+     * Max Redemptions
+     */
+    max_redemptions?: number | null;
+    /**
+     * Max Per Account
+     */
+    max_per_account?: number | null;
+    /**
+     * First Payment Only
+     */
+    first_payment_only?: boolean | null;
+    /**
+     * Active
+     */
+    active?: boolean | null;
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+/**
  * PropertyLayoutOptions
  *
  * Renderer layout hints for a property in the node editor.
@@ -10143,6 +10271,10 @@ export type SubscribeRequest = {
      * Period
      */
     period?: string;
+    /**
+     * Promo Code
+     */
+    promo_code?: string | null;
 };
 
 /**
@@ -10969,6 +11101,12 @@ export type TopupRequest = {
      * A top-up pack code from GET /billing/balance (`packs`). Fixes the amount and may grant bonus credits; top-up credits never expire.
      */
     pack?: string | null;
+    /**
+     * Promo Code
+     *
+     * A promo code (KAN-134). Checked before the order is made.
+     */
+    promo_code?: string | null;
 };
 
 /**
@@ -16388,6 +16526,188 @@ export type GetReferralsApiV1ReferralsGetResponses = {
 
 export type GetReferralsApiV1ReferralsGetResponse = GetReferralsApiV1ReferralsGetResponses[keyof GetReferralsApiV1ReferralsGetResponses];
 
+export type ListPromoCodesApiV1AdminBillingPromoCodesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/promo-codes';
+};
+
+export type ListPromoCodesApiV1AdminBillingPromoCodesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListPromoCodesApiV1AdminBillingPromoCodesGetError = ListPromoCodesApiV1AdminBillingPromoCodesGetErrors[keyof ListPromoCodesApiV1AdminBillingPromoCodesGetErrors];
+
+export type ListPromoCodesApiV1AdminBillingPromoCodesGetResponses = {
+    /**
+     * Response List Promo Codes Api V1 Admin Billing Promo Codes Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListPromoCodesApiV1AdminBillingPromoCodesGetResponse = ListPromoCodesApiV1AdminBillingPromoCodesGetResponses[keyof ListPromoCodesApiV1AdminBillingPromoCodesGetResponses];
+
+export type CreatePromoCodeApiV1AdminBillingPromoCodesPostData = {
+    body: PromoCreate;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/promo-codes';
+};
+
+export type CreatePromoCodeApiV1AdminBillingPromoCodesPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreatePromoCodeApiV1AdminBillingPromoCodesPostError = CreatePromoCodeApiV1AdminBillingPromoCodesPostErrors[keyof CreatePromoCodeApiV1AdminBillingPromoCodesPostErrors];
+
+export type CreatePromoCodeApiV1AdminBillingPromoCodesPostResponses = {
+    /**
+     * Response Create Promo Code Api V1 Admin Billing Promo Codes Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CreatePromoCodeApiV1AdminBillingPromoCodesPostResponse = CreatePromoCodeApiV1AdminBillingPromoCodesPostResponses[keyof CreatePromoCodeApiV1AdminBillingPromoCodesPostResponses];
+
+export type UpdatePromoCodeApiV1AdminBillingPromoCodesPromoIdPutData = {
+    body: PromoUpdate;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Promo Id
+         */
+        promo_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/billing/promo-codes/{promo_id}';
+};
+
+export type UpdatePromoCodeApiV1AdminBillingPromoCodesPromoIdPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdatePromoCodeApiV1AdminBillingPromoCodesPromoIdPutError = UpdatePromoCodeApiV1AdminBillingPromoCodesPromoIdPutErrors[keyof UpdatePromoCodeApiV1AdminBillingPromoCodesPromoIdPutErrors];
+
+export type UpdatePromoCodeApiV1AdminBillingPromoCodesPromoIdPutResponses = {
+    /**
+     * Response Update Promo Code Api V1 Admin Billing Promo Codes  Promo Id  Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type UpdatePromoCodeApiV1AdminBillingPromoCodesPromoIdPutResponse = UpdatePromoCodeApiV1AdminBillingPromoCodesPromoIdPutResponses[keyof UpdatePromoCodeApiV1AdminBillingPromoCodesPromoIdPutResponses];
+
+export type RevokePromoCodeApiV1AdminBillingPromoCodesPromoIdRevokePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Promo Id
+         */
+        promo_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/billing/promo-codes/{promo_id}/revoke';
+};
+
+export type RevokePromoCodeApiV1AdminBillingPromoCodesPromoIdRevokePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RevokePromoCodeApiV1AdminBillingPromoCodesPromoIdRevokePostError = RevokePromoCodeApiV1AdminBillingPromoCodesPromoIdRevokePostErrors[keyof RevokePromoCodeApiV1AdminBillingPromoCodesPromoIdRevokePostErrors];
+
+export type RevokePromoCodeApiV1AdminBillingPromoCodesPromoIdRevokePostResponses = {
+    /**
+     * Response Revoke Promo Code Api V1 Admin Billing Promo Codes  Promo Id  Revoke Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RevokePromoCodeApiV1AdminBillingPromoCodesPromoIdRevokePostResponse = RevokePromoCodeApiV1AdminBillingPromoCodesPromoIdRevokePostResponses[keyof RevokePromoCodeApiV1AdminBillingPromoCodesPromoIdRevokePostResponses];
+
 export type GetBuilderConfigApiV1AgentBuilderConfigGetData = {
     body?: never;
     headers?: {
@@ -19379,6 +19699,49 @@ export type CreateTopupApiV1BillingTopupPostResponses = {
 };
 
 export type CreateTopupApiV1BillingTopupPostResponse = CreateTopupApiV1BillingTopupPostResponses[keyof CreateTopupApiV1BillingTopupPostResponses];
+
+export type PreviewPromoApiV1BillingPromoPreviewPostData = {
+    body: PromoPreviewRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/billing/promo/preview';
+};
+
+export type PreviewPromoApiV1BillingPromoPreviewPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PreviewPromoApiV1BillingPromoPreviewPostError = PreviewPromoApiV1BillingPromoPreviewPostErrors[keyof PreviewPromoApiV1BillingPromoPreviewPostErrors];
+
+export type PreviewPromoApiV1BillingPromoPreviewPostResponses = {
+    /**
+     * Response Preview Promo Api V1 Billing Promo Preview Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type PreviewPromoApiV1BillingPromoPreviewPostResponse = PreviewPromoApiV1BillingPromoPreviewPostResponses[keyof PreviewPromoApiV1BillingPromoPreviewPostResponses];
 
 export type GetBillingProfileApiV1BillingProfileGetData = {
     body?: never;
