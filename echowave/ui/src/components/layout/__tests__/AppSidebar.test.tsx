@@ -3,6 +3,7 @@ import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { SETUP_CALL_LABEL } from "@/constants/setupCall";
 
 import { AppSidebar } from "../AppSidebar";
 const route = vi.hoisted(() => ({ pathname: "/overview" }));
@@ -124,6 +125,13 @@ describe("sidebar interactions", () => {
     expect(screen.getByLabelText("New channel")).toBeTruthy();
     expect(screen.getByLabelText("Hire a bot")).toBeTruthy();
     expect(screen.getByRole("link", { name: /Company knowledge/ }).getAttribute("href")).toBe("/files");
+    // Knowledge is a headed section of its own, like the two under it.
+    expect(screen.getByLabelText("Add knowledge")).toBeTruthy();
+    // The setup call sits on the rail, under Account, not in a foot of the
+    // panel: the panel ends where its list ends.
+    const setup = screen.getByRole("link", { name: SETUP_CALL_LABEL });
+    expect(setup.closest("[data-rail]")).toBeTruthy();
+    expect(document.querySelector('[data-slot="sidebar-footer"]')).toBeNull();
   });
   it("does not offer staff contexts to a customer", () => {
     render(<SidebarProvider defaultOpen={false}><AppSidebar /></SidebarProvider>);
