@@ -2,28 +2,30 @@
 
 import { Phone, Share2 } from 'lucide-react';
 import Link from 'next/link';
-import { use, useEffect, useRef, useState } from 'react';
+import { use, useCallback, useEffect, useRef, useState } from 'react';
 
 import { AgentHeader } from '@/app/workflow/[workflowId]/components/AgentHeader';
 import { AgentTabs } from '@/app/workflow/[workflowId]/components/AgentTabs';
 import { getWorkflowApiV1WorkflowFetchWorkflowIdGet } from '@/client/sdk.gen';
+import { ChannelComposer } from '@/components/channel/ChannelComposer';
+import { ChannelStream } from '@/components/channel/ChannelStream';
 import { Button } from '@/components/ui/button';
-import { BotThread } from '@/components/workflow/BotThread';
 import { useAuth } from '@/lib/auth';
 
 /**
  * The bot's chat -- where it opens.
  *
+ * A chat: the bot's thread oldest-first with a composer under it, the same
+ * two pieces a channel is made of, pointed at one bot instead of a channel.
+ * What you type here goes to this bot and nowhere else -- it is not filed in
+ * the channel the bot sits in -- and the bot answers with this thread as its
+ * context. Calls, outcomes and decisions appear in the same thread.
+ *
  * Two doors at the top, because they are the two things somebody does with a
  * bot before trusting it with a real caller: **Test** rings it (the tester
- * on the editor, opened on arrival) and **Share** hands out the link. They
- * lived on the editor and the settings page; a bot that opens on its chat
- * needs them where it opens.
- *
- * The strip of tabs is here too. It was not, which meant a bot opened from
- * the rail had no way to its own instructions.
+ * on the editor, opened on arrival) and **Share** hands out the link.
  */
-export default function BotThreadPage({
+export default function BotChatPage({
     params,
 }: {
     params: Promise<{ workflowId: string }>;
@@ -33,6 +35,7 @@ export default function BotThreadPage({
     const { user, loading: authLoading } = useAuth();
     const [name, setName] = useState<string>('');
     const started = useRef(false);
+    const refreshStream = useRef<() => void>(() => {});
 
     useEffect(() => {
         if (authLoading || !user || started.current) return;
@@ -45,30 +48,43 @@ export default function BotThreadPage({
         })();
     }, [authLoading, user, id]);
 
+    const registerRefresh = useCallback((refresh: () => void) => {
+        refreshStream.current = refresh;
+    }, []);
+
+    const botName = name || 'this bot';
+
     return (
         <div className="flex h-full flex-col">
             <AgentHeader workflowId={id} name={name || 'Bot'} />
-            <AgentTabs workflowId={id} />
-            <div className="mx-auto w-full max-w-3xl px-6 py-6">
-                <div className="flex items-center justify-between gap-3">
-                    <h1 className="text-lg font-semibold">What this bot has been doing</h1>
-                    <div className="flex shrink-0 gap-2">
-                        <Button asChild size="sm" variant="outline">
-                            <Link href={`/workflow/${id}?onboarding=web_call`}>
-                                <Phone className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-                                Test
-                            </Link>
-                        </Button>
-                        <Button asChild size="sm" variant="outline">
-                            <Link href={`/workflow/${id}/settings?tab=share`}>
-                                <Share2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-                                Share
-                            </Link>
-                        </Button>
-                    </div>
+            <div className="flex items-center justify-between gap-3 border-b border-border pr-6">
+                <AgentTabs workflowId={id} />
+                <div className="flex shrink-0 gap-2 py-1.5">
+                    <Button asChild size="sm" variant="outline">
+                        <Link href={`/workflow/${id}?onboarding=web_call`}>
+                            <Phone className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                            Test
+                        </Link>
+                    </Button>
+                    <Button asChild size="sm" variant="outline">
+                        <Link href={`/workflow/${id}/settings?tab=share`}>
+                            <Share2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                            Share
+                        </Link>
+                    </Button>
                 </div>
-                <BotThread workflowId={id} />
             </div>
+            <ChannelStream
+                workflowId={id}
+                botNames={{ [id]: botName }}
+                onRegisterRefresh={registerRefresh}
+            />
+            <ChannelComposer
+                workflowId={id}
+                bots={[]}
+                channelName={botName}
+                onSent={() => refreshStream.current()}
+            />
         </div>
     );
 }

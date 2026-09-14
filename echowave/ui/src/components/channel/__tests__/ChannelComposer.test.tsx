@@ -207,3 +207,17 @@ describe('sending', () => {
         expect(post).not.toHaveBeenCalled();
     });
 });
+
+describe("on a bot's own chat", () => {
+    it('sends to the bot, with nobody to mention', async () => {
+        post.mockResolvedValue({ data: { asked: [3], unknown: [], ambiguous: [] } });
+        render(<ChannelComposer workflowId={3} bots={[]} channelName="Front desk" />);
+        expect(screen.queryByLabelText('Mention a bot')).toBeNull();
+        const box = screen.getByLabelText('Message Front desk');
+        fireEvent.change(box, { target: { value: 'Book Meera at 4' } });
+        fireEvent.keyDown(box, { key: 'Enter' });
+        await waitFor(() =>
+            expect(post).toHaveBeenCalledWith({ body: { workflow_id: 3, text: 'Book Meera at 4' } }),
+        );
+    });
+});

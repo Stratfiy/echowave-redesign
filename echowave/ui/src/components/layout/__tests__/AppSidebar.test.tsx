@@ -3,6 +3,7 @@ import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { SETUP_CALL_LABEL } from "@/constants/setupCall";
 
 import { AppSidebar } from "../AppSidebar";
 const route = vi.hoisted(() => ({ pathname: "/overview" }));
@@ -22,9 +23,11 @@ beforeEach(() => {
   window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() });
 });
 describe("sidebar interactions", () => {
-  it("floats as a rounded card on the floor", () => {
+  it("is flush with the edge, the full height, like Slack's", () => {
+    // It floated as a rounded card for a while, which put a white header
+    // above a dark rail and a card of its own colour under it.
     render(<SidebarProvider><AppSidebar /></SidebarProvider>);
-    expect(document.querySelector('[data-slot="sidebar"]')?.getAttribute("data-variant")).toBe("floating");
+    expect(document.querySelector('[data-slot="sidebar"]')?.getAttribute("data-variant")).toBe("sidebar");
   });
   it("lights the sidebar entry a folded tab belongs to", () => {
     route.pathname = "/do-not-call";
@@ -122,6 +125,13 @@ describe("sidebar interactions", () => {
     expect(screen.getByLabelText("New channel")).toBeTruthy();
     expect(screen.getByLabelText("Hire a bot")).toBeTruthy();
     expect(screen.getByRole("link", { name: /Company knowledge/ }).getAttribute("href")).toBe("/files");
+    // Knowledge is a headed section of its own, like the two under it.
+    expect(screen.getByLabelText("Add knowledge")).toBeTruthy();
+    // The setup call sits on the rail, under Account, not in a foot of the
+    // panel: the panel ends where its list ends.
+    const setup = screen.getByRole("link", { name: SETUP_CALL_LABEL });
+    expect(setup.closest("[data-rail]")).toBeTruthy();
+    expect(document.querySelector('[data-slot="sidebar-footer"]')).toBeNull();
   });
   it("does not offer staff contexts to a customer", () => {
     render(<SidebarProvider defaultOpen={false}><AppSidebar /></SidebarProvider>);

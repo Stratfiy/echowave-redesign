@@ -658,16 +658,6 @@
    large surface, edged by the same hairline and nothing else. No drop shadow —
    the floor is warm enough that the card separates on colour alone, and a
    shadow would make the one permanent element on screen the softest one. */
-.app-sidebar-dock [data-slot="sidebar-inner"] {
-  border-radius: var(--radius-large);
-  border: 1px solid var(--sidebar-border);
-  /* Opaque, and no backdrop blur: WebKit stops honouring position: fixed
-     on the rail once a blurred descendant is inside it, so on an iPad the
-     rail scrolled away with the page. Warm near-white does the blending. */
-  background-color: #ffffff;
-  box-shadow: none;
-  overflow: hidden;
-}
 
 /* Cards are flat white, defined by a hairline and nothing else.
 

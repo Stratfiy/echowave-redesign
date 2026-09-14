@@ -190,7 +190,9 @@ MAX_MESSAGE = 8000
 
 
 class PostMessageRequest(BaseModel):
-    folder_id: int
+    #: Where it is said: a channel, or one bot's own chat. Exactly one.
+    folder_id: Optional[int] = None
+    workflow_id: Optional[int] = None
     text: str = Field(min_length=1, max_length=MAX_MESSAGE)
 
 
@@ -231,6 +233,16 @@ async def post_message(
     organization_id = user.selected_organization_id
     if not organization_id:
         raise HTTPException(status_code=400, detail="No organization selected")
+
+    if (body.folder_id is None) == (body.workflow_id is None):
+        raise HTTPException(
+            status_code=422, detail="Say it in a channel or to a bot, one or the other"
+        )
+
+    if body.workflow_id is not None:
+        return await _post_direct_message(
+            organization_id=organization_id, user=user, body=body
+        )
 
     folder = await db_client.get_folder(body.folder_id, organization_id=organization_id)
     if not folder:
@@ -312,6 +324,54 @@ class DecideRequest(BaseModel):
     choice: list[str] = Field(default_factory=list, max_length=decisions.MAX_OPTIONS)
     #: A written answer, where the question allows one.
     other: Optional[str] = Field(default=None, max_length=decisions.MAX_OPTION_CHARS)
+
+
+async def _post_direct_message(
+    *, organization_id: int, user: UserModel, body: PostMessageRequest
+) -> PostMessageResponse:
+    """Talk to one bot on its own chat.
+
+    No handle to resolve -- the bot is the one whose chat this is -- and
+    nothing here is filed in the channel the bot sits in: ``in_channel=False``
+    on both the question and, in the reply path, the answer. The bot's own
+    thread shows both, which is what the person is looking at.
+    """
+    workflow = await db_client.get_workflow(
+        body.workflow_id, organization_id=organization_id
+    )
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="No such bot")
+
+    await agent_timeline.record(
+        organization_id=organization_id,
+        kind=AgentEventKind.MESSAGE.value,
+        actor=AgentEventActor.HUMAN.value,
+        summary=body.text,
+        workflow_id=workflow.id,
+        payload={
+            "body": body.text,
+            "author_id": user.id,
+            "asked": [workflow.id],
+            "direct": True,
+        },
+        in_channel=False,
+    )
+    try:
+        await enqueue_job(
+            FunctionNames.ANSWER_CHANNEL_MESSAGE, workflow.id, None, body.text
+        )
+    except Exception as exc:  # noqa: BLE001 - said out loud, as in the channel path
+        logger.error(
+            "Could not ask workflow {} to answer directly: {}", workflow.id, exc
+        )
+        await agent_timeline.record(
+            organization_id=organization_id,
+            kind=AgentEventKind.COULD_NOT.value,
+            summary=f"{workflow.name} could not be reached to answer that",
+            workflow_id=workflow.id,
+            in_channel=False,
+        )
+    return PostMessageResponse(asked=[workflow.id], unknown=[], ambiguous=[])
 
 
 @router.post("/decide", response_model=TimelineEvent)
