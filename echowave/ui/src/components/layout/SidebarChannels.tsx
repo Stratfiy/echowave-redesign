@@ -25,6 +25,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { listFoldersApiV1FolderGet } from "@/client/sdk.gen";
 import type { FolderResponse } from "@/client/types.gen";
+import { NewChatDialog } from "@/components/layout/NewChatDialog";
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -45,6 +46,7 @@ export function SidebarChannels({ collapsed }: { collapsed: boolean }) {
   const pathname = usePathname();
   const { user, loading: authLoading } = useAuth();
   const [channels, setChannels] = useState<FolderResponse[]>([]);
+  const [newChatOpen, setNewChatOpen] = useState(false);
   const started = useRef(false);
 
   useEffect(() => {
@@ -83,14 +85,18 @@ export function SidebarChannels({ collapsed }: { collapsed: boolean }) {
         <Link href="/workflow" className="hover:text-foreground">
           Channels
         </Link>
-        <Link
-          href="/workflow"
-          aria-label="New channel"
-          title="New channel"
+        <button
+          type="button"
+          aria-label="New chat"
+          title="New chat"
+          onClick={() => setNewChatOpen(true)}
           className="rounded p-0.5 hover:bg-sidebar-accent hover:text-foreground"
         >
           <Plus aria-hidden="true" className="h-3.5 w-3.5" />
-        </Link>
+        </button>
+        {/* Mounted on demand: the dialog carries a router and a fetch of
+            its own, neither of which a closed door needs. */}
+        {newChatOpen && <NewChatDialog open onOpenChange={setNewChatOpen} />}
       </SidebarGroupLabel>
       <SidebarMenu>
         {shown.map((channel) => {

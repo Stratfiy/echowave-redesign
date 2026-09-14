@@ -51,13 +51,53 @@ def _last_assistant_text(text_session: Any) -> Optional[str]:
     return (turns[-1].get("assistant_message") or {}).get("text")
 
 
+#: How far a question may travel bot to bot before it stops. Two bots that
+#: keep @-mentioning each other would otherwise run until the credit did.
+MAX_HOPS = 2
+
+
+async def _teammates(
+    organization_id: int, folder_id: int, except_id: int
+) -> list[dict]:
+    """The other bots in this channel, as the mention resolver wants them."""
+    workflows = await db_client.get_all_workflows_for_listing(
+        organization_id=organization_id
+    )
+    return [
+        {"id": w.id, "handle": getattr(w, "handle", None), "name": w.name}
+        for w in workflows
+        if getattr(w, "folder_id", None) == folder_id and w.id != except_id
+    ]
+
+
+def teammates_line(roster: list[dict]) -> str:
+    """What a bot is told about who else is here, so it can hand work on."""
+    if not roster:
+        return ""
+    from api.services.workflow.mentions import handle_for
+
+    names = ", ".join(
+        f"@{(b.get('handle') or handle_for(str(b.get('name') or '')))} ({b.get('name')})"
+        for b in roster
+    )
+    return (
+        f"Bots in this channel with you: {names}. To hand something to one of "
+        "them, address it by its @handle in your reply; it will answer here."
+    )
+
+
 async def answer_in_channel(
     workflow_id: int,
     folder_id: Optional[int],
     text: str,
     preset: Optional[str] = None,
+    hop: int = 0,
 ) -> Optional[int]:
     """Have one bot answer one message. Returns the run id, or None.
+
+    ``hop`` is how many bots this has already passed through. A reply that
+    @-mentions a teammate hands the reply to it, one hop further, until
+    ``MAX_HOPS``: a group of bots is a team, not a loop.
 
     ``preset`` is the brain the person chose for this message, a chat preset
     slug; None is the bot's own stack. It is written into the run's session
@@ -164,6 +204,16 @@ async def answer_in_channel(
                 organization_id=organization_id, workflow_id=workflow_id
             )
         )
+        # Who else is here, so "ask @sales" is something the bot can do
+        # rather than something it can only promise.
+        roster = (
+            await _teammates(organization_id, folder_id, workflow_id)
+            if folder_id is not None
+            else []
+        )
+        colleagues = teammates_line(roster)
+        if colleagues:
+            thread = f"{colleagues}\n\n{thread}" if thread else colleagues
         text_session = await append_text_chat_user_message(
             run_id=run_id,
             text_session=text_session,
@@ -194,6 +244,14 @@ async def answer_in_channel(
             )
             return run_id
 
+        # A reply that addresses a teammate hands it on, the way a person's
+        # message does -- one hop further, and never back to itself.
+        handed: list[int] = []
+        if folder_id is not None and roster and hop < MAX_HOPS:
+            from api.services.workflow import mentions
+
+            handed = [m.workflow_id for m in mentions.resolve(answer, roster).mentioned]
+
         await agent_timeline.record(
             organization_id=organization_id,
             kind=AgentEventKind.MESSAGE.value,
@@ -203,8 +261,30 @@ async def answer_in_channel(
             workflow_run_id=run_id,
             folder_id=folder_id,
             in_channel=folder_id is not None,
-            payload={"body": answer[:MAX_REPLY], "in_reply_to": text[:500]},
+            payload={
+                "body": answer[:MAX_REPLY],
+                "in_reply_to": text[:500],
+                "asked": handed,
+                "hop": hop,
+            },
         )
+        for teammate in handed:
+            try:
+                from api.tasks.arq import enqueue_job
+                from api.tasks.function_names import FunctionNames
+
+                await enqueue_job(
+                    FunctionNames.ANSWER_CHANNEL_MESSAGE,
+                    teammate,
+                    folder_id,
+                    f"{name} said: {answer[:MAX_REPLY]}",
+                    None,
+                    hop + 1,
+                )
+            except Exception as exc:  # noqa: BLE001 - one hand-off failing is not the reply failing
+                logger.error(
+                    "Workflow {} could not hand to {}: {}", workflow_id, teammate, exc
+                )
         return run_id
     except Exception as exc:  # noqa: BLE001 - see the docstring
         logger.exception(
@@ -222,4 +302,4 @@ async def answer_in_channel(
         return None
 
 
-__all__ = ["MAX_REPLY", "answer_in_channel"]
+__all__ = ["MAX_HOPS", "MAX_REPLY", "answer_in_channel", "teammates_line"]
