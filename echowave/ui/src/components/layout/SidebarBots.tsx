@@ -106,7 +106,7 @@ export function SidebarBots({ collapsed }: { collapsed: boolean }) {
     <SidebarGroup className="py-1">
       {/* Label opens the full list, plus hires a new one. Shown even with
           nothing under it: the plus is the door a fresh account needs. */}
-      <SidebarGroupLabel className="h-8 justify-between text-[13px] font-semibold text-sidebar-foreground/70">
+      <SidebarGroupLabel className="h-8 justify-between text-[15px] font-normal text-sidebar-foreground/70">
         <Link href="/workflow" className="hover:text-sidebar-foreground">
           Your bots
         </Link>

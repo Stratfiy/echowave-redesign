@@ -393,19 +393,13 @@
     font-family: inherit;
   }
 
-  /* Display type. Medium weight with tightened tracking — confident without
-     shouting. Outfit rather than Inter now: it is the geometric face named as
-     the substitute for the reference's own display face, which we could not
-     license. Weight and tracking are unchanged, so this is a change of
-     letterforms and not of the type system.
-
-     h1 and h2 only. Everything smaller is body type in Inter and takes the
-     semibold step below — a product UI that sets its headings in a display
-     face at 16px just looks unsettled. */
+    /* One face, two weights (15 Sept). Headings are the body face in bold,
+     the way Slack sets a channel name over its messages; the display face
+     that stood here made every screen read as two products. */
   h1, h2 {
-    font-family: var(--font-app-display), var(--font-app-sans), ui-sans-serif, system-ui, sans-serif;
-    font-weight: 500;
-    letter-spacing: -0.02em;
+    font-family: var(--font-app-sans), ui-sans-serif, system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.01em;
   }
 
   h3, h4, h5, h6 {
