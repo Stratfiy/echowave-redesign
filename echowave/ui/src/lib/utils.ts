@@ -1,5 +1,5 @@
-import { type ClassValue, clsx } from "clsx"
-import { twMerge } from "tailwind-merge"
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
 
 import { getAuthUserApiV1UserAuthUserGet } from "@/client/sdk.gen";
 import { getWorkflowCountApiV1WorkflowCountGet } from "@/client/sdk.gen";
@@ -7,7 +7,7 @@ import { impersonateApiV1SuperuserImpersonatePost } from "@/client/sdk.gen";
 import { detailFromResult } from "@/lib/apiError";
 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+  return twMerge(clsx(inputs));
 }
 
 export function getRandomId() {
@@ -16,14 +16,17 @@ export function getRandomId() {
 
 export function getNextNodeId(existingNodes: { id: string }[]): string {
   const numericIds = existingNodes
-    .map(node => parseInt(node.id, 10))
-    .filter(id => !isNaN(id));
+    .map((node) => parseInt(node.id, 10))
+    .filter((id) => !isNaN(id));
 
   const maxId = numericIds.length > 0 ? Math.max(...numericIds) : 0;
   return String(maxId + 1);
 }
 
-export function debounce<T extends (...args: unknown[]) => unknown>(func: T, wait: number): (...args: Parameters<T>) => void {
+export function debounce<T extends (...args: unknown[]) => unknown>(
+  func: T,
+  wait: number,
+): (...args: Parameters<T>) => void {
   let timeout: NodeJS.Timeout | null = null;
 
   return function (...args: Parameters<T>) {
@@ -37,74 +40,84 @@ export function debounce<T extends (...args: unknown[]) => unknown>(func: T, wai
   };
 }
 
-export async function getRedirectUrl(token: string, permissions: { id: string }[] = []) {
-  console.log('[getRedirectUrl] Called with:', {
+export async function getRedirectUrl(
+  token: string,
+  permissions: { id: string }[] = [],
+) {
+  console.log("[getRedirectUrl] Called with:", {
     hasToken: !!token,
     tokenLength: token?.length,
     permissionsCount: permissions.length,
-    permissions: permissions.map(p => p.id)
+    permissions: permissions.map((p) => p.id),
   });
   try {
-    console.log('[getRedirectUrl] Calling getAuthUserApiV1UserAuthUserGet...');
+    console.log("[getRedirectUrl] Calling getAuthUserApiV1UserAuthUserGet...");
     const authUser = await getAuthUserApiV1UserAuthUserGet({
       headers: {
         Authorization: `Bearer ${token}`,
       },
     });
-    console.log('[getRedirectUrl] Auth user response:', {
+    console.log("[getRedirectUrl] Auth user response:", {
       hasData: !!authUser.data,
       staffRole: authUser.data?.staff_role,
-      userId: authUser.data?.id
+      userId: authUser.data?.id,
     });
     if (authUser.data?.staff_role) {
-      console.log('[getRedirectUrl] User is staff, redirecting to /superadmin');
+      console.log("[getRedirectUrl] User is staff, redirecting to /superadmin");
       return "/superadmin";
     }
 
-    const hasAdminPermission = permissions.some(p => p.id === 'admin');
-    console.log('[getRedirectUrl] Admin permission check:', { hasAdminPermission });
-
-  // If the user doesn't have admin permissions, redirect them to
-  // usage page
-  if (!hasAdminPermission) {
-    console.log('[getRedirectUrl] No admin permission, redirecting to /usage');
-    return "/usage";
-  }
-
-  // Check if user has any workflows
-  try {
-    console.log('[getRedirectUrl] Checking for existing workflows...');
-    const countResponse = await getWorkflowCountApiV1WorkflowCountGet({
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+    const hasAdminPermission = permissions.some((p) => p.id === "admin");
+    console.log("[getRedirectUrl] Admin permission check:", {
+      hasAdminPermission,
     });
 
-    console.log('[getRedirectUrl] Found workflows:', {
-      total: countResponse.data?.total,
-      active: countResponse.data?.active
-    });
+    // If the user doesn't have admin permissions, redirect them to
+    // usage page
+    if (!hasAdminPermission) {
+      console.log(
+        "[getRedirectUrl] No admin permission, redirecting to /usage",
+      );
+      return "/usage";
+    }
 
-    if (countResponse.data && countResponse.data.active > 0) {
-      console.log('[getRedirectUrl] User has workflows, redirecting to /workflow');
-      return "/workflow";
-    } else {
-      console.log('[getRedirectUrl] No workflows found, redirecting to /start');
+    // Check if user has any workflows
+    try {
+      console.log("[getRedirectUrl] Checking for existing workflows...");
+      const countResponse = await getWorkflowCountApiV1WorkflowCountGet({
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      console.log("[getRedirectUrl] Found workflows:", {
+        total: countResponse.data?.total,
+        active: countResponse.data?.active,
+      });
+
+      if (countResponse.data && countResponse.data.active > 0) {
+        console.log(
+          "[getRedirectUrl] User has workflows, redirecting to /overview",
+        );
+        return "/overview";
+      } else {
+        console.log(
+          "[getRedirectUrl] No workflows found, redirecting to /start",
+        );
+        return "/start";
+      }
+    } catch (error) {
+      console.error("[getRedirectUrl] Error checking workflows:", error);
+      // If we can't check workflows, default to the first-agent journey
+      console.log("[getRedirectUrl] Defaulting to /start due to error");
       return "/start";
     }
-  } catch (error) {
-    console.error('[getRedirectUrl] Error checking workflows:', error);
-    // If we can't check workflows, default to the first-agent journey
-    console.log('[getRedirectUrl] Defaulting to /start due to error');
-    return "/start";
-  }
   } catch (error) {
     console.error("[getRedirectUrl] Failed to fetch auth user:", error);
     // Re-throw the error so the caller can handle it
     throw error;
   }
 }
-
 
 /**
  * Centralised impersonation logic to avoid code duplication between pages.
@@ -133,12 +146,14 @@ export async function impersonateAsSuperadmin(params: {
     redirectPath,
     openInNewTab = false,
   } = params;
-  const targetWindow = openInNewTab ? window.open('', '_blank') : null;
+  const targetWindow = openInNewTab ? window.open("", "_blank") : null;
   if (targetWindow) {
     targetWindow.opener = null;
   }
   if (openInNewTab && !targetWindow) {
-    throw new Error('Unable to open impersonation tab. Please allow pop-ups and try again.');
+    throw new Error(
+      "Unable to open impersonation tab. Please allow pop-ups and try again.",
+    );
   }
 
   // Build request body depending on which identifier we have.
@@ -155,10 +170,12 @@ export async function impersonateAsSuperadmin(params: {
 
   if (Object.keys(body).length === 0) {
     targetWindow?.close();
-    throw new Error('Either userId, providerUserId, or email must be provided');
+    throw new Error("Either userId, providerUserId, or email must be provided");
   }
 
-  let resp: Awaited<ReturnType<typeof impersonateApiV1SuperuserImpersonatePost>>;
+  let resp: Awaited<
+    ReturnType<typeof impersonateApiV1SuperuserImpersonatePost>
+  >;
   try {
     resp = await impersonateApiV1SuperuserImpersonatePost({
       body,
@@ -173,13 +190,13 @@ export async function impersonateAsSuperadmin(params: {
 
   if (resp.error) {
     targetWindow?.close();
-    throw new Error(detailFromResult(resp, 'Failed to impersonate user'));
+    throw new Error(detailFromResult(resp, "Failed to impersonate user"));
   }
 
   const refreshToken = resp.data?.refresh_token;
   if (!refreshToken) {
     targetWindow?.close();
-    throw new Error('No refresh token returned from impersonate');
+    throw new Error("No refresh token returned from impersonate");
   }
 
   // ---------------------------------------------------------------------------------
@@ -195,17 +212,19 @@ export async function impersonateAsSuperadmin(params: {
   // origin (e.g. localhost, staging, or already on the app).
   const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
 
-  const finalRedirect = redirectPath ?? '/workflow';
+  const finalRedirect = redirectPath ?? "/overview";
 
   // Build the redirect URL to the helper route, passing along the refresh token and
   // the final destination.
-  const impersonateUrl = new URL('/impersonate', appBaseUrl);
-  impersonateUrl.searchParams.set('refresh_token', refreshToken);
-  impersonateUrl.searchParams.set('redirect_path', finalRedirect);
+  const impersonateUrl = new URL("/impersonate", appBaseUrl);
+  impersonateUrl.searchParams.set("refresh_token", refreshToken);
+  impersonateUrl.searchParams.set("redirect_path", finalRedirect);
 
   if (openInNewTab) {
     if (!targetWindow) {
-      throw new Error('Unable to open impersonation tab. Please allow pop-ups and try again.');
+      throw new Error(
+        "Unable to open impersonation tab. Please allow pop-ups and try again.",
+      );
     }
     targetWindow.location.href = impersonateUrl.toString();
   } else {

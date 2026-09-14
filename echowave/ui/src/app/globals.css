@@ -268,45 +268,34 @@
    * deep coral from the brand pair rather than a neutral grey: at this size it
    * is the only place the brand colour appears without competing with content.
    */
-  --rail: #2a1a19;
+  --rail: #211311;
   --rail-foreground: #f6efee;
   --rail-accent: #ab3f38;
   --rail-accent-foreground: #ffffff;
   --rail-border: rgba(246, 239, 238, 0.12);
 
-  /* The middle of three tones, and the reason it is not near-white.
+  /* The panel is dark, like the rail: option B of 15 Sept.
    *
-   * Slack steps dark rail -> tinted column -> white content. Ours went dark
-   * rail -> near-white panel -> white content, so the panel and the content
-   * were the same surface and the rail read as something stuck on the side
-   * rather than the dark end of a ramp. Two tones cannot make a ramp.
+   * Slack's sidebar is aubergine in light mode, one step lighter than the
+   * rail, so the frame reads as one dark piece with a ramp inside it and
+   * the white content is unmistakably the document. Ours went dark rail ->
+   * peach panel -> white content, and the peach never earned its place: at
+   * a tint it was invisible, at full strength it fought the content.
    *
-   * Peach, and visibly so. The first pass at this was #f1e9e7 -- "warm
-   * rather than grey, low chroma, has to recede" -- and it receded all the
-   * way to off-white: beside #ffffff content it was not a middle tone, it
-   * was the same tone with a tint nobody could see. Two tones again. The
-   * reference the product is measured against is dark rail, light-orange
-   * panel, white content, and the panel is unmistakably orange. So the
-   * chroma goes up. It still sits under a list of names people read all
-   * day, which is why it is a tint and not the brand coral itself; but a
-   * tint has to be seen to be one.
-   *
-   * The accent is the active and hover row, and the reference draws that as
-   * a filled deeper peach -- so it steps the same direction, not toward grey.
-   *
-   * Solid rather than translucent -- the old 0.72 alpha meant the panel took
-   * its colour from whatever happened to be behind it, which is not a tone,
-   * it is a lottery.
-   *
-   * Values chosen, not sampled: the reference is a screenshot, and there is
-   * no way to read a pixel from here. Not verified visually. */
-  --sidebar: #f8ede7;
-  --sidebar-foreground: #171717;
-  --sidebar-primary: #171717;
+   * So the panel takes the rail's family, one step up in value: the deep
+   * end of the brand coral, desaturated enough to sit under a list of names
+   * read all day. Text is the rail's off-white; the hover row is a light
+   * veil; the selected row is the deep coral with white text, the one place
+   * in the panel the brand appears as a fill. Muted text inside the panel
+   * uses --sidebar-foreground at 70%, never --muted-foreground, which is a
+   * grey mixed for white and vanishes here. */
+  --sidebar: #2f1b19;
+  --sidebar-foreground: #f6efee;
+  --sidebar-primary: #ab3f38;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f2dbd1;
-  --sidebar-accent-foreground: #171717;
-  --sidebar-border: #ecd6cc;
+  --sidebar-accent: rgba(246, 239, 238, 0.10);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(246, 239, 238, 0.12);
   --sidebar-ring: #e15b53;
 
   /* --cta predates --primary and is used on a handful of CTAs. Both point at

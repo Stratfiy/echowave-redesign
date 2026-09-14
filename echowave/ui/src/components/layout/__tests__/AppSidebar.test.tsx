@@ -39,11 +39,11 @@ describe("sidebar interactions", () => {
     render(<SidebarProvider><AppSidebar /></SidebarProvider>);
     // The developer doors live in the Setup panel now, so reaching them is two
     // moves: pick the context, then open the folded group inside it.
-    expect(screen.queryByRole("button", { name: "DEVELOPERS" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Developers" })).toBeNull();
     fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
 
     expect(screen.queryByRole("link", { name: "API keys & SDKs" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "DEVELOPERS" }));
+    fireEvent.click(screen.getByRole("button", { name: "Developers" }));
     expect(screen.getByRole("link", { name: "API keys & SDKs" })).toBeTruthy();
     expect(JSON.parse(localStorage.getItem("decibyl.sidebar.closedSections")!)).not.toContain("DEVELOPERS");
   });
@@ -74,7 +74,7 @@ describe("sidebar interactions", () => {
     route.pathname = "/tools/42";
     render(<SidebarProvider><AppSidebar /></SidebarProvider>);
     expect(screen.getByRole("link", { name: "Integrations" }).getAttribute("aria-current")).toBe("page");
-    expect(screen.getByRole("button", { name: "BUILD" }).getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("button", { name: "Build" }).getAttribute("aria-expanded")).toBe("true");
   });
   /* Collapsed is the rail, and nothing may become unreachable from it.
    *
