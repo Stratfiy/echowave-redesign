@@ -207,3 +207,140 @@ Rs 1,800, before any overage.
 - Bland: https://www.cloudtalk.io/blog/bland-ai-pricing/
 - ElevenLabs Agents: https://elevenlabs.io/pricing/agents and https://www.cekura.ai/blogs/elevenlabs-pricing
 - Sarvam API pricing: https://docs.sarvam.ai/api-reference-docs/pricing
+
+## 10. Total operating cost: what it takes to run Decibyl for a month
+
+Two kinds of cost, kept apart because they behave differently: **cost of
+revenue** moves with every minute and message and is what the markups in
+section 11 recover; **fixed cost** is the same whether one customer or a
+hundred is on the box, and is what the plan fees recover.
+
+Figures are ap-south-1 on-demand list (the same table `scripts/infra_sizing.py`
+uses) at Rs 96 to the dollar. The production footprint is one compose host
+plus managed Postgres after the 13 Sept cutover; the exact instance classes
+are KAN-36's console review, so the two rows marked "confirm" are the
+assumptions to replace.
+
+### Fixed cost, per month
+
+| Line | Rs / month | Basis |
+|---|---:|---|
+| Compute: one c7i.xlarge (4 vCPU, 8 GB) running api, worker, ui, nginx, redis, embeddings, coturn | 15,000 | $0.2142 / h; confirm class |
+| RDS Postgres db.t4g.medium, single-AZ, 50 GB gp3 | 7,100 | $0.093 / h; Multi-AZ doubles it to 14,000; confirm class |
+| EBS 100 GB gp3 on the host | 800 | |
+| S3 recordings and transcripts, 100 GB, with lifecycle | 300 | grows with retention policy |
+| Data transfer out, 200 GB (audio to carriers and browsers) | 1,750 | $0.09 / GB |
+| Snapshots and backups | 500 | |
+| Cloudflare tunnel, DNS | 0 | free tier |
+| Domain, TLS | 125 | |
+| **Infrastructure** | **25,600** | 32,500 with Multi-AZ |
+| GitHub Team, Atlassian, Google Workspace (2 seats) | 5,000 | |
+| Vercel Pro for the public site | 1,900 | $20 |
+| Sentry Team, PostHog | 2,500 | free tiers until volume |
+| Composio platform plan | 2,800 | $29 tier; confirm |
+| AI coding and design tools (this session's own bill) | 19,000 | $200 class subscription |
+| CA, GST filing, TDS, ROC | 4,000 | retainer |
+| **Tooling and compliance** | **35,200** | |
+| **Fixed cost, no salaries** | **60,800** | ~ Rs 61,000 |
+| First hire: support and onboarding rep | 50,000 | |
+| Founder draw, two, at Rs 1,00,000 | 2,00,000 | parameter |
+| **Fixed cost, fully loaded** | **3,10,800** | |
+
+Not in the table, and one-off: DPDP notice and policy drafting, DLT
+registration for SMS, Plivo reseller KYC, a laptop, ISO 27001 later.
+
+Sarvam has no minimum today; the KAN-47 arrangement (Rs 25,000 a month free
+for six months, then 30% off) is a credit against cost of revenue, not a fee.
+
+### Cost of revenue, per unit
+
+| Unit | Rs | Basis |
+|---|---:|---|
+| Everyday voice minute | 2.36 | section 1; 1.84 with the Sarvam deal |
+| Natural voice minute | 5.10 | Gemini Live + carriage |
+| Text reply (1,400 tokens, gpt-4.1-mini) | 0.10 | |
+| Knowledge answer (retrieval + reply) | 0.13 | embeddings are self-hosted |
+| Routine run (about 3,000 tokens) | 0.25 | |
+| Composio tool call | 0.10 to 0.50 | depends on plan tier; confirm |
+| WhatsApp, service window or utility template | 0.12 | Meta India utility rate |
+| WhatsApp, marketing template | 0.80 | Meta India marketing rate |
+| Phone number, per month | 250 | Plivo, confirmed |
+| Document page, scanned (Sarvam Document AI) | 0.50 | |
+| Builder message (gpt-5, about 10,000 tokens) | 2.00 | |
+| Payment collection | 2.36% of the amount | Razorpay 2% plus GST on the fee |
+
+## 11. Markup per component
+
+Two layers, and the engine already supports both. The **managed bundle** sells
+at one flat rate a minute (`list_paise_per_minute` with volume tiers), which
+is what a self-serve customer sees. **Per-component markups** are the floor
+behind that rate: what an itemised or enterprise quote charges, and the
+check that the flat rate never falls below what the parts would fetch.
+
+### Voice, per minute, at list cost
+
+| Component | Cost | Markup | Price | Note |
+|---|---:|---:|---:|---|
+| Carriage (Plivo) | 0.38 | 1.15x | 0.44 | a pass-through with a handling margin; nobody wins on carriage |
+| Speech to text (Sarvam) | 0.50 | 1.3x | 0.65 | commodity; Ringg sells the API at the same Rs 30 / hour |
+| Language model (gpt-4.1-mini) | 0.26 | 2.0x | 0.52 | the prompt, memory and tools are ours; the model is not |
+| Text to speech (bulbul v3) | 1.22 | 1.8x | 2.20 | the largest line and the one negotiated; premium voices 1.4x |
+| **Components** | **2.36** | | **3.81** | |
+| Platform fee | | | 2.19 / 1.69 / 1.19 | Business / Growth / Scale |
+| **Minute** | | | **6.00 / 5.50 / 5.00** | 12 / 11 / 10 credits |
+
+The platform fee is the tier discount. Component markups do not change by
+tier, so a Scale customer on an enterprise itemised quote pays the same
+component prices and a lower fee. With the Sarvam deal the components fall
+to Rs 2.95 and the fee stays, so the managed rate holds and the margin
+widens: that is where the deal goes, not into the price.
+
+Speech to speech: one line, markup 1.9x, so Natural at 5.10 sells at Rs 10
+(20 credits) and Premium at 16.83 would need Rs 32; Premium is quote-only.
+
+### Everything that is not a voice minute
+
+| Unit | Cost | Price | Credits | Effective markup | Verdict on KAN-47 |
+|---|---:|---:|---:|---:|---|
+| Text reply | 0.10 | 0.50 | 1 | 5x | keep |
+| Knowledge answer | 0.13 | 1.00 | 2 | 7.7x | keep |
+| Routine run | 0.25 | 1.00 | 2 | 4x | keep |
+| Composio call, standard | 0.10 to 0.50 | 0.50 | 1 | 1x to 5x | keep, confirm Composio tier |
+| Composio call, premium | 0.50 | 1.50 | 3 | 3x | keep |
+| WhatsApp utility or service | 0.12 | 1.00 | 2 | 8.3x | keep |
+| WhatsApp marketing template | 0.80 | 1.00 | 2 | 1.25x | **raise to 4 credits (Rs 2)** or it is a 25% margin on the message most likely to be sent in bulk |
+| Phone number | 250 | 559 | monthly | 2.2x | keep; Ringg is 499 |
+| Scanned page | 0.50 | 1.00 | 2 | 2x | keep; KAN-57's 1 credit loses |
+| Builder message past allowance | 2.00 | 2.50 | 5 | 1.25x | keep; the allowance is the product |
+| Payment collection | 2.36% | absorbed | | | absorb below Rs 20,000 a month per account; above that it is a line on enterprise invoices |
+
+### What a customer contributes
+
+At Rs 6 a minute and list cost the gross margin per voice minute is Rs 3.64.
+A Business customer (Rs 2,999, 5,000 credits, one number) who uses 400
+minutes contributes Rs 2,999 minus Rs 944 of minutes minus Rs 250 for the
+number, about **Rs 1,800 a month** before overage or Razorpay.
+
+### Break-even, on the fixed costs above
+
+| Fixed cost | Rs / month | Business customers at Rs 1,800 | Or voice minutes at Rs 3.64 |
+|---|---:|---:|---:|
+| No salaries | 61,000 | 34 | 16,800 |
+| Plus one rep | 1,11,000 | 62 | 30,500 |
+| Fully loaded, two founders paid | 3,11,000 | 173 | 85,400 |
+
+The second and third rows are the numbers to plan hiring against. The first
+is the number at which the company stops costing money to keep alive.
+
+### Engine changes for section 11
+
+- Per-component markup table in `services/billing/markup.py` seeded with
+  1.15 / 1.3 / 2.0 / 1.8 (TTS premium 1.4), applied when no bundle flat
+  rate resolves; the managed bundle keeps its flat rate.
+- Platform fee per tier on the plan row (`platform_rate_mpaise`): 2.19 /
+  1.69 / 1.19 rupees, replacing the site's 2.5 / 2.0 / 1.5.
+- WhatsApp marketing templates priced separately from utility
+  (`WHATSAPP_MESSAGE_PRICE_PAISE` becomes two constants).
+- Margin watch (`margin_watch.py`) alerts on any component whose realised
+  markup falls under 1.1x, which is how a vendor price change surfaces
+  before an invoice does.
