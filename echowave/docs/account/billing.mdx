@@ -70,18 +70,19 @@ Free credits are a gift, not a purchase: no invoice, no GST. They are spent like
 
 | Pack | Credits | Extra |
 |---|---:|---|
-| ₹500 | 1,000 | — |
-| ₹1,000 | 2,000 | — |
-| ₹5,000 | 10,500 | 500 credits (5%) |
-| ₹20,000 | 44,000 | 4,000 credits (10%) |
+| ₹999 | 2,000 | — |
+| ₹4,999 | 10,500 | 500 credits (5%) |
+| ₹19,999 | 44,000 | 4,000 credits (10%) |
 
-**Top-up credits never expire.** They sit in their own pool and are spent only after your plan's credits for the cycle are used up. A free amount can also be entered in steps of **₹100** (minimum ₹100) and buys credits at face: ₹0.50 a credit.
+Accounts on the Campus plan, and early-adopter accounts our team has marked, also see a **₹500 pack for 1,000 credits**.
+
+**Top-up credits never expire.** They sit in their own pool and are spent only after your plan's credits for the cycle are used up. A free amount can also be entered in steps of **₹100** (minimum ₹1,000) and buys credits at face: ₹0.50 a credit.
 
 Each plan caps how many top-up credits an account can hold at once; the Billing page names the next plan up when you reach it.
 
 ### When plan credits run out
 
-Voice minutes are then charged from your top-up pool at the **next plan's** rate — a Business account pays Growth's 11 credits a minute, Growth pays Scale's 10, and Scale, the last rung, pays its own 10. Text, knowledge and routine work continues at its usual rate.
+Voice minutes are then charged from your top-up pool at **one credit a minute more** — a Business account pays 14 instead of 13, Growth 13 instead of 12. Scale, the last rung, never pays more: 11 all month. Text, knowledge and routine work continues at its usual rate.
 
 Credit appears once the payment is confirmed by Razorpay's servers, not when the payment window closes. That is usually a second or two. The balance on screen re-reads itself rather than assuming — a browser saying "paid" is not proof of payment.
 
@@ -95,11 +96,12 @@ Every event a bot performs is either charged in credits or included in your plan
 
 | Event | Credits |
 |---|---:|
-| Voice, per minute (Everyday bundle) | 12 / 11 / 10 by plan |
+| Voice, per minute (Everyday bundle) | 13 / 12 / 11 on Business / Growth / Scale |
 | Text reply in a channel or chat | 1 |
-| Knowledge answer (the reply read your documents) | 2 |
+| Knowledge answer (the reply read your documents) | 2; when the documents have nothing on it, the reply is 1 |
+| Translation or transliteration | 1 per 100 characters, rounded up per message |
 | Routine run | 2 |
-| Tool call through a connector | 1 (premium connectors 3) |
+| Tool call through a connector | 1; 3 for a system of record |
 | WhatsApp message from the platform sender | 2 |
 | Builder message past the plan's monthly allowance (30 / 100 / 300; unlimited on Scale) | 5 |
 | Verifying a phone number by voice code, after the first two numbers | 2 |
@@ -107,6 +109,8 @@ Every event a bot performs is either charged in credits or included in your plan
 | Knowledge pages past the cap, scanned (read by OCR) | 2 per page |
 
 Knowledge pages are counted on what you hold: deleting a document gives its pages back. The upload screen says where you stand against the cap and what a page past it costs before the upload runs; the charge lands once the document is processed and its pages are known. Query-time retrieval is inside the 2-credit knowledge answer, and re-embedding when a model changes is free.
+
+**Systems of record** are the connectors your business runs on, and a tool call into one is 3 credits: CRMs (Salesforce, HubSpot, Zoho CRM and Bigin, Freshsales, LeadSquared), ERP and accounting (SAP, Tally, Zoho Books and Invoice, QuickBooks), commerce and logistics (Shopify, WooCommerce, Shiprocket, Delhivery), payments (Razorpay, Stripe, Cashfree) and helpdesks (Zendesk, Freshdesk, Zoho Desk). Google Workspace, email, Slack, Notion, Calendly, Airtable and the rest are 1.
 
 Call events on the timeline — started, answered, ended, what the caller wanted, the credits held and settled — are included: the call itself is what is charged. Test chats and test calls inside the app are not charged.
 

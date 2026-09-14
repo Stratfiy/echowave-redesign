@@ -12,7 +12,7 @@ anything that changes state.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -357,6 +357,51 @@ async def set_account_internal_billing(
     return {
         "organization_id": organization_id,
         "internal_billing": bool(request.internal),
+    }
+
+
+class EarlyAdopterRequest(BaseModel):
+    #: The date the account stops being "early", or null to clear it.
+    until: date | None = None
+
+
+@router.put("/accounts/{organization_id}/early-adopter")
+async def set_account_early_adopter(
+    organization_id: int,
+    request: EarlyAdopterRequest,
+    user: UserModel = Depends(get_superuser),
+) -> dict[str, Any]:
+    """Let this account buy the gated ₹500 pack until a date (KAN-47).
+
+    A date, not a flag: "early" has to end, and a switch somebody forgets is
+    a discount that lives forever. Sales can promise it on a call; it costs
+    nothing to honour and it is visible on the account screen.
+    """
+    async with db_client.async_session() as session:
+        organization = await session.get(OrganizationModel, organization_id)
+        if organization is None:
+            raise HTTPException(
+                status_code=404, detail=f"Organization {organization_id} not found"
+            )
+        organization.early_adopter_until = (
+            datetime.combine(request.until, time.max, tzinfo=IST)
+            if request.until
+            else None
+        )
+        await session.commit()
+    logger.info(
+        "Organization {} early-adopter until {} set by staff user {}",
+        organization_id,
+        request.until,
+        user.id,
+    )
+    return {
+        "organization_id": organization_id,
+        "early_adopter_until": (
+            organization.early_adopter_until.isoformat()
+            if organization.early_adopter_until
+            else None
+        ),
     }
 
 

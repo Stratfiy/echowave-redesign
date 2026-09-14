@@ -3964,6 +3964,16 @@ export type DuplicateTemplateRequest = {
 };
 
 /**
+ * EarlyAdopterRequest
+ */
+export type EarlyAdopterRequest = {
+    /**
+     * Until
+     */
+    until?: string | null;
+};
+
+/**
  * ElevenLabs
  */
 export type ElevenlabsSttConfiguration = {
@@ -14078,6 +14088,54 @@ export type SetAccountInternalBillingApiV1AdminBillingAccountsOrganizationIdInte
 };
 
 export type SetAccountInternalBillingApiV1AdminBillingAccountsOrganizationIdInternalBillingPutResponse = SetAccountInternalBillingApiV1AdminBillingAccountsOrganizationIdInternalBillingPutResponses[keyof SetAccountInternalBillingApiV1AdminBillingAccountsOrganizationIdInternalBillingPutResponses];
+
+export type SetAccountEarlyAdopterApiV1AdminBillingAccountsOrganizationIdEarlyAdopterPutData = {
+    body: EarlyAdopterRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/billing/accounts/{organization_id}/early-adopter';
+};
+
+export type SetAccountEarlyAdopterApiV1AdminBillingAccountsOrganizationIdEarlyAdopterPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetAccountEarlyAdopterApiV1AdminBillingAccountsOrganizationIdEarlyAdopterPutError = SetAccountEarlyAdopterApiV1AdminBillingAccountsOrganizationIdEarlyAdopterPutErrors[keyof SetAccountEarlyAdopterApiV1AdminBillingAccountsOrganizationIdEarlyAdopterPutErrors];
+
+export type SetAccountEarlyAdopterApiV1AdminBillingAccountsOrganizationIdEarlyAdopterPutResponses = {
+    /**
+     * Response Set Account Early Adopter Api V1 Admin Billing Accounts  Organization Id  Early Adopter Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetAccountEarlyAdopterApiV1AdminBillingAccountsOrganizationIdEarlyAdopterPutResponse = SetAccountEarlyAdopterApiV1AdminBillingAccountsOrganizationIdEarlyAdopterPutResponses[keyof SetAccountEarlyAdopterApiV1AdminBillingAccountsOrganizationIdEarlyAdopterPutResponses];
 
 export type AdjustCreditApiV1AdminBillingAccountsOrganizationIdCreditPostData = {
     body: CreditAdjustmentRequest;

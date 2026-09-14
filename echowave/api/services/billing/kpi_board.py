@@ -179,6 +179,11 @@ async def _topup_attach(session: AsyncSession, start: date, end: date) -> dict:
     )
 
 
+async def _overage(session: AsyncSession, start: date, end: date) -> dict:
+    row = await q.overage_credits(session, start=start, end=end)
+    return _value(row["credits"], calls=row["calls"], minutes=row["minutes"])
+
+
 async def _deferred(session: AsyncSession, at: datetime) -> dict:
     return _value(await q.deferred_revenue_paise(session, at=at))
 
@@ -604,9 +609,9 @@ SECTIONS: list[Section] = [
             Kpi(
                 "overage_credits",
                 "Overage credits billed",
-                "Credits consumed above the plan at next-tier rates",
+                "Credits billed on calls priced past the plan, one credit a minute more",
                 "credits",
-                unavailable_reason="Calls do not record which pool paid or whether the next-tier rate applied; needs a flag on the run when overage pricing is used (KAN-55 follow-up).",
+                flow=_overage,
             ),
             Kpi(
                 "enterprise_committed",

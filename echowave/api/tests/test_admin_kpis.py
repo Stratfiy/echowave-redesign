@@ -217,7 +217,6 @@ class TestTheBoardIsComplete:
             kpi["key"] for s in catalogue() for kpi in s["kpis"] if not kpi["available"]
         }
         assert missing == {
-            "overage_credits",
             "enterprise_committed",
             "cac",
             "text_margin",

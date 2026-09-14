@@ -4,12 +4,13 @@ from api.services.billing import topup_nudge
 
 
 def test_a_week_of_burn_less_the_balance_rounded_up():
-    # 300/day, 500 left, floor 2000 paise: low. Need 2100-500=1600 → 10000 min.
+    # 300/day, 500 left, floor 2000 paise: low. Need 2100-500=1600 → the
+    # ₹1,000 minimum (KAN-47, 14 Sept).
     assert (
         topup_nudge.suggest(
             balance_paise=500, daily_burn_paise=300, min_balance_paise=2000
         )
-        == 10000
+        == 100000
     )
     # 20,000/day, 4,000 left → 136,000 → rounds to a 10,000 step.
     assert (

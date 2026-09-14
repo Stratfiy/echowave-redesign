@@ -192,6 +192,9 @@ class OrganizationModel(Base):
     # rather than a Postgres ENUM so new account types need no migration —
     # same convention as workflow_runs.mode. Values: see AccountType.
     account_type = Column(String(32), nullable=True)
+    # A staff-set date until which the account may buy the gated ₹500 pack
+    # (KAN-47). "Early" ends on a date rather than living forever.
+    early_adopter_until = Column(DateTime(timezone=True), nullable=True)
     # One of ours rather than a customer's: billed at provider cost, with no
     # platform fee, no markup and no balance floor. See
     # services/billing/internal_accounts.py for why all three travel together.
@@ -1075,6 +1078,10 @@ class WorkflowRunModel(Base):
     # structurally impossible.
     total_provider_cost_paise = Column(BigInteger, nullable=True)
     total_charged_paise = Column(BigInteger, nullable=True)
+    # Whether this call was priced past the plan's credits (KAN-47): one
+    # credit a minute more, paid from top-ups. Read by the KPI board's
+    # "overage credits billed" row; never guessed from balances after the fact.
+    overage_applied = Column(Boolean, nullable=True)
     # Set when the cost engine has run for this call; makes costing idempotent.
     costed_at = Column(DateTime(timezone=True), nullable=True)
 

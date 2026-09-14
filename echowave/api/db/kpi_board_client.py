@@ -600,6 +600,28 @@ def _runs_with_org():
     )
 
 
+async def overage_credits(session: AsyncSession, *, start: date, end: date) -> dict:
+    """Credits billed on calls priced past the plan (``overage_applied``)."""
+    lo, hi = _range_utc(start, end)
+    row = (
+        await session.execute(
+            select(
+                func.coalesce(func.sum(WorkflowRunModel.total_charged_paise), 0),
+                func.count(WorkflowRunModel.id),
+                func.coalesce(func.sum(WorkflowRunModel.billable_seconds), 0),
+            )
+            .select_from(WorkflowRunModel)
+            .join(WorkflowModel, WorkflowModel.id == WorkflowRunModel.workflow_id)
+            .where(*_costed_runs(lo, hi), WorkflowRunModel.overage_applied.is_(True))
+        )
+    ).one()
+    return {
+        "credits": _paise_to_credits(int(row[0])),
+        "calls": int(row[1]),
+        "minutes": int(row[2]) // SECONDS_PER_MINUTE,
+    }
+
+
 async def voice_minutes(session: AsyncSession, *, start: date, end: date) -> dict:
     """Connected minutes on costed calls, by language and by carrier."""
     lo, hi = _range_utc(start, end)

@@ -39,6 +39,10 @@ from api.services.billing.usage import (
 )
 from api.services.posthog_client import capture_event
 
+#: One credit a minute, in paise: what a voice minute costs past the plan's
+#: credits on every rung but the last (KAN-47).
+OVERAGE_PREMIUM_PAISE = 50
+
 
 async def _bundle_flat_rate_mpaise(
     session: AsyncSession,
@@ -91,12 +95,18 @@ async def _bundle_flat_rate_mpaise(
             session, organization_id=organization_id
         )
         plan_code = "business" if plan.code == subscription_plans.STARTER else plan.code
-        # Overage (KAN-55): once the cycle's plan credits are gone, a voice
-        # minute is charged at the next rung's rate out of the top-up pool —
-        # Business's overage minute costs what Growth's plan minute costs.
-        # Decided per call on what is left *before* it: a call that starts
-        # inside the plan is charged at the plan's rate in full, and the next
-        # one is overage. Scale, the last rung, pays its own rate.
+        paise = bundles.flat_rate_paise(
+            row, period_minutes=period_minutes, plan_code=plan_code
+        )
+        if paise is None:
+            return None
+        # Overage (KAN-47, 14 Sept): once the cycle's plan credits are gone, a
+        # voice minute costs one credit more, paid from the top-up pool. Scale,
+        # the last rung, never pays more. Decided per call on what is left
+        # *before* it: a call that starts inside the plan is charged at the
+        # plan's rate in full, and the next one is overage. The run records
+        # that it happened, so the KPI board counts overage rather than
+        # guessing it from balances afterwards.
         from api.services.billing import plans as plan_cycles
 
         if (
@@ -105,20 +115,19 @@ async def _bundle_flat_rate_mpaise(
             )
             <= 0
         ):
-            overage_code = await subscription_plans.next_voice_plan_code(
-                session, code=plan_code
+            last_rung = (
+                await subscription_plans.next_voice_plan_code(session, code=plan_code)
+                is None
             )
-            if overage_code:
+            if not last_rung:
+                paise += OVERAGE_PREMIUM_PAISE
+                run.overage_applied = True
                 logger.debug(
-                    "Run {}: plan credits exhausted, charging the {} rate as overage",
+                    "Run {}: plan credits exhausted, charging {} paise a minute as overage",
                     run.id,
-                    overage_code,
+                    paise,
                 )
-                plan_code = overage_code
-        paise = bundles.flat_rate_paise(
-            row, period_minutes=period_minutes, plan_code=plan_code
-        )
-        return None if paise is None else paise * MPAISE_PER_PAISE
+        return paise * MPAISE_PER_PAISE
     except Exception as exc:  # noqa: BLE001 - itemised pricing is the safe fallback
         logger.warning(
             "Could not resolve a bundle flat rate for run {}: {}", run.id, exc

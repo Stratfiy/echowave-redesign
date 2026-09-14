@@ -189,6 +189,14 @@ async def create_topup_order(
         pack = pack_for(pack_code)
         if pack is None:
             raise PaymentError(f"There is no top-up pack called {pack_code!r}.")
+        if pack.restricted:
+            from api.services.billing.topup_packs import may_buy_restricted
+
+            if not await may_buy_restricted(session, organization_id=organization_id):
+                raise PaymentError(
+                    "That pack is for Campus and early-adopter accounts. "
+                    "Packs start at ₹999."
+                )
         amount_paise = pack.price_paise
     if amount_paise is None:
         raise PaymentError("Choose a pack or an amount.")
@@ -205,7 +213,13 @@ async def create_topup_order(
     # Enforced here rather than only in the request schema, because this
     # function is the one thing between an amount and a Razorpay order and the
     # route is not its only caller.
-    if TOPUP_INCREMENT_PAISE > 0 and amount_paise % TOPUP_INCREMENT_PAISE:
+    # A pack fixes its own price (₹999 is not a ₹100 step, on purpose); the
+    # step rule is for free amounts.
+    if (
+        pack is None
+        and TOPUP_INCREMENT_PAISE > 0
+        and amount_paise % TOPUP_INCREMENT_PAISE
+    ):
         raise PaymentError(
             f"Top-ups are in steps of ₹{TOPUP_INCREMENT_PAISE / 100:,.0f}. "
             f"₹{amount_paise / 100:,.2f} is not one — try "
