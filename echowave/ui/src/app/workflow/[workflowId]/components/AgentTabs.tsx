@@ -34,6 +34,7 @@ import {
     Variable,
     Workflow,
     Wrench,
+    Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -71,6 +72,10 @@ export const AGENT_TABS = [
     { key: "graph", label: "Graph", icon: Workflow },
     { key: "logs", label: "Logs", icon: ScrollText },
     { key: "tools", label: "Tools", icon: Wrench },
+    // What rings this bot from outside: a webhook today (KAN-137), an inbox
+    // and app events next. Beside Tools because both answer "what can it
+    // do", one for what it reaches for and one for what reaches it.
+    { key: "triggers", label: "Triggers", icon: Zap },
     { key: "analysis", label: "Analysis", icon: BarChart3, settingsTab: "analysis" },
     { key: "advanced", label: "Advanced", icon: Variable, settingsTab: "advanced" },
     { key: "share", label: "Share", icon: Share2, settingsTab: "share" },
@@ -90,6 +95,8 @@ function hrefFor(tab: Tab, workflowId: number): string {
             return `${base}/runs`;
         case "tools":
             return `${base}/tools`;
+        case "triggers":
+            return `${base}/triggers`;
         default:
             return base;
     }
@@ -120,6 +127,7 @@ export function AgentTabs({
         if (tab.key === "thread") return pathname.startsWith(`${base}/thread`);
         if (tab.key === "logs") return pathname.startsWith(`${base}/runs`);
         if (tab.key === "tools") return pathname.startsWith(`${base}/tools`);
+        if (tab.key === "triggers") return pathname.startsWith(`${base}/triggers`);
         // The editor, and only the editor. `startsWith` would light it on
         // every tab, since every one of these lives under the same base.
         // Which of its two views is lit is the page's word, not the URL's.

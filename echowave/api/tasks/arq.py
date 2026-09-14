@@ -71,6 +71,7 @@ from api.tasks.routines import (
     compact_channel_context,
     fire_due_routines,
     run_agent_routine,
+    run_bot_trigger,
     run_proposed_action,
 )
 from api.tasks.run_integrations import run_integrations_post_workflow_run
@@ -109,6 +110,7 @@ class WorkerSettings:
         watch_margins,
         run_eval_case,
         run_agent_routine,
+        run_bot_trigger,
         answer_channel_message,
         answer_decibyl_message,
         run_proposed_action,
@@ -122,7 +124,7 @@ class WorkerSettings:
         # services/worker_health.py.
         cron(
             record_worker_heartbeat,
-            minute=set(range(0, 60)),
+            minute=set(range(60)),
             second=0,
             run_at_startup=True,
         ),
@@ -138,7 +140,7 @@ class WorkerSettings:
         # have interrupted it.
         cron(
             fire_due_routines,
-            minute=set(range(0, 60)),
+            minute=set(range(60)),
             second=15,
             run_at_startup=False,
         ),

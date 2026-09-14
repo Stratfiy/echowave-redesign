@@ -13,6 +13,7 @@ from api.routes.agent_templates import router as agent_templates_router
 from api.routes.agent_timeline import router as agent_timeline_router
 from api.routes.auth import router as auth_router
 from api.routes.billing_dashboard import router as billing_dashboard_router
+from api.routes.bot_triggers import router as bot_triggers_router
 from api.routes.campaign import router as campaign_router
 from api.routes.connectors import router as connectors_router
 from api.routes.contacts import router as contacts_router
@@ -46,6 +47,7 @@ from api.routes.provider_keys import router as provider_keys_router
 from api.routes.public_agent import router as public_agent_router
 from api.routes.public_download import router as public_download_router
 from api.routes.public_embed import router as public_embed_router
+from api.routes.public_triggers import router as public_triggers_router
 from api.routes.referrals import router as referrals_router
 from api.routes.reports import router as reports_router
 from api.routes.routines import router as routines_router
@@ -108,6 +110,7 @@ router.include_router(campaign_router)
 router.include_router(credentials_router)
 router.include_router(connectors_router)
 router.include_router(routines_router)
+router.include_router(bot_triggers_router)
 router.include_router(organisation_router)
 router.include_router(organisation_memory_router)
 router.include_router(packs_router)
@@ -125,6 +128,7 @@ router.include_router(webrtc_signaling_router)
 router.include_router(turn_credentials_router)
 router.include_router(public_embed_router)
 router.include_router(public_agent_router)
+router.include_router(public_triggers_router)
 router.include_router(public_download_router)
 router.include_router(workflow_embed_router)
 router.include_router(knowledge_base_router)

@@ -8,6 +8,8 @@ class FunctionNames:
     DELIVER_WEBHOOK = "deliver_webhook"
     RUN_EVAL_CASE = "run_eval_case"
     RUN_AGENT_ROUTINE = "run_agent_routine"
+    #: A webhook rang a bot's doorbell (KAN-137).
+    RUN_BOT_TRIGGER = "run_bot_trigger"
     ANSWER_CHANNEL_MESSAGE = "answer_channel_message"
     #: Decibyl, the workspace assistant, answers on its own thread.
     ANSWER_DECIBYL_MESSAGE = "answer_decibyl_message"
