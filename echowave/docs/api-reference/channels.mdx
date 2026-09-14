@@ -1,0 +1,20 @@
+---
+title: "Channels and timeline"
+description: "A channel is a team of bots and people. The timeline is everything that happened: messages, calls, outcomes, questions a bot asked, actions it proposed. Post a message to a bot, answer its question, confirm or undo an action."
+---
+
+A channel is a team of bots and people. The timeline is everything that happened: messages, calls, outcomes, questions a bot asked, actions it proposed. Post a message to a bot, answer its question, confirm or undo an action.
+
+| Method | Route | What it does |
+|---|---|---|
+| [`channels.list`](/api-reference/channels/list) | `GET /api/v1/folder/` | Every channel. |
+| [`channels.create`](/api-reference/channels/create) | `POST /api/v1/folder/` | Create a channel. |
+| [`channels.rename`](/api-reference/channels/rename) | `PUT /api/v1/folder/{folder_id}` | Rename a channel. |
+| [`channels.delete`](/api-reference/channels/delete) | `DELETE /api/v1/folder/{folder_id}` | Delete a channel. |
+| [`channels.timeline`](/api-reference/channels/timeline) | `GET /api/v1/timeline` | What happened, newest first, for a channel, a bot, a call or Decibyl. |
+| [`channels.post`](/api-reference/channels/post) | `POST /api/v1/timeline/message` | Say something to a bot, a channel or Decibyl. |
+| [`channels.decide`](/api-reference/channels/decide) | `POST /api/v1/timeline/decide` | Answer a question a bot asked. |
+| [`channels.settleAction`](/api-reference/channels/settle-action) | `POST /api/v1/timeline/actions/settle` | Confirm, decline or undo an action a bot proposed. |
+| [`channels.settleEdit`](/api-reference/channels/settle-edit) | `POST /api/v1/timeline/edits/settle` | Publish or discard a change a bot proposed to itself. |
+| [`channels.provideSecret`](/api-reference/channels/provide-secret) | `POST /api/v1/timeline/secrets/provide` | Give a bot the key it asked for, into the credential store. |
+| [`channels.draft`](/api-reference/channels/draft) | `GET /api/v1/timeline/draft` | The reply forming, while a bot is thinking. |

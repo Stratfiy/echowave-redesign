@@ -91,6 +91,12 @@ export default defineConfig({
   // 404ed while every other page worked.
   redirects: {
     "/": "/getting-started",
+    // The old reference URLs (agents/, runs/, api-keys/, telephony-configs/)
+    // live on in bookmarks and in the SDK READMEs; `docs.json` carries the
+    // map and the build emits a redirect page for each.
+    ...Object.fromEntries(
+      (docsJson.redirects ?? []).map((r) => [r.source, r.destination]),
+    ),
   },
   markdown: {
     remarkPlugins: [injectDocComponents],
@@ -111,6 +117,29 @@ export default defineConfig({
       title: docsJson.name || "Decibyl AI",
       favicon: "/favicon.ico",
       customCss: ["./src/styles/docs.css"],
+      // The app's faces. Google Fonts rather than self-hosting so the docs
+      // build stays a static site with no font pipeline of its own.
+      head: [
+        {
+          tag: "link",
+          attrs: { rel: "preconnect", href: "https://fonts.googleapis.com" },
+        },
+        {
+          tag: "link",
+          attrs: {
+            rel: "preconnect",
+            href: "https://fonts.gstatic.com",
+            crossorigin: "anonymous",
+          },
+        },
+        {
+          tag: "link",
+          attrs: {
+            rel: "stylesheet",
+            href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;600;700&family=Geist+Mono:wght@400;500&display=swap",
+          },
+        },
+      ],
       // The wordmark `docs.json` already declared and nothing rendered. It
       // lived at `docs/logo/`, which Astro does not serve — only `public/`
       // is copied into the build — so the header fell back to the site title

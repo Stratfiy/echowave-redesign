@@ -22,11 +22,11 @@ When you add an API Trigger node to your workflow, Decibyl assigns it a unique U
 You can copy either URL from the trigger node's settings dialog.
 
 ```
-POST https://your-decibyl-instance/api/v1/public/agent/{uuid}        # Production
-POST https://your-decibyl-instance/api/v1/public/agent/test/{uuid}   # Test
+POST https://api.decibyl.ai/api/v1/public/agent/{uuid}        # Production
+POST https://api.decibyl.ai/api/v1/public/agent/test/{uuid}   # Test
 ```
 
-If you are using the hosted version, replace `your-decibyl-instance` with `api.decibyl.ai`.
+Every account calls the same host.
 
 ### Test vs production
 
@@ -53,7 +53,7 @@ Authenticate by passing your API key in the `X-API-Key` header. The request body
 
 <CodeGroup>
 ```bash Production URL
-curl -X POST https://your-decibyl-instance/api/v1/public/agent/{uuid} \
+curl -X POST https://api.decibyl.ai/api/v1/public/agent/{uuid} \
   -H "Content-Type: application/json" \
   -H "X-API-Key: dcb_your_api_key" \
   -d '{
@@ -66,7 +66,7 @@ curl -X POST https://your-decibyl-instance/api/v1/public/agent/{uuid} \
 ```
 
 ```bash Test URL
-curl -X POST https://your-decibyl-instance/api/v1/public/agent/test/{uuid} \
+curl -X POST https://api.decibyl.ai/api/v1/public/agent/test/{uuid} \
   -H "Content-Type: application/json" \
   -H "X-API-Key: dcb_your_api_key" \
   -d '{
@@ -83,7 +83,7 @@ Use the test URL when you want to verify draft changes before publishing.
 
 ### Response
 
-A successful request returns a `workflow_run_id` that you can use to [retrieve run details](/api-reference/runs/get-run), recordings, and transcripts.
+A successful request returns a `workflow_run_id` that you can use to [retrieve run details](/api-reference/calls/get), recordings, and transcripts.
 
 ```json
 {
@@ -136,5 +136,5 @@ By default, calls are placed through your organization's default outbound [telep
 The id is shown on each row in **Telephony configurations** ([app.decibyl.ai/telephony-configurations](https://app.decibyl.ai/telephony-configurations)). The configuration must belong to the same organization as the API Trigger; otherwise the request returns `404`.
 
 <Note>
-For full endpoint details including all parameters and response fields, see the [API reference](/api-reference/runs/trigger).
+For full endpoint details including all parameters and response fields, see the [API reference](/api-reference/calls/start).
 </Note>

@@ -22,6 +22,20 @@
   conventional `src/content/docs/`, because moving them would break every
   `read_doc` path the MCP tools serve.
 
+## The API reference is generated
+
+`api-reference/<family>/<method>.mdx` and the Reference tab of `docs.json`
+come from `scripts/generate-reference.mjs`, which reads the public OpenAPI
+document (`api-reference/openapi.json`) and the FAMILIES map inside the
+script. To document a new operation, add it to the map and run the script;
+to change a method's prose, edit the page below its marker line, which the
+generator keeps. `node scripts/generate-reference.mjs --check` fails when
+the pages or the nav are out of date, and CI runs it.
+
+Every page with an `openapi:` line in its frontmatter renders the method's
+facts, arguments, example, response and errors from the spec through
+`src/components/mintlify/ApiMethod.astro`.
+
 ## Building
 
 ```bash

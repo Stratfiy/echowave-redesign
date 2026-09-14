@@ -1,0 +1,11 @@
+---
+title: "telephony.configs.delete"
+description: "Disconnect a carrier account."
+openapi: "DELETE /api/v1/organizations/telephony-configs/{config_id}"
+---
+
+Disconnect a carrier account.
+
+{/* generated: prose below this line is kept */}
+
+Returns `409 Conflict` if the configuration is referenced by any campaign or phone number. Detach those resources first, then retry.

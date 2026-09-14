@@ -1,29 +1,21 @@
 ---
-title: "Overview"
-description: "Create and manage outbound calling campaigns"
+title: "Campaigns"
+description: "A campaign dials a list with a bot inside a calling window, with retries, the do-not-call list and consent applied on every number."
 ---
 
-A **campaign** runs a workflow against a list of contacts. You upload a CSV of phone numbers, configure retry logic and scheduling, then start the campaign. Decibyl dials contacts automatically up to your configured concurrency limit.
+A campaign dials a list with a bot inside a calling window, with retries, the do-not-call list and consent applied on every number.
 
-| Method | Endpoint | Quick Link |
+| Method | Route | What it does |
 |---|---|---|
-| `POST` | `/s3/presigned-upload-url` | [Upload contacts CSV](/api-reference/campaigns/upload-contacts) |
-| `POST` | `/campaign/create` | [Create a campaign](/api-reference/campaigns/create) |
-| `GET` | `/campaign/` | [List campaigns](/api-reference/campaigns/list) |
-| `GET` | `/campaign/{campaign_id}` | [Get a campaign](/api-reference/campaigns/get) |
-| `PATCH` | `/campaign/{campaign_id}` | [Update a campaign](/api-reference/campaigns/update) |
-| `POST` | `/campaign/{campaign_id}/start` | [Start](/api-reference/campaigns/start) |
-| `POST` | `/campaign/{campaign_id}/pause` | [Pause](/api-reference/campaigns/pause) |
-| `POST` | `/campaign/{campaign_id}/resume` | [Resume](/api-reference/campaigns/resume) |
-| `GET` | `/campaign/{campaign_id}/progress` | [Get campaign progress](/api-reference/campaigns/progress) |
-| `GET` | `/campaign/{campaign_id}/runs` | [Get campaign call runs](/api-reference/campaigns/runs) |
-
-## Campaign status values
-
-| Status | Description |
-|---|---|
-| `draft` | Created but not started |
-| `running` | Actively dialing contacts |
-| `paused` | Temporarily stopped; can be resumed |
-| `completed` | All contacts processed |
-| `failed` | Campaign encountered a fatal error |
+| [`campaigns.create`](/api-reference/campaigns/create) | `POST /api/v1/campaign/create` | Create a campaign from a contact list and a bot. |
+| [`campaigns.list`](/api-reference/campaigns/list) | `GET /api/v1/campaign/` | Every campaign in the account. |
+| [`campaigns.get`](/api-reference/campaigns/get) | `GET /api/v1/campaign/{campaign_id}` | One campaign. |
+| [`campaigns.update`](/api-reference/campaigns/update) | `PATCH /api/v1/campaign/{campaign_id}` | Change a campaign that has not started. |
+| [`campaigns.start`](/api-reference/campaigns/start) | `POST /api/v1/campaign/{campaign_id}/start` | Start dialling. |
+| [`campaigns.pause`](/api-reference/campaigns/pause) | `POST /api/v1/campaign/{campaign_id}/pause` | Pause dialling; calls in progress finish. |
+| [`campaigns.resume`](/api-reference/campaigns/resume) | `POST /api/v1/campaign/{campaign_id}/resume` | Resume a paused campaign. |
+| [`campaigns.redial`](/api-reference/campaigns/redial) | `POST /api/v1/campaign/{campaign_id}/redial` | Dial the numbers that were not reached again. |
+| [`campaigns.progress`](/api-reference/campaigns/progress) | `GET /api/v1/campaign/{campaign_id}/progress` | Dialled, answered, remaining. |
+| [`campaigns.summary`](/api-reference/campaigns/summary) | `GET /api/v1/campaign/{campaign_id}/summary` | Outcomes and cost so far. |
+| [`campaigns.runs`](/api-reference/campaigns/runs) | `GET /api/v1/campaign/{campaign_id}/runs` | Every call the campaign placed. |
+| [`campaigns.report`](/api-reference/campaigns/report) | `GET /api/v1/campaign/{campaign_id}/report` | Download the report. |

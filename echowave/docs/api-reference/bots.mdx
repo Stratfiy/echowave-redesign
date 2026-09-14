@@ -1,0 +1,25 @@
+---
+title: "Bots"
+description: "A bot is a job the business has hired an agent for: answer the phone, confirm orders, chase payments. Create one from a template or a definition, update its draft, publish, and read its versions."
+---
+
+A bot is a job the business has hired an agent for: answer the phone, confirm orders, chase payments. Create one from a template or a definition, update its draft, publish, and read its versions.
+
+| Method | Route | What it does |
+|---|---|---|
+| [`bots.createFromTemplate`](/api-reference/bots/create-from-template) | `POST /api/v1/workflow/create/template` | Describe the bot in plain words and get a working draft. |
+| [`bots.create`](/api-reference/bots/create) | `POST /api/v1/workflow/create/definition` | Create a bot from a full definition. |
+| [`bots.list`](/api-reference/bots/list) | `GET /api/v1/workflow/fetch` | Every bot in the account. |
+| [`bots.summary`](/api-reference/bots/summary) | `GET /api/v1/workflow/summary` | Ids and names only, for pickers. |
+| [`bots.count`](/api-reference/bots/count) | `GET /api/v1/workflow/count` | How many bots the account has. |
+| [`bots.get`](/api-reference/bots/get) | `GET /api/v1/workflow/fetch/{workflow_id}` | One bot: its draft if it has one, else what is live. |
+| [`bots.update`](/api-reference/bots/update) | `PUT /api/v1/workflow/{workflow_id}` | Save the draft. |
+| [`bots.validate`](/api-reference/bots/validate) | `POST /api/v1/workflow/{workflow_id}/validate` | Check a definition before publishing. |
+| [`bots.publish`](/api-reference/bots/publish) | `POST /api/v1/workflow/{workflow_id}/publish` | Make the draft the live version. |
+| [`bots.createDraft`](/api-reference/bots/create-draft) | `POST /api/v1/workflow/{workflow_id}/create-draft` | Start a draft from what is live. |
+| [`bots.versions`](/api-reference/bots/versions) | `GET /api/v1/workflow/{workflow_id}/versions` | Every version, newest first. |
+| [`bots.restoreVersion`](/api-reference/bots/restore-version) | `POST /api/v1/workflow/{workflow_id}/versions/{version_id}/restore` | Copy an older version into the draft. |
+| [`bots.setLive`](/api-reference/bots/set-live) | `PUT /api/v1/workflow/{workflow_id}/live` | Turn a bot on or off for calls. |
+| [`bots.setStatus`](/api-reference/bots/set-status) | `PUT /api/v1/workflow/{workflow_id}/status` | Archive or restore a bot. |
+| [`bots.duplicate`](/api-reference/bots/duplicate) | `POST /api/v1/workflow/{workflow_id}/duplicate` | Copy a bot. |
+| [`bots.callOutcomes`](/api-reference/bots/call-outcomes) | `GET /api/v1/workflow/call-outcomes` | Every outcome label the account's calls can carry. |

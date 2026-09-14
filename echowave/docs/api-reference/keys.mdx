@@ -1,0 +1,13 @@
+---
+title: "API keys"
+description: "Keys that call this API. Create one in the dashboard or here, send it in the X-API-Key header."
+---
+
+Keys that call this API. Create one in the dashboard or here, send it in the X-API-Key header.
+
+| Method | Route | What it does |
+|---|---|---|
+| [`keys.create`](/api-reference/keys/create) | `POST /api/v1/user/api-keys` | Create a key. The value is shown once. |
+| [`keys.list`](/api-reference/keys/list) | `GET /api/v1/user/api-keys` | Every key, by prefix. |
+| [`keys.archive`](/api-reference/keys/archive) | `DELETE /api/v1/user/api-keys/{api_key_id}` | Stop a key. |
+| [`keys.reactivate`](/api-reference/keys/reactivate) | `PUT /api/v1/user/api-keys/{api_key_id}/reactivate` | Start a stopped key again. |

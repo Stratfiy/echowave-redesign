@@ -1,5 +1,5 @@
 import { docsSchema } from "@astrojs/starlight/schema";
-import { defineCollection } from "astro:content";
+import { defineCollection, z } from "astro:content";
 import { glob } from "astro/loaders";
 
 /**
@@ -68,6 +68,12 @@ export const collections = {
         "!integrations/telephony/custom.mdx",
       ],
     }),
-    schema: docsSchema(),
+    schema: docsSchema({
+      // A reference page names the operation it documents ("POST
+      // /api/v1/workflow/create/definition"); the ApiMethod component renders
+      // its arguments, response and errors from the checked-in spec. See
+      // src/remark/inject-components.mjs.
+      extend: z.object({ openapi: z.string().optional() }),
+    }),
   }),
 };

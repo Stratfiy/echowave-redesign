@@ -41,6 +41,7 @@ const COMPONENTS = [
   "Tabs",
   "Tip",
   "Warning",
+  "ApiMethod",
 ];
 
 const IMPORT_SOURCE = "@components/mintlify";
@@ -67,8 +68,41 @@ function collectUsed(tree) {
   return used;
 }
 
+/** The `openapi: METHOD /path` line from the page's YAML frontmatter, if any. */
+function openapiOf(tree) {
+  const yaml = tree.children?.find((node) => node.type === "yaml");
+  if (!yaml) return null;
+  const match = /^openapi:\s*"?([A-Z]+\s+\/\S+?)"?\s*$/m.exec(yaml.value ?? "");
+  return match ? match[1] : null;
+}
+
 export function injectDocComponents() {
-  return (tree) => {
+  return (tree, file) => {
+    // A reference page: the prose is the author's, the anatomy is the spec's.
+    // Appended after the prose so a hand-written paragraph reads first and
+    // the arguments, response and errors follow, the way a Slack method
+    // page is laid out. Astro strips the frontmatter before remark runs and
+    // hands it over on the file; the YAML node is the fallback for a plain
+    // MDX pipeline.
+    const frontmatter = file?.data?.astro?.frontmatter ?? {};
+    const operation =
+      (typeof frontmatter.openapi === "string" && frontmatter.openapi.trim()) ||
+      openapiOf(tree);
+    if (operation) {
+      // A real heading, so the block lands in "On this page".
+      tree.children.push({
+        type: "heading",
+        depth: 2,
+        children: [{ type: "text", value: "Reference" }],
+      });
+      tree.children.push({
+        type: "mdxJsxFlowElement",
+        name: "ApiMethod",
+        attributes: [{ type: "mdxJsxAttribute", name: "op", value: operation }],
+        children: [],
+      });
+    }
+
     const used = collectUsed(tree);
     if (used.size === 0) return;
 

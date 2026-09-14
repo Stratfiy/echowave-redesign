@@ -1,0 +1,20 @@
+---
+title: "Tools and connectors"
+description: "A tool is something a bot can do in outside software: an HTTP call, an MCP server, a connected app. Connectors are the apps the account has signed in to."
+---
+
+A tool is something a bot can do in outside software: an HTTP call, an MCP server, a connected app. Connectors are the apps the account has signed in to.
+
+| Method | Route | What it does |
+|---|---|---|
+| [`tools.create`](/api-reference/tools/create) | `POST /api/v1/tools/` | Create a tool. |
+| [`tools.list`](/api-reference/tools/list) | `GET /api/v1/tools/` | Every tool. |
+| [`tools.get`](/api-reference/tools/get) | `GET /api/v1/tools/{tool_uuid}` | One tool. |
+| [`tools.update`](/api-reference/tools/update) | `PUT /api/v1/tools/{tool_uuid}` | Change a tool. |
+| [`tools.delete`](/api-reference/tools/delete) | `DELETE /api/v1/tools/{tool_uuid}` | Archive a tool. |
+| [`tools.unarchive`](/api-reference/tools/unarchive) | `POST /api/v1/tools/{tool_uuid}/unarchive` | Bring a tool back. |
+| [`tools.refreshMcp`](/api-reference/tools/refresh-mcp) | `POST /api/v1/tools/{tool_uuid}/mcp/refresh` | Re-read an MCP server's tool list. |
+| [`tools.connectors.list`](/api-reference/tools/connectors-list) | `GET /api/v1/connectors` | Apps that can be connected. |
+| [`tools.connectors.connect`](/api-reference/tools/connectors-connect) | `POST /api/v1/connectors/{slug}/connect` | Start connecting an app. |
+| [`tools.connectors.accounts`](/api-reference/tools/connectors-accounts) | `GET /api/v1/connectors/accounts` | Apps the account has connected. |
+| [`tools.connectors.activity`](/api-reference/tools/connectors-activity) | `GET /api/v1/connectors/activity` | What bots did in connected apps. |

@@ -1,0 +1,13 @@
+---
+title: "telephony.configs.create"
+description: "Connect a carrier account."
+openapi: "POST /api/v1/organizations/telephony-configs"
+---
+
+Connect a carrier account.
+
+{/* generated: prose below this line is kept */}
+
+Call [List Supported Providers](/api-reference/telephony/providers) first to discover the credential fields for the provider you want to configure — they vary per provider.
+
+Configuration `name` must be unique within your organization. Set `is_default_outbound: true` to mark this configuration as the org-wide default for outbound calls (any existing default is unset). New configurations have no phone numbers; add them via [Add a phone number](/api-reference/telephony/phone-numbers-create).

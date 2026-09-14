@@ -1,7 +1,11 @@
 ---
-title: "Get Campaign Runs"
-description: "Retrieve individual run records for each contact in a campaign"
+title: "campaigns.runs"
+description: "Every call the campaign placed."
 openapi: "GET /api/v1/campaign/{campaign_id}/runs"
 ---
 
-Returns the individual run records for each contact in the campaign. Each record includes the same fields as [agent run details](/api-reference/runs/get-run), including run status, duration, transcript, and recording URL.
+Every call the campaign placed.
+
+{/* generated: prose below this line is kept */}
+
+Returns the individual run records for each contact in the campaign. Each record includes the same fields as [agent run details](/api-reference/calls/get), including run status, duration, transcript, and recording URL.

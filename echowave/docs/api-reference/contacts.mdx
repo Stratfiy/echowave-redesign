@@ -1,0 +1,21 @@
+---
+title: "Contacts"
+description: "Contact lists feed campaigns. The do-not-call list is checked before every outbound call the account places, whatever started it."
+---
+
+Contact lists feed campaigns. The do-not-call list is checked before every outbound call the account places, whatever started it.
+
+| Method | Route | What it does |
+|---|---|---|
+| [`contacts.lists.create`](/api-reference/contacts/lists-create) | `POST /api/v1/contact-lists` | Create a list. |
+| [`contacts.lists.list`](/api-reference/contacts/lists-list) | `GET /api/v1/contact-lists` | Every list. |
+| [`contacts.lists.update`](/api-reference/contacts/lists-update) | `PATCH /api/v1/contact-lists/{contact_list_id}` | Rename a list. |
+| [`contacts.lists.delete`](/api-reference/contacts/lists-delete) | `DELETE /api/v1/contact-lists/{contact_list_id}` | Delete a list. |
+| [`contacts.uploadUrl`](/api-reference/contacts/upload-url) | `POST /api/v1/s3/presigned-upload-url` | A signed URL to upload a contacts file to, before importing it. |
+| [`contacts.import`](/api-reference/contacts/import) | `POST /api/v1/contact-lists/{contact_list_id}/import` | Import contacts from a file. |
+| [`contacts.list`](/api-reference/contacts/list) | `GET /api/v1/contact-lists/{contact_list_id}/contacts` | Contacts in a list. |
+| [`contacts.delete`](/api-reference/contacts/delete) | `DELETE /api/v1/contact-lists/{contact_list_id}/contacts/{contact_id}` | Remove a contact. |
+| [`contacts.doNotCall.list`](/api-reference/contacts/do-not-call-list) | `GET /api/v1/do-not-call` | Numbers the account will never dial. |
+| [`contacts.doNotCall.add`](/api-reference/contacts/do-not-call-add) | `POST /api/v1/do-not-call` | Add numbers. |
+| [`contacts.doNotCall.upload`](/api-reference/contacts/do-not-call-upload) | `POST /api/v1/do-not-call/upload` | Upload a file of numbers. |
+| [`contacts.doNotCall.remove`](/api-reference/contacts/do-not-call-remove) | `DELETE /api/v1/do-not-call/{phone_number}` | Remove a number. |

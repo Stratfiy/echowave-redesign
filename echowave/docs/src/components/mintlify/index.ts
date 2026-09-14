@@ -9,6 +9,7 @@
  */
 
 export { default as Accordion } from "./Accordion.astro";
+export { default as ApiMethod } from "./ApiMethod.astro";
 export { default as AccordionGroup } from "./AccordionGroup.astro";
 export { default as Card } from "./Card.astro";
 export { default as CardGroup } from "./CardGroup.astro";

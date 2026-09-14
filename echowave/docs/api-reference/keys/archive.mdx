@@ -1,0 +1,11 @@
+---
+title: "keys.archive"
+description: "Stop a key."
+openapi: "DELETE /api/v1/user/api-keys/{api_key_id}"
+---
+
+Stop a key.
+
+{/* generated: prose below this line is kept */}
+
+Archiving immediately revokes the key. Any request using the key after archiving returns `401`. Use [Reactivate](/api-reference/keys/reactivate) to restore access.
