@@ -141,6 +141,18 @@ async def run(
         if not text:
             raise NotTranslatable("The document has no text to translate.")
         translated, _ = await translation.translate(text, target=target)
+        # A translated document is billed like any translation: one credit
+        # per 100 characters, keyed on the new document so a retried job
+        # charges it once (KAN-104).
+        from api.services.billing import events as billing_events
+
+        await billing_events.charge_in_own_session(
+            organization_id=organization_id,
+            event=billing_events.TRANSLATION,
+            ref_id=f"doc:{document.id}",
+            quantity=billing_events.translation_quantity(text),
+            note=f"document {document.filename[:60]} to {target}",
+        )
         key = (document.custom_metadata or {}).get(
             "s3_key"
         ) or upload_keys.build_document_key(

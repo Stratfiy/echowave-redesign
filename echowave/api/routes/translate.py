@@ -8,6 +8,7 @@ is not a tool.
 from __future__ import annotations
 
 from typing import Optional
+from uuid import uuid4
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -16,6 +17,7 @@ from pydantic import BaseModel, Field
 from api.db.models import UserModel
 from api.services import translation
 from api.services.auth.depends import get_user
+from api.services.billing import events as billing_events
 
 router = APIRouter(prefix="/translate", tags=["translate"])
 
@@ -62,6 +64,15 @@ async def translate_text(
         raise HTTPException(
             status_code=502, detail=f"Translation failed: {exc}"
         ) from exc
+    # One credit per 100 characters of input, rounded up (KAN-104). Charged
+    # only when Sarvam actually ran, which it has by here.
+    await billing_events.charge_in_own_session(
+        organization_id=user.selected_organization_id,
+        event=billing_events.TRANSLATION,
+        ref_id=f"tr:{uuid4()}",
+        quantity=billing_events.translation_quantity(body.text),
+        note=f"{mode} to {body.target_language_code}",
+    )
     return TranslateResponse(
         text=text,
         source_language_code=source,

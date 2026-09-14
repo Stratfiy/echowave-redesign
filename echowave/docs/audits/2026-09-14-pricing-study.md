@@ -636,3 +636,33 @@ credits; this step applies it, and pays it in six tranches rather than one:
 - **Verification moves to the door.** Email/password signups enter the code
   before the workspace; Google and Stack accounts pass straight through.
 
+## 21. Notes from the pricing decisions of 14 September (KAN-47)
+
+Seven decisions taken one at a time, each recorded on KAN-47, applied here.
+
+- **Voice ladder.** 13 / 12 / 11 credits an Indic minute on Business /
+  Growth / Scale (₹6.50 / 6.00 / 5.50), up from 12 / 11 / 10. Everyday is
+  text-only; were it ever given voice it would sit at 14. Margin at the
+  ₹2.78 modelled minute: 57% to 49%. Market (Aug 2026): Trikon ₹5 flat,
+  Bolna ₹5.52 pay-as-you-go, Agni ₹10 effective on bundle. The 15-second
+  pulse keeps ₹6.50 competitive on short calls against whole-minute rounding.
+- **Overage.** Past plan credits, a minute costs one credit more, paid from
+  top-ups; Scale never pays more. Replaces "next tier's rate", which the
+  code read as the cheaper rung above. Each run records
+  ``overage_applied``, and the KPI board's "overage credits billed" row is
+  now measured.
+- **Packs.** ₹999 → 2,000, ₹4,999 → 10,500, ₹19,999 → 44,000. The ₹500 pack
+  is gated to Campus and staff-marked early adopters (with an end date).
+  Free amounts start at ₹1,000 in ₹100 steps. USD packs ($12 / $60 / $240)
+  are decided and wait on dollar orders from the gateway.
+- **Premium connectors** are systems of record, 3 credits a call; the
+  default list ships in code and the env var replaces it.
+- **Empty knowledge answers** are billed as a 1-credit reply when retrieval
+  returned nothing; never free.
+- **Scale** stays at 60,000 credits with the margin guard: managed voice by
+  default, premium voices at the 1.4x multiplier, and a move to 50,000 if
+  the measured Indic minute settles above ₹3.20.
+- **Translation** (KAN-104): 1 credit per 100 characters, rounded up per
+  message, only when Sarvam actually runs.
+- **Referrals and promo codes** are stories KAN-133 and KAN-134.
+

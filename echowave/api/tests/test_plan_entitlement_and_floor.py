@@ -391,7 +391,8 @@ class TestCallingStopsAtTheFloor:
         # "Out of credit" to an account showing ₹18 reads as our arithmetic
         # being wrong rather than as something they can fix.
         assert "₹20" in message
-        assert "₹100" in message
+        # Free amounts start at ₹1,000 since the 14 Sept decisions (KAN-47).
+        assert "₹1,000" in message
 
 
 class TestTopUpsComeInSteps:
@@ -399,7 +400,7 @@ class TestTopUpsComeInSteps:
         """A floor that is not a multiple of the step is a floor nobody can pay."""
         assert constants.MIN_TOPUP_PAISE % constants.TOPUP_INCREMENT_PAISE == 0
 
-    @pytest.mark.parametrize("amount", [10_000, 20_000, 100_000])
+    @pytest.mark.parametrize("amount", [100_000, 200_000, 1_000_000])
     async def test_a_whole_step_is_accepted(self, async_session, amount):
         from api.services.billing.payments import PaymentError, create_topup_order
 
@@ -416,7 +417,8 @@ class TestTopUpsComeInSteps:
             )
         assert "steps of" not in str(caught.value)
 
-    @pytest.mark.parametrize("amount", [13_700, 10_001, 99_999])
+    # Above the ₹1,000 minimum, so the step rule is the one that fires.
+    @pytest.mark.parametrize("amount", [113_700, 100_001, 199_999])
     async def test_anything_else_is_refused_with_the_next_step_named(
         self, async_session, amount
     ):

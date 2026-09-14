@@ -31,6 +31,7 @@ class TestThePrices:
             "tool_call_premium": 3,
             "builder_message": 5,
             "number_verification": 2,
+            "translation": 1,
         }
         assert events.FREE_NUMBER_VERIFICATIONS == 2
         assert limits.PAST_ALLOWANCE_CREDITS == 5
@@ -91,8 +92,14 @@ class TestThePrices:
         assert events.tool_call_event("gmail") == events.TOOL_CALL
         assert events.tool_call_event(None) == events.TOOL_CALL
 
-    def test_nothing_is_premium_until_decided(self):
-        assert events.PREMIUM_CONNECTORS == frozenset()
+    def test_systems_of_record_are_premium_by_default(self):
+        """Decided 14 Sept (KAN-47): CRMs, ERP and accounting, commerce and
+        logistics, payments, helpdesks. The env var replaces the list."""
+        assert events.PREMIUM_CONNECTORS == events.DEFAULT_PREMIUM_CONNECTORS
+        assert {"salesforce", "tally", "shopify", "razorpay", "zendesk"} <= (
+            events.PREMIUM_CONNECTORS
+        )
+        assert "gmail" not in events.PREMIUM_CONNECTORS
 
 
 class TestTheMonth:

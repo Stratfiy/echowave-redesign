@@ -27,7 +27,7 @@ migration that then drifts from them.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -55,6 +55,11 @@ class BundleSeed:
     llm_tier: str | None = None
     realtime_tier: str | None = None
     display_order: int = 0
+    #: The one number a minute (paise) and its per-plan figures, when the
+    #: bundle sells at a flat rate. Everyday carries the decided ladder
+    #: (KAN-47): 13 / 12 / 11 credits on Business / Growth / Scale.
+    list_paise_per_minute: int | None = None
+    plan_rates: dict = field(default_factory=dict)
 
 
 #: What ships. Three cards, and the names describe **how the agent responds**
@@ -73,6 +78,8 @@ _SEEDS = (
         tts_tier="default",
         llm_tier=None,
         display_order=10,
+        list_paise_per_minute=650,
+        plan_rates={"business": 650, "growth": 600, "scale": 550},
     ),
     BundleSeed(
         slug="natural",

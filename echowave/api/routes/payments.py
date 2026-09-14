@@ -200,6 +200,7 @@ async def get_balance(user: UserModel = Depends(get_user)) -> dict[str, Any]:
         # The two pools (KAN-55): the plan's credits, which expire with the
         # cycle and are spent first, and top-ups, which never expire.
         pools = await plans.pool_balances(session, organization_id=organization_id)
+        packs = await topup_packs.packs_for(session, organization_id=organization_id)
     async with db_client.async_session() as session:
         burn = await topup_nudge.daily_burn_paise(
             session, organization_id=organization_id
@@ -218,7 +219,7 @@ async def get_balance(user: UserModel = Depends(get_user)) -> dict[str, Any]:
         "plan_credits": credits.credits_of_balance(pools.plan_paise),
         "topup_credits": credits.credits_of_balance(pools.topup_paise),
         # What can be bought outright. Top-up credits never expire.
-        "packs": topup_packs.packs_as_dicts(),
+        "packs": packs,
         "paise_per_credit": credits.PAISE_PER_CREDIT,
         "min_balance_credits": credits.credits_for_charge(MIN_BALANCE_PAISE),
         "suggested_topup_credits": (

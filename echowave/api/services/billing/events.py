@@ -37,6 +37,10 @@ BUILDER_MESSAGE = "builder_message"
 #: Verifying a phone number by a voice call that reads the code out. The
 #: first ``FREE_NUMBER_VERIFICATIONS`` numbers an account verifies are free.
 NUMBER_VERIFICATION = "number_verification"
+#: Sarvam translate or transliterate, per 100 characters rounded up (KAN-104).
+TRANSLATION = "translation"
+#: The unit a translation is billed in.
+TRANSLATION_CHARS_PER_CREDIT = 100
 FREE_NUMBER_VERIFICATIONS = 2
 
 #: Credits per event. Decided 14 Sept 2026 (KAN-47, study §11); a change here
@@ -49,6 +53,7 @@ EVENT_CREDITS: dict[str, int] = {
     TOOL_CALL_PREMIUM: 3,
     BUILDER_MESSAGE: 5,
     NUMBER_VERIFICATION: 2,
+    TRANSLATION: 1,
 }
 
 #: What each event is called on a statement.
@@ -60,15 +65,55 @@ EVENT_LABELS: dict[str, str] = {
     TOOL_CALL_PREMIUM: "Tool call (premium connector)",
     BUILDER_MESSAGE: "Builder message past the allowance",
     NUMBER_VERIFICATION: "Number verification past the first two",
+    TRANSLATION: "Translation",
 }
 
-#: Connector toolkit slugs billed at the premium rate. Empty until the list
-#: is decided (open on KAN-47); ``PREMIUM_CONNECTORS=salesforce,sap`` names
-#: them without a release. Lower-case slugs, as Composio names them.
-PREMIUM_CONNECTORS: frozenset[str] = frozenset(
-    s.strip().lower()
-    for s in os.getenv("PREMIUM_CONNECTORS", "").split(",")
-    if s.strip()
+#: Connector toolkit slugs billed at the premium rate. ``PREMIUM_CONNECTORS=
+#: salesforce,sap`` replaces the default list without a release. Lower-case
+#: slugs, as Composio names them.
+#: Decided 14 Sept (KAN-47): "reading or writing a system your business runs
+#: on is 3 credits; everything else is 1." CRMs, ERP and accounting, commerce
+#: and logistics, payments, helpdesk. Composio toolkit slugs; a slug not in
+#: Composio's catalogue simply never matches, and the docs list is the one a
+#: customer reads.
+DEFAULT_PREMIUM_CONNECTORS: frozenset[str] = frozenset(
+    {
+        # CRM
+        "salesforce",
+        "hubspot",
+        "zoho_crm",
+        "zoho_bigin",
+        "freshsales",
+        "leadsquared",
+        # ERP and accounting
+        "sap",
+        "tally",
+        "zoho_books",
+        "zoho_invoice",
+        "quickbooks",
+        # Commerce and logistics
+        "shopify",
+        "woocommerce",
+        "shiprocket",
+        "delhivery",
+        # Payments
+        "razorpay",
+        "stripe",
+        "cashfree",
+        # Helpdesk
+        "zendesk",
+        "freshdesk",
+        "zoho_desk",
+    }
+)
+
+PREMIUM_CONNECTORS: frozenset[str] = (
+    frozenset(
+        s.strip().lower()
+        for s in os.getenv("PREMIUM_CONNECTORS", "").split(",")
+        if s.strip()
+    )
+    or DEFAULT_PREMIUM_CONNECTORS
 )
 
 #: The function name of knowledge-base retrieval, as the runner records it
@@ -136,8 +181,42 @@ def turn_used_knowledge(turn: dict | None) -> bool:
     return False
 
 
+def turn_found_knowledge(turn: dict | None) -> bool:
+    """Whether retrieval on this turn actually found something.
+
+    A knowledge answer is 2 credits; when the documents had nothing on it the
+    reply is billed as a plain reply, 1 credit (KAN-47, 14 Sept). The tool
+    reports ``status`` on its result (``ok``, ``no_match``, ``unavailable``),
+    and the runner records that result on the turn. A turn with a call and
+    no recorded result (an older session) is taken as found, which is the
+    price the customer was always charged.
+    """
+    started = False
+    for event in (turn or {}).get("events") or []:
+        if not isinstance(event, dict):
+            continue
+        payload = event.get("payload") or {}
+        if payload.get("function_name") != KNOWLEDGE_TOOL_NAME:
+            continue
+        if event.get("type") == "tool_call_started":
+            started = True
+        elif event.get("type") == "tool_call_result":
+            result = payload.get("result")
+            if isinstance(result, dict):
+                return result.get("status", "ok") == "ok"
+    return started
+
+
 def event_for_turn(turn: dict | None) -> str:
-    return KNOWLEDGE_ANSWER if turn_used_knowledge(turn) else TEXT_REPLY
+    if not turn_used_knowledge(turn):
+        return TEXT_REPLY
+    return KNOWLEDGE_ANSWER if turn_found_knowledge(turn) else TEXT_REPLY
+
+
+def translation_quantity(text: str | None) -> int:
+    """How many 100-character units a translation is billed as, minimum 1."""
+    chars = len(text or "")
+    return max(1, -(-chars // TRANSLATION_CHARS_PER_CREDIT))
 
 
 def last_turn_of(text_session) -> dict | None:

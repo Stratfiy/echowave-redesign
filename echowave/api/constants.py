@@ -607,7 +607,7 @@ GOOGLE_CALENDAR_DEFAULT_TIMEZONE = os.getenv(
 # Bounds on a single top-up. The floor keeps card fees from exceeding the
 # credit bought; the ceiling is a guard against a mistyped amount, not a
 # business limit — raise it deliberately for an enterprise invoice.
-MIN_TOPUP_PAISE = int(os.getenv("MIN_TOPUP_PAISE", "10000"))  # Rs 100
+MIN_TOPUP_PAISE = int(os.getenv("MIN_TOPUP_PAISE", "100000"))  # Rs 1,000 (KAN-47)
 MAX_TOPUP_PAISE = int(os.getenv("MAX_TOPUP_PAISE", "50000000"))  # Rs 5,00,000
 
 # The floor on an account's **first** top-up, which is a different question from

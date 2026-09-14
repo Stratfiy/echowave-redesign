@@ -1,4 +1,4 @@
-"""Top-up packs that never expire, and voice overage at the next tier's rate.
+"""Top-up packs that never expire, and voice overage at one credit more.
 
 Arrival tests for KAN-55. The acceptance case, verbatim: a Business account
 with 0 plan credits and 2,000 top-up credits completes a call and is charged
@@ -26,7 +26,7 @@ from api.db.models import (
 )
 from api.enums import CreditLedgerKind, MandateStatus
 from api.services.billing import payments, plans, subscription_plans, topup_packs
-from api.services.billing.credits import PAISE_PER_CREDIT, credits_for_charge
+from api.services.billing.credits import credits_for_charge
 from api.services.billing.mandates import PURPOSE_STARTER_PLAN
 
 WEBHOOK_SECRET = "whsec_packs"
@@ -35,29 +35,30 @@ WEBHOOK_SECRET = "whsec_packs"
 class TestThePacks:
     def test_the_four_packs_and_their_credits(self):
         by = {p.price_paise // 100: p.credits for p in topup_packs.PACKS}
-        assert by == {500: 1_000, 1_000: 2_000, 5_000: 10_500, 20_000: 44_000}
+        assert by == {500: 1_000, 999: 2_000, 4_999: 10_500, 19_999: 44_000}
 
     def test_the_ratio_rises_with_the_pack(self):
         ratios = [p.credits / (p.price_paise / 100) for p in topup_packs.PACKS]
         assert ratios == sorted(ratios)
-        assert ratios[0] == 2.0 and ratios[-1] == 2.2
+        assert round(ratios[0], 2) == 2.0 and round(ratios[-1], 2) == 2.2
 
     def test_the_bonus_is_the_balance_above_face(self):
         assert topup_packs.pack_for("p500").bonus_paise == 0
-        assert topup_packs.pack_for("p5000").bonus_paise == 500 * PAISE_PER_CREDIT
-        assert topup_packs.pack_for("p20000").bonus_credits == 4_000
+        assert topup_packs.pack_for("p4999").bonus_paise == 25_100
+        assert topup_packs.pack_for("p19999").bonus_credits == 4_002
 
     def test_an_unknown_pack_is_none(self):
-        assert topup_packs.pack_for("p999") is None
+        assert topup_packs.pack_for("p1000") is None
         assert topup_packs.pack_for("") is None
 
     def test_the_dicts_the_screen_reads(self):
         rows = topup_packs.packs_as_dicts()
-        assert rows[2] == {
-            "code": "p5000",
-            "price_paise": 500_000,
+        assert rows[1] == {
+            "code": "p4999",
+            "price_paise": 499_900,
             "credits": 10_500,
-            "bonus_credits": 500,
+            "bonus_credits": 502,
+            "restricted": False,
         }
 
 
@@ -220,8 +221,8 @@ class TestAPackLandsWithItsBonus:
         self, db_session, async_session
     ):
         org = await _org(async_session, "pack5k")
-        await self._pack_order(async_session, org, order_id="order_P5", code="p5000")
-        body = _event(order_id="order_P5", payment_id="pay_P5", amount=500_000)
+        await self._pack_order(async_session, org, order_id="order_P5", code="p4999")
+        body = _event(order_id="order_P5", payment_id="pay_P5", amount=499_900)
         result = await payments.handle_webhook(
             async_session, raw_body=body, signature=_sign(body)
         )
@@ -231,7 +232,7 @@ class TestAPackLandsWithItsBonus:
         )
         assert entry.kind == CreditLedgerKind.TOPUP.value
         assert entry.delta_paise == 525_000
-        assert "500 bonus credits" in entry.note
+        assert "502 bonus credits" in entry.note
         pools = await plans.pool_balances(async_session, organization_id=org.id)
         assert pools.topup_paise == 525_000
 
@@ -239,8 +240,8 @@ class TestAPackLandsWithItsBonus:
         self, db_session, async_session
     ):
         org = await _org(async_session, "packshort")
-        await self._pack_order(async_session, org, order_id="order_PS", code="p20000")
-        body = _event(order_id="order_PS", payment_id="pay_PS", amount=1_000_000)
+        await self._pack_order(async_session, org, order_id="order_PS", code="p19999")
+        body = _event(order_id="order_PS", payment_id="pay_PS", amount=999_950)
         result = await payments.handle_webhook(
             async_session, raw_body=body, signature=_sign(body)
         )
@@ -303,7 +304,7 @@ class TestTheOrderRefusesWhatItShould:
             await payments.create_topup_order(
                 async_session,
                 organization_id=org.id,
-                pack_code="p1000",
+                pack_code="p999",
                 created_by=None,
             )
         assert "2,000 top-up credits" in str(excinfo.value)
@@ -317,8 +318,8 @@ class TestTheOrderRefusesWhatItShould:
 @pytest.mark.asyncio
 class TestOverageAtTheNextTiersRate:
     """The acceptance case. A Business account, plan credits gone, 2,000
-    top-up credits, one minute on the Everyday bundle: 11 credits, from the
-    top-up pool."""
+    top-up credits, one minute on the Everyday bundle: 14 credits (13 plus
+    one), from the top-up pool. Scale, the last rung, stays at 11."""
 
     async def _business_with_a_bundle(self, session, monkeypatch, slug: str):
         from api.services.configuration import agent_options, bundles
@@ -330,8 +331,8 @@ class TestOverageAtTheNextTiersRate:
         row = await session.scalar(
             select(ManagedBundleModel).where(ManagedBundleModel.slug == "everyday")
         )
-        row.list_paise_per_minute = 600
-        row.plan_rates = {"business": 600, "growth": 550, "scale": 500}
+        row.list_paise_per_minute = 650
+        row.plan_rates = {"business": 650, "growth": 600, "scale": 550}
         await session.flush()
 
         async def _everyday(*, organization_id):
@@ -374,7 +375,7 @@ class TestOverageAtTheNextTiersRate:
         await session.flush()
         return run
 
-    async def test_a_business_account_out_of_plan_credits_pays_growths_eleven(
+    async def test_a_business_account_out_of_plan_credits_pays_one_more(
         self, db_session, async_session, monkeypatch
     ):
         from api.services.billing.costing import cost_workflow_run
@@ -392,12 +393,13 @@ class TestOverageAtTheNextTiersRate:
         run = await self._one_minute_run(async_session, workflow)
         cost = await cost_workflow_run(async_session, run.id)
 
-        assert credits_for_charge(cost.total_charged_paise) == 11
+        assert credits_for_charge(cost.total_charged_paise) == 14
+        assert run.overage_applied is True
         pools = await plans.pool_balances(async_session, organization_id=org.id)
         assert pools.plan_paise == 0
-        assert pools.topup_paise == 100_000 - 550
+        assert pools.topup_paise == 100_000 - 700
 
-    async def test_inside_the_plan_the_same_call_is_twelve(
+    async def test_inside_the_plan_the_same_call_is_thirteen(
         self, db_session, async_session, monkeypatch
     ):
         from api.services.billing.costing import cost_workflow_run
@@ -410,7 +412,8 @@ class TestOverageAtTheNextTiersRate:
         )
         run = await self._one_minute_run(async_session, workflow)
         cost = await cost_workflow_run(async_session, run.id)
-        assert credits_for_charge(cost.total_charged_paise) == 12
+        assert credits_for_charge(cost.total_charged_paise) == 13
+        assert not run.overage_applied
 
     async def test_scale_pays_its_own_rate_on_overage(
         self, db_session, async_session, monkeypatch
@@ -430,4 +433,5 @@ class TestOverageAtTheNextTiersRate:
         await _entry(async_session, org, delta=100_000, kind=CreditLedgerKind.TOPUP)
         run = await self._one_minute_run(async_session, workflow)
         cost = await cost_workflow_run(async_session, run.id)
-        assert credits_for_charge(cost.total_charged_paise) == 10
+        assert credits_for_charge(cost.total_charged_paise) == 11
+        assert not run.overage_applied
