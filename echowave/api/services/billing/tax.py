@@ -31,7 +31,9 @@ different rather than three names for 18%:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, date, datetime
 
+from api import constants
 from api.constants import (
     GST_RATE_BASIS_POINTS,
     SUPPLIER_HAS_LUT,
@@ -166,12 +168,39 @@ def resolve_place_of_supply(
     return "inter_state", customer_state
 
 
+def lut_valid_until() -> date | None:
+    """When the filed LUT lapses, or None when not tracked."""
+    raw = (constants.SUPPLIER_LUT_VALID_UNTIL or "").strip()
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        return None
+
+
+def lut_is_valid(on: date | None = None) -> bool:
+    """Whether exports can be zero-rated today: an LUT on file and not lapsed.
+
+    A lapsed LUT is the expensive silent failure — every export invoice after
+    the lapse owes IGST plus interest — so the date is checked on every
+    export supply rather than once at configuration.
+    """
+    if not SUPPLIER_HAS_LUT:
+        return False
+    until = lut_valid_until()
+    if until is None:
+        return True
+    return (on or datetime.now(UTC).date()) <= until
+
+
 def compute_tax(
     *,
     taxable_paise: int,
     country_code: str | None,
     state_code: str | None,
     rate_basis_points: int | None = None,
+    on: date | None = None,
 ) -> TaxBreakdown:
     """Tax one supply of ``taxable_paise``, net of tax.
 
@@ -196,6 +225,12 @@ def compute_tax(
                 "Exports cannot be zero-rated without an LUT on file. Set "
                 "SUPPLIER_HAS_LUT once the LUT is filed, or bill this account "
                 "as domestic."
+            )
+        if not lut_is_valid(on):
+            raise TaxError(
+                f"The LUT on file lapsed on {lut_valid_until()}. File the new "
+                "financial year's LUT and set SUPPLIER_LUT_VALID_UNTIL before "
+                "invoicing an export."
             )
         return TaxBreakdown(
             taxable_paise=taxable_paise,

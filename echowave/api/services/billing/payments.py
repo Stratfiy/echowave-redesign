@@ -964,6 +964,20 @@ def _report_topup(
     )
 
 
+async def record_firc(
+    session: AsyncSession, *, payment_id: int, reference: str
+) -> PaymentModel:
+    """Record the FIRC/FIRA reference against an export payment (KAN-80)."""
+    payment = await session.get(PaymentModel, payment_id)
+    if payment is None:
+        raise PaymentError("No such payment.")
+    if payment.status != "paid":
+        raise PaymentError("A FIRC belongs to a captured payment.")
+    payment.firc_reference = (reference or "").strip()[:64] or None
+    await session.flush()
+    return payment
+
+
 async def current_balance_paise(session: AsyncSession, *, organization_id: int) -> int:
     """Balance derived from the ledger.
 
@@ -1005,6 +1019,7 @@ async def list_payments(
                 else 0
             ),
             "status": r.status,
+            "firc_reference": getattr(r, "firc_reference", None),
             "created_at": r.created_at.isoformat() if r.created_at else None,
             "paid_at": r.paid_at.isoformat() if r.paid_at else None,
         }

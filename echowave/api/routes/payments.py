@@ -105,6 +105,66 @@ class BillingProfileRequest(BaseModel):
     postal_code: str | None = Field(None, max_length=16)
     country_code: str = Field("IN", min_length=2, max_length=2)
     billing_email: str | None = Field(None, max_length=320)
+    #: Printed on every document for an enterprise accounts team (KAN-80).
+    po_number: str | None = Field(None, max_length=64)
+    payment_terms: str | None = Field(None, max_length=128)
+
+
+def _profile_dict(profile) -> dict[str, Any]:
+    return {
+        "legal_name": profile.legal_name,
+        "gstin": profile.gstin,
+        "address_line1": profile.address_line1,
+        "address_line2": profile.address_line2,
+        "city": profile.city,
+        "state_code": profile.state_code,
+        "postal_code": profile.postal_code,
+        "country_code": profile.country_code,
+        "billing_email": profile.billing_email,
+        "po_number": profile.po_number,
+        "payment_terms": profile.payment_terms,
+    }
+
+
+#: Plans a business is expected to hold a GSTIN for. Everyday and Free are
+#: sold to sole traders too, so the GSTIN is optional there; from Business up
+#: the invoice is a B2B supply and needs the customer's GSTIN to be filed as
+#: one (KAN-80).
+GSTIN_REQUIRED_FROM = frozenset({"business", "growth", "scale", "campus"})
+
+
+async def _assert_profile_for_plan(session, *, organization_id: int, plan) -> None:
+    """Who the invoice is made out to, before a bank is asked to collect.
+
+    A domestic account from Business up is a B2B supply and needs its GSTIN
+    on the tax invoice; every plan needs a complete profile, since the first
+    collection issues a document (KAN-80). 402, with the way out named.
+    """
+    profile = await billing_profile.get_profile(
+        session, organization_id=organization_id
+    )
+    if not profile.is_complete:
+        raise HTTPException(
+            status_code=402,
+            detail=(
+                "Add your billing details (legal name, address and state) "
+                "under Billing before starting a plan: the first collection "
+                "issues a tax document made out to them."
+            ),
+        )
+    if (
+        plan.code in GSTIN_REQUIRED_FROM
+        and not profile.is_export
+        and not (profile.gstin or "").strip()
+    ):
+        raise HTTPException(
+            status_code=402,
+            detail=(
+                f"The {getattr(plan, 'name', None) or plan.code.capitalize()} plan "
+                "is invoiced as a business supply and needs your GSTIN under "
+                "Billing. Everyday does not."
+            ),
+        )
 
 
 def _organization_id(user: UserModel) -> int:
@@ -284,17 +344,7 @@ async def get_billing_profile(user: UserModel = Depends(get_user)) -> dict[str, 
             session, organization_id=organization_id
         )
     return {
-        "profile": {
-            "legal_name": profile.legal_name,
-            "gstin": profile.gstin,
-            "address_line1": profile.address_line1,
-            "address_line2": profile.address_line2,
-            "city": profile.city,
-            "state_code": profile.state_code,
-            "postal_code": profile.postal_code,
-            "country_code": profile.country_code,
-            "billing_email": profile.billing_email,
-        },
+        "profile": _profile_dict(profile),
         "is_complete": profile.is_complete,
         "is_export": profile.is_export,
         "gst_rate_basis_points": GST_RATE_BASIS_POINTS,
@@ -320,17 +370,7 @@ async def save_billing_profile(
         await session.commit()
 
     return {
-        "profile": {
-            "legal_name": profile.legal_name,
-            "gstin": profile.gstin,
-            "address_line1": profile.address_line1,
-            "address_line2": profile.address_line2,
-            "city": profile.city,
-            "state_code": profile.state_code,
-            "postal_code": profile.postal_code,
-            "country_code": profile.country_code,
-            "billing_email": profile.billing_email,
-        },
+        "profile": _profile_dict(profile),
         "is_complete": profile.is_complete,
         "is_export": profile.is_export,
     }
@@ -866,6 +906,9 @@ async def subscribe_to_plan(
             raise HTTPException(
                 status_code=400, detail="That plan has no annual option."
             )
+        await _assert_profile_for_plan(
+            session, organization_id=organization_id, plan=plan
+        )
 
         try:
             mandate = await mandate_service.create_plan_mandate(

@@ -52,6 +52,7 @@ from api.constants import (
     SUPPLIER_GSTIN,
     SUPPLIER_HAS_LUT,
     SUPPLIER_LEGAL_NAME,
+    SUPPLIER_LUT_NUMBER,
     SUPPLIER_STATE_CODE,
 )
 from api.db.models import (
@@ -89,6 +90,66 @@ TEST_KEY_PREFIX = "rzp_test_"
 #: services/billing/documents.py rather than imported, because importing that
 #: module pulls in the whole issuing path for what is a read-only check.
 RECEIPT_VOUCHER = "receipt_voucher"
+
+
+def _lut_check() -> Check:
+    """Exports are zero-rated only under an LUT that has not lapsed (KAN-80)."""
+    from api.services.billing import tax as tax_rules
+
+    if not SUPPLIER_HAS_LUT:
+        return Check(
+            key="lut",
+            title="LUT for zero-rated exports",
+            status=UNKNOWN,
+            detail=(
+                "No LUT on file; export accounts cannot be sold. Domestic is "
+                "unaffected."
+            ),
+            reference="CGST Rules r96A — export under LUT",
+            remedy=(
+                "File the LUT on the GST portal, then set SUPPLIER_HAS_LUT, "
+                "SUPPLIER_LUT_NUMBER and SUPPLIER_LUT_VALID_UNTIL."
+            ),
+        )
+    until = tax_rules.lut_valid_until()
+    if until is None:
+        return Check(
+            key="lut",
+            title="LUT for zero-rated exports",
+            status=ACTION_REQUIRED,
+            detail=(
+                "The LUT's expiry is not tracked, so a lapse would not be noticed "
+                "until IGST plus interest is owed on every export after it."
+            ),
+            reference="CGST Rules r96A — an LUT is valid for the financial year",
+            remedy=(
+                "Set SUPPLIER_LUT_VALID_UNTIL (ISO date) to the end of the "
+                "financial year it was filed for."
+            ),
+        )
+    valid = tax_rules.lut_is_valid()
+    return Check(
+        key="lut",
+        title="LUT for zero-rated exports",
+        status=READY if valid else ACTION_REQUIRED,
+        detail=(
+            f"LUT {SUPPLIER_LUT_NUMBER or '(no number)'} valid to {until.isoformat()}."
+            if valid
+            else (
+                f"The LUT lapsed on {until.isoformat()}; export invoices are "
+                "refused until the new one is filed."
+            )
+        ),
+        reference="CGST Rules r96A — export under LUT",
+        remedy=(
+            ""
+            if valid
+            else (
+                "File the new financial year's LUT and update "
+                "SUPPLIER_LUT_NUMBER and SUPPLIER_LUT_VALID_UNTIL."
+            )
+        ),
+    )
 
 
 def _supplier_checks() -> list[Check]:
@@ -197,6 +258,7 @@ def _supplier_checks() -> list[Check]:
         )
     )
 
+    checks.append(_lut_check())
     return checks
 
 
