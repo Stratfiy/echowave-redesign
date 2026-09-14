@@ -608,6 +608,16 @@ GOOGLE_CALENDAR_DEFAULT_TIMEZONE = os.getenv(
 # credit bought; the ceiling is a guard against a mistyped amount, not a
 # business limit — raise it deliberately for an enterprise invoice.
 MIN_TOPUP_PAISE = int(os.getenv("MIN_TOPUP_PAISE", "100000"))  # Rs 1,000 (KAN-47)
+# Whether dollar top-ups may be placed (KAN-135). Off until Razorpay approves
+# international payments on the account: the packs are decided and the code is
+# live, but a dollar order placed before the gateway takes dollars is refused
+# by the gateway with a message that reads as our fault. Set to true once the
+# application is approved.
+USD_TOPUPS_ENABLED = os.getenv("USD_TOPUPS_ENABLED", "false").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+)
 MAX_TOPUP_PAISE = int(os.getenv("MAX_TOPUP_PAISE", "50000000"))  # Rs 5,00,000
 
 # The floor on an account's **first** top-up, which is a different question from

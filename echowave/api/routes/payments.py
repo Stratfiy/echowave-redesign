@@ -208,6 +208,15 @@ async def get_balance(user: UserModel = Depends(get_user)) -> dict[str, Any]:
         burn = await topup_nudge.daily_burn_paise(
             session, organization_id=organization_id
         )
+    topups_enabled = payments.is_configured() and payments.webhook_is_configured()
+    topups_unavailable_reason: str | None = None
+    if (
+        topups_enabled
+        and currency == topup_packs.USD
+        and not payments.usd_topups_enabled()
+    ):
+        topups_enabled = False
+        topups_unavailable_reason = payments.USD_TOPUPS_PENDING_MESSAGE
     suggested = topup_nudge.suggest(
         balance_paise=balance,
         daily_burn_paise=burn,
@@ -236,7 +245,10 @@ async def get_balance(user: UserModel = Depends(get_user)) -> dict[str, Any]:
         # chip shows instead of "running low".
         "daily_burn_paise": burn,
         "suggested_topup_paise": suggested,
-        "topups_enabled": payments.is_configured() and payments.webhook_is_configured(),
+        "topups_enabled": topups_enabled,
+        # Why not, when not, in the customer's words. A dollar account before
+        # the gateway takes dollars is told that, not "unavailable".
+        "topups_unavailable_reason": topups_unavailable_reason,
         "min_topup_paise": min_topup,
         "max_topup_paise": MAX_TOPUP_PAISE,
         # The step the amount picker moves in, and the balance at which calling

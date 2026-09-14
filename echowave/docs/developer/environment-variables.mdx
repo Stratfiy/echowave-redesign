@@ -193,6 +193,7 @@ is billed at the published rate. These variables are what make that work.
 |---|---|---|
 | `PLATFORM_CREDENTIAL_SECRET` | — | Fernet key that encrypts platform provider keys at rest. Without it no key can be stored, so no slot can be served as managed. Generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
 | `PLATFORM_KEY_<COMPONENT>_<PROVIDER>` | — | A provider key to install at startup, e.g. `PLATFORM_KEY_LLM_GOOGLE`. Component is `LLM`, `STT` or `TTS` |
+| `USD_TOPUPS_ENABLED` | `false` | Whether accounts billed outside India may place dollar top-up orders (KAN-135). Set to `true` once Razorpay has approved international payments on the account; until then the Billing page tells dollar accounts to email support |
 | `ONBOARDING_CREDITS_ENABLED` | `true` | The 1,000 free credits a new organization earns step by step. Set to `false` to switch the scheme off |
 | `ONBOARDING_STEPS_DISABLED` | — | Comma-separated onboarding steps to hold back without a release, e.g. `first_routine` while the routines runtime settles |
 

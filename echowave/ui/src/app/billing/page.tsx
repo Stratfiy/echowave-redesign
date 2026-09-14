@@ -107,6 +107,8 @@ type Balance = {
    *  outside India, which sees the dollar packs and no rupee amount box. */
   currency?: string;
   topups_enabled: boolean;
+  /** Why top-ups are off, in the customer's words, when they are. */
+  topups_unavailable_reason?: string | null;
   min_topup_paise: number;
   max_topup_paise: number;
   /** Top-ups are bought in whole steps of this. ₹100, ₹200, never ₹137. */
@@ -772,13 +774,17 @@ export default function BillingPage() {
         {!topupsEnabled ? (
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>
-              Online top-ups are unavailable right now. Email{" "}
-              <a className="underline" href="mailto:support@decibyl.ai">
-                support@decibyl.ai
-              </a>{" "}
-              and we will add credit directly.
-            </span>
+            {balance?.topups_unavailable_reason ? (
+              <span>{balance.topups_unavailable_reason}</span>
+            ) : (
+              <span>
+                Online top-ups are unavailable right now. Email{" "}
+                <a className="underline" href="mailto:support@decibyl.ai">
+                  support@decibyl.ai
+                </a>{" "}
+                and we will add credit directly.
+              </span>
+            )}
           </div>
         ) : (
           <>

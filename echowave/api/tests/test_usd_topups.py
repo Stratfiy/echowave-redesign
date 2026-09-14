@@ -179,6 +179,8 @@ def gateway(monkeypatch):
     monkeypatch.setattr(documents, "SUPPLIER_HAS_LUT", True)
     monkeypatch.setattr(documents, "SUPPLIER_LUT_NUMBER", "AD330126000123X")
 
+    monkeypatch.setattr(payments, "USD_TOPUPS_ENABLED", True)
+
     async def fixed_rate(session, *, at):
         return rates.ResolvedFxRate(paise_per_usd=8_800, source="test")
 
@@ -246,6 +248,31 @@ class TestADollarOrder:
         assert row.amount_paise == 528_000
         assert row.gross_paise == 528_000
         assert row.bonus_paise == 0
+
+    async def test_off_until_the_gateway_takes_dollars(
+        self, db_session, async_session, gateway, monkeypatch
+    ):
+        """Shipped ahead of Razorpay's approval of international payments:
+        until the switch is on, a dollar account is told so in words, and
+        no order reaches the gateway to be refused in the gateway's."""
+        monkeypatch.setattr(payments, "USD_TOPUPS_ENABLED", False)
+        org = await _org(async_session, "pending", country="US")
+        with pytest.raises(payments.PaymentError, match="being activated"):
+            await payments.create_topup_order(
+                async_session, organization_id=org.id, pack_code="u60", created_by=None
+            )
+        assert gateway.sent == []
+        # The rupee path is untouched by the switch.
+        rupee = await _org(async_session, "pending-in", country="IN")
+        await payments.create_topup_order(
+            async_session, organization_id=rupee.id, pack_code="p999", created_by=None
+        )
+        assert gateway.sent[0]["currency"] == "INR"
+
+    def test_the_switch_is_off_by_default(self):
+        from api import constants
+
+        assert constants.USD_TOPUPS_ENABLED is False
 
     async def test_an_indian_account_cannot_buy_a_dollar_pack(
         self, db_session, async_session, gateway
