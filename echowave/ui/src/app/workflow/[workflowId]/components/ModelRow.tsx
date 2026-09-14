@@ -164,6 +164,7 @@ export function ModelRow({
     editable = false,
     configurations,
     onSaveConfigurations,
+    stacked = false,
 }: {
     workflowId: number;
     /** The agent's call configuration, for the settings behind each pencil. */
@@ -176,6 +177,8 @@ export function ModelRow({
      * not.
      */
     editable?: boolean;
+    /** One tile under another, for a side column rather than a band. */
+    stacked?: boolean;
 }) {
     const { user, loading: authLoading } = useAuth();
     const hasFetched = useRef(false);
@@ -268,7 +271,7 @@ export function ModelRow({
         return (
             <div className="space-y-3">
                 <Skeleton className="h-10 w-full max-w-md" />
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className={cn("grid gap-3", !stacked && "sm:grid-cols-3")}>
                     <Skeleton className="h-28 w-full" />
                     <Skeleton className="h-28 w-full" />
                     <Skeleton className="h-28 w-full" />
@@ -416,7 +419,7 @@ export function ModelRow({
                     "grid gap-3",
                     // One card on the speech-to-speech path, where a single
                     // model does the whole turn.
-                    slots.length === 1
+                    stacked || slots.length === 1
                         ? "sm:grid-cols-1"
                         : slots.length === 2
                           ? "sm:grid-cols-2"
