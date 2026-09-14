@@ -81,19 +81,24 @@ grants that tier Rs 18,500.
 
 ## 4. Margin at each candidate price
 
-Everyday stack at list (2.36 / min), and with the Sarvam deal in KAN-47
-(30% off STT and TTS: 1.84 / min).
+Everyday stack at list, 2.36 / min.
 
-| Price, Rs / min | Gross at list cost | Gross with Sarvam deal | Gross if chars / min is 800 |
-|---:|---:|---:|---:|
-| 6.00 (KAN-47 Business) | 61% | 69% | 40% |
-| 5.56 (engine bundle) | 58% | 67% | 36% |
-| 5.50 (KAN-47 Growth) | 57% | 67% | 35% |
-| 5.30 (site Starter overage) | 55% | 65% | 32% |
-| 5.00 (KAN-47 Scale, Trikon) | 53% | 63% | 28% |
-| 4.50 (site Growth overage) | 48% | 59% | 20% |
-| 4.00 (site Scale overage) | 41% | 54% | 11% |
-| 3.50 (enterprise floor) | 33% | 47% | negative |
+| Price, Rs / min | Gross at list cost | Gross if chars / min is 800 |
+|---:|---:|---:|
+| 6.00 (KAN-47 Business) | 61% | 40% |
+| 5.56 (engine bundle) | 58% | 36% |
+| 5.50 (KAN-47 Growth) | 57% | 35% |
+| 5.30 (site Starter overage) | 55% | 32% |
+| 5.00 (KAN-47 Scale, Trikon) | 53% | 28% |
+| 4.50 (site Growth overage) | 48% | 20% |
+| 4.00 (site Scale overage) | 41% | 11% |
+| 3.50 (enterprise floor) | 33% | negative |
+
+**The Sarvam arrangement is not in any margin figure** (founder's call, 14
+Sept): the Rs 25,000 a month of free usage funds acquisition, not price.
+At Rs 500 of composed cost per free signup (1,000 credits) it covers about
+fifty signups a month; the later 30% discount, when it starts, is upside
+that goes to margin, never to the card.
 
 Speech to speech: Natural needs Rs 10 / min for 49% at list; Premium needs
 Rs 25 / min for 33%. Premium at Rs 25 sits with Skit's enterprise price and
@@ -123,7 +128,8 @@ questions all day. A vertical pack option later, not the base.
 ## 6. Recommendation
 
 Ship **B**, as KAN-47 decided, with six corrections. Everything below is
-priced at list cost, so the Sarvam deal is upside, not a dependency.
+priced at list cost; the Sarvam free usage is spent on signup credits (see
+section 4) and no discount is assumed.
 
 1. **Voice at 12 / 11 / 10 credits a minute (Rs 6 / 5.5 / 5) stands.** It is
    the market rate, 53 to 61% gross at list, and the site's 4.00 and 4.50
@@ -256,7 +262,7 @@ for six months, then 30% off) is a credit against cost of revenue, not a fee.
 
 | Unit | Rs | Basis |
 |---|---:|---|
-| Everyday voice minute | 2.36 | section 1; 1.84 with the Sarvam deal |
+| Everyday voice minute | 2.36 | section 1; no vendor discount assumed |
 | Natural voice minute | 5.10 | Gemini Live + carriage |
 | Text reply (1,400 tokens, gpt-4.1-mini) | 0.10 | |
 | Knowledge answer (retrieval + reply) | 0.13 | embeddings are self-hosted |
@@ -291,9 +297,9 @@ check that the flat rate never falls below what the parts would fetch.
 
 The platform fee is the tier discount. Component markups do not change by
 tier, so a Scale customer on an enterprise itemised quote pays the same
-component prices and a lower fee. With the Sarvam deal the components fall
-to Rs 2.95 and the fee stays, so the managed rate holds and the margin
-widens: that is where the deal goes, not into the price.
+component prices and a lower fee. If a vendor discount arrives later the
+components fall and the fee stays, so the managed rate holds and the margin
+widens: a discount goes to margin, never into the card.
 
 Speech to speech: one line, markup 1.9x, so Natural at 5.10 sells at Rs 10
 (20 credits) and Premium at 16.83 would need Rs 32; Premium is quote-only.
