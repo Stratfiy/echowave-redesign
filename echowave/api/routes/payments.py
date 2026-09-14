@@ -598,7 +598,7 @@ async def get_plan(user: UserModel = Depends(get_user)) -> dict[str, Any]:
     changes at the card form.
     """
     from api.services.billing import mandates as mandate_service
-    from api.services.billing import subscription_plans
+    from api.services.billing import plan_limits, subscription_plans
     from api.services.billing.tax import TaxError, gross_up
 
     organization_id = _organization_id(user)
@@ -610,6 +610,24 @@ async def get_plan(user: UserModel = Depends(get_user)) -> dict[str, Any]:
             session,
             organization_id=organization_id,
             purpose=mandate_service.PURPOSE_STARTER_PLAN,
+        )
+        # An account on a plan withdrawn from sale (Starter, since the
+        # ladder) still sees the plan it is on, marked as such.
+        if (
+            mandate is not None
+            and mandate.plan_code
+            and all(p.code != mandate.plan_code for p in plans)
+        ):
+            withdrawn = await subscription_plans.get_plan(
+                session, code=mandate.plan_code
+            )
+            if withdrawn is not None:
+                plans = [*plans, withdrawn]
+        on_plan = await subscription_plans.plan_for_organization(
+            session, organization_id=organization_id
+        )
+        limits = await plan_limits.limits_for_plans(
+            session, plan_codes=[p.code for p in plans]
         )
         profile = await billing_profile.get_profile(
             session, organization_id=organization_id
@@ -639,6 +657,16 @@ async def get_plan(user: UserModel = Depends(get_user)) -> dict[str, Any]:
             )
         except TaxError:
             gross_paise = None
+        annual_gross: int | None = None
+        if plan.annual_price_paise:
+            try:
+                annual_gross = gross_up(
+                    taxable_paise=plan.annual_price_paise,
+                    country_code=profile.country_code,
+                    state_code=profile.state_code,
+                )
+            except TaxError:
+                annual_gross = None
         return {
             # Every figure net, like the ledger, except gross_paise which says
             # so in its name.
@@ -651,16 +679,26 @@ async def get_plan(user: UserModel = Depends(get_user)) -> dict[str, Any]:
             # The grant, in the unit the customer sees. A plan grants a whole
             # number of credits by decision; a seed that does not is a bug,
             # and rounding toward zero here keeps the screen honest about it.
-            "credits": credits.credits_of_balance(plan.balance_paise),
+            "credits": plan.credits,
             "included_numbers": plan.included_numbers,
             "extra_number_paise": plan.extra_number_price_paise,
             "period": "monthly",
-            "is_current": mandate is not None
-            and (mandate.plan_code or subscription_plans.STARTER) == plan.code,
+            # KAN-53: what the plan permits and how else it can be paid for.
+            "voice_allowed": plan.voice_allowed,
+            "purchasable": plan.purchasable,
+            "enabled": plan.enabled,
+            "price_usd_cents": plan.price_usd_cents,
+            "annual_price_paise": plan.annual_price_paise,
+            "annual_gross_paise": annual_gross,
+            "annual_credits": plan.annual_credits if plan.annual_price_paise else None,
+            "limits": limits.get(plan.code, {}),
+            "is_current": on_plan.code == plan.code,
         }
 
     priced = [_priced(plan) for plan in plans]
     current = next((p for p in priced if p["is_current"]), None)
+    if current is not None and mandate is not None:
+        current["billing_period"] = getattr(mandate, "billing_period", "monthly")
 
     return {
         "plans": priced,
@@ -681,6 +719,56 @@ async def get_plan(user: UserModel = Depends(get_user)) -> dict[str, Any]:
         "mandate": _mandate_view(mandate),
         "configured": mandate_service.is_configured(),
         "billing_profile_complete": profile.is_complete,
+        # The rule every plan shares, stated once for the screen: plan credits
+        # expire at the end of the cycle they were granted for; top-ups are a
+        # separate pool and never expire.
+        "plan_credits_expire": True,
+        "paise_per_credit": credits.PAISE_PER_CREDIT,
+        "limits_registry": plan_limits.registry(),
+    }
+
+
+@router.get("/plans")
+async def public_plans() -> dict[str, Any]:
+    """The plan ladder, for anyone: the pricing page reads this.
+
+    No sign-in, no account figures: prices net of GST, credits, what each
+    plan includes and every cap, from the same rows the app's plan picker
+    reads, so the site and the app cannot quote two different ladders.
+    Plans not on sale (Starter, Campus Builder until KAN-69) are left out.
+    """
+    from api.services.billing import plan_limits, subscription_plans
+
+    async with db_client.async_session() as session:
+        await subscription_plans.ensure_seeded(session)
+        await session.commit()
+        plans = await subscription_plans.list_plans(session)
+        limits = await plan_limits.limits_for_plans(
+            session, plan_codes=[p.code for p in plans]
+        )
+    return {
+        "plans": [
+            {
+                "code": plan.code,
+                "label": plan.label,
+                "blurb": plan.blurb,
+                "price_paise": plan.price_paise,
+                "price_usd_cents": plan.price_usd_cents,
+                "annual_price_paise": plan.annual_price_paise,
+                "credits": plan.credits,
+                "included_numbers": plan.included_numbers,
+                "extra_number_paise": plan.extra_number_price_paise,
+                "voice_allowed": plan.voice_allowed,
+                "purchasable": plan.purchasable,
+                "limits": limits.get(plan.code, {}),
+            }
+            for plan in plans
+        ],
+        "paise_per_credit": credits.PAISE_PER_CREDIT,
+        "plan_credits_expire": True,
+        "topups_expire": False,
+        "gst_note": "Prices exclusive of 18% GST for Indian customers.",
+        "limits_registry": plan_limits.registry(),
     }
 
 
@@ -689,6 +777,8 @@ class SubscribeRequest(BaseModel):
     single-plan client sent before there was a choice."""
 
     plan_code: str | None = None
+    #: ``monthly`` or ``annual`` (ten months for twelve).
+    period: str = "monthly"
 
 
 @router.post("/plan")
@@ -733,12 +823,21 @@ async def subscribe_to_plan(
         plan = await subscription_plans.resolve(
             session, code=(payload.plan_code if payload else None)
         )
-        if plan is None or not plan.enabled:
+        if plan is None or not plan.enabled or not plan.purchasable:
             raise HTTPException(status_code=404, detail="That plan is not on sale.")
+        period = (payload.period if payload else None) or "monthly"
+        if period not in ("monthly", "annual"):
+            raise HTTPException(
+                status_code=400, detail="period must be monthly or annual"
+            )
+        if period == "annual" and not plan.annual_price_paise:
+            raise HTTPException(
+                status_code=400, detail="That plan has no annual option."
+            )
 
         try:
             mandate = await mandate_service.create_plan_mandate(
-                session, organization_id=organization_id, plan=plan
+                session, organization_id=organization_id, plan=plan, period=period
             )
         except mandate_service.MandateNotConfigured as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc

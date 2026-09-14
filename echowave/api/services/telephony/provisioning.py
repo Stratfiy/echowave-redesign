@@ -44,6 +44,7 @@ from api.constants import (
 )
 from api.db import db_client
 from api.enums import KycStatus, PhoneNumberStatus
+from api.services.billing import subscription_plans
 from api.services.kyc.plivo_compliance import (
     PlivoComplianceClient,
     PlivoComplianceError,
@@ -212,6 +213,12 @@ async def provision(
     # is not. A number issued against an unauthorised mandate is a number we pay
     # a carrier for and cannot collect on.
     mandate_id = await _assert_autopay(organization_id)
+    # And the plan has to put bots on the phone at all: Free and Everyday do
+    # not (KAN-53). Raised as its own error so the screen can name the rung.
+    async with db_client.async_session() as session:
+        await subscription_plans.assert_voice_allowed(
+            session, organization_id=organization_id
+        )
     provider = await _provider(telephony_configuration_id, organization_id)
 
     if not provider.supports_number_management():

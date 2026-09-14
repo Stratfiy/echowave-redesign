@@ -50,6 +50,16 @@ type Plan = {
     discount_paise: number;
     razorpay_plan_id: string | null;
     razorpay_plan_id_export: string | null;
+    /** KAN-53 */
+    credits: number;
+    cost_of_balance_paise: number;
+    voice_allowed: boolean;
+    purchasable: boolean;
+    price_usd_cents: number | null;
+    annual_price_paise: number | null;
+    razorpay_plan_id_annual: string | null;
+    razorpay_plan_id_annual_export: string | null;
+    limits: Record<string, number | null>;
     enabled: boolean;
     sort_order: number;
 };
@@ -66,6 +76,20 @@ type Draft = {
     razorpayPlanIdExport: string;
     enabled: boolean;
     sortOrder: string;
+    voiceAllowed: boolean;
+    purchasable: boolean;
+    priceUsd: string;
+    annualPriceRupees: string;
+    razorpayPlanIdAnnual: string;
+    razorpayPlanIdAnnualExport: string;
+};
+
+type LimitSpec = {
+    key: string;
+    label: string;
+    unit: string;
+    decided: boolean;
+    note: string;
 };
 
 function blankDraft(defaultExtraPaise: number): Draft {
@@ -81,6 +105,12 @@ function blankDraft(defaultExtraPaise: number): Draft {
         razorpayPlanIdExport: "",
         enabled: true,
         sortOrder: "0",
+        voiceAllowed: true,
+        purchasable: true,
+        priceUsd: "",
+        annualPriceRupees: "",
+        razorpayPlanIdAnnual: "",
+        razorpayPlanIdAnnualExport: "",
     };
 }
 
@@ -97,6 +127,13 @@ function toDraft(plan: Plan): Draft {
         razorpayPlanIdExport: plan.razorpay_plan_id_export ?? "",
         enabled: plan.enabled,
         sortOrder: String(plan.sort_order),
+        voiceAllowed: plan.voice_allowed,
+        purchasable: plan.purchasable,
+        priceUsd: plan.price_usd_cents === null ? "" : String(plan.price_usd_cents / 100),
+        annualPriceRupees:
+            plan.annual_price_paise === null ? "" : String(plan.annual_price_paise / 100),
+        razorpayPlanIdAnnual: plan.razorpay_plan_id_annual ?? "",
+        razorpayPlanIdAnnualExport: plan.razorpay_plan_id_annual_export ?? "",
     };
 }
 
@@ -113,6 +150,14 @@ export default function PlansPage() {
     const [draft, setDraft] = useState<Draft | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
+    // What a rupee of granted balance costs us, from the server (the
+    // reciprocal of the thinnest markup in the rate book). The live loss
+    // arithmetic below reads it rather than pinning a copy.
+    const [balanceCostBps, setBalanceCostBps] = useState(8_696);
+    const [registry, setRegistry] = useState<LimitSpec[]>([]);
+    const [limitsFor, setLimitsFor] = useState<string | null>(null);
+    const [limitDrafts, setLimitDrafts] = useState<Record<string, string>>({});
+    const [savingLimit, setSavingLimit] = useState<string | null>(null);
 
     const refresh = useCallback(async () => {
         const result = await client.get({ url: "/api/v1/admin/billing/plans" });
@@ -123,9 +168,13 @@ export default function PlansPage() {
         const data = result.data as {
             plans: Plan[];
             number_rental_price_paise: number;
+            balance_cost_bps?: number;
+            limits_registry?: LimitSpec[];
         };
         setPlans(data.plans ?? []);
         setDefaultExtraPaise(data.number_rental_price_paise ?? 49_900);
+        setBalanceCostBps(data.balance_cost_bps ?? 8_696);
+        setRegistry(data.limits_registry ?? []);
         setError(null);
     }, []);
 
@@ -152,6 +201,17 @@ export default function PlansPage() {
                 razorpay_plan_id_export: draft.razorpayPlanIdExport.trim() || null,
                 enabled: draft.enabled,
                 sort_order: Number(draft.sortOrder) || 0,
+                voice_allowed: draft.voiceAllowed,
+                purchasable: draft.purchasable,
+                price_usd_cents: draft.priceUsd.trim()
+                    ? Math.round((Number(draft.priceUsd) || 0) * 100)
+                    : null,
+                annual_price_paise: draft.annualPriceRupees.trim()
+                    ? rupeesToPaise(draft.annualPriceRupees)
+                    : null,
+                razorpay_plan_id_annual: draft.razorpayPlanIdAnnual.trim() || null,
+                razorpay_plan_id_annual_export:
+                    draft.razorpayPlanIdAnnualExport.trim() || null,
             },
         });
         setSaving(false);
@@ -162,6 +222,30 @@ export default function PlansPage() {
         setDraft(null);
         await refresh();
     }, [draft, refresh]);
+
+    const saveLimit = useCallback(
+        async (planCode: string, key: string) => {
+            const raw = (limitDrafts[key] ?? "").trim();
+            setSavingLimit(key);
+            setError(null);
+            const result = await client.put({
+                url: "/api/v1/admin/billing/plans/limits",
+                body: {
+                    plan_code: planCode,
+                    key,
+                    // Empty is unlimited: null on the wire, never zero.
+                    value: raw === "" ? null : Number(raw),
+                },
+            });
+            setSavingLimit(null);
+            if (result.error) {
+                setError(detailFromResult(result, "Could not save the cap"));
+                return;
+            }
+            await refresh();
+        },
+        [limitDrafts, refresh],
+    );
 
     if (!plans) {
         return (
@@ -180,7 +264,13 @@ export default function PlansPage() {
           (Number(draft.includedNumbers) || 0) *
               rupeesToPaise(draft.extraNumberRupees)
         : 0;
-    const grantsMoreThanItTakes = draft !== null && draftBalance > draftPrice;
+    // The loss guard the server applies: balance at cost (a credit is
+    // marked-up cost, so a rupee of balance costs us balanceCostBps of a
+    // rupee) plus the carrier's rent, against the price. A granted plan is
+    // exempt: it is a decision to give, not a sale.
+    const draftBalanceCost = Math.floor((draftBalance * balanceCostBps) / 10_000);
+    const grantsMoreThanItTakes =
+        draft !== null && draft.purchasable && draftBalanceCost > draftPrice;
     // The figure to create the domestic Razorpay plan at. Shown beside the
     // field rather than left as arithmetic somebody does in their head: a plan
     // pinned at the net price collects no GST at all, monthly, by standing
@@ -224,6 +314,7 @@ export default function PlansPage() {
                             <TableHead className="text-right">Numbers</TableHead>
                             <TableHead className="text-right">Contents</TableHead>
                             <TableHead className="text-right">Discount</TableHead>
+                            <TableHead>Voice</TableHead>
                             <TableHead />
                         </TableRow>
                     </TableHeader>
@@ -246,6 +337,9 @@ export default function PlansPage() {
                                 </TableCell>
                                 <TableCell className="text-right tabular-nums">
                                     {formatPaise(plan.balance_paise)}
+                                    <span className="ml-1 text-xs text-muted-foreground">
+                                        {plan.credits.toLocaleString("en-IN")} cr
+                                    </span>
                                 </TableCell>
                                 <TableCell className="text-right tabular-nums">
                                     {plan.included_numbers}
@@ -261,7 +355,11 @@ export default function PlansPage() {
                                         ? "—"
                                         : formatPaise(plan.discount_paise)}
                                 </TableCell>
-                                <TableCell className="text-right">
+                                <TableCell className="text-xs text-muted-foreground">
+                                    {plan.voice_allowed ? "yes" : "text only"}
+                                    {!plan.purchasable && " · granted"}
+                                </TableCell>
+                                <TableCell className="text-right whitespace-nowrap">
                                     <Button
                                         type="button"
                                         variant="outline"
@@ -270,6 +368,26 @@ export default function PlansPage() {
                                     >
                                         Edit
                                     </Button>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="ml-1"
+                                        onClick={() => {
+                                            setLimitsFor(
+                                                limitsFor === plan.code ? null : plan.code,
+                                            );
+                                            setLimitDrafts(
+                                                Object.fromEntries(
+                                                    Object.entries(plan.limits ?? {}).map(
+                                                        ([k, v]) => [k, v === null ? "" : String(v)],
+                                                    ),
+                                                ),
+                                            );
+                                        }}
+                                    >
+                                        Caps
+                                    </Button>
                                 </TableCell>
                             </TableRow>
                         ))}
@@ -277,6 +395,58 @@ export default function PlansPage() {
                 </Table>
             </div>
 
+            {limitsFor && (
+                <div className="rounded-xl border bg-card p-6">
+                    <h3 className="font-medium">Caps on {limitsFor}</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                        Every cap is a row, never a constant. Empty means unlimited.
+                        A cap marked <em>proposed</em> is the spec&apos;s figure
+                        awaiting a decision; nothing enforces it until its feature
+                        reads it.
+                    </p>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {registry.map((spec) => (
+                            <div key={spec.key}>
+                                <Label htmlFor={`cap-${spec.key}`}>
+                                    {spec.label}
+                                    <span className="ml-1 text-xs text-muted-foreground">
+                                        ({spec.unit}){!spec.decided && " · proposed"}
+                                    </span>
+                                </Label>
+                                <div className="mt-1.5 flex gap-2">
+                                    <Input
+                                        id={`cap-${spec.key}`}
+                                        type="number"
+                                        min={0}
+                                        placeholder="unlimited"
+                                        value={limitDrafts[spec.key] ?? ""}
+                                        onChange={(e) =>
+                                            setLimitDrafts({
+                                                ...limitDrafts,
+                                                [spec.key]: e.target.value,
+                                            })
+                                        }
+                                    />
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={savingLimit === spec.key}
+                                        onClick={() => void saveLimit(limitsFor, spec.key)}
+                                    >
+                                        {savingLimit === spec.key ? "…" : "Save"}
+                                    </Button>
+                                </div>
+                                {spec.note && (
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                        {spec.note}
+                                    </p>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
             {draft && (
                 <div className="rounded-xl border bg-card p-6">
                     <h3 className="font-medium">
@@ -430,6 +600,93 @@ export default function PlansPage() {
                                 overcharged by the GST.
                             </p>
                         </div>
+                        <div>
+                            <Label htmlFor="plan-usd">Price a month ($, foreign accounts)</Label>
+                            <Input
+                                id="plan-usd"
+                                type="number"
+                                value={draft.priceUsd}
+                                placeholder="India only"
+                                onChange={(e) =>
+                                    setDraft({ ...draft, priceUsd: e.target.value })
+                                }
+                                className="mt-1.5"
+                            />
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                Blank means India only. Voice plans are, because
+                                voice is. The export plan id above must then be a
+                                USD plan at this amount.
+                            </p>
+                        </div>
+                        <div>
+                            <Label htmlFor="plan-annual">Price a year (₹)</Label>
+                            <Input
+                                id="plan-annual"
+                                type="number"
+                                value={draft.annualPriceRupees}
+                                placeholder="no annual option"
+                                onChange={(e) =>
+                                    setDraft({ ...draft, annualPriceRupees: e.target.value })
+                                }
+                                className="mt-1.5"
+                            />
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                Ten months for twelve by decision
+                                {draftPrice > 0 ? ` — ₹${((draftPrice * 10) / 100).toLocaleString("en-IN")}` : ""}.
+                                Grants twelve months of credits at once.
+                            </p>
+                        </div>
+                        <div>
+                            <Label htmlFor="plan-rzp-annual">Razorpay plan id — annual</Label>
+                            <Input
+                                id="plan-rzp-annual"
+                                value={draft.razorpayPlanIdAnnual}
+                                placeholder="plan_..."
+                                onChange={(e) =>
+                                    setDraft({ ...draft, razorpayPlanIdAnnual: e.target.value })
+                                }
+                                className="mt-1.5"
+                            />
+                        </div>
+                        <div>
+                            <Label htmlFor="plan-rzp-annual-export">
+                                Razorpay plan id — annual, export
+                            </Label>
+                            <Input
+                                id="plan-rzp-annual-export"
+                                value={draft.razorpayPlanIdAnnualExport}
+                                placeholder="plan_..."
+                                onChange={(e) =>
+                                    setDraft({
+                                        ...draft,
+                                        razorpayPlanIdAnnualExport: e.target.value,
+                                    })
+                                }
+                                className="mt-1.5"
+                            />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <label className="flex items-center gap-2 text-sm">
+                                <input
+                                    type="checkbox"
+                                    checked={draft.voiceAllowed}
+                                    onChange={(e) =>
+                                        setDraft({ ...draft, voiceAllowed: e.target.checked })
+                                    }
+                                />
+                                Bots may use the phone
+                            </label>
+                            <label className="flex items-center gap-2 text-sm">
+                                <input
+                                    type="checkbox"
+                                    checked={draft.purchasable}
+                                    onChange={(e) =>
+                                        setDraft({ ...draft, purchasable: e.target.checked })
+                                    }
+                                />
+                                On sale (off for a granted plan such as Free)
+                            </label>
+                        </div>
                     </div>
 
                     {/* The consequence of the numbers above, while they are being
@@ -456,9 +713,11 @@ export default function PlansPage() {
                         <p className="mt-3 flex items-start gap-1.5 text-sm text-red-600 dark:text-red-400">
                             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                             <span>
-                                This grants more balance than it collects. Balance is
-                                spent at our cost, so every cycle loses{" "}
-                                {formatPaise(draftBalance - draftPrice)}.
+                                This grants more than it collects. The balance costs
+                                us {formatPaise(draftBalanceCost)} if it is all
+                                spent, so every cycle loses{" "}
+                                {formatPaise(draftBalanceCost - draftPrice)} before
+                                the numbers&apos; rent.
                             </span>
                         </p>
                     )}

@@ -354,3 +354,45 @@ is the number at which the company stops costing money to keep alive.
 - Margin watch (`margin_watch.py`) alerts on any component whose realised
   markup falls under 1.1x, which is how a vendor price change surfaces
   before an invoice does.
+
+## 12. Notes from seeding the ladder (KAN-53, 14 Sept)
+
+Decisions taken with Nithish on the day, after the spec:
+
+1. **Plan credits expire at the end of the cycle they were granted for.**
+   Top-ups are a separate pool and never expire, spent after plan credits.
+   The spec's rollover and this study's one-month cap are both withdrawn.
+   Annual is ten months for twelve: a year's credits granted at once, living
+   a year.
+2. **The credits-per-rupee ratio rises with the plan**, the way Claude's
+   usage multiplier rises faster than its price: Everyday 2,000 credits at
+   Rs 999 (2.0), Business 6,000 at Rs 2,999 (2.0), Growth 25,000 at
+   Rs 9,999 (2.5), Scale 60,000 at Rs 19,999 (3.0). Scale is the last rung;
+   Enterprise is a quote, not a plan. At the 62% provider share and full
+   consumption Scale clears by Rs 399; at the model's 60 to 80% consumption
+   its margin is 20 to 40%. Expiry is what makes the top of the ladder safe.
+3. **The loss guard on a plan reads balance at cost**: a credit is fifty
+   paise of marked-up cost, so a plan can lose at most 62% of the balance's
+   face value plus the carrier rent on its numbers.
+   `subscription_plans.BALANCE_COST_BPS`.
+4. **Model BYOK is allowed on every plan, Free included.** API keys only;
+   consumer subscriptions cannot be driven by third-party apps. Credits still
+   apply to every event; a BYOK per-event rate with the model component
+   removed (voice 12 → 11 credits) is proposed for KAN-56.
+5. **Free's 1,000 credits is still the signup bonus** ($5, 960 credits at
+   Rs 96). Exactly 1,000 is a one-line change to $5.21 or a rupee bonus.
+   Open.
+6. **Campus Builder is seeded off sale** with Business's features and 300
+   voice minutes a month (3,600 credits). KAN-69 ships the eligibility check.
+7. **Proposed caps are seeded as proposed** and marked so in the registry
+   and the super-admin screen; nothing enforces them until each feature reads
+   its cap through `plan_limits.resolve`.
+8. **Knowledge storage ceilings in bytes** behind the page caps are an
+   engineering figure, not a published one.
+9. **Voice plans are India-only.** A foreign account is offered Everyday in
+   dollars; anything else is refused rather than sold in rupees at the net.
+10. **Starter is withdrawn from sale, not deleted.** Business is its
+    successor; accounts on Starter keep collecting and granting what they
+    bought.
+11. **The referral programme is being withdrawn** (scope to be confirmed
+    against KAN-76, which builds on its statements).

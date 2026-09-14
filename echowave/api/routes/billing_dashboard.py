@@ -1660,6 +1660,25 @@ class PlanRequest(BaseModel):
     razorpay_plan_id_export: str | None = None
     enabled: bool = True
     sort_order: int = 0
+    #: KAN-53. False on Free and Everyday: bots on the plan stay off the phone.
+    voice_allowed: bool = True
+    #: False for a granted plan (Free, Campus Builder), the only plans that
+    #: may cost nothing.
+    purchasable: bool = True
+    #: Dollars for a foreign, text-only account. Null means India-only.
+    price_usd_cents: int | None = Field(None, ge=0)
+    #: A year, net. Null means no annual option. At most twelve months.
+    annual_price_paise: int | None = Field(None, gt=0)
+    razorpay_plan_id_annual: str | None = None
+    razorpay_plan_id_annual_export: str | None = None
+
+
+class PlanLimitRequest(BaseModel):
+    """One cap on one plan. ``value`` null is unlimited."""
+
+    plan_code: str = Field(..., min_length=2, max_length=32)
+    key: str = Field(..., min_length=2, max_length=48)
+    value: int | None = Field(None, ge=0)
 
 
 def _plan_view(plan) -> dict[str, Any]:
@@ -1685,6 +1704,15 @@ def _plan_view(plan) -> dict[str, Any]:
         "numbers_value_paise": plan.numbers_value_paise,
         "parts_paise": plan.parts_paise,
         "discount_paise": plan.discount_paise,
+        # KAN-53
+        "credits": plan.credits,
+        "cost_of_balance_paise": plan.cost_of_balance_paise,
+        "voice_allowed": plan.voice_allowed,
+        "purchasable": plan.purchasable,
+        "price_usd_cents": plan.price_usd_cents,
+        "annual_price_paise": plan.annual_price_paise,
+        "razorpay_plan_id_annual": plan.razorpay_plan_id_annual,
+        "razorpay_plan_id_annual_export": plan.razorpay_plan_id_annual_export,
         "razorpay_plan_id": plan.razorpay_plan_id,
         "razorpay_plan_id_export": plan.razorpay_plan_id_export,
         "enabled": plan.enabled,
@@ -1699,18 +1727,55 @@ async def list_plans(user: UserModel = Depends(get_superuser)) -> dict[str, Any]
     Includes disabled plans: a plan withdrawn from sale still has customers on
     it, and an operator needs to see what they are being charged.
     """
-    from api.services.billing import subscription_plans
+    from api.services.billing import plan_limits, subscription_plans
 
     async with db_client.async_session() as session:
         await subscription_plans.ensure_seeded(session)
         await session.commit()
         plans = await subscription_plans.list_plans(session, enabled_only=False)
+        limits = await plan_limits.limits_for_plans(
+            session, plan_codes=[p.code for p in plans]
+        )
         return {
-            "plans": [_plan_view(plan) for plan in plans],
+            "plans": [
+                {**_plan_view(plan), "limits": limits.get(plan.code, {})}
+                for plan in plans
+            ],
             # So the editor can default a new plan's extra-number price to the
             # platform figure rather than to zero.
             "number_rental_price_paise": NUMBER_RENTAL_PRICE_PAISE,
+            # What a rupee of granted balance costs us, for the editor's
+            # live loss arithmetic (see subscription_plans.BALANCE_COST_BPS).
+            "balance_cost_bps": subscription_plans.BALANCE_COST_BPS,
+            "limits_registry": plan_limits.registry(),
         }
+
+
+@router.put("/plans/limits")
+async def upsert_plan_limit(
+    request: PlanLimitRequest, user: UserModel = Depends(get_superuser)
+) -> dict[str, Any]:
+    """Set one cap on one plan. Every cap is a row, never a constant (KAN-53).
+
+    Changing a cap takes effect on the next check, for every account on the
+    plan: caps are read live, not copied onto the mandate the way a price is.
+    """
+    from api.services.billing import plan_limits, subscription_plans
+
+    async with db_client.async_session() as session:
+        if await subscription_plans.get_plan(session, code=request.plan_code) is None:
+            raise HTTPException(status_code=404, detail="No plan with that code.")
+        try:
+            row = await plan_limits.save(
+                session,
+                plan_code=request.plan_code,
+                key=request.key,
+                value=request.value,
+            )
+        except plan_limits.LimitError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await session.commit()
+        return {"plan_code": row.plan_code, "key": row.key, "value": row.value}
 
 
 @router.put("/plans")

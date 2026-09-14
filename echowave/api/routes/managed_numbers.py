@@ -22,6 +22,10 @@ from api.db.models import UserModel
 from api.enums import PostHogEvent
 from api.services.auth.depends import get_user, require_verified_email
 from api.services.billing.mandates import MandateNotAuthorised
+from api.services.billing.subscription_plans import (
+    VoiceNotIncluded,
+    voice_not_included_detail,
+)
 from api.services.compliance.agreements import AgreementsOutstanding
 from api.services.kyc.plivo_compliance import PlivoComplianceError
 from api.services.posthog_client import capture_event
@@ -198,6 +202,10 @@ async def provision_number(
         # now, it is being asked to authorise a standing instruction. A payment
         # status here would send the UI to a top-up screen that fixes nothing.
         raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except VoiceNotIncluded as exc:
+        raise HTTPException(
+            status_code=403, detail=voice_not_included_detail(exc)
+        ) from exc
     except provisioning.ProvisioningError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except PlivoComplianceError as exc:

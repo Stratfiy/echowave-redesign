@@ -40,6 +40,25 @@ from api.db.models import SubscriptionPlanModel
 #: the plans table existed belongs to.
 STARTER = "starter"
 
+#: The plan an account with no authorised mandate is on. Granted, never
+#: bought: it exists as a row so its caps are rows like every other plan's.
+FREE = "free"
+
+#: What a rupee of granted balance costs us, in basis points: the provider
+#: share of a composed rupee at the rate book's list prices (pricing study
+#: section 11: Rs 2.36 of cost inside a Rs 3.81 composed minute, 62%). A
+#: credit is fifty paise of *marked-up* cost (KAN-52), so the loss guard on a
+#: plan compares the price against the balance at cost, not at face value.
+#: The ladder deliberately sells more credits per rupee as the plan grows
+#: (1:2 at Everyday and Business, 1:2.5 at Growth, 1:3 at Scale), which only
+#: works because plan credits expire at cycle end; this figure is the check
+#: that a plan spent in full still does not lose money.
+BALANCE_COST_BPS = 6_200
+
+#: ``billing_period`` values a mandate can carry.
+MONTHLY = "monthly"
+ANNUAL = "annual"
+
 
 class PlanError(ValueError):
     """A plan could not be saved, or is not one that can be sold."""
@@ -80,6 +99,33 @@ class Plan:
     razorpay_plan_id_export: str | None
     enabled: bool
     sort_order: int
+    #: May deployed bots use the phone? False on Free and Everyday.
+    voice_allowed: bool = True
+    #: Bought, or granted? Free and Campus Builder are granted.
+    purchasable: bool = True
+    #: Dollars for a foreign, text-only account. None means India-only.
+    price_usd_cents: int | None = None
+    #: A year, net. None means no annual option.
+    annual_price_paise: int | None = None
+    razorpay_plan_id_annual: str | None = None
+    razorpay_plan_id_annual_export: str | None = None
+
+    @property
+    def credits(self) -> int:
+        """The monthly grant in the unit the customer sees."""
+        from api.services.billing.credits import credits_of_balance
+
+        return credits_of_balance(self.balance_paise)
+
+    @property
+    def annual_credits(self) -> int:
+        return self.credits * 12
+
+    @property
+    def cost_of_balance_paise(self) -> int:
+        """What the granted balance costs us if it is all spent: the
+        marked-up rupee at the rate book's thinnest markup."""
+        return self.balance_paise * BALANCE_COST_BPS // 10_000
 
     @property
     def numbers_value_paise(self) -> int:
@@ -128,6 +174,18 @@ def _view(row: SubscriptionPlanModel) -> Plan:
         razorpay_plan_id_export=row.razorpay_plan_id_export,
         enabled=bool(row.enabled),
         sort_order=int(row.sort_order or 0),
+        voice_allowed=bool(
+            row.voice_allowed if row.voice_allowed is not None else True
+        ),
+        purchasable=bool(row.purchasable if row.purchasable is not None else True),
+        price_usd_cents=(
+            int(row.price_usd_cents) if row.price_usd_cents is not None else None
+        ),
+        annual_price_paise=(
+            int(row.annual_price_paise) if row.annual_price_paise is not None else None
+        ),
+        razorpay_plan_id_annual=row.razorpay_plan_id_annual,
+        razorpay_plan_id_annual_export=row.razorpay_plan_id_annual_export,
     )
 
 
@@ -346,6 +404,12 @@ async def save(
     razorpay_plan_id_export: str | None = None,
     enabled: bool = True,
     sort_order: int = 0,
+    voice_allowed: bool = True,
+    purchasable: bool = True,
+    price_usd_cents: int | None = None,
+    annual_price_paise: int | None = None,
+    razorpay_plan_id_annual: str | None = None,
+    razorpay_plan_id_annual_export: str | None = None,
 ) -> Plan:
     """Create or update a plan, refusing one that cannot be sold.
 
@@ -358,8 +422,23 @@ async def save(
         raise PlanError("A plan needs a code.")
     if not (label or "").strip():
         raise PlanError("A plan needs a name customers will read.")
-    if price_paise <= 0:
-        raise PlanError("A plan's price must be more than nothing.")
+    if purchasable and price_paise <= 0:
+        raise PlanError(
+            "A plan on sale must cost more than nothing. A granted plan (Free, "
+            "Campus Builder) may cost nothing if it is marked not purchasable."
+        )
+    if price_paise < 0:
+        raise PlanError("A plan cannot have a negative price.")
+    if price_usd_cents is not None and price_usd_cents < 0:
+        raise PlanError("A dollar price cannot be negative.")
+    if annual_price_paise is not None:
+        if annual_price_paise <= 0:
+            raise PlanError("An annual price must be more than nothing, or left empty.")
+        if annual_price_paise > price_paise * 12:
+            raise PlanError(
+                "A year costs more than twelve months would. Annual is a "
+                "discount (ten months for twelve), not a premium."
+            )
     if (
         balance_paise < 0
         or included_numbers < 0
@@ -377,37 +456,32 @@ async def save(
             "This plan accepts a single file larger than its whole knowledge "
             "base. Raise the total, or lower the per-file limit."
         )
-    if balance_paise > price_paise:
-        # The one that is a loss on contact rather than a thin margin: granted
-        # balance is spendable immediately and at our cost.
-        raise PlanError(
-            f"This plan grants ₹{balance_paise / 100:,.0f} of balance for "
-            f"₹{price_paise / 100:,.0f}. Balance is spent at our cost, so a "
-            "plan that grants more than it collects loses money on every "
-            "cycle. Raise the price or lower the balance."
-        )
-
-    # The balance is not the only thing the price has to cover. An included
-    # number is rented from a carrier every month whether the customer calls or
-    # not, so a plan whose price barely exceeds its balance still loses money —
-    # by exactly the carrier's rent, every cycle, on every account.
-    #
-    # The check above misses that by design: it was written when the only cost
-    # inside a plan was balance. Holding a headline price constant across tax
-    # regimes is what makes the gap reachable — pricing "₹2,999 including GST"
-    # drops the domestic net to ₹2,541.53, which still clears a ₹2,500 balance
-    # by ₹41.53 and then loses ₹208.47 a month to a number that costs ₹250.
+    # The loss guard. Granted balance is spendable the moment it lands, but
+    # it is spent at the *charged* rate -- a credit is fifty paise of
+    # marked-up cost (KAN-52) -- so what a plan can lose is the balance at
+    # cost, ``BALANCE_COST_BPS`` of its face value, plus the carrier's rent for
+    # every included number, which is owed whether the customer calls or not.
+    # Face value would refuse Scale (40,000 credits for Rs 19,999) for a loss
+    # it does not make; ignoring the rent would pass a Rs 2,000 plan granting
+    # Rs 1,990 and one number, which loses the rent every cycle. A granted
+    # plan (not purchasable) is exempt: it is a decision to give, not a sale.
+    balance_cost = balance_paise * BALANCE_COST_BPS // 10_000
     carrier_cost = included_numbers * constants.NUMBER_RENTAL_COST_PAISE
-    if carrier_cost and balance_paise + carrier_cost > price_paise:
-        shortfall = balance_paise + carrier_cost - price_paise
+    if purchasable and balance_cost + carrier_cost > price_paise:
+        shortfall = balance_cost + carrier_cost - price_paise
+        numbers = (
+            f" and ₹{carrier_cost / 100:,.2f} renting {included_numbers} "
+            f"number{'s' if included_numbers != 1 else ''} from the carrier"
+            if carrier_cost
+            else ""
+        )
         raise PlanError(
-            f"This plan collects ₹{price_paise / 100:,.2f} net and spends "
-            f"₹{balance_paise / 100:,.2f} of it on granted balance and "
-            f"₹{carrier_cost / 100:,.2f} renting "
-            f"{included_numbers} number{'s' if included_numbers != 1 else ''} "
-            f"from the carrier — ₹{shortfall / 100:,.2f} more than it takes, "
-            "every cycle, on every account. Lower the balance, raise the "
-            "price, or include fewer numbers."
+            f"This plan collects ₹{price_paise / 100:,.2f} net and can spend "
+            f"₹{balance_cost / 100:,.2f} of it at cost on the "
+            f"₹{balance_paise / 100:,.0f} of balance it grants{numbers} — "
+            f"₹{shortfall / 100:,.2f} more than it takes, so it loses money "
+            "every cycle, on every account. Lower the balance, raise the price, "
+            "or include fewer numbers."
         )
     if included_numbers and not (
         extra_number_price_paise
@@ -452,6 +526,16 @@ async def save(
         )
     row.enabled = bool(enabled)
     row.sort_order = int(sort_order)
+    row.voice_allowed = bool(voice_allowed)
+    row.purchasable = bool(purchasable)
+    row.price_usd_cents = int(price_usd_cents) if price_usd_cents is not None else None
+    row.annual_price_paise = (
+        int(annual_price_paise) if annual_price_paise is not None else None
+    )
+    row.razorpay_plan_id_annual = (razorpay_plan_id_annual or "").strip() or None
+    row.razorpay_plan_id_annual_export = (
+        razorpay_plan_id_annual_export or ""
+    ).strip() or None
     await session.flush()
 
     plan = _view(row)
@@ -467,28 +551,271 @@ async def save(
     return plan
 
 
-async def ensure_seeded(session: AsyncSession) -> Plan:
-    """Make sure the starter plan exists, without overwriting an edited one.
+MB = 1024 * 1024
 
-    Reproduces exactly what the constants sold before this table: ₹2,500 of
-    balance and one number, priced at the sum. An operator who has since
-    changed any of it keeps their version — a seeder that reset a price on
-    every deploy would be a price change nobody approved.
-    """
-    existing = await get_plan(session, code=STARTER)
-    if existing is not None:
-        return existing
-    return await save(
-        session,
-        code=STARTER,
-        label="Starter",
-        blurb="A phone number and a month of calling, on one monthly payment.",
-        price_paise=constants.STARTER_PLAN_PRICE_PAISE,
-        balance_paise=constants.STARTER_PLAN_BALANCE_PAISE,
-        included_numbers=1,
-        extra_number_price_paise=constants.NUMBER_RENTAL_PRICE_PAISE,
-        knowledge_base_bytes=constants.STARTER_PLAN_KNOWLEDGE_BASE_BYTES,
-        knowledge_base_max_file_bytes=constants.STARTER_PLAN_KNOWLEDGE_BASE_FILE_BYTES,
-        razorpay_plan_id=constants.RAZORPAY_STARTER_PLAN_ID,
+
+def _credits(n: int) -> int:
+    from api.services.billing.credits import paise_for_credits
+
+    return paise_for_credits(n)
+
+
+#: The ladder decided 14 Sept 2026 (KAN-47, seeded by KAN-53). Prices are
+#: net of GST; a credit is fifty paise; the credits-per-rupee ratio rises with
+#: the plan (2.0, 2.0, 2.5, 3.0) and plan credits expire at cycle end.
+#: Knowledge is capped in *pages* in
+#: ``plan_limits``; the byte figures here are the storage ceilings behind
+#: those pages and follow the single-upload row of the caps table. Changing a
+#: published price or grant needs a note in the pricing spec and a comment
+#: on KAN-47 first.
+LADDER_SEED: tuple[dict, ...] = (
+    dict(
+        code=FREE,
+        label="Free",
         sort_order=0,
+        purchasable=False,
+        blurb="Try one bot on web chat, WhatsApp or email. 1,000 credits to start.",
+        price_paise=0,
+        balance_paise=0,
+        included_numbers=0,
+        voice_allowed=False,
+        knowledge_base_bytes=constants.FREE_KNOWLEDGE_BASE_BYTES,
+        knowledge_base_max_file_bytes=constants.FREE_KNOWLEDGE_BASE_FILE_BYTES,
+    ),
+    dict(
+        code="everyday",
+        label="Everyday",
+        sort_order=10,
+        blurb="WhatsApp, email, web chat, knowledge and routines. No phone line.",
+        price_paise=99_900,
+        price_usd_cents=1_000,
+        annual_price_paise=999_000,
+        balance_paise=_credits(2_000),
+        included_numbers=0,
+        voice_allowed=False,
+        knowledge_base_bytes=50 * MB,
+        knowledge_base_max_file_bytes=25 * MB,
+    ),
+    dict(
+        code="business",
+        label="Business",
+        sort_order=20,
+        blurb="The first voice plan: a phone number and 6,000 credits a month.",
+        price_paise=299_900,
+        annual_price_paise=2_999_000,
+        balance_paise=_credits(6_000),
+        included_numbers=1,
+        voice_allowed=True,
+        knowledge_base_bytes=200 * MB,
+        knowledge_base_max_file_bytes=100 * MB,
+    ),
+    dict(
+        code="growth",
+        label="Growth",
+        sort_order=30,
+        blurb="Campaigns. Two numbers and 25,000 credits a month.",
+        price_paise=999_900,
+        annual_price_paise=9_999_000,
+        balance_paise=_credits(25_000),
+        included_numbers=2,
+        voice_allowed=True,
+        knowledge_base_bytes=1024 * MB,
+        knowledge_base_max_file_bytes=250 * MB,
+    ),
+    dict(
+        code="scale",
+        label="Scale",
+        sort_order=40,
+        blurb="Multi-location and agencies. Four numbers and 60,000 credits a month.",
+        price_paise=1_999_900,
+        annual_price_paise=19_999_000,
+        balance_paise=_credits(60_000),
+        included_numbers=4,
+        voice_allowed=True,
+        knowledge_base_bytes=5 * 1024 * MB,
+        knowledge_base_max_file_bytes=1024 * MB,
+    ),
+    # Campus Builder (KAN-69): Business features and 300 voice minutes a month
+    # for a college email, granted rather than sold. Seeded off sale until the
+    # eligibility check ships; the figures are the decided ones.
+    dict(
+        code="campus",
+        label="Campus Builder",
+        sort_order=50,
+        purchasable=False,
+        enabled=False,
+        blurb="For students: Business features and 300 voice minutes a month.",
+        price_paise=0,
+        balance_paise=_credits(3_600),
+        included_numbers=0,
+        voice_allowed=True,
+        knowledge_base_bytes=200 * MB,
+        knowledge_base_max_file_bytes=100 * MB,
+    ),
+)
+
+
+async def ensure_seeded(session: AsyncSession) -> Plan:
+    """Make sure every plan exists, without overwriting an edited one.
+
+    The starter plan is reproduced exactly as the constants sold it before
+    this table: ₹2,500 of balance and one number, priced at the sum. The
+    ladder (``LADDER_SEED``) lands beside it, and each plan's caps land in
+    ``plan_limits``. An operator who has since changed any of it keeps their
+    version — a seeder that reset a price on every deploy would be a price
+    change nobody approved.
+
+    The first time the ladder lands, Starter is withdrawn from sale: Business
+    is its successor at the same price and grant. Accounts on Starter keep
+    collecting and granting what they bought; it is hidden from the picker,
+    not deleted. Returns the starter plan, which is what every caller before
+    the ladder expected back.
+    """
+    from api.services.billing import plan_limits
+
+    starter = await get_plan(session, code=STARTER)
+    if starter is None:
+        starter = await save(
+            session,
+            code=STARTER,
+            label="Starter",
+            blurb="A phone number and a month of calling, on one monthly payment.",
+            price_paise=constants.STARTER_PLAN_PRICE_PAISE,
+            balance_paise=constants.STARTER_PLAN_BALANCE_PAISE,
+            included_numbers=1,
+            extra_number_price_paise=constants.NUMBER_RENTAL_PRICE_PAISE,
+            knowledge_base_bytes=constants.STARTER_PLAN_KNOWLEDGE_BASE_BYTES,
+            knowledge_base_max_file_bytes=constants.STARTER_PLAN_KNOWLEDGE_BASE_FILE_BYTES,
+            razorpay_plan_id=constants.RAZORPAY_STARTER_PLAN_ID,
+            sort_order=0,
+            # Withdrawn from sale below the moment the ladder exists; created
+            # on sale only for a deployment that never seeds the ladder.
+            enabled=True,
+        )
+
+    ladder_landed = False
+    for seed in LADDER_SEED:
+        if await get_plan(session, code=seed["code"]) is None:
+            await save(session, **seed)
+            ladder_landed = True
+
+    if ladder_landed and starter.enabled:
+        row = await session.scalar(
+            select(SubscriptionPlanModel).where(SubscriptionPlanModel.code == STARTER)
+        )
+        if row is not None:
+            row.enabled = False
+            await session.flush()
+            starter = _view(row)
+            logger.info("Starter withdrawn from sale; Business is its successor")
+
+    await plan_limits.ensure_seeded(session)
+    return starter
+
+
+#: What a deployment that has not seeded resolves a plan-less account to, so
+#: no caller has to special-case an empty table.
+_FREE_FALLBACK = Plan(
+    code=FREE,
+    label="Free",
+    blurb="",
+    price_paise=0,
+    balance_paise=0,
+    included_numbers=0,
+    extra_number_price_paise=constants.NUMBER_RENTAL_PRICE_PAISE,
+    knowledge_base_bytes=constants.FREE_KNOWLEDGE_BASE_BYTES,
+    knowledge_base_max_file_bytes=constants.FREE_KNOWLEDGE_BASE_FILE_BYTES,
+    platform_rate_mpaise=None,
+    razorpay_plan_id=None,
+    razorpay_plan_id_export=None,
+    enabled=True,
+    sort_order=0,
+    voice_allowed=False,
+    purchasable=False,
+)
+
+
+async def plan_for_organization(session: AsyncSession, *, organization_id: int) -> Plan:
+    """The plan an account is on: its authorised plan mandate's, else Free.
+
+    A mandate that exists but is not yet authorised is Free too: the account
+    has started subscribing and not finished, and entitling it on an
+    instruction the bank has not confirmed would hand out the plan to anyone
+    who begins checkout and abandons it.
+    """
+    from api.services.billing.mandates import (
+        PURPOSE_STARTER_PLAN,
+        get_mandate,
+        is_authorised,
     )
+
+    mandate = await get_mandate(
+        session, organization_id=organization_id, purpose=PURPOSE_STARTER_PLAN
+    )
+    if is_authorised(mandate):
+        plan = await resolve(session, code=mandate.plan_code)
+        if plan is not None:
+            return plan
+    return await get_plan(session, code=FREE) or _FREE_FALLBACK
+
+
+class VoiceNotIncluded(PlanError):
+    """The account's plan does not put bots on the phone."""
+
+    def __init__(self, *, plan: Plan, upgrade_to: str | None):
+        self.plan_code = plan.code
+        self.upgrade_to = upgrade_to
+        rung = (upgrade_to or "business").capitalize()
+        super().__init__(
+            f"The {plan.label} plan is text only: bots on it answer WhatsApp, "
+            f"email and web chat, not the phone. Move to {rung} to attach a "
+            "number or run a campaign."
+        )
+
+
+async def assert_voice_allowed(session: AsyncSession, *, organization_id: int) -> Plan:
+    """Refuse to put an account's bots on the phone unless its plan allows it.
+
+    Checked where a bot meets a line: buying or attaching a number, and
+    starting a campaign. Not checked in the builder: hearing a bot in the
+    app is how a customer decides to pay for the phone.
+
+    Two accounts pass without a voice plan. Staff, because nothing on the
+    company's own account is for sale. And an account renting a number on
+    its own rental mandate, the shape that predates the ladder: it is paying
+    for a line, and the ladder must not take it away.
+    """
+    from api.services.billing.mandates import (
+        PURPOSE_NUMBER_RENTAL,
+        get_mandate,
+        is_authorised,
+    )
+    from api.services.billing.staff_accounts import is_staff_account
+
+    plan = await plan_for_organization(session, organization_id=organization_id)
+    if plan.voice_allowed:
+        return plan
+    if await is_staff_account(session, organization_id=organization_id):
+        return plan
+    rental = await get_mandate(
+        session, organization_id=organization_id, purpose=PURPOSE_NUMBER_RENTAL
+    )
+    if is_authorised(rental):
+        return plan
+    upgrade_to = None
+    for candidate in await list_plans(session):
+        if candidate.voice_allowed and candidate.purchasable:
+            upgrade_to = candidate.code
+            break
+    raise VoiceNotIncluded(plan=plan, upgrade_to=upgrade_to)
+
+
+def voice_not_included_detail(exc: VoiceNotIncluded) -> dict:
+    """The 403 body a screen can act on: the message, and where to go."""
+    return {
+        "error": "voice_not_included",
+        "message": str(exc),
+        "plan_code": exc.plan_code,
+        "upgrade_to": exc.upgrade_to,
+        "raise_path": f"upgrade:{exc.upgrade_to}" if exc.upgrade_to else "support",
+    }

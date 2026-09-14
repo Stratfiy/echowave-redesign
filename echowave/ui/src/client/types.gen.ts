@@ -7845,6 +7845,26 @@ export type PhoneNumberUpdateRequest = {
 };
 
 /**
+ * PlanLimitRequest
+ *
+ * One cap on one plan. ``value`` null is unlimited.
+ */
+export type PlanLimitRequest = {
+    /**
+     * Plan Code
+     */
+    plan_code: string;
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Value
+     */
+    value?: number | null;
+};
+
+/**
  * PlanRequest
  *
  * A plan an operator is creating or changing.
@@ -7911,6 +7931,30 @@ export type PlanRequest = {
      * Sort Order
      */
     sort_order?: number;
+    /**
+     * Voice Allowed
+     */
+    voice_allowed?: boolean;
+    /**
+     * Purchasable
+     */
+    purchasable?: boolean;
+    /**
+     * Price Usd Cents
+     */
+    price_usd_cents?: number | null;
+    /**
+     * Annual Price Paise
+     */
+    annual_price_paise?: number | null;
+    /**
+     * Razorpay Plan Id Annual
+     */
+    razorpay_plan_id_annual?: string | null;
+    /**
+     * Razorpay Plan Id Annual Export
+     */
+    razorpay_plan_id_annual_export?: string | null;
 };
 
 /**
@@ -10017,6 +10061,10 @@ export type SubscribeRequest = {
      * Plan Code
      */
     plan_code?: string | null;
+    /**
+     * Period
+     */
+    period?: string;
 };
 
 /**
@@ -15789,6 +15837,49 @@ export type UpsertPlanApiV1AdminBillingPlansPutResponses = {
 
 export type UpsertPlanApiV1AdminBillingPlansPutResponse = UpsertPlanApiV1AdminBillingPlansPutResponses[keyof UpsertPlanApiV1AdminBillingPlansPutResponses];
 
+export type UpsertPlanLimitApiV1AdminBillingPlansLimitsPutData = {
+    body: PlanLimitRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/plans/limits';
+};
+
+export type UpsertPlanLimitApiV1AdminBillingPlansLimitsPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpsertPlanLimitApiV1AdminBillingPlansLimitsPutError = UpsertPlanLimitApiV1AdminBillingPlansLimitsPutErrors[keyof UpsertPlanLimitApiV1AdminBillingPlansLimitsPutErrors];
+
+export type UpsertPlanLimitApiV1AdminBillingPlansLimitsPutResponses = {
+    /**
+     * Response Upsert Plan Limit Api V1 Admin Billing Plans Limits Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type UpsertPlanLimitApiV1AdminBillingPlansLimitsPutResponse = UpsertPlanLimitApiV1AdminBillingPlansLimitsPutResponses[keyof UpsertPlanLimitApiV1AdminBillingPlansLimitsPutResponses];
+
 export type GetBuilderConfigApiV1AgentBuilderConfigGetData = {
     body?: never;
     headers?: {
@@ -19265,6 +19356,33 @@ export type SubscribeToPlanApiV1BillingPlanPostResponses = {
 };
 
 export type SubscribeToPlanApiV1BillingPlanPostResponse = SubscribeToPlanApiV1BillingPlanPostResponses[keyof SubscribeToPlanApiV1BillingPlanPostResponses];
+
+export type PublicPlansApiV1BillingPlansGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/billing/plans';
+};
+
+export type PublicPlansApiV1BillingPlansGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+};
+
+export type PublicPlansApiV1BillingPlansGetResponses = {
+    /**
+     * Response Public Plans Api V1 Billing Plans Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type PublicPlansApiV1BillingPlansGetResponse = PublicPlansApiV1BillingPlansGetResponses[keyof PublicPlansApiV1BillingPlansGetResponses];
 
 export type CancelMandateApiV1BillingMandateCancelPostData = {
     body?: never;
