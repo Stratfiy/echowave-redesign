@@ -277,3 +277,32 @@ describe('a proposed action', () => {
         expect(screen.getByText('Front desk')).toBeTruthy();
     });
 });
+
+describe('what the bot read on the way', () => {
+    it('is a muted one-liner, folded when several run together, and does not end thinking', async () => {
+        const since = new Date(Date.now() - 5_000).toISOString();
+        const reading = (id: number, summary: string, secondsAfter: number) =>
+            event({ id, kind: 'activity', summary, at: new Date(Date.now() - 5_000 + secondsAfter * 1000).toISOString() });
+        timeline.mockResolvedValue({
+            data: {
+                events: [reading(3, 'Asked Front desk', 2), reading(2, 'Read 3 passages from price list', 1)],
+                next_before_at: null,
+                next_before_id: null,
+            },
+        });
+        render(
+            <ChannelStream
+                workflowId={3}
+                botNames={{ 3: 'Front desk' }}
+                waitingFor={{ since, bots: [3] }}
+            />,
+        );
+        expect(await screen.findByText(/Asked Front desk/)).toBeTruthy();
+        expect(screen.getByText(/2 steps/)).toBeTruthy();
+        expect(screen.queryByText(/Read 3 passages/)).toBeNull();
+        // Readings are work, not the reply: the bot is still thinking.
+        expect(screen.getByLabelText('Front desk is thinking')).toBeTruthy();
+        screen.getByText('Show all').click();
+        expect(await screen.findByText(/Read 3 passages from price list/)).toBeTruthy();
+    });
+});

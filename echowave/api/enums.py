@@ -802,6 +802,12 @@ class AgentEventKind(str, Enum):
     #: The bot proposed a change to itself; the card shows the diff and the
     #: person publishes or discards the draft. See services/workflow/self_edit.
     EDIT_PROPOSED = "edit_proposed"
+    #: What a bot read or checked on the way to an answer: passages from
+    #: Company knowledge, the team's numbers, a bot it handed a question to.
+    #: A muted one-line row, folded when several run together, so the thread
+    #: shows the work without a bubble for each step. Not ``AGENT_ACTED``:
+    #: that is something done in outside software; this is a reading.
+    ACTIVITY = "activity"
     #: The organisation learned something from what an agent did.
     MEMORY_LEARNED = "memory_learned"
     ROUTINE_FIRED = "routine_fired"
