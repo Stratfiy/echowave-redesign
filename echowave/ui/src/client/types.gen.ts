@@ -16087,6 +16087,99 @@ export type UpsertPlanLimitApiV1AdminBillingPlansLimitsPutResponses = {
 
 export type UpsertPlanLimitApiV1AdminBillingPlansLimitsPutResponse = UpsertPlanLimitApiV1AdminBillingPlansLimitsPutResponses[keyof UpsertPlanLimitApiV1AdminBillingPlansLimitsPutResponses];
 
+export type GetKpiBoardApiV1AdminKpisGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * As Of
+         *
+         * The IST day the windows end on; defaults to today
+         */
+        as_of?: string | null;
+    };
+    url: '/api/v1/admin/kpis';
+};
+
+export type GetKpiBoardApiV1AdminKpisGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetKpiBoardApiV1AdminKpisGetError = GetKpiBoardApiV1AdminKpisGetErrors[keyof GetKpiBoardApiV1AdminKpisGetErrors];
+
+export type GetKpiBoardApiV1AdminKpisGetResponses = {
+    /**
+     * Response Get Kpi Board Api V1 Admin Kpis Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetKpiBoardApiV1AdminKpisGetResponse = GetKpiBoardApiV1AdminKpisGetResponses[keyof GetKpiBoardApiV1AdminKpisGetResponses];
+
+export type GetKpiCatalogueApiV1AdminKpisCatalogueGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/kpis/catalogue';
+};
+
+export type GetKpiCatalogueApiV1AdminKpisCatalogueGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetKpiCatalogueApiV1AdminKpisCatalogueGetError = GetKpiCatalogueApiV1AdminKpisCatalogueGetErrors[keyof GetKpiCatalogueApiV1AdminKpisCatalogueGetErrors];
+
+export type GetKpiCatalogueApiV1AdminKpisCatalogueGetResponses = {
+    /**
+     * Response Get Kpi Catalogue Api V1 Admin Kpis Catalogue Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetKpiCatalogueApiV1AdminKpisCatalogueGetResponse = GetKpiCatalogueApiV1AdminKpisCatalogueGetResponses[keyof GetKpiCatalogueApiV1AdminKpisCatalogueGetResponses];
+
 export type GetBuilderConfigApiV1AgentBuilderConfigGetData = {
     body?: never;
     headers?: {
