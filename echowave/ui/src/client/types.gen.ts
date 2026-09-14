@@ -1235,6 +1235,14 @@ export type BillingProfileRequest = {
      * Billing Email
      */
     billing_email?: string | null;
+    /**
+     * Po Number
+     */
+    po_number?: string | null;
+    /**
+     * Payment Terms
+     */
+    payment_terms?: string | null;
 };
 
 /**
@@ -4431,6 +4439,16 @@ export type FileMetadataResponse = {
     metadata: {
         [key: string]: unknown;
     } | null;
+};
+
+/**
+ * FircRequest
+ */
+export type FircRequest = {
+    /**
+     * Reference
+     */
+    reference: string;
 };
 
 /**
@@ -14882,6 +14900,102 @@ export type SetProviderRateApiV1AdminBillingRateCardProvidersPutResponses = {
 };
 
 export type SetProviderRateApiV1AdminBillingRateCardProvidersPutResponse = SetProviderRateApiV1AdminBillingRateCardProvidersPutResponses[keyof SetProviderRateApiV1AdminBillingRateCardProvidersPutResponses];
+
+export type RecordFircApiV1AdminBillingPaymentsPaymentIdFircPutData = {
+    body: FircRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Payment Id
+         */
+        payment_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/billing/payments/{payment_id}/firc';
+};
+
+export type RecordFircApiV1AdminBillingPaymentsPaymentIdFircPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RecordFircApiV1AdminBillingPaymentsPaymentIdFircPutError = RecordFircApiV1AdminBillingPaymentsPaymentIdFircPutErrors[keyof RecordFircApiV1AdminBillingPaymentsPaymentIdFircPutErrors];
+
+export type RecordFircApiV1AdminBillingPaymentsPaymentIdFircPutResponses = {
+    /**
+     * Response Record Firc Api V1 Admin Billing Payments  Payment Id  Firc Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RecordFircApiV1AdminBillingPaymentsPaymentIdFircPutResponse = RecordFircApiV1AdminBillingPaymentsPaymentIdFircPutResponses[keyof RecordFircApiV1AdminBillingPaymentsPaymentIdFircPutResponses];
+
+export type Gstr1ExportApiV1AdminBillingGstr1GetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query: {
+        /**
+         * Month
+         *
+         * YYYY-MM
+         */
+        month: string;
+        /**
+         * Format
+         */
+        format?: string;
+    };
+    url: '/api/v1/admin/billing/gstr1';
+};
+
+export type Gstr1ExportApiV1AdminBillingGstr1GetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type Gstr1ExportApiV1AdminBillingGstr1GetError = Gstr1ExportApiV1AdminBillingGstr1GetErrors[keyof Gstr1ExportApiV1AdminBillingGstr1GetErrors];
+
+export type Gstr1ExportApiV1AdminBillingGstr1GetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
 
 export type SeedProviderRatesApiV1AdminBillingRateCardSeedPostData = {
     body: SeedRatesRequest;

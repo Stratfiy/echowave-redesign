@@ -32,6 +32,7 @@ from api.db.models import TaxDocumentModel
 _KIND_TITLES = {
     "receipt_voucher": "Receipt Voucher",
     "tax_invoice": "Tax Invoice",
+    "credit_note": "Credit Note",
 }
 
 _STYLES = getSampleStyleSheet()
@@ -79,9 +80,22 @@ def _party_lines(snapshot: dict, *, gstin_label: str) -> str:
     if pan:
         lines.append(f"PAN: {pan}")
 
+    # Ours: the MSME registration that binds the 45-day payment rule.
+    udyam = snapshot.get("udyam_number")
+    if udyam:
+        lines.append(f"Udyam: {udyam}")
+
     email = snapshot.get("billing_email")
     if email:
         lines.append(email)
+
+    # Theirs: what an enterprise accounts team matches the invoice against.
+    po_number = snapshot.get("po_number")
+    if po_number:
+        lines.append(f"PO: {po_number}")
+    terms = snapshot.get("payment_terms")
+    if terms:
+        lines.append(f"Payment terms: {terms}")
 
     return "<br/>".join(lines)
 
@@ -206,13 +220,27 @@ def render_document_pdf(document: TaxDocumentModel) -> bytes:
     if document.supply_type == "export" and (document.supplier_snapshot or {}).get(
         "lut_number"
     ):
+        valid_until = (document.supplier_snapshot or {}).get("lut_valid_until")
         story.append(
             Paragraph(
                 "Supply meant for export under LUT without payment of IGST "
-                f"(LUT {document.supplier_snapshot['lut_number']}).",
+                f"(LUT {document.supplier_snapshot['lut_number']}"
+                + (f", valid to {valid_until}" if valid_until else "")
+                + ").",
                 _SUBTITLE,
             )
         )
+    against = next(
+        (
+            item.get("against_number")
+            for item in (document.line_items or [])
+            if isinstance(item, dict) and item.get("against_number")
+        ),
+        None,
+    )
+    if document.kind == "credit_note" and against:
+        story.append(Spacer(1, 4 * mm))
+        story.append(Paragraph(f"Issued against {against}.", _SUBTITLE))
 
     doc.build(story)
     return buffer.getvalue()

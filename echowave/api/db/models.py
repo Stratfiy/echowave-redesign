@@ -4061,6 +4061,10 @@ class PaymentModel(Base):
         BigInteger, nullable=False, default=0, server_default=text("0")
     )
     pack_code = Column(String(16), nullable=True)
+    # The FIRC/FIRA reference for an export remittance (KAN-80): the bank's
+    # certificate that proves the export at filing. Recorded by staff once
+    # the certificate arrives; GSTR-1 lists export payments still without one.
+    firc_reference = Column(String(64), nullable=True)
     # What the customer is actually charged: amount_paise plus tax. The webhook
     # checks the payload against *this*, because this is what Razorpay collected.
     # Equal to amount_paise for a zero-rated export.
@@ -4326,6 +4330,10 @@ class BillingProfileModel(Base):
 
     # Where documents are sent, when that is not the account owner's address.
     billing_email = Column(String(320), nullable=True)
+    # KAN-80: what an enterprise invoice carries for the customer's accounts
+    # team. Frozen onto each document at issue with the rest of the profile.
+    po_number = Column(String(64), nullable=True)
+    payment_terms = Column(String(128), nullable=True)
 
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     updated_at = Column(

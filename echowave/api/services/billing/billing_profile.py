@@ -40,6 +40,10 @@ class BillingProfile:
     postal_code: str | None
     country_code: str
     billing_email: str | None
+    #: An enterprise customer's purchase-order number and agreed payment terms
+    #: (KAN-80), printed on every document so their accounts team can match it.
+    po_number: str | None
+    payment_terms: str | None
     #: True when everything an invoice needs is present. Surfaced so the screen
     #: can say what is missing before the first payment rather than after.
     is_complete: bool
@@ -69,6 +73,8 @@ def _view(row: BillingProfileModel | None) -> BillingProfile:
             postal_code=None,
             country_code="IN",
             billing_email=None,
+            po_number=None,
+            payment_terms=None,
             is_complete=False,
             is_export=False,
         )
@@ -89,6 +95,8 @@ def _view(row: BillingProfileModel | None) -> BillingProfile:
         postal_code=row.postal_code,
         country_code=country,
         billing_email=row.billing_email,
+        po_number=row.po_number,
+        payment_terms=row.payment_terms,
         is_complete=complete,
         is_export=export,
     )
@@ -122,6 +130,8 @@ async def save_profile(
     postal_code: str | None = None,
     country_code: str = "IN",
     billing_email: str | None = None,
+    po_number: str | None = None,
+    payment_terms: str | None = None,
 ) -> BillingProfile:
     """Create or replace an account's billing profile.
 
@@ -173,6 +183,8 @@ async def save_profile(
     row.postal_code = (postal_code or "").strip() or None
     row.country_code = country
     row.billing_email = (billing_email or "").strip() or None
+    row.po_number = (po_number or "").strip()[:64] or None
+    row.payment_terms = (payment_terms or "").strip()[:128] or None
 
     await session.flush()
     logger.info(

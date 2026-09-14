@@ -885,12 +885,22 @@ SUPPLIER_SAC_CODE = os.getenv("SUPPLIER_SAC_CODE", "998314")
 # false and exports are refused rather than silently invoiced at zero.
 SUPPLIER_HAS_LUT = os.getenv("SUPPLIER_HAS_LUT", "false").lower() == "true"
 SUPPLIER_LUT_NUMBER = os.getenv("SUPPLIER_LUT_NUMBER", "")
+# The LUT is filed for a financial year and lapses; an export invoiced under
+# a lapsed LUT is not zero-rated, it is IGST owed plus interest. ISO date
+# (2027-03-31); empty means "not tracked", which the readiness screen reports.
+SUPPLIER_LUT_VALID_UNTIL = os.getenv("SUPPLIER_LUT_VALID_UNTIL", "")
+# Udyam (MSME) registration number, printed on every invoice: it is what
+# makes the 45-day payment rule (MSMED Act s15) bind an enterprise customer.
+SUPPLIER_UDYAM_NUMBER = os.getenv("SUPPLIER_UDYAM_NUMBER", "")
 
 # Document number prefixes. GST requires a consecutive serial unique within a
 # financial year, at most 16 characters, so these are short by necessity:
 # "INV/26-27/000001" is exactly 16.
 INVOICE_NUMBER_PREFIX = os.getenv("INVOICE_NUMBER_PREFIX", "INV")
 RECEIPT_NUMBER_PREFIX = os.getenv("RECEIPT_NUMBER_PREFIX", "RV")
+# Credit notes run in their own series (GST rule 53): a note is never an
+# invoice number reused, and the prefix makes the series visible on the page.
+CREDIT_NOTE_NUMBER_PREFIX = os.getenv("CREDIT_NOTE_NUMBER_PREFIX", "CN")
 
 # --- Outbound email ------------------------------------------------------------
 #

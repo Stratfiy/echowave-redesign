@@ -126,6 +126,9 @@ type BillingProfileFields = {
     postal_code: string | null;
     country_code: string;
     billing_email: string | null;
+    /** Printed on every document for an enterprise accounts team (KAN-80). */
+    po_number?: string | null;
+    payment_terms?: string | null;
 };
 
 type TaxDocument = {
@@ -153,6 +156,8 @@ const EMPTY_PROFILE: BillingProfileFields = {
     postal_code: "",
     country_code: "IN",
     billing_email: "",
+    po_number: "",
+    payment_terms: "",
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -300,6 +305,8 @@ export default function BillingPage() {
                     postal_code: profile.postal_code || null,
                     country_code: profile.country_code || "IN",
                     billing_email: profile.billing_email || null,
+                    po_number: profile.po_number || null,
+                    payment_terms: profile.payment_terms || null,
                 },
             });
             if (response.error) {
@@ -901,6 +908,30 @@ export default function BillingPage() {
                                 setProfileField("billing_email", e.target.value)
                             }
                             placeholder="accounts@acme.com"
+                            className="mt-1.5"
+                        />
+                    </div>
+
+                    <div>
+                        <Label htmlFor="po-number">PO number (optional)</Label>
+                        <Input
+                            id="po-number"
+                            value={profile.po_number ?? ""}
+                            onChange={(e) => setProfileField("po_number", e.target.value)}
+                            placeholder="Your purchase order, printed on invoices"
+                            className="mt-1.5"
+                        />
+                    </div>
+
+                    <div>
+                        <Label htmlFor="payment-terms">Payment terms (optional)</Label>
+                        <Input
+                            id="payment-terms"
+                            value={profile.payment_terms ?? ""}
+                            onChange={(e) =>
+                                setProfileField("payment_terms", e.target.value)
+                            }
+                            placeholder="e.g. Net 45"
                             className="mt-1.5"
                         />
                     </div>

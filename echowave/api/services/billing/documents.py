@@ -30,7 +30,9 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api import constants
 from api.constants import (
+    CREDIT_NOTE_NUMBER_PREFIX,
     INVOICE_NUMBER_PREFIX,
     RECEIPT_NUMBER_PREFIX,
     SUPPLIER_ADDRESS,
@@ -54,6 +56,17 @@ from api.services.billing.tax import TaxBreakdown, compute_tax, net_of
 
 RECEIPT_VOUCHER = "receipt_voucher"
 TAX_INVOICE = "tax_invoice"
+#: Issued against an earlier document when money goes back: a refund, a
+#: correction. Its own series, its own sequence, referencing what it reverses.
+CREDIT_NOTE = "credit_note"
+
+#: One series per kind. A KeyError here is the right failure: a new document
+#: kind without a series would otherwise be numbered as a receipt, silently.
+_NUMBER_PREFIXES = {
+    TAX_INVOICE: INVOICE_NUMBER_PREFIX,
+    RECEIPT_VOUCHER: RECEIPT_NUMBER_PREFIX,
+    CREDIT_NOTE: CREDIT_NOTE_NUMBER_PREFIX,
+}
 
 #: Indian financial year starts in April.
 FINANCIAL_YEAR_START_MONTH = 4
@@ -107,6 +120,10 @@ def supplier_snapshot() -> dict:
         "pan": SUPPLIER_PAN,
         "sac_code": SUPPLIER_SAC_CODE,
         "lut_number": SUPPLIER_LUT_NUMBER if SUPPLIER_HAS_LUT else None,
+        "lut_valid_until": (
+            (constants.SUPPLIER_LUT_VALID_UNTIL or None) if SUPPLIER_HAS_LUT else None
+        ),
+        "udyam_number": constants.SUPPLIER_UDYAM_NUMBER or None,
     }
 
 
@@ -153,7 +170,7 @@ async def _next_number(session: AsyncSession, *, kind: str, year: str) -> str:
     row.last_number = int(row.last_number or 0) + 1
     await session.flush()
 
-    prefix = INVOICE_NUMBER_PREFIX if kind == TAX_INVOICE else RECEIPT_NUMBER_PREFIX
+    prefix = _NUMBER_PREFIXES[kind]
     return f"{prefix}/{year}/{row.last_number:0{SERIAL_WIDTH}d}"
 
 
@@ -228,9 +245,12 @@ async def _issue(
 
 
 async def issue_receipt_voucher(
-    session: AsyncSession, *, payment: PaymentModel
+    session: AsyncSession, *, payment: PaymentModel, issued_at: datetime | None = None
 ) -> IssuedDocument | None:
     """Acknowledge an advance, and the tax that fell due with it.
+
+    ``issued_at`` defaults to when the payment was captured; it is a
+    parameter so a voucher issued late lands in the month the money did.
 
     Idempotent on the payment: a replayed webhook must not issue a second
     voucher, and a partial unique index on ``payment_id`` backs that up.
@@ -282,7 +302,7 @@ async def issue_receipt_voucher(
             }
         ],
         customer=profile.as_snapshot(),
-        issued_at=payment.paid_at or datetime.now(UTC),
+        issued_at=issued_at or payment.paid_at or datetime.now(UTC),
         payment_id=payment.id,
     )
     return _view(document)
@@ -470,6 +490,79 @@ async def issue_tax_invoice(
         issued_at=issued_at or datetime.now(UTC),
         period_start=period_start,
         period_end=period_end,
+    )
+    return _view(document)
+
+
+async def issue_credit_note(
+    session: AsyncSession,
+    *,
+    organization_id: int,
+    against_document_id: int,
+    amount_paise: int,
+    reason: str,
+    issued_at: datetime | None = None,
+) -> IssuedDocument:
+    """A credit note against an issued document, for money going back.
+
+    Taxed the way the original was — same supply type, same rate — on the
+    net amount refunded, so the note reverses the tax the original charged
+    in the same proportion. Never more than the original: a note larger than
+    what it reverses is a document a tax officer asks about. The money itself
+    moves through Razorpay by hand; this is the record the return needs.
+    """
+    if amount_paise <= 0:
+        raise DocumentError("A credit note needs a positive amount.")
+    if not supplier_is_configured():
+        raise DocumentError(
+            "Cannot issue a credit note: SUPPLIER_LEGAL_NAME and SUPPLIER_GSTIN "
+            "are not set."
+        )
+    original = await session.scalar(
+        select(TaxDocumentModel).where(
+            TaxDocumentModel.id == against_document_id,
+            TaxDocumentModel.organization_id == organization_id,
+        )
+    )
+    if original is None:
+        raise DocumentError("No such document to credit against.")
+    if original.kind == CREDIT_NOTE:
+        raise DocumentError("A credit note cannot be issued against a credit note.")
+    if amount_paise > int(original.taxable_paise):
+        raise DocumentError(
+            f"A credit note cannot exceed the {original.taxable_paise} paise "
+            f"taxable on {original.number}."
+        )
+    customer = original.customer_snapshot or {}
+    breakdown = compute_tax(
+        taxable_paise=amount_paise,
+        country_code=customer.get("country_code"),
+        state_code=customer.get("state_code"),
+        rate_basis_points=(
+            int(original.rate_basis_points or 0)
+            if original.supply_type != "export"
+            else None
+        ),
+    )
+    document = await _issue(
+        session,
+        organization_id=organization_id,
+        kind=CREDIT_NOTE,
+        breakdown=breakdown,
+        line_items=[
+            {
+                "description": f"Credit against {original.number}: {reason.strip()}",
+                "sac_code": SUPPLIER_SAC_CODE,
+                "amount_paise": amount_paise,
+                "against_number": original.number,
+                "against_document_id": original.id,
+                "reason": reason.strip(),
+            }
+        ],
+        customer=customer,
+        issued_at=issued_at or datetime.now(UTC),
+        payment_id=original.payment_id,
+        provider_payment_id=original.provider_payment_id,
     )
     return _view(document)
 

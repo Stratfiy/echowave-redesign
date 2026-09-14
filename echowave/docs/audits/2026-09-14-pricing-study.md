@@ -548,3 +548,34 @@ still on the seeded default take these figures, rows somebody typed
    embedding debit (`embedding_ingestion`, fractions of a paisa, never a
    customer line) is left as it was; with the self-hosted bge-m3 it should
    go to zero, which is a rate-row change, not a code change.
+
+## 18. Notes from GST and export invoicing (KAN-80, 14 Sept)
+
+1. **Most of the ticket already existed**: CGST+SGST against IGST by the
+   customer's state, sequential numbering per financial year, receipt
+   vouchers on advances, tax invoices on usage, zero-rated exports under LUT
+   with the statutory sentence on the PDF, SAC 998314 on every line. This
+   step adds what was missing.
+2. **GSTIN required from Business up** at checkout, for a domestic account;
+   Everyday and Free are sold to sole traders too. Every plan needs a
+   complete profile first, since the first collection issues a document.
+   `routes/payments.GSTIN_REQUIRED_FROM`.
+3. **The LUT has a date.** `SUPPLIER_LUT_VALID_UNTIL`; an export supply
+   after the lapse is refused rather than invoiced at zero, and the
+   readiness screen reports an untracked or lapsed LUT. The validity prints
+   on export documents.
+4. **Credit notes** (`documents.issue_credit_note`): against an issued
+   document, in their own series, taxed as the original was, never larger
+   than it, org-scoped. The money moves through Razorpay by hand; the note
+   is the return's record.
+5. **Enterprise fields**: the customer's PO number and payment terms on the
+   billing profile, frozen onto documents; our Udyam number
+   (`SUPPLIER_UDYAM_NUMBER`) on every document, for the 45-day rule.
+6. **FIRC/FIRA per export payment** (`payments.firc_reference`, set by
+   staff at `PUT /admin/billing/payments/{id}/firc`).
+7. **GSTR-1 from the ledger**: `GET /admin/billing/gstr1?month=YYYY-MM`
+   (JSON or CSV) groups the month's documents into B2B, B2C, EXP and credit
+   notes, totals them, and reconciles receipt vouchers issued against
+   payments Razorpay captured in the month; export payments without a FIRC
+   are listed. A superadmin screen for it is a follow-up; the CSV is what
+   the return needs.

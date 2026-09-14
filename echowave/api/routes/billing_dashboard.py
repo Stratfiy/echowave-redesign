@@ -945,6 +945,62 @@ async def set_provider_rate(
     }
 
 
+class FircRequest(BaseModel):
+    reference: str = Field(..., min_length=1, max_length=64)
+
+
+@router.put("/payments/{payment_id}/firc")
+async def record_firc(
+    payment_id: int, request: FircRequest, user: UserModel = Depends(get_superuser)
+) -> dict[str, Any]:
+    """Record the FIRC/FIRA reference against an export payment (KAN-80)."""
+    from api.services.billing import payments as payment_service
+
+    async with db_client.async_session() as session:
+        try:
+            payment = await payment_service.record_firc(
+                session, payment_id=payment_id, reference=request.reference
+            )
+        except payment_service.PaymentError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await session.commit()
+        return {
+            "payment_id": payment.id,
+            "organization_id": payment.organization_id,
+            "firc_reference": payment.firc_reference,
+        }
+
+
+@router.get("/gstr1")
+async def gstr1_export(
+    month: str = Query(..., description="YYYY-MM"),
+    format: str = Query("json", pattern="^(json|csv)$"),
+    user: UserModel = Depends(get_superuser),
+):
+    """The month's GSTR-1 rows from the documents issued, reconciled to what
+    Razorpay captured (KAN-80). ``format=csv`` for the return; JSON carries
+    the totals and the reconciliation as well."""
+    from fastapi.responses import PlainTextResponse
+
+    from api.services.billing import gstr1
+
+    try:
+        year, month_number = gstr1.parse_month(month)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    async with db_client.async_session() as session:
+        report = await gstr1.build(session, year=year, month=month_number)
+    if format == "csv":
+        return PlainTextResponse(
+            gstr1.to_csv(report),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": f'attachment; filename="gstr1-{report.month}.csv"'
+            },
+        )
+    return report.as_dict()
+
+
 @router.post("/rate-card/seed")
 async def seed_provider_rates(
     request: SeedRatesRequest, user: UserModel = Depends(get_superuser)
