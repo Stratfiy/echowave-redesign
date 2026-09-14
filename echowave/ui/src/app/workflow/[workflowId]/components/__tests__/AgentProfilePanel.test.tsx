@@ -11,6 +11,7 @@ const memory = vi.hoisted(() => vi.fn());
 vi.mock('@/client/sdk.gen', () => ({
     listToolsApiV1ToolsGet: tools,
     readMemoryApiV1OrganisationMemoryGet: memory,
+    setStatusApiV1OrganisationMemoryFactIdStatusPost: vi.fn(),
 }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
 
@@ -39,7 +40,7 @@ describe('the panel', () => {
                 { tool_uuid: 't2', name: 'Book slot', category: 'rate_table' },
             ],
         });
-        memory.mockResolvedValue({ data: { facts: [{ key: 'Opening hours', value: '9 to 6' }], gaps: [] } });
+        memory.mockResolvedValue({ data: { facts: [{ id: 1, key: 'Opening hours', value: '9 to 6', status: 'confirmed' }], gaps: [] } });
         render(<AgentProfilePanel workflowId={3} name="Narayani Dental front desk" nodes={NODES} />);
         expect(screen.getByText('Narayani Dental front desk')).toBeTruthy();
         expect(screen.getByText('2 steps')).toBeTruthy();

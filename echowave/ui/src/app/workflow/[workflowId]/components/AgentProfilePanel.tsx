@@ -15,12 +15,11 @@ import { Brain, Database, Plug, Wrench } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { listToolsApiV1ToolsGet, readMemoryApiV1OrganisationMemoryGet } from '@/client/sdk.gen';
+import { listToolsApiV1ToolsGet } from '@/client/sdk.gen';
 import type { FlowNode } from '@/components/flow/types';
 import { initials } from '@/components/layout/SidebarBots';
+import { MemoryList } from '@/components/memory/MemoryList';
 import { useAuth } from '@/lib/auth';
-
-type Fact = { key: string; value: string; subject?: string | null };
 
 /** Every tool a step of this bot names, once each. */
 export function skillIdsOf(nodes: FlowNode[]): string[] {
@@ -173,7 +172,6 @@ export function AgentProfilePanel({
     const { user, loading: authLoading } = useAuth();
     const fetched = useRef(false);
     const [tools, setTools] = useState<Record<string, ToolSummary>>({});
-    const [facts, setFacts] = useState<Fact[] | null>(null);
 
     const skillIds = useMemo(() => skillIdsOf(nodes), [nodes]);
     const documents = useMemo(() => documentCountOf(nodes), [nodes]);
@@ -193,15 +191,6 @@ export function AgentProfilePanel({
                     definition: (tool.definition ?? {}) as Record<string, unknown>,
                 };
             setTools(byId);
-        })();
-        void (async () => {
-            // What the business has confirmed about itself: the memory every
-            // bot here draws on. A failure costs the section, not the panel.
-            const response = await readMemoryApiV1OrganisationMemoryGet();
-            if (response.error || !response.data) return;
-            setFacts(
-                (response.data.facts ?? []).map((f) => ({ key: f.key, value: f.value, subject: f.subject })),
-            );
         })();
     }, [authLoading, user]);
 
@@ -272,21 +261,9 @@ export function AgentProfilePanel({
                     <Brain className="h-3.5 w-3.5" aria-hidden />
                     Memory
                 </h3>
-                {facts === null ? null : facts.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Nothing confirmed about the business yet.</p>
-                ) : (
-                    <ul className="space-y-1 text-sm" aria-label="Memory">
-                        {facts.slice(0, 5).map((fact, i) => (
-                            <li key={`${fact.key}-${i}`} className="flex gap-2">
-                                <span className="shrink-0 text-muted-foreground">{fact.key}</span>
-                                <span className="min-w-0 truncate">{fact.value}</span>
-                            </li>
-                        ))}
-                        {facts.length > 5 && (
-                            <li className="text-xs text-muted-foreground">{facts.length - 5} more</li>
-                        )}
-                    </ul>
-                )}
+                {/* The organisation's confirmed facts and this bot's own,
+                    each with a way to forget it. Shared with Decibyl's About. */}
+                <MemoryList workflowId={workflowId} botName={name} />
             </section>
 
             {children && (

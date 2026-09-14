@@ -3142,8 +3142,10 @@ export const graphApiV1OrganisationGraphGet = <ThrowOnError extends boolean = fa
  *
  * Everything this business knows about itself, most-seen first.
  *
- * Rejected entries are left out. Dismissing something has to mean it goes
- * away, or the list will not stay dismissed and people stop reading it.
+ * With a ``workflow_id`` it is the organisation's memory plus that bot's
+ * own, which is what the bot's About panel shows; each row says whose it
+ * is. Rejected entries are left out. Dismissing something has to mean it
+ * goes away, or the list will not stay dismissed and people stop reading it.
  */
 export const readMemoryApiV1OrganisationMemoryGet = <ThrowOnError extends boolean = false>(options?: Options<ReadMemoryApiV1OrganisationMemoryGetData, ThrowOnError>): RequestResult<ReadMemoryApiV1OrganisationMemoryGetResponses, ReadMemoryApiV1OrganisationMemoryGetErrors, ThrowOnError> => (options?.client ?? client).get<ReadMemoryApiV1OrganisationMemoryGetResponses, ReadMemoryApiV1OrganisationMemoryGetErrors, ThrowOnError>({ url: '/api/v1/organisation/memory', ...options });
 

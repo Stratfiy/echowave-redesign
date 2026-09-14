@@ -37,6 +37,7 @@ export default function OverviewPage() {
                 tabs={[
                     { href: "/overview", label: "Messages" },
                     { href: "/review", label: "History", prefix: true },
+                    { href: "/overview/about", label: "About" },
                 ]}
             />
             {/* The one screen that keeps a reading-width column inside the body.

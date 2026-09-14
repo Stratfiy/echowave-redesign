@@ -45,7 +45,8 @@ from api.services.workflow import agent_timeline
 TOOL_NAME = "propose_action"
 DESCRIPTION = (
     "Propose to do one of the things you are allowed to do: turn a bot on "
-    "or off, or call back a caller the business missed. Nothing happens "
+    "or off, call back a caller the business missed, or forget one of the "
+    "facts in your memory when a person asks you to. Nothing happens "
     "until a person on the team confirms on the card, and they can undo it "
     "for a few seconds after. Say in one line why. You will not know the "
     "outcome in this turn; say that you have proposed it and end your reply."
@@ -58,7 +59,8 @@ UNDO_WINDOW_SECONDS = 10
 TURN_BOT_ON = "turn_bot_on"
 TURN_BOT_OFF = "turn_bot_off"
 RETURN_MISSED_CALL = "return_missed_call"
-ACTIONS = (TURN_BOT_ON, TURN_BOT_OFF, RETURN_MISSED_CALL)
+FORGET_FACT = "forget_fact"
+ACTIONS = (TURN_BOT_ON, TURN_BOT_OFF, RETURN_MISSED_CALL, FORGET_FACT)
 
 #: The states a proposal moves through. Terminal ones are the last four.
 PROPOSED = "proposed"
@@ -80,7 +82,8 @@ def tool_properties() -> dict[str, Any]:
             "description": (
                 "'turn_bot_on' or 'turn_bot_off' for a bot's live switch; "
                 "'return_missed_call' to ring back a caller from the missed "
-                "calls in your context."
+                "calls in your context; 'forget_fact' to drop one remembered "
+                "fact, named by its key."
             ),
         },
         "bot": {
@@ -93,6 +96,10 @@ def tool_properties() -> dict[str, Any]:
         "missed_call_id": {
             "type": "integer",
             "description": "The id of the missed call, from your context, for return_missed_call.",
+        },
+        "fact": {
+            "type": "string",
+            "description": "The key of the fact to forget, as it appears in your memory, for forget_fact.",
         },
         "why": {
             "type": "string",
@@ -176,6 +183,37 @@ async def resolve(
             "action": action,
             "args": {"workflow_id": target_id, "bot_name": target_name, "is_live": on},
             "label": f"Turn {target_name} {'on' if on else 'off'}",
+            "why": why,
+            "reversible": True,
+            "state": PROPOSED,
+        }
+
+    if action == FORGET_FACT:
+        wanted = str(arguments.get("fact") or "").strip()
+        if not wanted:
+            raise ActionError("Say which fact, by its key.")
+        rows = await db_client.organisation_memory(
+            organization_id=organization_id, workflow_id=workflow_id
+        )
+        live = [r for r in rows if r.status != "rejected"]
+        key = wanted.casefold()
+        hits = [r for r in live if (r.key or "").casefold() == key]
+        if not hits:
+            hits = [r for r in live if key in (r.key or "").casefold()]
+        if len(hits) != 1:
+            raise ActionError(
+                f"No single fact called {wanted!r} in memory; use its exact key."
+            )
+        row = hits[0]
+        return {
+            "action": action,
+            "args": {
+                "fact_id": row.id,
+                "key": row.key,
+                "value": row.value,
+                "was_status": row.status,
+            },
+            "label": f"Forget {row.key}",
             "why": why,
             "reversible": True,
             "state": PROPOSED,
@@ -378,6 +416,17 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
         except ValueError as exc:
             raise ActionError("That bot no longer exists.") from exc
         return f"{args.get('bot_name', 'The bot')} is now {'on' if args['is_live'] else 'off'}."
+    if action == FORGET_FACT:
+        # Forgetting is a status, not a delete: the row stays, out of every
+        # prompt and every screen, so it can be put back and so it stays
+        # dismissed if a call teaches it again.
+        if not await db_client.set_organisation_fact_status(
+            organization_id=organization_id,
+            fact_id=int(args["fact_id"]),
+            status="rejected",
+        ):
+            raise ActionError("That fact is no longer in memory.")
+        return f"Forgotten: {args.get('key', 'that')}."
     if action == RETURN_MISSED_CALL:
         from api.services.telephony import missed_call
 
@@ -421,6 +470,14 @@ async def _reverse(organization_id: int, payload: dict[str, Any]) -> None:
             )
         except ValueError as exc:
             raise ActionError("That bot no longer exists.") from exc
+        return
+    if action == FORGET_FACT:
+        if not await db_client.set_organisation_fact_status(
+            organization_id=organization_id,
+            fact_id=int(args["fact_id"]),
+            status=str(args.get("was_status") or "confirmed"),
+        ):
+            raise ActionError("That fact is no longer in memory.")
         return
     raise ActionError("This cannot be put back.")
 
