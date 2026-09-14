@@ -517,18 +517,10 @@ AGENT_BUILDER_MODELS = {
     "google": os.getenv("AGENT_BUILDER_MODEL_GOOGLE", "gemini-2.5-flash"),
 }
 
-# How many builder messages one organization may send in a day, IST.
-#
-# The builder spends our money, so it is capped per account rather than
-# globally: a global cap would let one enthusiastic account exhaust the day for
-# everybody. Counted per user message, not per token, because a message is what
-# a person understands and what a rate-limit notice can honestly state.
-#
-# Zero disables the builder without removing it, which is the setting to use if
-# the spend needs stopping before anyone can look at why.
-AGENT_BUILDER_DAILY_MESSAGE_LIMIT = int(
-    os.getenv("AGENT_BUILDER_DAILY_MESSAGE_LIMIT", "60")
-)
+# The builder's message allowance is a plan cap since KAN-56 —
+# ``plan_limits`` ``builder_messages`` (30 / 100 / 300 a month, unlimited on
+# Scale) — and five credits a message past it. The old daily cap is gone:
+# see services/agent_builder/limits.py.
 
 # How many tool calls one builder turn may make before it must answer.
 #

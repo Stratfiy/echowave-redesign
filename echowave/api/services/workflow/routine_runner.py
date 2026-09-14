@@ -28,6 +28,7 @@ from pipecat.utils.run_context import set_current_run_id
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind, WorkflowRunMode
+from api.services.billing import events as billing_events
 from api.services.quota_service import authorize_workflow_run_start
 from api.services.workflow import agent_timeline
 from api.services.workflow.text_chat_runner import default_text_chat_checkpoint
@@ -146,6 +147,15 @@ async def run_routine(routine_id: int) -> Optional[int]:
         )
 
         answer = (_last_assistant_text(text_session) or "").strip()
+        # A routine run is one event at one price (KAN-56), whether or not
+        # it had anything to report: the model ran and the tools were tried.
+        # Keyed on the run, so a re-fired job charges it once.
+        await billing_events.charge_in_own_session(
+            organization_id=organization_id,
+            event=billing_events.ROUTINE_RUN,
+            ref_id=str(run_id),
+            note=routine["name"][:80],
+        )
         if not answer:
             # Ran, produced nothing. The single most important case to record:
             # a blank run and a run that never happened look identical from
@@ -169,7 +179,12 @@ async def run_routine(routine_id: int) -> Optional[int]:
             summary=answer[:MAX_DELIVERABLE],
             workflow_id=workflow_id,
             workflow_run_id=run_id,
-            payload={"routine_id": routine_id, "routine": routine["name"]},
+            payload={
+                "routine_id": routine_id,
+                "routine": routine["name"],
+                "credits": billing_events.credits_for(billing_events.ROUTINE_RUN),
+                "billed_as": billing_events.ROUTINE_RUN,
+            },
         )
         return run_id
     except Exception as exc:  # noqa: BLE001 - see the docstring

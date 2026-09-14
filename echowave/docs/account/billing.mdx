@@ -74,6 +74,23 @@ Credit appears once the payment is confirmed by Razorpay's servers, not when the
 GST is added at checkout on top of the credit you buy. Buying ₹500 of credit charges ₹590 and gives you ₹500 of usage; the ₹90 is tax, not a fee.
 </Note>
 
+## What a credit buys
+
+Every event a bot performs is either charged in credits or included in your plan. The thread shows the figure on each card.
+
+| Event | Credits |
+|---|---:|
+| Voice, per minute (Everyday bundle) | 12 / 11 / 10 by plan |
+| Text reply in a channel or chat | 1 |
+| Knowledge answer (the reply read your documents) | 2 |
+| Routine run | 2 |
+| Tool call through a connector | 1 (premium connectors 3) |
+| WhatsApp message from the platform sender | 2 |
+| Builder message past the plan's monthly allowance (30 / 100 / 300; unlimited on Scale) | 5 |
+| Verifying a phone number by voice code, after the first two numbers | 2 |
+
+Call events on the timeline — started, answered, ended, what the caller wanted, the credits held and settled — are included: the call itself is what is charged. Test chats and test calls inside the app are not charged.
+
 ## Invoices and receipts
 
 Every payment produces a **receipt voucher** — a GST document with your registered name, GSTIN, place of supply and the tax split.

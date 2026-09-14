@@ -68,6 +68,10 @@ class TimelineEvent(BaseModel):
     workflow_id: Optional[int]
     workflow_run_id: Optional[int]
     folder_id: Optional[int]
+    #: What this row cost in credits, and whether it is included in the plan
+    #: rather than charged (KAN-56). Every kind is one or the other.
+    credits: int = 0
+    included: bool = True
 
 
 class TimelineResponse(BaseModel):
@@ -91,6 +95,9 @@ class TimelineResponse(BaseModel):
 
 
 def _as_event(row: Any) -> TimelineEvent:
+    from api.services.billing import events as billing_events
+
+    price = billing_events.timeline_price(row.kind, row.payload or {})
     return TimelineEvent(
         id=row.id,
         at=row.at,
@@ -102,6 +109,8 @@ def _as_event(row: Any) -> TimelineEvent:
         workflow_id=row.workflow_id,
         workflow_run_id=row.workflow_run_id,
         folder_id=row.folder_id,
+        credits=price["credits"],
+        included=price["included"],
     )
 
 

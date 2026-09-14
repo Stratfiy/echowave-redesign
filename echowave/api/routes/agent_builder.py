@@ -70,17 +70,39 @@ async def get_builder_config(user: UserModel = Depends(get_user)) -> dict[str, A
             # something they fix in the provider keys screen.
             unavailable_reason = str(exc)
 
-    state = await limits.peek(organization_id)
+        allowance = await _allowance(session, organization_id)
+    state = await limits.peek(organization_id, allowance=allowance)
     return {
         "available": available,
         "provider": provider,
         "unavailable_reason": unavailable_reason,
-        "usage": {
-            "used": state.used,
-            "limit": state.limit,
-            "remaining": state.remaining,
-            "resets_at": state.resets_at.isoformat(),
-        },
+        "usage": _usage(state, charged_credits=0),
+    }
+
+
+async def _allowance(session, organization_id: int) -> int | None:
+    """This month's included builder messages, from the plan (KAN-56)."""
+    from api.services.billing import plan_limits
+
+    limit = await plan_limits.limit_for_organization(
+        session, organization_id=organization_id, key="builder_messages"
+    )
+    return limit.value
+
+
+def _usage(state: limits.LimitState, *, charged_credits: int) -> dict[str, Any]:
+    return {
+        "used": state.used,
+        # ``limit`` kept for the screen that reads it; 0 means unlimited, as
+        # it always did. ``allowance`` is the same figure with None meaning
+        # unlimited, which is what the plan says.
+        "limit": state.limit or 0,
+        "allowance": state.limit,
+        "remaining": state.remaining if state.remaining is not None else 0,
+        "resets_at": state.resets_at.isoformat(),
+        "past_allowance": state.past_allowance,
+        "per_message_credits": limits.PAST_ALLOWANCE_CREDITS,
+        "charged_credits": charged_credits,
     }
 
 
@@ -104,16 +126,46 @@ async def chat(
             raise HTTPException(status_code=503, detail=str(exc)) from exc
 
         # Consumed before the model is called — see the module docstring.
-        state = await limits.check_and_consume(organization_id)
-        if state.exhausted:
+        allowance = await _allowance(session, organization_id)
+        state = await limits.check_and_consume(organization_id, allowance=allowance)
+        if state.unavailable:
             raise HTTPException(
-                status_code=429,
-                detail=(
-                    f"You have used today's {state.limit} builder messages. "
-                    "The allowance resets at midnight."
-                ),
-                headers={"Retry-After": "3600"},
+                status_code=503,
+                detail="The builder is briefly unavailable. Try again in a minute.",
+                headers={"Retry-After": "60"},
             )
+        charged_credits = 0
+        if state.past_allowance:
+            # Past the plan's allowance a message is five credits (KAN-56),
+            # taken before the model runs. Refused, with the way out named,
+            # when the balance cannot cover it.
+            from api.services.billing import credits as credit_units
+            from api.services.billing import events as billing_events
+            from api.services.billing.payments import current_balance_paise
+
+            balance = await current_balance_paise(
+                session, organization_id=organization_id
+            )
+            price = billing_events.paise_for(billing_events.BUILDER_MESSAGE)
+            if balance < price:
+                raise HTTPException(
+                    status_code=402,
+                    detail=(
+                        f"You have used this month's {allowance} included builder "
+                        f"messages. Each further message is "
+                        f"{limits.PAST_ALLOWANCE_CREDITS} credits; you have "
+                        f"{credit_units.credits_of_balance(balance)}. Add credit, "
+                        "or upgrade for a larger allowance."
+                    ),
+                )
+            await billing_events.charge(
+                session,
+                organization_id=organization_id,
+                event=billing_events.BUILDER_MESSAGE,
+                ref_id=f"{organization_id}:{limits.ist_month()}:{state.used}",
+            )
+            await session.commit()
+            charged_credits = limits.PAST_ALLOWANCE_CREDITS
 
         try:
             result = await run_turn(
@@ -132,9 +184,5 @@ async def chat(
         "history": result.conversation,
         "actions": result.actions,
         "created_workflow_id": result.created_workflow_id,
-        "usage": {
-            "used": state.used,
-            "limit": state.limit,
-            "remaining": state.remaining,
-        },
+        "usage": _usage(state, charged_credits=charged_credits),
     }

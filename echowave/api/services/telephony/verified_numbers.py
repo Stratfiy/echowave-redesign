@@ -95,8 +95,14 @@ async def start_verification(
     label: str | None = None,
     now: datetime | None = None,
     db=None,
+    charge=None,
 ) -> StartedVerification:
     """Issue a code for a number, subject to the rate limits.
+
+    A new number past the account's first two is charged two credits (KAN-56):
+    the code goes out as a voice call, which costs carriage. Resends of a
+    number already started are not charged again — the charge is keyed on the
+    number. ``charge`` is the ledger call, injectable for tests.
 
     Returns the code so the caller can send it by SMS. Deliberately does not
     send it here: the transport belongs to the caller, which knows which
@@ -135,6 +141,11 @@ async def start_verification(
                     "before asking for another."
                 )
 
+    if existing is None:
+        await _charge_a_new_number(
+            client, organization_id=organization_id, number=number, charge=charge
+        )
+
     code = generate_code()
     salt = _otp.generate_salt()
     expires_at = moment + timedelta(minutes=VERIFICATION_CODE_TTL_MINUTES)
@@ -157,6 +168,34 @@ async def start_verification(
         f"ending {number[-4:]}"
     )
     return StartedVerification(phone_number=number, code=code, expires_at=expires_at)
+
+
+async def _charge_a_new_number(
+    client, *, organization_id: int, number: str, charge
+) -> None:
+    """Two credits for a new number past the first two. Never raises: a
+    verification that could not be charged still goes out, and the ledger
+    is reconciled — the customer is not left unable to verify over our
+    bookkeeping."""
+    from api.services.billing import events as billing_events
+
+    try:
+        held = await client.list_verified_numbers(organization_id)
+        if len(held) < billing_events.FREE_NUMBER_VERIFICATIONS:
+            return
+        debit = charge or billing_events.charge_in_own_session
+        await debit(
+            organization_id=organization_id,
+            event=billing_events.NUMBER_VERIFICATION,
+            ref_id=f"{organization_id}:{number}",
+            note=f"number ending {number[-4:]}",
+        )
+    except Exception as exc:  # noqa: BLE001 - see the docstring
+        logger.error(
+            "Could not charge the verification of a number for organization {}: {}",
+            organization_id,
+            exc,
+        )
 
 
 async def confirm_verification(
