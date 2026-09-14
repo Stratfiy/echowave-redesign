@@ -229,6 +229,28 @@ async def recent_thread(
     return render(rows, names, summary=folder.context_summary)
 
 
+async def recent_bot_thread(
+    *, organization_id: Optional[int], workflow_id: Optional[int]
+) -> Optional[str]:
+    """A bot's own chat, for when somebody talks to it directly.
+
+    No précis: a bot's thread has no watermark of its own yet, so this is the
+    window alone -- the last MAX_EVENTS rows across everything the bot did,
+    which is what the person on its chat is looking at.
+    """
+    if not organization_id or not workflow_id:
+        return None
+    try:
+        rows = await db_client.agent_events(
+            organization_id=organization_id, workflow_id=workflow_id, limit=MAX_EVENTS
+        )
+        names = await _names_for(organization_id)
+    except Exception as exc:  # noqa: BLE001 - context is an improvement, not a dependency
+        logger.warning("Could not read bot {} thread for context: {}", workflow_id, exc)
+        return None
+    return render(rows, names)
+
+
 async def compact(*, organization_id: int, folder_id: int, run_id: int) -> bool:
     """Fold the oldest unsummarised stretch of a channel into its précis.
 

@@ -40,4 +40,10 @@ async def process_workflow_completion(
     except Exception as e:
         logger.error(f"Error costing workflow run {workflow_run_id}: {e}")
 
+    # The call's own line on the bot's thread. After costing so the row can
+    # never be the reason a call went unpriced; guarded inside.
+    from api.services.workflow import agent_timeline
+
+    await agent_timeline.record_call_ended(workflow_run_id)
+
     logger.info(f"Completed workflow completion processing for run {workflow_run_id}")

@@ -20,6 +20,7 @@ down and the run has stopped" arrives as one line rather than as a thousand.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Optional
 
 from loguru import logger
 
@@ -158,7 +159,7 @@ async def run_agent_routine(_ctx, routine_id: int) -> None:
 
 
 async def answer_channel_message(
-    _ctx, workflow_id: int, folder_id: int, text: str
+    _ctx, workflow_id: int, folder_id: Optional[int], text: str
 ) -> None:
     """One bot answers one thing somebody said in a channel, then the run is
     processed like any other.
@@ -171,7 +172,9 @@ async def answer_channel_message(
     """
     from api.services.workflow.channel_reply import answer_in_channel
 
-    run_id = await answer_in_channel(int(workflow_id), int(folder_id), text)
+    run_id = await answer_in_channel(
+        int(workflow_id), int(folder_id) if folder_id is not None else None, text
+    )
     if run_id is None:
         # No run happened: the bot vanished, or there was no credit. Nothing to
         # cost and nothing to learn from.
@@ -185,9 +188,10 @@ async def answer_channel_message(
     # model call, and the person waiting for the answer should not wait on it.
     # Handed this run so the fold runs on the bot's own LLM and bills against
     # it -- see services/workflow/channel_context.py.
-    await _ctx["redis"].enqueue_job(
-        FunctionNames.COMPACT_CHANNEL_CONTEXT, int(folder_id), int(run_id)
-    )
+    if folder_id is not None:
+        await _ctx["redis"].enqueue_job(
+            FunctionNames.COMPACT_CHANNEL_CONTEXT, int(folder_id), int(run_id)
+        )
 
 
 async def compact_channel_context(_ctx, folder_id: int, run_id: int) -> None:

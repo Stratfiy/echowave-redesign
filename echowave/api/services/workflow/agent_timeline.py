@@ -76,8 +76,13 @@ async def record(
     payload: Optional[dict[str, Any]] = None,
     visibility: Optional[str] = None,
     is_deliverable: Optional[bool] = None,
+    in_channel: bool = True,
 ) -> None:
     """Write one line. Silent on failure, by design -- see the module docstring.
+
+    ``in_channel=False`` keeps the row out of the bot's channel: a person
+    talking to a bot on its own chat is not talking in the channel the bot
+    happens to sit in, and the folder is left empty rather than resolved.
 
     ``folder_id`` is resolved from the bot when the caller does not know it,
     and stored rather than joined at read time: a bot moved to another team
@@ -98,7 +103,7 @@ async def record(
         return
 
     try:
-        if folder_id is None and workflow_id is not None:
+        if in_channel and folder_id is None and workflow_id is not None:
             folder_id = await _folder_for(workflow_id, organization_id)
 
         await db_client.record_agent_event(
@@ -118,6 +123,69 @@ async def record(
         )
     except Exception as exc:  # noqa: BLE001 - a timeline must never end a call
         logger.warning("Could not record agent event {}: {}", kind, exc)
+
+
+def call_summary(
+    *, answered: bool, duration_seconds: int, disposition: Optional[str]
+) -> str:
+    """The one line a call gets in the thread: length, and how it ended."""
+    minutes, seconds = divmod(max(int(duration_seconds or 0), 0), 60)
+    length = f"{minutes}m{seconds:02d}s"
+    line = f"Call · {length}" if answered else "Call not answered"
+    tidy = (disposition or "").replace("_", " ").strip()
+    return f"{line} · {tidy}" if tidy else line
+
+
+async def record_call_ended(workflow_run_id: int) -> None:
+    """One row per finished call, so a voice bot's thread is not empty.
+
+    Every call this platform took left runs, recordings and costs, and not
+    one line on the bot's own timeline: the thread showed messages and
+    outcomes and nothing for the thing a phone bot spends its day doing. A
+    bot with a hundred calls opened on "Nothing yet". Written at completion,
+    after costing, for every run that was a call (text chat and channel
+    replies write their own rows).
+    """
+    try:
+        run = await db_client.get_workflow_run(workflow_run_id)
+        if run is None or (run.mode or "") == "textchat":
+            return
+        organization_id = await db_client.get_organization_id_by_workflow_run_id(
+            workflow_run_id
+        )
+        context = run.gathered_context or {}
+        disposition = context.get("mapped_call_disposition") or context.get(
+            "call_disposition"
+        )
+        answered = run.answered_at is not None
+        duration = run.billable_seconds
+        if duration is None and run.answered_at and run.ended_at:
+            duration = int((run.ended_at - run.answered_at).total_seconds())
+        await record(
+            organization_id=organization_id,
+            kind=AgentEventKind.CALL_ENDED.value,
+            actor=AgentEventActor.AGENT.value,
+            summary=call_summary(
+                answered=answered,
+                duration_seconds=duration or 0,
+                disposition=str(disposition) if disposition else None,
+            ),
+            workflow_id=run.workflow_id,
+            workflow_run_id=workflow_run_id,
+            payload={
+                "run_id": workflow_run_id,
+                "duration_seconds": int(duration or 0),
+                "answered": answered,
+                "mode": run.mode,
+                "call_type": str(getattr(run.call_type, "value", run.call_type) or ""),
+                "disposition": str(disposition) if disposition else None,
+                "has_recording": bool(run.recording_url),
+            },
+        )
+    except Exception as exc:  # noqa: BLE001 - a timeline must never fail a completion
+        logger.warning(
+            "Could not record the call row for run {}: {}", workflow_run_id, exc
+        )
 
 
 async def _folder_for(workflow_id: int, organization_id: int) -> Optional[int]:

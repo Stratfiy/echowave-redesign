@@ -7984,7 +7984,11 @@ export type PostMessageRequest = {
     /**
      * Folder Id
      */
-    folder_id: number;
+    folder_id?: number | null;
+    /**
+     * Workflow Id
+     */
+    workflow_id?: number | null;
     /**
      * Text
      */

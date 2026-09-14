@@ -52,9 +52,13 @@ def _last_assistant_text(text_session: Any) -> Optional[str]:
 
 
 async def answer_in_channel(
-    workflow_id: int, folder_id: int, text: str
+    workflow_id: int, folder_id: Optional[int], text: str
 ) -> Optional[int]:
     """Have one bot answer one message. Returns the run id, or None.
+
+    ``folder_id`` None is a direct message on the bot's own chat: the context
+    is the bot's thread rather than a channel's, and nothing it says is filed
+    in the channel it happens to sit in.
 
     None means no run happened — the bot vanished, or there was no credit for
     it — and the caller should not put it through post-run processing.
@@ -69,7 +73,7 @@ async def answer_in_channel(
 
     try:
         workflow_run = await db_client.create_workflow_run(
-            name=f"CHANNEL-{name[:40]}",
+            name=f"{'CHANNEL' if folder_id is not None else 'CHAT'}-{name[:40]}",
             workflow_id=workflow_id,
             mode=WorkflowRunMode.TEXTCHAT.value,
             user_id=None,
@@ -103,6 +107,7 @@ async def answer_in_channel(
                 workflow_id=workflow_id,
                 workflow_run_id=run_id,
                 folder_id=folder_id,
+                in_channel=folder_id is not None,
             )
             return None
 
@@ -134,8 +139,14 @@ async def answer_in_channel(
         # stands when the bot actually answers: two bots addressed in one
         # message run as two jobs, and the second should see the first's
         # reply rather than a snapshot from before either had spoken.
-        thread = await channel_context.recent_thread(
-            organization_id=organization_id, folder_id=folder_id
+        thread = (
+            await channel_context.recent_thread(
+                organization_id=organization_id, folder_id=folder_id
+            )
+            if folder_id is not None
+            else await channel_context.recent_bot_thread(
+                organization_id=organization_id, workflow_id=workflow_id
+            )
         )
         text_session = await append_text_chat_user_message(
             run_id=run_id,
@@ -163,6 +174,7 @@ async def answer_in_channel(
                 workflow_id=workflow_id,
                 workflow_run_id=run_id,
                 folder_id=folder_id,
+                in_channel=folder_id is not None,
             )
             return run_id
 
@@ -174,6 +186,7 @@ async def answer_in_channel(
             workflow_id=workflow_id,
             workflow_run_id=run_id,
             folder_id=folder_id,
+            in_channel=folder_id is not None,
             payload={"body": answer[:MAX_REPLY], "in_reply_to": text[:500]},
         )
         return run_id
@@ -187,6 +200,7 @@ async def answer_in_channel(
             summary=f"{name} could not finish answering that",
             workflow_id=workflow_id,
             folder_id=folder_id,
+            in_channel=folder_id is not None,
             payload={"error": str(exc)[:500]},
         )
         return None
