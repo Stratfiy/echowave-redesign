@@ -159,6 +159,14 @@ app = FastAPI(
 )
 
 
+# The document served at openapi_url is the public surface: staff-only
+# operations are enforced by their routers and are not described to the
+# world. See services/openapi_surface.py.
+from api.services import openapi_surface  # noqa: E402
+
+openapi_surface.install(app)
+
+
 # Configure CORS.
 # OSS is typically deployed with UI and API behind a single reverse proxy
 # (same-origin, so CORS does not apply). Keep it permissive without
