@@ -17,7 +17,7 @@
  * channel has no record of.
  */
 
-import { AtSign, Brain, Check, ChevronDown, FileText, Loader2, Paperclip, SendHorizontal, X } from 'lucide-react';
+import { AtSign, Brain, Check, ChevronDown, FileText, Loader2, Mic, Paperclip, SendHorizontal, Square, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
 import { postMessageApiV1TimelineMessagePost, translateTextApiV1TranslatePost } from '@/client/sdk.gen';
@@ -38,7 +38,10 @@ import {
     type Uploaded,
     uploadKnowledge,
 } from '@/lib/uploadKnowledge';
+import { appendDictation, useDictation } from '@/lib/useDictation';
 import { cn } from '@/lib/utils';
+
+import { Waveform } from './Waveform';
 
 export type ChannelBot = { id: number; name: string; handle?: string | null };
 
@@ -159,6 +162,13 @@ export function ChannelComposer({
         if (response.data?.text) setText(response.data.text);
     };
 
+    // Talk instead of type. The words land in the box, not on the wire:
+    // the person reads them, fixes a name the model misheard, and sends.
+    const dictation = useDictation((transcript) => {
+        setText((was) => appendDictation(was, transcript));
+        requestAnimationFrame(() => input.current?.focus());
+    });
+
     const suggestions = useMemo(() => {
         if (fragment === null) return [];
         return bots
@@ -237,9 +247,9 @@ export function ChannelComposer({
 
     return (
         <div className="border-t border-border bg-card px-6 py-3">
-            {error && (
+            {(error || dictation.error) && (
                 <p className="mb-2 text-sm text-destructive" role="alert">
-                    {error}
+                    {error || dictation.error}
                 </p>
             )}
             {notice && (
@@ -400,10 +410,38 @@ export function ChannelComposer({
                         <AtSign className="h-4 w-4" />
                     </Button>
                     )}
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label={dictation.listening ? 'Stop listening' : 'Speak'}
+                        title={dictation.listening ? 'Stop listening' : 'Speak instead of typing'}
+                        disabled={dictation.transcribing}
+                        className={cn(
+                            'shrink-0',
+                            dictation.listening ? 'text-[var(--accent-brand)]' : 'text-muted-foreground',
+                        )}
+                        onClick={() => (dictation.listening ? dictation.stop() : void dictation.start())}
+                    >
+                        {dictation.transcribing ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : dictation.listening ? (
+                            <Square className="h-4 w-4" />
+                        ) : (
+                            <Mic className="h-4 w-4" />
+                        )}
+                    </Button>
+                    {dictation.listening && (
+                        <div className="flex min-h-[38px] flex-1 items-center gap-3 rounded-md border border-[var(--accent-brand)]/50 bg-background px-3 text-sm text-muted-foreground">
+                            <Waveform levels={dictation.levels} />
+                            <span className="hidden sm:inline">Listening… press stop when done</span>
+                        </div>
+                    )}
                     <textarea
                         ref={input}
                         rows={1}
                         value={text}
+                        hidden={dictation.listening}
                         aria-label={`Message ${channelName}`}
                         placeholder={
                             workflowId != null
