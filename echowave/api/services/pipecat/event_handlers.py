@@ -19,10 +19,12 @@ from api.services.pipecat.pipeline_metrics_aggregator import PipelineMetricsAggr
 from api.services.pipecat.tracing_config import get_trace_url
 from api.services.pipecat.transcript_log_coordinator import TranscriptLogCoordinator
 from api.services.posthog_client import capture_event
+from api.services.privacy.masking import mask_feedback_events
 from api.services.workflow.pipecat_engine import PipecatEngine
 from api.services.workflow_run_artifacts import upload_workflow_run_artifacts
 from api.tasks.arq import enqueue_job
 from api.tasks.function_names import FunctionNames
+from api.utils.transcript import generate_transcript_text
 from pipecat.frames.frames import (
     Frame,
 )
@@ -551,9 +553,15 @@ def register_event_handlers(
         )
 
         logs_update: dict[str, object] = {}
+        # Masked once, here, and every later reader gets the masked copy:
+        # the saved logs, the transcript below, the QA pass, the webhooks.
+        # An OTP the caller read out is not something the record keeps.
+        feedback_events: list[dict] = []
         if not in_memory_logs_buffer.is_empty:
             try:
-                feedback_events = in_memory_logs_buffer.get_events()
+                feedback_events = mask_feedback_events(
+                    in_memory_logs_buffer.get_events()
+                )
                 logs_update["realtime_feedback_events"] = feedback_events
                 logger.debug(
                     f"Saved {len(feedback_events)} feedback events to workflow run logs"
@@ -598,8 +606,9 @@ def register_event_handlers(
             else:
                 logger.debug("Bot audio buffer is empty, skipping upload")
 
-            transcript_text = in_memory_logs_buffer.generate_transcript_text(
-                include_end_timestamps=include_transcript_end_timestamps
+            transcript_text = generate_transcript_text(
+                feedback_events,
+                include_end_timestamps=include_transcript_end_timestamps,
             )
             if not transcript_text:
                 logger.debug("No transcript events in logs buffer, skipping upload")

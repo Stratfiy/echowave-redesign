@@ -92,6 +92,9 @@ _BASE_GUARDRAILS = [
     "immediately. Do not attempt to resolve their issue first.",
     "If the caller says they are busy, ask once for a better time, then end "
     "the call politely.",
+    "Never say an OTP, PIN, CVV, password or a full card or account number "
+    "back to the caller. Confirm a code by saying only its last two digits, "
+    "and a card or account by its last four.",
 ]
 
 

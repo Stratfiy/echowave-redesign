@@ -24,6 +24,16 @@ async def process_workflow_completion(
 
     logger.info(f"Processing workflow completion for run {workflow_run_id}")
 
+    # First, before anything reads the run: the QA pass writes its summary
+    # and extracted data from the logs, the webhooks deliver the gathered
+    # context, and the thread row follows. An OTP or a card number the
+    # caller gave is masked in all of them by being masked here once. The
+    # pipeline already masked the events it saved; this catches the
+    # gathered context, and runs that ended without the pipeline's handler.
+    from api.services.privacy.masking import mask_completed_run
+
+    await mask_completed_run(workflow_run_id)
+
     # Run integrations including QA analysis (after uploads are complete)
     try:
         await run_integrations_post_workflow_run(_ctx, workflow_run_id)
