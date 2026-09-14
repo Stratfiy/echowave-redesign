@@ -61,8 +61,8 @@ describe("overview dashboard", () => {
         render(<OverviewDashboard />);
         expect(await screen.findByText("120")).toBeTruthy();
         expect(screen.getByText("80%")).toBeTruthy();
-        expect(screen.getByText("4,500 credits")).toBeTruthy();
-        expect(screen.getByText("474 credits")).toBeTruthy();
+        expect(screen.getByText("9,000 credits")).toBeTruthy();
+        expect(screen.getByText("948 credits")).toBeTruthy();
         expect(screen.queryByText(/₹/)).toBeNull();
         expect(screen.getByRole("link", { name: "Asha" }).getAttribute("href")).toBe("/workflow/7");
     });

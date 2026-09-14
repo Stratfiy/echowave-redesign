@@ -24,7 +24,12 @@ from api.services.billing.addons import (
     by_key,
     record_addon_used,
 )
-from api.services.billing.cost_engine import RateSpec, UsageItem, compute_call_cost
+from api.services.billing.cost_engine import (
+    CREDIT_ROUNDING_PROVIDER,
+    RateSpec,
+    UsageItem,
+    compute_call_cost,
+)
 from api.services.billing.credits import round_up_to_credits
 from api.services.billing.money import DEFAULT_PLATFORM_RATE_MPAISE
 from api.services.billing.usage import byok_platform_tier
@@ -38,7 +43,13 @@ USAGE = (UsageItem(component=CostComponent.TTS, provider="sarvam", quantity=2300
 
 
 def _lines(cost, component):
-    return [line for line in cost.line_items if line.component == component]
+    # The credit-rounding line (provider "credits") shares the platform
+    # component since KAN-52; it is not a fee and never counted here.
+    return [
+        line
+        for line in cost.line_items
+        if line.component == component and line.provider != CREDIT_ROUNDING_PROVIDER
+    ]
 
 
 # --- the charges must be invisible until they are switched on ---------------
@@ -57,7 +68,13 @@ def test_managed_call_receipt_is_unchanged_when_no_fee_applies():
         provider_rates=PROVIDER_RATES,
     )
 
-    assert [line.component for line in cost.line_items] == ["tts", "platform"]
+    # The credit-rounding line (provider "credits") is the one addition every
+    # call carries since KAN-52; it is not an add-on and is filtered here.
+    assert [
+        line.component
+        for line in cost.line_items
+        if line.provider != CREDIT_ROUNDING_PROVIDER
+    ] == ["tts", "platform"]
     assert cost.addon_fee_paise == 0
 
 
