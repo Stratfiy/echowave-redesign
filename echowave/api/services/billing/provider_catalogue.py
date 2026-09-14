@@ -33,10 +33,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db.models import ProviderRateModel
 from api.enums import CostComponent
+from api.services.billing import default_rates
 
 #: The billing components a platform key can be held for, in the order an
 #: operator reads them: what it hears, what it thinks, what it says.
 _COMPONENT_ORDER = ("stt", "llm", "tts", "embeddings")
+
+
+def _priced_by(named, name, flat, attr):
+    """The attribute of the row that actually prices ``name``."""
+    row = named.get(name) or flat
+    return getattr(row, attr) if row is not None else None
 
 
 @dataclass(frozen=True)
@@ -50,6 +57,12 @@ class ModelEntry:
     #: True when the price shown comes from the provider-wide row rather than
     #: one quoted for this model. The flat-rate case, said out loud.
     from_provider_rate: bool
+    #: Where the figure was read and when (KAN-58), from the row that prices
+    #: this model — its own, or the provider-wide one it inherits.
+    source_url: str | None = None
+    source_checked_on: str | None = None
+    #: The row is still the seeded default, not a figure a person chose.
+    is_seeded: bool = False
 
 
 @dataclass(frozen=True)
@@ -64,6 +77,9 @@ class ComponentEntry:
     flat_unit: str | None
     has_platform_key: bool
     models: list[ModelEntry] = field(default_factory=list)
+    flat_source_url: str | None = None
+    flat_source_checked_on: str | None = None
+    flat_is_seeded: bool = False
 
 
 @dataclass(frozen=True)
@@ -180,6 +196,13 @@ async def build(session: AsyncSession) -> list[ProviderEntry]:
                         else (flat.unit if flat else None)
                     ),
                     from_provider_rate=name not in named and flat is not None,
+                    source_url=_priced_by(named, name, flat, "source_url"),
+                    source_checked_on=_priced_by(
+                        named, name, flat, "source_checked_on"
+                    ),
+                    is_seeded=default_rates.is_seeded_note(
+                        _priced_by(named, name, flat, "note")
+                    ),
                 )
                 for name in model_names
             ]
@@ -192,6 +215,11 @@ async def build(session: AsyncSession) -> list[ProviderEntry]:
                     flat_unit=flat.unit if flat else None,
                     has_platform_key=(component, provider) in keyed,
                     models=models,
+                    flat_source_url=flat.source_url if flat else None,
+                    flat_source_checked_on=flat.source_checked_on if flat else None,
+                    flat_is_seeded=default_rates.is_seeded_note(flat.note)
+                    if flat
+                    else False,
                 )
             )
 
@@ -211,6 +239,8 @@ async def set_rates(
     flat_rate_micros_usd: int | None = None,
     model_rates: dict[str, int] | None = None,
     model_rates_micros_usd: dict[str, int] | None = None,
+    source_url: str | None = None,
+    source_checked_on: str | None = None,
 ) -> dict:
     """Price a vendor flat, per model, or both.
 
@@ -236,6 +266,8 @@ async def set_rates(
             rate_mpaise=flat_rate_mpaise,
             rate_micros_usd=flat_rate_micros_usd,
             model="",
+            source_url=source_url,
+            source_checked_on=source_checked_on,
         )
         written.append("(all models)")
 
@@ -252,6 +284,8 @@ async def set_rates(
             unit=unit,
             rate_micros_usd=micros,
             model=model,
+            source_url=source_url,
+            source_checked_on=source_checked_on,
         )
         written.append(model)
 
@@ -264,6 +298,8 @@ async def set_rates(
             unit=unit,
             rate_mpaise=mpaise,
             model=model,
+            source_url=source_url,
+            source_checked_on=source_checked_on,
         )
         written.append(model)
 

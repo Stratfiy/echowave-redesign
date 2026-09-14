@@ -2483,6 +2483,13 @@ class ProviderRateModel(Base):
     effective_from = Column(DateTime(timezone=True), nullable=False)
     effective_to = Column(DateTime(timezone=True), nullable=True)
     note = Column(Text, nullable=True)
+    # Where the figure was read and when (KAN-58). A price with no provenance
+    # cannot be audited, only believed; the seeder writes the vendor's page
+    # and the survey date, an operator writes the invoice or the contract.
+    # ``source_checked_on`` is text, not a date: the book before the survey
+    # was dated to a month, and a column that forces a day invents one.
+    source_url = Column(String(512), nullable=True)
+    source_checked_on = Column(String(10), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     __table_args__ = (

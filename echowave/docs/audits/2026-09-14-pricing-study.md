@@ -419,3 +419,46 @@ Decisions taken with Nithish on the day, after the spec:
    pays for the platform through its plan, not per minute. The BYOK per-event
    rate (voice 12 → 11 credits when only the model is theirs) lands with
    KAN-56.
+
+## 14. Notes from the rate-book refresh (KAN-58, 14 Sept)
+
+Every row in `default_rates.py` now names the page it was read from and the
+day (`source_url`, `source_checked_on`, also columns on `provider_rates`
+and shown on the providers screen). Fifty-one of sixty-seven rows were re-read
+on 14 Sept; the rest keep their August month-date rather than a day they never
+had. Where the vendor page and the KAN-58 survey disagreed, the page won:
+
+| Row | Survey said | Page says (14 Sept) | Book now |
+|---|---|---|---|
+| Sarvam TTS, provider-wide | Rs 3.00 / 1k chars | Bulbul v3 Rs 30 / 10k; v2 no longer listed | Rs 3.00 (was 1.50, lagging the tier) |
+| Sarvam 105B | Rs 29.28 / 73.20 per 1M | same, Rs 10.98 cached | Rs 0.0425 / 1k blended (was 0.0076) |
+| Gemma-4 31B (Sarvam) | — | Rs 36.60 / 91.50 per 1M, beta | priced, provisional |
+| Deepgram Nova-3 streaming | $0.0077 / min | $0.0048 mono, $0.0058 multilingual | $0.0058 |
+| AssemblyAI streaming | $0.15 / hr | same | $0.0025 / min, new row |
+| Smallest Lightning v3.1 / Pro | $0.025 / 1k | $0.175 / $0.195 per 10k | unchanged |
+| Cartesia Sonic | $0.035 / 1k | plans only, no per-character price | $0.05 kept, provisional |
+| ElevenLabs Flash | $0.05 / 1k | same | unchanged |
+| Twilio India | $0.0075 / min | $0.0496 mobile, $0.0699 landline and inbound | $0.0496 (was Rs 1.20); the survey figure is Twilio's US rate |
+| Plivo India | — | Rs 0.38 in and out, number Rs 200 / month | unchanged |
+| Gemini 2.5 Flash-Lite | retires 16 Oct 2026 | deprecations page lists no date | row kept as history; nothing resolves to it (test) |
+| Gemini 3.8 Flash | — | $0.75 / $3.75 to 31 Dec 2026, then $1.50 / $7.50 | new row; the rise is a dated row to open in January |
+| Claude Sonnet 5 | builder default | $2 / $10, now the standard price | builder default moved from Sonnet 4.5 ($3 / $15) |
+
+Reconciliation, as the ticket asks: Sarvam STT 0.50 + Bulbul v3 at 850
+spoken characters 2.55 + gpt-4.1-mini at 3,500 tokens 0.26 + Plivo 0.38 =
+Rs 3.69 a minute at list against the model's 3.71; with Sarvam's 30% on its
+two lines, 2.78 exactly. A test holds both to within five paise.
+
+**What it does to the tiers.** The Lite brain (Sarvam 105B) was costed at
+Rs 0.03 a minute and is Rs 0.15; the Everyday minute on it is now 3.58, not
+2.13. Still the cheapest stack, but the "Sarvam is nearly free" reading of
+section 1 was an old price.
+
+**Not in this step.** Sarvam translate (Rs 20 / 10k chars) and Document
+Digitization (Rs 0.50 / page) have no cost component or unit in the engine
+yet; they land with the metering step (KAN-56, translation under KAN-104) and
+the knowledge caps (KAN-57), which is where a page and a character get a line
+on a receipt. Refreshing the production card is a button on the rate-card
+screen (or `scripts/seed_provider_rates --confirm --refresh-seeded`): rows
+still on the seeded default take these figures, rows somebody typed
+(Smallest and Cartesia contracted, the FX) do not.

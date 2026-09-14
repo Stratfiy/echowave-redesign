@@ -140,22 +140,23 @@ class TestRupeeQuotedVendors:
         """Bulbul v2 and v3 are published at ₹15 and ₹30 per 10k characters, so
         which one the provider-wide row quotes changes synthesis cost by 2×.
 
-        It is v2, because ``managed_tiers`` resolves the default TTS tier to
-        ``bulbul:v2``. Quoting v3 — as this row previously did — priced every
-        managed call at twice the synthesis it actually bought, in the component
-        large enough to decide whether an Indic deal is profitable.
-
-        Whenever the managed tier moves to v3, this row moves with it.
+        It is whichever generation ``managed_tiers`` resolves the default TTS
+        tier to — v3 since the tier moved. This row lagged the tier once
+        (KAN-58's "rate book had ₹1.50"), and every managed call read half the
+        synthesis it actually bought, in the component large enough to decide
+        whether an Indic deal is profitable. So the test reads the tier rather
+        than pinning a generation: the two move together or the test fails.
         """
-        row = next(
-            r
+        from api.services.configuration import managed_tiers
+
+        tier_model = managed_tiers._defaults()[("tts", "default")].model
+        rows = {
+            r.model: usd_to_mpaise(r.usd_per_unit, usd_inr=REFERENCE_USD_INR)
             for r in DEFAULT_RATES
-            if r.provider == "sarvam"
-            and r.component == CostComponent.TTS
-            and not r.model
-        )
-        mpaise = usd_to_mpaise(row.usd_per_unit, usd_inr=REFERENCE_USD_INR)
-        assert mpaise == 150_000  # ₹1.50 per 1k chars = ₹15 per 10k
+            if r.provider == "sarvam" and r.component == CostComponent.TTS
+        }
+        assert rows[""] == rows[tier_model]
+        assert rows[""] == 300_000  # ₹3.00 per 1k chars = ₹30 per 10k, v3
 
     def test_both_bulbul_generations_are_priced(self):
         """The 2× gap between them is why an explicit row exists for each: a

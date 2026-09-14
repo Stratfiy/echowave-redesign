@@ -41,7 +41,7 @@ from api.db.models import (
     UsdInrRateHistoryModel,
 )
 from api.enums import BillingAuditAction, CostComponent, RateUnit
-from api.services.billing import markup
+from api.services.billing import default_rates, markup
 from api.services.billing.money import (
     DEFAULT_PLATFORM_RATE_MPAISE,
     DEFAULT_PULSE_SECONDS,
@@ -313,6 +313,8 @@ async def set_provider_rate(
     model: str = "",
     effective_from: datetime | None = None,
     note: str | None = None,
+    source_url: str | None = None,
+    source_checked_on: str | None = None,
 ) -> ProviderRateModel:
     """Open a new provider unit rate, closing the previous one for that key.
 
@@ -377,6 +379,8 @@ async def set_provider_rate(
         rate_micros_usd=rate_micros_usd,
         effective_from=at,
         note=note,
+        source_url=(source_url or "").strip() or None,
+        source_checked_on=(source_checked_on or "").strip() or None,
     )
     session.add(row)
 
@@ -393,6 +397,8 @@ async def set_provider_rate(
             "rate_mpaise": rate_mpaise,
             "rate_micros_usd": rate_micros_usd,
             "effective_from": at.isoformat(),
+            "source_url": row.source_url,
+            "source_checked_on": row.source_checked_on,
         },
         note=note,
     )
@@ -670,6 +676,12 @@ async def get_rate_card(session: AsyncSession) -> RateCard:
                 ),
                 "effective_from": r.effective_from.isoformat(),
                 "note": r.note,
+                # Provenance (KAN-58): the page or invoice the figure was read
+                # from and when, and whether the row is still the seeded
+                # default rather than a figure somebody chose.
+                "source_url": r.source_url,
+                "source_checked_on": r.source_checked_on,
+                "is_seeded": default_rates.is_seeded_note(r.note),
                 # What the row sells at: the multiplier in force for this
                 # line (a per-model override, else the component's own) and
                 # the resulting sell rate. The rate book is computed, not

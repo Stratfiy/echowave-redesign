@@ -24,6 +24,7 @@ import {
     getRateCardApiV1AdminBillingRateCardGet,
     refreshExchangeRateApiV1AdminBillingRateCardExchangeRateRefreshPost,
     retireVolumeTierApiV1AdminBillingRateCardTiersMinPeriodMinutesDelete,
+    seedProviderRatesApiV1AdminBillingRateCardSeedPost,
     setExchangeRateApiV1AdminBillingRateCardExchangeRatePut,
     setGlobalPlatformRateApiV1AdminBillingRateCardPlatformPut,
     setVolumeTierApiV1AdminBillingRateCardTiersPut,
@@ -182,6 +183,7 @@ export default function RateCardPage() {
                 show a model we have never priced — a row that does not exist
                 cannot be listed — and that gap is the one that bills as
                 uncosted usage. */}
+            <SeedBookPanel />
             <ProviderCatalogue />
         </div>
     );
@@ -585,6 +587,130 @@ const COMPONENT_NAMES: Record<string, string> = {
     tts: "Voice",
     embedding: "Embeddings",
 };
+
+/**
+ * The starter price book, from the screen. Loads the rows a fresh card is
+ * missing, and — on request — brings rows still on the seeded default up to
+ * the current book (KAN-58). Rows an operator wrote are never replaced; the
+ * plan is shown before anything is written.
+ */
+function SeedBookPanel() {
+    type Plan = {
+        usd_inr: number;
+        fx_source: string;
+        would_write: number;
+        written: number;
+        lines: {
+            provider: string;
+            model: string | null;
+            component: string;
+            rate_mpaise: number;
+            source_checked_on: string;
+            action: string;
+        }[];
+    };
+    const [refreshSeeded, setRefreshSeeded] = useState(true);
+    const [plan, setPlan] = useState<Plan | null>(null);
+    const [busy, setBusy] = useState<"plan" | "apply" | null>(null);
+    const [error, setError] = useState<string | null>(null);
+
+    const run = async (dryRun: boolean) => {
+        setBusy(dryRun ? "plan" : "apply");
+        setError(null);
+        const result = await seedProviderRatesApiV1AdminBillingRateCardSeedPost({
+            body: { refresh_seeded: refreshSeeded, dry_run: dryRun },
+        });
+        if (result.error) {
+            setError(detailFromResult(result, "Could not seed the price book"));
+        } else {
+            setPlan(result.data as unknown as Plan);
+        }
+        setBusy(null);
+    };
+
+    const changing = plan?.lines.filter((l) => l.action === "write" || l.action === "replace") ?? [];
+    const kept = plan ? plan.lines.length - changing.length : 0;
+
+    return (
+        <section className="glass-panel px-6 pb-6 pt-5">
+            <h2 className="text-[0.9375rem] font-semibold tracking-[-0.018em] text-foreground">
+                Starter price book
+            </h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+                Load the rows this card is missing from the shipped price book. Each seeded
+                row carries the vendor page it was read from and the date. A rate you set
+                yourself is never replaced.
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+                <label className="flex items-center gap-2 text-xs text-foreground">
+                    <input
+                        type="checkbox"
+                        checked={refreshSeeded}
+                        onChange={(e) => setRefreshSeeded(e.target.checked)}
+                    />
+                    Also refresh rows still on the seeded default
+                </label>
+                <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => run(true)}>
+                    {busy === "plan" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Preview"}
+                </Button>
+                <Button
+                    size="sm"
+                    disabled={busy !== null || !plan || changing.length === 0 || plan.written > 0}
+                    onClick={() => run(false)}
+                >
+                    {busy === "apply" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                        `Write ${changing.length} row${changing.length === 1 ? "" : "s"}`
+                    )}
+                </Button>
+            </div>
+            {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+            {plan && (
+                <div className="mt-3 text-xs text-muted-foreground">
+                    <p>
+                        {plan.written > 0
+                            ? `Wrote ${plan.written} row${plan.written === 1 ? "" : "s"}.`
+                            : `${changing.length} would change, ${kept} kept`}{" "}
+                        · USD→INR ₹{plan.usd_inr.toFixed(2)} ({plan.fx_source})
+                    </p>
+                    {changing.length > 0 && plan.written === 0 && (
+                        <div className="mt-2 max-h-64 overflow-auto">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Component</TableHead>
+                                        <TableHead>Provider</TableHead>
+                                        <TableHead>Model</TableHead>
+                                        <TableHead className="text-right">Paise / unit</TableHead>
+                                        <TableHead>Checked</TableHead>
+                                        <TableHead>Action</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {changing.map((l) => (
+                                        <TableRow key={`${l.component}-${l.provider}-${l.model ?? ""}`}>
+                                            <TableCell>{COMPONENT_NAMES[l.component] ?? l.component}</TableCell>
+                                            <TableCell>{l.provider}</TableCell>
+                                            <TableCell className="text-muted-foreground">
+                                                {l.model ?? "any"}
+                                            </TableCell>
+                                            <TableCell className="text-right tabular-nums">
+                                                {(l.rate_mpaise / 1000).toFixed(4)}
+                                            </TableCell>
+                                            <TableCell>{l.source_checked_on}</TableCell>
+                                            <TableCell>{l.action}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    )}
+                </div>
+            )}
+        </section>
+    );
+}
 
 function MultipliersPanel({ card }: { card: Card | null }) {
     const multipliers = card?.component_multipliers ?? [];
