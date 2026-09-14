@@ -1,0 +1,209 @@
+# Pricing study — cost stack, market, and the model to ship
+
+Date: 14 September 2026. Author: cofounder session. Status: for the founder's decision.
+
+All vendor figures are **list prices** from the engine's own price book
+(`api/services/billing/default_rates.py`, `AS_OF = 2026-08`) at Rs 96 to the
+dollar, with the estimator's call shape (405 spoken characters and 3,500 LLM
+tokens per minute). Market figures are from public pages read today and are
+dated inline. Nothing here is a negotiated rate.
+
+## 1. What a minute costs us
+
+| Component | Everyday tier resolves to | Rs / min | Note |
+|---|---|---:|---|
+| Speech to text | Sarvam saaras v3 | 0.50 | Rs 30 / hour published |
+| Text to speech | Sarvam bulbul v3 | 1.22 | Rs 30 / 10k chars (beta); v2 is 0.61 |
+| Language model | gpt-4.1-mini (default) | 0.26 | lite (Sarvam 105B) 0.03; advanced (gpt-5) 1.30 |
+| Carriage | Plivo, in or out | 0.38 | confirmed on the account 27 Aug |
+| **Everyday, all in** | | **2.36** | 1.75 on bulbul v2; 2.13 on the lite brain |
+| Natural (speech to speech) | Gemini Live + Plivo | 5.10 | 14,355 audio tokens / min |
+| Premium (speech to speech) | GPT Realtime + Plivo | 16.83 | 4,815 tokens / min at a dearer price |
+
+Other lines: a number costs Rs 250 and sells at 559 (55% gross); a WhatsApp
+message costs Rs 0.12 and sells at 1.00; a knowledge lookup is priced as an
+add-on at Rs 0.48 / min, call QA at 1.92 / min.
+
+Two facts that matter more than any single rate:
+
+- **The Everyday stack is 84% rupee-quoted.** Only the language model is in
+  dollars. A move from Rs 96 to Rs 104 adds Rs 0.02 to the minute. Every
+  competitor priced in dollars carries the whole call on FX.
+- **The site's "regional floor" of Rs 3.28 is an ElevenLabs stack.** ElevenLabs
+  Flash at Rs 1.94 / min for the voice, plus STT, brain and carriage, lands
+  at 3.08. Bulbul v3 speaks the same eleven Indic languages at 1.22, so the
+  regional margin problem in the site's OPEN-ITEMS is a model choice, not a
+  market fact. The three-way bake-off (KAN task on Smallest / Sarvam /
+  ElevenLabs) decides whether it goes away.
+
+**The one number to measure before anything is signed:** spoken characters
+per minute. The estimator assumes 405. Three internal documents assumed 850,
+900 and 2,300. At 800 the voice line doubles to 2.44 and the Everyday minute
+costs 3.58; at Rs 5.56 that is a 36% margin, not 58%. The pricing-inputs
+screen (`/superadmin/billing/pricing-inputs`) reports the measured median
+once twenty calls exist. Read it first.
+
+## 2. What the market charges (September 2026)
+
+| Vendor | Headline | All in, Rs / min | Notes |
+|---|---|---:|---|
+| Trikon (India) | Rs 5 / min flat | 5 | platform, STT, TTS, LLM, recording included; no monthly fee |
+| Ringg AI (India) | Rs 6 / connected min | 6 + Rs 499 / number | own STT, TTS, 4.1-class LLM, telephony included; monthly minimum |
+| Bolna (India) | 6 cents (Rs 5.52) base | 7.5 to 8.5 | STT, TTS, LLM passed through on top; 30-second pulse; 4.5 cents at volume |
+| Sarvam agents | "Rs 1 / min operating cost" | custom | enterprise quote only; the Rs 1 is their marketing of their own stack cost |
+| Skit.ai | Rs 18 to 28 / min | 18 to 28 | enterprise, 6 to 10 week deployment |
+| Caller Digital, SquadStack | Rs 8 to 25 per outcome | n/a | per successful outcome, managed |
+| Smallest Atoms | from 5 cents | 8.6 to 20 | components itemised; $10 / number |
+| ElevenLabs Agents | 8 to 12 cents | 9 to 14 | LLM and telephony extra |
+| Bland | 11 to 14 cents | 10.6 to 13.4 | plus $299 to $499 / month for the lower rates |
+| Vapi | 5 cents platform | 9.6 to 28.8 | four vendors passed through at cost |
+| Retell | 7 cents platform | 12.5 to 30 | same shape as Vapi |
+
+The Indian self-serve price is **Rs 5 to 6 a minute, all in, no platform
+fee line.** The global players are two to five times that in rupees and
+itemise. Sarvam is the only one that could undercut on cost and does not
+publish a price.
+
+## 3. What Decibyl says today, in three places that disagree
+
+| | Public site (`decibyl/data/pricing.ts`) | Billing engine (echowave) | KAN-47 decision, 14 Sept |
+|---|---|---|---|
+| Entry | Starter Rs 2,999: Rs 2,500 credit, 1 number, platform fee 2.5 / min | Starter 2,999 / 2,500 / 1 number; platform rate default Rs 3.00 / min | Everyday Rs 999 text-only (2,000 credits); Business 2,999 (5,000 credits, 1 number) |
+| Middle | Growth 7,999: 7,200 credit, 2 numbers, 2.0 / min | not seeded | Growth 7,999: 15,000 credits, 2 numbers |
+| Top | Scale 19,999: 18,500 credit, 4 numbers, 1.5 / min | not seeded | Scale 19,999: 40,000 credits, 4 numbers |
+| Voice rate | overage 5.30 / 4.50 / 4.00; PAYG 5.30 sliding to 4.20 | Everyday bundle flat Rs 5.56 / min | 12 / 11 / 10 credits = Rs 6 / 5.5 / 5 |
+| Unit | rupees of credit | rupees (paise ledger) | credits at Rs 0.50 |
+| Markup | platform fee per minute by tier | flat managed markup + platform fee | per component: carriage 1.15x, STT 1.3x, LLM 2x, TTS 1.8x, plus platform fee |
+
+Two of these cannot both be true: Scale at 40,000 credits is Rs 20,000 of
+composed cost sold for Rs 19,999, a loss before the number rental; the site
+grants that tier Rs 18,500.
+
+## 4. Margin at each candidate price
+
+Everyday stack at list (2.36 / min), and with the Sarvam deal in KAN-47
+(30% off STT and TTS: 1.84 / min).
+
+| Price, Rs / min | Gross at list cost | Gross with Sarvam deal | Gross if chars / min is 800 |
+|---:|---:|---:|---:|
+| 6.00 (KAN-47 Business) | 61% | 69% | 40% |
+| 5.56 (engine bundle) | 58% | 67% | 36% |
+| 5.50 (KAN-47 Growth) | 57% | 67% | 35% |
+| 5.30 (site Starter overage) | 55% | 65% | 32% |
+| 5.00 (KAN-47 Scale, Trikon) | 53% | 63% | 28% |
+| 4.50 (site Growth overage) | 48% | 59% | 20% |
+| 4.00 (site Scale overage) | 41% | 54% | 11% |
+| 3.50 (enterprise floor) | 33% | 47% | negative |
+
+Speech to speech: Natural needs Rs 10 / min for 49% at list; Premium needs
+Rs 25 / min for 33%. Premium at Rs 25 sits with Skit's enterprise price and
+should not be on the self-serve card.
+
+## 5. The three architectures, and the objection each invites
+
+**A. Per minute, all in, no plan.** Rs 5.56 a minute, number Rs 559, WhatsApp
+Rs 1. Trikon and Ringg's shape. Cleanest to explain, matches the market
+exactly, zero commitment. Objection: nothing to sell on a call except a
+rate, no floor revenue, and the bill is unpredictable, which is the one thing
+an owner asks about.
+
+**B. Plan plus credits, minutes as the visible unit.** A monthly plan that
+includes numbers and a credit grant, credits drawn per minute at the tier's
+rate, overage at the same rate, top-ups that never expire. Bland and
+ElevenLabs's shape, and what KAN-47 already decided. Objection: expiring
+or rolling grants create a liability and a churn moment every month; and
+"credits" is a second currency an owner has to convert in their head.
+
+**C. Per outcome.** Rs 8 to 25 per booked appointment, confirmed order,
+collected payment. Caller Digital and SquadStack's shape. The strongest
+story for a sales bot and the engine already files outcomes. Objection:
+disputes over what counts, and it cannot price a receptionist that answers
+questions all day. A vertical pack option later, not the base.
+
+## 6. Recommendation
+
+Ship **B**, as KAN-47 decided, with six corrections. Everything below is
+priced at list cost, so the Sarvam deal is upside, not a dependency.
+
+1. **Voice at 12 / 11 / 10 credits a minute (Rs 6 / 5.5 / 5) stands.** It is
+   the market rate, 53 to 61% gross at list, and the site's 4.00 and 4.50
+   overages come off the page. The engine's Everyday bundle list price moves
+   from 556 to 600 paise, with volume tiers at 550 from 2,000 minutes and 500
+   from 8,000 minutes a month, so the same rate applies whether a minute is
+   inside the grant or over it.
+2. **Fix the Scale grant.** 40,000 credits at Rs 19,999 is a loss. Grants
+   should be 5,000 / 14,000 / 34,000 credits (Rs 2,500 / 7,000 / 17,000 of
+   composed cost) so every tier keeps 15% after the included numbers, and
+   the discount for going up a tier is the per-minute rate, not free credit.
+3. **Credits at Rs 0.50 stay internal for the first hundred customers.** Show
+   minutes and rupees on every screen ("about 410 minutes left"), with the
+   credit figure on the statement only. An owner in Hosur does not want a
+   third unit. Revisit when a customer asks for it.
+4. **Rollover capped at one month's grant.** Unlimited rollover on an active
+   subscription is a growing liability booked at cost; one month keeps the
+   goodwill and bounds it.
+5. **Bill in 30-second pulses with a 30-second minimum, and unanswered calls
+   are free.** Bolna does 30 seconds; Bland charges a minimum on failed calls
+   and gets hated for it. Carriage on an unanswered ring is under Rs 0.20 and
+   not worth the review.
+6. **Everyday at Rs 999 text-only ships**, but as "Text" not "Everyday": the
+   engine already calls the voice bundle Everyday and two things with one
+   name will cost a support ticket a week.
+
+Do not ship: model BYOK on self-serve (KAN task 48's instinct is right, the
+uplift machinery stays behind a flag for enterprise); Premium speech to
+speech on the card; a separate platform-fee line on the invoice.
+
+## 7. Break-even, parameterised
+
+Gross margin per Everyday minute at Rs 6 and list cost: Rs 3.64. Fixed costs
+are not in this study (hosting, salaries, Sarvam minimum), so the table is
+minutes and customers needed to cover a monthly burn, at 800 billed minutes
+per paying customer.
+
+| Monthly burn | Minutes to cover | Customers at 800 min |
+|---:|---:|---:|
+| Rs 2,00,000 | 55,000 | 69 |
+| Rs 5,00,000 | 1,37,400 | 172 |
+| Rs 10,00,000 | 2,74,700 | 344 |
+
+Plan fees add to this: a Business customer on Rs 2,999 who uses 400 minutes
+contributes Rs 2,999 minus Rs 944 of cost minus Rs 250 for the number, about
+Rs 1,800, before any overage.
+
+## 8. Inputs still needed from the founder
+
+- Measured characters per minute from the pricing-inputs screen (or twenty
+  real calls to produce it).
+- Sarvam agreement: start date and whether the 30% covers bulbul v3.
+- Monthly fixed cost, so section 7 becomes a date.
+- Which languages the first fifty customers speak; if Tamil and Telugu
+  dominate, the bake-off result decides the regional voice before launch.
+
+## 9. Engine changes this implies
+
+- Bundle list price 600 paise with volume tiers seeded (migration).
+- Plan ladder seeded per section 6: Text 999, Business 2,999, Growth
+  7,999, Scale 19,999, with grants 2,000 (text) / 5,000 / 14,000 / 34,000
+  credits and 0 / 1 / 2 / 4 numbers (KAN-53, amended).
+- Rollover cap of one grant in `plans.py` expiry.
+- 30-second pulse and free unanswered calls in `costing.py`.
+- Site `data/pricing.ts` re-read from the plan rows; overage lines replaced
+  by the tier rates; regional-floor copy removed once the bake-off lands.
+- KAN-52 (credits display) deferred behind a flag; statement shows both.
+
+## Sources
+
+- Engine price book: `api/services/billing/default_rates.py`; estimator
+  constants: `api/services/billing/estimator.py`; site ladder:
+  `decibyl/data/pricing.ts` and `OPEN-ITEMS.md`; decision: KAN-47.
+- Trikon comparison page (August 2026): https://www.trikon.tech/voice-pricing-comparison
+- Ringg pricing: https://www.ringg.ai/pricing
+- Bolna pricing: https://www.bolna.ai/pricing
+- Smallest agents pricing: https://smallest.ai/pricing/agents
+- Caller Digital India roundup (15 Aug 2026): https://caller.digital/blog/top-10-voice-ai-agents-india-2026
+- Vapi: https://www.cloudtalk.io/blog/vapi-ai-pricing/ and https://vapi.health/learn/vapi-pricing-per-minute
+- Retell: https://www.cekura.ai/blogs/retell-ai-pricing-per-minute
+- Bland: https://www.cloudtalk.io/blog/bland-ai-pricing/
+- ElevenLabs Agents: https://elevenlabs.io/pricing/agents and https://www.cekura.ai/blogs/elevenlabs-pricing
+- Sarvam API pricing: https://docs.sarvam.ai/api-reference-docs/pricing
