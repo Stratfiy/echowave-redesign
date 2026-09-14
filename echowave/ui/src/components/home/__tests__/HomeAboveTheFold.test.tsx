@@ -71,7 +71,7 @@ describe("the home screen above the fold", () => {
             },
         });
         render(<HomeAboveTheFold />);
-        expect(await screen.findByText("Nothing has come in yet today.")).toBeTruthy();
+        expect(await screen.findByText(/Nothing has come in yet today\./)).toBeTruthy();
     });
 
     it("fills the composer from a chip and never sends it", async () => {

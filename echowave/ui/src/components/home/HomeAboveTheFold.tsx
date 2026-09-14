@@ -23,6 +23,7 @@ import { useEffect, useMemo, useState } from "react";
 import { teamHomeApiV1TeamHomeGet } from "@/client/sdk.gen";
 import type { Headline, Suggestion, TeamMember } from "@/client/types.gen";
 import { AgentBuilderPanel, type Prefill } from "@/components/agent-builder/AgentBuilderPanel";
+import { DecibylOpeners } from "@/components/home/DecibylOpeners";
 import { TeamPanel } from "@/components/team/TeamPanel";
 import { useAuth } from "@/lib/auth";
 
@@ -126,15 +127,29 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
 
     return (
         <div className="space-y-5">
-            <div>
-                <h2 className="text-xl font-semibold tracking-tight">
-                    {greeting}
-                    {firstName ? `, ${firstName}` : ""}.
-                </h2>
-                <p className="mt-0.5 text-sm text-muted-foreground">
-                    {headline ? summarise(headline) : " "}
-                </p>
+            {/* Home is a conversation with Decibyl, the way a Slack workspace
+                opens on Slackbot: a mark, an introduction, and two questions
+                it already knows the answer to. The builder composer below is
+                the reply box. */}
+            <div className="flex items-start gap-3">
+                <div
+                    aria-hidden="true"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rail text-lg font-semibold text-rail-foreground"
+                >
+                    d
+                </div>
+                <div className="min-w-0">
+                    <h2 className="text-xl font-semibold tracking-tight">Hi, I&apos;m Decibyl.</h2>
+                    <p className="mt-0.5 text-sm text-muted-foreground">
+                        {greeting}
+                        {firstName ? `, ${firstName}` : ""}. {headline ? summarise(headline) : ""}
+                    </p>
+                </div>
             </div>
+
+            {headline ? (
+                <DecibylOpeners headline={headline} members={members ?? []} suggestions={suggestions} />
+            ) : null}
 
             <AgentBuilderPanel prefill={prefill} showSuggestions={suggestions.length === 0} />
 

@@ -30,10 +30,14 @@ export default function OverviewPage() {
     return (
         <>
             <PageHeader
-                title="Home"
+                title="Decibyl"
                 // The greeting moved into the body, where it can say what
                 // actually happened rather than what the page contains.
-                description="Your team, and what it has been doing."
+                description="Your team's assistant. Ask what happened, or build a new bot."
+                tabs={[
+                    { href: "/overview", label: "Messages" },
+                    { href: "/review", label: "History", prefix: true },
+                ]}
             />
             {/* The one screen that keeps a reading-width column inside the body.
                 Everything below is a chat composer and two prose cards; run
