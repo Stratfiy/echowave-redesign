@@ -17,28 +17,34 @@
  */
 
 import {
-    AlertTriangle,
-    ArrowUpRight,
-    CheckCircle2,
-    Clock,
-    Download,
-    Loader2,
-    Mail,
-    Wallet,
-    XCircle,
+  AlertTriangle,
+  ArrowUpRight,
+  CheckCircle2,
+  Clock,
+  Download,
+  Loader2,
+  Mail,
+  Wallet,
+  XCircle,
 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import {
-    createTopupApiV1BillingTopupPost,
-    emailTaxDocumentAgainApiV1BillingDocumentsDocumentIdEmailPost,
-    getBalanceApiV1BillingBalanceGet,
-    getBillingProfileApiV1BillingProfileGet,
-    getTaxDocumentPdfApiV1BillingDocumentsDocumentIdPdfGet,
-    listPaymentsApiV1BillingPaymentsGet,
-    listTaxDocumentsApiV1BillingDocumentsGet,
-    saveBillingProfileApiV1BillingProfilePut,
+  createTopupApiV1BillingTopupPost,
+  emailTaxDocumentAgainApiV1BillingDocumentsDocumentIdEmailPost,
+  getBalanceApiV1BillingBalanceGet,
+  getBillingProfileApiV1BillingProfileGet,
+  getTaxDocumentPdfApiV1BillingDocumentsDocumentIdPdfGet,
+  listPaymentsApiV1BillingPaymentsGet,
+  listTaxDocumentsApiV1BillingDocumentsGet,
+  saveBillingProfileApiV1BillingProfilePut,
 } from "@/client/sdk.gen";
 import { AutoTopupSection } from "@/components/billing/AutoTopupSection";
 import { PlanSection } from "@/components/billing/PlanSection";
@@ -49,18 +55,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { useAccessRoles } from "@/hooks/useAccessRoles";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { loadCheckout } from "@/lib/billing/checkout";
-import { formatCredits, formatCreditsLabel, formatDateTimeIST, formatPaise } from "@/lib/billing/format";
+import {
+  formatCredits,
+  formatCreditsLabel,
+  formatDateTimeIST,
+  formatMinor,
+  formatPaise,
+} from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
 
 /** Rupee amounts offered as one click. Chosen to bracket a month of ordinary
@@ -74,1117 +86,1180 @@ const POLL_ATTEMPTS = 10;
 const POLL_INTERVAL_MS = 2000;
 
 type Pack = {
-    code: string;
-    price_paise: number;
-    credits: number;
-    bonus_credits: number;
+  code: string;
+  /** "INR" or "USD" (KAN-135). A dollar pack is priced in cents. */
+  currency: string;
+  /** The price in minor units of `currency`: paise, or cents. */
+  price_minor: number;
+  price_paise: number;
+  credits: number;
+  bonus_credits: number;
 };
 
 type Balance = {
-    balance_paise: number;
-    /** The two pools (KAN-55): the plan's credits expire with the cycle and
-     *  are spent first; top-up credits never expire. */
-    plan_credits?: number;
-    topup_credits?: number;
-    packs?: Pack[];
-    topups_enabled: boolean;
-    min_topup_paise: number;
-    max_topup_paise: number;
-    /** Top-ups are bought in whole steps of this. ₹100, ₹200, never ₹137. */
-    topup_increment_paise: number;
-    /** The balance at which calling stops. Not zero — see api/constants.py. */
-    min_balance_paise: number;
-    /** Whether calling is stopped right now. Computed by the server so the
-     *  banner and the runtime that refuses the call agree on one definition. */
-    calling_blocked: boolean;
-    gst_rate_basis_points: number;
-    is_export: boolean;
-    billing_profile_complete: boolean;
+  balance_paise: number;
+  /** The two pools (KAN-55): the plan's credits expire with the cycle and
+   *  are spent first; top-up credits never expire. */
+  plan_credits?: number;
+  topup_credits?: number;
+  packs?: Pack[];
+  /** What this account buys credit in: dollars for an account billed
+   *  outside India, which sees the dollar packs and no rupee amount box. */
+  currency?: string;
+  topups_enabled: boolean;
+  min_topup_paise: number;
+  max_topup_paise: number;
+  /** Top-ups are bought in whole steps of this. ₹100, ₹200, never ₹137. */
+  topup_increment_paise: number;
+  /** The balance at which calling stops. Not zero — see api/constants.py. */
+  min_balance_paise: number;
+  /** Whether calling is stopped right now. Computed by the server so the
+   *  banner and the runtime that refuses the call agree on one definition. */
+  calling_blocked: boolean;
+  gst_rate_basis_points: number;
+  is_export: boolean;
+  billing_profile_complete: boolean;
 };
 
 type Payment = {
-    id: number;
-    order_id: string;
-    payment_id: string | null;
-    /** Credit bought, net of GST. */
-    amount_paise: number;
-    /** What the card was charged. */
-    gross_paise: number;
-    tax_paise: number;
-    status: string;
-    created_at: string | null;
-    paid_at: string | null;
+  id: number;
+  order_id: string;
+  payment_id: string | null;
+  /** Credit bought, net of GST, as rupees. On a dollar payment this is the
+   *  rupee value of the dollars at the rate applied. */
+  amount_paise: number;
+  /** What the card was charged, as rupees. */
+  gross_paise: number;
+  tax_paise: number;
+  /** The same two figures in the currency the order was placed in. */
+  currency?: string;
+  amount_minor?: number;
+  gross_minor?: number;
+  credits?: number;
+  status: string;
+  created_at: string | null;
+  paid_at: string | null;
 };
 
 type BillingProfileFields = {
-    legal_name: string | null;
-    gstin: string | null;
-    address_line1: string | null;
-    address_line2: string | null;
-    city: string | null;
-    state_code: string | null;
-    postal_code: string | null;
-    country_code: string;
-    billing_email: string | null;
-    /** Printed on every document for an enterprise accounts team (KAN-80). */
-    po_number?: string | null;
-    payment_terms?: string | null;
+  legal_name: string | null;
+  gstin: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state_code: string | null;
+  postal_code: string | null;
+  country_code: string;
+  billing_email: string | null;
+  /** Printed on every document for an enterprise accounts team (KAN-80). */
+  po_number?: string | null;
+  payment_terms?: string | null;
 };
 
 type TaxDocument = {
-    id: number;
-    kind: string;
-    number: string;
-    issued_at: string | null;
-    period_start: string | null;
-    period_end: string | null;
-    taxable_paise: number;
-    cgst_paise: number;
-    sgst_paise: number;
-    igst_paise: number;
-    total_paise: number;
-    supply_type: string;
+  id: number;
+  kind: string;
+  number: string;
+  issued_at: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  taxable_paise: number;
+  cgst_paise: number;
+  sgst_paise: number;
+  igst_paise: number;
+  total_paise: number;
+  supply_type: string;
 };
 
 const EMPTY_PROFILE: BillingProfileFields = {
-    legal_name: "",
-    gstin: "",
-    address_line1: "",
-    address_line2: "",
-    city: "",
-    state_code: "",
-    postal_code: "",
-    country_code: "IN",
-    billing_email: "",
-    po_number: "",
-    payment_terms: "",
+  legal_name: "",
+  gstin: "",
+  address_line1: "",
+  address_line2: "",
+  city: "",
+  state_code: "",
+  postal_code: "",
+  country_code: "IN",
+  billing_email: "",
+  po_number: "",
+  payment_terms: "",
 };
 
 function StatusBadge({ status }: { status: string }) {
-    const shape =
-        status === "paid"
-            ? {
-                  icon: CheckCircle2,
-                  label: "Paid",
-                  className: "text-emerald-600 dark:text-emerald-400",
-              }
-            : status === "failed"
-              ? {
-                    icon: XCircle,
-                    label: "Failed",
-                    className: "text-red-600 dark:text-red-400",
-                }
-              : {
-                    icon: Clock,
-                    label: "Pending",
-                    className: "text-muted-foreground",
-                };
-    const Icon = shape.icon;
-    return (
-        <span className={cn("inline-flex items-center gap-1.5 text-sm", shape.className)}>
-            <Icon className="h-3.5 w-3.5" />
-            {shape.label}
-        </span>
-    );
+  const shape =
+    status === "paid"
+      ? {
+          icon: CheckCircle2,
+          label: "Paid",
+          className: "text-emerald-600 dark:text-emerald-400",
+        }
+      : status === "failed"
+        ? {
+            icon: XCircle,
+            label: "Failed",
+            className: "text-red-600 dark:text-red-400",
+          }
+        : {
+            icon: Clock,
+            label: "Pending",
+            className: "text-muted-foreground",
+          };
+  const Icon = shape.icon;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 text-sm",
+        shape.className,
+      )}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {shape.label}
+    </span>
+  );
 }
 
 export default function BillingPage() {
-    const { user, loading: authLoading } = useAuth();
-    const hasFetched = useRef(false);
-    const mounted = useRef(true);
-    const pollGeneration = useRef(0);
-    const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { user, loading: authLoading } = useAuth();
+  const hasFetched = useRef(false);
+  const mounted = useRef(true);
+  const pollGeneration = useRef(0);
+  const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const [balance, setBalance] = useState<Balance | null>(null);
-    const [payments, setPayments] = useState<Payment[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [notice, setNotice] = useState<string | null>(null);
-    // Arrived from the balance chip's nudge: the amount that covers next week.
-    // Optional chaining: outside the app router (tests) the hook yields null.
-    const suggestedAmount = useSearchParams()?.get("amount") ?? null;
-    const [amountRupees, setAmountRupees] = useState(
-        suggestedAmount && /^\d+$/.test(suggestedAmount) ? suggestedAmount : "2000",
-    );
-    const [starting, setStarting] = useState(false);
-    /** The pack the amount was set from, if any. Cleared the moment the
-     *  amount is edited by hand, so a pack's bonus is never sent for a
-     *  figure the customer changed. */
-    const [selectedPack, setSelectedPack] = useState<string | null>(null);
-    const [awaitingCredit, setAwaitingCredit] = useState(false);
-    const [profile, setProfile] = useState<BillingProfileFields>(EMPTY_PROFILE);
-    const [profileComplete, setProfileComplete] = useState(true);
-    const { isOrganizationAdmin } = useAccessRoles();
-    const [savingProfile, setSavingProfile] = useState(false);
-    const [emailingDocumentId, setEmailingDocumentId] = useState<number | null>(null);
-    const [documents, setDocuments] = useState<TaxDocument[]>([]);
-    const [downloadingDocumentId, setDownloadingDocumentId] = useState<number | null>(
-        null,
-    );
+  const [balance, setBalance] = useState<Balance | null>(null);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  // Arrived from the balance chip's nudge: the amount that covers next week.
+  // Optional chaining: outside the app router (tests) the hook yields null.
+  const suggestedAmount = useSearchParams()?.get("amount") ?? null;
+  const [amountRupees, setAmountRupees] = useState(
+    suggestedAmount && /^\d+$/.test(suggestedAmount) ? suggestedAmount : "2000",
+  );
+  const [starting, setStarting] = useState(false);
+  /** The pack the amount was set from, if any. Cleared the moment the
+   *  amount is edited by hand, so a pack's bonus is never sent for a
+   *  figure the customer changed. */
+  const [selectedPack, setSelectedPack] = useState<string | null>(null);
+  const [awaitingCredit, setAwaitingCredit] = useState(false);
+  const [profile, setProfile] = useState<BillingProfileFields>(EMPTY_PROFILE);
+  const [profileComplete, setProfileComplete] = useState(true);
+  const { isOrganizationAdmin } = useAccessRoles();
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [emailingDocumentId, setEmailingDocumentId] = useState<number | null>(
+    null,
+  );
+  const [documents, setDocuments] = useState<TaxDocument[]>([]);
+  const [downloadingDocumentId, setDownloadingDocumentId] = useState<
+    number | null
+  >(null);
 
-    const refresh = useCallback(async (includeDetails = true) => {
-        try {
-            // Read payment status before the balance so a newly paid order cannot
-            // be confirmed alongside a balance fetched before its webhook committed.
-            const paymentsResponse = await listPaymentsApiV1BillingPaymentsGet();
-            const [balanceResponse, profileResponse, documentsResponse] =
-                await Promise.all([
-                    getBalanceApiV1BillingBalanceGet(),
-                    ...(includeDetails ? [getBillingProfileApiV1BillingProfileGet(), listTaxDocumentsApiV1BillingDocumentsGet()] : []),
-                ]);
+  const refresh = useCallback(async (includeDetails = true) => {
+    try {
+      // Read payment status before the balance so a newly paid order cannot
+      // be confirmed alongside a balance fetched before its webhook committed.
+      const paymentsResponse = await listPaymentsApiV1BillingPaymentsGet();
+      const [balanceResponse, profileResponse, documentsResponse] =
+        await Promise.all([
+          getBalanceApiV1BillingBalanceGet(),
+          ...(includeDetails
+            ? [
+                getBillingProfileApiV1BillingProfileGet(),
+                listTaxDocumentsApiV1BillingDocumentsGet(),
+              ]
+            : []),
+        ]);
 
-            if (balanceResponse.error) {
-                setError(
-                    detailFromResult(balanceResponse, "Could not load your balance"),
-                );
-                return null;
-            }
-            if (paymentsResponse.error) {
-                setError(
-                    detailFromResult(paymentsResponse, "Could not load your payments"),
-                );
-                return null;
-            }
+      if (balanceResponse.error) {
+        setError(
+          detailFromResult(balanceResponse, "Could not load your balance"),
+        );
+        return null;
+      }
+      if (paymentsResponse.error) {
+        setError(
+          detailFromResult(paymentsResponse, "Could not load your payments"),
+        );
+        return null;
+      }
 
-            if (profileResponse?.error || documentsResponse?.error) {
-                setError(profileResponse?.error
-                    ? detailFromResult(profileResponse, "Could not load your billing details. Please refresh.")
-                    : detailFromResult(documentsResponse, "Could not load your tax documents. Please refresh."));
-                return null;
-            }
+      if (profileResponse?.error || documentsResponse?.error) {
+        setError(
+          profileResponse?.error
+            ? detailFromResult(
+                profileResponse,
+                "Could not load your billing details. Please refresh.",
+              )
+            : detailFromResult(
+                documentsResponse,
+                "Could not load your tax documents. Please refresh.",
+              ),
+        );
+        return null;
+      }
 
-            const next = balanceResponse.data as unknown as Balance;
-            setBalance(next);
-            const nextPayments = (paymentsResponse.data as unknown as { payments: Payment[] }).payments ?? [];
-            setPayments(nextPayments);
+      const next = balanceResponse.data as unknown as Balance;
+      setBalance(next);
+      const nextPayments =
+        (paymentsResponse.data as unknown as { payments: Payment[] })
+          .payments ?? [];
+      setPayments(nextPayments);
 
-            if (profileResponse && !profileResponse.error) {
-                const loaded = profileResponse.data as unknown as {
-                    profile: BillingProfileFields;
-                    is_complete: boolean;
-                };
-                // Nulls become empty strings: a controlled input handed null flips
-                // to uncontrolled and React drops the value on the next render.
-                setProfile({
-                    ...EMPTY_PROFILE,
-                    ...Object.fromEntries(
-                        Object.entries(loaded.profile).map(([k, v]) => [k, v ?? ""]),
-                    ),
-                    country_code: loaded.profile.country_code || "IN",
-                });
-                setProfileComplete(loaded.is_complete);
-            }
-            if (documentsResponse && !documentsResponse.error) {
-                setDocuments(
-                    (documentsResponse.data as unknown as { documents: TaxDocument[] })
-                        .documents ?? [],
-                );
-            }
-
-            setError(null);
-            return { balance: next, payments: nextPayments };
-        } catch {
-            setError("Could not load billing. Check your connection and refresh to try again.");
-            return null;
-        }
-    }, []);
-
-    const saveProfile = useCallback(async () => {
-        setError(null);
-        setNotice(null);
-        setSavingProfile(true);
-        try {
-            const response = await saveBillingProfileApiV1BillingProfilePut({
-                body: {
-                    legal_name: profile.legal_name || null,
-                    gstin: profile.gstin || null,
-                    address_line1: profile.address_line1 || null,
-                    address_line2: profile.address_line2 || null,
-                    city: profile.city || null,
-                    state_code: profile.state_code || null,
-                    postal_code: profile.postal_code || null,
-                    country_code: profile.country_code || "IN",
-                    billing_email: profile.billing_email || null,
-                    po_number: profile.po_number || null,
-                    payment_terms: profile.payment_terms || null,
-                },
-            });
-            if (response.error) {
-                setError(
-                    detailFromResult(response, "Could not save your billing details"),
-                );
-                return;
-            }
-            setNotice("Billing details saved.");
-            await refresh();
-        } catch {
-            setError("Could not save your billing details. Please try again.");
-        } finally {
-            setSavingProfile(false);
-        }
-    }, [profile, refresh]);
-
-    // Sending a document again is a delivery, not a reissue: same number, same
-    // snapshot, same PDF. It exists because the send at issue time happens once
-    // and has one unrecoverable failure -- a document issued before the account
-    // had a billing email is never sent, and completing the profile afterwards
-    // does not go back for it.
-    const emailDocument = useCallback(async (doc: TaxDocument) => {
-        setError(null);
-        setNotice(null);
-        setEmailingDocumentId(doc.id);
-        try {
-            const response =
-                await emailTaxDocumentAgainApiV1BillingDocumentsDocumentIdEmailPost({
-                    path: { document_id: doc.id },
-                });
-            if (response.error) {
-                setError(detailFromResult(response, "Could not send the document"));
-                return;
-            }
-            const sentTo = (response.data as { to?: string } | undefined)?.to;
-            setNotice(
-                sentTo ? `${doc.number} sent to ${sentTo}.` : `${doc.number} sent.`,
-            );
-        } catch {
-            setError("Could not send the document. Please try again.");
-        } finally {
-            setEmailingDocumentId(null);
-        }
-    }, []);
-
-    const downloadDocument = useCallback(async (doc: TaxDocument) => {
-        setError(null);
-        setDownloadingDocumentId(doc.id);
-        try {
-            const response = await getTaxDocumentPdfApiV1BillingDocumentsDocumentIdPdfGet({
-                path: { document_id: doc.id },
-                parseAs: "blob",
-            });
-            if (response.error || !response.data) {
-                setError(detailFromResult(response, "Could not download the PDF"));
-                return;
-            }
-            const blob = response.data as Blob;
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `${doc.number.replace(/\//g, "-")}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            window.URL.revokeObjectURL(url);
-        } catch {
-            setError("Could not download the PDF. Please try again.");
-        } finally {
-            setDownloadingDocumentId(null);
-        }
-    }, []);
-
-    useEffect(() => {
-        if (authLoading || !user || hasFetched.current) return;
-        hasFetched.current = true;
-        void (async () => {
-            await refresh();
-            setLoading(false);
-        })();
-    }, [authLoading, user, refresh]);
-
-    // Any timer still pending when the screen unmounts would keep firing
-    // requests against a page nobody is looking at.
-    useEffect(() => {
-        mounted.current = true;
-        return () => {
-            mounted.current = false;
-            pollGeneration.current += 1;
-            if (pollTimer.current) clearTimeout(pollTimer.current);
+      if (profileResponse && !profileResponse.error) {
+        const loaded = profileResponse.data as unknown as {
+          profile: BillingProfileFields;
+          is_complete: boolean;
         };
-    }, []);
-
-    /** Confirm this order from the server, even when concurrent calls spend credit. */
-    const waitForCredit = useCallback(
-        (orderId: string, attempt = 0, generation = ++pollGeneration.current) => {
-            if (!mounted.current || generation !== pollGeneration.current) return;
-            pollTimer.current = setTimeout(() => {
-                void (async () => {
-                    const next = await refresh(false);
-                    if (!mounted.current || generation !== pollGeneration.current) return;
-                    const payment = next?.payments.find(item => item.order_id === orderId);
-                    if (payment?.status === "paid") {
-                        setAwaitingCredit(false);
-                        setNotice("Payment received. Your balance is up to date, including any recent usage.");
-                        return;
-                    }
-                    if (payment?.status === "failed") {
-                        setAwaitingCredit(false);
-                        setNotice(null);
-                        setError("The payment was not completed. Check your payment history before trying again.");
-                        return;
-                    }
-                    if (attempt + 1 >= POLL_ATTEMPTS) {
-                        setAwaitingCredit(false);
-                        setNotice("Your payment is still being confirmed. Refresh payment history in a minute, or contact support if it remains pending.");
-                        return;
-                    }
-                    waitForCredit(orderId, attempt + 1, generation);
-                })();
-            }, POLL_INTERVAL_MS);
-        },
-        [refresh],
-    );
-
-    const startTopup = useCallback(async () => {
-        setError(null);
-        setNotice(null);
-
-        const rupees = Number(amountRupees);
-        // Read off `balance` rather than the derived value below, which is
-        // declared later in the component body.
-        const stepRupees = (balance?.topup_increment_paise ?? 10_000) / 100;
-        if (rupees % stepRupees !== 0) {
-            setError(
-                `Top-ups are in steps of ₹${stepRupees.toLocaleString("en-IN")}.`,
-            );
-            return;
-        }
-        if (!Number.isFinite(rupees) || rupees <= 0) {
-            setError("Enter an amount in rupees.");
-            return;
-        }
-        // Rupees in the box, paise on the wire. Rounded rather than truncated so
-        // a pasted "499.995" does not quietly become ₹499.99.
-        const amountPaise = Math.round(rupees * 100);
-
-        setStarting(true);
-        try {
-            await loadCheckout();
-
-            const pack = (balance?.packs ?? []).find(
-                (p) => p.code === selectedPack && p.price_paise === amountPaise,
-            );
-            const response = await createTopupApiV1BillingTopupPost({
-                body: pack ? { pack: pack.code } : { amount_paise: amountPaise },
-            });
-            if (response.error) {
-                setError(detailFromResult(response, "Could not start the payment"));
-                return;
-            }
-
-            const order = response.data as unknown as {
-                order_id: string;
-                amount_paise: number;
-                gross_paise: number;
-                tax_paise: number;
-                currency: string;
-                key_id: string;
-            };
-
-            const Checkout = window.Razorpay;
-            if (!Checkout) {
-                setError("The payment window did not load. Try again.");
-                return;
-            }
-
-            new Checkout({
-                key: order.key_id,
-                // Gross, not the credit amount. Passing amount_paise here would
-                // show the customer a figure 18% below what the order was
-                // created for, and Razorpay would reject the mismatch.
-                amount: order.gross_paise,
-                currency: order.currency,
-                order_id: order.order_id,
-                name: "Decibyl",
-                description: "Prepaid credit",
-                handler: () => {
-                    // Deliberately does not credit anything locally. This
-                    // callback is an unauthenticated client claiming success.
-                    setAwaitingCredit(true);
-                    setNotice("Payment submitted. Confirming with the bank…");
-                    waitForCredit(order.order_id);
-                },
-                modal: {
-                    ondismiss: () => {
-                        // Closing the window is not a failure worth an error —
-                        // the order simply stays pending and expires.
-                        void refresh();
-                    },
-                },
-                theme: { color: "#6366f1" },
-            }).open();
-        } catch (loadError) {
-            setError(
-                loadError instanceof Error
-                    ? loadError.message
-                    : "Could not start the payment.",
-            );
-        } finally {
-            setStarting(false);
-        }
-    }, [amountRupees, balance, refresh, waitForCredit, selectedPack]);
-
-    /**
-     * The page's title band, on every branch.
-     *
-     * Billing has three: a skeleton, an unavailable state, and the real thing.
-     * Only the last one used to carry a heading, so a slow or failing balance
-     * dropped the reader onto an untitled page — and the sidebar still said
-     * Billing, which made it read as a broken route rather than a slow one.
-     */
-    const shell = (body: ReactNode) => (
-        <>
-            <PageHeader
-                tabs={BILLING_TABS}
-                title="Billing"
-                description="Decibyl is prepaid. Calls run while there is credit on the account."
-            />
-            <PageBody>{body}</PageBody>
-        </>
-    );
-
-    if (loading) {
-        return shell(
-            <div className="space-y-6">
-                <Skeleton className="h-32 w-full" />
-                <Skeleton className="h-64 w-full" />
-            </div>
-        );
-    }
-
-    if (!balance) {
-        return shell(
-            <div className="space-y-4">
-                <p role="alert">{error ?? "Your billing information is unavailable."}</p>
-                <Button onClick={() => void refresh()}>Retry loading billing</Button>
-            </div>
-        );
-    }
-
-    const topupsEnabled = balance?.topups_enabled ?? false;
-    const balancePaise = balance?.balance_paise ?? 0;
-    const floorPaise = balance?.min_balance_paise ?? 0;
-    const stepPaise = balance?.topup_increment_paise ?? 10_000;
-    // Calling stops at the floor, not at zero. Taken from the server rather
-    // than recomputed here: this banner and the runtime that refuses the call
-    // must never disagree about whether an account can dial.
-    const outOfCredit = balance?.calling_blocked ?? balancePaise < floorPaise;
-    // Warn before calls stop, not only after. Someone whose campaign dies
-    // mid-run finds out by the campaign dying, which is the worst way to learn
-    // it. One minimum top-up's worth of runway is enough notice to act on.
-    const runningLow =
-        !outOfCredit && balancePaise < (balance?.min_topup_paise ?? 0);
-
-    // What the card will actually be charged, shown before the customer clicks
-    // pay. Discovering the tax at the card form reads as a surprise fee.
-    const gstRate = (balance?.gst_rate_basis_points ?? 0) / 100;
-    const enteredPaise = Math.round((Number(amountRupees) || 0) * 100);
-    const taxPaise = Math.round((enteredPaise * (balance?.gst_rate_basis_points ?? 0)) / 10_000);
-    const payablePaise = enteredPaise + taxPaise;
-
-    const setProfileField = (field: keyof BillingProfileFields, value: string) =>
-        setProfile((current) => ({ ...current, [field]: value }));
-
-    // A GSTIN's first two digits *are* the state code, and the server rejects a
-    // profile where the two disagree — correctly, since one of them would be
-    // wrong and the choice decides CGST+SGST versus IGST.
-    //
-    // Left to the operator those two fields are an invitation to contradict
-    // yourself: the state field is placeheld "29" while the helper text says
-    // "the first two digits of your GSTIN", so a GSTIN starting 33 beside a
-    // typed-in 29 is the obvious mistake to make. It then fails with a
-    // validation message about state codes on a form where both fields look
-    // filled in correctly.
-    //
-    // So the GSTIN fills the state in, the way the server already does when the
-    // state is left blank. Typing a GSTIN is the more specific act, and the
-    // field stays editable for anyone who genuinely needs to differ.
-    const setGstin = (value: string) =>
-        setProfile((current) => {
-            const derived = value.length >= 2 && /^\d{2}$/.test(value.slice(0, 2))
-                ? value.slice(0, 2)
-                : null;
-            return {
-                ...current,
-                gstin: value,
-                state_code: derived ?? current.state_code,
-            };
+        // Nulls become empty strings: a controlled input handed null flips
+        // to uncontrolled and React drops the value on the next render.
+        setProfile({
+          ...EMPTY_PROFILE,
+          ...Object.fromEntries(
+            Object.entries(loaded.profile).map(([k, v]) => [k, v ?? ""]),
+          ),
+          country_code: loaded.profile.country_code || "IN",
         });
+        setProfileComplete(loaded.is_complete);
+      }
+      if (documentsResponse && !documentsResponse.error) {
+        setDocuments(
+          (documentsResponse.data as unknown as { documents: TaxDocument[] })
+            .documents ?? [],
+        );
+      }
 
+      setError(null);
+      return { balance: next, payments: nextPayments };
+    } catch {
+      setError(
+        "Could not load billing. Check your connection and refresh to try again.",
+      );
+      return null;
+    }
+  }, []);
+
+  const saveProfile = useCallback(async () => {
+    setError(null);
+    setNotice(null);
+    setSavingProfile(true);
+    try {
+      const response = await saveBillingProfileApiV1BillingProfilePut({
+        body: {
+          legal_name: profile.legal_name || null,
+          gstin: profile.gstin || null,
+          address_line1: profile.address_line1 || null,
+          address_line2: profile.address_line2 || null,
+          city: profile.city || null,
+          state_code: profile.state_code || null,
+          postal_code: profile.postal_code || null,
+          country_code: profile.country_code || "IN",
+          billing_email: profile.billing_email || null,
+          po_number: profile.po_number || null,
+          payment_terms: profile.payment_terms || null,
+        },
+      });
+      if (response.error) {
+        setError(
+          detailFromResult(response, "Could not save your billing details"),
+        );
+        return;
+      }
+      setNotice("Billing details saved.");
+      await refresh();
+    } catch {
+      setError("Could not save your billing details. Please try again.");
+    } finally {
+      setSavingProfile(false);
+    }
+  }, [profile, refresh]);
+
+  // Sending a document again is a delivery, not a reissue: same number, same
+  // snapshot, same PDF. It exists because the send at issue time happens once
+  // and has one unrecoverable failure -- a document issued before the account
+  // had a billing email is never sent, and completing the profile afterwards
+  // does not go back for it.
+  const emailDocument = useCallback(async (doc: TaxDocument) => {
+    setError(null);
+    setNotice(null);
+    setEmailingDocumentId(doc.id);
+    try {
+      const response =
+        await emailTaxDocumentAgainApiV1BillingDocumentsDocumentIdEmailPost({
+          path: { document_id: doc.id },
+        });
+      if (response.error) {
+        setError(detailFromResult(response, "Could not send the document"));
+        return;
+      }
+      const sentTo = (response.data as { to?: string } | undefined)?.to;
+      setNotice(
+        sentTo ? `${doc.number} sent to ${sentTo}.` : `${doc.number} sent.`,
+      );
+    } catch {
+      setError("Could not send the document. Please try again.");
+    } finally {
+      setEmailingDocumentId(null);
+    }
+  }, []);
+
+  const downloadDocument = useCallback(async (doc: TaxDocument) => {
+    setError(null);
+    setDownloadingDocumentId(doc.id);
+    try {
+      const response =
+        await getTaxDocumentPdfApiV1BillingDocumentsDocumentIdPdfGet({
+          path: { document_id: doc.id },
+          parseAs: "blob",
+        });
+      if (response.error || !response.data) {
+        setError(detailFromResult(response, "Could not download the PDF"));
+        return;
+      }
+      const blob = response.data as Blob;
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${doc.number.replace(/\//g, "-")}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      setError("Could not download the PDF. Please try again.");
+    } finally {
+      setDownloadingDocumentId(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (authLoading || !user || hasFetched.current) return;
+    hasFetched.current = true;
+    void (async () => {
+      await refresh();
+      setLoading(false);
+    })();
+  }, [authLoading, user, refresh]);
+
+  // Any timer still pending when the screen unmounts would keep firing
+  // requests against a page nobody is looking at.
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      pollGeneration.current += 1;
+      if (pollTimer.current) clearTimeout(pollTimer.current);
+    };
+  }, []);
+
+  /** Confirm this order from the server, even when concurrent calls spend credit. */
+  const waitForCredit = useCallback(
+    (orderId: string, attempt = 0, generation = ++pollGeneration.current) => {
+      if (!mounted.current || generation !== pollGeneration.current) return;
+      pollTimer.current = setTimeout(() => {
+        void (async () => {
+          const next = await refresh(false);
+          if (!mounted.current || generation !== pollGeneration.current) return;
+          const payment = next?.payments.find(
+            (item) => item.order_id === orderId,
+          );
+          if (payment?.status === "paid") {
+            setAwaitingCredit(false);
+            setNotice(
+              "Payment received. Your balance is up to date, including any recent usage.",
+            );
+            return;
+          }
+          if (payment?.status === "failed") {
+            setAwaitingCredit(false);
+            setNotice(null);
+            setError(
+              "The payment was not completed. Check your payment history before trying again.",
+            );
+            return;
+          }
+          if (attempt + 1 >= POLL_ATTEMPTS) {
+            setAwaitingCredit(false);
+            setNotice(
+              "Your payment is still being confirmed. Refresh payment history in a minute, or contact support if it remains pending.",
+            );
+            return;
+          }
+          waitForCredit(orderId, attempt + 1, generation);
+        })();
+      }, POLL_INTERVAL_MS);
+    },
+    [refresh],
+  );
+
+  const startTopup = useCallback(async () => {
+    setError(null);
+    setNotice(null);
+
+    // A pack fixes its own price and currency, so it is sent by code and
+    // the rupee rules below do not apply to it: ₹999 is not a ₹100 step,
+    // and $60 is not rupees at all.
+    const pack = (balance?.packs ?? []).find((p) => p.code === selectedPack);
+    let amountPaise = 0;
+    if (!pack) {
+      const rupees = Number(amountRupees);
+      // Read off `balance` rather than the derived value below, which is
+      // declared later in the component body.
+      const stepRupees = (balance?.topup_increment_paise ?? 10_000) / 100;
+      if (rupees % stepRupees !== 0) {
+        setError(
+          `Top-ups are in steps of ₹${stepRupees.toLocaleString("en-IN")}.`,
+        );
+        return;
+      }
+      if (!Number.isFinite(rupees) || rupees <= 0) {
+        setError("Enter an amount in rupees.");
+        return;
+      }
+      // Rupees in the box, paise on the wire. Rounded rather than
+      // truncated so a pasted "499.995" does not quietly become ₹499.99.
+      amountPaise = Math.round(rupees * 100);
+    }
+
+    setStarting(true);
+    try {
+      await loadCheckout();
+
+      const response = await createTopupApiV1BillingTopupPost({
+        body: pack ? { pack: pack.code } : { amount_paise: amountPaise },
+      });
+      if (response.error) {
+        setError(detailFromResult(response, "Could not start the payment"));
+        return;
+      }
+
+      const order = response.data as unknown as {
+        order_id: string;
+        amount_paise: number;
+        gross_paise: number;
+        tax_paise: number;
+        currency: string;
+        gross_minor?: number;
+        key_id: string;
+      };
+
+      const Checkout = window.Razorpay;
+      if (!Checkout) {
+        setError("The payment window did not load. Try again.");
+        return;
+      }
+
+      new Checkout({
+        key: order.key_id,
+        // Gross, not the credit amount. Passing amount_paise here would
+        // show the customer a figure 18% below what the order was
+        // created for, and Razorpay would reject the mismatch. In the
+        // order's own minor units: paise, or cents on a dollar order.
+        amount: order.gross_minor ?? order.gross_paise,
+        currency: order.currency,
+        order_id: order.order_id,
+        name: "Decibyl",
+        description: "Prepaid credit",
+        handler: () => {
+          // Deliberately does not credit anything locally. This
+          // callback is an unauthenticated client claiming success.
+          setAwaitingCredit(true);
+          setNotice("Payment submitted. Confirming with the bank…");
+          waitForCredit(order.order_id);
+        },
+        modal: {
+          ondismiss: () => {
+            // Closing the window is not a failure worth an error —
+            // the order simply stays pending and expires.
+            void refresh();
+          },
+        },
+        theme: { color: "#6366f1" },
+      }).open();
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Could not start the payment.",
+      );
+    } finally {
+      setStarting(false);
+    }
+  }, [amountRupees, balance, refresh, waitForCredit, selectedPack]);
+
+  /**
+   * The page's title band, on every branch.
+   *
+   * Billing has three: a skeleton, an unavailable state, and the real thing.
+   * Only the last one used to carry a heading, so a slow or failing balance
+   * dropped the reader onto an untitled page — and the sidebar still said
+   * Billing, which made it read as a broken route rather than a slow one.
+   */
+  const shell = (body: ReactNode) => (
+    <>
+      <PageHeader
+        tabs={BILLING_TABS}
+        title="Billing"
+        description="Decibyl is prepaid. Calls run while there is credit on the account."
+      />
+      <PageBody>{body}</PageBody>
+    </>
+  );
+
+  if (loading) {
     return shell(
-        <div className="space-y-8">
-            {error && (
-                <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                    <span>{error}</span>
-                </div>
-            )}
+      <div className="space-y-6">
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-64 w-full" />
+      </div>,
+    );
+  }
 
-            {notice && (
-                <div role="status" className="flex items-start gap-2 rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-700 dark:border-indigo-900/50 dark:bg-indigo-950/30 dark:text-indigo-300">
-                    {awaitingCredit ? (
-                        <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" />
-                    ) : (
-                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-                    )}
-                    <span>{notice}</span>
-                </div>
-            )}
+  if (!balance) {
+    return shell(
+      <div className="space-y-4">
+        <p role="alert">
+          {error ?? "Your billing information is unavailable."}
+        </p>
+        <Button onClick={() => void refresh()}>Retry loading billing</Button>
+      </div>,
+    );
+  }
 
-            <section className="rounded-xl border bg-card p-6">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Wallet className="h-4 w-4" />
-                    Available credits
-                </div>
-                <div
-                    className={cn(
-                        "mt-2 text-4xl font-semibold tabular-nums",
-                        outOfCredit && "text-red-600 dark:text-red-400",
-                        runningLow && "text-amber-600 dark:text-amber-400",
-                    )}
-                >
-                    {formatCredits(balancePaise)}
-                </div>
-                {balance && (balance.plan_credits ?? 0) + (balance.topup_credits ?? 0) > 0 && (
-                    <p className="mt-1 text-sm text-muted-foreground">
-                        {(balance.plan_credits ?? 0).toLocaleString("en-IN")} plan credits,
-                        which expire with the cycle ·{" "}
-                        {(balance.topup_credits ?? 0).toLocaleString("en-IN")} top-up
-                        credits, which never expire
-                    </p>
-                )}
-                {/* Both messages name the floor, because it is not zero. An
+  const topupsEnabled = balance?.topups_enabled ?? false;
+  const balancePaise = balance?.balance_paise ?? 0;
+  const floorPaise = balance?.min_balance_paise ?? 0;
+  const stepPaise = balance?.topup_increment_paise ?? 10_000;
+  // Calling stops at the floor, not at zero. Taken from the server rather
+  // than recomputed here: this banner and the runtime that refuses the call
+  // must never disagree about whether an account can dial.
+  const outOfCredit = balance?.calling_blocked ?? balancePaise < floorPaise;
+  // Warn before calls stop, not only after. Someone whose campaign dies
+  // mid-run finds out by the campaign dying, which is the worst way to learn
+  // it. One minimum top-up's worth of runway is enough notice to act on.
+  const runningLow =
+    !outOfCredit && balancePaise < (balance?.min_topup_paise ?? 0);
+
+  // What the card will actually be charged, shown before the customer clicks
+  // pay. Discovering the tax at the card form reads as a surprise fee.
+  const gstRate = (balance?.gst_rate_basis_points ?? 0) / 100;
+  // An account billed in dollars buys packs only (KAN-135): there is no
+  // dollar amount box, and the summary reads in dollars with no tax line
+  // to compute, since an export is zero-rated.
+  const billedInDollars = (balance?.currency ?? "INR") === "USD";
+  const chosenPack =
+    (balance?.packs ?? []).find((p) => p.code === selectedPack) ?? null;
+  const enteredPaise = billedInDollars
+    ? (chosenPack?.price_minor ?? 0)
+    : Math.round((Number(amountRupees) || 0) * 100);
+  const taxPaise = billedInDollars
+    ? 0
+    : Math.round(
+        (enteredPaise * (balance?.gst_rate_basis_points ?? 0)) / 10_000,
+      );
+  const payablePaise = enteredPaise + taxPaise;
+  const summaryCurrency = billedInDollars ? "USD" : "INR";
+
+  const setProfileField = (field: keyof BillingProfileFields, value: string) =>
+    setProfile((current) => ({ ...current, [field]: value }));
+
+  // A GSTIN's first two digits *are* the state code, and the server rejects a
+  // profile where the two disagree — correctly, since one of them would be
+  // wrong and the choice decides CGST+SGST versus IGST.
+  //
+  // Left to the operator those two fields are an invitation to contradict
+  // yourself: the state field is placeheld "29" while the helper text says
+  // "the first two digits of your GSTIN", so a GSTIN starting 33 beside a
+  // typed-in 29 is the obvious mistake to make. It then fails with a
+  // validation message about state codes on a form where both fields look
+  // filled in correctly.
+  //
+  // So the GSTIN fills the state in, the way the server already does when the
+  // state is left blank. Typing a GSTIN is the more specific act, and the
+  // field stays editable for anyone who genuinely needs to differ.
+  const setGstin = (value: string) =>
+    setProfile((current) => {
+      const derived =
+        value.length >= 2 && /^\d{2}$/.test(value.slice(0, 2))
+          ? value.slice(0, 2)
+          : null;
+      return {
+        ...current,
+        gstin: value,
+        state_code: derived ?? current.state_code,
+      };
+    });
+
+  return shell(
+    <div className="space-y-8">
+      {error && (
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {notice && (
+        <div
+          role="status"
+          className="flex items-start gap-2 rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-700 dark:border-indigo-900/50 dark:bg-indigo-950/30 dark:text-indigo-300"
+        >
+          {awaitingCredit ? (
+            <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" />
+          ) : (
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+          )}
+          <span>{notice}</span>
+        </div>
+      )}
+
+      <section className="rounded-xl border bg-card p-6">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Wallet className="h-4 w-4" />
+          Available credits
+        </div>
+        <div
+          className={cn(
+            "mt-2 text-4xl font-semibold tabular-nums",
+            outOfCredit && "text-red-600 dark:text-red-400",
+            runningLow && "text-amber-600 dark:text-amber-400",
+          )}
+        >
+          {formatCredits(balancePaise)}
+        </div>
+        {balance &&
+          (balance.plan_credits ?? 0) + (balance.topup_credits ?? 0) > 0 && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              {(balance.plan_credits ?? 0).toLocaleString("en-IN")} plan
+              credits, which expire with the cycle ·{" "}
+              {(balance.topup_credits ?? 0).toLocaleString("en-IN")} top-up
+              credits, which never expire
+            </p>
+          )}
+        {/* Both messages name the floor, because it is not zero. An
                     account told "calls stop at zero" while sitting on ₹18 and
                     unable to dial reads that as our arithmetic being broken. */}
-                {outOfCredit && (
-                    <p className="mt-2 text-sm text-red-600 dark:text-red-400">
-                        Calling is paused — the balance is below{" "}
-                        {formatCreditsLabel(floorPaise)}. Add credit from{" "}
-                        {formatPaise(balance?.min_topup_paise ?? 0)} to start again.
-                    </p>
-                )}
-                {runningLow && (
-                    <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">
-                        Running low. Calling pauses once this falls below{" "}
-                        {formatCreditsLabel(floorPaise)}.
-                    </p>
-                )}
-            </section>
+        {outOfCredit && (
+          <p className="mt-2 text-sm text-red-600 dark:text-red-400">
+            Calling is paused — the balance is below{" "}
+            {formatCreditsLabel(floorPaise)}. Add credit from{" "}
+            {formatPaise(balance?.min_topup_paise ?? 0)} to start again.
+          </p>
+        )}
+        {runningLow && (
+          <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">
+            Running low. Calling pauses once this falls below{" "}
+            {formatCreditsLabel(floorPaise)}.
+          </p>
+        )}
+      </section>
 
-            <PlanSection
-                onSubscribed={() => void refresh()}
-                billingProfileComplete={balance?.billing_profile_complete ?? false}
-            />
+      <PlanSection
+        onSubscribed={() => void refresh()}
+        billingProfileComplete={balance?.billing_profile_complete ?? false}
+      />
 
-            {/* Above "Add credit" deliberately: a customer who has just seen a
+      {/* Above "Add credit" deliberately: a customer who has just seen a
                 low balance should meet the thing that prevents the next one
                 before the thing that fixes this one. */}
-            <AutoTopupSection onChanged={() => void refresh()} />
+      <AutoTopupSection onChanged={() => void refresh()} />
 
-            <section className="rounded-xl border bg-card p-6">
-                <h2 className="text-lg font-medium">Add credit</h2>
+      <section className="rounded-xl border bg-card p-6">
+        <h2 className="text-lg font-medium">Add credit</h2>
 
-                {!topupsEnabled ? (
-                    <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
-                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                        <span>
-                            Online top-ups are unavailable right now. Email{" "}
-                            <a
-                                className="underline"
-                                href="mailto:support@decibyl.ai"
-                            >
-                                support@decibyl.ai
-                            </a>{" "}
-                            and we will add credit directly.
-                        </span>
-                    </div>
-                ) : (
-                    <>
-                        {(balance?.packs?.length ?? 0) > 0 ? (
-                            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                                {(balance?.packs ?? []).map((pack) => {
-                                    const chosen = selectedPack === pack.code;
-                                    return (
-                                        <button
-                                            key={pack.code}
-                                            type="button"
-                                            aria-pressed={chosen}
-                                            onClick={() => {
-                                                setSelectedPack(pack.code);
-                                                setAmountRupees(String(pack.price_paise / 100));
-                                            }}
-                                            className={cn(
-                                                "rounded-lg border p-3 text-left transition-colors",
-                                                chosen
-                                                    ? "border-primary bg-primary/5"
-                                                    : "border-border hover:bg-muted/40",
-                                            )}
-                                        >
-                                            <div className="text-base font-semibold tabular-nums">
-                                                {formatPaise(pack.price_paise)}
-                                            </div>
-                                            <div className="text-sm tabular-nums">
-                                                {pack.credits.toLocaleString("en-IN")} credits
-                                            </div>
-                                            {pack.bonus_credits > 0 && (
-                                                <div className="text-xs text-emerald-700 dark:text-emerald-400">
-                                                    +{pack.bonus_credits.toLocaleString("en-IN")}{" "}
-                                                    extra
-                                                </div>
-                                            )}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        ) : (
-                            <div className="mt-4 flex flex-wrap gap-2">
-                                {QUICK_AMOUNTS_RUPEES.map((rupees) => (
-                                    <Button
-                                        key={rupees}
-                                        type="button"
-                                        variant={
-                                            amountRupees === String(rupees)
-                                                ? "default"
-                                                : "outline"
-                                        }
-                                        onClick={() => setAmountRupees(String(rupees))}
-                                    >
-                                        ₹{rupees.toLocaleString("en-IN")}
-                                    </Button>
-                                ))}
-                            </div>
-                        )}
-                        <p className="mt-2 text-xs text-muted-foreground">
-                            Top-up credits never expire and are spent after your plan&apos;s
-                            credits.
-                        </p>
+        {!topupsEnabled ? (
+          <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              Online top-ups are unavailable right now. Email{" "}
+              <a className="underline" href="mailto:support@decibyl.ai">
+                support@decibyl.ai
+              </a>{" "}
+              and we will add credit directly.
+            </span>
+          </div>
+        ) : (
+          <>
+            {(balance?.packs?.length ?? 0) > 0 ? (
+              <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {(balance?.packs ?? []).map((pack) => {
+                  const chosen = selectedPack === pack.code;
+                  return (
+                    <button
+                      key={pack.code}
+                      type="button"
+                      aria-pressed={chosen}
+                      onClick={() => {
+                        setSelectedPack(pack.code);
+                        setAmountRupees(String(pack.price_paise / 100));
+                      }}
+                      className={cn(
+                        "rounded-lg border p-3 text-left transition-colors",
+                        chosen
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:bg-muted/40",
+                      )}
+                    >
+                      <div className="text-base font-semibold tabular-nums">
+                        {formatMinor(pack.price_minor, pack.currency)}
+                      </div>
+                      <div className="text-sm tabular-nums">
+                        {pack.credits.toLocaleString("en-IN")} credits
+                      </div>
+                      {pack.bonus_credits > 0 && (
+                        <div className="text-xs text-emerald-700 dark:text-emerald-400">
+                          +{pack.bonus_credits.toLocaleString("en-IN")} extra
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {QUICK_AMOUNTS_RUPEES.map((rupees) => (
+                  <Button
+                    key={rupees}
+                    type="button"
+                    variant={
+                      amountRupees === String(rupees) ? "default" : "outline"
+                    }
+                    onClick={() => setAmountRupees(String(rupees))}
+                  >
+                    ₹{rupees.toLocaleString("en-IN")}
+                  </Button>
+                ))}
+              </div>
+            )}
+            <p className="mt-2 text-xs text-muted-foreground">
+              Top-up credits never expire and are spent after your plan&apos;s
+              credits.
+              {billedInDollars &&
+                " Your account is billed in US dollars, zero-rated as an export; pick a pack to pay."}
+            </p>
 
-                        <div className="mt-4 flex flex-wrap items-end gap-3">
-                            <div className="w-48">
-                                {/* `step` makes the browser's own spinner and
+            <div className="mt-4 flex flex-wrap items-end gap-3">
+              {!billedInDollars && (
+                <div className="w-48">
+                  {/* `step` makes the browser's own spinner and
                                     validation enforce the same rule the server
                                     does, so an amount that is not a whole step
                                     is hard to type rather than rejected after a
                                     round trip. */}
-                                <Label htmlFor="topup-amount">Amount (₹)</Label>
-                                <Input
-                                    id="topup-amount"
-                                    type="number"
-                                    inputMode="decimal"
-                                    min={(balance?.min_topup_paise ?? 0) / 100}
-                                    max={(balance?.max_topup_paise ?? 0) / 100}
-                                    step={stepPaise / 100}
-                                    value={amountRupees}
-                                    onChange={(event) => {
-                                        setSelectedPack(null);
-                                        setAmountRupees(event.target.value);
-                                    }}
-                                    className="mt-1.5"
-                                />
-                            </div>
-                            <Button
-                                type="button"
-                                onClick={() => void startTopup()}
-                                disabled={starting || awaitingCredit}
-                            >
-                                {starting ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Opening…
-                                    </>
-                                ) : (
-                                    <>
-                                        Pay with Razorpay
-                                        <ArrowUpRight className="ml-1.5 h-4 w-4" />
-                                    </>
-                                )}
-                            </Button>
-                        </div>
+                  <Label htmlFor="topup-amount">Amount (₹)</Label>
+                  <Input
+                    id="topup-amount"
+                    type="number"
+                    inputMode="decimal"
+                    min={(balance?.min_topup_paise ?? 0) / 100}
+                    max={(balance?.max_topup_paise ?? 0) / 100}
+                    step={stepPaise / 100}
+                    value={amountRupees}
+                    onChange={(event) => {
+                      setSelectedPack(null);
+                      setAmountRupees(event.target.value);
+                    }}
+                    className="mt-1.5"
+                  />
+                </div>
+              )}
+              <Button
+                type="button"
+                onClick={() => void startTopup()}
+                disabled={
+                  starting || awaitingCredit || (billedInDollars && !chosenPack)
+                }
+              >
+                {starting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Opening…
+                  </>
+                ) : (
+                  <>
+                    Pay with Razorpay
+                    <ArrowUpRight className="ml-1.5 h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </div>
 
-                        {/* The whole point of showing this: the customer sees
+            {/* The whole point of showing this: the customer sees
                             what the card will be charged before they click,
                             rather than discovering the tax at the card form. */}
-                        {enteredPaise > 0 && (
-                            <dl className="mt-4 max-w-xs space-y-1.5 border-t pt-3 text-sm">
-                                <div className="flex justify-between">
-                                    <dt className="text-muted-foreground">Credit</dt>
-                                    <dd className="tabular-nums">
-                                        {formatPaise(enteredPaise)}
-                                    </dd>
-                                </div>
-                                <div className="flex justify-between">
-                                    <dt className="text-muted-foreground">
-                                        {balance?.is_export
-                                            ? "GST (zero-rated export)"
-                                            : `GST @ ${gstRate}%`}
-                                    </dt>
-                                    <dd className="tabular-nums">
-                                        {formatPaise(taxPaise)}
-                                    </dd>
-                                </div>
-                                <div className="flex justify-between border-t pt-1.5 font-medium">
-                                    <dt>You pay</dt>
-                                    <dd className="tabular-nums">
-                                        {formatPaise(payablePaise)}
-                                    </dd>
-                                </div>
-                            </dl>
-                        )}
+            {enteredPaise > 0 && (
+              <dl className="mt-4 max-w-xs space-y-1.5 border-t pt-3 text-sm">
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Credit</dt>
+                  <dd className="tabular-nums">
+                    {formatMinor(enteredPaise, summaryCurrency)}
+                  </dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">
+                    {balance?.is_export
+                      ? "GST (zero-rated export)"
+                      : `GST @ ${gstRate}%`}
+                  </dt>
+                  <dd className="tabular-nums">
+                    {formatMinor(taxPaise, summaryCurrency)}
+                  </dd>
+                </div>
+                <div className="flex justify-between border-t pt-1.5 font-medium">
+                  <dt>You pay</dt>
+                  <dd className="tabular-nums">
+                    {formatMinor(payablePaise, summaryCurrency)}
+                  </dd>
+                </div>
+              </dl>
+            )}
 
-                        <p className="mt-3 text-xs text-muted-foreground">
-                            Between {formatPaise(balance?.min_topup_paise ?? 0)} and{" "}
-                            {formatPaise(balance?.max_topup_paise ?? 0)} of credit per
-                            payment. Credit appears once your bank confirms the
-                            payment, which is usually within seconds.
-                        </p>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Between {formatPaise(balance?.min_topup_paise ?? 0)} and{" "}
+              {formatPaise(balance?.max_topup_paise ?? 0)} of credit per
+              payment. Credit appears once your bank confirms the payment, which
+              is usually within seconds.
+            </p>
 
-                        {!profileComplete && (
-                            <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                                Add your billing details below so we can issue a
-                                proper tax invoice for this payment.
-                            </p>
-                        )}
-                    </>
-                )}
-            </section>
+            {!profileComplete && (
+              <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                Add your billing details below so we can issue a proper tax
+                invoice for this payment.
+              </p>
+            )}
+          </>
+        )}
+      </section>
 
-            <section className="rounded-xl border bg-card p-6">
-                <h2 className="text-lg font-medium">Billing details</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    Who your invoices are made out to. Your state decides whether
-                    GST is charged as CGST + SGST or as IGST, so it has to match
-                    your GSTIN.
-                </p>
+      <section className="rounded-xl border bg-card p-6">
+        <h2 className="text-lg font-medium">Billing details</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Who your invoices are made out to. Your state decides whether GST is
+          charged as CGST + SGST or as IGST, so it has to match your GSTIN.
+        </p>
 
-                {/* Editing this is admin-gated on the server (PUT
+        {/* Editing this is admin-gated on the server (PUT
                     /api/v1/billing/profile), because it decides what tax every
                     customer of this account is charged. A member can read it —
                     it is their own company's details and useful to check — but
                     the fieldset is disabled rather than the section hidden, so
                     they can see what is on file and who to ask. Topping up,
                     just above, stays open to everyone deliberately. */}
-                {!isOrganizationAdmin && (
-                    <p className="mt-3 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-                        Only an organization Admin or Owner can change these.
-                        Ask one of them if something here is wrong.
-                    </p>
-                )}
+        {!isOrganizationAdmin && (
+          <p className="mt-3 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+            Only an organization Admin or Owner can change these. Ask one of
+            them if something here is wrong.
+          </p>
+        )}
 
-                <fieldset disabled={!isOrganizationAdmin} className="contents">
-                <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                    <div className="sm:col-span-2">
-                        <Label htmlFor="legal-name">Registered business name</Label>
-                        <Input
-                            id="legal-name"
-                            value={profile.legal_name ?? ""}
-                            onChange={(e) =>
-                                setProfileField("legal_name", e.target.value)
-                            }
-                            placeholder="Acme Technologies Private Limited"
-                            className="mt-1.5"
-                        />
-                    </div>
+        <fieldset disabled={!isOrganizationAdmin} className="contents">
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <Label htmlFor="legal-name">Registered business name</Label>
+              <Input
+                id="legal-name"
+                value={profile.legal_name ?? ""}
+                onChange={(e) => setProfileField("legal_name", e.target.value)}
+                placeholder="Acme Technologies Private Limited"
+                className="mt-1.5"
+              />
+            </div>
 
-                    <div>
-                        <Label htmlFor="gstin">GSTIN</Label>
-                        <Input
-                            id="gstin"
-                            value={profile.gstin ?? ""}
-                            onChange={(e) => setGstin(e.target.value.toUpperCase())}
-                            placeholder="29ABCDE1234F1Z5"
-                            maxLength={15}
-                            className="mt-1.5 font-mono"
-                        />
-                        <p className="mt-1 text-xs text-muted-foreground">
-                            Leave blank if you are not registered.
-                        </p>
-                    </div>
+            <div>
+              <Label htmlFor="gstin">GSTIN</Label>
+              <Input
+                id="gstin"
+                value={profile.gstin ?? ""}
+                onChange={(e) => setGstin(e.target.value.toUpperCase())}
+                placeholder="29ABCDE1234F1Z5"
+                maxLength={15}
+                className="mt-1.5 font-mono"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Leave blank if you are not registered.
+              </p>
+            </div>
 
-                    <div>
-                        <Label htmlFor="billing-email">Billing email</Label>
-                        <Input
-                            id="billing-email"
-                            type="email"
-                            value={profile.billing_email ?? ""}
-                            onChange={(e) =>
-                                setProfileField("billing_email", e.target.value)
-                            }
-                            placeholder="accounts@acme.com"
-                            className="mt-1.5"
-                        />
-                    </div>
+            <div>
+              <Label htmlFor="billing-email">Billing email</Label>
+              <Input
+                id="billing-email"
+                type="email"
+                value={profile.billing_email ?? ""}
+                onChange={(e) =>
+                  setProfileField("billing_email", e.target.value)
+                }
+                placeholder="accounts@acme.com"
+                className="mt-1.5"
+              />
+            </div>
 
-                    <div>
-                        <Label htmlFor="po-number">PO number (optional)</Label>
-                        <Input
-                            id="po-number"
-                            value={profile.po_number ?? ""}
-                            onChange={(e) => setProfileField("po_number", e.target.value)}
-                            placeholder="Your purchase order, printed on invoices"
-                            className="mt-1.5"
-                        />
-                    </div>
+            <div>
+              <Label htmlFor="po-number">PO number (optional)</Label>
+              <Input
+                id="po-number"
+                value={profile.po_number ?? ""}
+                onChange={(e) => setProfileField("po_number", e.target.value)}
+                placeholder="Your purchase order, printed on invoices"
+                className="mt-1.5"
+              />
+            </div>
 
-                    <div>
-                        <Label htmlFor="payment-terms">Payment terms (optional)</Label>
-                        <Input
-                            id="payment-terms"
-                            value={profile.payment_terms ?? ""}
-                            onChange={(e) =>
-                                setProfileField("payment_terms", e.target.value)
-                            }
-                            placeholder="e.g. Net 45"
-                            className="mt-1.5"
-                        />
-                    </div>
+            <div>
+              <Label htmlFor="payment-terms">Payment terms (optional)</Label>
+              <Input
+                id="payment-terms"
+                value={profile.payment_terms ?? ""}
+                onChange={(e) =>
+                  setProfileField("payment_terms", e.target.value)
+                }
+                placeholder="e.g. Net 45"
+                className="mt-1.5"
+              />
+            </div>
 
-                    <div className="sm:col-span-2">
-                        <Label htmlFor="address1">Address</Label>
-                        <Input
-                            id="address1"
-                            value={profile.address_line1 ?? ""}
-                            onChange={(e) =>
-                                setProfileField("address_line1", e.target.value)
-                            }
-                            placeholder="Street address"
-                            className="mt-1.5"
-                        />
-                        <Input
-                            aria-label="Address line 2"
-                            value={profile.address_line2 ?? ""}
-                            onChange={(e) =>
-                                setProfileField("address_line2", e.target.value)
-                            }
-                            placeholder="Building, floor (optional)"
-                            className="mt-2"
-                        />
-                    </div>
+            <div className="sm:col-span-2">
+              <Label htmlFor="address1">Address</Label>
+              <Input
+                id="address1"
+                value={profile.address_line1 ?? ""}
+                onChange={(e) =>
+                  setProfileField("address_line1", e.target.value)
+                }
+                placeholder="Street address"
+                className="mt-1.5"
+              />
+              <Input
+                aria-label="Address line 2"
+                value={profile.address_line2 ?? ""}
+                onChange={(e) =>
+                  setProfileField("address_line2", e.target.value)
+                }
+                placeholder="Building, floor (optional)"
+                className="mt-2"
+              />
+            </div>
 
-                    <div>
-                        <Label htmlFor="city">City</Label>
-                        <Input
-                            id="city"
-                            value={profile.city ?? ""}
-                            onChange={(e) => setProfileField("city", e.target.value)}
-                            className="mt-1.5"
-                        />
-                    </div>
+            <div>
+              <Label htmlFor="city">City</Label>
+              <Input
+                id="city"
+                value={profile.city ?? ""}
+                onChange={(e) => setProfileField("city", e.target.value)}
+                className="mt-1.5"
+              />
+            </div>
 
-                    <div>
-                        <Label htmlFor="postal">PIN / postal code</Label>
-                        <Input
-                            id="postal"
-                            value={profile.postal_code ?? ""}
-                            onChange={(e) =>
-                                setProfileField("postal_code", e.target.value)
-                            }
-                            className="mt-1.5"
-                        />
-                    </div>
+            <div>
+              <Label htmlFor="postal">PIN / postal code</Label>
+              <Input
+                id="postal"
+                value={profile.postal_code ?? ""}
+                onChange={(e) => setProfileField("postal_code", e.target.value)}
+                className="mt-1.5"
+              />
+            </div>
 
-                    <div>
-                        <Label htmlFor="state-code">GST state code</Label>
-                        <Input
-                            id="state-code"
-                            value={profile.state_code ?? ""}
-                            onChange={(e) =>
-                                setProfileField("state_code", e.target.value)
-                            }
-                            placeholder="29"
-                            maxLength={2}
-                            className="mt-1.5 font-mono"
-                        />
-                        <p className="mt-1 text-xs text-muted-foreground">
-                            The first two digits of your GSTIN.
-                        </p>
-                    </div>
+            <div>
+              <Label htmlFor="state-code">GST state code</Label>
+              <Input
+                id="state-code"
+                value={profile.state_code ?? ""}
+                onChange={(e) => setProfileField("state_code", e.target.value)}
+                placeholder="29"
+                maxLength={2}
+                className="mt-1.5 font-mono"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                The first two digits of your GSTIN.
+              </p>
+            </div>
 
-                    <div>
-                        <Label htmlFor="country">Country</Label>
-                        <Input
-                            id="country"
-                            value={profile.country_code ?? "IN"}
-                            onChange={(e) =>
-                                setProfileField(
-                                    "country_code",
-                                    e.target.value.toUpperCase(),
-                                )
-                            }
-                            placeholder="IN"
-                            maxLength={2}
-                            className="mt-1.5 font-mono"
-                        />
-                        <p className="mt-1 text-xs text-muted-foreground">
-                            Outside India is a zero-rated export.
-                        </p>
-                    </div>
-                </div>
+            <div>
+              <Label htmlFor="country">Country</Label>
+              <Input
+                id="country"
+                value={profile.country_code ?? "IN"}
+                onChange={(e) =>
+                  setProfileField("country_code", e.target.value.toUpperCase())
+                }
+                placeholder="IN"
+                maxLength={2}
+                className="mt-1.5 font-mono"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Outside India is a zero-rated export.
+              </p>
+            </div>
+          </div>
 
-                <Button
-                    type="button"
-                    onClick={() => void saveProfile()}
-                    disabled={savingProfile}
-                    className="mt-5"
-                >
-                    {savingProfile ? (
-                        <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Saving…
-                        </>
-                    ) : (
-                        "Save billing details"
-                    )}
-                </Button>
-                </fieldset>
-            </section>
+          <Button
+            type="button"
+            onClick={() => void saveProfile()}
+            disabled={savingProfile}
+            className="mt-5"
+          >
+            {savingProfile ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving…
+              </>
+            ) : (
+              "Save billing details"
+            )}
+          </Button>
+        </fieldset>
+      </section>
 
-            <section className="rounded-xl border bg-card p-6">
-                <h2 className="text-lg font-medium">Tax documents</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    A receipt voucher for each payment, and a tax invoice each
-                    month for what you actually used.
-                </p>
-                {documents.length === 0 ? (
-                    <p className="mt-4 text-sm text-muted-foreground">
-                        Nothing issued yet.
-                    </p>
-                ) : (
-                    <div className="mt-4 overflow-x-auto">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Number</TableHead>
-                                    <TableHead>Type</TableHead>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead className="text-right">Taxable</TableHead>
-                                    <TableHead className="text-right">GST</TableHead>
-                                    <TableHead className="text-right">Total</TableHead>
-                                    <TableHead className="text-right"></TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {documents.map((doc) => {
-                                    const gst =
-                                        doc.cgst_paise +
-                                        doc.sgst_paise +
-                                        doc.igst_paise;
-                                    return (
-                                        <TableRow key={doc.id}>
-                                            <TableCell className="whitespace-nowrap font-mono text-xs">
-                                                {doc.number}
-                                            </TableCell>
-                                            <TableCell className="whitespace-nowrap text-sm">
-                                                {doc.kind === "tax_invoice"
-                                                    ? "Tax invoice"
-                                                    : "Receipt voucher"}
-                                            </TableCell>
-                                            <TableCell className="whitespace-nowrap">
-                                                {formatDateTimeIST(doc.issued_at)}
-                                            </TableCell>
-                                            <TableCell className="text-right tabular-nums">
-                                                {formatPaise(doc.taxable_paise)}
-                                            </TableCell>
-                                            <TableCell className="text-right tabular-nums">
-                                                {doc.supply_type === "export"
-                                                    ? "Zero-rated"
-                                                    : formatPaise(gst)}
-                                            </TableCell>
-                                            <TableCell className="text-right tabular-nums">
-                                                {formatPaise(doc.total_paise)}
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-8"
-                                                    disabled={emailingDocumentId === doc.id}
-                                                    onClick={() => void emailDocument(doc)}
-                                                    aria-label={`Email ${doc.number}`}
-                                                    title="Send to your billing email"
-                                                >
-                                                    {emailingDocumentId === doc.id ? (
-                                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                                    ) : (
-                                                        <Mail className="h-4 w-4" />
-                                                    )}
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-8"
-                                                    disabled={downloadingDocumentId === doc.id}
-                                                    onClick={() => void downloadDocument(doc)}
-                                                    aria-label={`Download ${doc.number}`}
-                                                >
-                                                    {downloadingDocumentId === doc.id ? (
-                                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                                    ) : (
-                                                        <Download className="h-4 w-4" />
-                                                    )}
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })}
-                            </TableBody>
-                        </Table>
-                    </div>
-                )}
-            </section>
+      <section className="rounded-xl border bg-card p-6">
+        <h2 className="text-lg font-medium">Tax documents</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          A receipt voucher for each payment, and a tax invoice each month for
+          what you actually used.
+        </p>
+        {documents.length === 0 ? (
+          <p className="mt-4 text-sm text-muted-foreground">
+            Nothing issued yet.
+          </p>
+        ) : (
+          <div className="mt-4 overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Number</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead className="text-right">Taxable</TableHead>
+                  <TableHead className="text-right">GST</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-right"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {documents.map((doc) => {
+                  const gst = doc.cgst_paise + doc.sgst_paise + doc.igst_paise;
+                  return (
+                    <TableRow key={doc.id}>
+                      <TableCell className="whitespace-nowrap font-mono text-xs">
+                        {doc.number}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-sm">
+                        {doc.kind === "tax_invoice"
+                          ? "Tax invoice"
+                          : "Receipt voucher"}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {formatDateTimeIST(doc.issued_at)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatPaise(doc.taxable_paise)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {doc.supply_type === "export"
+                          ? "Zero-rated"
+                          : formatPaise(gst)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatPaise(doc.total_paise)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          disabled={emailingDocumentId === doc.id}
+                          onClick={() => void emailDocument(doc)}
+                          aria-label={`Email ${doc.number}`}
+                          title="Send to your billing email"
+                        >
+                          {emailingDocumentId === doc.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Mail className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          disabled={downloadingDocumentId === doc.id}
+                          onClick={() => void downloadDocument(doc)}
+                          aria-label={`Download ${doc.number}`}
+                        >
+                          {downloadingDocumentId === doc.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Download className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </section>
 
-            <section className="rounded-xl border bg-card p-6">
-                <h2 className="text-lg font-medium">Payment history</h2>
-                {payments.length === 0 ? (
-                    <p className="mt-4 text-sm text-muted-foreground">
-                        No payments yet.
-                    </p>
-                ) : (
-                    <div className="mt-4 overflow-x-auto">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead className="text-right">Credit</TableHead>
-                                    <TableHead className="text-right">Charged</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead>Reference</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {payments.map((payment) => (
-                                    <TableRow key={payment.id}>
-                                        <TableCell className="whitespace-nowrap">
-                                            {formatDateTimeIST(
-                                                payment.paid_at ?? payment.created_at,
-                                            )}
-                                        </TableCell>
-                                        {/* Both, because someone reconciling a
+      <section className="rounded-xl border bg-card p-6">
+        <h2 className="text-lg font-medium">Payment history</h2>
+        {payments.length === 0 ? (
+          <p className="mt-4 text-sm text-muted-foreground">No payments yet.</p>
+        ) : (
+          <div className="mt-4 overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead className="text-right">Credit</TableHead>
+                  <TableHead className="text-right">Charged</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Reference</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {payments.map((payment) => (
+                  <TableRow key={payment.id}>
+                    <TableCell className="whitespace-nowrap">
+                      {formatDateTimeIST(payment.paid_at ?? payment.created_at)}
+                    </TableCell>
+                    {/* Both, because someone reconciling a
                                             card statement wants the gross while
                                             someone reconciling their balance
                                             wants the net. */}
-                                        <TableCell className="text-right tabular-nums">
-                                            {formatPaise(payment.amount_paise)}
-                                        </TableCell>
-                                        <TableCell className="text-right tabular-nums">
-                                            {formatPaise(
-                                                payment.gross_paise ??
-                                                    payment.amount_paise,
-                                            )}
-                                        </TableCell>
-                                        <TableCell>
-                                            <StatusBadge status={payment.status} />
-                                        </TableCell>
-                                        <TableCell className="font-mono text-xs text-muted-foreground">
-                                            {/* The payment id is what support and
+                    <TableCell className="text-right tabular-nums">
+                      {formatMinor(
+                        payment.amount_minor ?? payment.amount_paise,
+                        payment.currency,
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatMinor(
+                        payment.gross_minor ??
+                          payment.gross_paise ??
+                          payment.amount_paise,
+                        payment.currency,
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={payment.status} />
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {/* The payment id is what support and
                                                 the bank both recognise; the order
                                                 id only exists until it is paid. */}
-                                            {payment.payment_id ?? payment.order_id}
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
-                )}
-            </section>
-        </div>
-    );
+                      {payment.payment_id ?? payment.order_id}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </section>
+    </div>,
+  );
 }

@@ -201,6 +201,9 @@ async def get_balance(user: UserModel = Depends(get_user)) -> dict[str, Any]:
         # cycle and are spent first, and top-ups, which never expire.
         pools = await plans.pool_balances(session, organization_id=organization_id)
         packs = await topup_packs.packs_for(session, organization_id=organization_id)
+        currency = await topup_packs.billing_currency(
+            session, organization_id=organization_id
+        )
     async with db_client.async_session() as session:
         burn = await topup_nudge.daily_burn_paise(
             session, organization_id=organization_id
@@ -220,6 +223,10 @@ async def get_balance(user: UserModel = Depends(get_user)) -> dict[str, Any]:
         "topup_credits": credits.credits_of_balance(pools.topup_paise),
         # What can be bought outright. Top-up credits never expire.
         "packs": packs,
+        # The currency this account buys credit in (KAN-135): dollars for an
+        # account billed outside India, which sees the dollar packs and no
+        # rupee amount box; rupees for everyone else.
+        "currency": currency,
         "paise_per_credit": credits.PAISE_PER_CREDIT,
         "min_balance_credits": credits.credits_for_charge(MIN_BALANCE_PAISE),
         "suggested_topup_credits": (
@@ -327,11 +334,16 @@ async def create_topup(
         "gross_paise": order.gross_paise,
         "tax_paise": order.tax_paise,
         "currency": order.currency,
+        # The same two figures in minor units of `currency` (KAN-135): paise
+        # again for a rupee order, cents for a dollar one. Checkout opens with
+        # `gross_minor`, whatever the currency.
+        "amount_minor": order.amount_minor,
+        "gross_minor": order.gross_minor,
         "key_id": order.key_id,
-        # What lands on the balance when the money does: the amount plus any
-        # pack bonus, in credits. Never expires.
+        # What lands on the balance when the money does: the pack's credits,
+        # or the amount plus any bonus. Never expires.
         "bonus_paise": order.bonus_paise,
-        "credits": credits.credits_of_balance(order.amount_paise + order.bonus_paise),
+        "credits": order.credits,
         "pack": order.pack_code,
     }
 

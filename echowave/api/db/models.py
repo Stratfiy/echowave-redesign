@@ -4068,6 +4068,24 @@ class PaymentModel(Base):
         BigInteger, nullable=False, default=0, server_default=text("0")
     )
     pack_code = Column(String(16), nullable=True)
+    # The currency the order was placed in (KAN-135). "INR" for everyone in
+    # India; "USD" for an account billed outside it, which buys the dollar
+    # packs. Rows from before the column carry the default, which is right.
+    currency = Column(
+        String(3), nullable=False, default="INR", server_default=text("'INR'")
+    )
+    # The net price in minor units of ``currency``: paise for INR (equal to
+    # ``amount_paise``), cents for USD. The webhook checks a dollar capture
+    # against this; ``amount_paise`` on a dollar row is the rupee value of the
+    # dollars at ``fx_paise_per_usd``, which the export voucher states.
+    amount_minor = Column(BigInteger, nullable=True)
+    # Paise per dollar applied when the order was made. Pinned here so the
+    # rupee value the voucher states cannot drift from the one computed.
+    fx_paise_per_usd = Column(Integer, nullable=True)
+    # What a full capture lands on the balance, in credits, when the pack
+    # defines it directly rather than as amount plus bonus. Null on rows
+    # written before it existed: those are credited as amount plus bonus.
+    credits_granted = Column(Integer, nullable=True)
     # The FIRC/FIRA reference for an export remittance (KAN-80): the bank's
     # certificate that proves the export at filing. Recorded by staff once
     # the certificate arrives; GSTR-1 lists export payments still without one.

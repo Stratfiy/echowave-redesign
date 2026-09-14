@@ -55,6 +55,8 @@ class TestThePacks:
         rows = topup_packs.packs_as_dicts()
         assert rows[1] == {
             "code": "p4999",
+            "currency": "INR",
+            "price_minor": 499_900,
             "price_paise": 499_900,
             "credits": 10_500,
             "bonus_credits": 502,

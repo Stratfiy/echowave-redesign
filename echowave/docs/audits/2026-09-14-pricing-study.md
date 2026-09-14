@@ -654,7 +654,8 @@ Seven decisions taken one at a time, each recorded on KAN-47, applied here.
 - **Packs.** ₹999 → 2,000, ₹4,999 → 10,500, ₹19,999 → 44,000. The ₹500 pack
   is gated to Campus and staff-marked early adopters (with an end date).
   Free amounts start at ₹1,000 in ₹100 steps. USD packs ($12 / $60 / $240)
-  are decided and wait on dollar orders from the gateway.
+  shipped under KAN-135 once international payments were enabled on the
+  Razorpay account — see §22.
 - **Premium connectors** are systems of record, 3 credits a call; the
   default list ships in code and the env var replaces it.
 - **Empty knowledge answers** are billed as a 1-credit reply when retrieval
@@ -665,4 +666,25 @@ Seven decisions taken one at a time, each recorded on KAN-47, applied here.
 - **Translation** (KAN-104): 1 credit per 100 characters, rounded up per
   message, only when Sarvam actually runs.
 - **Referrals and promo codes** are stories KAN-133 and KAN-134.
+
+## 22. Notes from the dollar packs (KAN-135, 14 Sept)
+
+- **Who.** An account whose billing profile puts it outside India — the same
+  fact that zero-rates its supply as an export — buys the dollar ladder and
+  nothing else; an Indian account never sees it. Enforced at the order, not
+  only on the list.
+- **What.** $12 → 2,000, $60 → 10,500 (5%), $240 → 44,000 (10%): six tenths
+  of a cent a credit, a 20% cushion over the ₹0.50 rupee credit at ₹88 for
+  the international card fee (about 3% plus GST) and the exchange.
+- **How.** The Razorpay order is placed in cents; the capture must come back
+  in USD or it is refused. The ledger is credited the pack's credits at fifty
+  paise each. The payment row pins the cents, the paise-per-dollar rate in
+  force when the order was made, and the credits granted; ``amount_paise``
+  on a dollar row is the rupee value of the dollars, which is what the
+  export receipt voucher states (zero-rated under the LUT, with the dollars
+  and the rate on the line) and what GSTR-1 and the KPI board's export
+  revenue row count. The FIRC field from KAN-80 applies as before.
+- **Not done.** Dollar free amounts (packs only), dollar autopay (the saved
+  instrument path is still INR), and dollar subscriptions beyond the pinned
+  export plan ids that already existed.
 
