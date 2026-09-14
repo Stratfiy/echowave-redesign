@@ -11,8 +11,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const timeline = vi.hoisted(() => vi.fn());
 const translate = vi.hoisted(() => vi.fn());
+const draft = vi.hoisted(() => vi.fn());
 vi.mock('@/client/sdk.gen', () => ({
     timelineApiV1TimelineGet: timeline,
+    replyDraftTextApiV1TimelineDraftGet: draft,
     decideApiV1TimelineDecidePost: vi.fn(),
     settleActionApiV1TimelineActionsSettlePost: vi.fn(),
     settleEditApiV1TimelineEditsSettlePost: vi.fn(),
@@ -38,6 +40,8 @@ const event = (over: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
     timeline.mockReset();
+    draft.mockReset();
+    draft.mockResolvedValue({ data: { text: '' } });
     localStorage.clear();
     Element.prototype.scrollIntoView = vi.fn();
 });
@@ -304,5 +308,20 @@ describe('what the bot read on the way', () => {
         expect(screen.getByLabelText('Front desk is thinking')).toBeTruthy();
         screen.getByText('Show all').click();
         expect(await screen.findByText(/Read 3 passages from price list/)).toBeTruthy();
+    });
+});
+
+describe('the reply forming', () => {
+    it('shows in the thinking row as it grows, in place of the spinner', async () => {
+        timeline.mockResolvedValue({ data: { events: [], next_before_at: null, next_before_id: null } });
+        draft.mockResolvedValue({ data: { text: 'Front desk took 8 calls' } });
+        const since = new Date(Date.now() - 1000).toISOString();
+        render(<ChannelStream assistant assistantName="Decibyl" botNames={{}} waitingFor={{ since, bots: [0] }} />);
+        expect(await screen.findByLabelText('Decibyl is thinking')).toBeTruthy();
+        expect(await screen.findByTestId('forming')).toBeTruthy();
+        expect(screen.getByTestId('forming').textContent).toContain('Front desk took 8 calls');
+        expect(screen.queryByText('Thinking…')).toBeNull();
+        // Decibyl's thread asks for the assistant's draft, no bot.
+        expect(draft.mock.calls[0][0].query).toBeUndefined();
     });
 });

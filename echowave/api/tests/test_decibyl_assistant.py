@@ -175,7 +175,7 @@ class TestAnswering:
                     )
                 ),
             ),
-            patch("api.services.agent_builder.client.complete", new=complete),
+            patch("api.services.agent_builder.client.stream", new=complete),
             patch(
                 "api.services.workflow.decibyl.agent_timeline.record", new=AsyncMock()
             ) as record,
