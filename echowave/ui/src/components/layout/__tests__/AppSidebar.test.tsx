@@ -122,7 +122,7 @@ describe("sidebar interactions", () => {
     expect(screen.queryByRole("link", { name: "Home" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Bots" })).toBeNull();
     // The two sections' doors are there even before anything has loaded.
-    expect(screen.getByLabelText("New channel")).toBeTruthy();
+    expect(screen.getByLabelText("New chat")).toBeTruthy();
     expect(screen.getByLabelText("Hire a bot")).toBeTruthy();
     expect(screen.getByRole("link", { name: /Company knowledge/ }).getAttribute("href")).toBe("/files");
     // Knowledge is a headed section of its own, like the two under it.

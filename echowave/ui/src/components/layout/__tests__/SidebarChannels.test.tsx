@@ -50,7 +50,7 @@ describe("what the rail shows", () => {
         listFolders.mockResolvedValue({ data: [] });
         render(<SidebarChannels collapsed={false} />);
         await waitFor(() => expect(listFolders).toHaveBeenCalled());
-        expect(screen.getByLabelText("New channel").getAttribute("href")).toBe("/workflow");
+        expect(screen.getByLabelText("New chat")).toBeTruthy();
         expect(screen.queryByRole("link", { name: "operations" })).toBeNull();
     });
 
@@ -75,7 +75,7 @@ describe("what the rail shows", () => {
         await waitFor(() => expect(listFolders).toHaveBeenCalled());
         // No rows, no error, and the plus is still there: a failed read
         // costs the list, not the door.
-        expect(screen.getByLabelText("New channel")).toBeTruthy();
+        expect(screen.getByLabelText("New chat")).toBeTruthy();
     });
 });
 

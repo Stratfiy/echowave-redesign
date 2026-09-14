@@ -164,6 +164,7 @@ async def answer_channel_message(
     folder_id: Optional[int],
     text: str,
     preset: Optional[str] = None,
+    hop: int = 0,
 ) -> None:
     """One bot answers one thing somebody said in a channel, then the run is
     processed like any other.
@@ -181,6 +182,7 @@ async def answer_channel_message(
         int(folder_id) if folder_id is not None else None,
         text,
         preset=preset or None,
+        hop=int(hop or 0),
     )
     if run_id is None:
         # No run happened: the bot vanished, or there was no credit. Nothing to
