@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { useAppConfig } from "@/context/AppConfigContext";
 import { LeadFormsProvider } from "@/context/LeadFormsContext";
+import { applyAccent, readStoredAccent, resolveAccent, storeAccent } from "@/lib/accent";
 
 import { AppSidebar } from "./AppSidebar";
 import { TopBar } from "./TopBar";
@@ -65,6 +66,17 @@ interface AppLayoutProps {
  * render: the server has no cookie, and a first render that disagreed with
  * it would be a hydration mismatch on every page.
  */
+/** The theme, applied on arrival and re-stored in its current shape, so a
+ *  choice made under an older build gets the rail and panel tokens too. */
+function ThemeRestorer() {
+  useEffect(() => {
+    const accent = resolveAccent(readStoredAccent());
+    applyAccent(accent);
+    storeAccent(accent);
+  }, []);
+  return null;
+}
+
 function SidebarStateRestorer() {
   const { setOpen } = useSidebar();
   useEffect(() => {
@@ -101,6 +113,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   return (
     <SidebarProvider defaultOpen className="app-shell">
       <SidebarStateRestorer />
+      <ThemeRestorer />
       {shouldShowSidebar ? (
         <LeadFormsProvider>
           {/* h-screen, not min-h-screen: the column is bounded, so a page

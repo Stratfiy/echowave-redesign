@@ -68,17 +68,9 @@ describe("resolveAccent", () => {
     }
   });
 
-  it("refuses a stored colour too pale to hold a focus ring", () => {
-    // Pale yellow: the exact case a naive picker would accept and which would
-    // erase the outline a keyboard user navigates by.
-    expect(contrastOnWhite("#fff9c4")).toBeLessThan(MIN_BRIGHT_CONTRAST);
+  it("no longer takes a custom hex: a theme is presets only", () => {
+    expect(resolveAccent("#0d9488").id).toBe(DEFAULT_ACCENT_ID);
     expect(resolveAccent("#fff9c4").id).toBe(DEFAULT_ACCENT_ID);
-  });
-
-  it("accepts a custom colour that passes, and derives a readable deep half", () => {
-    const resolved = resolveAccent("#0d9488");
-    expect(resolved.bright).toBe("#0d9488");
-    expect(contrastOnWhite(resolved.deep)).toBeGreaterThanOrEqual(MIN_DEEP_CONTRAST);
   });
 
   it("resolves a known preset by id", () => {
@@ -87,6 +79,14 @@ describe("resolveAccent", () => {
 });
 
 describe("accentVariables", () => {
+  it("themes the frame: a dark rail, a tinted panel, the deep half on the rail's active state", () => {
+    const vars = accentVariables(ACCENTS[2]); // indigo
+    expect(vars["--rail"]).toMatch(/^#[0-9a-f]{6}$/);
+    expect(contrastOnWhite(vars["--rail"])).toBeGreaterThan(10);
+    expect(contrastOnWhite(vars["--sidebar"])).toBeLessThan(1.3);
+    expect(vars["--rail-accent"]).toBe(ACCENTS[2].deep);
+  });
+
   it("never touches the button tokens", () => {
     // Every pressable fill is ink. An accent that could repaint --primary
     // would let a pale choice produce an unreadable button.

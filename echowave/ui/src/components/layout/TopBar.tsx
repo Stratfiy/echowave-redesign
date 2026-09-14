@@ -23,7 +23,6 @@ import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 import { BalanceChip } from "./BalanceChip";
-import { CurrentOrganization } from "./CurrentOrganization";
 import { getVisibleNavSections, type SidebarNavItem } from "./navigation";
 import { NotificationBell } from "./NotificationBell";
 
@@ -120,7 +119,7 @@ function GlobalSearch() {
   };
 
   return (
-    <div ref={wrapRef} className="relative w-full max-w-xl">
+    <div ref={wrapRef} className="relative w-full max-w-md">
       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-rail-foreground/60" />
       <Input
         ref={inputRef}
@@ -133,10 +132,10 @@ function GlobalSearch() {
         onKeyDown={onKeyDown}
         placeholder="Search pages…"
         aria-label="Search pages"
-        className="h-9 rounded-full border-transparent bg-white/10 pl-9 pr-3 text-sm text-rail-foreground shadow-none placeholder:text-rail-foreground/60 focus-visible:border-rail-accent focus-visible:bg-white/15"
+        className="h-7 rounded-md border-transparent bg-white/15 pl-9 pr-3 text-sm text-rail-foreground shadow-none placeholder:text-rail-foreground/60 focus-visible:border-rail-accent focus-visible:bg-white/20"
       />
       {open && query.trim() !== "" && (
-        <div className="absolute left-0 right-0 top-11 z-50 overflow-hidden rounded-xl border border-border bg-popover py-1 shadow-[var(--shadow-raised)]">
+        <div className="absolute left-0 right-0 top-9 z-50 overflow-hidden rounded-xl border border-border bg-popover py-1 shadow-[var(--shadow-raised)]">
           {results.length === 0 ? (
             <p className="px-3 py-3 text-sm text-muted-foreground">No matching page.</p>
           ) : (
@@ -193,7 +192,7 @@ export function TopBar() {
       .join("") || "U";
 
   return (
-    <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-3 bg-rail px-4 text-rail-foreground">
+    <header className="sticky top-0 z-40 flex h-11 shrink-0 items-center gap-2 bg-rail px-3 text-rail-foreground">
       <Button
         variant="ghost"
         size="icon"
@@ -204,7 +203,9 @@ export function TopBar() {
         <Menu className="h-5 w-5" />
       </Button>
 
-      <div className="flex min-w-0 flex-1 items-center">
+      {/* Centred, the way Slack sets its search in the bar: the bar is the
+          frame's top edge, and the search is the one thing on it. */}
+      <div className="flex min-w-0 flex-1 items-center justify-center">
         <GlobalSearch />
       </div>
 
@@ -216,10 +217,8 @@ export function TopBar() {
             already been refused. */}
         <BalanceChip />
 
-        {/* Before the account menu, not inside it: which organization you are
-            acting as is context for everything on the page, not a setting you
-            occasionally open a menu to check. */}
-        <CurrentOrganization />
+        {/* The workspace is named at the head of the panel now, the way
+            Slack names it, so it is not said a second time up here. */}
 
         {/* Notices about the account — low credit, a charge, credits landing
             — where the person is, not only in an inbox they check twice a

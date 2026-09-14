@@ -49,9 +49,9 @@ export default function SettingsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Appearance</CardTitle>
+            <CardTitle>Theme</CardTitle>
             <CardDescription>
-              The accent colour used for links, focus rings and active states.
+              The colour of the frame: rail, panel and top bar, and the links and active states inside.
             </CardDescription>
           </CardHeader>
           <CardContent>
