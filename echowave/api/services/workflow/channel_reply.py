@@ -28,6 +28,7 @@ from pipecat.utils.run_context import set_current_run_id
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind, WorkflowRunMode
+from api.services.billing import events as billing_events
 from api.services.quota_service import authorize_workflow_run_start
 from api.services.workflow import agent_timeline, channel_context
 from api.services.workflow.text_chat_runner import default_text_chat_checkpoint
@@ -229,6 +230,18 @@ async def answer_in_channel(
         )
 
         answer = (_last_assistant_text(text_session) or "").strip()
+        # One event, one price (KAN-56): a text reply, or a knowledge answer
+        # when the turn read the documents. Keyed on the turn so a retried
+        # job never charges it twice. Charged even when the answer is empty
+        # -- the model ran -- and skipped for internal accounts inside.
+        last_turn = billing_events.last_turn_of(text_session)
+        event = billing_events.event_for_turn(last_turn)
+        await billing_events.charge_in_own_session(
+            organization_id=organization_id,
+            event=event,
+            ref_id=f"{run_id}:{(last_turn or {}).get('id') or 'turn'}",
+            note=f"{name} in {'a channel' if folder_id is not None else 'chat'}",
+        )
         if not answer:
             # The single most important case to record. A bot that ran and
             # produced nothing looks exactly like a bot that never ran, and one
@@ -266,6 +279,11 @@ async def answer_in_channel(
                 "in_reply_to": text[:500],
                 "asked": handed,
                 "hop": hop,
+                # What this reply cost, on the row itself, so the thread can
+                # say "2 credits" without re-deriving whether it read the
+                # documents.
+                "credits": billing_events.credits_for(event),
+                "billed_as": event,
             },
         )
         for teammate in handed:

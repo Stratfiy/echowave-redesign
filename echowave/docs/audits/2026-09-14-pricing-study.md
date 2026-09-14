@@ -489,3 +489,35 @@ still on the seeded default take these figures, rows somebody typed
    account's plan. Proposed for the decision: $6 = 1,000, $12 = 2,000,
    $60 = 10,500, $240 = 44,000 (the rupee packs at Rs 96 plus a rounding
    margin), collected through the same Razorpay USD order. Open on KAN-47.
+
+## 16. Notes from metering the unmetered (KAN-56, 14 Sept)
+
+1. **One event, one price**, in `services/billing/events.py`: text reply 1,
+   knowledge answer 2, routine run 2, tool call 1 (premium 3), builder
+   message past the allowance 5. One ledger row per event keyed on the
+   event's own id (a turn, a run, a tool-call id), so a retried job charges
+   once. Internal accounts are never charged.
+2. **Every timeline kind is priced or marked included**, and a test holds
+   the table against the enum. Call events are included because the call is
+   charged by the minute; `MESSAGE` and `DELIVERABLE` rows carry the credits
+   in their payload so the thread can say what a reply cost.
+3. **A text reply is a bot answering in a channel or on its own chat** —
+   the product's "answer staff questions from its own documents". Charged
+   whether or not the answer was empty (the model ran). Test chats and test
+   calls in the app stay free, as decided on KAN-53.
+4. **The builder's daily cap is gone.** The plan's `builder_messages`
+   allowance (30 / 100 / 300, unlimited on Scale) is counted per IST month;
+   past it a message is five credits, taken before the model runs, refused
+   with the way out named when the balance cannot cover it.
+5. **Tool calls are charged once the tool ran**, not on a failure, and
+   keyed on the model's tool-call id. Which connectors are *premium* is
+   open: `PREMIUM_CONNECTORS` names them by toolkit slug without a release,
+   and the list is empty until decided on KAN-47.
+6. **"Verification" is verifying a phone number** by the voice call that
+   reads the code out (`services/telephony/verified_numbers`), which costs
+   carriage. The first two numbers an account verifies are free; each further
+   number is two credits, charged once when its first code is issued and
+   keyed on the number, so resends are not charged again.
+7. **Translation (KAN-104)** waits on the rate: Sarvam's page says ₹20 per
+   10k characters, not ₹0.005 a character, so the proposed 1 credit per 50
+   characters is 2.5x too dear. Proposed 1 per 100. Open on KAN-104.

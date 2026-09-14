@@ -10770,6 +10770,14 @@ export type TimelineEvent = {
      * Folder Id
      */
     folder_id: number | null;
+    /**
+     * Credits
+     */
+    credits?: number;
+    /**
+     * Included
+     */
+    included?: boolean;
 };
 
 /**

@@ -39,8 +39,13 @@ interface Turn {
 
 interface Usage {
     used: number;
+    /** The plan's monthly allowance; 0 is unlimited. */
     limit: number;
     remaining: number;
+    /** Past the allowance, each message costs this many credits (KAN-56). */
+    past_allowance?: boolean;
+    per_message_credits?: number;
+    charged_credits?: number;
 }
 
 interface ChatResponse {
@@ -247,7 +252,11 @@ export function AgentBuilderPanel({
         );
     }
 
-    const outOfMessages = config.usage.limit > 0 && config.usage.remaining <= 0;
+    // Past the allowance the composer stays open: a message then costs
+    // credits (KAN-56) and the server refuses with the way out named when
+    // the balance cannot cover it. Nothing is out of messages any more.
+    const outOfMessages = false;
+    const pastAllowance = config.usage.past_allowance === true;
     const started = turns.length > 0;
 
     return (
@@ -267,9 +276,15 @@ export function AgentBuilderPanel({
                     {config.usage.limit > 0 ? (
                         <span
                             className="shrink-0 rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs tabular-nums text-muted-foreground"
-                            title="Messages left today"
+                            title={
+                                config.usage.past_allowance
+                                    ? "Past this month's included messages"
+                                    : "Messages included this month"
+                            }
                         >
-                            {config.usage.remaining} / {config.usage.limit} left today
+                            {config.usage.past_allowance
+                                ? `${config.usage.per_message_credits ?? 5} credits a message`
+                                : `${config.usage.remaining} / ${config.usage.limit} left this month`}
                         </span>
                     ) : null}
                 </div>
@@ -365,8 +380,8 @@ export function AgentBuilderPanel({
                         rows={2}
                         aria-label="Describe the agent you want"
                         placeholder={
-                            outOfMessages
-                                ? "You've used today's messages. The allowance resets at midnight."
+                            pastAllowance
+                                ? `Past this month's included messages — ${config.usage.per_message_credits ?? 5} credits each from here`
                                 : "e.g. I run a dental clinic in Bengaluru and want the phone answered"
                         }
                         className="pr-12 resize-none"
