@@ -783,6 +783,11 @@ class AgentEventKind(str, Enum):
     #: Something a human has to look at. The Team screen's attention tone, as
     #: an event rather than a computed state, so it can be notified on.
     NEEDS_ATTENTION = "needs_attention"
+    #: A bot stopped to ask a person to choose. Carries the question and the
+    #: options in ``payload``; the answer is written back into the same row's
+    #: ``payload["decided"]`` so the card that asked is the card that shows
+    #: the answer. See services/workflow/decisions.py.
+    NEEDS_DECISION = "needs_decision"
     #: The organisation learned something from what an agent did.
     MEMORY_LEARNED = "memory_learned"
     ROUTINE_FIRED = "routine_fired"

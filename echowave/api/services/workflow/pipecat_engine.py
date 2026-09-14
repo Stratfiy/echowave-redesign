@@ -50,7 +50,7 @@ from loguru import logger
 from api.services.billing.addons import KNOWLEDGE_BASE as ADDON_KNOWLEDGE_BASE
 from api.services.managed_model_services import MPS_CORRELATION_ID_CONTEXT_KEY
 from api.services.pipecat import agent_end_call
-from api.services.workflow import organisation_memory
+from api.services.workflow import decisions, organisation_memory
 from api.services.workflow import pipecat_engine_callbacks as engine_callbacks
 from api.services.workflow.mcp_tool_session import McpToolSession
 from api.services.workflow.pipecat_engine_context_composer import (
@@ -833,6 +833,14 @@ class PipecatEngine:
                 agent_end_call.TOOL_NAME, self._end_call_tool_handler
             )
 
+        # Asking a person, on text and channel runs only. Same shape as the
+        # schema in compose_functions_for_node; the two are gated on the same
+        # flag so the model is never offered a tool nothing answers.
+        if not self._is_voice:
+            self.llm.register_function(
+                decisions.TOOL_NAME, self._ask_for_decision_handler
+            )
+
         # Register custom tool handlers for this node
         if node.tool_uuids and self._custom_tool_manager:
             await self._custom_tool_manager.register_handlers(
@@ -861,6 +869,7 @@ class PipecatEngine:
             node=node,
             custom_tool_manager=self._custom_tool_manager,
             agent_can_end_call=self._agent_can_end_call,
+            can_ask_for_decision=not self._is_voice,
         )
         await self._update_llm_context(system_prompt, functions)
 
@@ -1503,6 +1512,27 @@ class PipecatEngine:
         """Handle agent node execution."""
         # Setup LLM context with prompts and functions.
         await self._setup_llm_context(node)
+
+    async def _ask_for_decision_handler(self, function_call_params) -> None:
+        """The model asked a person to choose. Record it; answer the model.
+
+        The answer to the model is only "asked": the person's choice arrives
+        later, as a channel message, on a new run. Never raises -- a question
+        that could not be recorded is reported to the model as not asked, so
+        it can say so rather than tell the person it is waiting on them.
+        """
+        arguments = getattr(function_call_params, "arguments", None) or {}
+        try:
+            result = await decisions.ask(
+                organization_id=await self._get_organization_id(),
+                workflow_id=await self._get_workflow_id(),
+                workflow_run_id=self._workflow_run_id,
+                arguments=arguments if isinstance(arguments, dict) else {},
+            )
+        except Exception as exc:  # noqa: BLE001 - the turn must finish
+            logger.warning("Could not record a decision request: {}", exc)
+            result = {"status": "not_asked", "reason": "could not be recorded"}
+        await function_call_params.result_callback(result)
 
     async def _end_call_tool_handler(self, function_call_params) -> None:
         """The model asked to hang up. Say the farewell, then actually hang up.

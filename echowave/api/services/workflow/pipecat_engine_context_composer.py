@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from api.services.workflow.workflow_graph import Node, WorkflowGraph
 
 from api.constants import DEFAULT_ORGANIZATION_TIMEZONE
+from api.services.workflow import decisions
 from api.services.workflow.known_values import known_values_block
 from api.services.workflow.pipecat_engine_custom_tools import get_function_schema
 from api.services.workflow.speaking_style import CODE_MIXED_INSTRUCTIONS
@@ -222,6 +223,7 @@ async def compose_functions_for_node(
     node: "Node",
     custom_tool_manager: Optional["CustomToolManager"],
     agent_can_end_call: bool = False,
+    can_ask_for_decision: bool = False,
 ) -> list[dict]:
     """Compose the function/tool schemas for a workflow node.
 
@@ -264,6 +266,18 @@ async def compose_functions_for_node(
     # Hanging up, for agents allowed to. Offered on every node including an
     # end node: a caller who has gone quiet on the last step is exactly who
     # this is for, and an end node has no transitions to reach instead.
+    # Asking a person is offered on text and channel runs only: a caller on
+    # the phone cannot wait for the clinic owner to open the app.
+    if can_ask_for_decision:
+        functions.append(
+            get_function_schema(
+                decisions.TOOL_NAME,
+                decisions.DESCRIPTION,
+                properties=decisions.tool_properties(),
+                required=["question", "options", "mode"],
+            )
+        )
+
     if agent_can_end_call:
         functions.append(
             get_function_schema(

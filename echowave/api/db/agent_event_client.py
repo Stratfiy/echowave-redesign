@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from typing import Any, Optional, Sequence
 
-from sqlalchemy import select, tuple_
+from sqlalchemy import select, tuple_, update
 
 from api.db.base_client import BaseDBClient
 from api.db.models import AgentEventModel
@@ -57,6 +57,38 @@ class AgentEventClient(BaseDBClient):
                 )
             )
             await session.commit()
+
+    async def get_agent_event(
+        self, event_id: int, *, organization_id: int
+    ) -> Optional[AgentEventModel]:
+        """One row, or None. Scoped to the tenant: an id somebody typed is not
+        enough to read another account's timeline."""
+        async with self.async_session() as session:
+            return await session.scalar(
+                select(AgentEventModel).where(
+                    AgentEventModel.id == event_id,
+                    AgentEventModel.organization_id == organization_id,
+                )
+            )
+
+    async def set_agent_event_payload(
+        self, event_id: int, *, organization_id: int, payload: dict[str, Any]
+    ) -> bool:
+        """Replace one row's payload. The one write to a row after it is
+        appended, and it exists for a single reason: a decision is answered
+        on the card that asked, and a second row would leave the card that
+        people see saying "waiting" forever."""
+        async with self.async_session() as session:
+            result = await session.execute(
+                update(AgentEventModel)
+                .where(
+                    AgentEventModel.id == event_id,
+                    AgentEventModel.organization_id == organization_id,
+                )
+                .values(payload=payload)
+            )
+            await session.commit()
+            return result.rowcount == 1
 
     async def agent_events(
         self,
