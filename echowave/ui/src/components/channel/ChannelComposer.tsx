@@ -20,7 +20,7 @@
 import { AtSign, Brain, Check, ChevronDown, FileText, Loader2, Paperclip, SendHorizontal, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
-import { postMessageApiV1TimelineMessagePost } from '@/client/sdk.gen';
+import { postMessageApiV1TimelineMessagePost, translateTextApiV1TranslatePost } from '@/client/sdk.gen';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { detailFromResult } from '@/lib/apiError';
 import { CHAT_PRESETS, OWN_BRAIN, rememberedPreset,rememberPreset } from '@/lib/chatPresets';
+import { hasIndicScript } from '@/lib/indic';
 import {
     ACCEPTED_FILE_TYPES,
     type KnowledgeTarget,
@@ -134,6 +135,25 @@ export function ChannelComposer({
             setUploadingFile(null);
             if (filePicker.current) filePicker.current.value = '';
         }
+    };
+
+    // A draft in an Indian script gets two offers: say it in English, or
+    // keep the words and write them in Roman letters. Only then -- the
+    // offers are not a feature of the box, they are a reply to what was
+    // typed.
+    const [converting, setConverting] = useState<string | null>(null);
+    const convertDraft = async (mode: 'translate' | 'transliterate') => {
+        const draft = text.trim();
+        if (!draft || converting) return;
+        setConverting(mode);
+        setError(null);
+        const response = await translateTextApiV1TranslatePost({ body: { text: draft, mode } });
+        setConverting(null);
+        if (response.error) {
+            setError(detailFromResult(response, 'Could not translate that'));
+            return;
+        }
+        if (response.data?.text) setText(response.data.text);
     };
 
     const suggestions = useMemo(() => {
@@ -258,6 +278,26 @@ export function ChannelComposer({
                     </ul>
                 )}
 
+                {hasIndicScript(text) && (
+                    <div className="mb-2 flex flex-wrap items-center gap-2 text-xs" aria-label="Language offers">
+                        <button
+                            type="button"
+                            disabled={!!converting}
+                            onClick={() => void convertDraft('translate')}
+                            className="rounded-md border border-border bg-background px-2 py-1 hover:bg-accent disabled:opacity-60"
+                        >
+                            {converting === 'translate' ? 'Translating…' : 'Translate to English'}
+                        </button>
+                        <button
+                            type="button"
+                            disabled={!!converting}
+                            onClick={() => void convertDraft('transliterate')}
+                            className="rounded-md border border-border bg-background px-2 py-1 hover:bg-accent disabled:opacity-60"
+                        >
+                            {converting === 'transliterate' ? 'Converting…' : 'Roman script'}
+                        </button>
+                    </div>
+                )}
                 {(attachments.length > 0 || uploadingFile) && (
                     <ul className="mb-2 flex flex-wrap gap-2" aria-label="Attachments">
                         {attachments.map((file) => (

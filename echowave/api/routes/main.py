@@ -53,6 +53,7 @@ from api.routes.telephony import router as telephony_router
 from api.routes.telephony_admin import router as telephony_admin_router
 from api.routes.tool import router as tool_router
 from api.routes.tool_library import router as tool_library_router
+from api.routes.translate import router as translate_router
 from api.routes.turn_credentials import router as turn_credentials_router
 from api.routes.user import router as user_router
 from api.routes.verified_numbers import router as verified_numbers_router
@@ -105,6 +106,7 @@ router.include_router(packs_router)
 router.include_router(team_router)
 router.include_router(workflow_outcomes_router)
 router.include_router(agent_timeline_router)
+router.include_router(translate_router)
 router.include_router(tool_router)
 router.include_router(organization_router)
 router.include_router(s3_router)

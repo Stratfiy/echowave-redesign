@@ -20,8 +20,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChannelComposer, handleOf, mentionFragment } from '../ChannelComposer';
 
 const post = vi.hoisted(() => vi.fn());
+const translate = vi.hoisted(() => vi.fn());
 vi.mock('@/client/sdk.gen', () => ({
     postMessageApiV1TimelineMessagePost: post,
+    translateTextApiV1TranslatePost: translate,
 }));
 const upload = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/uploadKnowledge', async (importOriginal) => ({
@@ -50,6 +52,7 @@ beforeEach(() => {
     post.mockReset();
     post.mockResolvedValue({ data: { asked: [1], unknown: [], ambiguous: [] } });
     upload.mockReset();
+    translate.mockReset();
     // The brain picked for a chat is remembered on the device; one test's
     // choice must not become the next test's default.
     localStorage.clear();
@@ -280,5 +283,28 @@ describe("on a bot's own chat", () => {
         await waitFor(() =>
             expect(post).toHaveBeenCalledWith({ body: { workflow_id: 3, text: 'Book Meera at 4', attachments: [], preset: null } }),
         );
+    });
+});
+
+
+describe('a draft in an Indian script', () => {
+    it('is offered English and Roman script, and the draft becomes the answer', async () => {
+        translate.mockResolvedValue({ data: { text: 'Book Meera at 4' } });
+        composer();
+        const box = screen.getByRole('textbox') as HTMLTextAreaElement;
+        expect(screen.queryByLabelText('Language offers')).toBeNull();
+        fireEvent.change(box, { target: { value: 'मीरा को 4 बजे बुक करो' } });
+        expect(screen.getByLabelText('Language offers')).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'Translate to English' }));
+        await waitFor(() => expect(translate).toHaveBeenCalledWith({ body: { text: 'मीरा को 4 बजे बुक करो', mode: 'translate' } }));
+        await waitFor(() => expect(box.value).toBe('Book Meera at 4'));
+    });
+
+    it('Roman script keeps the words', async () => {
+        translate.mockResolvedValue({ data: { text: 'meera ko 4 baje book karo' } });
+        composer();
+        fireEvent.change(screen.getByRole('textbox'), { target: { value: 'मीरा को 4 बजे बुक करो' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Roman script' }));
+        await waitFor(() => expect(translate.mock.calls[0][0].body.mode).toBe('transliterate'));
     });
 });

@@ -29,7 +29,7 @@ import Link from 'next/link';
 import React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { timelineApiV1TimelineGet } from '@/client/sdk.gen';
+import { timelineApiV1TimelineGet, translateTextApiV1TranslatePost } from '@/client/sdk.gen';
 import type { TimelineEvent } from '@/client/types.gen';
 import { Button } from '@/components/ui/button';
 import { DecisionCard } from '@/components/workflow/DecisionCard';
@@ -37,6 +37,7 @@ import { EditCard } from '@/components/workflow/EditCard';
 import { detailFromResult } from '@/lib/apiError';
 import { useAuth } from '@/lib/auth';
 import { markSeen } from '@/lib/botSeen';
+import { hasIndicScript } from '@/lib/indic';
 import { cn } from '@/lib/utils';
 
 /** How often to look for new rows. */
@@ -155,6 +156,20 @@ export function ChannelStream({
     // only a genuinely new row moves the reader, and only inside this box.
     const newestSeen = useRef<number | null>(null);
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+    // Translations shown under a row, by event id. Asked for, never automatic:
+    // a clinic's Tamil is not a problem to be corrected, and the translation
+    // costs a request.
+    const [translated, setTranslated] = useState<Record<number, string | null>>({});
+    const translateRow = async (event: TimelineEvent, text: string) => {
+        setTranslated((all) => ({ ...all, [event.id]: null }));
+        const response = await translateTextApiV1TranslatePost({ body: { text } });
+        setTranslated((all) => ({
+            ...all,
+            [event.id]: response.error
+                ? detailFromResult(response, 'Could not translate that')
+                : (response.data?.text ?? ''),
+        }));
+    };
     // On a bot's own chat: when this person last opened it here, taken once
     // on arrival, then the mark moves to now. Rows newer than it sit under a
     // NEW line. Channels have no mark yet; nothing is drawn for them.
@@ -525,6 +540,27 @@ export function ChannelStream({
                                     <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed">
                                         {fromPerson ? messageBody(event) : event.summary}
                                     </p>
+                                )}
+                                {hasIndicScript(fromPerson ? messageBody(event) : event.summary) && (
+                                    <div className="mt-1 text-xs">
+                                        {translated[event.id] === undefined ? (
+                                            <button
+                                                type="button"
+                                                className="text-muted-foreground underline-offset-2 hover:underline"
+                                                onClick={() =>
+                                                    void translateRow(event, fromPerson ? messageBody(event) : event.summary)
+                                                }
+                                            >
+                                                Translate
+                                            </button>
+                                        ) : translated[event.id] === null ? (
+                                            <span className="text-muted-foreground">Translating…</span>
+                                        ) : (
+                                            <p className="whitespace-pre-wrap border-l-2 border-border pl-2 text-muted-foreground" aria-label="Translation">
+                                                {translated[event.id]}
+                                            </p>
+                                        )}
+                                    </div>
                                 )}
                                 {attachmentsOf(event).length > 0 && (
                                     <ul className="mt-1.5 flex flex-wrap gap-2" aria-label="Files">

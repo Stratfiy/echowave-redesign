@@ -10,9 +10,12 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const timeline = vi.hoisted(() => vi.fn());
+const translate = vi.hoisted(() => vi.fn());
 vi.mock('@/client/sdk.gen', () => ({
     timelineApiV1TimelineGet: timeline,
     decideApiV1TimelineDecidePost: vi.fn(),
+    settleEditApiV1TimelineEditsSettlePost: vi.fn(),
+    translateTextApiV1TranslatePost: translate,
 }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
 
@@ -221,5 +224,32 @@ describe('a proposed change to the bot', () => {
         render(<ChannelStream workflowId={3} botNames={{ 3: 'Front desk' }} />);
         expect(await screen.findByText('Change to Rules')).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Publish' })).toBeTruthy();
+    });
+});
+
+
+describe('a message in an Indian script can be translated', () => {
+    it('offers Translate, and shows the translation under the message', async () => {
+        timeline.mockResolvedValue({
+            data: {
+                events: [event({ id: 4, actor: 'human', summary: 'வணக்கம், appointment please', payload: { body: 'வணக்கம், appointment please' } })],
+                next_before_at: null,
+                next_before_id: null,
+            },
+        });
+        translate.mockResolvedValue({ data: { text: 'Hello, appointment please', source_language_code: 'ta-IN' } });
+        render(<ChannelStream workflowId={3} botNames={{ 3: 'Front desk' }} />);
+        (await screen.findByRole('button', { name: 'Translate' })).click();
+        await waitFor(() => expect(translate).toHaveBeenCalledWith({ body: { text: 'வணக்கம், appointment please' } }));
+        expect((await screen.findByLabelText('Translation')).textContent).toBe('Hello, appointment please');
+    });
+
+    it('offers nothing on an English message', async () => {
+        timeline.mockResolvedValue({
+            data: { events: [event({ id: 5, summary: 'Booked Meera for 4pm.' })], next_before_at: null, next_before_id: null },
+        });
+        render(<ChannelStream workflowId={3} botNames={{ 3: 'Front desk' }} />);
+        await screen.findByText('Booked Meera for 4pm.');
+        expect(screen.queryByRole('button', { name: 'Translate' })).toBeNull();
     });
 });
