@@ -22,7 +22,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from loguru import logger
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from api.constants import (
     GST_RATE_BASIS_POINTS,
@@ -45,7 +45,9 @@ from api.services.billing import (
     document_email,
     documents,
     payments,
+    plans,
     topup_nudge,
+    topup_packs,
 )
 from api.services.billing.internal_accounts import is_internal
 from api.services.billing.tax import TaxError
@@ -55,17 +57,33 @@ router = APIRouter(prefix="/billing", tags=["billing"])
 
 
 class TopupRequest(BaseModel):
-    amount_paise: int = Field(
-        ...,
+    """A pack, or a free amount. One of the two."""
+
+    amount_paise: int | None = Field(
+        None,
         ge=MIN_TOPUP_PAISE,
         le=MAX_TOPUP_PAISE,
         multiple_of=TOPUP_INCREMENT_PAISE,
         description=(
             "Credit to buy, in paise, net of GST. ₹500 is 50000. Bought in "
             "steps of TOPUP_INCREMENT_PAISE. Tax is added on top of this at "
-            "checkout."
+            "checkout. Omit when buying a pack."
         ),
     )
+    pack: str | None = Field(
+        None,
+        max_length=16,
+        description=(
+            "A top-up pack code from GET /billing/balance (`packs`). Fixes the "
+            "amount and may grant bonus credits; top-up credits never expire."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _one_of(self):
+        if (self.amount_paise is None) == (self.pack is None):
+            raise ValueError("Send either amount_paise or pack, not both.")
+        return self
 
 
 class BillingProfileRequest(BaseModel):
@@ -119,6 +137,9 @@ async def get_balance(user: UserModel = Depends(get_user)) -> dict[str, Any]:
         min_topup = await payments.minimum_topup_paise(
             session, organization_id=organization_id
         )
+        # The two pools (KAN-55): the plan's credits, which expire with the
+        # cycle and are spent first, and top-ups, which never expire.
+        pools = await plans.pool_balances(session, organization_id=organization_id)
     async with db_client.async_session() as session:
         burn = await topup_nudge.daily_burn_paise(
             session, organization_id=organization_id
@@ -134,6 +155,10 @@ async def get_balance(user: UserModel = Depends(get_user)) -> dict[str, Any]:
         # balance; the app reads the peg from here rather than carrying its
         # own copy. See services/billing/credits.py.
         "balance_credits": credits.credits_of_balance(balance),
+        "plan_credits": credits.credits_of_balance(pools.plan_paise),
+        "topup_credits": credits.credits_of_balance(pools.topup_paise),
+        # What can be bought outright. Top-up credits never expire.
+        "packs": topup_packs.packs_as_dicts(),
         "paise_per_credit": credits.PAISE_PER_CREDIT,
         "min_balance_credits": credits.credits_for_charge(MIN_BALANCE_PAISE),
         "suggested_topup_credits": (
@@ -194,6 +219,7 @@ async def create_topup(
             properties={
                 "organization_id": organization_id,
                 "amount_paise": request.amount_paise,
+                "pack": request.pack,
                 **extra,
             },
         )
@@ -214,6 +240,7 @@ async def create_topup(
                 session,
                 organization_id=organization_id,
                 amount_paise=request.amount_paise,
+                pack_code=request.pack,
                 created_by=user.id,
             )
         except payments.PaymentNotConfigured as exc:
@@ -240,6 +267,11 @@ async def create_topup(
         "tax_paise": order.tax_paise,
         "currency": order.currency,
         "key_id": order.key_id,
+        # What lands on the balance when the money does: the amount plus any
+        # pack bonus, in credits. Never expires.
+        "bonus_paise": order.bonus_paise,
+        "credits": credits.credits_of_balance(order.amount_paise + order.bonus_paise),
+        "pack": order.pack_code,
     }
 
 

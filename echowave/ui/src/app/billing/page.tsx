@@ -73,8 +73,20 @@ const QUICK_AMOUNTS_RUPEES = [500, 2000, 5000, 20000];
 const POLL_ATTEMPTS = 10;
 const POLL_INTERVAL_MS = 2000;
 
+type Pack = {
+    code: string;
+    price_paise: number;
+    credits: number;
+    bonus_credits: number;
+};
+
 type Balance = {
     balance_paise: number;
+    /** The two pools (KAN-55): the plan's credits expire with the cycle and
+     *  are spent first; top-up credits never expire. */
+    plan_credits?: number;
+    topup_credits?: number;
+    packs?: Pack[];
     topups_enabled: boolean;
     min_topup_paise: number;
     max_topup_paise: number;
@@ -190,6 +202,10 @@ export default function BillingPage() {
         suggestedAmount && /^\d+$/.test(suggestedAmount) ? suggestedAmount : "2000",
     );
     const [starting, setStarting] = useState(false);
+    /** The pack the amount was set from, if any. Cleared the moment the
+     *  amount is edited by hand, so a pack's bonus is never sent for a
+     *  figure the customer changed. */
+    const [selectedPack, setSelectedPack] = useState<string | null>(null);
     const [awaitingCredit, setAwaitingCredit] = useState(false);
     const [profile, setProfile] = useState<BillingProfileFields>(EMPTY_PROFILE);
     const [profileComplete, setProfileComplete] = useState(true);
@@ -436,8 +452,11 @@ export default function BillingPage() {
         try {
             await loadCheckout();
 
+            const pack = (balance?.packs ?? []).find(
+                (p) => p.code === selectedPack && p.price_paise === amountPaise,
+            );
             const response = await createTopupApiV1BillingTopupPost({
-                body: { amount_paise: amountPaise },
+                body: pack ? { pack: pack.code } : { amount_paise: amountPaise },
             });
             if (response.error) {
                 setError(detailFromResult(response, "Could not start the payment"));
@@ -494,7 +513,7 @@ export default function BillingPage() {
         } finally {
             setStarting(false);
         }
-    }, [amountRupees, balance, refresh, waitForCredit]);
+    }, [amountRupees, balance, refresh, waitForCredit, selectedPack]);
 
     /**
      * The page's title band, on every branch.
@@ -617,6 +636,14 @@ export default function BillingPage() {
                 >
                     {formatCredits(balancePaise)}
                 </div>
+                {balance && (balance.plan_credits ?? 0) + (balance.topup_credits ?? 0) > 0 && (
+                    <p className="mt-1 text-sm text-muted-foreground">
+                        {(balance.plan_credits ?? 0).toLocaleString("en-IN")} plan credits,
+                        which expire with the cycle ·{" "}
+                        {(balance.topup_credits ?? 0).toLocaleString("en-IN")} top-up
+                        credits, which never expire
+                    </p>
+                )}
                 {/* Both messages name the floor, because it is not zero. An
                     account told "calls stop at zero" while sitting on ₹18 and
                     unable to dial reads that as our arithmetic being broken. */}
@@ -664,22 +691,64 @@ export default function BillingPage() {
                     </div>
                 ) : (
                     <>
-                        <div className="mt-4 flex flex-wrap gap-2">
-                            {QUICK_AMOUNTS_RUPEES.map((rupees) => (
-                                <Button
-                                    key={rupees}
-                                    type="button"
-                                    variant={
-                                        amountRupees === String(rupees)
-                                            ? "default"
-                                            : "outline"
-                                    }
-                                    onClick={() => setAmountRupees(String(rupees))}
-                                >
-                                    ₹{rupees.toLocaleString("en-IN")}
-                                </Button>
-                            ))}
-                        </div>
+                        {(balance?.packs?.length ?? 0) > 0 ? (
+                            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                                {(balance?.packs ?? []).map((pack) => {
+                                    const chosen = selectedPack === pack.code;
+                                    return (
+                                        <button
+                                            key={pack.code}
+                                            type="button"
+                                            aria-pressed={chosen}
+                                            onClick={() => {
+                                                setSelectedPack(pack.code);
+                                                setAmountRupees(String(pack.price_paise / 100));
+                                            }}
+                                            className={cn(
+                                                "rounded-lg border p-3 text-left transition-colors",
+                                                chosen
+                                                    ? "border-primary bg-primary/5"
+                                                    : "border-border hover:bg-muted/40",
+                                            )}
+                                        >
+                                            <div className="text-base font-semibold tabular-nums">
+                                                {formatPaise(pack.price_paise)}
+                                            </div>
+                                            <div className="text-sm tabular-nums">
+                                                {pack.credits.toLocaleString("en-IN")} credits
+                                            </div>
+                                            {pack.bonus_credits > 0 && (
+                                                <div className="text-xs text-emerald-700 dark:text-emerald-400">
+                                                    +{pack.bonus_credits.toLocaleString("en-IN")}{" "}
+                                                    extra
+                                                </div>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="mt-4 flex flex-wrap gap-2">
+                                {QUICK_AMOUNTS_RUPEES.map((rupees) => (
+                                    <Button
+                                        key={rupees}
+                                        type="button"
+                                        variant={
+                                            amountRupees === String(rupees)
+                                                ? "default"
+                                                : "outline"
+                                        }
+                                        onClick={() => setAmountRupees(String(rupees))}
+                                    >
+                                        ₹{rupees.toLocaleString("en-IN")}
+                                    </Button>
+                                ))}
+                            </div>
+                        )}
+                        <p className="mt-2 text-xs text-muted-foreground">
+                            Top-up credits never expire and are spent after your plan&apos;s
+                            credits.
+                        </p>
 
                         <div className="mt-4 flex flex-wrap items-end gap-3">
                             <div className="w-48">
@@ -697,9 +766,10 @@ export default function BillingPage() {
                                     max={(balance?.max_topup_paise ?? 0) / 100}
                                     step={stepPaise / 100}
                                     value={amountRupees}
-                                    onChange={(event) =>
-                                        setAmountRupees(event.target.value)
-                                    }
+                                    onChange={(event) => {
+                                        setSelectedPack(null);
+                                        setAmountRupees(event.target.value);
+                                    }}
                                     className="mt-1.5"
                                 />
                             </div>

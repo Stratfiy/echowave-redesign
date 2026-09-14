@@ -91,6 +91,30 @@ async def _bundle_flat_rate_mpaise(
             session, organization_id=organization_id
         )
         plan_code = "business" if plan.code == subscription_plans.STARTER else plan.code
+        # Overage (KAN-55): once the cycle's plan credits are gone, a voice
+        # minute is charged at the next rung's rate out of the top-up pool —
+        # Business's overage minute costs what Growth's plan minute costs.
+        # Decided per call on what is left *before* it: a call that starts
+        # inside the plan is charged at the plan's rate in full, and the next
+        # one is overage. Scale, the last rung, pays its own rate.
+        from api.services.billing import plans as plan_cycles
+
+        if (
+            await plan_cycles.plan_remaining_paise(
+                session, organization_id=organization_id
+            )
+            <= 0
+        ):
+            overage_code = await subscription_plans.next_voice_plan_code(
+                session, code=plan_code
+            )
+            if overage_code:
+                logger.debug(
+                    "Run {}: plan credits exhausted, charging the {} rate as overage",
+                    run.id,
+                    overage_code,
+                )
+                plan_code = overage_code
         paise = bundles.flat_rate_paise(
             row, period_minutes=period_minutes, plan_code=plan_code
         )

@@ -10901,14 +10901,22 @@ export type ToolResponse = {
 
 /**
  * TopupRequest
+ *
+ * A pack, or a free amount. One of the two.
  */
 export type TopupRequest = {
     /**
      * Amount Paise
      *
-     * Credit to buy, in paise, net of GST. ₹500 is 50000. Bought in steps of TOPUP_INCREMENT_PAISE. Tax is added on top of this at checkout.
+     * Credit to buy, in paise, net of GST. ₹500 is 50000. Bought in steps of TOPUP_INCREMENT_PAISE. Tax is added on top of this at checkout. Omit when buying a pack.
      */
-    amount_paise: number;
+    amount_paise?: number | null;
+    /**
+     * Pack
+     *
+     * A top-up pack code from GET /billing/balance (`packs`). Fixes the amount and may grant bonus credits; top-up credits never expire.
+     */
+    pack?: string | null;
 };
 
 /**

@@ -37,6 +37,7 @@ whole cycle would leave them charged and holding nothing.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from loguru import logger
@@ -107,6 +108,57 @@ async def _consumed_since(session: AsyncSession, *, grant: CreditLedgerModel) ->
     )
     # Those kinds are debits, so the sum is negative or zero.
     return max(0, -int(total or 0))
+
+
+async def plan_remaining_paise(session: AsyncSession, *, organization_id: int) -> int:
+    """What is left of the current cycle's grant, in paise. Zero when there is
+    no grant, or it has expired, or it has all been spent.
+
+    The same subtraction ``expire_grant`` does, read live: plan balance is
+    spent first, so the grant less everything consumed since it landed is what
+    remains of it. This is the figure that decides whether a voice minute is
+    charged at the plan's rate or at overage (KAN-55).
+    """
+    grant = await latest_grant(session, organization_id=organization_id)
+    if grant is None:
+        return 0
+    expired = await session.scalar(
+        select(CreditLedgerModel.id).where(
+            CreditLedgerModel.organization_id == organization_id,
+            CreditLedgerModel.kind == CreditLedgerKind.PLAN_EXPIRY.value,
+            CreditLedgerModel.ref_type == REF_TYPE_EXPIRY,
+            CreditLedgerModel.ref_id == str(grant.id),
+        )
+    )
+    if expired is not None:
+        return 0
+    consumed = await _consumed_since(session, grant=grant)
+    return max(0, int(grant.delta_paise) - consumed)
+
+
+@dataclass(frozen=True)
+class PoolBalances:
+    """The balance as two pools: the plan's, which expires, and everything
+    else — top-ups, bonuses, adjustments — which does not."""
+
+    total_paise: int
+    plan_paise: int
+
+    @property
+    def topup_paise(self) -> int:
+        return max(0, self.total_paise - self.plan_paise)
+
+
+async def pool_balances(session: AsyncSession, *, organization_id: int) -> PoolBalances:
+    from api.services.billing.payments import current_balance_paise
+
+    total = await current_balance_paise(session, organization_id=organization_id)
+    plan = await plan_remaining_paise(session, organization_id=organization_id)
+    # A plan remainder cannot exceed the balance on the account: a top-up
+    # spent alongside the plan is already gone from the total.
+    return PoolBalances(
+        total_paise=int(total), plan_paise=min(plan, max(0, int(total)))
+    )
 
 
 async def expire_grant(

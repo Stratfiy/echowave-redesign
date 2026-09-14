@@ -208,6 +208,30 @@ async def list_plans(session: AsyncSession, *, enabled_only: bool = True) -> lis
     return [_view(row) for row in rows]
 
 
+async def next_voice_plan_code(session: AsyncSession, *, code: str) -> str | None:
+    """The rung above ``code`` that puts bots on the phone, or None on the last.
+
+    Voice overage is charged at the next tier's per-minute rate (KAN-55):
+    Business's overage minute costs what Growth's plan minute costs, Growth's
+    what Scale's does, and Scale, being the last rung, pays its own. Starter
+    is Business's predecessor and climbs from there.
+    """
+    current = "business" if code == STARTER else code
+    plans = await list_plans(session, enabled_only=True)
+    here = next((p for p in plans if p.code == current), None)
+    if here is None:
+        return None
+    for plan in plans:
+        if (
+            plan.sort_order > here.sort_order
+            and plan.voice_allowed
+            and plan.purchasable
+            and plan.code != current
+        ):
+            return plan.code
+    return None
+
+
 async def get_plan(session: AsyncSession, *, code: str) -> Plan | None:
     row = await session.scalar(
         select(SubscriptionPlanModel).where(SubscriptionPlanModel.code == code)
