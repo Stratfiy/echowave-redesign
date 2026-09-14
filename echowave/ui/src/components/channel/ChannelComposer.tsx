@@ -57,11 +57,15 @@ export function mentionFragment(text: string, caret: number): string | null {
 
 export function ChannelComposer({
     folderId,
+    workflowId,
     bots,
     channelName,
     onSent,
 }: {
-    folderId: number;
+    /** A channel, or -- with `workflowId` instead -- one bot's own chat, where
+     *  there is nobody to @ because the bot is implied. */
+    folderId?: number;
+    workflowId?: number;
     bots: ChannelBot[];
     channelName: string;
     onSent?: () => void;
@@ -111,7 +115,7 @@ export function ChannelComposer({
         setError(null);
         setNotice(null);
         const response = await postMessageApiV1TimelineMessagePost({
-            body: { folder_id: folderId, text: body },
+            body: workflowId != null ? { workflow_id: workflowId, text: body } : { folder_id: folderId, text: body },
         });
         setSending(false);
         if (response.error) {
@@ -198,6 +202,7 @@ export function ChannelComposer({
                     {/* The mockup's affordance, and the discoverable half of
                         the autocomplete: typing @ opens the roster, and this
                         types the @ for somebody who did not know that. */}
+                    {workflowId == null && (
                     <Button
                         type="button"
                         variant="ghost"
@@ -225,12 +230,17 @@ export function ChannelComposer({
                     >
                         <AtSign className="h-4 w-4" />
                     </Button>
+                    )}
                     <textarea
                         ref={input}
                         rows={1}
                         value={text}
                         aria-label={`Message ${channelName}`}
-                        placeholder={`Message #${channelName} — @ a bot to ask it for something`}
+                        placeholder={
+                            workflowId != null
+                                ? `Message ${channelName}`
+                                : `Message #${channelName} — @ a bot to ask it for something`
+                        }
                         className="max-h-40 min-h-[38px] flex-1 resize-y rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring"
                         onChange={(event) => {
                             setText(event.target.value);

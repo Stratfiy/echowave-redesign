@@ -24,7 +24,9 @@
  * every few seconds does not justify building one.
  */
 
-import { AlertTriangle, Bot, CheckCircle2, CircleSlash, Clock, FileText } from 'lucide-react';
+import { AlertTriangle, Bot, CheckCircle2, CircleSlash, Clock, FileText, Phone } from 'lucide-react';
+import Link from 'next/link';
+import React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { timelineApiV1TimelineGet } from '@/client/sdk.gen';
@@ -33,6 +35,7 @@ import { Button } from '@/components/ui/button';
 import { DecisionCard } from '@/components/workflow/DecisionCard';
 import { detailFromResult } from '@/lib/apiError';
 import { useAuth } from '@/lib/auth';
+import { markSeen } from '@/lib/botSeen';
 import { cn } from '@/lib/utils';
 
 /** How often to look for new rows. */
@@ -74,10 +77,14 @@ export type ChannelStreamHandle = { refresh: () => void };
 
 export function ChannelStream({
     folderId,
+    workflowId,
     botNames,
     onRegisterRefresh,
 }: {
-    folderId: number;
+    /** A channel's thread, or -- with `workflowId` instead -- one bot's own
+     *  chat. Exactly one of the two. */
+    folderId?: number;
+    workflowId?: number;
     /** Bot id → display name, so an event can be attributed to a teammate
      *  rather than to an id. Missing names degrade to "A bot", never to a
      *  blank line. */
@@ -91,6 +98,11 @@ export function ChannelStream({
     const [error, setError] = useState<string | null>(null);
     const started = useRef(false);
     const bottom = useRef<HTMLDivElement | null>(null);
+    // On a bot's own chat: when this person last opened it here, taken once
+    // on arrival, then the mark moves to now. Rows newer than it sit under a
+    // NEW line. Channels have no mark yet; nothing is drawn for them.
+    const seenBefore = useRef<string | null>(null);
+    const target = workflowId != null ? { workflow_id: workflowId } : { folder_id: folderId };
     // Whether the reader is at the bottom. Scrolling them back down while they
     // are reading something further up is worse than a missed new message.
     const pinned = useRef(true);
@@ -100,7 +112,7 @@ export function ChannelStream({
      *  cheaper than reconciling a diff. */
     const loadLatest = useCallback(async () => {
         const response = await timelineApiV1TimelineGet({
-            query: { folder_id: folderId, limit: PAGE },
+            query: { ...target, limit: PAGE },
         });
         if (response.error) {
             setError(detailFromResult(response, 'Could not load this channel'));
@@ -120,7 +132,7 @@ export function ChannelStream({
         if (!cursor) return;
         const response = await timelineApiV1TimelineGet({
             query: {
-                folder_id: folderId,
+                ...target,
                 limit: PAGE,
                 before_at: cursor.at,
                 before_id: cursor.id,
@@ -134,7 +146,8 @@ export function ChannelStream({
         const at = response.data?.next_before_at ?? null;
         const id = response.data?.next_before_id ?? null;
         setCursor(at && id ? { at, id } : null);
-    }, [cursor, folderId]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [cursor, folderId, workflowId]);
 
     useEffect(() => {
         // The auth interceptor is registered only once auth has loaded, so
@@ -142,8 +155,9 @@ export function ChannelStream({
         // quietly — see ui/AGENTS.md.
         if (authLoading || !user || started.current) return;
         started.current = true;
+        if (workflowId != null) seenBefore.current = markSeen(workflowId);
         void loadLatest().finally(() => setLoading(false));
-    }, [authLoading, user, loadLatest]);
+    }, [authLoading, user, loadLatest, workflowId]);
 
     useEffect(() => {
         if (authLoading || !user) return;
@@ -195,7 +209,9 @@ export function ChannelStream({
 
             {inOrder.length === 0 && !error && (
                 <div className="py-10">
-                    <p className="text-sm font-medium">This channel is quiet.</p>
+                    <p className="text-sm font-medium">
+                        {workflowId != null ? 'Nothing yet.' : 'This channel is quiet.'}
+                    </p>
                     <p className="mt-1 text-sm text-muted-foreground">
                         Say something, or address a bot by its handle to ask it
                         for something.
@@ -204,14 +220,72 @@ export function ChannelStream({
             )}
 
             <ol className="flex flex-col gap-4">
-                {inOrder.map((event) => {
+                {inOrder.map((event, index) => {
+                    // Oldest first, so the NEW line goes above the first row
+                    // newer than the previous visit.
+                    const previous = inOrder[index - 1];
+                    const divider =
+                        seenBefore.current &&
+                        event.at > seenBefore.current &&
+                        (!previous || !(previous.at > seenBefore.current)) ? (
+                            <li key={`new-${event.id}`} aria-label="New" className="flex items-center gap-2">
+                                <span className="h-px flex-1 bg-[var(--accent-brand)]/40" />
+                                <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--accent-brand)]">
+                                    New
+                                </span>
+                                <span className="h-px flex-1 bg-[var(--accent-brand)]/40" />
+                            </li>
+                        ) : null;
+                    if (event.kind === 'call_ended') {
+                        // A call is a row with a door: the length and how it
+                        // ended here, the transcript and recording behind it.
+                        const call = (event.payload ?? {}) as { run_id?: number; answered?: boolean };
+                        const href =
+                            event.workflow_id != null && (call.run_id ?? event.workflow_run_id) != null
+                                ? `/workflow/${event.workflow_id}/run/${call.run_id ?? event.workflow_run_id}`
+                                : null;
+                        return (
+                            <React.Fragment key={event.id}>
+                                {divider}
+                                <li className="flex gap-3">
+                                    <span
+                                        aria-hidden
+                                        className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--accent-brand-soft)] text-[var(--accent-brand)]"
+                                    >
+                                        <Phone className="h-4 w-4" />
+                                    </span>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-sm">
+                                            <span className="font-medium">
+                                                {(event.workflow_id != null && botNames[event.workflow_id]) || 'A bot'}
+                                            </span>
+                                            <span className="ml-2 text-xs text-muted-foreground">
+                                                <time dateTime={event.at}>{when(event.at)}</time>
+                                            </span>
+                                        </p>
+                                        <p className="mt-0.5 text-sm">
+                                            {href ? (
+                                                <Link href={href} className="underline-offset-2 hover:underline">
+                                                    {event.summary}
+                                                </Link>
+                                            ) : (
+                                                event.summary
+                                            )}
+                                        </p>
+                                    </div>
+                                </li>
+                            </React.Fragment>
+                        );
+                    }
                     if (event.kind === 'needs_decision') {
                         // The bot's question, as a card with something to
                         // press. Attributed like any other bot row.
                         const asker =
                             (event.workflow_id != null && botNames[event.workflow_id]) || 'A bot';
                         return (
-                            <li key={event.id} className="flex gap-3">
+                            <React.Fragment key={event.id}>
+                            {divider}
+                            <li className="flex gap-3">
                                 <span
                                     aria-hidden
                                     className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--accent-brand-soft)] text-[var(--accent-brand)]"
@@ -235,6 +309,7 @@ export function ChannelStream({
                                     />
                                 </div>
                             </li>
+                            </React.Fragment>
                         );
                     }
                     const fromPerson = event.actor === 'human';
@@ -245,7 +320,9 @@ export function ChannelStream({
                         : (event.workflow_id != null && botNames[event.workflow_id]) ||
                           'A bot';
                     return (
-                        <li key={event.id} className="flex gap-3">
+                        <React.Fragment key={event.id}>
+                        {divider}
+                        <li className="flex gap-3">
                             <span
                                 aria-hidden
                                 className={cn(
@@ -272,6 +349,7 @@ export function ChannelStream({
                                 </p>
                             </div>
                         </li>
+                        </React.Fragment>
                     );
                 })}
             </ol>
