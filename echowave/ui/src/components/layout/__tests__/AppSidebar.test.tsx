@@ -125,8 +125,13 @@ describe("sidebar interactions", () => {
     expect(screen.getByLabelText("New chat")).toBeTruthy();
     expect(screen.getByLabelText("Hire a bot")).toBeTruthy();
     expect(screen.getByRole("link", { name: /Company knowledge/ }).getAttribute("href")).toBe("/files");
-    // Knowledge is a headed section of its own, like the two under it.
-    expect(screen.getByLabelText("Add knowledge")).toBeTruthy();
+    // The panel opens on Decibyl, the assistant, above Company knowledge --
+    // Slack's Slackbot and Directories. The rail's logo is also named
+    // Decibyl, so the row is found inside the panel, not the rail.
+    const decibyl = screen
+      .getAllByRole("link", { name: "Decibyl" })
+      .find((link) => !link.closest("[data-rail]"));
+    expect(decibyl?.getAttribute("href")).toBe("/overview");
     // The setup call sits on the rail, under Account, not in a foot of the
     // panel: the panel ends where its list ends.
     const setup = screen.getByRole("link", { name: SETUP_CALL_LABEL });

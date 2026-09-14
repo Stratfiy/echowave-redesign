@@ -7,7 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Database,
-  Plus,
+  Sparkles,
   UserRound,
 } from "lucide-react";
 import Link from "next/link";
@@ -476,24 +476,21 @@ export function AppSidebar() {
             contextSections. */}
         {!isCollapsed && activeContext === "home" && (
           <>
-            {/* Knowledge is its own section, under a heading like the two
-                below it: it is not a channel and not a bot, and a row with
-                no heading read as a stray. The heading is the door. */}
+            {/* The two rows every workspace panel opens with, and Slack's
+                Slackbot and Directories are the model: the assistant you
+                talk to, and the place the company's documents live. No
+                heading -- they are not a section, they are the top of the
+                panel. */}
             <SidebarGroup className="py-1">
-              <SidebarGroupLabel className="h-7 justify-between text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <Link href="/files" className="hover:text-foreground">
-                  Knowledge
-                </Link>
-                <Link
-                  href="/files"
-                  aria-label="Add knowledge"
-                  title="Add knowledge"
-                  className="rounded p-0.5 hover:bg-sidebar-accent hover:text-foreground"
-                >
-                  <Plus aria-hidden="true" className="h-3.5 w-3.5" />
-                </Link>
-              </SidebarGroupLabel>
               <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname === "/overview"}>
+                    <Link href="/overview">
+                      <Sparkles aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">Decibyl</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={pathname === "/files"}>
                     <Link href="/files">
