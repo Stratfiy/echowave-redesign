@@ -119,6 +119,10 @@ async def answer_in_channel(
             return None
 
         session_data = default_text_chat_session_data()
+        # Whoever is typing here is on the team: a channel and a bot's own
+        # Chat tab are inside the app. That is what lets the bot be told to
+        # change itself -- see services/workflow/self_edit.
+        session_data["staff_chat"] = True
         if preset:
             from api.services.configuration import chat_presets
 

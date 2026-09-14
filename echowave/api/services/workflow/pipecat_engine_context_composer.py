@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from api.services.workflow.workflow_graph import Node, WorkflowGraph
 
 from api.constants import DEFAULT_ORGANIZATION_TIMEZONE
-from api.services.workflow import decisions
+from api.services.workflow import decisions, self_edit
 from api.services.workflow.known_values import known_values_block
 from api.services.workflow.pipecat_engine_custom_tools import get_function_schema
 from api.services.workflow.speaking_style import CODE_MIXED_INSTRUCTIONS
@@ -104,6 +104,7 @@ def compose_system_prompt_for_node(
     agent_can_end_call: bool = False,
     known_values: dict | None = None,
     remembered: str | None = None,
+    steps: str | None = None,
 ) -> str:
     """Compose the full system prompt text for a workflow node.
 
@@ -187,6 +188,10 @@ def compose_system_prompt_for_node(
     # business and that is a caller's guess.
     if remembered:
         parts.append(remembered)
+    # The bot's own steps, on staff chats, so "change the booking step" names
+    # something it can find. See services/workflow/self_edit.steps_block.
+    if steps:
+        parts.append(steps)
 
     # After every instruction block, because those are byte-identical for the
     # life of a call and this is not: a value collected on turn six would
@@ -238,6 +243,7 @@ async def compose_functions_for_node(
     agent_can_end_call: bool = False,
     can_ask_for_decision: bool = False,
     scoped_document_uuids: Optional[list[str]] = None,
+    can_edit_self: bool = False,
 ) -> list[dict]:
     """Compose the function/tool schemas for a workflow node.
 
@@ -293,6 +299,18 @@ async def compose_functions_for_node(
                 decisions.DESCRIPTION,
                 properties=decisions.tool_properties(),
                 required=["question", "options", "mode"],
+            )
+        )
+
+    # Editing itself is offered where asking a person is: a staff chat. A
+    # caller is not the bot's owner.
+    if can_edit_self:
+        functions.append(
+            get_function_schema(
+                self_edit.TOOL_NAME,
+                self_edit.DESCRIPTION,
+                properties=self_edit.tool_properties(),
+                required=["step", "new_prompt", "why"],
             )
         )
 

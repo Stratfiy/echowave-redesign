@@ -50,7 +50,7 @@ from loguru import logger
 from api.services.billing.addons import KNOWLEDGE_BASE as ADDON_KNOWLEDGE_BASE
 from api.services.managed_model_services import MPS_CORRELATION_ID_CONTEXT_KEY
 from api.services.pipecat import agent_end_call
-from api.services.workflow import decisions, organisation_memory
+from api.services.workflow import decisions, organisation_memory, self_edit
 from api.services.workflow import pipecat_engine_callbacks as engine_callbacks
 from api.services.workflow.mcp_tool_session import McpToolSession
 from api.services.workflow.pipecat_engine_context_composer import (
@@ -122,8 +122,13 @@ class PipecatEngine:
         end_call_farewell: Optional[str] = None,
         is_voice: bool = True,
         call_recorded: bool = True,
+        can_edit_self: bool = False,
     ):
         self.task = task
+        #: Whether the person on the other end owns this bot. True on a
+        #: channel or the bot's own Chat tab, never on a call or a public
+        #: share link. See services/workflow/self_edit.
+        self._can_edit_self = bool(can_edit_self)
         self.llm = llm
         # LLM used for out-of-band inference (variable extraction, context
         # summarization). Falls back to the pipeline LLM when not provided.
@@ -871,6 +876,8 @@ class PipecatEngine:
         # Asking a person, on text and channel runs only. Same shape as the
         # schema in compose_functions_for_node; the two are gated on the same
         # flag so the model is never offered a tool nothing answers.
+        if self._can_edit_self:
+            self.llm.register_function(self_edit.TOOL_NAME, self._propose_edit_handler)
         if not self._is_voice:
             self.llm.register_function(
                 decisions.TOOL_NAME, self._ask_for_decision_handler
@@ -903,6 +910,7 @@ class PipecatEngine:
             agent_can_end_call=self._agent_can_end_call,
             known_values=self._gathered_context,
             remembered=await self._get_remembered_block(),
+            steps=self._steps_block() if self._can_edit_self else None,
         )
         functions = await compose_functions_for_node(
             node=node,
@@ -910,6 +918,7 @@ class PipecatEngine:
             agent_can_end_call=self._agent_can_end_call,
             can_ask_for_decision=not self._is_voice,
             scoped_document_uuids=scoped_document_uuids,
+            can_edit_self=self._can_edit_self,
         )
         await self._update_llm_context(system_prompt, functions)
 
@@ -1552,6 +1561,43 @@ class PipecatEngine:
         """Handle agent node execution."""
         # Setup LLM context with prompts and functions.
         await self._setup_llm_context(node)
+
+    def _steps_block(self) -> str:
+        """The bot's steps as the composer lists them, from the graph it runs."""
+        try:
+            nodes = [
+                {
+                    "id": node.id,
+                    "type": node.node_type,
+                    "data": {"name": node.name, "prompt": node.prompt},
+                }
+                for node in self.workflow.nodes.values()
+                if node.prompt is not None
+            ]
+            return self_edit.steps_block({"nodes": nodes})
+        except Exception as exc:  # noqa: BLE001 - a missing block is not a failed turn
+            logger.warning("Could not list this bot's steps: {}", exc)
+            return ""
+
+    async def _propose_edit_handler(self, function_call_params) -> None:
+        """The model proposed a change to itself. Draft it; answer the model.
+
+        Never raises: a change that could not be drafted is reported to the
+        model as not proposed, so it says so rather than claim a change it
+        did not make.
+        """
+        arguments = getattr(function_call_params, "arguments", None) or {}
+        try:
+            result = await self_edit.propose(
+                organization_id=await self._get_organization_id(),
+                workflow_id=await self._get_workflow_id(),
+                workflow_run_id=self._workflow_run_id,
+                arguments=arguments if isinstance(arguments, dict) else {},
+            )
+        except Exception as exc:  # noqa: BLE001 - the turn must finish
+            logger.warning("Could not draft a proposed edit: {}", exc)
+            result = {"status": "not_proposed", "reason": "could not be drafted"}
+        await function_call_params.result_callback(result)
 
     async def _ask_for_decision_handler(self, function_call_params) -> None:
         """The model asked a person to choose. Record it; answer the model.
