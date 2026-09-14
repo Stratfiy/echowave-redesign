@@ -1,7 +1,13 @@
 """One number a minute: the bundle's list price is the whole charge."""
 
 from api.enums import CostComponent, RateUnit
-from api.services.billing.cost_engine import RateSpec, UsageItem, compute_call_cost
+from api.services.billing.cost_engine import (
+    CREDIT_ROUNDING_PROVIDER,
+    RateSpec,
+    UsageItem,
+    compute_call_cost,
+)
+from api.services.billing.credits import round_up_to_credits
 from api.services.billing.money import MPAISE_PER_PAISE
 from api.services.configuration import bundles
 
@@ -49,11 +55,17 @@ def test_a_flat_rate_is_the_only_charge_and_vendor_cost_is_still_measured():
         flat_rate_mpaise=556 * MPAISE_PER_PAISE,
     )
     # 2 minutes at Rs 5.56.
-    assert cost.total_charged_paise == 1112
+    # The flat rate composes to 1,112 paise; the charge is that lifted to a
+    # whole number of credits (KAN-52), with the lift as its own line.
     assert cost.platform_fee_paise == 1112
+    assert cost.total_charged_paise == round_up_to_credits(1112)
     assert cost.addon_fee_paise == 0
     assert cost.total_provider_cost_paise > 0
-    charged_lines = [line for line in cost.line_items if line.cost_paise > 0]
+    charged_lines = [
+        line
+        for line in cost.line_items
+        if line.cost_paise > 0 and line.provider != CREDIT_ROUNDING_PROVIDER
+    ]
     assert len(charged_lines) == 1 and charged_lines[0].provider == "bundle"
 
 
