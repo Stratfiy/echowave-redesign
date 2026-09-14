@@ -20,7 +20,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from api.db import db_client
@@ -56,6 +56,9 @@ class MemoryItem(BaseModel):
     last_seen_at: Optional[datetime]
     #: Which call taught us, so a wrong entry can be traced back and heard.
     source_run_id: Optional[int]
+    #: Whose it is: None is the organisation's, every bot reads it; a bot's
+    #: id is that bot's own standing instruction.
+    workflow_id: Optional[int] = None
 
 
 class MemoryResponse(BaseModel):
@@ -75,21 +78,29 @@ def _item(row) -> MemoryItem:
         first_seen_at=row.first_seen_at,
         last_seen_at=row.last_seen_at,
         source_run_id=row.source_run_id,
+        workflow_id=row.workflow_id,
     )
 
 
 @router.get("", response_model=MemoryResponse)
-async def read_memory(user: UserModel = Depends(get_user)) -> MemoryResponse:
+async def read_memory(
+    workflow_id: Optional[int] = Query(default=None),
+    user: UserModel = Depends(get_user),
+) -> MemoryResponse:
     """Everything this business knows about itself, most-seen first.
 
-    Rejected entries are left out. Dismissing something has to mean it goes
-    away, or the list will not stay dismissed and people stop reading it.
+    With a ``workflow_id`` it is the organisation's memory plus that bot's
+    own, which is what the bot's About panel shows; each row says whose it
+    is. Rejected entries are left out. Dismissing something has to mean it
+    goes away, or the list will not stay dismissed and people stop reading it.
     """
     organization_id = user.selected_organization_id
     if not organization_id:
         raise HTTPException(status_code=400, detail="No organization selected")
 
-    rows = await db_client.organisation_memory(organization_id=organization_id)
+    rows = await db_client.organisation_memory(
+        organization_id=organization_id, workflow_id=workflow_id
+    )
     live = [row for row in rows if row.status != STATUS_REJECTED]
     return MemoryResponse(
         facts=[_item(row) for row in live if row.kind == KIND_FACT],
@@ -125,7 +136,7 @@ async def write_facts(
         },
         status=STATUS_CONFIRMED,
     )
-    return await read_memory(user=user)
+    return await read_memory(workflow_id=None, user=user)
 
 
 class StatusRequest(BaseModel):

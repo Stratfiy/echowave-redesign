@@ -519,3 +519,125 @@ class TestDecibylProposes:
         )
         assert "id 12: +919876543210 rang 14 Sep 09:30, pending" in block
         assert decibyl.missed_block([]) == "None in the last week."
+
+
+@pytest.mark.asyncio
+class TestForgetting:
+    def _fact(self, id, key, status="confirmed"):
+        return SimpleNamespace(id=id, key=key, value="v", status=status)
+
+    async def test_a_fact_is_found_by_its_key_in_the_bots_scope(self):
+        with patch(
+            "api.services.workflow.actions.db_client.organisation_memory",
+            new=AsyncMock(
+                return_value=[
+                    self._fact(1, "Opening hours"),
+                    self._fact(2, "Saturday hours", status="rejected"),
+                ]
+            ),
+        ) as memory:
+            payload = await actions.resolve(
+                organization_id=7,
+                workflow_id=3,
+                arguments={
+                    "action": "forget_fact",
+                    "fact": "opening HOURS",
+                    "why": "x",
+                },
+            )
+        assert memory.await_args.kwargs == {"organization_id": 7, "workflow_id": 3}
+        assert payload["args"] == {
+            "fact_id": 1,
+            "key": "Opening hours",
+            "value": "v",
+            "was_status": "confirmed",
+        }
+        assert payload["label"] == "Forget Opening hours"
+        assert payload["reversible"] is True
+
+    async def test_an_already_forgotten_or_ambiguous_fact_is_refused(self):
+        with patch(
+            "api.services.workflow.actions.db_client.organisation_memory",
+            new=AsyncMock(
+                return_value=[
+                    self._fact(1, "Opening hours"),
+                    self._fact(2, "Closing hours"),
+                    self._fact(3, "Old hours", status="rejected"),
+                ]
+            ),
+        ):
+            with pytest.raises(actions.ActionError, match="exact key"):
+                await actions.resolve(
+                    organization_id=7,
+                    workflow_id=None,
+                    arguments={"action": "forget_fact", "fact": "hours", "why": "x"},
+                )
+            with pytest.raises(actions.ActionError, match="exact key"):
+                await actions.resolve(
+                    organization_id=7,
+                    workflow_id=None,
+                    arguments={
+                        "action": "forget_fact",
+                        "fact": "Old hours",
+                        "why": "x",
+                    },
+                )
+
+    async def test_forgetting_is_a_status_and_put_back_restores_it(self):
+        forget = {
+            "action": actions.FORGET_FACT,
+            "args": {
+                "fact_id": 1,
+                "key": "Opening hours",
+                "value": "v",
+                "was_status": "learned",
+            },
+            "label": "Forget Opening hours",
+            "why": "x",
+            "reversible": True,
+            "state": actions.ARMED,
+        }
+        with (
+            patch(
+                "api.services.workflow.actions.db_client.get_agent_event",
+                new=AsyncMock(return_value=_proposal(forget)),
+            ),
+            patch(
+                "api.services.workflow.actions.db_client.set_agent_event_payload",
+                new=AsyncMock(return_value=True),
+            ),
+            patch(
+                "api.services.workflow.actions.db_client.set_organisation_fact_status",
+                new=AsyncMock(return_value=True),
+            ) as status,
+            patch(
+                "api.services.workflow.actions.agent_timeline.record", new=AsyncMock()
+            ) as record,
+        ):
+            await actions.run(99, 7)
+        assert status.await_args.kwargs["status"] == "rejected"
+        assert record.await_args.kwargs["summary"] == "Forgotten: Opening hours."
+
+        forget["state"] = actions.DONE
+        with (
+            patch(
+                "api.services.workflow.actions.db_client.get_agent_event",
+                new=AsyncMock(return_value=_proposal(forget)),
+            ),
+            patch(
+                "api.services.workflow.actions.db_client.set_agent_event_payload",
+                new=AsyncMock(return_value=True),
+            ),
+            patch(
+                "api.services.workflow.actions.db_client.set_organisation_fact_status",
+                new=AsyncMock(return_value=True),
+            ) as status,
+            patch(
+                "api.services.workflow.actions.agent_timeline.record", new=AsyncMock()
+            ),
+        ):
+            payload = await actions.settle(
+                organization_id=7, event_id=99, verb="undo", user_id=42
+            )
+        assert payload["state"] == actions.UNDONE
+        assert status.await_args.kwargs["status"] == "learned"

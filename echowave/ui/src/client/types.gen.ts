@@ -6331,6 +6331,10 @@ export type MemoryItem = {
      * Source Run Id
      */
     source_run_id: number | null;
+    /**
+     * Workflow Id
+     */
+    workflow_id?: number | null;
 };
 
 /**
@@ -24026,7 +24030,12 @@ export type ReadMemoryApiV1OrganisationMemoryGetData = {
         'X-API-Key'?: string | null;
     };
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Workflow Id
+         */
+        workflow_id?: number | null;
+    };
     url: '/api/v1/organisation/memory';
 };
 
