@@ -11,6 +11,8 @@ class FunctionNames:
     ANSWER_CHANNEL_MESSAGE = "answer_channel_message"
     #: Decibyl, the workspace assistant, answers on its own thread.
     ANSWER_DECIBYL_MESSAGE = "answer_decibyl_message"
+    #: A confirmed action fires once its undo window has passed.
+    RUN_PROPOSED_ACTION = "run_proposed_action"
     COMPACT_CHANNEL_CONTEXT = "compact_channel_context"
     EMAIL_TAX_DOCUMENT = "email_tax_document"
     PLACE_MISSED_CALL_CALLBACK = "place_missed_call_callback"

@@ -138,7 +138,9 @@ class TestTheContext:
 @pytest.mark.asyncio
 class TestAnswering:
     async def test_the_reply_is_a_row_on_the_thread_and_the_model_saw_the_context(self):
-        reply = SimpleNamespace(text="Front desk took 8 calls, 7 answered.")
+        from api.services.agent_builder.client import ModelReply
+
+        reply = ModelReply(text="Front desk took 8 calls, 7 answered.")
         complete = AsyncMock(return_value=reply)
         session = AsyncMock()
         session.__aenter__ = AsyncMock(return_value=session)

@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from api.services.workflow.workflow_graph import Node, WorkflowGraph
 
 from api.constants import DEFAULT_ORGANIZATION_TIMEZONE
-from api.services.workflow import decisions, secrets_request, self_edit
+from api.services.workflow import actions, decisions, secrets_request, self_edit
 from api.services.workflow.known_values import known_values_block
 from api.services.workflow.pipecat_engine_custom_tools import get_function_schema
 from api.services.workflow.speaking_style import CODE_MIXED_INSTRUCTIONS
@@ -309,6 +309,16 @@ async def compose_functions_for_node(
                 secrets_request.DESCRIPTION,
                 properties=secrets_request.tool_properties(),
                 required=["name", "credential_type"],
+            )
+        )
+        # Proposing to act goes with asking: the card is confirmed on the
+        # same screen, and nothing runs until it is.
+        functions.append(
+            get_function_schema(
+                actions.TOOL_NAME,
+                actions.DESCRIPTION,
+                properties=actions.tool_properties(),
+                required=["action", "why"],
             )
         )
 

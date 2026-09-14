@@ -51,6 +51,7 @@ from api.services.billing.addons import KNOWLEDGE_BASE as ADDON_KNOWLEDGE_BASE
 from api.services.managed_model_services import MPS_CORRELATION_ID_CONTEXT_KEY
 from api.services.pipecat import agent_end_call
 from api.services.workflow import (
+    actions,
     decisions,
     organisation_memory,
     secrets_request,
@@ -890,6 +891,7 @@ class PipecatEngine:
             self.llm.register_function(
                 secrets_request.TOOL_NAME, self._ask_for_secret_handler
             )
+            self.llm.register_function(actions.TOOL_NAME, self._propose_action_handler)
 
         # Register custom tool handlers for this node
         if node.tool_uuids and self._custom_tool_manager:
@@ -1626,6 +1628,25 @@ class PipecatEngine:
         except Exception as exc:  # noqa: BLE001 - the turn must finish
             logger.warning("Could not record a decision request: {}", exc)
             result = {"status": "not_asked", "reason": "could not be recorded"}
+        await function_call_params.result_callback(result)
+
+    async def _propose_action_handler(self, function_call_params) -> None:
+        """The model proposed to act. Record the card; tell the model.
+
+        Nothing runs here. The person confirms on the card and the worker
+        fires it after the undo window. Never raises, as with decisions.
+        """
+        arguments = getattr(function_call_params, "arguments", None) or {}
+        try:
+            result = await actions.propose(
+                organization_id=await self._get_organization_id(),
+                workflow_id=await self._get_workflow_id(),
+                workflow_run_id=self._workflow_run_id,
+                arguments=arguments if isinstance(arguments, dict) else {},
+            )
+        except Exception as exc:  # noqa: BLE001 - the turn must finish
+            logger.warning("Could not record a proposed action: {}", exc)
+            result = {"status": "not_proposed", "reason": "could not be recorded"}
         await function_call_params.result_callback(result)
 
     async def _ask_for_secret_handler(self, function_call_params) -> None:

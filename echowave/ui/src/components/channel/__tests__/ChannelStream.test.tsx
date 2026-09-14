@@ -14,6 +14,7 @@ const translate = vi.hoisted(() => vi.fn());
 vi.mock('@/client/sdk.gen', () => ({
     timelineApiV1TimelineGet: timeline,
     decideApiV1TimelineDecidePost: vi.fn(),
+    settleActionApiV1TimelineActionsSettlePost: vi.fn(),
     settleEditApiV1TimelineEditsSettlePost: vi.fn(),
     translateTextApiV1TranslatePost: translate,
 }));
@@ -251,5 +252,28 @@ describe('a message in an Indian script can be translated', () => {
         render(<ChannelStream workflowId={3} botNames={{ 3: 'Front desk' }} />);
         await screen.findByText('Booked Meera for 4pm.');
         expect(screen.queryByRole('button', { name: 'Translate' })).toBeNull();
+    });
+});
+
+describe('a proposed action', () => {
+    it('is a card with Confirm on the thread, attributed to the bot', async () => {
+        timeline.mockResolvedValue({
+            data: {
+                events: [
+                    event({
+                        id: 9,
+                        kind: 'action_proposed',
+                        summary: 'Turn Front desk on',
+                        payload: { label: 'Turn Front desk on', why: 'Off since Monday', reversible: true, state: 'proposed' },
+                    }),
+                ],
+                next_before_at: null,
+                next_before_id: null,
+            },
+        });
+        render(<ChannelStream workflowId={3} botNames={{ 3: 'Front desk' }} />);
+        expect(await screen.findByRole('group', { name: 'Turn Front desk on' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Confirm' })).toBeTruthy();
+        expect(screen.getByText('Front desk')).toBeTruthy();
     });
 });

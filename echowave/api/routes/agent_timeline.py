@@ -39,6 +39,7 @@ from api.enums import AgentEventActor, AgentEventKind, OrganizationRole
 from api.services.auth.depends import get_user, require_organization_role
 from api.services.configuration import chat_presets
 from api.services.workflow import (
+    actions,
     agent_timeline,
     decibyl,
     decisions,
@@ -157,7 +158,7 @@ async def timeline(
         workflow_id=workflow_id,
         workflow_run_id=workflow_run_id,
         folder_id=folder_id,
-        kinds=(kinds or None) if not assistant else [AgentEventKind.MESSAGE.value],
+        kinds=(kinds or None) if not assistant else decibyl.thread_filter()["kinds"],
         assistant_thread=assistant,
         deliverables_only=deliverables_only,
         include_on_request=include_transcripts,
@@ -489,6 +490,40 @@ async def decide(body: DecideRequest, user: UserModel = Depends(get_user)):
     )
     if row is None:
         raise HTTPException(status_code=404, detail="That question is not here")
+    return _as_event(row)
+
+
+class SettleActionRequest(BaseModel):
+    event_id: int
+    #: confirm | decline | undo. See services/workflow/actions.py.
+    verb: str = Field(max_length=16)
+
+
+@router.post("/actions/settle", response_model=TimelineEvent)
+async def settle_action(body: SettleActionRequest, user: UserModel = Depends(get_user)):
+    """Confirm, decline or undo a proposed action on the card that proposed it.
+
+    Confirm arms it and it fires after a short undo window; undo inside that
+    window cancels it, and after it ran puts it back if it can be. Every
+    press is stamped into the proposal's own row, so the card is the record.
+    """
+    organization_id = user.selected_organization_id
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+    try:
+        await actions.settle(
+            organization_id=organization_id,
+            event_id=body.event_id,
+            verb=body.verb,
+            user_id=user.id,
+        )
+    except actions.ActionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    row = await db_client.get_agent_event(
+        body.event_id, organization_id=organization_id
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="That proposal is not here")
     return _as_event(row)
 
 
