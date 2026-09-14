@@ -26,6 +26,7 @@ const TABS = [
     { href: "/superadmin/billing/pricing-inputs", label: "Pricing inputs" },
     { href: "/superadmin/billing/rate-card", label: "Rate card" },
     { href: "/superadmin/billing/plans", label: "Plans" },
+    { href: "/superadmin/billing/kpis", label: "KPIs" },
     // Not a billing screen, and it is the first step of every billing task on
     // this strip: nothing can be priced on the rate card, put in a bundle or
     // sold in a plan until a key is installed and the models it unlocks are

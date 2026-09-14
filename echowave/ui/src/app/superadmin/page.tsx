@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, KeyRound, List, Loader2, PhoneCall, ShieldCheck, Speech, Wallet } from 'lucide-react';
+import { ArrowRight, Gauge, KeyRound, List, Loader2, PhoneCall, ShieldCheck, Speech, Wallet } from 'lucide-react';
 import Link from "next/link";
 import { useState } from "react";
 
@@ -251,6 +251,28 @@ export default function SuperadminPage() {
                                     <Button className="w-full md:w-auto">
                                         <Wallet className="mr-2 h-4 w-4" />
                                         Open Billing
+                                        <ArrowRight className="ml-2 h-4 w-4" />
+                                    </Button>
+                                </Link>
+                            </CardContent>
+                        </Card>
+                        {/* The founders' screen: every KPI in the pricing spec,
+                            three windows, previous period beside each. Rows we
+                            cannot compute yet are on it too, greyed, with the
+                            missing input named. */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>KPI board</CardTitle>
+                                <CardDescription>
+                                    Revenue, funnel, unit economics, quality and trust —
+                                    today, 7 days and 30 days, with the previous period
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Link href="/superadmin/billing/kpis">
+                                    <Button className="w-full md:w-auto">
+                                        <Gauge className="mr-2 h-4 w-4" />
+                                        Open the KPI board
                                         <ArrowRight className="ml-2 h-4 w-4" />
                                     </Button>
                                 </Link>

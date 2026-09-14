@@ -579,3 +579,31 @@ still on the seeded default take these figures, rows somebody typed
    payments Razorpay captured in the month; export payments without a FIRC
    are listed. A superadmin screen for it is a follow-up; the CSV is what
    the return needs.
+
+## 19. Notes from the super-admin KPI board (KAN-131, 14 Sept)
+
+No price or credit changed in this step. It is the screen the next pricing
+change will be judged on, so what it can and cannot see is worth recording.
+
+- **All 58 rows of spec §9 are on the board** at `/superadmin/billing/kpis`,
+  for today, the last 7 days and the last 30, each with the equal-length
+  period before it. Point-in-time figures (MRR, deferred revenue, stale keys)
+  read the window's end against its start.
+- **Internal accounts are excluded from every figure.** Demos and QA are not
+  revenue, signups or churn.
+- **Twelve rows are on the board as "not measured", each naming the missing
+  input.** The ones worth fixing first, because they gate a pricing decision:
+  - *Overage credits billed*: a run does not record whether the next-tier
+    rate applied or which pool paid. One flag on the run at costing time.
+  - *Gross margin per text event*: no provider cost is logged for a reply,
+    knowledge answer or builder message. A `provider_cost_log` row per
+    metered event (provider, component, unit, quantity, list and discounted
+    cost) is the spec's ask and remains open.
+  - *Signups by source* knows referral and champion only; ads and campus
+    need UTM capture at signup.
+  - *DNC hits* and *calls outside window prevented* are refused in memory
+    and written nowhere. A refusal row would give both.
+  - *Impersonation events* wait on KAN-82.
+- **What the board replaces.** The unit-economics and pricing-inputs screens
+  stay: they are per-minute depth on voice. The board is the breadth view the
+  founders read weekly.
