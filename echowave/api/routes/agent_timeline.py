@@ -35,10 +35,16 @@ from pydantic import BaseModel, Field
 
 from api.db import db_client
 from api.db.models import UserModel
-from api.enums import AgentEventActor, AgentEventKind
-from api.services.auth.depends import get_user
+from api.enums import AgentEventActor, AgentEventKind, OrganizationRole
+from api.services.auth.depends import get_user, require_organization_role
 from api.services.configuration import chat_presets
-from api.services.workflow import agent_timeline, decisions, mentions, self_edit
+from api.services.workflow import (
+    agent_timeline,
+    decisions,
+    mentions,
+    secrets_request,
+    self_edit,
+)
 from api.tasks.arq import enqueue_job
 from api.tasks.function_names import FunctionNames
 
@@ -462,6 +468,44 @@ async def decide(body: DecideRequest, user: UserModel = Depends(get_user)):
     )
     if row is None:
         raise HTTPException(status_code=404, detail="That question is not here")
+    return _as_event(row)
+
+
+class ProvideSecretRequest(BaseModel):
+    event_id: int
+    #: The form's values, keyed by the field keys the card was given. They
+    #: travel here once, over TLS, into the credential store, and are not
+    #: echoed back in the response or written to the timeline.
+    values: dict[str, str] = Field(default_factory=dict)
+
+
+@router.post("/secrets/provide", response_model=TimelineEvent)
+async def provide_secret(
+    body: ProvideSecretRequest,
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
+):
+    """Fill a bot's secure form: the key goes to Credentials, the card is stamped.
+
+    Admin only, like creating a credential anywhere else. The returned row
+    carries the credential's uuid and a last-four hint, never the value.
+    """
+    organization_id = user.selected_organization_id
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+    try:
+        await secrets_request.provide(
+            organization_id=organization_id,
+            event_id=body.event_id,
+            values=body.values,
+            user_id=user.id,
+        )
+    except secrets_request.SecretError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    row = await db_client.get_agent_event(
+        body.event_id, organization_id=organization_id
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="That request is not here")
     return _as_event(row)
 
 

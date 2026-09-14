@@ -34,6 +34,7 @@ import type { TimelineEvent } from '@/client/types.gen';
 import { Button } from '@/components/ui/button';
 import { DecisionCard } from '@/components/workflow/DecisionCard';
 import { EditCard } from '@/components/workflow/EditCard';
+import { SecretCard } from '@/components/workflow/SecretCard';
 import { detailFromResult } from '@/lib/apiError';
 import { useAuth } from '@/lib/auth';
 import { markSeen } from '@/lib/botSeen';
@@ -459,6 +460,42 @@ export function ChannelStream({
                                     <EditCard
                                         event={event}
                                         onSettled={(updated) =>
+                                            setEvents((all) =>
+                                                all.map((e) => (e.id === updated.id ? updated : e)),
+                                            )
+                                        }
+                                    />
+                                </div>
+                            </li>
+                            </React.Fragment>
+                        );
+                    }
+                    if (event.kind === 'needs_secret') {
+                        // The bot needs a key. A form, not a question in the
+                        // chat: what is typed goes to Credentials, and the
+                        // card only ever shows that it was done.
+                        const asker =
+                            (event.workflow_id != null && botNames[event.workflow_id]) || 'A bot';
+                        return (
+                            <React.Fragment key={event.id}>
+                            {divider}
+                            <li className="flex gap-3">
+                                <span
+                                    aria-hidden
+                                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--accent-brand-soft)] text-[var(--accent-brand)]"
+                                >
+                                    <Bot className="h-4 w-4" />
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                    <p className="mb-1 text-sm">
+                                        <span className="font-medium">{asker}</span>
+                                        <span className="ml-2 text-xs text-muted-foreground">
+                                            <time dateTime={event.at}>{when(event.at)}</time>
+                                        </span>
+                                    </p>
+                                    <SecretCard
+                                        event={event}
+                                        onProvided={(updated) =>
                                             setEvents((all) =>
                                                 all.map((e) => (e.id === updated.id ? updated : e)),
                                             )
