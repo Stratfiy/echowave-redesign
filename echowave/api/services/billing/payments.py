@@ -56,6 +56,7 @@ from api.db.models import (
 )
 from api.enums import CreditLedgerKind, PostHogEvent
 from api.services.billing.billing_profile import get_profile
+from api.services.billing.credits import PAISE_PER_CREDIT
 from api.services.billing.money import round_half_up_div
 from api.services.billing.tax import TaxError, compute_tax
 from api.services.posthog_client import capture_event
@@ -104,6 +105,14 @@ class TopupOrder:
     #: Balance granted beyond the price, for a pack (KAN-55). Zero otherwise.
     bonus_paise: int = 0
     pack_code: str | None = None
+    #: The same two amounts in minor units of ``currency`` (KAN-135): equal to
+    #: the paise figures for a rupee order, cents for a dollar one. Checkout is
+    #: opened with ``gross_minor``; ``amount_paise`` and ``gross_paise`` on a
+    #: dollar order are the rupee value at the rate applied.
+    amount_minor: int = 0
+    gross_minor: int = 0
+    #: What a full payment lands on the balance, in credits.
+    credits: int = 0
 
 
 def _require_api_credentials() -> tuple[str, str]:
@@ -182,13 +191,31 @@ async def create_topup_order(
     # and which one fires decides what the customer is told: an amount they can
     # correct, or a configuration problem that is ours. Reading the environment
     # first meant a mistyped ₹137 came back as "Razorpay is not configured".
+    from api.services.billing import topup_packs
     from api.services.billing.topup_packs import pack_for
 
     pack = None
+    currency = topup_packs.INR
+    fx_paise_per_usd: int | None = None
     if pack_code:
         pack = pack_for(pack_code)
         if pack is None:
             raise PaymentError(f"There is no top-up pack called {pack_code!r}.")
+        # A dollar pack is for an account billed in dollars, and a rupee pack
+        # for one billed in rupees (KAN-135). Enforced where the order is made,
+        # like the Campus gate, because the list is only a convenience.
+        billed_in = await topup_packs.billing_currency(
+            session, organization_id=organization_id
+        )
+        if pack.currency == topup_packs.USD and billed_in != topup_packs.USD:
+            raise PaymentError(
+                "Dollar packs are for accounts billed outside India. "
+                "Packs here start at ₹999."
+            )
+        if pack.currency == topup_packs.INR and billed_in == topup_packs.USD:
+            raise PaymentError(
+                "Your account is billed in dollars; choose a dollar pack."
+            )
         if pack.restricted:
             from api.services.billing.topup_packs import may_buy_restricted
 
@@ -197,10 +224,25 @@ async def create_topup_order(
                     "That pack is for Campus and early-adopter accounts. "
                     "Packs start at ₹999."
                 )
-        amount_paise = pack.price_paise
+        currency = pack.currency
+        if currency == topup_packs.USD:
+            # The ledger, the voucher and the GST return all want rupees, so
+            # the dollars are valued once, now, at the rate in force, and the
+            # rate is pinned on the row. The credits are the pack's own and
+            # do not move with the rate.
+            from api.services.billing.rates import resolve_usd_inr
+
+            fx = await resolve_usd_inr(session, at=datetime.now(UTC))
+            fx_paise_per_usd = fx.paise_per_usd
+            amount_paise = round_half_up_div(pack.price_minor * fx_paise_per_usd, 100)
+        else:
+            amount_paise = pack.price_paise
     if amount_paise is None:
         raise PaymentError("Choose a pack or an amount.")
     bonus_paise = pack.bonus_paise if pack else 0
+    credits_granted = (
+        pack.credits if pack else (amount_paise + bonus_paise) // PAISE_PER_CREDIT
+    )
 
     minimum = await minimum_topup_paise(session, organization_id=organization_id)
     if amount_paise < minimum and pack is None:
@@ -232,7 +274,7 @@ async def create_topup_order(
     await _refuse_over_the_topup_ceiling(
         session,
         organization_id=organization_id,
-        adding_paise=amount_paise + bonus_paise,
+        adding_paise=credits_granted * PAISE_PER_CREDIT,
     )
 
     key_id, key_secret = _require_api_credentials()
@@ -250,6 +292,19 @@ async def create_topup_order(
         # something we cannot invoice.
         raise PaymentError(str(exc)) from exc
 
+    if currency == topup_packs.USD:
+        # Zero-rated by construction: a dollar pack is sold only to an export
+        # account, and compute_tax has just said so. Asserted rather than
+        # assumed, because a dollar order carrying rupee tax would charge the
+        # customer a figure nobody can invoice.
+        if tax.tax_paise:
+            raise PaymentError("A dollar order cannot carry GST.")
+        amount_minor = pack.price_minor
+        gross_minor = amount_minor
+    else:
+        amount_minor = amount_paise
+        gross_minor = tax.total_paise
+
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             response = await client.post(
@@ -257,9 +312,10 @@ async def create_topup_order(
                 auth=(key_id, key_secret),
                 json={
                     # Gross. Razorpay collects what the customer owes, tax
-                    # included; the ledger gets the net figure separately.
-                    "amount": tax.total_paise,
-                    "currency": "INR",
+                    # included; the ledger gets the net figure separately. In
+                    # minor units of the order's currency: paise, or cents.
+                    "amount": gross_minor,
+                    "currency": currency,
                     # Lets Razorpay's own dashboard show which account paid and
                     # what the split was, which is the first thing anyone
                     # reconciling a settlement against a return looks for.
@@ -295,6 +351,10 @@ async def create_topup_order(
             amount_paise=amount_paise,
             bonus_paise=bonus_paise,
             pack_code=pack.code if pack else None,
+            currency=currency,
+            amount_minor=amount_minor,
+            fx_paise_per_usd=fx_paise_per_usd,
+            credits_granted=credits_granted,
             gross_paise=tax.total_paise,
             cgst_paise=tax.cgst_paise,
             sgst_paise=tax.sgst_paise,
@@ -317,10 +377,13 @@ async def create_topup_order(
         amount_paise=amount_paise,
         gross_paise=tax.total_paise,
         tax_paise=tax.tax_paise,
-        currency="INR",
+        currency=currency,
         key_id=key_id,
         bonus_paise=bonus_paise,
         pack_code=pack.code if pack else None,
+        amount_minor=amount_minor,
+        gross_minor=gross_minor,
+        credits=credits_granted,
     )
 
 
@@ -808,6 +871,25 @@ async def handle_webhook(
 
     paid_paise = int(entity.get("amount") or 0)
 
+    # The capture must be in the currency the order was placed in (KAN-135).
+    # 6,000 of the wrong unit is ₹60 against a $60 order; comparing the
+    # numbers without the unit would credit it in full.
+    order_currency = (payment.currency or "INR").upper()
+    paid_currency = str(entity.get("currency") or "INR").upper()
+    if paid_currency != order_currency:
+        logger.error(
+            "Razorpay payment {} is in {} but order {} was placed in {}; "
+            "refusing to credit it",
+            payment_id,
+            paid_currency,
+            order_id,
+            order_currency,
+        )
+        raise PaymentError(
+            f"Payment currency {paid_currency} does not match the order's "
+            f"{order_currency}"
+        )
+
     # Two amounts, and the comparison must use the right one. Razorpay collected
     # the **gross** figure — credit plus tax — so that is what the payload is
     # checked against. What reaches the ledger is the **net** credit, because
@@ -815,11 +897,19 @@ async def handle_webhook(
     # spend on calls. Comparing the payload against the net amount would reject
     # every correctly-taxed payment as an 18% overpayment.
     #
-    # Falls back to the net amount for rows written before GST existed, where
-    # gross and net were the same number.
-    expected_gross = int(payment.gross_paise or payment.amount_paise)
-    # What a full payment credits: the amount invoiced plus any pack bonus.
-    granted = int(payment.amount_paise) + int(payment.bonus_paise or 0)
+    # A dollar order is checked in cents (``amount_minor``; zero-rated, so net
+    # is gross). Falls back to the net amount for rows written before GST
+    # existed, where gross and net were the same number.
+    if order_currency != "INR":
+        expected_gross = int(payment.amount_minor or 0)
+    else:
+        expected_gross = int(payment.gross_paise or payment.amount_paise)
+    # What a full payment credits: the pack's credits where the row says so,
+    # else the amount invoiced plus any pack bonus.
+    if payment.credits_granted is not None:
+        granted = int(payment.credits_granted) * PAISE_PER_CREDIT
+    else:
+        granted = int(payment.amount_paise) + int(payment.bonus_paise or 0)
 
     if paid_paise <= 0:
         raise PaymentError("Refusing to credit a non-positive amount")
@@ -871,15 +961,7 @@ async def handle_webhook(
         ref_type="payment",
         ref_id=payment_id,
         balance_after_paise=balance + credited,
-        note=(
-            f"Razorpay {payment_id}"
-            + (
-                f" — {payment.pack_code} pack, "
-                f"{int(payment.bonus_paise or 0) // 50:,} bonus credits"
-                if payment.pack_code
-                else ""
-            )
-        ),
+        note=_ledger_note(payment, payment_id=payment_id),
     )
     session.add(entry)
     await session.flush()
@@ -957,6 +1039,22 @@ async def handle_webhook(
     }
 
 
+def _ledger_note(payment: PaymentModel, *, payment_id: str) -> str:
+    """What the ledger row says about where the credit came from."""
+    note = f"Razorpay {payment_id}"
+    if (payment.currency or "INR").upper() == "USD":
+        dollars = int(payment.amount_minor or 0) / 100
+        note += f" — ${dollars:,.2f}"
+        if payment.fx_paise_per_usd:
+            note += f" at ₹{int(payment.fx_paise_per_usd) / 100:,.2f}/USD"
+    if payment.pack_code:
+        note += f" — {payment.pack_code} pack"
+        bonus = int(payment.bonus_paise or 0) // PAISE_PER_CREDIT
+        if bonus:
+            note += f", {bonus:,} bonus credits"
+    return note
+
+
 def _report_topup(
     event: str, *, organization_id: int, amount_paise: int, **extra
 ) -> None:
@@ -1032,6 +1130,18 @@ async def list_payments(
                 if r.gross_paise is not None
                 else 0
             ),
+            # The same two figures in the currency the order was placed in
+            # (KAN-135): paise again for a rupee order, cents for a dollar one.
+            "currency": (r.currency or "INR").upper(),
+            "amount_minor": (
+                int(r.amount_minor) if r.amount_minor is not None else r.amount_paise
+            ),
+            "gross_minor": _gross_minor(r),
+            "credits": (
+                int(r.credits_granted)
+                if r.credits_granted is not None
+                else (int(r.amount_paise) + int(r.bonus_paise or 0)) // PAISE_PER_CREDIT
+            ),
             "status": r.status,
             "firc_reference": getattr(r, "firc_reference", None),
             "created_at": r.created_at.isoformat() if r.created_at else None,
@@ -1039,6 +1149,13 @@ async def list_payments(
         }
         for r in rows
     ]
+
+
+def _gross_minor(r: PaymentModel) -> int:
+    if (r.currency or "INR").upper() != "INR":
+        # Zero-rated: what the card was charged is the net figure.
+        return int(r.amount_minor or 0)
+    return int(r.gross_paise) if r.gross_paise is not None else int(r.amount_paise)
 
 
 def is_configured() -> bool:

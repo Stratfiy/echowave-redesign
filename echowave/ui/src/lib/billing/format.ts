@@ -16,10 +16,10 @@ const MPAISE_PER_PAISE = 1000;
  * dashboard reads rupees in lakhs and crores.
  */
 const rupees = new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+  style: "currency",
+  currency: "INR",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
 });
 
 /**
@@ -32,22 +32,44 @@ const rupees = new Intl.NumberFormat("en-IN", {
  * everywhere.
  */
 function abbreviateRupees(rupees: number): string {
-    const abs = Math.abs(rupees);
-    const sign = rupees < 0 ? "-" : "";
-    const trim = (n: number) => Number(n.toFixed(1)).toString();
+  const abs = Math.abs(rupees);
+  const sign = rupees < 0 ? "-" : "";
+  const trim = (n: number) => Number(n.toFixed(1)).toString();
 
-    if (abs >= 10_000_000) return `${sign}₹${trim(abs / 10_000_000)}Cr`;
-    if (abs >= 100_000) return `${sign}₹${trim(abs / 100_000)}L`;
-    if (abs >= 1_000) return `${sign}₹${trim(abs / 1_000)}k`;
-    return `${sign}₹${Math.round(abs)}`;
+  if (abs >= 10_000_000) return `${sign}₹${trim(abs / 10_000_000)}Cr`;
+  if (abs >= 100_000) return `${sign}₹${trim(abs / 100_000)}L`;
+  if (abs >= 1_000) return `${sign}₹${trim(abs / 1_000)}k`;
+  return `${sign}₹${Math.round(abs)}`;
 }
 
 const integers = new Intl.NumberFormat("en-IN");
 
 /** Full precision, e.g. ₹1,23,456.78. Use in tables and receipts. */
 export function formatPaise(paise: number | null | undefined): string {
-    if (paise === null || paise === undefined) return "—";
-    return rupees.format(paise / PAISE_PER_RUPEE);
+  if (paise === null || paise === undefined) return "—";
+  return rupees.format(paise / PAISE_PER_RUPEE);
+}
+
+const dollars = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+/**
+ * An amount in minor units of the currency it was charged in (KAN-135):
+ * paise for INR, cents for USD. A dollar pack is bought and shown in dollars;
+ * every rupee figure keeps its Indian grouping.
+ */
+export function formatMinor(
+  minor: number | null | undefined,
+  currency: string | null | undefined,
+): string {
+  if (minor === null || minor === undefined) return "—";
+  if ((currency ?? "INR").toUpperCase() === "USD")
+    return dollars.format(minor / 100);
+  return formatPaise(minor);
 }
 
 /**
@@ -66,8 +88,8 @@ export function formatPaise(paise: number | null | undefined): string {
 export const PAISE_PER_CREDIT = 50;
 
 export function formatCredits(paise: number | null | undefined): string {
-    if (paise === null || paise === undefined) return "—";
-    return integers.format(Math.trunc(paise / PAISE_PER_CREDIT));
+  if (paise === null || paise === undefined) return "—";
+  return integers.format(Math.trunc(paise / PAISE_PER_CREDIT));
 }
 
 /** A per-minute rate in credits, e.g. "8.5". One decimal, because these are
@@ -76,32 +98,32 @@ export function formatCredits(paise: number | null | undefined): string {
  *  rate. Balances keep the integer form above — nobody needs a tenth of a
  *  credit in a wallet. */
 export function formatCreditsRate(paise: number | null | undefined): string {
-    if (paise === null || paise === undefined) return "—";
-    return (paise / PAISE_PER_CREDIT).toFixed(1);
+  if (paise === null || paise === undefined) return "—";
+  return (paise / PAISE_PER_CREDIT).toFixed(1);
 }
 
 /** With the unit spelled out, e.g. "1,250 credits". Use in running prose. */
 export function formatCreditsLabel(paise: number | null | undefined): string {
-    if (paise === null || paise === undefined) return "— credits";
-    const rounded = Math.trunc(paise / PAISE_PER_CREDIT);
-    return `${integers.format(rounded)} ${rounded === 1 ? "credit" : "credits"}`;
+  if (paise === null || paise === undefined) return "— credits";
+  const rounded = Math.trunc(paise / PAISE_PER_CREDIT);
+  return `${integers.format(rounded)} ${rounded === 1 ? "credit" : "credits"}`;
 }
 
 /** Abbreviated, e.g. ₹1.2L. Use on stat tiles and axis ticks where space is tight. */
 export function formatPaiseCompact(paise: number | null | undefined): string {
-    if (paise === null || paise === undefined) return "—";
-    return abbreviateRupees(paise / PAISE_PER_RUPEE);
+  if (paise === null || paise === undefined) return "—";
+  return abbreviateRupees(paise / PAISE_PER_RUPEE);
 }
 
 /** A per-minute unit rate held in millipaise, e.g. 200000 → "₹2.00". */
 export function formatRateMpaise(mpaise: number | null | undefined): string {
-    if (mpaise === null || mpaise === undefined) return "—";
-    return rupees.format(mpaise / MPAISE_PER_PAISE / PAISE_PER_RUPEE);
+  if (mpaise === null || mpaise === undefined) return "—";
+  return rupees.format(mpaise / MPAISE_PER_PAISE / PAISE_PER_RUPEE);
 }
 
 export function formatNumber(value: number | null | undefined): string {
-    if (value === null || value === undefined) return "—";
-    return integers.format(value);
+  if (value === null || value === undefined) return "—";
+  return integers.format(value);
 }
 
 const MICROS_PER_USD = 1_000_000;
@@ -114,27 +136,29 @@ const MICROS_PER_USD = 1_000_000;
  * difference that two decimals would hide.
  */
 export function formatMicrosUsd(
-    micros: number | null | undefined,
-    fractionDigits = 3,
+  micros: number | null | undefined,
+  fractionDigits = 3,
 ): string {
-    if (micros === null || micros === undefined) return "—";
-    const sign = micros < 0 ? "-" : "";
-    return `${sign}$${(Math.abs(micros) / MICROS_PER_USD).toFixed(fractionDigits)}`;
+  if (micros === null || micros === undefined) return "—";
+  const sign = micros < 0 ? "-" : "";
+  return `${sign}$${(Math.abs(micros) / MICROS_PER_USD).toFixed(fractionDigits)}`;
 }
 
 /** An exchange rate held as paise per dollar, e.g. 9600 → "₹96.00". */
 export function formatPaisePerUsd(paise: number | null | undefined): string {
-    if (paise === null || paise === undefined) return "—";
-    return rupees.format(paise / PAISE_PER_RUPEE);
+  if (paise === null || paise === undefined) return "—";
+  return rupees.format(paise / PAISE_PER_RUPEE);
 }
 
 /** Seconds as a compact duration for KPI copy, e.g. 7.5 → "7.5s", 3600 → "1h". */
-export function formatSecondsCompact(seconds: number | null | undefined): string {
-    if (seconds === null || seconds === undefined) return "—";
-    const abs = Math.abs(seconds);
-    if (abs < 60) return `${Number(seconds.toFixed(1))}s`;
-    if (abs < 3600) return `${Math.round(seconds / 60)}m`;
-    return `${Number((seconds / 3600).toFixed(1))}h`;
+export function formatSecondsCompact(
+  seconds: number | null | undefined,
+): string {
+  if (seconds === null || seconds === undefined) return "—";
+  const abs = Math.abs(seconds);
+  if (abs < 60) return `${Number(seconds.toFixed(1))}s`;
+  if (abs < 3600) return `${Math.round(seconds / 60)}m`;
+  return `${Number((seconds / 3600).toFixed(1))}h`;
 }
 
 /**
@@ -142,62 +166,63 @@ export function formatSecondsCompact(seconds: number | null | undefined): string
  * margin on zero revenue is undefined, and "0%" would read as "no margin".
  */
 export function formatPercent(
-    ratio: number | null | undefined,
-    fractionDigits = 1,
+  ratio: number | null | undefined,
+  fractionDigits = 1,
 ): string {
-    if (ratio === null || ratio === undefined || !Number.isFinite(ratio)) return "—";
-    return `${(ratio * 100).toFixed(fractionDigits)}%`;
+  if (ratio === null || ratio === undefined || !Number.isFinite(ratio))
+    return "—";
+  return `${(ratio * 100).toFixed(fractionDigits)}%`;
 }
 
 export function formatMs(ms: number | null | undefined): string {
-    if (ms === null || ms === undefined) return "—";
-    if (ms >= 1000) return `${(ms / 1000).toFixed(2)}s`;
-    return `${Math.round(ms)}ms`;
+  if (ms === null || ms === undefined) return "—";
+  if (ms >= 1000) return `${(ms / 1000).toFixed(2)}s`;
+  return `${Math.round(ms)}ms`;
 }
 
 export function formatDuration(seconds: number | null | undefined): string {
-    if (seconds === null || seconds === undefined) return "—";
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.round(seconds % 60);
-    return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+  if (seconds === null || seconds === undefined) return "—";
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.round(seconds % 60);
+  return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
 }
 
 /** Timestamps are stored in UTC and always displayed in IST. */
 export function formatDateTimeIST(iso: string | null | undefined): string {
-    if (!iso) return "—";
-    return new Date(iso).toLocaleString("en-IN", {
-        timeZone: "Asia/Kolkata",
-        dateStyle: "medium",
-        timeStyle: "short",
-    });
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
 export function formatDateIST(iso: string | null | undefined): string {
-    if (!iso) return "—";
-    // Date-only strings are already IST calendar days from the rollup; parsing
-    // them as UTC and re-rendering in IST would shift them a day.
-    const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
-    return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-IN", {
-        timeZone: "UTC",
-        day: "numeric",
-        month: "short",
-    });
+  if (!iso) return "—";
+  // Date-only strings are already IST calendar days from the rollup; parsing
+  // them as UTC and re-rendering in IST would shift them a day.
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-IN", {
+    timeZone: "UTC",
+    day: "numeric",
+    month: "short",
+  });
 }
 
 /** Percentage change between two periods, or null when the base is zero. */
 export function changeRatio(
-    current: number | null | undefined,
-    previous: number | null | undefined,
+  current: number | null | undefined,
+  previous: number | null | undefined,
 ): number | null {
-    if (!previous || current === null || current === undefined) return null;
-    return (current - previous) / previous;
+  if (!previous || current === null || current === undefined) return null;
+  return (current - previous) / previous;
 }
 
 export const ISO_TODAY_IST = (): string =>
-    new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 
 export function isoDaysAgoIST(days: number): string {
-    const now = new Date();
-    now.setUTCDate(now.getUTCDate() - days);
-    return now.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const now = new Date();
+  now.setUTCDate(now.getUTCDate() - days);
+  return now.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 }

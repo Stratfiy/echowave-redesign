@@ -289,6 +289,18 @@ async def issue_receipt_voucher(
         state_code=profile.state_code,
     )
 
+    description = "Advance towards prepaid usage credit"
+    if (getattr(payment, "currency", None) or "INR").upper() == "USD":
+        # The voucher is in rupees, as every tax document is; the line says
+        # what was actually received and at what rate it was valued, which is
+        # what a FIRC and the GST return are reconciled against (KAN-135).
+        dollars = int(payment.amount_minor or 0) / 100
+        description += f" — USD {dollars:,.2f} received"
+        if payment.fx_paise_per_usd:
+            description += (
+                f", valued at ₹{int(payment.fx_paise_per_usd) / 100:,.2f}/USD"
+            )
+
     document = await _issue(
         session,
         organization_id=payment.organization_id,
@@ -296,7 +308,7 @@ async def issue_receipt_voucher(
         breakdown=breakdown,
         line_items=[
             {
-                "description": "Advance towards prepaid usage credit",
+                "description": description,
                 "sac_code": SUPPLIER_SAC_CODE,
                 "amount_paise": int(payment.amount_paise),
             }

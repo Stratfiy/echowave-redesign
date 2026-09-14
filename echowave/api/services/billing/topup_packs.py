@@ -18,8 +18,13 @@ Top-up credits never expire and are spent after plan credits — see
 ``plans._consumed_since`` for the ordering, which is what makes a pack a pool
 of its own without a second ledger.
 
-USD packs ($12 / $60 / $240) are decided but need dollar orders from the
-gateway, which top-ups do not have yet; they ship with that story.
+**Dollar packs (KAN-135).** An account billed outside India — its billing
+profile's country is not IN, the same test that makes its supply an export —
+sees $12 → 2,000, $60 → 10,500 and $240 → 44,000 instead, and nothing else.
+Six tenths of a cent a credit, a cushion over the rupee price for the card
+fee and the exchange, with the same 5% and 10% rungs. The order goes to
+Razorpay in cents; what lands on the balance is the pack's credits, in paise
+at fifty each, because the ledger has one unit.
 """
 
 from __future__ import annotations
@@ -37,33 +42,58 @@ from api.services.billing.credits import PAISE_PER_CREDIT
 #: The plan whose accounts may buy the gated pack without a staff flag.
 STUDENT_PLAN_CODE = "campus"
 
+INR = "INR"
+USD = "USD"
+
+#: A dollar pack prices a credit at $0.006: ten credits for six cents. Kept as
+#: a ratio so the bonus arithmetic stays in integers.
+USD_CENTS_PER_TEN_CREDITS = 6
+
 
 @dataclass(frozen=True)
 class Pack:
     code: str
-    #: What the customer pays, net of GST.
+    #: What the customer pays, net of tax, in minor units of ``currency``:
+    #: paise for a rupee pack, cents for a dollar one. Named for paise because
+    #: every rupee caller reads it that way; ``price_minor`` is the same number
+    #: under the name that is true for both.
     price_paise: int
     #: What lands on the balance, in credits.
     credits: int
     #: Shown and sold only to eligible accounts (Campus, early adopters).
     restricted: bool = False
+    currency: str = INR
+
+    @property
+    def price_minor(self) -> int:
+        return self.price_paise
 
     @property
     def credit_paise(self) -> int:
+        """What the pack's credits are worth on the ledger, whatever it cost."""
         return self.credits * PAISE_PER_CREDIT
 
     @property
     def bonus_paise(self) -> int:
-        """Balance granted beyond the price paid. Zero on the small packs."""
+        """Balance granted beyond the rupee price paid. Zero on the small packs
+        and on every dollar pack, whose grant is its credits and not a sum."""
+        if self.currency != INR:
+            return 0
         return self.credit_paise - self.price_paise
 
     @property
     def bonus_credits(self) -> int:
+        """Credits beyond what the price buys at the pack's own per-credit
+        rate: fifty paise, or six tenths of a cent."""
+        if self.currency == USD:
+            return self.credits - self.price_minor * 10 // USD_CENTS_PER_TEN_CREDITS
         return self.bonus_paise // PAISE_PER_CREDIT
 
     def as_dict(self) -> dict:
         return {
             "code": self.code,
+            "currency": self.currency,
+            "price_minor": self.price_minor,
             "price_paise": self.price_paise,
             "credits": self.credits,
             "bonus_credits": self.bonus_credits,
@@ -78,17 +108,39 @@ PACKS: tuple[Pack, ...] = (
     Pack("p19999", 1_999_900, 44_000),
 )
 
-PACKS_BY_CODE: dict[str, Pack] = {pack.code: pack for pack in PACKS}
+USD_PACKS: tuple[Pack, ...] = (
+    Pack("u12", 1_200, 2_000, currency=USD),
+    Pack("u60", 6_000, 10_500, currency=USD),
+    Pack("u240", 24_000, 44_000, currency=USD),
+)
+
+PACKS_BY_CODE: dict[str, Pack] = {pack.code: pack for pack in PACKS + USD_PACKS}
 
 
 def pack_for(code: str) -> Pack | None:
     return PACKS_BY_CODE.get((code or "").strip().lower())
 
 
-def packs_as_dicts(*, include_restricted: bool = False) -> list[dict]:
+def packs_as_dicts(
+    *, include_restricted: bool = False, currency: str = INR
+) -> list[dict]:
+    ladder = USD_PACKS if currency == USD else PACKS
     return [
-        pack.as_dict() for pack in PACKS if include_restricted or not pack.restricted
+        pack.as_dict() for pack in ladder if include_restricted or not pack.restricted
     ]
+
+
+async def billing_currency(session: AsyncSession, *, organization_id: int) -> str:
+    """The currency this account buys credit in.
+
+    Dollars for an account whose billing profile puts it outside India — the
+    same fact that zero-rates its supply as an export — and rupees for
+    everyone else, including an account that has not filled its profile in.
+    """
+    from api.services.billing.billing_profile import get_profile
+
+    profile = await get_profile(session, organization_id=organization_id)
+    return USD if profile.is_export else INR
 
 
 async def may_buy_restricted(session: AsyncSession, *, organization_id: int) -> bool:
@@ -121,10 +173,13 @@ async def packs_for(session: AsyncSession, *, organization_id: int) -> list[dict
     failing the balance screen, and says so in the log.
     """
     try:
-        eligible = await may_buy_restricted(session, organization_id=organization_id)
+        currency = await billing_currency(session, organization_id=organization_id)
+        eligible = currency == INR and await may_buy_restricted(
+            session, organization_id=organization_id
+        )
     except Exception as exc:  # noqa: BLE001 - the list must never fail the screen
         logger.warning(
             "Could not decide pack eligibility for org {}: {}", organization_id, exc
         )
-        eligible = False
-    return packs_as_dicts(include_restricted=eligible)
+        currency, eligible = INR, False
+    return packs_as_dicts(include_restricted=eligible, currency=currency)
