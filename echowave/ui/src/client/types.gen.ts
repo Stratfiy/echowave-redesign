@@ -21319,6 +21319,54 @@ export type CreateWorkflowDraftApiV1WorkflowWorkflowIdCreateDraftPostResponses =
 
 export type CreateWorkflowDraftApiV1WorkflowWorkflowIdCreateDraftPostResponse = CreateWorkflowDraftApiV1WorkflowWorkflowIdCreateDraftPostResponses[keyof CreateWorkflowDraftApiV1WorkflowWorkflowIdCreateDraftPostResponses];
 
+export type RestoreWorkflowVersionApiV1WorkflowWorkflowIdVersionsVersionIdRestorePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+        /**
+         * Version Id
+         */
+        version_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/versions/{version_id}/restore';
+};
+
+export type RestoreWorkflowVersionApiV1WorkflowWorkflowIdVersionsVersionIdRestorePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RestoreWorkflowVersionApiV1WorkflowWorkflowIdVersionsVersionIdRestorePostError = RestoreWorkflowVersionApiV1WorkflowWorkflowIdVersionsVersionIdRestorePostErrors[keyof RestoreWorkflowVersionApiV1WorkflowWorkflowIdVersionsVersionIdRestorePostErrors];
+
+export type RestoreWorkflowVersionApiV1WorkflowWorkflowIdVersionsVersionIdRestorePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: WorkflowVersionResponse;
+};
+
+export type RestoreWorkflowVersionApiV1WorkflowWorkflowIdVersionsVersionIdRestorePostResponse = RestoreWorkflowVersionApiV1WorkflowWorkflowIdVersionsVersionIdRestorePostResponses[keyof RestoreWorkflowVersionApiV1WorkflowWorkflowIdVersionsVersionIdRestorePostResponses];
+
 export type GetWorkflowsSummaryApiV1WorkflowSummaryGetData = {
     body?: never;
     headers?: {

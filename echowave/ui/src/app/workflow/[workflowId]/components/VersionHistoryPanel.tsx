@@ -1,7 +1,7 @@
 "use client";
 
 import { formatDistanceToNow } from "date-fns";
-import { FileText, LoaderCircle, X } from "lucide-react";
+import { FileText, History, LoaderCircle, X } from "lucide-react";
 import { useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,9 @@ interface VersionHistoryPanelProps {
     loading: boolean;
     activeVersionId: number | null;
     onSelectVersion: (version: WorkflowVersion) => void;
+    /** Copy this version into the draft. The undo for a bad publish: nothing
+     *  goes live until Publish is pressed on the draft it makes. */
+    onRestoreVersion?: (version: WorkflowVersion) => void;
     hasMore: boolean;
     loadingMore: boolean;
     onLoadMore: () => void;
@@ -48,6 +51,7 @@ export const VersionHistoryPanel = ({
     loading,
     activeVersionId,
     onSelectVersion,
+    onRestoreVersion,
     hasMore,
     loadingMore,
     onLoadMore,
@@ -96,15 +100,24 @@ export const VersionHistoryPanel = ({
                         {versions.map((version) => {
                             const isActive = version.id === activeVersionId;
                             const date = version.published_at || version.created_at;
+                            // The draft is what restoring writes into, so it
+                            // cannot be restored; anything else can, the
+                            // live version included, which is how a draft
+                            // gone wrong is thrown back to what is live.
+                            const restorable = !!onRestoreVersion && version.status !== "draft";
                             return (
-                                <button
+                                <div
                                     key={version.id}
-                                    onClick={() => onSelectVersion(version)}
-                                    className={`w-full text-left p-3 rounded-lg border transition-colors cursor-pointer ${
+                                    className={`w-full text-left p-3 rounded-lg border transition-colors ${
                                         isActive
                                             ? "border-teal-500/50 bg-teal-500/10"
                                             : "border-border bg-[#222] hover:bg-accent"
                                     }`}
+                                >
+                                <button
+                                    type="button"
+                                    onClick={() => onSelectVersion(version)}
+                                    className="w-full text-left cursor-pointer"
                                 >
                                     <div className="flex items-center justify-between mb-1.5">
                                         <div className="flex items-center gap-2">
@@ -129,6 +142,18 @@ export const VersionHistoryPanel = ({
                                         })}
                                     </p>
                                 </button>
+                                {restorable && (
+                                    <button
+                                        type="button"
+                                        onClick={() => onRestoreVersion?.(version)}
+                                        aria-label={`Restore v${version.version_number}`}
+                                        className="mt-2 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+                                    >
+                                        <History className="w-3 h-3" aria-hidden />
+                                        Restore as draft
+                                    </button>
+                                )}
+                                </div>
                             );
                         })}
                         {hasMore && (
