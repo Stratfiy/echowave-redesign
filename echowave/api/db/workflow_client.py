@@ -390,6 +390,19 @@ class WorkflowClient(BaseDBClient):
             )
             return result.scalars().first()
 
+    async def get_workflow_version(
+        self, workflow_id: int, version_id: int
+    ) -> WorkflowDefinitionModel | None:
+        """One version, scoped to its workflow: an id from a request body is
+        not enough to read another bot's history."""
+        async with self.async_session() as session:
+            return await session.scalar(
+                select(WorkflowDefinitionModel).where(
+                    WorkflowDefinitionModel.id == version_id,
+                    WorkflowDefinitionModel.workflow_id == workflow_id,
+                )
+            )
+
     async def get_workflow_versions(
         self,
         workflow_id: int,

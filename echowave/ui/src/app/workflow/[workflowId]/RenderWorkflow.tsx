@@ -10,7 +10,7 @@ import { BrushCleaning, ClipboardList, Maximize2, Minus, PanelsTopLeft, Plus, Se
 import { useRouter } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { createWorkflowDraftApiV1WorkflowWorkflowIdCreateDraftPost, getWorkflowVersionsApiV1WorkflowWorkflowIdVersionsGet, listDocumentsApiV1KnowledgeBaseDocumentsGet, listRecordingsApiV1WorkflowRecordingsGet, listToolsApiV1ToolsGet } from '@/client';
+import { createWorkflowDraftApiV1WorkflowWorkflowIdCreateDraftPost, getWorkflowVersionsApiV1WorkflowWorkflowIdVersionsGet, listDocumentsApiV1KnowledgeBaseDocumentsGet, listRecordingsApiV1WorkflowRecordingsGet, listToolsApiV1ToolsGet, restoreWorkflowVersionApiV1WorkflowWorkflowIdVersionsVersionIdRestorePost } from '@/client';
 import type { DocumentResponseSchema, RecordingResponseSchema, ToolResponse } from '@/client/types.gen';
 import { useNodeSpecs } from "@/components/flow/renderer";
 import { isSimpleAgent } from "@/components/flow/simpleAgent";
@@ -316,6 +316,24 @@ function RenderWorkflow({
             fetchVersions(true);
         }
     }, [versions, handleSelectVersion, workflowId, setNodes, setEdges, setIsDirty, fetchVersions]);
+
+    // Copy an older version into the draft and open it. The undo for a bad
+    // publish: the draft it makes goes through the same Publish gate.
+    const handleRestoreVersion = useCallback(async (version: WorkflowVersion) => {
+        const response = await restoreWorkflowVersionApiV1WorkflowWorkflowIdVersionsVersionIdRestorePost({
+            path: { workflow_id: workflowId, version_id: version.id },
+        });
+        const draft = response.data;
+        if (!draft) return;
+        setCurrentVersionNumber(draft.version_number);
+        setCurrentVersionStatus(draft.status);
+        setNodes((draft.workflow_json?.nodes ?? []) as FlowNode[]);
+        setEdges((draft.workflow_json?.edges ?? []) as FlowEdge[]);
+        setActiveVersionId(draft.id);
+        setIsDirty(false);
+        setIsVersionPanelOpen(false);
+        fetchVersions(true);
+    }, [workflowId, setNodes, setEdges, setIsDirty, fetchVersions]);
 
     // After a successful publish, refresh the version list and update status
     const handlePublished = useCallback(() => {
@@ -814,6 +832,7 @@ function RenderWorkflow({
                     loading={versionsLoading}
                     activeVersionId={activeVersionId}
                     onSelectVersion={handleSelectVersion}
+                    onRestoreVersion={handleRestoreVersion}
                     hasMore={versionsHasMore}
                     loadingMore={versionsLoadingMore}
                     onLoadMore={handleLoadMoreVersions}

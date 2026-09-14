@@ -1508,6 +1508,56 @@ async def create_workflow_draft(
     )
 
 
+@router.post("/{workflow_id}/versions/{version_id}/restore")
+async def restore_workflow_version(
+    workflow_id: int,
+    version_id: int,
+    user: UserModel = Depends(get_user),
+) -> WorkflowVersionResponse:
+    """Copy an older version into the draft, so a bad publish has an undo.
+
+    Nothing goes live here. The chosen version's graph, configuration and
+    variables become the draft (created, or overwritten if one exists), and
+    the ordinary Publish gate decides whether it reaches a call. The version
+    restored from is untouched, so restoring is itself restorable.
+    """
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=user.selected_organization_id
+    )
+    if workflow is None:
+        raise HTTPException(
+            status_code=404, detail=f"Workflow with id {workflow_id} not found"
+        )
+    version = await db_client.get_workflow_version(workflow_id, version_id)
+    if version is None:
+        raise HTTPException(status_code=404, detail="That version is not here")
+    if version.status == "draft":
+        raise HTTPException(status_code=409, detail="That is the draft already")
+
+    draft = await db_client.save_workflow_draft(
+        workflow_id,
+        workflow_definition=version.workflow_json or {},
+        workflow_configurations=version.workflow_configurations or {},
+        template_context_variables=version.template_context_variables or {},
+    )
+    logger.info(
+        f"Workflow {workflow_id}: v{version.version_number} restored into draft "
+        f"v{draft.version_number} (org {user.selected_organization_id}, user {user.id})"
+    )
+    return WorkflowVersionResponse(
+        id=draft.id,
+        version_number=draft.version_number,
+        status=draft.status,
+        created_at=draft.created_at,
+        published_at=draft.published_at,
+        workflow_json=mask_workflow_definition(draft.workflow_json),
+        workflow_configurations=mask_workflow_configurations(
+            draft.workflow_configurations
+        ),
+        template_context_variables=draft.template_context_variables,
+    )
+
+
 @router.get("/summary")
 async def get_workflows_summary(
     user: UserModel = Depends(get_user),
