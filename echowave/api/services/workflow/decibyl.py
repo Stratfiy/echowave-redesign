@@ -26,6 +26,7 @@ delete anything. Those come as tools behind confirm cards later.
 
 from __future__ import annotations
 
+import time
 from datetime import UTC, datetime, timedelta
 from typing import Any, Optional
 
@@ -33,7 +34,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
-from api.services.workflow import actions, agent_timeline, mentions
+from api.services.workflow import actions, agent_timeline, mentions, reply_draft
 
 NAME = "Decibyl"
 
@@ -426,13 +427,8 @@ async def answer(
     try:
         async with db_client.async_session() as session:
             model = await settings.resolve_model(session)
-        reply = await client.complete(
-            provider=model.provider,
-            model=model.model,
-            api_key=model.api_key,
-            system=SYSTEM,
-            conversation=conversation,
-            tools=[actions.tool_schema()],
+        reply = await _speak(
+            model, conversation, organization_id, tools=[actions.tool_schema()]
         )
         # One round of tools: the model proposes, is told the card is up,
         # and says so. Anything it asks for that is not the one tool it has
@@ -451,14 +447,7 @@ async def answer(
                 else:
                     result = {"status": "unavailable", "reason": "no such tool"}
                 conversation.add_tool_result(call, result)
-            reply = await client.complete(
-                provider=model.provider,
-                model=model.model,
-                api_key=model.api_key,
-                system=SYSTEM,
-                conversation=conversation,
-                tools=[],
-            )
+            reply = await _speak(model, conversation, organization_id)
         body = (reply.text or "").strip() or "I have nothing to add on that."
     except Exception as exc:  # noqa: BLE001 - the thread must say something
         logger.error("Decibyl could not answer: {}", exc)
@@ -475,7 +464,43 @@ async def answer(
         payload={"body": body, "from": NAME, "preset": preset},
         in_channel=False,
     )
+    # After the row, so the screen swaps the forming text for the row rather
+    # than showing a blank between them.
+    await reply_draft.clear(organization_id)
     return body
+
+
+async def _speak(
+    model: Any,
+    conversation: Any,
+    organization_id: int,
+    tools: Optional[list[dict[str, Any]]] = None,
+) -> Any:
+    """One turn, streamed into the draft as it forms. The text the screen
+    shows growing is the text that becomes the row; a tool call, if any,
+    arrives whole at the end and is acted on before the next turn."""
+    from api.services.agent_builder import client
+
+    last = {"at": 0.0}
+
+    async def on_text(text: str) -> None:
+        # A few writes a second is plenty for a screen polling at that rate,
+        # and Redis is not the thing to make wait for a token.
+        now = time.monotonic()
+        if now - last["at"] < 0.25:
+            return
+        last["at"] = now
+        await reply_draft.set_draft(organization_id, text)
+
+    return await client.stream(
+        provider=model.provider,
+        model=model.model,
+        api_key=model.api_key,
+        system=SYSTEM,
+        conversation=conversation,
+        on_text=on_text,
+        tools=tools,
+    )
 
 
 def recent_window() -> datetime:

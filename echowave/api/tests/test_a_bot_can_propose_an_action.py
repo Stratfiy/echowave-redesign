@@ -479,7 +479,7 @@ class TestDecibylProposes:
                     )
                 ),
             ),
-            patch("api.services.agent_builder.client.complete", new=complete),
+            patch("api.services.agent_builder.client.stream", new=complete),
             patch(
                 "api.services.workflow.actions.propose",
                 new=AsyncMock(return_value={"status": "proposed", "note": "Proposed."}),
@@ -494,7 +494,7 @@ class TestDecibylProposes:
         assert (
             complete.await_args_list[0].kwargs["tools"][0]["name"] == actions.TOOL_NAME
         )
-        assert complete.await_args_list[1].kwargs["tools"] == []
+        assert not complete.await_args_list[1].kwargs.get("tools")
         kwargs = propose.await_args.kwargs
         assert kwargs["workflow_id"] is None and kwargs["in_channel"] is False
         assert kwargs["arguments"]["bot"] == "Front desk"

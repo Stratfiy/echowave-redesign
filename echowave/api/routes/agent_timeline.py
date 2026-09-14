@@ -44,6 +44,7 @@ from api.services.workflow import (
     decibyl,
     decisions,
     mentions,
+    reply_draft,
     secrets_request,
     self_edit,
 )
@@ -491,6 +492,27 @@ async def decide(body: DecideRequest, user: UserModel = Depends(get_user)):
     if row is None:
         raise HTTPException(status_code=404, detail="That question is not here")
     return _as_event(row)
+
+
+class DraftResponse(BaseModel):
+    #: The reply so far, or empty when nothing is forming.
+    text: str
+
+
+@router.get("/draft", response_model=DraftResponse)
+async def reply_draft_text(
+    workflow_id: Annotated[Optional[int], Query()] = None,
+    user: UserModel = Depends(get_user),
+) -> DraftResponse:
+    """The answer as it forms, for the thinking row. Decibyl's thread with
+    no ``workflow_id``; a bot's own chat with one. Empty is the ordinary
+    answer between replies. See services/workflow/reply_draft.py."""
+    organization_id = user.selected_organization_id
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+    return DraftResponse(
+        text=await reply_draft.get(organization_id, workflow_id=workflow_id)
+    )
 
 
 class SettleActionRequest(BaseModel):

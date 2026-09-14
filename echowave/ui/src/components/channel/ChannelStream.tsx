@@ -29,7 +29,7 @@ import Link from 'next/link';
 import React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { timelineApiV1TimelineGet, translateTextApiV1TranslatePost } from '@/client/sdk.gen';
+import { replyDraftTextApiV1TimelineDraftGet, timelineApiV1TimelineGet, translateTextApiV1TranslatePost } from '@/client/sdk.gen';
 import type { TimelineEvent } from '@/client/types.gen';
 import { Button } from '@/components/ui/button';
 import { ActionCard } from '@/components/workflow/ActionCard';
@@ -44,6 +44,8 @@ import { cn } from '@/lib/utils';
 
 /** How often to look for new rows. */
 const POLL_MS = 5000;
+/** While a bot is thinking, how often the forming reply is read. */
+const DRAFT_POLL_MS = 700;
 
 const PAGE = 50;
 
@@ -290,14 +292,6 @@ export function ChannelStream({
         if (pinned.current && element) element.scrollTop = element.scrollHeight;
     }, [events]);
 
-    if (loading) {
-        return <p className="px-6 py-8 text-sm text-muted-foreground">Loading…</p>;
-    }
-
-    // Oldest first for reading. The API answers newest-first because that is
-    // the direction the cursor runs; only the display is reversed.
-    const inOrder = [...events].reverse();
-
     // Bots asked and not yet heard from. A row of theirs newer than the
     // question ends it; so does the clock, because a reply that has not
     // landed in three minutes is not coming.
@@ -319,6 +313,40 @@ export function ChannelStream({
 
     const activityWho = (event: TimelineEvent) =>
         (event.workflow_id != null && botNames[event.workflow_id]) || fallbackName;
+
+    // The reply as it forms. Polled only while somebody is thinking, faster
+    // than the timeline, and shown in the thinking row in place of the
+    // spinner's word. Decibyl's thread has no bot; a bot's chat has one.
+    const [draft, setDraft] = useState('');
+    const waiting = thinking.length > 0;
+    useEffect(() => {
+        if (!waiting || (!assistant && workflowId == null)) {
+            setDraft('');
+            return;
+        }
+        let cancelled = false;
+        const read = async () => {
+            const response = await replyDraftTextApiV1TimelineDraftGet({
+                query: workflowId != null ? { workflow_id: workflowId } : undefined,
+            });
+            if (!cancelled && !response.error) setDraft(response.data?.text ?? '');
+        };
+        void read();
+        const timer = setInterval(() => void read(), DRAFT_POLL_MS);
+        return () => {
+            cancelled = true;
+            clearInterval(timer);
+        };
+    }, [waiting, assistant, workflowId]);
+
+    if (loading) {
+        return <p className="px-6 py-8 text-sm text-muted-foreground">Loading…</p>;
+    }
+
+    // Oldest first for reading. The API answers newest-first because that is
+    // the direction the cursor runs; only the display is reversed.
+    const inOrder = [...events].reverse();
+
 
     return (
         <div
@@ -432,10 +460,17 @@ export function ChannelStream({
                             <p className="text-sm">
                                 <span className="font-medium">{botNames[bot] || fallbackName}</span>
                             </p>
-                            <p className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-                                Thinking…
-                            </p>
+                            {draft ? (
+                                <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed" data-testid="forming">
+                                    {draft}
+                                    <span className="ml-0.5 inline-block h-3.5 w-1.5 animate-pulse bg-[var(--accent-brand)] align-middle" aria-hidden />
+                                </p>
+                            ) : (
+                                <p className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                                    Thinking…
+                                </p>
+                            )}
                         </div>
                     </li>
                 ))}

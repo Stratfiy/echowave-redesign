@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 import httpx
 from loguru import logger
@@ -524,3 +524,212 @@ async def complete(
     except (ValueError, KeyError, TypeError) as exc:
         logger.error("Agent builder could not parse the {} reply: {}", provider, exc)
         raise BuilderClientError("The assistant replied in a form we could not read.")
+
+
+# --- streaming ---------------------------------------------------------------
+
+
+def _sse_events(text: str):
+    """The JSON payloads of a server-sent-event body, in order.
+
+    Both vendors send ``data: {...}`` lines separated by blank lines; OpenAI
+    ends with ``data: [DONE]``. Anything that is not JSON is skipped rather
+    than raised on: a keepalive comment is not a broken stream.
+    """
+    for block in text.split("\n\n"):
+        for line in block.splitlines():
+            if not line.startswith("data:"):
+                continue
+            data = line[5:].strip()
+            if not data or data == "[DONE]":
+                continue
+            try:
+                yield json.loads(data)
+            except json.JSONDecodeError:
+                continue
+
+
+class _StreamState:
+    """Text and tool calls, accumulated across a stream's events.
+
+    Both vendors send a tool call as a start (id, name) followed by
+    fragments of its JSON arguments, keyed by an index; the arguments are
+    only parseable once the stream ends. Text arrives as deltas and is
+    complete at every point, which is why it can be shown as it grows and
+    a tool call cannot.
+    """
+
+    def __init__(self) -> None:
+        self.parts: list[str] = []
+        self.calls: dict[int, dict[str, Any]] = {}
+
+    def text(self) -> str:
+        return "".join(self.parts)
+
+    def tool_calls(self) -> tuple[ToolCall, ...]:
+        out = []
+        for index in sorted(self.calls):
+            call = self.calls[index]
+            raw = call.get("arguments") or "{}"
+            try:
+                arguments = json.loads(raw) if raw.strip() else {}
+            except json.JSONDecodeError:
+                logger.warning(
+                    "Streamed tool call {} had unparseable arguments; treating as empty",
+                    call.get("name"),
+                )
+                arguments = {}
+            out.append(
+                ToolCall(
+                    id=call.get("id") or f"call_{index}",
+                    name=call.get("name", ""),
+                    arguments=arguments if isinstance(arguments, dict) else {},
+                )
+            )
+        return tuple(out)
+
+    def _call(self, index: int) -> dict[str, Any]:
+        return self.calls.setdefault(index, {"id": "", "name": "", "arguments": ""})
+
+    def anthropic(self, event: dict[str, Any]) -> bool:
+        """Apply one event. Returns whether the text grew."""
+        kind = event.get("type")
+        index = int(event.get("index") or 0)
+        if kind == "content_block_start":
+            block = event.get("content_block") or {}
+            if block.get("type") == "tool_use":
+                call = self._call(index)
+                call["id"] = block.get("id", "")
+                call["name"] = block.get("name", "")
+            return False
+        if kind != "content_block_delta":
+            return False
+        delta = event.get("delta") or {}
+        if delta.get("type") == "text_delta" and delta.get("text"):
+            self.parts.append(delta["text"])
+            return True
+        if delta.get("type") == "input_json_delta":
+            self._call(index)["arguments"] += delta.get("partial_json") or ""
+        return False
+
+    def openai(self, event: dict[str, Any]) -> bool:
+        choices = event.get("choices") or []
+        if not choices:
+            return False
+        delta = choices[0].get("delta") or {}
+        grew = False
+        if delta.get("content"):
+            self.parts.append(delta["content"])
+            grew = True
+        for piece in delta.get("tool_calls") or []:
+            call = self._call(int(piece.get("index") or 0))
+            if piece.get("id"):
+                call["id"] = piece["id"]
+            function = piece.get("function") or {}
+            if function.get("name"):
+                call["name"] = function["name"]
+            call["arguments"] += function.get("arguments") or ""
+        return grew
+
+
+async def stream(
+    *,
+    provider: str,
+    model: str,
+    api_key: str,
+    system: str,
+    conversation: Conversation,
+    on_text: Callable[[str], Awaitable[None]],
+    tools: list[dict[str, Any]] | None = None,
+) -> ModelReply:
+    """One turn, word by word.
+
+    Same request as :func:`complete`, and the same reply at the end -- text
+    and any tool calls -- but ``on_text`` is called with the text so far as
+    it grows, so a screen can show the reply forming. Tool calls are only
+    whole once the stream ends and are returned then, never passed to
+    ``on_text``. Gemini is not streamed here; it falls back to one request,
+    which is a slower screen and not a wrong one.
+    """
+    tools = tools or []
+    if provider == ANTHROPIC:
+        url = "https://api.anthropic.com/v1/messages"
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": _ANTHROPIC_VERSION,
+            "content-type": "application/json",
+        }
+        payload = _anthropic_request(
+            model=model, system=system, conversation=conversation, tools=tools
+        )
+        state = _StreamState()
+        apply = state.anthropic
+    elif provider == OPENAI:
+        url = "https://api.openai.com/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "content-type": "application/json",
+        }
+        payload = _openai_request(
+            model=model, system=system, conversation=conversation, tools=tools
+        )
+        state = _StreamState()
+        apply = state.openai
+    else:
+        return await complete(
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            system=system,
+            conversation=conversation,
+            tools=tools,
+        )
+    payload["stream"] = True
+
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as client:
+            async with client.stream(
+                "POST", url, headers=headers, json=payload
+            ) as response:
+                if response.status_code >= 400:
+                    body = (await response.aread()).decode("utf-8", "replace")
+                    logger.error(
+                        "Agent builder {} returned {} on stream: {}",
+                        provider,
+                        response.status_code,
+                        body[:2000],
+                    )
+                    if response.status_code == 429:
+                        raise BuilderClientError(
+                            "The assistant is rate limited right now. Try again shortly."
+                        )
+                    if response.status_code in (401, 403):
+                        raise BuilderClientError(
+                            "The assistant's provider key was rejected. An administrator "
+                            "needs to check it in the provider keys screen."
+                        )
+                    raise BuilderClientError(
+                        "The assistant hit an error. Try again in a moment."
+                    )
+                buffer = ""
+                async for chunk in response.aiter_text():
+                    buffer += chunk
+                    # Events end on a blank line; keep a partial one for the
+                    # next chunk rather than parsing half a JSON object.
+                    head, sep, tail = buffer.rpartition("\n\n")
+                    if not sep:
+                        continue
+                    buffer = tail
+                    grew = False
+                    for event in _sse_events(head):
+                        grew = apply(event) or grew
+                    if grew:
+                        await on_text(state.text())
+                for event in _sse_events(buffer):
+                    apply(event)
+    except httpx.HTTPError as exc:
+        logger.error("Agent builder could not stream from {}: {}", provider, exc)
+        raise BuilderClientError(
+            "The assistant could not be reached just now. Try again in a moment."
+        ) from exc
+    return ModelReply(text=state.text().strip(), tool_calls=state.tool_calls())

@@ -3928,6 +3928,16 @@ export type DocumentUploadResponseSchema = {
 };
 
 /**
+ * DraftResponse
+ */
+export type DraftResponse = {
+    /**
+     * Text
+     */
+    text: string;
+};
+
+/**
  * DuplicateTemplateRequest
  */
 export type DuplicateTemplateRequest = {
@@ -24675,6 +24685,50 @@ export type DecideApiV1TimelineDecidePostResponses = {
 };
 
 export type DecideApiV1TimelineDecidePostResponse = DecideApiV1TimelineDecidePostResponses[keyof DecideApiV1TimelineDecidePostResponses];
+
+export type ReplyDraftTextApiV1TimelineDraftGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Workflow Id
+         */
+        workflow_id?: number | null;
+    };
+    url: '/api/v1/timeline/draft';
+};
+
+export type ReplyDraftTextApiV1TimelineDraftGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReplyDraftTextApiV1TimelineDraftGetError = ReplyDraftTextApiV1TimelineDraftGetErrors[keyof ReplyDraftTextApiV1TimelineDraftGetErrors];
+
+export type ReplyDraftTextApiV1TimelineDraftGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: DraftResponse;
+};
+
+export type ReplyDraftTextApiV1TimelineDraftGetResponse = ReplyDraftTextApiV1TimelineDraftGetResponses[keyof ReplyDraftTextApiV1TimelineDraftGetResponses];
 
 export type SettleActionApiV1TimelineActionsSettlePostData = {
     body: SettleActionRequest;
