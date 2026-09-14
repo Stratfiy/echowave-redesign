@@ -163,6 +163,7 @@ export function ChannelStream({
     assistantName = 'Decibyl',
     botNames,
     onRegisterRefresh,
+    onCountChange,
     waitingFor,
 }: {
     /** A channel's thread, or -- with `workflowId` instead -- one bot's own
@@ -178,6 +179,9 @@ export function ChannelStream({
      *  blank line. */
     botNames: Record<number, string>;
     onRegisterRefresh?: (refresh: () => void) => void;
+    /** How many rows are showing. Home uses it to step its greeting aside
+     *  once a conversation is under way. */
+    onCountChange?: (count: number) => void;
     /** Bots asked something at this time and not yet heard from. Each shows
      *  as a thinking row until a row of theirs newer than this arrives. */
     waitingFor?: { since: string; bots: number[] } | null;
@@ -283,6 +287,10 @@ export function ChannelStream({
     useEffect(() => {
         onRegisterRefresh?.(() => void loadLatest());
     }, [onRegisterRefresh, loadLatest]);
+
+    useEffect(() => {
+        onCountChange?.(events.length);
+    }, [onCountChange, events.length]);
 
     useEffect(() => {
         const newest = events[0]?.id ?? null;

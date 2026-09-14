@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HomeAboveTheFold } from "../HomeAboveTheFold";
 
 const api = vi.hoisted(() => ({ home: vi.fn(), post: vi.fn() }));
-const seen = vi.hoisted(() => ({ stream: [] as unknown[], composer: [] as unknown[] }));
+const seen = vi.hoisted(() => ({ stream: [] as unknown[], composer: [] as unknown[], rows: 0 }));
 
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
 vi.mock("@/client/sdk.gen", () => ({
@@ -15,6 +15,11 @@ vi.mock("@/client/sdk.gen", () => ({
 vi.mock("@/components/channel/ChannelStream", () => ({
     ChannelStream: (props: Record<string, unknown>) => {
         seen.stream.push(props);
+        // The real stream reports its row count once loaded; the greeting
+        // waits on that.
+        React.useEffect(() => {
+            (props.onCountChange as (n: number) => void)?.(seen.rows);
+        }, [props.onCountChange]);
         return <div data-testid="stream" />;
     },
 }));
@@ -32,13 +37,27 @@ beforeEach(() => {
     api.post.mockReset();
     seen.stream.length = 0;
     seen.composer.length = 0;
+    seen.rows = 0;
 });
 
 describe("home is Decibyl's thread", () => {
+    it("steps the greeting aside once there is a conversation", async () => {
+        // The tiles were staying on screen above the thread after the first
+        // reply, so the chat started a screen and a half down. Once rows
+        // exist, one line names Decibyl and the thread has the screen.
+        seen.rows = 4;
+        api.home.mockResolvedValue({ data: { hours: 24, headline, suggestions: [], members: [] } });
+        render(<HomeAboveTheFold firstName="Nithish" />);
+        await waitFor(() => expect(screen.queryByText(/Hi, I'm Decibyl/)).toBeNull());
+        expect(screen.queryByRole("button", { name: "What happened this week?" })).toBeNull();
+        expect(await screen.findByText(/9 calls today/)).toBeTruthy();
+        expect(screen.getByTestId("composer")).toBeTruthy();
+    });
+
     it("says hello with the numbers, and mounts the thread and composer in assistant mode", async () => {
         api.home.mockResolvedValue({ data: { hours: 24, headline, suggestions: [], members: [] } });
         render(<HomeAboveTheFold firstName="Nithish" />);
-        expect(screen.getByText(/Hi, I'm Decibyl/)).toBeTruthy();
+        expect(await screen.findByText(/Hi, I'm Decibyl/)).toBeTruthy();
         expect(await screen.findByText(/9 calls today, 6 answered, 2 finished/)).toBeTruthy();
         expect(screen.getByTestId("stream")).toBeTruthy();
         expect(screen.getByTestId("composer")).toBeTruthy();

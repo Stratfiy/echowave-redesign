@@ -96,6 +96,12 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
     bots: number[];
   } | null>(null);
   const [sendingOpener, setSendingOpener] = useState<string | null>(null);
+  // How many rows the thread holds. Until it is known, nothing is drawn
+  // above the thread: a greeting that appears and then jumps away as the
+  // rows load reads as a glitch. Once there is a conversation the greeting
+  // steps aside, the way every chat product's empty-state does.
+  const [rows, setRows] = useState<number | null>(null);
+  const onCountChange = useCallback((count: number) => setRows(count), []);
   const refreshStream = useRef<() => void>(() => {});
   const registerRefresh = useCallback((refresh: () => void) => {
     refreshStream.current = refresh;
@@ -144,7 +150,10 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
     <div className="flex h-[calc(100vh-9rem)] min-h-[32rem] flex-col gap-4">
       {/* The way Slackbot opens: the mark, a hello, one line on what
                 happened, and the two questions as cards you press. Centred,
-                because this is a greeting and not a form. */}
+                because this is a greeting and not a form. Only while the
+                thread is empty: once you are talking, the thread is the
+                screen. */}
+      {rows === 0 && (
       <div className="flex flex-col items-center px-2 pt-2 text-center">
         <div
           aria-hidden="true"
@@ -200,6 +209,19 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
           </div>
         ) : null}
       </div>
+      )}
+      {rows !== null && rows > 0 && (
+        <div className="flex items-center gap-2 px-1 text-sm text-muted-foreground">
+          <span
+            aria-hidden="true"
+            className="flex h-6 w-6 items-center justify-center rounded-md bg-rail text-xs font-semibold text-rail-foreground"
+          >
+            d
+          </span>
+          <span className="font-medium text-foreground">Decibyl</span>
+          <span>· {greeting}{firstName ? `, ${firstName}` : ""}.{" "}{headline ? summarise(headline) : ""}</span>
+        </div>
+      )}
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
         <ChannelStream
@@ -207,6 +229,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
           assistantName="Decibyl"
           botNames={{}}
           onRegisterRefresh={registerRefresh}
+          onCountChange={onCountChange}
           waitingFor={waitingFor}
         />
         <ChannelComposer
