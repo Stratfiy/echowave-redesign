@@ -403,7 +403,7 @@ export function AppSidebar() {
                       default and offers icons-only as a setting; five unlabelled
                       glyphs is a memory test on a product somebody uses once a
                       week. */}
-                  <span className="text-[11px] font-medium leading-none">
+                  <span className="text-[11px] font-bold leading-none">
                     {context.title}
                   </span>
                 </button>
@@ -497,7 +497,7 @@ export function AppSidebar() {
                     <SidebarGroupLabel
                       asChild
                       className={cn(
-                        "notranslate h-8 text-[13px] font-semibold text-sidebar-foreground/70",
+                        "notranslate h-8 text-[15px] font-normal text-sidebar-foreground/70",
                         isCollapsed && "hidden",
                       )}
                       translate="no"

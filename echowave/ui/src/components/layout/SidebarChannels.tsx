@@ -81,7 +81,7 @@ export function SidebarChannels({ collapsed }: { collapsed: boolean }) {
           reference does it: the label opens the full list, the plus makes a
           new one. Shown even with nothing under it -- an account with no
           channels needs the plus more than one with eight. */}
-      <SidebarGroupLabel className="h-8 justify-between text-[13px] font-semibold text-sidebar-foreground/70">
+      <SidebarGroupLabel className="h-8 justify-between text-[15px] font-normal text-sidebar-foreground/70">
         <Link href="/workflow" className="hover:text-sidebar-foreground">
           Channels
         </Link>
