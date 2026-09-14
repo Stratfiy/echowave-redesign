@@ -52,6 +52,7 @@ from api.services.managed_model_services import MPS_CORRELATION_ID_CONTEXT_KEY
 from api.services.pipecat import agent_end_call
 from api.services.workflow import (
     actions,
+    agent_timeline,
     decisions,
     organisation_memory,
     secrets_request,
@@ -717,6 +718,18 @@ class PipecatEngine:
                 self._record_embedding_usage(embedding_billing)
 
                 await function_call_params.result_callback(result)
+
+                # The reading, as a line on the thread. After the model has
+                # its answer: a slow timeline write must not hold the turn.
+                line = agent_timeline.read_passages_line(result)
+                if line:
+                    await agent_timeline.record_activity(
+                        organization_id=organization_id,
+                        summary=line,
+                        workflow_id=await self._get_workflow_id(),
+                        workflow_run_id=self._workflow_run_id,
+                        payload={"tool": "retrieve_from_knowledge_base"},
+                    )
 
             except Exception as e:
                 # Same payload the tool itself returns when the lookup breaks:

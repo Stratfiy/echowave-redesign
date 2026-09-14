@@ -77,6 +77,33 @@ function messageBody(event: TimelineEvent): string {
     return typeof body === 'string' && body ? body : event.summary;
 }
 
+/** A reading, as one muted line under the avatar column: who, what, when. */
+function ActivityRow({
+    event,
+    who,
+    children,
+}: {
+    event: TimelineEvent;
+    who: string;
+    children?: React.ReactNode;
+}) {
+    return (
+        <>
+            <span aria-hidden className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center">
+                <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
+            </span>
+            <p className="min-w-0 flex-1 self-center text-xs text-muted-foreground" data-activity>
+                <span className="font-medium">{who}</span>
+                <span> · {event.summary}</span>
+                {children}
+                <span className="ml-2">
+                    <time dateTime={event.at}>{when(event.at)}</time>
+                </span>
+            </p>
+        </>
+    );
+}
+
 type Attached = { document_uuid: string; filename: string; size_bytes?: number };
 
 /** The files a message carried, if any. */
@@ -109,7 +136,8 @@ export function groupRows(inOrder: TimelineEvent[]): Group[] {
     for (const event of inOrder) {
         const foldable =
             (event.kind === 'call_ended' && (event.payload as { answered?: boolean } | null)?.answered === false) ||
-            event.kind === 'agent_acted';
+            event.kind === 'agent_acted' ||
+            event.kind === 'activity';
         const key = foldable ? `${event.kind}:${event.workflow_id}` : '';
         const last = groups[groups.length - 1];
         if (foldable && last && last.key === key) {
@@ -281,10 +309,16 @@ export function ChannelStream({
                           (e) =>
                               (assistant ? e.workflow_id == null : e.workflow_id === bot) &&
                               e.actor !== 'human' &&
+                              // A reading is work on the way to the reply,
+                              // not the reply.
+                              e.kind !== 'activity' &&
                               e.at > waitingFor.since,
                       ),
               )
             : [];
+
+    const activityWho = (event: TimelineEvent) =>
+        (event.workflow_id != null && botNames[event.workflow_id]) || fallbackName;
 
     return (
         <div
@@ -332,6 +366,24 @@ export function ChannelStream({
                         // many. Opening it shows every row as it was.
                         const latest = group.events[group.events.length - 1];
                         const id = group.key + group.events[0].id;
+                        if (latest.kind === 'activity') {
+                            // A run of readings: the latest, and how many. Muted,
+                            // one line, opening to every step.
+                            return (
+                                <li key={`group-${id}`} className="flex gap-3">
+                                    <ActivityRow event={latest} who={activityWho(latest)}>
+                                        <span> · {group.events.length} steps</span>
+                                        <button
+                                            type="button"
+                                            className="ml-2 underline-offset-2 hover:underline"
+                                            onClick={() => setExpanded((all) => ({ ...all, [id]: true }))}
+                                        >
+                                            Show all
+                                        </button>
+                                    </ActivityRow>
+                                </li>
+                            );
+                        }
                         const isCall = latest.kind === 'call_ended';
                         const who = (latest.workflow_id != null && botNames[latest.workflow_id]) || fallbackName;
                         const line = isCall
@@ -481,6 +533,18 @@ export function ChannelStream({
                                         }
                                     />
                                 </div>
+                            </li>
+                            </React.Fragment>
+                        );
+                    }
+                    if (event.kind === 'activity') {
+                        // What the bot read or checked on the way: a muted
+                        // one-liner, not a bubble.
+                        return (
+                            <React.Fragment key={event.id}>
+                            {divider}
+                            <li className="flex gap-3">
+                                <ActivityRow event={event} who={activityWho(event)} />
                             </li>
                             </React.Fragment>
                         );

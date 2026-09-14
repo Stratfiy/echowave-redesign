@@ -75,6 +75,7 @@ def thread_filter() -> dict[str, Any]:
         "kinds": [
             AgentEventKind.MESSAGE.value,
             AgentEventKind.ACTION_PROPOSED.value,
+            AgentEventKind.ACTIVITY.value,
         ],
     }
 
@@ -123,6 +124,7 @@ async def ask(
 
     # A mentioned bot answers in its own chat, with the line as said. Decibyl
     # is told who was asked so its reply can point there.
+    names = {w.id: w.name for w in workflows}
     for mention in resolution.mentioned:
         try:
             await enqueue_job(
@@ -131,6 +133,12 @@ async def ask(
                 None,
                 line,
                 preset,
+            )
+            await agent_timeline.record_activity(
+                organization_id=organization_id,
+                summary=f"Asked {names.get(mention.workflow_id, 'a bot')}",
+                payload={"from": NAME, "asked": mention.workflow_id},
+                in_channel=False,
             )
         except Exception as exc:  # noqa: BLE001 - one bot failing is not all
             logger.error(
@@ -303,6 +311,17 @@ async def build_context(organization_id: int, question: str) -> str:
 
     knowledge = await _knowledge(organization_id, question)
 
+    await agent_timeline.record_activity(
+        organization_id=organization_id,
+        summary=readings_line(
+            bots=len(members),
+            facts=len(memory_rows),
+            passages=len(knowledge.get("chunks") or []),
+        ),
+        payload={"from": NAME},
+        in_channel=False,
+    )
+
     return (
         f"## Team\n{team_block(headline, members, hours)}\n\n"
         f"## What the business has confirmed\n{memory_block(memory_rows)}\n\n"
@@ -310,6 +329,20 @@ async def build_context(organization_id: int, question: str) -> str:
         f"## Missed calls not returned\n{missed_block(missed)}\n\n"
         f"## From Company knowledge\n{knowledge_block(knowledge)}\n"
     )
+
+
+def readings_line(*, bots: int, facts: int, passages: int) -> str:
+    """One line on what was read for an answer, in the order it is read."""
+    parts = [f"the team ({bots} bot{'s' if bots != 1 else ''})"]
+    if facts:
+        parts.append(f"{facts} confirmed fact{'s' if facts != 1 else ''}")
+    if passages:
+        parts.append(
+            f"{passages} passage{'s' if passages != 1 else ''} from Company knowledge"
+        )
+    if len(parts) == 1:
+        return f"Read {parts[0]}"
+    return f"Read {', '.join(parts[:-1])} and {parts[-1]}"
 
 
 def missed_block(rows: list[Any]) -> str:
@@ -334,6 +367,10 @@ async def _history(organization_id: int) -> list[dict[str, str]]:
     for row in reversed(rows):
         role = "user" if row.actor == AgentEventActor.HUMAN.value else "assistant"
         payload = row.payload or {}
+        if getattr(row, "kind", None) == AgentEventKind.ACTIVITY.value:
+            # The work, not the words: the model does not need to be told
+            # what it read last time.
+            continue
         if getattr(row, "kind", None) == AgentEventKind.ACTION_PROPOSED.value:
             # The card, as the model sees it: what was proposed and where it
             # stands, so it does not propose the same thing twice.

@@ -264,3 +264,51 @@ async def record_action(
             **({"error": error[:500]} if failed and error else {}),
         },
     )
+
+
+async def record_activity(
+    *,
+    organization_id: Optional[int],
+    summary: str,
+    workflow_id: Optional[int] = None,
+    workflow_run_id: Optional[int] = None,
+    payload: Optional[dict[str, Any]] = None,
+    in_channel: bool = True,
+) -> None:
+    """One muted line for something a bot read or checked.
+
+    "Read 3 passages from Company knowledge", "Asked Front desk". The thread
+    shows the work without a bubble per step; several in a row fold into one
+    line on the screen. Same silence on failure as ``record``.
+    """
+    await record(
+        organization_id=organization_id,
+        kind=AgentEventKind.ACTIVITY.value,
+        summary=summary,
+        workflow_id=workflow_id,
+        workflow_run_id=workflow_run_id,
+        payload=payload or {},
+        in_channel=in_channel,
+    )
+
+
+def read_passages_line(result: Any) -> Optional[str]:
+    """The activity line for a knowledge lookup, or None when nothing was
+    read -- an empty lookup is not work worth a row."""
+    chunks = result.get("chunks") if isinstance(result, dict) else None
+    if not chunks:
+        return None
+    names = []
+    for chunk in chunks:
+        name = (
+            chunk.get("document_name") or chunk.get("filename")
+            if isinstance(chunk, dict)
+            else None
+        )
+        if name and name not in names:
+            names.append(name)
+    count = len(chunks)
+    what = f"{count} passage{'s' if count != 1 else ''}"
+    if len(names) == 1:
+        return f"Read {what} from {names[0]}"
+    return f"Read {what} from Company knowledge"
