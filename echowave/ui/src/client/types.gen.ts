@@ -28665,6 +28665,52 @@ export type UploadEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoPostResponses = 
 
 export type UploadEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoPostResponse = UploadEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoPostResponses[keyof UploadEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoPostResponses];
 
+export type GetAllowanceApiV1KnowledgeBaseAllowanceGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Pages
+         */
+        pages?: number;
+        /**
+         * Scanned Pages
+         */
+        scanned_pages?: number;
+    };
+    url: '/api/v1/knowledge-base/allowance';
+};
+
+export type GetAllowanceApiV1KnowledgeBaseAllowanceGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAllowanceApiV1KnowledgeBaseAllowanceGetError = GetAllowanceApiV1KnowledgeBaseAllowanceGetErrors[keyof GetAllowanceApiV1KnowledgeBaseAllowanceGetErrors];
+
+export type GetAllowanceApiV1KnowledgeBaseAllowanceGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
 export type GetUploadUrlApiV1KnowledgeBaseUploadUrlPostData = {
     body: DocumentUploadRequestSchema;
     headers?: {

@@ -355,6 +355,11 @@ async def process_knowledge_base_document(
         )
 
         docling_metadata = processed.get("docling_metadata", {})
+        # Pages, for the plan's cap (KAN-57): counted from what extraction
+        # found, and settled once the document is complete.
+        from api.services.billing import knowledge_pages
+
+        pages = knowledge_pages.pages_from_metadata(docling_metadata)
 
         if retrieval_mode == "full_document":
             full_text = processed.get("full_text") or ""
@@ -375,6 +380,14 @@ async def process_knowledge_base_document(
                 "completed",
                 total_chunks=0,
                 docling_metadata=docling_metadata,
+                page_count=pages.total,
+                scanned_page_count=pages.scanned,
+            )
+            await knowledge_pages.settle_in_own_session(
+                organization_id=organization_id,
+                document_id=document_id,
+                pages=pages,
+                filename=filename,
             )
             logger.info(
                 f"Successfully processed full_document {document_id}. "
@@ -508,6 +521,14 @@ async def process_knowledge_base_document(
             "completed",
             total_chunks=len(chunk_records),
             docling_metadata=docling_metadata,
+            page_count=pages.total,
+            scanned_page_count=pages.scanned,
+        )
+        await knowledge_pages.settle_in_own_session(
+            organization_id=organization_id,
+            document_id=document_id,
+            pages=pages,
+            filename=filename,
         )
 
         logger.info(

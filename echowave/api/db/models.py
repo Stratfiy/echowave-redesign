@@ -1799,6 +1799,10 @@ class KnowledgeBaseDocumentModel(Base):
         Integer, ForeignKey("workflows.id", ondelete="SET NULL"), nullable=True
     )
     total_chunks = Column(Integer, nullable=False, default=0)
+    # Pages, once processed (KAN-57): the plan's knowledge cap is in pages and
+    # pages past it are priced, scanned ones dearer. Written by the worker.
+    page_count = Column(Integer, nullable=True)
+    scanned_page_count = Column(Integer, nullable=True)
     processing_status = Column(
         Enum(
             "pending",

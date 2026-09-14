@@ -82,6 +82,46 @@ async def _assert_room_to_ingest(organization_id: int):
     return allowance
 
 
+@router.get(
+    "/allowance",
+    summary="What an upload will cost before it runs",
+)
+async def get_allowance(
+    pages: Annotated[int, Query(ge=0)] = 0,
+    scanned_pages: Annotated[int, Query(ge=0)] = 0,
+    user=Depends(get_user),
+):
+    """The plan's page cap, what is held, and what an upload of ``pages``
+    (``scanned_pages`` of them scanned) would cost in credits (KAN-57).
+
+    Pages past the cap are a tenth of a credit typed and two credits scanned;
+    inside the cap nothing is charged. The browser does not always know a
+    file's page count before it uploads, so with ``pages`` omitted this is
+    the rate and the room left, which is still the cost stated before it
+    runs. The bytes ceiling is reported beside it: that one refuses, this one
+    prices.
+    """
+    from api.services.billing import knowledge_pages
+
+    organization_id = user.selected_organization_id
+    allowance = await _allowance(organization_id)
+    async with db_client.async_session() as session:
+        quote = await knowledge_pages.quote(
+            session,
+            organization_id=organization_id,
+            pages=knowledge_pages.Pages(
+                total=max(pages, scanned_pages), scanned=scanned_pages
+            ),
+        )
+    bytes_used = await db_client.get_knowledge_base_bytes_used(organization_id)
+    return {
+        **quote.as_dict(),
+        "bytes_used": bytes_used,
+        "bytes_cap": allowance.total_bytes,
+        "max_file_bytes": allowance.max_file_bytes,
+    }
+
+
 @router.post(
     "/upload-url",
     response_model=DocumentUploadResponseSchema,
