@@ -77,3 +77,12 @@ class TestThePickerControls:
             "female",
             "male",
         }
+
+
+class TestTheNaturalTier:
+    def test_it_lists_the_pro_voices(self):
+        from api.services.configuration.options.smallest import SMALLEST_TTS_PRO_VOICES
+
+        catalogue = vc.for_provider("decibyl", model="natural")
+        assert catalogue.provider == "smallest"
+        assert [v.voice_id for v in catalogue.voices] == list(SMALLEST_TTS_PRO_VOICES)

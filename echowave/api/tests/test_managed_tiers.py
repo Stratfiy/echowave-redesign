@@ -20,6 +20,10 @@ class TestTierMapping:
             up = managed_tiers.resolve(CostComponent.LLM, tier)
             assert up.provider and up.model
 
+    def test_the_natural_voice_is_smallest_pro(self):
+        upstream = managed_tiers.resolve(CostComponent.TTS, "natural")
+        assert (upstream.provider, upstream.model) == ("smallest", "lightning_v3.1_pro")
+
     def test_speech_is_indic_by_default(self):
         """The traffic is Indian. A generic multilingual voice reads as the
         wrong region to a Telugu listener, and no cost saving covers that."""
