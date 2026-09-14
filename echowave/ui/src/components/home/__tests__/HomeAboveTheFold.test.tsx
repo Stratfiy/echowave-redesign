@@ -1,25 +1,13 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HomeAboveTheFold } from "../HomeAboveTheFold";
 
 const api = vi.hoisted(() => ({ home: vi.fn() }));
-const builder = vi.hoisted(() => ({ seen: [] as unknown[] }));
 
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
 vi.mock("@/client/sdk.gen", () => ({ teamHomeApiV1TeamHomeGet: api.home }));
-vi.mock("@/components/agent-builder/AgentBuilderPanel", () => ({
-    AgentBuilderPanel: (props: { prefill?: { text: string } }) => {
-        builder.seen.push(props.prefill);
-        return <div data-testid="composer">{props.prefill?.text ?? ""}</div>;
-    },
-}));
-vi.mock("@/components/team/TeamPanel", () => ({
-    TeamPanel: ({ members }: { members?: { name: string }[] }) => (
-        <div>team:{members?.map((m) => m.name).join(",")}</div>
-    ),
-}));
 
 function member(overrides: Record<string, unknown> = {}) {
     return {
@@ -41,7 +29,6 @@ function member(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
     api.home.mockReset();
-    builder.seen.length = 0;
 });
 
 describe("the home screen above the fold", () => {
@@ -74,7 +61,7 @@ describe("the home screen above the fold", () => {
         expect(await screen.findByText(/Nothing has come in yet today\./)).toBeTruthy();
     });
 
-    it("fills the composer from a chip and never sends it", async () => {
+    it("a prompt chip opens the shelf, now that the builder box is gone", async () => {
         api.home.mockResolvedValue({
             data: {
                 hours: 24,
@@ -86,8 +73,11 @@ describe("the home screen above the fold", () => {
             },
         });
         render(<HomeAboveTheFold />);
-        fireEvent.click(await screen.findByRole("button", { name: /what else could an agent/i }));
-        expect(screen.getByTestId("composer").textContent).toBe("What else could an agent take off my hands?");
+        const chip = await screen.findByRole("link", { name: /what else could an agent/i });
+        expect(chip.getAttribute("href")).toBe("/marketplace");
+        // Neither the builder box nor the team table sits on Home any more.
+        expect(screen.queryByText(/Build an agent by chatting/)).toBeNull();
+        expect(screen.queryByText(/Your team/)).toBeNull();
     });
 
     it("renders an urgent chip as a link to the screen that fixes it", async () => {
@@ -106,9 +96,9 @@ describe("the home screen above the fold", () => {
         expect(link.getAttribute("href")).toBe("/integrations/apps");
     });
 
-    it("still shows the composer when the greeting fails to load", async () => {
+    it("still says hello when the numbers fail to load", async () => {
         api.home.mockResolvedValue({ error: { detail: "boom" } });
         render(<HomeAboveTheFold />);
-        expect(screen.getByTestId("composer")).toBeTruthy();
+        expect(screen.getByText(/Hi, I'm Decibyl/)).toBeTruthy();
     });
 });
