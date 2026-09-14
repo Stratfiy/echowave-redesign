@@ -21,17 +21,18 @@ from api.services.billing.money import (
 
 
 def test_global_default_is_three_rupees_per_minute():
-    """₹3.00/min = 300 paise = 300_000 millipaise.
+    """No platform fee on a call (KAN-54): the default rate is zero.
 
-    Guards the units: a factor-of-100 slip here silently misprices everything.
-    It also pins the commercial decision — this is the pay-as-you-go platform
-    fee, and it is rupee-native so no FX row can move it.
+    Guards the commercial decision, and the units around it: ₹3.00 a minute is
+    300 paise is 300_000 millipaise, and a factor-of-100 slip here silently
+    misprices everything.
     """
-    assert DEFAULT_PLATFORM_RATE_MPAISE == 300_000
+    assert DEFAULT_PLATFORM_RATE_MPAISE == 0
     assert (
         platform_fee_paise(billable_minutes=1, rate_mpaise=DEFAULT_PLATFORM_RATE_MPAISE)
-        == 300
+        == 0
     )
+    assert platform_fee_paise(billable_minutes=1, rate_mpaise=300_000) == 300
     assert format_paise(300) == "₹3.00"
 
 

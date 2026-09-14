@@ -3159,6 +3159,11 @@ class ManagedBundleModel(Base):
     #: cost is still measured underneath for margin. NULL keeps itemised
     #: pricing.
     list_paise_per_minute = Column(Integer, nullable=True)
+    #: ``{plan_code: paise_per_minute}``: the rate an account on that plan pays
+    #: for this bundle, replacing the list price. 12/11/10 credits a minute on
+    #: Business, Growth and Scale by decision (KAN-54). Empty means every plan
+    #: pays the list price.
+    plan_rates = Column(JSON, nullable=False, default=dict, server_default=text("'{}'"))
     #: [{"min_minutes": 5000, "paise_per_minute": 500}, ...]; the account's
     #: billable minutes this calendar month decide which applies.
     volume_tiers = Column(

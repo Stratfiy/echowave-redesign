@@ -396,3 +396,26 @@ Decisions taken with Nithish on the day, after the spec:
     bought.
 11. **The referral programme is being withdrawn** (scope to be confirmed
     against KAN-76, which builds on its statements).
+
+## 13. Notes from the markup step (KAN-54, 14 Sept)
+
+1. **One multiplier per component replaces the flat 1.7x.** Carriage 1.15x,
+   speech-to-text 1.3x, the model 2.0x, the voice 1.8x, premium voices
+   (ElevenLabs, Cartesia, OpenAI) 1.4x, embeddings at cost.
+   `services/billing/markup.py`. A per-model override still wins for its
+   line; the global figure in `managed_markup_history` is no longer read by
+   the engine and stays for the audit trail.
+2. **No platform fee on a call.** The default rate is zero. Account rate rows
+   written by plan authorisation and open volume tiers are closed by the
+   migration; a rate a person negotiated is left alone, which is how an
+   enterprise contract can still carry a fee.
+3. **The bundle rate is by plan.** The Everyday voice bundle moves from 556
+   to 600 paise a minute at list (12 credits), 550 on Growth (11), 500 on
+   Scale (10). Starter pays Business's rate. Volume tiers still apply
+   beneath the plan rate. The premium bundle's 20/18/16 is *proposed* and not
+   seeded.
+4. **A call with every key brought costs nothing per minute.** With no fee
+   and BYOK on every plan, an account on its own STT, model, voice and number
+   pays for the platform through its plan, not per minute. The BYOK per-event
+   rate (voice 12 → 11 credits when only the model is theirs) lands with
+   KAN-56.

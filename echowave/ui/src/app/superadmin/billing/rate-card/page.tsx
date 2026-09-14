@@ -57,6 +57,7 @@ import {
     formatDateIST,
     formatMicrosUsd,
     formatNumber,
+    formatPaise,
     formatPaisePerUsd,
     formatRateMpaise,
 } from "@/lib/billing/format";
@@ -99,6 +100,16 @@ type Card = {
         pulse_seconds: number;
         paise_per_usd: number;
     };
+    /** KAN-54: the multiplier every managed line sells at, per component. */
+    component_multipliers?: { component: string; provider: string | null; markup_bps: number }[];
+    /** Each managed bundle's flat rate: list price and the rate by plan. */
+    bundles?: {
+        slug: string;
+        label: string;
+        list_paise_per_minute: number | null;
+        plan_rates: Record<string, number>;
+        volume_tiers: { min_minutes: number; paise_per_minute: number }[];
+    }[];
 };
 
 function priceOf(tier: Tier): string {
@@ -149,6 +160,13 @@ export default function RateCardPage() {
             </p>
 
             <PlatformPricePanel card={card} onSaved={load} />
+            {/* What each managed line sells at, and the one number a minute a
+                managed call is actually charged, by plan. Computed, not typed:
+                the rate book is these multipliers over the provider costs
+                below, and the bundle rate is the decided 12 / 11 / 10 credits.
+                Since KAN-54 the flat managed markup beneath is no longer read
+                by the engine. */}
+            <MultipliersPanel card={card} />
             {/* Sits above provider costs because it multiplies them: reading
                 the rates without knowing the multiple in force gives the wrong
                 answer to "what does a customer pay". */}
@@ -560,6 +578,88 @@ function VolumeTierPanel({
  * Deliberately cannot be backdated: repricing calls that have already been
  * invoiced is not something a form should be able to do.
  */
+const COMPONENT_NAMES: Record<string, string> = {
+    telephony: "Carriage",
+    stt: "Speech to text",
+    llm: "Language model",
+    tts: "Voice",
+    embedding: "Embeddings",
+};
+
+function MultipliersPanel({ card }: { card: Card | null }) {
+    const multipliers = card?.component_multipliers ?? [];
+    const bundles = (card?.bundles ?? []).filter((b) => b.list_paise_per_minute !== null);
+    if (multipliers.length === 0 && bundles.length === 0) return null;
+    return (
+        <section className="glass-panel px-6 pb-6 pt-5">
+            <h2 className="text-[0.9375rem] font-semibold tracking-[-0.018em] text-foreground">
+                Multipliers and bundle rates
+            </h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+                No platform fee on a call. Each managed line sells at its component&apos;s
+                multiplier; a managed call is charged its bundle&apos;s rate by plan.
+            </p>
+            <div className="mt-4 grid gap-6 lg:grid-cols-2">
+                <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Component</TableHead>
+                                <TableHead>Provider</TableHead>
+                                <TableHead className="text-right">Multiplier</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {multipliers.map((m) => (
+                                <TableRow key={`${m.component}-${m.provider ?? "any"}`}>
+                                    <TableCell>{COMPONENT_NAMES[m.component] ?? m.component}</TableCell>
+                                    <TableCell className="text-muted-foreground">
+                                        {m.provider ?? "any"}
+                                    </TableCell>
+                                    <TableCell className="text-right tabular-nums">
+                                        {(m.markup_bps / 10_000).toFixed(2)}×
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+                <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Bundle</TableHead>
+                                <TableHead className="text-right">List / min</TableHead>
+                                <TableHead className="text-right">By plan</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {bundles.map((b) => (
+                                <TableRow key={b.slug}>
+                                    <TableCell>{b.label}</TableCell>
+                                    <TableCell className="text-right tabular-nums">
+                                        {formatPaise(b.list_paise_per_minute ?? 0)}
+                                    </TableCell>
+                                    <TableCell className="text-right text-xs tabular-nums text-muted-foreground">
+                                        {Object.entries(b.plan_rates).length === 0
+                                            ? "list price"
+                                            : Object.entries(b.plan_rates)
+                                                  .map(
+                                                      ([plan, paise]) =>
+                                                          `${plan} ${formatPaise(paise)} (${Math.ceil(paise / 50)} cr)`,
+                                                  )
+                                                  .join(" · ")}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            </div>
+        </section>
+    );
+}
+
 function ExchangeRatePanel({
     card,
     onSaved,

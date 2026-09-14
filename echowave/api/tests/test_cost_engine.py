@@ -18,9 +18,13 @@ from api.services.billing.cost_engine import (
 )
 from api.services.billing.credits import PAISE_PER_CREDIT, round_up_to_credits
 from api.services.billing.money import (
-    DEFAULT_PLATFORM_RATE_MPAISE,
     DEFAULT_PULSE_SECONDS,
 )
+
+# A fee to test the engine's mechanics against. The default platform rate is
+# zero since KAN-54 (no platform fee on a call); these tests pin the pulse and
+# fee arithmetic, not the commercial figure.
+DEFAULT_PLATFORM_RATE_MPAISE = 300_000
 
 # Deepgram STT, Sarvam TTS, an LLM and Twilio telephony — a realistic mix of
 # all three rate units.

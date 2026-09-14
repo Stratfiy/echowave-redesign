@@ -542,3 +542,93 @@ def notice_body(change: StartedMarkupChange) -> str:
         "If this was not you, do nothing. The change cannot apply without this "
         "code, and it will expire on its own."
     )
+
+
+# ---------------------------------------------------------------------------
+# Per-component multipliers (KAN-54)
+#
+# Decided 14 Sept 2026 (KAN-47): the same multiple on carriage, speech, the
+# model and the voice was wrong, because the four are not worth the same to
+# buy or to sell. One multiplier per component replaces the flat managed
+# markup as the engine's default; the per-model override above still wins
+# for a line that has one, and an internal account still pays cost. The
+# global figure in ``managed_markup_history`` is no longer read by the
+# engine; it stays for the audit trail and the OTP screen.
+#
+# There is no platform fee on a call (same decision). The multipliers are the
+# whole margin on an itemised call, and the floor beneath the flat bundle
+# rate a managed call is actually charged.
+# ---------------------------------------------------------------------------
+
+#: Basis points per component. Carriage is a pass-through with a handling
+#: margin; speech-to-text is a commodity; the model carries the prompt, the
+#: memory and the tools, which are ours; the voice is the largest line and
+#: the one negotiated. Embeddings are at cost by decision: nobody in the
+#: category meters them and neither do we.
+COMPONENT_MARKUP_BPS: dict[str, int] = {
+    CostComponent.TELEPHONY.value: 11_500,
+    CostComponent.STT.value: 13_000,
+    CostComponent.LLM.value: 20_000,
+    CostComponent.TTS.value: 18_000,
+    CostComponent.EMBEDDING.value: 10_000,
+}
+
+#: Premium voices are dearer to buy, so the multiple is thinner: 1.4x rather
+#: than 1.8x keeps the sold minute inside the 20/18/16-credit premium rate.
+PREMIUM_TTS_PROVIDERS: frozenset[str] = frozenset({"elevenlabs", "cartesia", "openai"})
+PREMIUM_TTS_MARKUP_BPS = 14_000
+
+
+def default_markup_bps(
+    component: CostComponent | str, provider: str | None = None
+) -> int:
+    """The multiplier a component sells at when no per-model override says
+    otherwise. Unknown components are at cost: a new component is metered at
+    what it costs until somebody decides its margin, never marked up by a
+    number nobody chose."""
+    value = component.value if isinstance(component, CostComponent) else str(component)
+    if value == CostComponent.TTS.value and (provider or "").strip().lower() in (
+        PREMIUM_TTS_PROVIDERS
+    ):
+        return PREMIUM_TTS_MARKUP_BPS
+    return COMPONENT_MARKUP_BPS.get(value, 10_000)
+
+
+def component_multipliers() -> list[dict[str, object]]:
+    """The multipliers as the rate book shows them."""
+    rows = [
+        {"component": component, "provider": None, "markup_bps": bps}
+        for component, bps in COMPONENT_MARKUP_BPS.items()
+    ]
+    for provider in sorted(PREMIUM_TTS_PROVIDERS):
+        rows.append(
+            {
+                "component": CostComponent.TTS.value,
+                "provider": provider,
+                "markup_bps": PREMIUM_TTS_MARKUP_BPS,
+            }
+        )
+    return rows
+
+
+async def resolve_line_markup_bps(
+    session: AsyncSession,
+    *,
+    component: CostComponent | str,
+    provider: str,
+    at: datetime,
+    model: str = "",
+    organization_id: int | None = None,
+) -> int:
+    """The multiple one receipt line sells at: cost for an internal account,
+    else the per-model override, else the component's default."""
+    from api.services.billing.internal_accounts import COST_ONLY_MARKUP_BPS, is_internal
+
+    if await is_internal(session, organization_id):
+        return COST_ONLY_MARKUP_BPS
+    override = await resolve_markup_override_bps(
+        session, provider=provider, component=component, at=at, model=model
+    )
+    if override is not None:
+        return override
+    return default_markup_bps(component, provider)

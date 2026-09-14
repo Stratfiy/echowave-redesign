@@ -37,10 +37,33 @@ def enforcement_on(monkeypatch):
     monkeypatch.setattr(reservations, "RESERVATION_MAX_AGE_MINUTES", 180)
 
 
+async def _at_three_rupees_a_minute(async_session, org):
+    """A ₹3.00/min platform rate for the account. The default is zero since
+    KAN-54 (no platform fee on a call); these tests pin how a hold becomes a
+    real charge, so they need a charge to exist."""
+    from datetime import UTC, datetime
+
+    from api.db.models import OrganizationRateHistoryModel
+
+    async_session.add(
+        OrganizationRateHistoryModel(
+            organization_id=org.id,
+            platform_rate_mpaise=300_000,
+            effective_from=datetime(2020, 1, 1, tzinfo=UTC),
+        )
+    )
+    await async_session.flush()
+
+
 async def _org(async_session, slug: str, *, balance_paise: int = 0):
     org = OrganizationModel(provider_id=f"org-{slug}", quota_decibyl_tokens=0)
     async_session.add(org)
     await async_session.flush()
+    # A hold is sized by the account's platform rate, and the default rate
+    # is zero since KAN-54 (no platform fee on a call). Every account here
+    # gets a ₹3.00/min rate of its own, the way a contract would, so the
+    # holds these tests reason about exist.
+    await _at_three_rupees_a_minute(async_session, org)
 
     if balance_paise:
         async_session.add(

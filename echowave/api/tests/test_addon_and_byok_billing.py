@@ -31,10 +31,10 @@ from api.services.billing.cost_engine import (
     compute_call_cost,
 )
 from api.services.billing.credits import round_up_to_credits
-from api.services.billing.money import DEFAULT_PLATFORM_RATE_MPAISE
 from api.services.billing.usage import byok_platform_tier
 
-RATE = DEFAULT_PLATFORM_RATE_MPAISE  # ₹3.00 per minute
+# A fee to test the mechanics against. The default is zero since KAN-54.
+RATE = 300_000  # ₹3.00 per minute
 
 PROVIDER_RATES = {
     ("tts", "sarvam", ""): RateSpec(rate_mpaise=1500, unit=RateUnit.THOUSAND_CHARS),

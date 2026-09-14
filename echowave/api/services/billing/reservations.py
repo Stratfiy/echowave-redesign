@@ -149,8 +149,36 @@ async def per_minute_paise(
         platform_paise_per_minute = round_half_up_div(
             platform.rate_mpaise, MPAISE_PER_PAISE
         )
-        per_minute = platform_paise_per_minute * NO_HISTORY_MULTIPLIER
+        # There is no platform fee on a call since KAN-54, so an account with
+        # no history and no negotiated rate would otherwise be measured
+        # against zero: a hold of nothing, and a first call that can run past
+        # the balance. The list voice minute -- the Everyday bundle's rate, 12
+        # credits -- is the floor the estimate stands on instead.
+        base = (
+            platform_paise_per_minute
+            if platform_paise_per_minute > 0
+            else await _list_voice_minute_paise(session)
+        )
+        per_minute = base * NO_HISTORY_MULTIPLIER
     return max(1, per_minute)
+
+
+#: What a minute of managed voice sells for when nothing else is known: the
+#: Everyday bundle's list rate, 12 credits (KAN-54). Read from the bundle row
+#: so an operator's edit moves the hold too; this is the fallback for a
+#: deployment with no bundle row.
+DEFAULT_LIST_VOICE_MINUTE_PAISE = 600
+
+
+async def _list_voice_minute_paise(session: AsyncSession) -> int:
+    from api.db.models import ManagedBundleModel
+
+    row = await session.scalar(
+        select(ManagedBundleModel.list_paise_per_minute).where(
+            ManagedBundleModel.slug == "everyday"
+        )
+    )
+    return int(row) if row else DEFAULT_LIST_VOICE_MINUTE_PAISE
 
 
 def seconds_covered(balance_paise: int, per_minute: int) -> int:
