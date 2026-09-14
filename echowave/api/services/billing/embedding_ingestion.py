@@ -34,7 +34,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db.models import CreditLedgerModel, EmbeddingIngestionCostModel
 from api.enums import CostComponent, CreditLedgerKind
-from api.services.billing.markup import resolve_markup_bps, resolve_markup_override_bps
+from api.services.billing.markup import resolve_line_markup_bps
 from api.services.billing.money import cost_paise, round_half_up_div
 from api.services.billing.rates import resolve_provider_rate
 
@@ -107,18 +107,14 @@ async def estimate_ingestion_cost_paise(
     )
 
     # Most-specific-first, same rule compute_call_cost applies per line: a
-    # per-model override beats the blanket managed markup.
-    override_bps = await resolve_markup_override_bps(
+    # per-model override beats the component's own multiplier, which for
+    # embeddings is at cost (KAN-54): nobody in the category meters them.
+    markup_bps = await resolve_line_markup_bps(
         session,
         provider=provider,
         component=CostComponent.EMBEDDING,
         at=at,
         model=model,
-    )
-    markup_bps = (
-        override_bps
-        if override_bps is not None
-        else await resolve_markup_bps(session, at=at)
     )
 
     charged = round_half_up_div(vendor_cost * markup_bps, 10_000)

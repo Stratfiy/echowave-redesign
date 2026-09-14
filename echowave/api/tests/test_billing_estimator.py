@@ -30,7 +30,7 @@ from api.services.billing.estimator import (
     SPOKEN_CHARACTERS_PER_SECOND,
     estimate_cost_per_minute,
 )
-from api.services.billing.markup import resolve_markup_bps
+from api.services.billing.markup import default_markup_bps
 from api.services.billing.money import mpaise_to_micros_usd, round_half_up_div
 from api.services.billing.realtime_pricing import CallShape
 
@@ -106,20 +106,23 @@ class TestEstimate:
         # bought on our key and carries the managed markup. Quoting the 25
         # would have promised a price the invoice does not honour.
         #
-        # Derived from the multiple in force rather than written out: these
-        # were hardcoded at the 1.4x figures and broke the moment the markup
-        # moved. What is under test is that the markup is applied at all, not
-        # what it happens to be today.
-        markup_bps = await resolve_markup_bps(async_session)
+        # Derived from the component's own multiplier (KAN-54) rather than
+        # written out: these were hardcoded at the 1.4x figures and broke the
+        # moment the markup moved. What is under test is that the markup is
+        # applied at all, not what it happens to be today.
         stt = next(l for l in est.lines if l.component == "stt")
-        assert stt.paise_per_minute == round_half_up_div(25 * markup_bps, 10_000)
+        assert stt.paise_per_minute == round_half_up_div(
+            25 * default_markup_bps(CostComponent.STT, "deepgram"), 10_000
+        )
         assert stt.basis == "exact"
 
-        # Telephony carries the markup too: 55000 mpaise/min is what the
-        # carrier charges us, and carriage is bought and resold like any other
-        # component.
+        # Telephony carries its own multiplier too: 55000 mpaise/min is what
+        # the carrier charges us, and carriage is bought and resold like any
+        # other component.
         telephony = next(l for l in est.lines if l.component == "telephony")
-        assert telephony.paise_per_minute == round_half_up_div(55 * markup_bps, 10_000)
+        assert telephony.paise_per_minute == round_half_up_div(
+            55 * default_markup_bps(CostComponent.TELEPHONY, "twilio"), 10_000
+        )
 
     async def test_the_quote_is_what_the_receipt_will_charge(self, async_session):
         """The estimate and the invoice, computed the same way from the same rows.
@@ -142,7 +145,13 @@ class TestEstimate:
         charged = compute_call_cost(
             billable_seconds=60,
             platform_rate_mpaise=est.platform_paise_per_minute * 1_000,
-            markup_bps=await resolve_markup_bps(async_session),
+            # The receipt path hands the engine each line's multiplier through
+            # the overrides map (costing.py); the same figure here.
+            markup_overrides={
+                ("stt", "deepgram", ""): default_markup_bps(
+                    CostComponent.STT, "deepgram"
+                )
+            },
             pulse_seconds=60,
             usage=(
                 UsageItem(
@@ -235,10 +244,11 @@ class TestEstimate:
             async_session, organization_id=negotiated_org.id
         )
 
-        # The list price is $0.02/min, converted at the seeded ₹96.
-        assert listed.platform_paise_per_minute == 300
+        # No platform fee at list (KAN-54); a negotiated account rate still
+        # resolves and still charges, which is how a contract carries one.
+        assert listed.platform_paise_per_minute == 0
         assert negotiated.platform_paise_per_minute == 50
-        assert negotiated.total_paise_per_minute < listed.total_paise_per_minute
+        assert negotiated.total_paise_per_minute == listed.total_paise_per_minute + 50
 
     async def test_the_estimate_is_reported_in_dollars_too(self, async_session):
         """The unit every competitor quotes, and the unit our own list price is

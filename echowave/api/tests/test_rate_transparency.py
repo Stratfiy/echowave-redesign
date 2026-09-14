@@ -268,9 +268,12 @@ class TestACustomerKeyedSlotCostsThemNothing:
         assert tts.paise_per_minute == 0
         assert stt.paise_per_minute > 0
 
-    async def test_the_platform_fee_is_still_charged(self, db_session, async_session):
-        """Bringing every key does not make the call free. The platform fee is
-        ours, and on a BYOK call it is the whole of our margin."""
+    async def test_no_platform_fee_so_every_key_brought_quotes_zero(
+        self, db_session, async_session
+    ):
+        """There is no platform fee on a call (KAN-54). An account that brings
+        every key and its own number is quoted nothing per minute: what it
+        pays for the platform is its plan, not a per-minute fee."""
         org = await _org(async_session, "still-billed")
         await async_session.flush()
 
@@ -283,8 +286,8 @@ class TestACustomerKeyedSlotCostsThemNothing:
             customer_keyed={"stt", "llm", "tts"},
         )
 
-        assert est.platform_paise_per_minute > 0
-        assert est.total_paise_per_minute == est.platform_paise_per_minute
+        assert est.platform_paise_per_minute == 0
+        assert est.total_paise_per_minute == 0
 
 
 class TestSpeechToSpeechIsQuotedAtWhatItCosts:

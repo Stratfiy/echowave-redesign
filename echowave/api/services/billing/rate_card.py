@@ -23,7 +23,7 @@ with no rate rows at all — a fresh install, or a test.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from loguru import logger
@@ -32,6 +32,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db.models import (
     BillingAuditLogModel,
+    ManagedBundleModel,
+    ManagedMarkupOverrideModel,
     OrganizationModel,
     OrganizationRateHistoryModel,
     PlatformVolumeTierModel,
@@ -39,10 +41,12 @@ from api.db.models import (
     UsdInrRateHistoryModel,
 )
 from api.enums import BillingAuditAction, CostComponent, RateUnit
+from api.services.billing import markup
 from api.services.billing.money import (
     DEFAULT_PLATFORM_RATE_MPAISE,
     DEFAULT_PULSE_SECONDS,
     DEFAULT_USD_INR_PAISE,
+    round_half_up_div,
     usd_to_mpaise,
 )
 
@@ -513,6 +517,21 @@ class RateCard:
     #: from the constant in money.py rather than from anything an operator set.
     using_fallback_platform_rate: bool
     fallback: dict
+    #: The per-component multipliers every managed line sells at (KAN-54).
+    component_multipliers: list[dict] = field(default_factory=list)
+    #: Each managed bundle's flat rate: the list price and the rate by plan.
+    bundles: list[dict] = field(default_factory=list)
+
+
+def _markup_for(row, overrides: dict) -> int:
+    """The multiplier a provider-rate row sells at right now."""
+    key = (row.component, row.provider, (row.model or "").strip().lower())
+    if key in overrides:
+        return int(overrides[key])
+    wide = (row.component, row.provider, "")
+    if wide in overrides:
+        return int(overrides[wide])
+    return markup.default_markup_bps(row.component, row.provider)
 
 
 def _tier_dict(row: PlatformVolumeTierModel) -> dict:
@@ -591,6 +610,23 @@ async def get_rate_card(session: AsyncSession) -> RateCard:
         .order_by(UsdInrRateHistoryModel.effective_from.desc())
         .limit(1)
     )
+    overrides = {
+        (o.component, o.provider, (o.model or "").strip().lower()): o.markup_bps
+        for o in (
+            await session.scalars(
+                select(ManagedMarkupOverrideModel).where(
+                    ManagedMarkupOverrideModel.effective_to.is_(None)
+                )
+            )
+        ).all()
+    }
+    bundle_rows = list(
+        (
+            await session.scalars(
+                select(ManagedBundleModel).order_by(ManagedBundleModel.display_order)
+            )
+        ).all()
+    )
 
     return RateCard(
         global_tier=_tier_dict(global_tier) if global_tier else None,
@@ -634,8 +670,31 @@ async def get_rate_card(session: AsyncSession) -> RateCard:
                 ),
                 "effective_from": r.effective_from.isoformat(),
                 "note": r.note,
+                # What the row sells at: the multiplier in force for this
+                # line (a per-model override, else the component's own) and
+                # the resulting sell rate. The rate book is computed, not
+                # typed; this is where an operator reads the computation.
+                "markup_bps": _markup_for(r, overrides),
+                "sell_rate_mpaise": (
+                    round_half_up_div(
+                        _mpaise_of(r, fx) * _markup_for(r, overrides), 10_000
+                    )
+                    if _mpaise_of(r, fx) is not None
+                    else None
+                ),
             }
             for r in provider_rates
+        ],
+        component_multipliers=markup.component_multipliers(),
+        bundles=[
+            {
+                "slug": b.slug,
+                "label": b.label,
+                "list_paise_per_minute": b.list_paise_per_minute,
+                "plan_rates": dict(b.plan_rates or {}),
+                "volume_tiers": list(b.volume_tiers or []),
+            }
+            for b in bundle_rows
         ],
         exchange_rate=(
             {

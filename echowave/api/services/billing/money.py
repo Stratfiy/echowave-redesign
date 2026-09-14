@@ -58,22 +58,17 @@ DEFAULT_USD_INR_PAISE = 9_600
 #: agents run.
 DEFAULT_PULSE_SECONDS = 15
 
-# The global default platform rate: ₹3.00 per billable minute, for a
-# pay-as-you-go account with no negotiated override and no volume tier.
+# The global default platform rate is zero: there is no platform fee on a
+# call (decided 14 Sept 2026, KAN-47 / KAN-54). The margin on a call is the
+# per-component multiplier on each line (services/billing/markup.py), and a
+# managed call is charged its bundle's flat rate, 12/11/10 credits a minute by
+# plan. The fee was ₹3.00 a minute from 28 Aug 2026 to 14 Sept 2026.
 #
-# Rupee-native deliberately. The fee used to be quoted at $0.02 and converted,
-# which made the price an Indian customer pays a function of the dollar: at
-# ₹96 it billed ₹1.92, and it would drift with every FX row without anyone
-# deciding it should. We sell in rupees, invoice in rupees and are argued with
-# in rupees, so the number is fixed in rupees and does not move.
-#
-# ₹3.00 is decision 1 of PRICING-DECISIONS.md, recorded 28 Aug 2026 and until
-# now never actually set — every account was falling through to the $0.02
-# default, a 36% under-charge on the platform fee of every billed minute.
-#
-# An account or tier quoted in dollars still converts; only this fallback is
-# rupee-native.
-DEFAULT_PLATFORM_RATE_MPAISE = 300_000
+# The machinery stays: a negotiated account rate or a volume tier still
+# resolves and still charges, which is how an enterprise contract can carry a
+# per-minute fee. Only the fallback is zero, and it is rupee-native so no FX
+# row can move it.
+DEFAULT_PLATFORM_RATE_MPAISE = 0
 
 # How many raw units make up one unit of the quoted rate.
 #   MINUTE          → quantity is supplied in seconds

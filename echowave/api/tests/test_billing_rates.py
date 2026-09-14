@@ -49,14 +49,15 @@ class TestPlatformRateResolution:
             async_session, organization_id=org.id, at=JUN
         )
 
-        # ₹3.00/min flat. The fee is rupee-native, so there is no dollar price
-        # to put on the receipt for this line and no FX applied to it — the
-        # rate must not move when the USD/INR row does. The FX rate is still
-        # carried, because add-on rates are quoted in dollars and convert.
+        # No platform fee on a call (KAN-54): the default is zero. It is
+        # rupee-native, so there is no dollar price to put on the receipt for
+        # this line and no FX applied to it — the rate must not move when the
+        # USD/INR row does. The FX rate is still carried, because add-on rates
+        # are quoted in dollars and convert.
         assert resolved.source == "global_default"
         assert resolved.rate_micros_usd is None
         assert resolved.usd_inr_paise == DEFAULT_USD_INR_PAISE
-        assert resolved.rate_mpaise == 300_000
+        assert resolved.rate_mpaise == 0
         assert resolved.pulse_seconds == DEFAULT_PULSE_SECONDS
 
     async def test_account_override_wins_over_default(self, async_session):
@@ -236,7 +237,7 @@ class TestEffectiveDating:
         )
 
         assert resolved.source == "global_default"
-        assert resolved.rate_mpaise == 300_000  # ₹3.00, the rupee-native default
+        assert resolved.rate_mpaise == 0  # no platform fee at list (KAN-54)
 
     async def test_rates_are_scoped_to_their_own_account(self, async_session):
         """One account's enterprise deal must never leak onto another."""

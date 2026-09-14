@@ -18,7 +18,6 @@ from datetime import UTC, date, datetime
 import pytest
 from sqlalchemy import func, select
 
-from api.constants import MANAGED_PROVIDER_MARKUP_BPS
 from api.db import billing_kpi_client as kpi_client
 from api.db.models import (
     CreditLedgerModel,
@@ -31,6 +30,7 @@ from api.db.models import (
 )
 from api.enums import CostComponent, CreditLedgerKind, RateUnit
 from api.services.billing import embedding_ingestion as billing
+from api.services.billing.markup import COMPONENT_MARKUP_BPS
 from api.services.billing.money import round_half_up_div
 
 
@@ -99,7 +99,7 @@ class TestEstimateIngestionCost:
         # 1000 tokens @ 20_000 mpaise/1k tokens = 20 paise vendor cost.
         assert estimate.vendor_cost_paise == 20
         assert estimate.charged_paise == round_half_up_div(
-            20 * MANAGED_PROVIDER_MARKUP_BPS, 10_000
+            20 * COMPONENT_MARKUP_BPS["embedding"], 10_000
         )
 
     async def test_zero_tokens_costs_nothing(self, async_session):
@@ -194,7 +194,7 @@ class TestDebitIngestionCost:
 
         assert price is not None
         assert price.charged_paise == round_half_up_div(
-            20 * MANAGED_PROVIDER_MARKUP_BPS, 10_000
+            20 * COMPONENT_MARKUP_BPS["embedding"], 10_000
         )
 
         ledger_row = (

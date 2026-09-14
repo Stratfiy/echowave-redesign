@@ -29,7 +29,7 @@ from api.services.billing.cost_engine import CallCost, RateSpec, compute_call_co
 from api.services.billing.delivery import platform_fee_is_waived
 from api.services.billing.fees import addon_rates_mpaise, uplifted_platform_rate_mpaise
 from api.services.billing.internal_accounts import is_internal
-from api.services.billing.markup import resolve_markup_bps, resolve_markup_override_bps
+from api.services.billing.markup import resolve_line_markup_bps, resolve_markup_bps
 from api.services.billing.money import MPAISE_PER_PAISE
 from api.services.billing.rates import resolve_platform_rate, resolve_provider_rate
 from api.services.billing.usage import (
@@ -83,7 +83,17 @@ async def _bundle_flat_rate_mpaise(
         )
         if row is None:
             return None
-        paise = bundles.flat_rate_paise(row, period_minutes=period_minutes)
+        # The account's plan picks its rate: 12/11/10 credits a minute on
+        # Business, Growth and Scale (KAN-54). Starter pays Business's.
+        from api.services.billing import subscription_plans
+
+        plan = await subscription_plans.plan_for_organization(
+            session, organization_id=organization_id
+        )
+        plan_code = "business" if plan.code == subscription_plans.STARTER else plan.code
+        paise = bundles.flat_rate_paise(
+            row, period_minutes=period_minutes, plan_code=plan_code
+        )
         return None if paise is None else paise * MPAISE_PER_PAISE
     except Exception as exc:  # noqa: BLE001 - itemised pricing is the safe fallback
         logger.warning(
@@ -221,15 +231,17 @@ async def cost_workflow_run(
                     rate_mpaise=resolved.rate_mpaise, unit=resolved.unit
                 )
         if key not in markup_overrides and not internal:
-            override_bps = await resolve_markup_override_bps(
+            # Per-model override first, then the component's own multiplier
+            # (KAN-54). Written into the same map the engine already reads,
+            # so the engine needs no second rule: every managed line
+            # arrives with the multiple it sells at.
+            markup_overrides[key] = await resolve_line_markup_bps(
                 session,
                 provider=item.provider,
                 component=item.component,
                 at=at,
                 model=item.model,
             )
-            if override_bps is not None:
-                markup_overrides[key] = override_bps
 
     # A BYOK call pays an uplifted platform rate rather than a second fee
     # line. Applied here rather than in resolve_platform_rate because the tier

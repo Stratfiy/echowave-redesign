@@ -274,18 +274,31 @@ async def upsert_bundle(
     return row
 
 
-def flat_rate_paise(row: ManagedBundleModel, *, period_minutes: int = 0) -> int | None:
+def flat_rate_paise(
+    row: ManagedBundleModel, *, period_minutes: int = 0, plan_code: str | None = None
+) -> int | None:
     """The one number a minute this bundle charges, at the tier earned.
 
-    None when the bundle is itemised. Tiers are
-    ``[{"min_minutes", "paise_per_minute"}]``; the highest ``min_minutes`` at or
-    under the account's minutes this month wins, and the list price is the
+    None when the bundle is itemised. ``plan_rates`` is ``{plan_code:
+    paise_per_minute}`` -- 12/11/10 credits a minute on Business, Growth and
+    Scale by decision (KAN-54) -- and a plan's own figure replaces the list
+    price for accounts on it. Tiers are ``[{"min_minutes",
+    "paise_per_minute"}]``; the highest ``min_minutes`` at or under the
+    account's minutes this month wins, and the plan (or list) price is the
     floor tier.
     """
     base = getattr(row, "list_paise_per_minute", None)
     if base is None:
         return None
     rate = int(base)
+    plan_rates = getattr(row, "plan_rates", None) or {}
+    if plan_code and isinstance(plan_rates, dict):
+        try:
+            by_plan = plan_rates.get(plan_code)
+            if by_plan is not None:
+                rate = int(by_plan)
+        except (TypeError, ValueError):
+            pass
     best = -1
     for tier in getattr(row, "volume_tiers", None) or []:
         if not isinstance(tier, dict):

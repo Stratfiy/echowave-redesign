@@ -37,7 +37,12 @@ from api.services.billing.fees import (
     byok_uplift_micros,
     uplifted_platform_rate_mpaise,
 )
-from api.services.billing.markup import resolve_markup_bps, resolve_markup_override_bps
+from api.services.billing.markup import resolve_line_markup_bps
+
+#: Passed as ``markup_bps`` to mean "each line sells at its own multiplier"
+#: (KAN-54): a per-model override, else the component's default. 10_000 still
+#: means at cost, for the screens that want a quote before margin.
+RESOLVE_PER_LINE = -1
 from api.services.billing.money import (
     DEFAULT_PULSE_SECONDS,
     cost_paise,
@@ -381,10 +386,17 @@ async def _inference_line(
     # predicts cannot disagree about which multiple applied. See
     # billing/fees.py's own docstring on why the two are asked separately and
     # must answer the same.
-    override_bps = await resolve_markup_override_bps(
-        session, provider=priced_as, component=component, at=at, model=model
+    # The multiple this line sells at: a per-model override, else the
+    # component's own multiplier (KAN-54); at cost when the caller asked for
+    # an un-marked-up estimate. Same lookup costing.py does, so a quote and
+    # the invoice it predicts cannot disagree about which multiple applied.
+    effective_markup_bps = (
+        await resolve_line_markup_bps(
+            session, provider=priced_as, component=component, at=at, model=model
+        )
+        if markup_bps == RESOLVE_PER_LINE
+        else 10_000
     )
-    effective_markup_bps = override_bps if override_bps is not None else markup_bps
 
     return EstimateLine(
         component=component.value,
@@ -431,10 +443,13 @@ async def _per_minute_line(
     if rate is None:
         return None
 
-    override_bps = await resolve_markup_override_bps(
-        session, provider=provider, component=component, at=at, model=model
+    effective_markup_bps = (
+        await resolve_line_markup_bps(
+            session, provider=provider, component=component, at=at, model=model
+        )
+        if markup_bps == RESOLVE_PER_LINE
+        else 10_000
     )
-    effective_markup_bps = override_bps if override_bps is not None else markup_bps
 
     return EstimateLine(
         component=component.value,
@@ -523,7 +538,7 @@ async def estimate_cost_per_minute(
 
     # Read as at the estimate's own moment, the same way costing reads it, so
     # the quote and the receipt cannot be computed against different multiples.
-    markup_bps = await resolve_markup_bps(session, at=at) if marked_up else 10_000
+    markup_bps = RESOLVE_PER_LINE if marked_up else 10_000
 
     if stt_provider:
         if "stt" in keyed:
@@ -721,7 +736,7 @@ async def price_components(
     what to do about that; showing a price of zero is never it.
     """
     at = at or datetime.now(UTC)
-    markup_bps = await resolve_markup_bps(session, at=at) if marked_up else 10_000
+    markup_bps = RESOLVE_PER_LINE if marked_up else 10_000
 
     out: dict[tuple[str, str, str], EstimateLine | None] = {}
     for component_value, provider, model in slots:

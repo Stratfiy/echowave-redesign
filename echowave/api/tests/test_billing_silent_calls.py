@@ -26,7 +26,9 @@ from api.services.billing.delivery import (
     platform_fee_is_waived,
     recorded_failure,
 )
-from api.services.billing.money import DEFAULT_PLATFORM_RATE_MPAISE
+
+# A fee to test the pulse mechanics against; the default is zero since KAN-54.
+DEFAULT_PLATFORM_RATE_MPAISE = 300_000
 
 ERROR = {
     "pipeline_error": {"detail": "Error connecting: no close frame received or sent"}

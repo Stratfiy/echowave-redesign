@@ -5,7 +5,6 @@ from datetime import UTC, date, datetime, timedelta
 import pytest
 from sqlalchemy import func, select
 
-from api.constants import MANAGED_PROVIDER_MARKUP_BPS
 from api.db.models import (
     CallCostItemModel,
     CreditLedgerModel,
@@ -20,6 +19,7 @@ from api.db.models import (
 from api.enums import CostComponent, CreditLedgerKind, RateUnit
 from api.services.billing.costing import cost_workflow_run, current_balance_paise
 from api.services.billing.credits import credits_for_charge, round_up_to_credits
+from api.services.billing.markup import COMPONENT_MARKUP_BPS
 from api.services.billing.money import round_half_up_div
 from api.services.billing.rollup import ist_day_bounds_utc, refresh_daily_rollup
 from api.services.billing.usage import (
@@ -45,6 +45,24 @@ async def _org_with_workflow(async_session, slug: str):
     async_session.add(workflow)
     await async_session.flush()
     return org, workflow
+
+
+async def _at_three_rupees_a_minute(async_session, org):
+    """Give the account a ₹3.00/min platform rate of its own.
+
+    The default rate is zero since KAN-54 (no platform fee on a call). The
+    tests below pin the *mechanics* of a per-minute fee -- pulses, the
+    ledger debit, recosting, the rollup -- so they set one explicitly, the
+    way a negotiated contract would.
+    """
+    async_session.add(
+        OrganizationRateHistoryModel(
+            organization_id=org.id,
+            platform_rate_mpaise=300_000,
+            effective_from=datetime(2020, 1, 1, tzinfo=UTC),
+        )
+    )
+    await async_session.flush()
 
 
 async def _run(
@@ -256,20 +274,20 @@ class TestCostWorkflowRun:
         # whole-minute competitor bills two.
         assert cost.billed_seconds == 90
         assert cost.pulse_seconds == 15
-        assert cost.platform_fee_paise == 450  # 1.5 min @ ₹3.00
-        # Model usage on our keys is sold at MANAGED_PROVIDER_MARKUP_BPS.
-        # Derived from the setting rather than written out, so moving the
-        # multiplier is a configuration change and not a test edit — the
-        # property under test is that both figures survive on the receipt,
-        # which is what keeps margin visible, not what the multiplier is today.
+        assert cost.platform_fee_paise == 0  # no platform fee on a call (KAN-54)
+        # Model usage on our keys is sold at the model's own multiplier
+        # (KAN-54: 2.0x on the LLM). Derived from the table rather than
+        # written out, so moving the multiplier is a configuration change and
+        # not a test edit — the property under test is that both figures
+        # survive on the receipt, which is what keeps margin visible.
         assert cost.total_provider_cost_paise == 12  # 1k tokens @ 12_000 mpaise
-        charged_llm = round_half_up_div(12 * MANAGED_PROVIDER_MARKUP_BPS, 10_000)
+        charged_llm = round_half_up_div(12 * COMPONENT_MARKUP_BPS["llm"], 10_000)
         # 450 is the platform fee asserted above; #125 moved the fee to ₹3
         # and updated that line but not this one, so the sum went stale.
         # Lifted to a whole number of credits (50 paise) -- the customer is
         # charged in credits, per call, rounded up. See billing/credits.py.
-        assert cost.total_charged_paise == round_up_to_credits(450 + charged_llm)
-        assert cost.credits == credits_for_charge(450 + charged_llm)
+        assert cost.total_charged_paise == round_up_to_credits(charged_llm)
+        assert cost.credits == credits_for_charge(charged_llm)
 
         items = (
             await async_session.scalars(
@@ -284,7 +302,7 @@ class TestCostWorkflowRun:
 
         assert run.billable_seconds == 90
         assert run.billed_seconds == 90
-        assert run.platform_rate_mpaise_applied == 300_000
+        assert run.platform_rate_mpaise_applied == 0
         assert run.total_provider_cost_paise == 12
         assert run.costed_at is not None
         # The default fee is rupee-native, so there is no dollar price
@@ -349,14 +367,14 @@ class TestCostWorkflowRun:
         assert cheap_llm.unit_rate_mpaise == 700
         assert cheap_llm.provider_cost_paise == 7
         assert cheap_llm.cost_paise == round_half_up_div(
-            7 * MANAGED_PROVIDER_MARKUP_BPS, 10_000
+            7 * COMPONENT_MARKUP_BPS["llm"], 10_000
         )
         assert cheap_llm.model == "gpt-4o-mini"
 
         assert dear_llm.unit_rate_mpaise == 12_000
         assert dear_llm.provider_cost_paise == 120
         assert dear_llm.cost_paise == round_half_up_div(
-            120 * MANAGED_PROVIDER_MARKUP_BPS, 10_000
+            120 * COMPONENT_MARKUP_BPS["llm"], 10_000
         )
 
         # And the receipt records which model it billed.
@@ -416,7 +434,7 @@ class TestCostWorkflowRun:
         cost = await cost_workflow_run(async_session, run.id)
 
         assert cost.total_provider_cost_paise == 0
-        assert cost.total_charged_paise == 300  # 1 min @ ₹3.00
+        assert cost.total_charged_paise == 0  # no platform fee on a call (KAN-54)
         items = (
             await async_session.scalars(
                 select(CallCostItemModel).where(
@@ -424,7 +442,9 @@ class TestCostWorkflowRun:
                 )
             )
         ).all()
-        assert [i.component for i in items] == ["platform"]
+        # Nothing but the platform line, and since KAN-54 that line is zero.
+        assert all(i.component == "platform" for i in items)
+        assert sum(i.cost_paise for i in items) == 0
 
     async def test_a_component_run_on_the_accounts_own_key_is_not_charged(
         self, async_session
@@ -434,6 +454,7 @@ class TestCostWorkflowRun:
         key_sources existed, this case was priced exactly like a managed
         component and double-charged."""
         _org, workflow = await _org_with_workflow(async_session, "byok-measured")
+        await _at_three_rupees_a_minute(async_session, _org)
         async_session.add(
             ProviderRateModel(
                 provider="sarvam",
@@ -616,6 +637,7 @@ class TestCostWorkflowRun:
     async def test_costing_is_idempotent(self, async_session):
         """Post-call work is retried; a retry must not double-charge."""
         org, workflow = await _org_with_workflow(async_session, "idempotent")
+        await _at_three_rupees_a_minute(async_session, org)
         run = await _run(
             async_session, workflow, usage_info={"call_duration_seconds": 60}
         )
@@ -646,6 +668,7 @@ class TestCostWorkflowRun:
 
     async def test_recosting_replaces_rather_than_appends(self, async_session):
         org, workflow = await _org_with_workflow(async_session, "recost")
+        await _at_three_rupees_a_minute(async_session, org)
         run = await _run(
             async_session, workflow, usage_info={"call_duration_seconds": 60}
         )
@@ -690,6 +713,7 @@ class TestCostWorkflowRun:
 
     async def test_debit_is_recorded_against_the_ledger(self, async_session):
         _org, workflow = await _org_with_workflow(async_session, "ledger")
+        await _at_three_rupees_a_minute(async_session, _org)
         run = await _run(
             async_session, workflow, usage_info={"call_duration_seconds": 120}
         )
@@ -719,6 +743,7 @@ class TestISTDayBounds:
 class TestDailyRollup:
     async def test_aggregates_costed_calls_for_an_ist_day(self, async_session):
         org, workflow = await _org_with_workflow(async_session, "rollup")
+        await _at_three_rupees_a_minute(async_session, org)
         day = date(2026, 7, 29)
         start, _ = ist_day_bounds_utc(day)
 
