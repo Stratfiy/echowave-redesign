@@ -79,6 +79,12 @@ class TopupRequest(BaseModel):
         ),
     )
 
+    promo_code: str | None = Field(
+        None,
+        max_length=32,
+        description="A promo code (KAN-134). Checked before the order is made.",
+    )
+
     @model_validator(mode="after")
     def _one_of(self):
         if (self.amount_paise is None) == (self.pack is None):
@@ -321,6 +327,7 @@ async def create_topup(
                 organization_id=organization_id,
                 amount_paise=request.amount_paise,
                 pack_code=request.pack,
+                promo_code=request.promo_code,
                 created_by=user.id,
             )
         except payments.PaymentNotConfigured as exc:
@@ -357,7 +364,82 @@ async def create_topup(
         "bonus_paise": order.bonus_paise,
         "credits": order.credits,
         "pack": order.pack_code,
+        # The promo code applied, if any (KAN-134): what it took off in minor
+        # units, and the bonus credits that land on capture.
+        "promo_code": order.promo_code,
+        "discount_minor": order.discount_minor,
+        "promo_bonus_credits": order.bonus_credits,
     }
+
+
+class PromoPreviewRequest(BaseModel):
+    """What the code would do to this purchase, before the customer pays."""
+
+    code: str = Field(..., min_length=1, max_length=32)
+    pack: str | None = None
+    amount_paise: int | None = None
+    plan_code: str | None = None
+
+
+@router.post("/promo/preview")
+async def preview_promo(
+    request: PromoPreviewRequest, user: UserModel = Depends(get_user)
+) -> dict[str, Any]:
+    """Check a promo code against a purchase and say what it is worth.
+
+    Every refusal comes back as a 400 in the customer's words. The same
+    check runs again when the order is made, so this is a preview and not a
+    reservation.
+    """
+    from api.services.billing import promo_codes, subscription_plans, topup_packs
+
+    organization_id = _organization_id(user)
+    async with db_client.async_session() as session:
+        currency = await topup_packs.billing_currency(
+            session, organization_id=organization_id
+        )
+        if request.plan_code:
+            plan = await subscription_plans.resolve(session, code=request.plan_code)
+            if plan is None:
+                raise HTTPException(status_code=404, detail="That plan is not on sale.")
+            purchase = promo_codes.Purchase(
+                kind="plan",
+                code=plan.code,
+                currency="INR",
+                amount_minor=plan.price_paise,
+            )
+        elif request.pack:
+            pack = topup_packs.pack_for(request.pack)
+            if pack is None:
+                raise HTTPException(status_code=404, detail="There is no such pack.")
+            purchase = promo_codes.Purchase(
+                kind="pack",
+                code=pack.code,
+                currency=pack.currency,
+                amount_minor=pack.price_minor,
+            )
+        elif request.amount_paise:
+            purchase = promo_codes.Purchase(
+                kind="amount",
+                code=None,
+                currency=currency,
+                amount_minor=request.amount_paise,
+            )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Say what the code is for: a pack, an amount or a plan.",
+            )
+        try:
+            applied = await promo_codes.validate(
+                session,
+                code=request.code,
+                organization_id=organization_id,
+                purchase=purchase,
+            )
+        except promo_codes.PromoError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {**applied.as_dict(), "currency": purchase.currency}
 
 
 @router.get("/profile")
@@ -876,6 +958,8 @@ class SubscribeRequest(BaseModel):
     plan_code: str | None = None
     #: ``monthly`` or ``annual`` (ten months for twelve).
     period: str = "monthly"
+    #: A bonus-credit promo code (KAN-134), honoured on the first collection.
+    promo_code: str | None = Field(None, max_length=32)
 
 
 @router.post("/plan")
@@ -935,6 +1019,29 @@ async def subscribe_to_plan(
             session, organization_id=organization_id, plan=plan
         )
 
+        # A promo code is checked before the mandate exists (KAN-134): a
+        # code that does not apply is a 400 the customer can fix, not a
+        # standing instruction they then have to cancel.
+        applied_code: str | None = None
+        if payload and payload.promo_code:
+            from api.services.billing import promo_codes
+
+            try:
+                applied = await promo_codes.validate(
+                    session,
+                    code=payload.promo_code,
+                    organization_id=organization_id,
+                    purchase=promo_codes.Purchase(
+                        kind="plan",
+                        code=plan.code,
+                        currency="INR",
+                        amount_minor=plan.price_paise,
+                    ),
+                )
+            except promo_codes.PromoError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            applied_code = applied.code
+
         try:
             mandate = await mandate_service.create_plan_mandate(
                 session, organization_id=organization_id, plan=plan, period=period
@@ -946,6 +1053,8 @@ async def subscribe_to_plan(
                 "Could not start the plan for org {}: {}", organization_id, exc
             )
             raise HTTPException(status_code=502, detail=str(exc)) from exc
+        if applied_code and not mandate.promo_code:
+            mandate.promo_code = applied_code
         await session.commit()
         return {"mandate": _mandate_view(mandate)}
 

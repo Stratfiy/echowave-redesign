@@ -44,6 +44,7 @@ import {
   getTaxDocumentPdfApiV1BillingDocumentsDocumentIdPdfGet,
   listPaymentsApiV1BillingPaymentsGet,
   listTaxDocumentsApiV1BillingDocumentsGet,
+  previewPromoApiV1BillingPromoPreviewPost,
   saveBillingProfileApiV1BillingProfilePut,
 } from "@/client/sdk.gen";
 import { AutoTopupSection } from "@/components/billing/AutoTopupSection";
@@ -245,6 +246,17 @@ export default function BillingPage() {
    *  figure the customer changed. */
   const [selectedPack, setSelectedPack] = useState<string | null>(null);
   const [awaitingCredit, setAwaitingCredit] = useState(false);
+  /** A promo code (KAN-134): typed, then checked against the purchase. The
+   *  checked result is sent with the order; the server checks it again. */
+  const [promoCode, setPromoCode] = useState("");
+  const [promo, setPromo] = useState<{
+    code: string;
+    kind: string;
+    discount_minor: number;
+    bonus_credits: number;
+  } | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [checkingPromo, setCheckingPromo] = useState(false);
   const [profile, setProfile] = useState<BillingProfileFields>(EMPTY_PROFILE);
   const [profileComplete, setProfileComplete] = useState(true);
   const { isOrganizationAdmin } = useAccessRoles();
@@ -528,7 +540,10 @@ export default function BillingPage() {
       await loadCheckout();
 
       const response = await createTopupApiV1BillingTopupPost({
-        body: pack ? { pack: pack.code } : { amount_paise: amountPaise },
+        body: {
+          ...(pack ? { pack: pack.code } : { amount_paise: amountPaise }),
+          ...(promo ? { promo_code: promo.code } : {}),
+        },
       });
       if (response.error) {
         setError(detailFromResult(response, "Could not start the payment"));
@@ -587,7 +602,40 @@ export default function BillingPage() {
     } finally {
       setStarting(false);
     }
-  }, [amountRupees, balance, refresh, waitForCredit, selectedPack]);
+  }, [amountRupees, balance, refresh, waitForCredit, selectedPack, promo]);
+
+  const checkPromo = useCallback(async () => {
+    const code = promoCode.trim();
+    setPromoError(null);
+    if (!code) {
+      setPromo(null);
+      return;
+    }
+    const pack = (balance?.packs ?? []).find((p) => p.code === selectedPack);
+    const amountPaise = Math.round((Number(amountRupees) || 0) * 100);
+    setCheckingPromo(true);
+    const response = await previewPromoApiV1BillingPromoPreviewPost({
+      body: pack
+        ? { code, pack: pack.code }
+        : { code, amount_paise: amountPaise },
+    });
+    setCheckingPromo(false);
+    if (response.error || !response.data) {
+      setPromo(null);
+      setPromoError(
+        detailFromResult(response, "That code could not be applied"),
+      );
+      return;
+    }
+    setPromo(
+      response.data as unknown as {
+        code: string;
+        kind: string;
+        discount_minor: number;
+        bonus_credits: number;
+      },
+    );
+  }, [promoCode, balance, selectedPack, amountRupees]);
 
   /**
    * The page's title band, on every branch.
@@ -654,12 +702,16 @@ export default function BillingPage() {
   const enteredPaise = billedInDollars
     ? (chosenPack?.price_minor ?? 0)
     : Math.round((Number(amountRupees) || 0) * 100);
-  const taxPaise = billedInDollars
+  // The code's discount comes off before tax: GST is on the discounted
+  // amount, which is what the voucher prints (KAN-134).
+  const discountMinor = promo?.discount_minor ?? 0;
+  const discountedPaise = Math.max(0, enteredPaise - discountMinor);
+  const taxAfterDiscount = billedInDollars
     ? 0
     : Math.round(
-        (enteredPaise * (balance?.gst_rate_basis_points ?? 0)) / 10_000,
+        (discountedPaise * (balance?.gst_rate_basis_points ?? 0)) / 10_000,
       );
-  const payablePaise = enteredPaise + taxPaise;
+  const payablePaise = discountedPaise + taxAfterDiscount;
   const summaryCurrency = billedInDollars ? "USD" : "INR";
 
   const setProfileField = (field: keyof BillingProfileFields, value: string) =>
@@ -893,6 +945,39 @@ export default function BillingPage() {
               </Button>
             </div>
 
+            {/* A promo code, checked before paying (KAN-134). */}
+            <div className="mt-3 flex flex-wrap items-end gap-2">
+              <div className="w-48">
+                <Label htmlFor="topup-promo">Promo code</Label>
+                <Input
+                  id="topup-promo"
+                  value={promoCode}
+                  placeholder="Optional"
+                  autoCapitalize="characters"
+                  onChange={(event) => {
+                    setPromoCode(event.target.value.toUpperCase());
+                    setPromo(null);
+                    setPromoError(null);
+                  }}
+                  className="mt-1.5 uppercase"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={checkingPromo || !promoCode.trim()}
+                onClick={() => void checkPromo()}
+              >
+                {checkingPromo ? "Checking…" : promo ? "Applied" : "Apply"}
+              </Button>
+              {promoError ? (
+                <p className="basis-full text-xs text-destructive" role="alert">
+                  {promoError}
+                </p>
+              ) : null}
+            </div>
+
             {/* The whole point of showing this: the customer sees
                             what the card will be charged before they click,
                             rather than discovering the tax at the card form. */}
@@ -904,6 +989,22 @@ export default function BillingPage() {
                     {formatMinor(enteredPaise, summaryCurrency)}
                   </dd>
                 </div>
+                {promo && discountMinor > 0 ? (
+                  <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
+                    <dt>Promo {promo.code}</dt>
+                    <dd className="tabular-nums">
+                      −{formatMinor(discountMinor, summaryCurrency)}
+                    </dd>
+                  </div>
+                ) : null}
+                {promo && promo.bonus_credits > 0 ? (
+                  <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
+                    <dt>Promo {promo.code}</dt>
+                    <dd className="tabular-nums">
+                      +{promo.bonus_credits.toLocaleString("en-IN")} credits
+                    </dd>
+                  </div>
+                ) : null}
                 <div className="flex justify-between">
                   <dt className="text-muted-foreground">
                     {balance?.is_export
@@ -911,7 +1012,7 @@ export default function BillingPage() {
                       : `GST @ ${gstRate}%`}
                   </dt>
                   <dd className="tabular-nums">
-                    {formatMinor(taxPaise, summaryCurrency)}
+                    {formatMinor(taxAfterDiscount, summaryCurrency)}
                   </dd>
                 </div>
                 <div className="flex justify-between border-t pt-1.5 font-medium">

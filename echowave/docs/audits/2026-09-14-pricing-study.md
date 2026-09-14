@@ -709,3 +709,29 @@ Seven decisions taken one at a time, each recorded on KAN-47, applied here.
   at least ₹999. Twenty a month per account bounds the exposure at ₹4,000
   a referrer a month without staff raising it.
 
+## 24. Notes from promo codes (KAN-134, 15 Sept)
+
+- **Three kinds, one box.** Percent off, an amount off in one currency, or
+  bonus credits. A code has a target (any purchase, any plan, one plan, any
+  pack, one pack), a window, a total and a per-account count, and a
+  first-payment-only flag. Codes are upper-case and matched without case.
+- **Discounts reduce the gateway charge**, and GST is on the discounted
+  amount; the receipt voucher prints the list price and the discount as two
+  lines that add to the taxable value, so the return sees the supply as
+  sold. Revenue rows on the KPI board already read the net.
+- **Plans take bonus codes only.** A plan is a standing instruction against
+  a Razorpay plan pinned at one amount; a per-customer discount on that
+  amount needs a plan per code at the gateway. Percent-off on a plan is a
+  follow-up, not faked with a refund. The acceptance case on the ticket
+  (LAUNCH20, 20% off Business) therefore runs on packs today: ₹4,999 less
+  20% is ₹3,999.20 plus GST, 10,500 credits.
+- **Checked at the order, recorded at capture.** The code is validated
+  before any money moves and written on the order; the redemption row is
+  written by the capture webhook, tied to the payment, so an abandoned
+  checkout does not use up a limited code. Two accounts racing for the last
+  use can both capture; the second is not refused, because refusing money
+  the gateway has taken is worse than one extra launch redemption.
+- **Revoke never claws back.** An order placed, or a plan subscribed with a
+  bonus code, before a revoke is honoured. Every create, change and revoke
+  is a billing audit row.
+

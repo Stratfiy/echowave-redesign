@@ -3566,6 +3566,10 @@ class PaymentMandateModel(Base):
     billing_period = Column(
         String(16), nullable=False, default="monthly", server_default="monthly"
     )
+    #: A bonus-credit promo code applied at subscription (KAN-134), honoured
+    #: on the first collection. Recorded at sale so a code revoked afterwards
+    #: still pays what the customer was promised when they subscribed.
+    promo_code = Column(String(32), nullable=True)
 
     authorised_at = Column(DateTime(timezone=True), nullable=True)
     cancelled_at = Column(DateTime(timezone=True), nullable=True)
@@ -4090,6 +4094,14 @@ class PaymentModel(Base):
     # defines it directly rather than as amount plus bonus. Null on rows
     # written before it existed: those are credited as amount plus bonus.
     credits_granted = Column(Integer, nullable=True)
+    #: A promo code applied to this order (KAN-134), and what it took off the
+    #: price in minor units of ``currency``. ``amount_paise`` is already net
+    #: of the discount; this is kept so the voucher can print the list price
+    #: and the discount as two lines, and so the code's report can add it up.
+    promo_code = Column(String(32), nullable=True)
+    discount_minor = Column(
+        BigInteger, nullable=False, default=0, server_default=text("0")
+    )
     # The FIRC/FIRA reference for an export remittance (KAN-80): the bank's
     # certificate that proves the export at filing. Recorded by staff once
     # the certificate arrives; GSTR-1 lists export payments still without one.
@@ -4137,6 +4149,104 @@ class PaymentModel(Base):
             postgresql_where=text("payment_id IS NOT NULL"),
         ),
         Index("ix_payments_org_created", "organization_id", "created_at"),
+    )
+
+
+class PromoCodeModel(Base):
+    """A discount or bonus a customer types at checkout (KAN-134).
+
+    Three kinds: ``percent`` off the price, an ``amount`` off in one currency,
+    or ``bonus_credits`` on top of what the purchase grants. A code applies to
+    a target (any purchase, any plan, one plan, any pack, one pack), inside a
+    window, up to a total and a per-account count. Revoking sets ``active``
+    false: nothing new is redeemed, and nothing already granted is clawed
+    back, because a customer who typed a valid code was told a price.
+    """
+
+    __tablename__ = "promo_codes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    #: Stored upper-case; matched case-insensitively.
+    code = Column(String(32), nullable=False, unique=True, index=True)
+    # percent | amount | bonus_credits
+    kind = Column(String(16), nullable=False)
+    #: Whole percent, minor units of ``currency``, or credits, by kind.
+    value = Column(Integer, nullable=False)
+    #: For an ``amount`` code: the currency it is denominated in. Null on the
+    #: other kinds, which apply in any currency.
+    currency = Column(String(3), nullable=True)
+    # any | any_plan | plan:<code> | any_pack | pack:<code>
+    applies_to = Column(
+        String(48), nullable=False, default="any", server_default=text("'any'")
+    )
+    valid_from = Column(DateTime(timezone=True), nullable=True)
+    valid_until = Column(DateTime(timezone=True), nullable=True)
+    max_redemptions = Column(Integer, nullable=True)
+    max_per_account = Column(
+        Integer, nullable=False, default=1, server_default=text("1")
+    )
+    first_payment_only = Column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    active = Column(Boolean, nullable=False, default=True, server_default=text("true"))
+    note = Column(Text, nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    redemptions = relationship("PromoRedemptionModel", back_populates="promo")
+
+
+class PromoRedemptionModel(Base):
+    """One use of a promo code by one account, tied to the payment (or the
+    plan mandate) it was used on, with what it was worth."""
+
+    __tablename__ = "promo_redemptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    promo_code_id = Column(
+        Integer, ForeignKey("promo_codes.id", ondelete="CASCADE"), nullable=False
+    )
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    payment_id = Column(
+        Integer, ForeignKey("payments.id", ondelete="SET NULL"), nullable=True
+    )
+    mandate_id = Column(
+        Integer, ForeignKey("payment_mandates.id", ondelete="SET NULL"), nullable=True
+    )
+    #: In minor units of the payment's currency.
+    discount_minor = Column(
+        BigInteger, nullable=False, default=0, server_default=text("0")
+    )
+    bonus_credits = Column(Integer, nullable=False, default=0, server_default=text("0"))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    promo = relationship("PromoCodeModel", back_populates="redemptions")
+
+    __table_args__ = (
+        # One redemption per payment and per mandate: the webhook that records
+        # it is delivered at least once.
+        Index(
+            "uq_promo_redemptions_payment",
+            "promo_code_id",
+            "payment_id",
+            unique=True,
+            postgresql_where=text("payment_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_promo_redemptions_mandate",
+            "promo_code_id",
+            "mandate_id",
+            unique=True,
+            postgresql_where=text("mandate_id IS NOT NULL"),
+        ),
+        Index("ix_promo_redemptions_org", "organization_id", "created_at"),
     )
 
 
