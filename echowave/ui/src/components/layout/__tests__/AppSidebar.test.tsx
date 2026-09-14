@@ -22,9 +22,11 @@ beforeEach(() => {
   window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() });
 });
 describe("sidebar interactions", () => {
-  it("floats as a rounded card on the floor", () => {
+  it("is flush with the edge, the full height, like Slack's", () => {
+    // It floated as a rounded card for a while, which put a white header
+    // above a dark rail and a card of its own colour under it.
     render(<SidebarProvider><AppSidebar /></SidebarProvider>);
-    expect(document.querySelector('[data-slot="sidebar"]')?.getAttribute("data-variant")).toBe("floating");
+    expect(document.querySelector('[data-slot="sidebar"]')?.getAttribute("data-variant")).toBe("sidebar");
   });
   it("lights the sidebar entry a folded tab belongs to", () => {
     route.pathname = "/do-not-call";
