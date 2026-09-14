@@ -1,0 +1,11 @@
+---
+title: "keys.list"
+description: "Every key, by prefix."
+openapi: "GET /api/v1/user/api-keys"
+---
+
+Every key, by prefix.
+
+{/* generated: prose below this line is kept */}
+
+The `key` field is never returned in list responses — only `key_prefix` (the first 8 characters) is shown for identification. To include archived keys, pass `?include_archived=true`.

@@ -1,0 +1,11 @@
+---
+title: "bots.setStatus"
+description: "Archive or restore a bot."
+openapi: "PUT /api/v1/workflow/{workflow_id}/status"
+---
+
+Archive or restore a bot.
+
+{/* generated: prose below this line is kept */}
+
+Send `{"status": "archived"}` to deactivate an agent, or `{"status": "active"}` to restore it. Archived agents cannot receive calls but their history and definition are preserved.

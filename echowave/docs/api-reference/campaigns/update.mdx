@@ -1,7 +1,11 @@
 ---
-title: "Update Campaign"
-description: "Update campaign settings"
+title: "campaigns.update"
+description: "Change a campaign that has not started."
 openapi: "PATCH /api/v1/campaign/{campaign_id}"
 ---
+
+Change a campaign that has not started.
+
+{/* generated: prose below this line is kept */}
 
 You can update name, concurrency, time slots, and retry config. Updates are only allowed on campaigns in `draft` or `paused` status — [pause the campaign](/api-reference/campaigns/pause) first if it is currently running.

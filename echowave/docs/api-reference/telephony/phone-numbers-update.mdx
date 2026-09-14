@@ -1,0 +1,13 @@
+---
+title: "telephony.phoneNumbers.update"
+description: "Repoint or rename a number."
+openapi: "PUT /api/v1/organizations/telephony-configs/{config_id}/phone-numbers/{phone_number_id}"
+---
+
+Repoint or rename a number.
+
+{/* generated: prose below this line is kept */}
+
+Changing `inbound_workflow_id` re-syncs the inbound webhook with the provider; the response includes a `provider_sync` block with the result.
+
+To remove an existing inbound binding, send `clear_inbound_workflow: true`. Sending `inbound_workflow_id: null` alone is treated as "no change".

@@ -1,0 +1,22 @@
+---
+title: "Telephony"
+description: "Your own carrier accounts and the numbers on them, for accounts that bring a Twilio, Plivo, Vonage, Telnyx or SIP trunk instead of renting managed numbers."
+---
+
+Your own carrier accounts and the numbers on them, for accounts that bring a Twilio, Plivo, Vonage, Telnyx or SIP trunk instead of renting managed numbers.
+
+| Method | Route | What it does |
+|---|---|---|
+| [`telephony.providers`](/api-reference/telephony/providers) | `GET /api/v1/organizations/telephony-providers/metadata` | Providers and what each needs. |
+| [`telephony.configs.create`](/api-reference/telephony/configs-create) | `POST /api/v1/organizations/telephony-configs` | Connect a carrier account. |
+| [`telephony.configs.list`](/api-reference/telephony/configs-list) | `GET /api/v1/organizations/telephony-configs` | Every carrier account. |
+| [`telephony.configs.get`](/api-reference/telephony/configs-get) | `GET /api/v1/organizations/telephony-configs/{config_id}` | One carrier account. |
+| [`telephony.configs.update`](/api-reference/telephony/configs-update) | `PUT /api/v1/organizations/telephony-configs/{config_id}` | Change a carrier account. |
+| [`telephony.configs.delete`](/api-reference/telephony/configs-delete) | `DELETE /api/v1/organizations/telephony-configs/{config_id}` | Disconnect a carrier account. |
+| [`telephony.configs.setDefaultOutbound`](/api-reference/telephony/configs-set-default-outbound) | `POST /api/v1/organizations/telephony-configs/{config_id}/set-default-outbound` | Make this the account outbound calls use. |
+| [`telephony.phoneNumbers.list`](/api-reference/telephony/phone-numbers-list) | `GET /api/v1/organizations/telephony-configs/{config_id}/phone-numbers` | Numbers on a carrier account. |
+| [`telephony.phoneNumbers.create`](/api-reference/telephony/phone-numbers-create) | `POST /api/v1/organizations/telephony-configs/{config_id}/phone-numbers` | Add a number and point it at a bot. |
+| [`telephony.phoneNumbers.get`](/api-reference/telephony/phone-numbers-get) | `GET /api/v1/organizations/telephony-configs/{config_id}/phone-numbers/{phone_number_id}` | One number. |
+| [`telephony.phoneNumbers.update`](/api-reference/telephony/phone-numbers-update) | `PUT /api/v1/organizations/telephony-configs/{config_id}/phone-numbers/{phone_number_id}` | Repoint or rename a number. |
+| [`telephony.phoneNumbers.delete`](/api-reference/telephony/phone-numbers-delete) | `DELETE /api/v1/organizations/telephony-configs/{config_id}/phone-numbers/{phone_number_id}` | Remove a number. |
+| [`telephony.phoneNumbers.setDefaultCaller`](/api-reference/telephony/phone-numbers-set-default-caller) | `POST /api/v1/organizations/telephony-configs/{config_id}/phone-numbers/{phone_number_id}/set-default-caller` | Make this the caller id. |

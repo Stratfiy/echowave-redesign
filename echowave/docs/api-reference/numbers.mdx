@@ -1,0 +1,18 @@
+---
+title: "Numbers"
+description: "Managed numbers are rented from Decibyl and pointed at a bot. Verified numbers are the business's own, proved by a call, for caller id. Missed calls are rings nobody answered."
+---
+
+Managed numbers are rented from Decibyl and pointed at a bot. Verified numbers are the business's own, proved by a call, for caller id. Missed calls are rings nobody answered.
+
+| Method | Route | What it does |
+|---|---|---|
+| [`numbers.search`](/api-reference/numbers/search) | `POST /api/v1/managed-numbers/search` | Numbers available to rent. |
+| [`numbers.provision`](/api-reference/numbers/provision) | `POST /api/v1/managed-numbers` | Rent a number. |
+| [`numbers.release`](/api-reference/numbers/release) | `POST /api/v1/managed-numbers/{phone_number_id}/release` | Give a number back. |
+| [`numbers.verified.list`](/api-reference/numbers/verified-list) | `GET /api/v1/verified-numbers` | The business's own verified numbers. |
+| [`numbers.verified.options`](/api-reference/numbers/verified-options) | `GET /api/v1/verified-numbers/options` | How a number can be verified. |
+| [`numbers.verified.start`](/api-reference/numbers/verified-start) | `POST /api/v1/verified-numbers/start` | Start verifying a number. |
+| [`numbers.verified.confirm`](/api-reference/numbers/verified-confirm) | `POST /api/v1/verified-numbers/confirm` | Confirm with the code. |
+| [`numbers.verified.remove`](/api-reference/numbers/verified-remove) | `DELETE /api/v1/verified-numbers/{phone_number}` | Remove a verified number. |
+| [`numbers.missed.list`](/api-reference/numbers/missed-list) | `GET /api/v1/missed-calls` | Callers who rang and were not answered. |

@@ -1,0 +1,14 @@
+---
+title: "Marketplace"
+description: "Bots by industry and function, and packs of bots for a vertical. Hire one into the account."
+---
+
+Bots by industry and function, and packs of bots for a vertical. Hire one into the account.
+
+| Method | Route | What it does |
+|---|---|---|
+| [`marketplace.templates.list`](/api-reference/marketplace/templates-list) | `GET /api/v1/agent-templates` | Every bot on the shelf. |
+| [`marketplace.templates.get`](/api-reference/marketplace/templates-get) | `GET /api/v1/agent-templates/{template_id}` | One template. |
+| [`marketplace.templates.hire`](/api-reference/marketplace/templates-hire) | `POST /api/v1/agent-templates/{template_id}/create` | Create a bot from a template. |
+| [`marketplace.packs.list`](/api-reference/marketplace/packs-list) | `GET /api/v1/packs` | Packs on the shelf. |
+| [`marketplace.packs.get`](/api-reference/marketplace/packs-get) | `GET /api/v1/packs/{slug}` | One pack. |

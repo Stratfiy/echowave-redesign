@@ -1,0 +1,19 @@
+---
+title: "bots.count"
+description: "How many bots the account has."
+openapi: "GET /api/v1/workflow/count"
+---
+
+How many bots the account has.
+
+{/* generated: prose below this line is kept */}
+
+Returns totals broken down by status — useful for dashboards or quota checks.
+
+```json
+{
+  "total": 5,
+  "active": 4,
+  "archived": 1
+}
+```

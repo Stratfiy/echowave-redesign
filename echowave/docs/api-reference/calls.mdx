@@ -1,0 +1,18 @@
+---
+title: "Calls"
+description: "A call is one run of a bot on a phone line. Start one from your backend, list what happened, and fetch the transcript, recording and outcome."
+---
+
+A call is one run of a bot on a phone line. Start one from your backend, list what happened, and fetch the transcript, recording and outcome.
+
+| Method | Route | What it does |
+|---|---|---|
+| [`calls.start`](/api-reference/calls/start) | `POST /api/v1/public/agent/{uuid}` | Place a call with a bot, by its public id. |
+| [`calls.startTest`](/api-reference/calls/start-test) | `POST /api/v1/public/agent/test/{uuid}` | Place a test call that runs the draft. |
+| [`calls.startByWorkflow`](/api-reference/calls/start-by-workflow) | `POST /api/v1/public/agent/workflow/{workflow_uuid}` | Place a call by workflow id. |
+| [`calls.create`](/api-reference/calls/create) | `POST /api/v1/workflow/{workflow_id}/runs` | Create a run for a bot (voice, text or web). |
+| [`calls.list`](/api-reference/calls/list) | `GET /api/v1/workflow/{workflow_id}/runs` | Runs of one bot, newest first. |
+| [`calls.get`](/api-reference/calls/get) | `GET /api/v1/workflow/{workflow_id}/runs/{run_id}` | One run: status, outcome, artifacts. |
+| [`calls.listAll`](/api-reference/calls/list-all) | `GET /api/v1/organizations/usage/runs` | Every run in the account, across bots, with cost. |
+| [`calls.artifact`](/api-reference/calls/artifact) | `GET /api/v1/public/download/workflow/{token}/{artifact_type}` | Download a recording or transcript with a signed token. |
+| [`calls.initiate`](/api-reference/calls/initiate) | `POST /api/v1/telephony/initiate-call` | Dial a number with a bot through a telephony configuration. |

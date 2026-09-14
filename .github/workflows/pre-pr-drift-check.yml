@@ -14,7 +14,9 @@ on:
       - "echowave/pipecat/**"
       - "echowave/scripts/dump_docs_openapi.py"
       - "echowave/scripts/format.sh"
-      - "echowave/docs/api-reference/openapi.json"
+      - "echowave/docs/api-reference/**"
+      - "echowave/docs/scripts/generate-reference.mjs"
+      - "echowave/docs/docs.json"
       - ".github/workflows/pre-pr-drift-check.yml"
 
 concurrency:
@@ -86,6 +88,9 @@ jobs:
           MINIO_PUBLIC_ENDPOINT: http://localhost:9000
           DEPLOYMENT_MODE: oss
         run: python -u -m scripts.dump_docs_openapi
+
+      - name: Check the API reference is generated from the spec
+        run: node docs/scripts/generate-reference.mjs --check
 
       - name: Check for OpenAPI drift
         run: |

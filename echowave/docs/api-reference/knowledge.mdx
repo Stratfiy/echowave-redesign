@@ -1,0 +1,17 @@
+---
+title: "Knowledge"
+description: "Documents every bot in the account can read from. Upload, process, search, translate."
+---
+
+Documents every bot in the account can read from. Upload, process, search, translate.
+
+| Method | Route | What it does |
+|---|---|---|
+| [`knowledge.uploadUrl`](/api-reference/knowledge/upload-url) | `POST /api/v1/knowledge-base/upload-url` | A signed URL to upload a document to. |
+| [`knowledge.process`](/api-reference/knowledge/process) | `POST /api/v1/knowledge-base/process-document` | Index an uploaded document. |
+| [`knowledge.list`](/api-reference/knowledge/list) | `GET /api/v1/knowledge-base/documents` | Every document. |
+| [`knowledge.get`](/api-reference/knowledge/get) | `GET /api/v1/knowledge-base/documents/{document_uuid}` | One document and its status. |
+| [`knowledge.delete`](/api-reference/knowledge/delete) | `DELETE /api/v1/knowledge-base/documents/{document_uuid}` | Remove a document and everything indexed from it. |
+| [`knowledge.translate`](/api-reference/knowledge/translate) | `POST /api/v1/knowledge-base/documents/{document_uuid}/translate` | A copy of a document in another language. |
+| [`knowledge.search`](/api-reference/knowledge/search) | `POST /api/v1/knowledge-base/search` | The passages that match a question. |
+| [`knowledge.usage`](/api-reference/knowledge/usage) | `GET /api/v1/knowledge-base/usage` | Storage used against the plan. |

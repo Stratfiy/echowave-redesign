@@ -2,9 +2,9 @@
   "$schema": "https://mintlify.com/docs.json",
   "name": "Decibyl AI",
   "colors": {
-    "primary": "#0A6BC7",
-    "light": "#28B3F0",
-    "dark": "#0A6BC7"
+    "primary": "#e15b53",
+    "light": "#f08a84",
+    "dark": "#c94a43"
   },
   "favicon": "/favicon.ico",
   "navigation": {
@@ -171,61 +171,62 @@
         ]
       },
       {
-        "tab": "API Reference",
+        "tab": "Reference",
         "icon": "square-terminal",
         "groups": [
           {
-            "group": "Resources",
+            "group": "Using the API",
+            "pages": [
+              "api-reference/overview",
+              "api-reference/authentication",
+              "api-reference/errors",
+              "developer/webhooks"
+            ]
+          },
+          {
+            "group": "Methods",
             "pages": [
               {
-                "group": "API Keys",
+                "group": "Bots",
                 "pages": [
-                  "api-reference/api-keys",
-                  "api-reference/api-keys/create",
-                  "api-reference/api-keys/list",
-                  "api-reference/api-keys/archive",
-                  "api-reference/api-keys/reactivate"
+                  "api-reference/bots",
+                  "api-reference/bots/create-from-template",
+                  "api-reference/bots/create",
+                  "api-reference/bots/list",
+                  "api-reference/bots/summary",
+                  "api-reference/bots/count",
+                  "api-reference/bots/get",
+                  "api-reference/bots/update",
+                  "api-reference/bots/validate",
+                  "api-reference/bots/publish",
+                  "api-reference/bots/create-draft",
+                  "api-reference/bots/versions",
+                  "api-reference/bots/restore-version",
+                  "api-reference/bots/set-live",
+                  "api-reference/bots/set-status",
+                  "api-reference/bots/duplicate",
+                  "api-reference/bots/call-outcomes"
                 ]
               },
               {
-                "group": "Agents",
+                "group": "Calls",
                 "pages": [
-                  "api-reference/agents",
-                  "api-reference/agents/create-from-definition",
-                  "api-reference/agents/create-from-template",
-                  "api-reference/agents/list",
-                  "api-reference/agents/count",
-                  "api-reference/agents/get",
-                  "api-reference/agents/update",
-                  "api-reference/agents/archive",
-                  "api-reference/agents/validate",
-                  {
-                    "group": "Runs",
-                    "pages": [
-                      "api-reference/agents/runs/create",
-                      "api-reference/agents/runs/list",
-                      "api-reference/agents/runs/get"
-                    ]
-                  }
-                ]
-              },
-              {
-                "group": "Runs",
-                "pages": [
-                  "api-reference/runs",
-                  "api-reference/runs/trigger",
-                  "api-reference/runs/trigger-workflow",
-                  "api-reference/runs/get-run",
-                  "api-reference/runs/list-runs",
-                  "api-reference/runs/download",
-                  "api-reference/runs/inbound"
+                  "api-reference/calls",
+                  "api-reference/calls/start",
+                  "api-reference/calls/start-test",
+                  "api-reference/calls/start-by-workflow",
+                  "api-reference/calls/create",
+                  "api-reference/calls/list",
+                  "api-reference/calls/get",
+                  "api-reference/calls/list-all",
+                  "api-reference/calls/artifact",
+                  "api-reference/calls/initiate"
                 ]
               },
               {
                 "group": "Campaigns",
                 "pages": [
                   "api-reference/campaigns",
-                  "api-reference/campaigns/upload-contacts",
                   "api-reference/campaigns/create",
                   "api-reference/campaigns/list",
                   "api-reference/campaigns/get",
@@ -233,42 +234,169 @@
                   "api-reference/campaigns/start",
                   "api-reference/campaigns/pause",
                   "api-reference/campaigns/resume",
+                  "api-reference/campaigns/redial",
                   "api-reference/campaigns/progress",
-                  "api-reference/campaigns/runs"
+                  "api-reference/campaigns/summary",
+                  "api-reference/campaigns/runs",
+                  "api-reference/campaigns/report"
                 ]
               },
               {
-                "group": "Telephony Configurations",
+                "group": "Contacts",
                 "pages": [
-                  "api-reference/telephony-configs",
-                  "api-reference/telephony-configs/providers",
-                  "api-reference/telephony-configs/list",
-                  "api-reference/telephony-configs/create",
-                  "api-reference/telephony-configs/get",
-                  "api-reference/telephony-configs/update",
-                  "api-reference/telephony-configs/delete",
-                  "api-reference/telephony-configs/set-default-outbound",
-                  {
-                    "group": "Phone Numbers",
-                    "pages": [
-                      "api-reference/telephony-configs/phone-numbers/list",
-                      "api-reference/telephony-configs/phone-numbers/create",
-                      "api-reference/telephony-configs/phone-numbers/get",
-                      "api-reference/telephony-configs/phone-numbers/update",
-                      "api-reference/telephony-configs/phone-numbers/delete",
-                      "api-reference/telephony-configs/phone-numbers/set-default-caller"
-                    ]
-                  }
+                  "api-reference/contacts",
+                  "api-reference/contacts/lists-create",
+                  "api-reference/contacts/lists-list",
+                  "api-reference/contacts/lists-update",
+                  "api-reference/contacts/lists-delete",
+                  "api-reference/contacts/upload-url",
+                  "api-reference/contacts/import",
+                  "api-reference/contacts/list",
+                  "api-reference/contacts/delete",
+                  "api-reference/contacts/do-not-call-list",
+                  "api-reference/contacts/do-not-call-add",
+                  "api-reference/contacts/do-not-call-upload",
+                  "api-reference/contacts/do-not-call-remove"
+                ]
+              },
+              {
+                "group": "Numbers",
+                "pages": [
+                  "api-reference/numbers",
+                  "api-reference/numbers/search",
+                  "api-reference/numbers/provision",
+                  "api-reference/numbers/release",
+                  "api-reference/numbers/verified-list",
+                  "api-reference/numbers/verified-options",
+                  "api-reference/numbers/verified-start",
+                  "api-reference/numbers/verified-confirm",
+                  "api-reference/numbers/verified-remove",
+                  "api-reference/numbers/missed-list"
+                ]
+              },
+              {
+                "group": "Telephony",
+                "pages": [
+                  "api-reference/telephony",
+                  "api-reference/telephony/providers",
+                  "api-reference/telephony/configs-create",
+                  "api-reference/telephony/configs-list",
+                  "api-reference/telephony/configs-get",
+                  "api-reference/telephony/configs-update",
+                  "api-reference/telephony/configs-delete",
+                  "api-reference/telephony/configs-set-default-outbound",
+                  "api-reference/telephony/phone-numbers-list",
+                  "api-reference/telephony/phone-numbers-create",
+                  "api-reference/telephony/phone-numbers-get",
+                  "api-reference/telephony/phone-numbers-update",
+                  "api-reference/telephony/phone-numbers-delete",
+                  "api-reference/telephony/phone-numbers-set-default-caller"
+                ]
+              },
+              {
+                "group": "Channels and timeline",
+                "pages": [
+                  "api-reference/channels",
+                  "api-reference/channels/list",
+                  "api-reference/channels/create",
+                  "api-reference/channels/rename",
+                  "api-reference/channels/delete",
+                  "api-reference/channels/timeline",
+                  "api-reference/channels/post",
+                  "api-reference/channels/decide",
+                  "api-reference/channels/settle-action",
+                  "api-reference/channels/settle-edit",
+                  "api-reference/channels/provide-secret",
+                  "api-reference/channels/draft"
+                ]
+              },
+              {
+                "group": "Knowledge",
+                "pages": [
+                  "api-reference/knowledge",
+                  "api-reference/knowledge/upload-url",
+                  "api-reference/knowledge/process",
+                  "api-reference/knowledge/list",
+                  "api-reference/knowledge/get",
+                  "api-reference/knowledge/delete",
+                  "api-reference/knowledge/translate",
+                  "api-reference/knowledge/search",
+                  "api-reference/knowledge/usage"
+                ]
+              },
+              {
+                "group": "Tools and connectors",
+                "pages": [
+                  "api-reference/tools",
+                  "api-reference/tools/create",
+                  "api-reference/tools/list",
+                  "api-reference/tools/get",
+                  "api-reference/tools/update",
+                  "api-reference/tools/delete",
+                  "api-reference/tools/unarchive",
+                  "api-reference/tools/refresh-mcp",
+                  "api-reference/tools/connectors-list",
+                  "api-reference/tools/connectors-connect",
+                  "api-reference/tools/connectors-accounts",
+                  "api-reference/tools/connectors-activity"
+                ]
+              },
+              {
+                "group": "Credentials",
+                "pages": [
+                  "api-reference/credentials",
+                  "api-reference/credentials/create",
+                  "api-reference/credentials/list",
+                  "api-reference/credentials/get",
+                  "api-reference/credentials/update",
+                  "api-reference/credentials/delete"
+                ]
+              },
+              {
+                "group": "API keys",
+                "pages": [
+                  "api-reference/keys",
+                  "api-reference/keys/create",
+                  "api-reference/keys/list",
+                  "api-reference/keys/archive",
+                  "api-reference/keys/reactivate"
+                ]
+              },
+              {
+                "group": "Team",
+                "pages": [
+                  "api-reference/team",
+                  "api-reference/team/home",
+                  "api-reference/team/status"
+                ]
+              },
+              {
+                "group": "Billing",
+                "pages": [
+                  "api-reference/billing",
+                  "api-reference/billing/balance",
+                  "api-reference/billing/plan",
+                  "api-reference/billing/subscribe",
+                  "api-reference/billing/topup",
+                  "api-reference/billing/payments",
+                  "api-reference/billing/auto-topup-get",
+                  "api-reference/billing/auto-topup-save",
+                  "api-reference/billing/documents-list",
+                  "api-reference/billing/documents-get",
+                  "api-reference/billing/documents-pdf"
+                ]
+              },
+              {
+                "group": "Marketplace",
+                "pages": [
+                  "api-reference/marketplace",
+                  "api-reference/marketplace/templates-list",
+                  "api-reference/marketplace/templates-get",
+                  "api-reference/marketplace/templates-hire",
+                  "api-reference/marketplace/packs-list",
+                  "api-reference/marketplace/packs-get"
                 ]
               }
-            ]
-          },
-          {
-            "group": "Authentication & Errors",
-            "pages": [
-              "api-reference/overview",
-              "api-reference/authentication",
-              "api-reference/errors"
             ]
           }
         ]
@@ -294,13 +422,12 @@
     }
   },
   "banner": {
-    "content": "\ud83c\udf89 **Describe an agent in Claude Code and get a working one.** Or put a talk button on your site with one script tag. [Build from Claude Code \u2192](/integrations/mcp) \u00b7 [Web widget \u2192](/voice-agent/add-to-website)",
+    "content": "🎉 **Describe an agent in Claude Code and get a working one.** Or put a talk button on your site with one script tag. [Build from Claude Code →](/integrations/mcp) · [Web widget →](/voice-agent/add-to-website)",
     "dismissible": true
   },
   "search": {
     "prompt": "Search for Tools, Webhook, Deployment, etc..."
   },
-  "customCSS": "/custom.css",
   "contextual": {
     "options": [
       "copy",
@@ -323,20 +450,160 @@
   },
   "redirects": [
     {
-      "source": "/contribution/introduction",
-      "destination": "/contribution/setup"
+      "source": "/api-reference/agents/create-from-template",
+      "destination": "/api-reference/bots/create-from-template"
     },
     {
-      "source": "/contribution/devcontainer",
-      "destination": "/contribution/reference"
+      "source": "/api-reference/agents/create-from-definition",
+      "destination": "/api-reference/bots/create"
     },
     {
-      "source": "/contribution/host-managed-setup",
-      "destination": "/contribution/reference"
+      "source": "/api-reference/agents/runs/create",
+      "destination": "/api-reference/calls/create"
     },
     {
-      "source": "/contribution/fork-workflow",
-      "destination": "/contribution/reference"
+      "source": "/api-reference/agents/runs/list",
+      "destination": "/api-reference/calls/list"
+    },
+    {
+      "source": "/api-reference/agents/runs/get",
+      "destination": "/api-reference/calls/get"
+    },
+    {
+      "source": "/api-reference/agents/list",
+      "destination": "/api-reference/bots/list"
+    },
+    {
+      "source": "/api-reference/agents/get",
+      "destination": "/api-reference/bots/get"
+    },
+    {
+      "source": "/api-reference/agents/update",
+      "destination": "/api-reference/bots/update"
+    },
+    {
+      "source": "/api-reference/agents/archive",
+      "destination": "/api-reference/bots/set-status"
+    },
+    {
+      "source": "/api-reference/agents/count",
+      "destination": "/api-reference/bots/count"
+    },
+    {
+      "source": "/api-reference/agents/validate",
+      "destination": "/api-reference/bots/validate"
+    },
+    {
+      "source": "/api-reference/agents",
+      "destination": "/api-reference/bots"
+    },
+    {
+      "source": "/api-reference/runs/trigger-workflow",
+      "destination": "/api-reference/calls/start-by-workflow"
+    },
+    {
+      "source": "/api-reference/runs/trigger",
+      "destination": "/api-reference/calls/start"
+    },
+    {
+      "source": "/api-reference/runs/get-run",
+      "destination": "/api-reference/calls/get"
+    },
+    {
+      "source": "/api-reference/runs/list-runs",
+      "destination": "/api-reference/calls/list-all"
+    },
+    {
+      "source": "/api-reference/runs/download",
+      "destination": "/api-reference/calls/artifact"
+    },
+    {
+      "source": "/api-reference/runs/inbound",
+      "destination": "/integrations/telephony/inbound"
+    },
+    {
+      "source": "/api-reference/runs",
+      "destination": "/api-reference/calls"
+    },
+    {
+      "source": "/api-reference/campaigns/upload-contacts",
+      "destination": "/api-reference/contacts/upload-url"
+    },
+    {
+      "source": "/api-reference/api-keys/create",
+      "destination": "/api-reference/keys/create"
+    },
+    {
+      "source": "/api-reference/api-keys/list",
+      "destination": "/api-reference/keys/list"
+    },
+    {
+      "source": "/api-reference/api-keys/archive",
+      "destination": "/api-reference/keys/archive"
+    },
+    {
+      "source": "/api-reference/api-keys/reactivate",
+      "destination": "/api-reference/keys/reactivate"
+    },
+    {
+      "source": "/api-reference/api-keys",
+      "destination": "/api-reference/keys"
+    },
+    {
+      "source": "/api-reference/telephony-configs/phone-numbers/set-default-caller",
+      "destination": "/api-reference/telephony/phone-numbers-set-default-caller"
+    },
+    {
+      "source": "/api-reference/telephony-configs/phone-numbers/list",
+      "destination": "/api-reference/telephony/phone-numbers-list"
+    },
+    {
+      "source": "/api-reference/telephony-configs/phone-numbers/create",
+      "destination": "/api-reference/telephony/phone-numbers-create"
+    },
+    {
+      "source": "/api-reference/telephony-configs/phone-numbers/get",
+      "destination": "/api-reference/telephony/phone-numbers-get"
+    },
+    {
+      "source": "/api-reference/telephony-configs/phone-numbers/update",
+      "destination": "/api-reference/telephony/phone-numbers-update"
+    },
+    {
+      "source": "/api-reference/telephony-configs/phone-numbers/delete",
+      "destination": "/api-reference/telephony/phone-numbers-delete"
+    },
+    {
+      "source": "/api-reference/telephony-configs/set-default-outbound",
+      "destination": "/api-reference/telephony/configs-set-default-outbound"
+    },
+    {
+      "source": "/api-reference/telephony-configs/providers",
+      "destination": "/api-reference/telephony/providers"
+    },
+    {
+      "source": "/api-reference/telephony-configs/list",
+      "destination": "/api-reference/telephony/configs-list"
+    },
+    {
+      "source": "/api-reference/telephony-configs/create",
+      "destination": "/api-reference/telephony/configs-create"
+    },
+    {
+      "source": "/api-reference/telephony-configs/get",
+      "destination": "/api-reference/telephony/configs-get"
+    },
+    {
+      "source": "/api-reference/telephony-configs/update",
+      "destination": "/api-reference/telephony/configs-update"
+    },
+    {
+      "source": "/api-reference/telephony-configs/delete",
+      "destination": "/api-reference/telephony/configs-delete"
+    },
+    {
+      "source": "/api-reference/telephony-configs",
+      "destination": "/api-reference/telephony"
     }
   ]
 }

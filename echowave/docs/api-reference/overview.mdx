@@ -8,7 +8,7 @@ description: "Interact with Decibyl programmatically via the REST API"
 All API requests are made to:
 
 ```
-https://your-decibyl-instance/api/v1
+https://api.decibyl.ai/api/v1
 ```
 
 If you are using the hosted version, the base URL is `https://app.decibyl.ai/api/v1`.
@@ -22,7 +22,7 @@ The current API version is `v1`. The version is included in the URL path.
 All request bodies must be sent as JSON with the `Content-Type: application/json` header.
 
 ```bash
-curl -X POST https://your-decibyl-instance/api/v1/workflow/create/definition \
+curl -X POST https://api.decibyl.ai/api/v1/workflow/create/definition \
   -H "Content-Type: application/json" \
   -H "X-API-Key: dcb_your_api_key" \
   -d '{"name": "My Agent", "workflow_definition": {}}'
@@ -57,14 +57,14 @@ For validation errors (422), the detail may be a list:
 Verify your instance is reachable before making API calls.
 
 ```bash
-curl https://your-decibyl-instance/api/v1/health
+curl https://api.decibyl.ai/api/v1/health
 ```
 
 ```json
 {
   "status": "ok",
   "version": "1.0.0",
-  "backend_api_endpoint": "https://your-decibyl-instance",
+  "backend_api_endpoint": "https://api.decibyl.ai",
   "deployment_mode": "oss",
   "auth_provider": "local"
 }

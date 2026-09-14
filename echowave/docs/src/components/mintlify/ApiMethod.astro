@@ -1,0 +1,245 @@
+---
+/**
+ * One API method, rendered from the checked-in OpenAPI document.
+ *
+ * The page's frontmatter names the operation ("POST /api/v1/workflow/…");
+ * everything below -- facts, arguments, request, response, errors -- is read
+ * from `docs/api-reference/openapi.json` at build time. That file is the
+ * public document the API itself serves (api/services/openapi_surface.py),
+ * and the drift check fails the build when it falls behind the app, so a
+ * method page cannot describe an argument the code no longer takes.
+ *
+ * Laid out the way a Slack method page is: facts first, then arguments,
+ * then an example, then the response and the errors. Prose the author
+ * wrote sits above this block; see src/remark/inject-components.mjs.
+ */
+import spec from "../../../api-reference/openapi.json";
+
+const { op } = Astro.props;
+const [method, path] = String(op).trim().split(/\s+/, 2);
+const lower = method.toLowerCase();
+const operation = spec.paths?.[path]?.[lower];
+if (!operation) {
+  throw new Error(`ApiMethod: ${op} is not in docs/api-reference/openapi.json`);
+}
+const schemas = spec.components?.schemas ?? {};
+
+/** Follow a $ref to its schema. */
+function resolve(schema) {
+  let current = schema;
+  for (let i = 0; i < 8 && current && current.$ref; i++) {
+    const name = current.$ref.split("/").pop();
+    current = schemas[name];
+  }
+  return current ?? {};
+}
+
+/** The plain-English type of a schema, for the arguments table. */
+function typeOf(schema) {
+  const s = resolve(schema);
+  if (s.anyOf || s.oneOf) {
+    const parts = (s.anyOf || s.oneOf).map(typeOf).filter((t) => t !== "null");
+    return [...new Set(parts)].join(" | ") || "any";
+  }
+  if (s.enum) return s.enum.map((v) => JSON.stringify(v)).join(" | ");
+  if (s.type === "array") return `${typeOf(s.items ?? {})}[]`;
+  if (s.type === "object" || s.properties) return s.title ? s.title : "object";
+  if (s.format === "date-time") return "datetime";
+  return s.type ?? "any";
+}
+
+/** An example value built from a schema, deterministic and short. */
+function exampleOf(schema, depth = 0, seen = new Set()) {
+  const s = resolve(schema);
+  if (s.example !== undefined) return s.example;
+  if (s.default !== undefined) return s.default;
+  if (s.anyOf || s.oneOf) {
+    const first = (s.anyOf || s.oneOf).find((x) => resolve(x).type !== "null");
+    return first ? exampleOf(first, depth, seen) : null;
+  }
+  if (s.enum) return s.enum[0];
+  switch (s.type) {
+    case "string":
+      if (s.format === "date-time") return "2026-09-14T09:30:00Z";
+      if (s.format === "uuid") return "3f1c9a2e-7b7c-4c3a-9a1c-2f5e8d4b6a10";
+      if (s.format === "email") return "owner@example.in";
+      return "string";
+    case "integer":
+      return 1;
+    case "number":
+      return 1.5;
+    case "boolean":
+      return true;
+    case "array":
+      return depth > 3 ? [] : [exampleOf(s.items ?? {}, depth + 1, seen)];
+    case "object":
+    default: {
+      if (!s.properties) return s.additionalProperties ? {} : {};
+      const key = s.title || JSON.stringify(Object.keys(s.properties));
+      if (seen.has(key) || depth > 3) return {};
+      const next = new Set(seen);
+      next.add(key);
+      const out = {};
+      for (const [name, prop] of Object.entries(s.properties)) {
+        out[name] = exampleOf(prop, depth + 1, next);
+      }
+      return out;
+    }
+  }
+}
+
+/** Arguments: path and query from `parameters`, body from the request schema. */
+// The key header is the Auth fact above; listing it as an argument too
+// would have every page repeat itself.
+const AUTH_HEADERS = new Set(["x-api-key", "authorization"]);
+const params = (operation.parameters ?? [])
+  .filter((p) => !(p.in === "header" && AUTH_HEADERS.has(String(p.name).toLowerCase())))
+  .map((p) => ({
+  where: p.in,
+  name: p.name,
+  type: typeOf(p.schema ?? {}),
+  required: !!p.required,
+  description: p.description ?? "",
+  default: p.schema?.default,
+}));
+const bodyContent = operation.requestBody?.content ?? {};
+const bodyMedia = bodyContent["application/json"] ?? bodyContent["multipart/form-data"] ?? bodyContent["application/x-www-form-urlencoded"];
+const bodySchema = bodyMedia ? resolve(bodyMedia.schema ?? {}) : null;
+const bodyFields = bodySchema?.properties
+  ? Object.entries(bodySchema.properties).map(([name, prop]) => ({
+      where: "body",
+      name,
+      type: typeOf(prop),
+      required: (bodySchema.required ?? []).includes(name),
+      description: resolve(prop).description ?? prop.description ?? "",
+      default: resolve(prop).default,
+    }))
+  : [];
+const isMultipart = !!bodyContent["multipart/form-data"];
+
+const successCode = Object.keys(operation.responses ?? {}).find((c) => c.startsWith("2")) ?? "200";
+const success = operation.responses?.[successCode];
+const successSchema = success?.content?.["application/json"]?.schema;
+const responseExample = successSchema ? exampleOf(successSchema) : null;
+const responseType = successSchema ? typeOf(successSchema) : null;
+const errors = Object.entries(operation.responses ?? {})
+  .filter(([code]) => !code.startsWith("2"))
+  .map(([code, r]) => ({ code, description: r.description ?? "" }));
+
+const securedBy = (operation.security ?? spec.security ?? []).flatMap((s) => Object.keys(s));
+const auth = securedBy.length ? "API key" : "API key";
+
+const host = "https://api.decibyl.ai";
+const examplePath = path.replace(/\{([^}]+)\}/g, (_, n) => `<${n}>`);
+const bodyExample = bodySchema ? exampleOf(bodySchema) : null;
+const curl = [
+  `curl -X ${method} "${host}${examplePath}"`,
+  `  -H "X-API-Key: dcb_your_key"`,
+  ...(bodyExample && !isMultipart ? [`  -H "Content-Type: application/json"`, `  -d '${JSON.stringify(bodyExample)}'`] : []),
+  ...(isMultipart ? bodyFields.map((f) => `  -F "${f.name}=${f.type === "string" ? "@file" : "value"}"`) : []),
+].join(" \\\n");
+
+const rows = [...params, ...bodyFields];
+---
+
+<section class="api-method not-content">
+  <div class="api-facts">
+    <p class="api-endpoint"><span class={`api-verb api-verb-${lower}`}>{method}</span><code>{path}</code></p>
+    <dl>
+      <div><dt>Auth</dt><dd>{auth} in <code>X-API-Key</code></dd></div>
+      <div><dt>Content</dt><dd>{isMultipart ? "multipart/form-data" : bodySchema ? "application/json" : "none"}</dd></div>
+      <div><dt>Returns</dt><dd>{successCode}{responseType ? ` · ${responseType}` : ""}</dd></div>
+    </dl>
+  </div>
+
+  {operation.description && <p class="api-description">{operation.description}</p>}
+
+  <h3 id="arguments">Arguments</h3>
+  {rows.length === 0 ? (
+    <p class="api-muted">This method takes no arguments.</p>
+  ) : (
+    <table class="api-args">
+      <thead><tr><th>Argument</th><th>In</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr>
+            <td><code>{r.name}</code></td>
+            <td>{r.where}</td>
+            <td><code>{r.type}</code></td>
+            <td>{r.required ? "required" : r.default !== undefined ? `default ${JSON.stringify(r.default)}` : "optional"}</td>
+            <td>{r.description}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )}
+
+  <h3 id="example-request">Example request</h3>
+  <pre class="api-code"><code>{curl}</code></pre>
+
+  {responseExample !== null && (
+    <>
+      <h3 id="response">Response</h3>
+      <pre class="api-code"><code>{JSON.stringify(responseExample, null, 2)}</code></pre>
+    </>
+  )}
+
+  {errors.length > 0 && (
+    <>
+      <h3 id="errors">Errors</h3>
+      <table class="api-args">
+        <thead><tr><th>Status</th><th>When</th></tr></thead>
+        <tbody>
+          {errors.map((e) => (
+            <tr><td><code>{e.code}</code></td><td>{e.description}</td></tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  )}
+</section>
+
+<style>
+  .api-method { margin-top: 1.5rem; }
+  .api-facts {
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: var(--sl-color-gray-7, transparent);
+  }
+  .api-endpoint { margin: 0 0 0.5rem; display: flex; align-items: center; gap: 0.5rem; font-size: var(--sl-text-sm); }
+  .api-endpoint code { background: none; padding: 0; }
+  .api-verb {
+    font-family: var(--sl-font-mono);
+    font-size: var(--sl-text-xs);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 0.1rem 0.45rem;
+    border-radius: 0.25rem;
+    color: #fff;
+    background: var(--sl-color-gray-3);
+  }
+  .api-verb-get { background: #2f855a; }
+  .api-verb-post { background: var(--sl-color-accent); }
+  .api-verb-put, .api-verb-patch { background: #b7791f; }
+  .api-verb-delete { background: #c53030; }
+  .api-facts dl { display: flex; flex-wrap: wrap; gap: 0.25rem 1.5rem; margin: 0; font-size: var(--sl-text-sm); }
+  .api-facts dl div { display: flex; gap: 0.4rem; }
+  .api-facts dt { color: var(--sl-color-gray-3); }
+  .api-facts dd { margin: 0; }
+  .api-description { margin-top: 1rem; }
+  .api-muted { color: var(--sl-color-gray-3); font-size: var(--sl-text-sm); }
+  .api-method h3 { margin-top: 1.5rem; font-size: var(--sl-text-h4); }
+  .api-args { width: 100%; font-size: var(--sl-text-sm); border-collapse: collapse; }
+  .api-args th, .api-args td { text-align: left; vertical-align: top; padding: 0.4rem 0.5rem; border-top: 1px solid var(--sl-color-gray-5); }
+  .api-args th { border-top: none; color: var(--sl-color-gray-3); font-weight: 500; }
+  .api-code {
+    overflow-x: auto;
+    font-size: var(--sl-text-xs);
+    line-height: 1.5;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--sl-color-gray-5);
+    background: var(--sl-color-gray-6);
+  }
+</style>

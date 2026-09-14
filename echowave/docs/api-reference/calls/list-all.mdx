@@ -1,0 +1,15 @@
+---
+title: "calls.listAll"
+description: "Every run in the account, across bots, with cost."
+openapi: "GET /api/v1/organizations/usage/runs"
+---
+
+Every run in the account, across bots, with cost.
+
+{/* generated: prose below this line is kept */}
+
+Returns a paginated list of runs across all agents in your organization, including duration, cost, and usage details for each run.
+
+Use `start_date` and `end_date` (ISO 8601) to scope the window, and `page` / `limit` to paginate. Pass `filters` as a JSON-encoded string to narrow results further.
+
+To fetch the full transcript or recording for a specific run, use [Retrieve Agent Run Details](/api-reference/calls/get).

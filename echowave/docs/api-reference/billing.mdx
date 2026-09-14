@@ -1,0 +1,19 @@
+---
+title: "Billing"
+description: "Balance, plan, payments and tax documents. Read what the app shows; top up and subscribe from here too."
+---
+
+Balance, plan, payments and tax documents. Read what the app shows; top up and subscribe from here too.
+
+| Method | Route | What it does |
+|---|---|---|
+| [`billing.balance`](/api-reference/billing/balance) | `GET /api/v1/billing/balance` | Credit balance. |
+| [`billing.plan`](/api-reference/billing/plan) | `GET /api/v1/billing/plan` | The current plan. |
+| [`billing.subscribe`](/api-reference/billing/subscribe) | `POST /api/v1/billing/plan` | Subscribe to a plan. |
+| [`billing.topup`](/api-reference/billing/topup) | `POST /api/v1/billing/topup` | Buy credit. |
+| [`billing.payments`](/api-reference/billing/payments) | `GET /api/v1/billing/payments` | Every payment. |
+| [`billing.autoTopup.get`](/api-reference/billing/auto-topup-get) | `GET /api/v1/billing/auto-topup` | Auto top-up settings. |
+| [`billing.autoTopup.save`](/api-reference/billing/auto-topup-save) | `PUT /api/v1/billing/auto-topup` | Change auto top-up. |
+| [`billing.documents.list`](/api-reference/billing/documents-list) | `GET /api/v1/billing/documents` | Tax invoices. |
+| [`billing.documents.get`](/api-reference/billing/documents-get) | `GET /api/v1/billing/documents/{document_id}` | One invoice. |
+| [`billing.documents.pdf`](/api-reference/billing/documents-pdf) | `GET /api/v1/billing/documents/{document_id}/pdf` | The invoice as PDF. |
