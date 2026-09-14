@@ -1,9 +1,10 @@
 'use client';
 
 import { FileText, Info, Upload, X } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import { getAllowanceApiV1KnowledgeBaseAllowanceGet } from '@/client/sdk.gen';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
@@ -36,6 +37,47 @@ export default function DocumentUpload({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  /** The plan's page cap and what an upload past it costs (KAN-57), read
+   *  when a file is chosen so the price is on screen before it runs. */
+  const [allowance, setAllowance] = useState<{
+    pages_used: number;
+    pages_cap: number | null;
+    over_cap: boolean;
+    raise_to: string | null;
+    typed_pages_per_credit: number;
+    scanned_page_credits: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!selectedFile) return;
+    let cancelled = false;
+    void (async () => {
+      const result = await getAllowanceApiV1KnowledgeBaseAllowanceGet({});
+      if (!cancelled && !result.error) {
+        setAllowance(result.data as unknown as typeof allowance);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+
+  }, [selectedFile]);
+
+  const capNotice =
+    allowance && allowance.pages_cap !== null ? (
+      <p
+        className={
+          allowance.over_cap
+            ? 'text-xs text-amber-700 dark:text-amber-400'
+            : 'text-xs text-muted-foreground'
+        }
+        data-testid="knowledge-page-allowance"
+      >
+        {allowance.over_cap
+          ? `Past your plan's ${allowance.pages_cap.toLocaleString('en-IN')} pages (${allowance.pages_used.toLocaleString('en-IN')} held). This upload is charged once processed: 1 credit per ${allowance.typed_pages_per_credit} typed pages, ${allowance.scanned_page_credits} credits per scanned page${allowance.raise_to ? `; or upgrade to ${allowance.raise_to} for more pages` : ''}.`
+          : `${allowance.pages_used.toLocaleString('en-IN')} of ${allowance.pages_cap.toLocaleString('en-IN')} pages held on your plan. Pages past the cap are 1 credit per ${allowance.typed_pages_per_credit} typed pages, ${allowance.scanned_page_credits} per scanned page.`}
+      </p>
+    ) : null;
 
   const ossNotice = isOSS ? (
     <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/50 dark:bg-amber-950/30">
@@ -138,6 +180,7 @@ export default function DocumentUpload({
     return (
       <div className="space-y-4">
         {ossNotice}
+        {capNotice}
         {/* Selected file info */}
         <div className="flex items-center gap-3 p-3 border rounded-lg bg-muted/30">
           <FileText className="w-8 h-8 text-primary flex-shrink-0" />

@@ -328,6 +328,8 @@ class KnowledgeBaseClient(BaseDBClient):
         error_message: Optional[str] = None,
         total_chunks: Optional[int] = None,
         docling_metadata: Optional[dict] = None,
+        page_count: Optional[int] = None,
+        scanned_page_count: Optional[int] = None,
     ) -> Optional[KnowledgeBaseDocumentModel]:
         """Update document processing status.
 
@@ -358,6 +360,10 @@ class KnowledgeBaseClient(BaseDBClient):
                 document.total_chunks = total_chunks
             if docling_metadata:
                 document.docling_metadata = docling_metadata
+            if page_count is not None:
+                document.page_count = page_count
+            if scanned_page_count is not None:
+                document.scanned_page_count = scanned_page_count
 
             await session.commit()
             await session.refresh(document)

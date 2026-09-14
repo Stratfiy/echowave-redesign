@@ -521,3 +521,30 @@ still on the seeded default take these figures, rows somebody typed
 7. **Translation (KAN-104)** waits on the rate: Sarvam's page says ₹20 per
    10k characters, not ₹0.005 a character, so the proposed 1 credit per 50
    characters is 2.5x too dear. Proposed 1 per 100. Open on KAN-104.
+
+## 17. Notes from the knowledge caps (KAN-57, 14 Sept)
+
+1. **The cap is in pages, held, per plan** (`plan_limits` `knowledge_pages`:
+   50 / 500 / 2,000 / 10,000 / 50,000). Past it a typed page is a tenth of
+   a credit (one credit per ten, rounded up per document) and a scanned page
+   two credits — Sarvam Document AI is Rs 0.50 a page, so one credit would
+   lose Rs 0.02 on every scan, as the model showed. The plan's bytes
+   ceiling stays as the engineering limit on what the worker holds; it
+   refuses, pages price.
+2. **Pages are counted once a document is processed**: a PDF by its page
+   count, a scan by the pages OCR read, anything else at 3,000 characters a
+   page (an engineering figure, about a typed A4 page). Written to the
+   document (`page_count`, `scanned_page_count`) and settled once, keyed on
+   the document. The plan's room goes to typed pages first, so a scan at
+   the edge of the cap is the page that is paid for.
+3. **The price is on screen before the upload runs**: the upload sheet reads
+   `GET /knowledge-base/allowance` when a file is chosen and says where the
+   account stands and what a page past the cap costs. The exact figure for
+   a file needs its page count, which the browser does not have before it
+   uploads; the rate and the room left are what is stated, and the charge
+   lands on completion.
+4. **Query-time embedding is inside the two-credit knowledge answer**
+   (KAN-56); re-embedding on a model change is free. The at-cost ingestion
+   embedding debit (`embedding_ingestion`, fractions of a paisa, never a
+   customer line) is left as it was; with the self-hosted bge-m3 it should
+   go to zero, which is a rate-row change, not a code change.
