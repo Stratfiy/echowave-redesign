@@ -793,6 +793,12 @@ class AgentEventKind(str, Enum):
     #: uuid and a last-four hint, never the value. See
     #: services/workflow/secrets_request.py.
     NEEDS_SECRET = "needs_secret"
+    #: A bot or Decibyl proposed to do something -- turn a bot on, return a
+    #: missed call -- and nothing runs until a person confirms on the card.
+    #: Confirming arms a short undo window; a reversible action can be put
+    #: back after it ran. The state lives in ``payload["state"]``. See
+    #: services/workflow/actions.py.
+    ACTION_PROPOSED = "action_proposed"
     #: The bot proposed a change to itself; the card shows the diff and the
     #: person publishes or discards the draft. See services/workflow/self_edit.
     EDIT_PROPOSED = "edit_proposed"

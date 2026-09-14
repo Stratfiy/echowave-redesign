@@ -9519,6 +9519,20 @@ export type SetCredentialRequest = {
 };
 
 /**
+ * SettleActionRequest
+ */
+export type SettleActionRequest = {
+    /**
+     * Event Id
+     */
+    event_id: number;
+    /**
+     * Verb
+     */
+    verb: string;
+};
+
+/**
  * SettleEditRequest
  */
 export type SettleEditRequest = {
@@ -24604,6 +24618,45 @@ export type DecideApiV1TimelineDecidePostResponses = {
 };
 
 export type DecideApiV1TimelineDecidePostResponse = DecideApiV1TimelineDecidePostResponses[keyof DecideApiV1TimelineDecidePostResponses];
+
+export type SettleActionApiV1TimelineActionsSettlePostData = {
+    body: SettleActionRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/timeline/actions/settle';
+};
+
+export type SettleActionApiV1TimelineActionsSettlePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SettleActionApiV1TimelineActionsSettlePostError = SettleActionApiV1TimelineActionsSettlePostErrors[keyof SettleActionApiV1TimelineActionsSettlePostErrors];
+
+export type SettleActionApiV1TimelineActionsSettlePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: TimelineEvent;
+};
+
+export type SettleActionApiV1TimelineActionsSettlePostResponse = SettleActionApiV1TimelineActionsSettlePostResponses[keyof SettleActionApiV1TimelineActionsSettlePostResponses];
 
 export type ProvideSecretApiV1TimelineSecretsProvidePostData = {
     body: ProvideSecretRequest;

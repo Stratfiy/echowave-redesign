@@ -33,7 +33,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
-from api.services.workflow import agent_timeline, mentions
+from api.services.workflow import actions, agent_timeline, mentions
 
 NAME = "Decibyl"
 
@@ -58,16 +58,25 @@ SYSTEM = (
     "context does not have it, say so in one line and say where it would be.\n"
     "- When the question is about one bot, name the bot. When something "
     "needs a person, say what and why.\n"
-    "- You cannot place calls, edit a bot or delete anything. If asked, say "
-    "that the bot's own chat can propose an edit, and that calls are placed "
-    "from campaigns.\n"
+    "- You can propose three things with the propose_action tool: turn a bot "
+    "on, turn a bot off, or call back a missed caller listed in the context. "
+    "Nothing happens until a person confirms on the card, so propose it and "
+    "say you have. Anything else -- editing a bot, deleting, dialling a new "
+    "number -- you cannot do: say that the bot's own chat can propose an "
+    "edit, and that calls are placed from campaigns.\n"
     "- Never repeat an OTP, a card number or an identity number.\n"
 )
 
 
 def thread_filter() -> dict[str, Any]:
     """The timeline filter that is Decibyl's thread."""
-    return {"assistant_thread": True, "kinds": [AgentEventKind.MESSAGE.value]}
+    return {
+        "assistant_thread": True,
+        "kinds": [
+            AgentEventKind.MESSAGE.value,
+            AgentEventKind.ACTION_PROPOSED.value,
+        ],
+    }
 
 
 async def ask(
@@ -282,14 +291,36 @@ async def build_context(organization_id: int, question: str) -> str:
         logger.warning("Decibyl could not read the timeline: {}", exc)
         recent = []
 
+    try:
+        missed = [
+            m
+            for m in await db_client.list_missed_calls(organization_id, limit=20)
+            if m.outcome != "called_back" and m.received_at >= recent_window()
+        ]
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Decibyl could not read missed calls: {}", exc)
+        missed = []
+
     knowledge = await _knowledge(organization_id, question)
 
     return (
         f"## Team\n{team_block(headline, members, hours)}\n\n"
         f"## What the business has confirmed\n{memory_block(memory_rows)}\n\n"
         f"## Lately\n{recent_block(recent, bot_names)}\n\n"
+        f"## Missed calls not returned\n{missed_block(missed)}\n\n"
         f"## From Company knowledge\n{knowledge_block(knowledge)}\n"
     )
+
+
+def missed_block(rows: list[Any]) -> str:
+    """Callers who rang and got nobody, with the id the tool needs."""
+    if not rows:
+        return "None in the last week."
+    lines = []
+    for row in rows:
+        when = row.received_at.strftime("%d %b %H:%M") if row.received_at else ""
+        lines.append(f"- id {row.id}: {row.caller} rang {when}, {row.outcome}")
+    return "\n".join(lines)
 
 
 async def _history(organization_id: int) -> list[dict[str, str]]:
@@ -302,7 +333,13 @@ async def _history(organization_id: int) -> list[dict[str, str]]:
     out: list[dict[str, str]] = []
     for row in reversed(rows):
         role = "user" if row.actor == AgentEventActor.HUMAN.value else "assistant"
-        body = (row.payload or {}).get("body") or row.summary
+        payload = row.payload or {}
+        if getattr(row, "kind", None) == AgentEventKind.ACTION_PROPOSED.value:
+            # The card, as the model sees it: what was proposed and where it
+            # stands, so it does not propose the same thing twice.
+            body = f"[Proposed: {row.summary} -- {payload.get('state', 'proposed')}]"
+        else:
+            body = payload.get("body") or row.summary
         if body:
             out.append({"role": role, "content": str(body)})
     return out
@@ -357,8 +394,33 @@ async def answer(
             api_key=model.api_key,
             system=SYSTEM,
             conversation=conversation,
-            tools=[],
+            tools=[actions.tool_schema()],
         )
+        # One round of tools: the model proposes, is told the card is up,
+        # and says so. Anything it asks for that is not the one tool it has
+        # is answered as unavailable rather than looped on.
+        if reply.wants_tools:
+            conversation.add_assistant(reply)
+            for call in reply.tool_calls:
+                if call.name == actions.TOOL_NAME:
+                    result = await actions.propose(
+                        organization_id=organization_id,
+                        workflow_id=None,
+                        workflow_run_id=None,
+                        arguments=dict(call.arguments or {}),
+                        in_channel=False,
+                    )
+                else:
+                    result = {"status": "unavailable", "reason": "no such tool"}
+                conversation.add_tool_result(call, result)
+            reply = await client.complete(
+                provider=model.provider,
+                model=model.model,
+                api_key=model.api_key,
+                system=SYSTEM,
+                conversation=conversation,
+                tools=[],
+            )
         body = (reply.text or "").strip() or "I have nothing to add on that."
     except Exception as exc:  # noqa: BLE001 - the thread must say something
         logger.error("Decibyl could not answer: {}", exc)

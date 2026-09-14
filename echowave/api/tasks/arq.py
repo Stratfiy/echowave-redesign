@@ -71,6 +71,7 @@ from api.tasks.routines import (
     compact_channel_context,
     fire_due_routines,
     run_agent_routine,
+    run_proposed_action,
 )
 from api.tasks.run_integrations import run_integrations_post_workflow_run
 from api.tasks.settlement import sweep_uncosted_runs
@@ -110,6 +111,7 @@ class WorkerSettings:
         run_agent_routine,
         answer_channel_message,
         answer_decibyl_message,
+        run_proposed_action,
         compact_channel_context,
         translate_knowledge_base_document,
     ]

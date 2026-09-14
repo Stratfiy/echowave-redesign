@@ -32,6 +32,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { timelineApiV1TimelineGet, translateTextApiV1TranslatePost } from '@/client/sdk.gen';
 import type { TimelineEvent } from '@/client/types.gen';
 import { Button } from '@/components/ui/button';
+import { ActionCard } from '@/components/workflow/ActionCard';
 import { DecisionCard } from '@/components/workflow/DecisionCard';
 import { EditCard } from '@/components/workflow/EditCard';
 import { SecretCard } from '@/components/workflow/SecretCard';
@@ -478,6 +479,44 @@ export function ChannelStream({
                                                 all.map((e) => (e.id === updated.id ? updated : e)),
                                             )
                                         }
+                                    />
+                                </div>
+                            </li>
+                            </React.Fragment>
+                        );
+                    }
+                    if (event.kind === 'action_proposed') {
+                        // The bot proposes to act; the person confirms here,
+                        // with time to take it back. Same frame as the
+                        // question card. When the window closes the list
+                        // refetches, so the card moves to done by itself.
+                        const proposer =
+                            (event.workflow_id != null && botNames[event.workflow_id]) || fallbackName;
+                        return (
+                            <React.Fragment key={event.id}>
+                            {divider}
+                            <li className="flex gap-3">
+                                <span
+                                    aria-hidden
+                                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--accent-brand-soft)] text-[var(--accent-brand)]"
+                                >
+                                    <Bot className="h-4 w-4" />
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                    <p className="mb-1 text-sm">
+                                        <span className="font-medium">{proposer}</span>
+                                        <span className="ml-2 text-xs text-muted-foreground">
+                                            <time dateTime={event.at}>{when(event.at)}</time>
+                                        </span>
+                                    </p>
+                                    <ActionCard
+                                        event={event}
+                                        onSettled={(updated) =>
+                                            setEvents((all) =>
+                                                all.map((e) => (e.id === updated.id ? updated : e)),
+                                            )
+                                        }
+                                        onFired={() => void loadLatest()}
                                     />
                                 </div>
                             </li>
