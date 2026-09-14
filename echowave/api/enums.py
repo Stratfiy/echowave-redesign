@@ -850,3 +850,19 @@ class AgentEventVisibility(str, Enum):
     ALWAYS = "always"
     ON_REQUEST = "on_request"
     OFF = "off"
+
+
+class KnowledgeScope(str, Enum):
+    """Who a document is knowledge for.
+
+    ``LIBRARY`` is the shelf: read only by a node that names the document by
+    uuid, which is what every document was before scopes existed. ``ORG`` is
+    company knowledge -- every bot in the organisation reads it. ``CHANNEL``
+    is what a channel has been given, read by the bots answering there.
+    ``BOT`` is one bot's own. Retrieval unions what applies to the run.
+    """
+
+    LIBRARY = "library"
+    ORG = "org"
+    CHANNEL = "channel"
+    BOT = "bot"

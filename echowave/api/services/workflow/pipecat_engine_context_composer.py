@@ -218,12 +218,26 @@ def _transition_description(edge) -> str:
     return condition
 
 
+def knowledge_for_run(
+    node_document_uuids: Optional[list[str]], scoped_document_uuids: Optional[list[str]]
+) -> list[str]:
+    """The node's documents first, then the scoped ones it does not repeat."""
+    out: list[str] = [str(u) for u in (node_document_uuids or []) if u]
+    seen = set(out)
+    for uuid in scoped_document_uuids or []:
+        if uuid and uuid not in seen:
+            out.append(str(uuid))
+            seen.add(uuid)
+    return out
+
+
 async def compose_functions_for_node(
     *,
     node: "Node",
     custom_tool_manager: Optional["CustomToolManager"],
     agent_can_end_call: bool = False,
     can_ask_for_decision: bool = False,
+    scoped_document_uuids: Optional[list[str]] = None,
 ) -> list[dict]:
     """Compose the function/tool schemas for a workflow node.
 
@@ -244,9 +258,13 @@ async def compose_functions_for_node(
     """
     functions: list[dict] = []
 
-    # Knowledge base retrieval tool
-    if node.document_uuids:
-        kb_tool_def = get_knowledge_base_tool(node.document_uuids)
+    # Knowledge base retrieval tool. What the node names, plus what the run
+    # reads without being told: company knowledge, the channel's files, the
+    # bot's own. A node with no documents of its own still gets the tool when
+    # the organisation has knowledge for it.
+    document_uuids = knowledge_for_run(node.document_uuids, scoped_document_uuids)
+    if document_uuids:
+        kb_tool_def = get_knowledge_base_tool(document_uuids)
         kb_schema = get_function_schema(
             kb_tool_def["function"]["name"],
             kb_tool_def["function"]["description"],

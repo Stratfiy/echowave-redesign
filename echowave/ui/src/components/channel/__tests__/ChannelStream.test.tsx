@@ -109,3 +109,29 @@ describe('what is new since last time', () => {
         expect(screen.queryByLabelText('New')).toBeNull();
     });
 });
+
+describe('a file is a message', () => {
+    it('shows the files a message carried as chips', async () => {
+        timeline.mockResolvedValue({
+            data: {
+                events: [
+                    event({
+                        id: 12,
+                        actor: 'human',
+                        summary: 'Shared rates.pdf',
+                        payload: {
+                            body: '',
+                            attachments: [{ document_uuid: 'd1', filename: 'rates.pdf', size_bytes: 2048 }],
+                        },
+                    }),
+                ],
+                next_before_at: null,
+                next_before_id: null,
+            },
+        });
+        render(<ChannelStream workflowId={3} botNames={{ 3: 'Front desk' }} />);
+        const files = await screen.findByRole('list', { name: 'Files' });
+        expect(files.textContent).toContain('rates.pdf');
+        expect(files.textContent).toContain('2 KB');
+    });
+});

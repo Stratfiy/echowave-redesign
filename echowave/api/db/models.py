@@ -1785,6 +1785,19 @@ class KnowledgeBaseDocumentModel(Base):
 
     # Processing metadata
     source_url = Column(String, nullable=True)  # If document was fetched from URL
+    # Who this is knowledge for. See KnowledgeScope. "library" is a document
+    # only a node that names it reads; "org" is every bot's; "channel" and
+    # "bot" carry the folder or workflow they belong to. Retrieval unions the
+    # scopes that apply to a run (db: scoped_document_uuids).
+    scope = Column(
+        String(16), nullable=False, default="library", server_default="library"
+    )
+    folder_id = Column(
+        Integer, ForeignKey("folders.id", ondelete="SET NULL"), nullable=True
+    )
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="SET NULL"), nullable=True
+    )
     total_chunks = Column(Integer, nullable=False, default=0)
     processing_status = Column(
         Enum(

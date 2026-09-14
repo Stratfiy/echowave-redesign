@@ -28,6 +28,9 @@ class KnowledgeBaseClient(BaseDBClient):
         docling_metadata: Optional[dict] = None,
         document_uuid: Optional[str] = None,
         retrieval_mode: str = "chunked",
+        scope: str = "library",
+        folder_id: Optional[int] = None,
+        workflow_id: Optional[int] = None,
     ) -> KnowledgeBaseDocumentModel:
         """Create a new knowledge base document record.
 
@@ -50,6 +53,9 @@ class KnowledgeBaseClient(BaseDBClient):
             document = KnowledgeBaseDocumentModel(
                 organization_id=organization_id,
                 created_by=created_by,
+                scope=scope,
+                folder_id=folder_id,
+                workflow_id=workflow_id,
                 filename=filename,
                 file_size_bytes=file_size_bytes,
                 file_hash=file_hash,
@@ -75,6 +81,46 @@ class KnowledgeBaseClient(BaseDBClient):
                 f"for organization {organization_id}"
             )
             return document
+
+    async def scoped_document_uuids(
+        self,
+        organization_id: int,
+        *,
+        workflow_id: Optional[int],
+        folder_id: Optional[int],
+    ) -> list[str]:
+        """The documents a run reads without a node naming them.
+
+        Company knowledge, plus what the run's channel has been given, plus
+        the bot's own. Only documents whose processing completed: a document
+        still being read has no chunks, and naming it to the retriever is a
+        filter that matches nothing.
+        """
+        from sqlalchemy import or_
+
+        scopes = [KnowledgeBaseDocumentModel.scope == "org"]
+        if folder_id is not None:
+            scopes.append(
+                (KnowledgeBaseDocumentModel.scope == "channel")
+                & (KnowledgeBaseDocumentModel.folder_id == folder_id)
+            )
+        if workflow_id is not None:
+            scopes.append(
+                (KnowledgeBaseDocumentModel.scope == "bot")
+                & (KnowledgeBaseDocumentModel.workflow_id == workflow_id)
+            )
+        async with self.async_session() as session:
+            rows = await session.execute(
+                select(KnowledgeBaseDocumentModel.document_uuid)
+                .where(
+                    KnowledgeBaseDocumentModel.organization_id == organization_id,
+                    KnowledgeBaseDocumentModel.is_active == True,  # noqa: E712
+                    KnowledgeBaseDocumentModel.processing_status == "completed",
+                    or_(*scopes),
+                )
+                .order_by(KnowledgeBaseDocumentModel.created_at.desc())
+            )
+            return [str(u) for (u,) in rows.all()]
 
     async def get_document_by_id(
         self,
@@ -189,6 +235,9 @@ class KnowledgeBaseClient(BaseDBClient):
         self,
         organization_id: int,
         processing_status: Optional[str] = None,
+        scope: Optional[str] = None,
+        folder_id: Optional[int] = None,
+        workflow_id: Optional[int] = None,
         limit: int = 100,
         offset: int = 0,
     ) -> List[KnowledgeBaseDocumentModel]:
@@ -209,6 +258,14 @@ class KnowledgeBaseClient(BaseDBClient):
                 KnowledgeBaseDocumentModel.is_active == True,
             )
 
+            if scope:
+                query = query.where(KnowledgeBaseDocumentModel.scope == scope)
+            if folder_id is not None:
+                query = query.where(KnowledgeBaseDocumentModel.folder_id == folder_id)
+            if workflow_id is not None:
+                query = query.where(
+                    KnowledgeBaseDocumentModel.workflow_id == workflow_id
+                )
             if processing_status:
                 query = query.where(
                     KnowledgeBaseDocumentModel.processing_status == processing_status

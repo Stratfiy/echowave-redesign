@@ -73,6 +73,25 @@ function messageBody(event: TimelineEvent): string {
     return typeof body === 'string' && body ? body : event.summary;
 }
 
+type Attached = { document_uuid: string; filename: string; size_bytes?: number };
+
+/** The files a message carried, if any. */
+function attachmentsOf(event: TimelineEvent): Attached[] {
+    const list = (event.payload as { attachments?: unknown } | null)?.attachments;
+    if (!Array.isArray(list)) return [];
+    return list.filter(
+        (a): a is Attached =>
+            !!a && typeof a === 'object' && typeof (a as Attached).filename === 'string',
+    );
+}
+
+function sizeOf(bytes?: number): string {
+    if (!bytes) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export type ChannelStreamHandle = { refresh: () => void };
 
 export function ChannelStream({
@@ -344,9 +363,29 @@ export function ChannelStream({
                                 </p>
                                 {/* whitespace-pre-wrap: somebody who typed a
                                     list wrote the line breaks on purpose. */}
-                                <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed">
-                                    {fromPerson ? messageBody(event) : event.summary}
-                                </p>
+                                {(fromPerson ? messageBody(event) : event.summary) && (
+                                    <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed">
+                                        {fromPerson ? messageBody(event) : event.summary}
+                                    </p>
+                                )}
+                                {attachmentsOf(event).length > 0 && (
+                                    <ul className="mt-1.5 flex flex-wrap gap-2" aria-label="Files">
+                                        {attachmentsOf(event).map((file) => (
+                                            <li
+                                                key={file.document_uuid}
+                                                className="flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5 text-sm"
+                                            >
+                                                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                                <span className="max-w-[16rem] truncate">{file.filename}</span>
+                                                {sizeOf(file.size_bytes) && (
+                                                    <span className="text-xs text-muted-foreground">
+                                                        {sizeOf(file.size_bytes)}
+                                                    </span>
+                                                )}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
                             </div>
                         </li>
                         </React.Fragment>

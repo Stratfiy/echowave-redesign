@@ -53,7 +53,7 @@ export default function FilesPage() {
                 tabs={KNOWLEDGE_TABS}
                 title={
                     <span className="flex flex-wrap items-center gap-2">
-                        Knowledge base
+                        Company knowledge
                         {/* Retrieval during a call is a real, measured cost, but
                             it is not billed as a separate line today — see
                             PRICING-DECISIONS.md. An absorbed feature nobody is
@@ -69,7 +69,7 @@ export default function FilesPage() {
                 }
                 description={
                     <>
-                        Upload and manage documents for your bots to answer from.{" "}
+                        What every bot here reads: your price list, policies, FAQs. Drop a file into a channel or a bot&apos;s chat to give it to just them.{" "}
                         <a href="https://docs.decibyl.ai/voice-agent/knowledge-base" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline">
                             Learn more <ExternalLink className="h-3 w-3" />
                         </a>
@@ -85,9 +85,9 @@ export default function FilesPage() {
             <PageBody>
             <Card>
                 <CardHeader>
-                    <CardTitle>Your documents</CardTitle>
+                    <CardTitle>Documents</CardTitle>
                     <CardDescription>
-                        Documents shared across all agents in your organization
+                        Company knowledge is read by every bot. A file given to a channel or a bot is read there only. Library files are read by the steps that name them.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -98,12 +98,12 @@ export default function FilesPage() {
             <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Upload Document</DialogTitle>
+                        <DialogTitle>Add company knowledge</DialogTitle>
                         <DialogDescription>
-                            Upload a PDF or document file to add to your knowledge base
+                            Every bot in this workspace will be able to answer from it.
                         </DialogDescription>
                     </DialogHeader>
-                    <DocumentUpload onUploadSuccess={handleUploadSuccess} />
+                    <DocumentUpload onUploadSuccess={handleUploadSuccess} target={{ scope: 'org' }} />
                 </DialogContent>
             </Dialog>
             </PageBody>

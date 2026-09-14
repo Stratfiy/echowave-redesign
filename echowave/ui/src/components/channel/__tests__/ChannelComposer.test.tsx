@@ -23,6 +23,11 @@ const post = vi.hoisted(() => vi.fn());
 vi.mock('@/client/sdk.gen', () => ({
     postMessageApiV1TimelineMessagePost: post,
 }));
+const upload = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/uploadKnowledge', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@/lib/uploadKnowledge')>()),
+    uploadKnowledge: upload,
+}));
 
 const BOTS = [
     { id: 1, name: 'Narayani Dental front desk', handle: 'front' },
@@ -44,6 +49,46 @@ function composer(onSent = () => {}) {
 beforeEach(() => {
     post.mockReset();
     post.mockResolvedValue({ data: { asked: [1], unknown: [], ambiguous: [] } });
+    upload.mockReset();
+});
+
+describe('a file is a message', () => {
+    it('uploads a picked file as knowledge for this chat, and sends it with the message', async () => {
+        upload.mockResolvedValue({ document_uuid: 'd1', filename: 'rates.pdf', size_bytes: 12 });
+        render(<ChannelComposer workflowId={3} bots={[]} channelName="Front desk" />);
+        const picker = screen.getByLabelText('Attach a file', { selector: 'input' });
+        const file = new File(['x'], 'rates.pdf', { type: 'application/pdf' });
+        fireEvent.change(picker, { target: { files: [file] } });
+        // Scoped to this bot, not to company knowledge.
+        await waitFor(() => expect(upload).toHaveBeenCalled());
+        expect(upload.mock.calls[0][1]).toEqual({ scope: 'bot', workflowId: 3 });
+        expect(await screen.findByText('rates.pdf')).toBeTruthy();
+        // No words needed: the send button is live with a file alone.
+        fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+        await waitFor(() => expect(post).toHaveBeenCalled());
+        expect(post.mock.calls[0][0].body).toEqual({
+            workflow_id: 3,
+            text: '',
+            attachments: [{ document_uuid: 'd1', filename: 'rates.pdf', size_bytes: 12 }],
+        });
+    });
+
+    it('in a channel the file is the channel\'s', async () => {
+        upload.mockResolvedValue({ document_uuid: 'd2', filename: 'menu.pdf', size_bytes: 1 });
+        composer();
+        const picker = screen.getByLabelText('Attach a file', { selector: 'input' });
+        fireEvent.change(picker, { target: { files: [new File(['x'], 'menu.pdf')] } });
+        await waitFor(() => expect(upload).toHaveBeenCalled());
+        expect(upload.mock.calls[0][1]).toEqual({ scope: 'channel', folderId: 9 });
+    });
+
+    it('refuses a file type nothing can read, before uploading', async () => {
+        composer();
+        const picker = screen.getByLabelText('Attach a file', { selector: 'input' });
+        fireEvent.change(picker, { target: { files: [new File(['x'], 'photo.png')] } });
+        expect(await screen.findByRole('alert')).toBeTruthy();
+        expect(upload).not.toHaveBeenCalled();
+    });
 });
 
 describe('the handle a bot answers to', () => {
@@ -138,7 +183,7 @@ describe('sending', () => {
         fireEvent.click(screen.getByLabelText('Send'));
         await waitFor(() =>
             expect(post).toHaveBeenCalledWith({
-                body: { folder_id: 9, text: '@front are we open?' },
+                body: { folder_id: 9, text: '@front are we open?', attachments: [] },
             }),
         );
     });
@@ -217,7 +262,7 @@ describe("on a bot's own chat", () => {
         fireEvent.change(box, { target: { value: 'Book Meera at 4' } });
         fireEvent.keyDown(box, { key: 'Enter' });
         await waitFor(() =>
-            expect(post).toHaveBeenCalledWith({ body: { workflow_id: 3, text: 'Book Meera at 4' } }),
+            expect(post).toHaveBeenCalledWith({ body: { workflow_id: 3, text: 'Book Meera at 4', attachments: [] } }),
         );
     });
 });
