@@ -73,6 +73,7 @@ export function mentionFragment(text: string, caret: number): string | null {
 export function ChannelComposer({
     folderId,
     workflowId,
+    assistant = false,
     bots,
     channelName,
     onSent,
@@ -81,6 +82,8 @@ export function ChannelComposer({
      *  there is nobody to @ because the bot is implied. */
     folderId?: number;
     workflowId?: number;
+    /** Decibyl's own thread: neither a channel nor a bot. */
+    assistant?: boolean;
     bots: ChannelBot[];
     channelName: string;
     /** Sent, with the bots it was handed to. */
@@ -192,7 +195,11 @@ export function ChannelComposer({
         setSending(true);
         setError(null);
         setNotice(null);
-        const where = workflowId != null ? { workflow_id: workflowId } : { folder_id: folderId };
+        const where = assistant
+            ? { assistant: true }
+            : workflowId != null
+              ? { workflow_id: workflowId }
+              : { folder_id: folderId };
         const response = await postMessageApiV1TimelineMessagePost({
             body: { ...where, text: body, attachments, preset: preset || null },
         });

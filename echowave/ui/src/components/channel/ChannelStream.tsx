@@ -128,6 +128,8 @@ const THINKING_FOR_MS = 3 * 60 * 1000;
 export function ChannelStream({
     folderId,
     workflowId,
+    assistant = false,
+    assistantName = 'Decibyl',
     botNames,
     onRegisterRefresh,
     waitingFor,
@@ -136,6 +138,10 @@ export function ChannelStream({
      *  chat. Exactly one of the two. */
     folderId?: number;
     workflowId?: number;
+    /** Decibyl's own thread: no channel, no bot. Rows with neither id are
+     *  the assistant's, and are named for it rather than for "A bot". */
+    assistant?: boolean;
+    assistantName?: string;
     /** Bot id → display name, so an event can be attributed to a teammate
      *  rather than to an id. Missing names degrade to "A bot", never to a
      *  blank line. */
@@ -175,7 +181,12 @@ export function ChannelStream({
     // on arrival, then the mark moves to now. Rows newer than it sit under a
     // NEW line. Channels have no mark yet; nothing is drawn for them.
     const seenBefore = useRef<string | null>(null);
-    const target = workflowId != null ? { workflow_id: workflowId } : { folder_id: folderId };
+    const target = assistant
+        ? { assistant: true }
+        : workflowId != null
+          ? { workflow_id: workflowId }
+          : { folder_id: folderId };
+    const fallbackName = assistant ? assistantName : 'A bot';
     // Whether the reader is at the bottom. Scrolling them back down while they
     // are reading something further up is worse than a missed new message.
     const pinned = useRef(true);
@@ -266,7 +277,10 @@ export function ChannelStream({
             ? waitingFor.bots.filter(
                   (bot) =>
                       !events.some(
-                          (e) => e.workflow_id === bot && e.actor !== 'human' && e.at > waitingFor.since,
+                          (e) =>
+                              (assistant ? e.workflow_id == null : e.workflow_id === bot) &&
+                              e.actor !== 'human' &&
+                              e.at > waitingFor.since,
                       ),
               )
             : [];
@@ -318,7 +332,7 @@ export function ChannelStream({
                         const latest = group.events[group.events.length - 1];
                         const id = group.key + group.events[0].id;
                         const isCall = latest.kind === 'call_ended';
-                        const who = (latest.workflow_id != null && botNames[latest.workflow_id]) || 'A bot';
+                        const who = (latest.workflow_id != null && botNames[latest.workflow_id]) || fallbackName;
                         const line = isCall
                             ? `${group.events.length} calls not answered`
                             : `${latest.summary} · ${group.events.length} steps`;
@@ -354,7 +368,7 @@ export function ChannelStream({
                     return group.events.map((event) => renderEvent(event, inOrder.indexOf(event)));
                 })}
                 {thinking.map((bot) => (
-                    <li key={`thinking-${bot}`} className="flex gap-3" aria-label={`${botNames[bot] || 'A bot'} is thinking`}>
+                    <li key={`thinking-${bot}`} className="flex gap-3" aria-label={`${botNames[bot] || fallbackName} is thinking`}>
                         <span
                             aria-hidden
                             className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--accent-brand-soft)] text-[var(--accent-brand)]"
@@ -363,7 +377,7 @@ export function ChannelStream({
                         </span>
                         <div className="min-w-0 flex-1">
                             <p className="text-sm">
-                                <span className="font-medium">{botNames[bot] || 'A bot'}</span>
+                                <span className="font-medium">{botNames[bot] || fallbackName}</span>
                             </p>
                             <p className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
                                 <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
@@ -415,7 +429,7 @@ export function ChannelStream({
                                     <div className="min-w-0 flex-1">
                                         <p className="text-sm">
                                             <span className="font-medium">
-                                                {(event.workflow_id != null && botNames[event.workflow_id]) || 'A bot'}
+                                                {(event.workflow_id != null && botNames[event.workflow_id]) || fallbackName}
                                             </span>
                                             <span className="ml-2 text-xs text-muted-foreground">
                                                 <time dateTime={event.at}>{when(event.at)}</time>
@@ -439,7 +453,7 @@ export function ChannelStream({
                         // The bot's proposed change to itself, as a diff with
                         // Publish and Discard. Same frame as the question card.
                         const proposer =
-                            (event.workflow_id != null && botNames[event.workflow_id]) || 'A bot';
+                            (event.workflow_id != null && botNames[event.workflow_id]) || fallbackName;
                         return (
                             <React.Fragment key={event.id}>
                             {divider}
@@ -475,7 +489,7 @@ export function ChannelStream({
                         // chat: what is typed goes to Credentials, and the
                         // card only ever shows that it was done.
                         const asker =
-                            (event.workflow_id != null && botNames[event.workflow_id]) || 'A bot';
+                            (event.workflow_id != null && botNames[event.workflow_id]) || fallbackName;
                         return (
                             <React.Fragment key={event.id}>
                             {divider}
@@ -510,7 +524,7 @@ export function ChannelStream({
                         // The bot's question, as a card with something to
                         // press. Attributed like any other bot row.
                         const asker =
-                            (event.workflow_id != null && botNames[event.workflow_id]) || 'A bot';
+                            (event.workflow_id != null && botNames[event.workflow_id]) || fallbackName;
                         return (
                             <React.Fragment key={event.id}>
                             {divider}
@@ -547,7 +561,7 @@ export function ChannelStream({
                     const author = fromPerson
                         ? 'You'
                         : (event.workflow_id != null && botNames[event.workflow_id]) ||
-                          'A bot';
+                          fallbackName;
                     return (
                         <React.Fragment key={event.id}>
                         {divider}

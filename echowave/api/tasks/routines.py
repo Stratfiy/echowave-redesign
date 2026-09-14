@@ -222,3 +222,16 @@ async def compact_channel_context(_ctx, folder_id: int, run_id: int) -> None:
         folder_id=int(folder_id),
         run_id=int(run_id),
     )
+
+
+async def answer_decibyl_message(
+    _ctx,
+    organization_id: int,
+    text: str,
+    asked: Optional[list[int]] = None,
+    preset: Optional[str] = None,
+) -> None:
+    """Decibyl's turn on its own thread. See services/workflow/decibyl.py."""
+    from api.services.workflow import decibyl
+
+    await decibyl.answer(organization_id, text, asked=asked, preset=preset)

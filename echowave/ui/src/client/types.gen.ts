@@ -8022,6 +8022,10 @@ export type PostMessageRequest = {
      */
     workflow_id?: number | null;
     /**
+     * Assistant
+     */
+    assistant?: boolean;
+    /**
      * Text
      */
     text?: string;
@@ -24469,6 +24473,10 @@ export type TimelineApiV1TimelineGetData = {
          * Folder Id
          */
         folder_id?: number | null;
+        /**
+         * Assistant
+         */
+        assistant?: boolean;
         /**
          * Kinds
          */

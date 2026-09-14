@@ -67,6 +67,7 @@ from api.tasks.rental_billing import (
 )
 from api.tasks.routines import (
     answer_channel_message,
+    answer_decibyl_message,
     compact_channel_context,
     fire_due_routines,
     run_agent_routine,
@@ -108,6 +109,7 @@ class WorkerSettings:
         run_eval_case,
         run_agent_routine,
         answer_channel_message,
+        answer_decibyl_message,
         compact_channel_context,
         translate_knowledge_base_document,
     ]

@@ -104,8 +104,13 @@ class AgentEventClient(BaseDBClient):
         before_at: Optional[datetime] = None,
         before_id: Optional[int] = None,
         after_id: Optional[int] = None,
+        assistant_thread: bool = False,
     ) -> list[AgentEventModel]:
         """The timeline, newest first.
+
+        ``assistant_thread`` is Decibyl's own conversation: rows with neither
+        a workflow nor a folder. Nothing else in the table has both empty
+        with the ``message`` kind, so the thread is a filter, not a table.
 
         One method for all four screens. The filters narrow; none of them is
         required beyond the organisation, which is not optional -- an unscoped
@@ -141,6 +146,11 @@ class AgentEventClient(BaseDBClient):
             query = query.where(AgentEventModel.workflow_run_id == workflow_run_id)
         if folder_id is not None:
             query = query.where(AgentEventModel.folder_id == folder_id)
+        if assistant_thread:
+            query = query.where(
+                AgentEventModel.workflow_id.is_(None),
+                AgentEventModel.folder_id.is_(None),
+            )
         if kinds:
             query = query.where(AgentEventModel.kind.in_(list(kinds)))
         if deliverables_only:
