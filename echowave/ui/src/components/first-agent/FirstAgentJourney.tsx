@@ -226,6 +226,15 @@ export function FirstAgentJourney() {
                 : ((response.data as { templates?: Template[] } | undefined)?.templates ?? []);
             setTemplates(data);
             const saved = readSaved();
+            // A marketplace card arrives with its template in the URL. Read
+            // off the window rather than useSearchParams, which would need
+            // a Suspense boundary around a page that otherwise renders at
+            // once. A resumed agent still wins: it has a workflow already.
+            const wanted = new URLSearchParams(window.location.search).get("template");
+            if (!saved?.workflowId && wanted && data.some((t) => t.id === wanted)) {
+                setTemplateId(wanted);
+                setStep("name");
+            }
             if (saved?.workflowId) {
                 setTemplateId(saved.templateId);
                 setVoice(saved.voice);

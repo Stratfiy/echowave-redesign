@@ -190,6 +190,21 @@ class SuggestedVoice(BaseModel):
     blurb: str = ""
 
 
+#: The jobs the marketplace files bots under. Fixed so that two bots doing
+#: the same job in different industries share one heading; a new template
+#: picks one of these or adds one here, never invents a near-synonym.
+BOT_FUNCTIONS: frozenset[str] = frozenset(
+    {
+        "Answer calls",
+        "Follow up leads",
+        "Confirm orders",
+        "Collect payments",
+        "Answer staff questions",
+        "Send reminders",
+    }
+)
+
+
 class AgentTemplate(BaseModel):
     """A vertical's starting agent: stack, flow, prompts and constraints."""
 
@@ -197,6 +212,12 @@ class AgentTemplate(BaseModel):
     name: str
     #: The business this is for, in the words that business would use.
     vertical: str
+    #: The two axes the marketplace files a bot under. ``industry`` is the
+    #: short form of ``vertical`` ("Healthcare"); ``function`` is the job it
+    #: does, from a fixed set so two bots doing the same job in different
+    #: industries sit under one heading ("Answer calls", "Collect payments").
+    industry: str = ""
+    function: str = ""
     direction: CallDirection
     #: One line for a picker.
     summary: str

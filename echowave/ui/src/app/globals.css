@@ -756,3 +756,52 @@
   box-shadow: none;
   border-bottom-color: var(--cta);
 }
+
+/* A soft wash of the chosen accent over white, drifting slowly: the
+   floor of every chat. Three faint radial pools at low opacity so the
+   colour reads as light on the page, not as a fill behind the messages;
+   the drift takes most of a minute and stops entirely for anyone who asked
+   for reduced motion. Colour comes from --accent-brand, so a theme change
+   recolours it with everything else. On a scrolling box the wash stays
+   put while the messages move over it. */
+.brand-wash {
+  background-color: #ffffff;
+  background-image:
+    radial-gradient(
+      60% 80% at 15% 20%,
+      color-mix(in srgb, var(--accent-brand) 16%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      55% 70% at 85% 25%,
+      color-mix(in srgb, var(--accent-brand) 10%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      70% 60% at 50% 100%,
+      color-mix(in srgb, var(--accent-brand) 8%, transparent),
+      transparent 70%
+    );
+  background-repeat: no-repeat;
+  background-size: 160% 160%;
+  background-position:
+    0% 0%,
+    100% 0%,
+    50% 100%;
+  animation: brand-wash-drift 48s ease-in-out infinite alternate;
+}
+
+@keyframes brand-wash-drift {
+  to {
+    background-position:
+      100% 100%,
+      0% 100%,
+      50% 0%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-wash {
+    animation: none;
+  }
+}
