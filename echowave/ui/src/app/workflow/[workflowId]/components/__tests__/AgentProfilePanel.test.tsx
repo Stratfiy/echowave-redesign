@@ -44,11 +44,29 @@ describe('the panel', () => {
         expect(screen.getByText('Narayani Dental front desk')).toBeTruthy();
         expect(screen.getByText('2 steps')).toBeTruthy();
         // A calendar is outside software; a rate lookup is the bot's own.
+        // An integration is named for the app, not the step: the owner set
+        // up Google Calendar, and "Check availability" is what the bot does
+        // on it. The step is the tooltip.
         const integrations = await screen.findByRole('list', { name: 'Integrations & tools' });
-        expect(integrations.textContent).toContain('Check availability');
+        expect(integrations.textContent).toBe('Google Calendar');
+        expect(integrations.querySelector('li')?.getAttribute('title')).toBe('Check availability');
         expect(screen.getByRole('list', { name: 'Skills' }).textContent).toContain('Book slot');
         expect(screen.getByText(/2 documents of its own/)).toBeTruthy();
         expect(await screen.findByText('9 to 6')).toBeTruthy();
+    });
+
+    it('two steps on one app are one chip', async () => {
+        tools.mockResolvedValue({
+            data: [
+                { tool_uuid: 't1', name: 'Check availability', category: 'google_calendar' },
+                { tool_uuid: 't2', name: 'Book appointment', category: 'google_calendar' },
+            ],
+        });
+        memory.mockResolvedValue({ data: { facts: [], gaps: [] } });
+        render(<AgentProfilePanel workflowId={3} name="Bot" nodes={NODES} />);
+        const integrations = await screen.findByRole('list', { name: 'Integrations & tools' });
+        expect(integrations.querySelectorAll('li').length).toBe(1);
+        expect(integrations.querySelector('li')?.getAttribute('title')).toBe('Check availability, Book appointment');
     });
 
     it('offers a door when there are no skills', () => {

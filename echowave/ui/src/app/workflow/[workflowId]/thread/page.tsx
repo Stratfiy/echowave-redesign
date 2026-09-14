@@ -108,7 +108,13 @@ export default function BotChatPage({
                     />
                 </div>
                 {aboutOpen && (
-                    <aside className="w-full max-w-[400px] shrink-0 border-l border-border bg-muted/20" aria-label="About this bot">
+                    // Opaque, and on a phone it takes the whole screen: a
+                    // translucent panel beside a chat that has no room to
+                    // sit beside was two screens printed on one.
+                    <aside
+                        className="fixed inset-0 z-40 bg-background md:static md:z-auto md:w-full md:max-w-[400px] md:shrink-0 md:border-l md:border-border"
+                        aria-label="About this bot"
+                    >
                         <AboutPanel workflowId={id} name={botName} onClose={() => setAboutOpen(false)} />
                     </aside>
                 )}

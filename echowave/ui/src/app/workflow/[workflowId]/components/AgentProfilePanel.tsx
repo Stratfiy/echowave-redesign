@@ -58,14 +58,63 @@ const CHIP_COLOURS: Record<string, string> = {
     composio: '#EC4899',
 };
 
-type Chip = { id: string; label: string; colour: string };
+type Chip = { id: string; label: string; colour: string; title?: string };
 
-function chipOf(id: string, tool: { name: string; category: string } | undefined): Chip {
+type ToolSummary = { name: string; category: string; definition?: Record<string, unknown> };
+
+function titleCase(slug: string): string {
+    return slug
+        .split(/[_\-\s]+/)
+        .filter(Boolean)
+        .map((w) => w[0].toUpperCase() + w.slice(1))
+        .join(' ');
+}
+
+/** The outside software an integration tool runs on, named the way its
+ *  owner would: "Google Calendar", not "Book Appointment". The tool's own
+ *  name is a step inside that app and goes in the tooltip. A custom HTTP
+ *  tool is its own app, so it keeps its name. Anything this cannot place
+ *  falls back to the tool name rather than to nothing. */
+export function appOf(tool: ToolSummary): string {
+    const definition = tool.definition ?? {};
+    if (tool.category === 'google_calendar') return 'Google Calendar';
+    if (tool.category === 'composio') {
+        const slug = definition.toolkit ?? definition.toolkit_slug ?? definition.app;
+        return typeof slug === 'string' && slug ? titleCase(slug) : tool.name;
+    }
+    if (tool.category === 'mcp') {
+        const server = definition.server_name ?? definition.name;
+        return typeof server === 'string' && server ? server : `${tool.name} (MCP)`;
+    }
+    return tool.name;
+}
+
+function chipOf(id: string, tool: ToolSummary | undefined): Chip {
     return {
         id,
         label: tool?.name ?? 'Skill',
         colour: (tool && CHIP_COLOURS[tool.category]) || '#6B7280',
     };
+}
+
+/** One chip per app: two calendar tools are one Google Calendar. */
+function integrationChips(ids: string[], tools: Record<string, ToolSummary>): Chip[] {
+    const byApp = new Map<string, Chip>();
+    for (const id of ids) {
+        const tool = tools[id];
+        if (!tool) {
+            byApp.set(id, chipOf(id, undefined));
+            continue;
+        }
+        const app = appOf(tool);
+        const existing = byApp.get(app);
+        if (existing) {
+            existing.title = `${existing.title}, ${tool.name}`;
+            continue;
+        }
+        byApp.set(app, { id, label: app, colour: CHIP_COLOURS[tool.category] || '#6B7280', title: tool.name });
+    }
+    return [...byApp.values()];
 }
 
 function ChipSection({
@@ -92,6 +141,7 @@ function ChipSection({
                     {chips.map((chip) => (
                         <li
                             key={chip.id}
+                            title={chip.title}
                             className="rounded-md border px-2 py-0.5 text-xs font-medium"
                             style={{
                                 borderColor: `${chip.colour}55`,
@@ -122,7 +172,7 @@ export function AgentProfilePanel({
 }) {
     const { user, loading: authLoading } = useAuth();
     const fetched = useRef(false);
-    const [tools, setTools] = useState<Record<string, { name: string; category: string }>>({});
+    const [tools, setTools] = useState<Record<string, ToolSummary>>({});
     const [facts, setFacts] = useState<Fact[] | null>(null);
 
     const skillIds = useMemo(() => skillIdsOf(nodes), [nodes]);
@@ -135,8 +185,13 @@ export function AgentProfilePanel({
         void (async () => {
             const response = await listToolsApiV1ToolsGet();
             if (response.error || !response.data) return;
-            const byId: Record<string, { name: string; category: string }> = {};
-            for (const tool of response.data) byId[tool.tool_uuid] = { name: tool.name, category: tool.category };
+            const byId: Record<string, ToolSummary> = {};
+            for (const tool of response.data)
+                byId[tool.tool_uuid] = {
+                    name: tool.name,
+                    category: tool.category,
+                    definition: (tool.definition ?? {}) as Record<string, unknown>,
+                };
             setTools(byId);
         })();
         void (async () => {
@@ -187,7 +242,7 @@ export function AgentProfilePanel({
             <ChipSection
                 icon={Plug}
                 title="Integrations & tools"
-                chips={skillIds.filter((id) => isIntegration(tools[id]?.category)).map((id) => chipOf(id, tools[id]))}
+                chips={integrationChips(skillIds.filter((id) => isIntegration(tools[id]?.category)), tools)}
                 empty={
                     <>
                         Nothing connected.{' '}
