@@ -81,8 +81,8 @@ export function SidebarChannels({ collapsed }: { collapsed: boolean }) {
           reference does it: the label opens the full list, the plus makes a
           new one. Shown even with nothing under it -- an account with no
           channels needs the plus more than one with eight. */}
-      <SidebarGroupLabel className="h-7 justify-between text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        <Link href="/workflow" className="hover:text-foreground">
+      <SidebarGroupLabel className="h-8 justify-between text-[13px] font-semibold text-sidebar-foreground/70">
+        <Link href="/workflow" className="hover:text-sidebar-foreground">
           Channels
         </Link>
         <button
@@ -90,7 +90,7 @@ export function SidebarChannels({ collapsed }: { collapsed: boolean }) {
           aria-label="New chat"
           title="New chat"
           onClick={() => setNewChatOpen(true)}
-          className="rounded p-0.5 hover:bg-sidebar-accent hover:text-foreground"
+          className="rounded p-0.5 hover:bg-sidebar-accent hover:text-sidebar-foreground"
         >
           <Plus aria-hidden="true" className="h-3.5 w-3.5" />
         </button>
@@ -105,7 +105,10 @@ export function SidebarChannels({ collapsed }: { collapsed: boolean }) {
             <SidebarMenuItem key={channel.id}>
               <SidebarMenuButton asChild isActive={pathname === href}>
                 <Link href={href}>
-                  <Hash aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+                  <Hash
+                    aria-hidden="true"
+                    className="h-4 w-4 shrink-0 text-sidebar-foreground/70"
+                  />
                   <span className="truncate">{channel.name}</span>
                 </Link>
               </SidebarMenuButton>
@@ -115,8 +118,8 @@ export function SidebarChannels({ collapsed }: { collapsed: boolean }) {
         {channels.length > shown.length ? (
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
-              <Link href="/workflow" className="text-muted-foreground">
-                <span className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <Link href="/workflow" className="text-sidebar-foreground/60">
+                <span className="h-4 w-4 shrink-0" aria-hidden="true" />
                 <span className="truncate">
                   {channels.length - shown.length} more
                 </span>

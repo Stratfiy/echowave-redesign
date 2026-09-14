@@ -42,7 +42,7 @@ import { cn } from "@/lib/utils";
 const TONE_DOT: Record<string, string> = {
   attention: "bg-destructive",
   working: "bg-emerald-500",
-  idle: "bg-muted-foreground/40",
+  idle: "bg-sidebar-foreground/30",
   paused: "bg-amber-500",
 };
 
@@ -83,7 +83,9 @@ export function SidebarBots({ collapsed }: { collapsed: boolean }) {
     let cancelled = false;
     (async () => {
       try {
-        const response = await teamStatusApiV1TeamStatusGet({ query: { hours: 24 } });
+        const response = await teamStatusApiV1TeamStatusGet({
+          query: { hours: 24 },
+        });
         if (!cancelled) setBots(response.data?.members ?? []);
       } catch {
         // The rail is a shortcut; /workflow is the list. Failing quietly here
@@ -104,15 +106,15 @@ export function SidebarBots({ collapsed }: { collapsed: boolean }) {
     <SidebarGroup className="py-1">
       {/* Label opens the full list, plus hires a new one. Shown even with
           nothing under it: the plus is the door a fresh account needs. */}
-      <SidebarGroupLabel className="h-7 justify-between text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        <Link href="/workflow" className="hover:text-foreground">
+      <SidebarGroupLabel className="h-8 justify-between text-[13px] font-semibold text-sidebar-foreground/70">
+        <Link href="/workflow" className="hover:text-sidebar-foreground">
           Your bots
         </Link>
         <Link
           href="/workflow/create"
           aria-label="Hire a bot"
           title="Hire a bot"
-          className="rounded p-0.5 hover:bg-sidebar-accent hover:text-foreground"
+          className="rounded p-0.5 hover:bg-sidebar-accent hover:text-sidebar-foreground"
         >
           <Plus aria-hidden="true" className="h-3.5 w-3.5" />
         </Link>
@@ -128,7 +130,12 @@ export function SidebarBots({ collapsed }: { collapsed: boolean }) {
           const unread = !active && isUnread(bot.workflow_id, bot.last_at);
           return (
             <SidebarMenuItem key={bot.workflow_id}>
-              <SidebarMenuButton asChild isActive={active} tooltip={bot.status} className="h-11">
+              <SidebarMenuButton
+                asChild
+                isActive={active}
+                tooltip={bot.status}
+                className="h-11"
+              >
                 {/* `title` as well as the status tooltip: a name long enough
                     to truncate is exactly the name somebody needs to read in
                     full, and the tooltip slot is already spent on what the bot
@@ -136,7 +143,7 @@ export function SidebarBots({ collapsed }: { collapsed: boolean }) {
                 <Link href={href} title={bot.name}>
                   <span
                     aria-hidden="true"
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--accent-brand-soft)] text-[10px] font-semibold text-[var(--accent-brand)]"
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-sidebar-foreground/15 text-[10px] font-semibold text-sidebar-foreground"
                   >
                     {initials(bot.name)}
                   </span>
@@ -144,9 +151,11 @@ export function SidebarBots({ collapsed }: { collapsed: boolean }) {
                       thing said or done. The rail read as a directory with
                       one line; a teammate you talk to has a last message. */}
                   <span className="flex min-w-0 flex-1 flex-col leading-tight">
-                    <span className={cn("truncate", unread && "font-semibold")}>{bot.name}</span>
+                    <span className={cn("truncate", unread && "font-semibold")}>
+                      {bot.name}
+                    </span>
                     {bot.last_line && (
-                      <span className="truncate text-[11px] text-muted-foreground">
+                      <span className="truncate text-[11px] font-normal text-sidebar-foreground/60">
                         {bot.last_actor === "human" ? "You: " : ""}
                         {bot.last_line}
                       </span>
@@ -176,7 +185,7 @@ export function SidebarBots({ collapsed }: { collapsed: boolean }) {
         {bots.length > shown.length ? (
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
-              <Link href="/workflow" className="text-muted-foreground">
+              <Link href="/workflow" className="text-sidebar-foreground/60">
                 <span className="h-1.5 w-1.5 shrink-0" aria-hidden="true" />
                 <span className="truncate">
                   {bots.length - shown.length} more

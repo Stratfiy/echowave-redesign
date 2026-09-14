@@ -55,7 +55,7 @@ const ROWS_PER_GROUP = 6;
 
 function Hero({ kind }: { kind: ShelfKind }) {
     return (
-        <div className="rounded-2xl bg-sidebar px-6 py-8 sm:px-10 sm:py-10">
+        <div className="rounded-2xl bg-[var(--accent-brand-tint)] px-6 py-8 sm:px-10 sm:py-10">
             <p className="text-xs font-semibold uppercase tracking-wider text-brand-blue">
                 Decibyl Marketplace
             </p>

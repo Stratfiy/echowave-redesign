@@ -2,20 +2,24 @@ import { isNextRouterError } from "next/dist/client/components/is-next-router-er
 import { redirect } from "next/navigation";
 
 import { getWorkflowCountApiV1WorkflowCountGet } from "@/client/sdk.gen";
-import { getServerAccessToken,getServerAuthProvider,getServerUser } from "@/lib/auth/server";
-import logger from '@/lib/logger';
+import {
+  getServerAccessToken,
+  getServerAuthProvider,
+  getServerUser,
+} from "@/lib/auth/server";
+import logger from "@/lib/logger";
 import { getRedirectUrl } from "@/lib/utils";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  logger.debug('[HomePage] Starting Home page render');
+  logger.debug("[HomePage] Starting Home page render");
   const authProvider = await getServerAuthProvider();
-  logger.debug('[HomePage] Auth provider:', authProvider);
+  logger.debug("[HomePage] Auth provider:", authProvider);
 
   // For local/OSS provider, check if user has workflows
-  if (authProvider === 'local') {
-    logger.debug('[HomePage] Local provider detected, checking for workflows');
+  if (authProvider === "local") {
+    logger.debug("[HomePage] Local provider detected, checking for workflows");
 
     try {
       const accessToken = await getServerAccessToken();
@@ -26,20 +30,26 @@ export default async function Home() {
           },
         });
 
-        logger.debug('[HomePage] Found workflows for local provider:', {
+        logger.debug("[HomePage] Found workflows for local provider:", {
           total: countResponse.data?.total,
-          active: countResponse.data?.active
+          active: countResponse.data?.active,
         });
 
         if (countResponse.data && countResponse.data.active > 0) {
-          logger.debug('[HomePage] Redirecting to /workflow - user has workflows');
-          redirect('/workflow');
+          // Home is the Decibyl thread, the way a Slack workspace opens on
+          // Slackbot; the bots table is a click away in the panel.
+          logger.debug(
+            "[HomePage] Redirecting to /overview - user has workflows",
+          );
+          redirect("/overview");
         } else {
-          logger.debug('[HomePage] Redirecting to /workflow/create - no workflows found');
-          redirect('/workflow/create');
+          logger.debug(
+            "[HomePage] Redirecting to /workflow/create - no workflows found",
+          );
+          redirect("/workflow/create");
         }
       } else {
-        redirect('/auth/login');
+        redirect("/auth/login");
       }
     } catch (error) {
       // Re-throw navigation errors (redirects, not found, etc.) - they're intentional
@@ -47,42 +57,57 @@ export default async function Home() {
         throw error;
       }
 
-      logger.error('[HomePage] Error checking workflows for local provider:', error);
+      logger.error(
+        "[HomePage] Error checking workflows for local provider:",
+        error,
+      );
       // Default to /workflow/create on actual errors
-      logger.debug('[HomePage] Defaulting to /workflow/create due to error');
-      redirect('/workflow/create');
+      logger.debug("[HomePage] Defaulting to /workflow/create due to error");
+      redirect("/workflow/create");
     }
   }
 
-  logger.debug('[HomePage] Getting server user...');
+  logger.debug("[HomePage] Getting server user...");
   const user = await getServerUser();
 
-  logger.debug('[HomePage] Server user result:', {
+  logger.debug("[HomePage] Server user result:", {
     hasUser: !!user,
     userId: user?.id,
-    authProvider
+    authProvider,
   });
 
   if (user) {
     try {
       // For Stack provider, get the token and permissions
-      if (authProvider === 'stack' && 'getAuthJson' in user) {
-        logger.debug('[HomePage] Getting auth token from Stack user...');
+      if (authProvider === "stack" && "getAuthJson" in user) {
+        logger.debug("[HomePage] Getting auth token from Stack user...");
         const token = await user.getAuthJson();
-        logger.debug('[HomePage] Got auth token:', { hasToken: !!token?.accessToken });
-        const permissions = 'listPermissions' in user && 'selectedTeam' in user
-          ? await user.listPermissions(user.selectedTeam!) ?? []
-          : [];
-        logger.debug('[HomePage] Got permissions:', { count: permissions.length });
-        logger.debug('[HomePage] Getting redirect URL...');
-        const redirectUrl = await getRedirectUrl(token?.accessToken ?? "", permissions);
-        logger.debug('[HomePage] Redirecting to:', redirectUrl);
+        logger.debug("[HomePage] Got auth token:", {
+          hasToken: !!token?.accessToken,
+        });
+        const permissions =
+          "listPermissions" in user && "selectedTeam" in user
+            ? ((await user.listPermissions(user.selectedTeam!)) ?? [])
+            : [];
+        logger.debug("[HomePage] Got permissions:", {
+          count: permissions.length,
+        });
+        logger.debug("[HomePage] Getting redirect URL...");
+        const redirectUrl = await getRedirectUrl(
+          token?.accessToken ?? "",
+          permissions,
+        );
+        logger.debug("[HomePage] Redirecting to:", redirectUrl);
         redirect(redirectUrl);
       }
     } catch (error) {
       // If it's a Next.js redirect, let it through
-      if (error instanceof Error && 'digest' in error &&
-          typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
+      if (
+        error instanceof Error &&
+        "digest" in error &&
+        typeof error.digest === "string" &&
+        error.digest.startsWith("NEXT_REDIRECT")
+      ) {
         throw error;
       }
       // Only catch actual API errors
@@ -91,6 +116,8 @@ export default async function Home() {
     }
   }
 
-  logger.debug('[HomePage] Redirecting unauthenticated Stack user to /handler/sign-in');
-  redirect('/handler/sign-in');
+  logger.debug(
+    "[HomePage] Redirecting unauthenticated Stack user to /handler/sign-in",
+  );
+  redirect("/handler/sign-in");
 }
