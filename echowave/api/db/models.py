@@ -232,6 +232,10 @@ class OrganizationModel(Base):
         index=True,
     )
     referred_at = Column(DateTime(timezone=True), nullable=True)
+    #: Paid friend referrals this account may earn on in a calendar month
+    #: (KAN-133). NULL means the default in ``referral_rewards``; staff set a
+    #: number to raise it for an account that genuinely brings many.
+    referral_monthly_cap = Column(Integer, nullable=True)
 
     # Relationships
     memberships = relationship(

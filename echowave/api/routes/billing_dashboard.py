@@ -405,6 +405,40 @@ async def set_account_early_adopter(
     }
 
 
+class ReferralCapRequest(BaseModel):
+    cap: int | None = Field(
+        None, ge=0, description="Paid referrals a month; null returns to the default"
+    )
+
+
+@router.put("/accounts/{organization_id}/referral-cap")
+async def set_account_referral_cap(
+    organization_id: int,
+    request: ReferralCapRequest,
+    user: UserModel = Depends(get_superuser),
+) -> dict[str, Any]:
+    """Raise (or reset) how many paid friend referrals this account may earn
+    on in a month (KAN-133). The cap stops the referrer's credit only; the
+    friend keeps theirs."""
+    from api.services.billing import referral_rewards
+
+    async with db_client.async_session() as session:
+        try:
+            cap = await referral_rewards.set_monthly_cap(
+                session, organization_id=organization_id, cap=request.cap
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        await session.commit()
+    logger.info(
+        "Organization {} referral cap set to {} by staff user {}",
+        organization_id,
+        request.cap,
+        user.id,
+    )
+    return {"organization_id": organization_id, "monthly_cap": cap}
+
+
 class CreditAdjustmentRequest(BaseModel):
     delta_paise: int = Field(..., description="Positive credits, negative debits")
     note: str = Field(..., min_length=1, description="Required: why this was adjusted")

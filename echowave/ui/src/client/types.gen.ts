@@ -8962,6 +8962,18 @@ export type RedialCampaignRequest = {
 };
 
 /**
+ * ReferralCapRequest
+ */
+export type ReferralCapRequest = {
+    /**
+     * Cap
+     *
+     * Paid referrals a month; null returns to the default
+     */
+    cap?: number | null;
+};
+
+/**
  * ReleaseRequest
  */
 export type ReleaseRequest = {
@@ -14137,6 +14149,54 @@ export type SetAccountEarlyAdopterApiV1AdminBillingAccountsOrganizationIdEarlyAd
 
 export type SetAccountEarlyAdopterApiV1AdminBillingAccountsOrganizationIdEarlyAdopterPutResponse = SetAccountEarlyAdopterApiV1AdminBillingAccountsOrganizationIdEarlyAdopterPutResponses[keyof SetAccountEarlyAdopterApiV1AdminBillingAccountsOrganizationIdEarlyAdopterPutResponses];
 
+export type SetAccountReferralCapApiV1AdminBillingAccountsOrganizationIdReferralCapPutData = {
+    body: ReferralCapRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/billing/accounts/{organization_id}/referral-cap';
+};
+
+export type SetAccountReferralCapApiV1AdminBillingAccountsOrganizationIdReferralCapPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetAccountReferralCapApiV1AdminBillingAccountsOrganizationIdReferralCapPutError = SetAccountReferralCapApiV1AdminBillingAccountsOrganizationIdReferralCapPutErrors[keyof SetAccountReferralCapApiV1AdminBillingAccountsOrganizationIdReferralCapPutErrors];
+
+export type SetAccountReferralCapApiV1AdminBillingAccountsOrganizationIdReferralCapPutResponses = {
+    /**
+     * Response Set Account Referral Cap Api V1 Admin Billing Accounts  Organization Id  Referral Cap Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetAccountReferralCapApiV1AdminBillingAccountsOrganizationIdReferralCapPutResponse = SetAccountReferralCapApiV1AdminBillingAccountsOrganizationIdReferralCapPutResponses[keyof SetAccountReferralCapApiV1AdminBillingAccountsOrganizationIdReferralCapPutResponses];
+
 export type AdjustCreditApiV1AdminBillingAccountsOrganizationIdCreditPostData = {
     body: CreditAdjustmentRequest;
     headers?: {
@@ -16284,6 +16344,49 @@ export type GetOnboardingCreditsApiV1OnboardingCreditsGetResponses = {
 };
 
 export type GetOnboardingCreditsApiV1OnboardingCreditsGetResponse = GetOnboardingCreditsApiV1OnboardingCreditsGetResponses[keyof GetOnboardingCreditsApiV1OnboardingCreditsGetResponses];
+
+export type GetReferralsApiV1ReferralsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/referrals';
+};
+
+export type GetReferralsApiV1ReferralsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetReferralsApiV1ReferralsGetError = GetReferralsApiV1ReferralsGetErrors[keyof GetReferralsApiV1ReferralsGetErrors];
+
+export type GetReferralsApiV1ReferralsGetResponses = {
+    /**
+     * Response Get Referrals Api V1 Referrals Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetReferralsApiV1ReferralsGetResponse = GetReferralsApiV1ReferralsGetResponses[keyof GetReferralsApiV1ReferralsGetResponses];
 
 export type GetBuilderConfigApiV1AgentBuilderConfigGetData = {
     body?: never;

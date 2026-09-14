@@ -765,6 +765,13 @@ async def handle_webhook(
                 outcome["plan"] = await grant_plan_cycle(
                     session, mandate=mandate, event=event
                 )
+                # A plan collection is a payment too: the friend who
+                # subscribed pays out the referral (KAN-133). Own session,
+                # after this one commits, so it can never roll the cycle back.
+                outcome["referral_after_commit"] = {
+                    "organization_id": mandate.organization_id,
+                    "payment_ref": str(payment_id or order_id or "collection"),
+                }
             else:
                 # Recording the period here is what stops the monthly cron
                 # debiting the prepaid balance for the same month — two
@@ -1039,6 +1046,13 @@ async def handle_webhook(
         "order_id": order_id,
         "credited_paise": credited,
         "receipt_voucher_id": voucher.id if voucher else None,
+        # The friend's first paid top-up pays out the referral (KAN-133).
+        # Settled by the route after this transaction commits, in a session
+        # of its own, so it can never roll the credit back.
+        "referral_after_commit": {
+            "organization_id": payment.organization_id,
+            "payment_ref": str(payment_id),
+        },
     }
 
 

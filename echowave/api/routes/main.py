@@ -45,6 +45,7 @@ from api.routes.provider_keys import router as provider_keys_router
 from api.routes.public_agent import router as public_agent_router
 from api.routes.public_download import router as public_download_router
 from api.routes.public_embed import router as public_embed_router
+from api.routes.referrals import router as referrals_router
 from api.routes.reports import router as reports_router
 from api.routes.routines import router as routines_router
 from api.routes.s3_signed_url import router as s3_router
@@ -78,6 +79,7 @@ router.include_router(superuser_router)
 router.include_router(billing_dashboard_router)
 router.include_router(admin_kpis_router)
 router.include_router(onboarding_router)
+router.include_router(referrals_router)
 router.include_router(agent_builder_router)
 router.include_router(agent_templates_router)
 router.include_router(agent_options_router)

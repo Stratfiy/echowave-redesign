@@ -48,6 +48,7 @@ import {
 } from "@/client/sdk.gen";
 import { AutoTopupSection } from "@/components/billing/AutoTopupSection";
 import { PlanSection } from "@/components/billing/PlanSection";
+import { InviteCard } from "@/components/home/InviteCard";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { BILLING_TABS } from "@/components/layout/SectionTabs";
 import { Button } from "@/components/ui/button";
@@ -1118,6 +1119,9 @@ export default function BillingPage() {
           </Button>
         </fieldset>
       </section>
+
+      {/* Invite a business: the link, and who came through it (KAN-133). */}
+      <InviteCard />
 
       <section className="rounded-xl border bg-card p-6">
         <h2 className="text-lg font-medium">Tax documents</h2>
