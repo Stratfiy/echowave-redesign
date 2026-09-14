@@ -32,6 +32,7 @@ import {
     ScrollText,
     Share2,
     Variable,
+    Workflow,
     Wrench,
 } from "lucide-react";
 import Link from "next/link";
@@ -42,7 +43,7 @@ import { cn } from "@/lib/utils";
 import type { TabId } from "../settings/tabs";
 
 /**
- * Vapi's five, and Share.
+ * Chat, Instructions, Graph, then Vapi's Logs, Tools, Analysis, Advanced, and Share.
  *
  * Assistant, Logs, Tools, Analysis, Advanced is the strip on the product we
  * are measured against, and it is enough: the models and how they listen,
@@ -61,8 +62,13 @@ export const AGENT_TABS = [
     // sells a teammate, and what you want from a teammate is what they have
     // been doing. Configuration is a thing you set once; the thread is the
     // thing you come back for.
-    { key: "thread", label: "Thread", icon: MessagesSquare },
-    { key: "assistant", label: "Assistant", icon: Bot },
+    { key: "thread", label: "Chat", icon: MessagesSquare },
+    // Instructions and Graph are two views of the same definition -- the
+    // form is the readable one, the canvas is the whole action graph -- so
+    // they are two tabs on one route, told apart by ?view=graph. A view that
+    // was a button inside the other view was a place nobody could link to.
+    { key: "assistant", label: "Instructions", icon: Bot },
+    { key: "graph", label: "Graph", icon: Workflow },
     { key: "logs", label: "Logs", icon: ScrollText },
     { key: "tools", label: "Tools", icon: Wrench },
     { key: "analysis", label: "Analysis", icon: BarChart3, settingsTab: "analysis" },
@@ -78,6 +84,8 @@ function hrefFor(tab: Tab, workflowId: number): string {
     switch (tab.key) {
         case "thread":
             return `${base}/thread`;
+        case "graph":
+            return `${base}?view=graph`;
         case "logs":
             return `${base}/runs`;
         case "tools":
@@ -90,11 +98,17 @@ function hrefFor(tab: Tab, workflowId: number): string {
 export function AgentTabs({
     workflowId,
     settingsTab,
+    view,
     dirtyTabs,
 }: {
     workflowId: number;
     /** Which settings tab is showing, when the settings page is the one open. */
     settingsTab?: TabId;
+    /** Which of the two definition views is showing, when the editor is the
+     *  page open. Passed down for the same reason settingsTab is: the page
+     *  that knows the answer says, rather than the strip reading the query
+     *  string during render. */
+    view?: "instructions" | "graph";
     /** Settings tabs holding an edit nobody has saved. */
     dirtyTabs?: ReadonlySet<string>;
 }) {
@@ -106,9 +120,12 @@ export function AgentTabs({
         if (tab.key === "thread") return pathname.startsWith(`${base}/thread`);
         if (tab.key === "logs") return pathname.startsWith(`${base}/runs`);
         if (tab.key === "tools") return pathname.startsWith(`${base}/tools`);
-        // The canvas, and only the canvas. `startsWith` would light it on
+        // The editor, and only the editor. `startsWith` would light it on
         // every tab, since every one of these lives under the same base.
-        return pathname === base;
+        // Which of its two views is lit is the page's word, not the URL's.
+        if (pathname !== base) return false;
+        if (tab.key === "graph") return view === "graph";
+        return view !== "graph";
     };
 
     return (

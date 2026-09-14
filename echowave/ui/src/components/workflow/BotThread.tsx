@@ -22,6 +22,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { timelineApiV1TimelineGet } from '@/client/sdk.gen';
 import type { TimelineEvent } from '@/client/types.gen';
 import { Button } from '@/components/ui/button';
+import { DecisionCard } from '@/components/workflow/DecisionCard';
 import { detailFromResult } from '@/lib/apiError';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
@@ -119,6 +120,18 @@ export function BotThread({ workflowId }: { workflowId: number }) {
         <div className="flex flex-col">
             <ol className="flex flex-col gap-4 py-2">
                 {events.map((event) => {
+                    if (event.kind === 'needs_decision') {
+                        return (
+                            <li key={event.id}>
+                                <DecisionCard
+                                    event={event}
+                                    onDecided={(updated) =>
+                                        setEvents((all) => all.map((e) => (e.id === updated.id ? updated : e)))
+                                    }
+                                />
+                            </li>
+                        );
+                    }
                     const tone = TONE[event.kind];
                     const Icon = tone?.icon ?? Clock;
                     return (

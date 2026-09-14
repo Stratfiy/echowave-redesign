@@ -61,6 +61,9 @@ export default function WorkflowDetailPage() {
 
     const stableUser = useMemo(() => user, [user]);
     const openTesterOnLoad = searchParams.get('onboarding') === 'web_call';
+    // Instructions and Graph are two views of one definition on one route;
+    // the query string says which, so a Graph tab is a link somebody can share.
+    const initialView = searchParams.get('view') === 'graph' ? 'graph' : 'instructions';
 
     if (loading) {
         return (
@@ -105,6 +108,7 @@ export default function WorkflowDetailPage() {
                     }
                     initialVersionNumber={workflow.version_number ?? null}
                     initialVersionStatus={workflow.version_status ?? null}
+                    initialView={initialView}
                     user={stableUser}
                 />
             </>

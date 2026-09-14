@@ -63,6 +63,8 @@ interface RenderWorkflowProps {
     initialWorkflowConfigurations?: WorkflowConfigurations;
     initialVersionNumber?: number | null;
     initialVersionStatus?: string | null;
+    /** Which definition view the URL asked for. See AgentTabs. */
+    initialView?: "instructions" | "graph";
     user: { id: string; email?: string };
 }
 
@@ -77,6 +79,7 @@ function RenderWorkflow({
     initialWorkflowConfigurations,
     initialVersionNumber,
     initialVersionStatus,
+    initialView,
     user,
 }: RenderWorkflowProps) {
     const router = useRouter();
@@ -143,7 +146,22 @@ function RenderWorkflow({
         () => isSimpleAgent(nodes as FlowNode[], edges as FlowEdge[]),
         [nodes, edges],
     );
-    const [showCanvas, setShowCanvas] = useState(false);
+    const [showCanvas, setShowCanvasState] = useState(initialView === "graph");
+    // The Graph tab is a link, so a click on it changes the URL and the page
+    // hands the new view down; this keeps the state in step with that.
+    useEffect(() => {
+        setShowCanvasState(initialView === "graph");
+    }, [initialView]);
+    // And the buttons inside the views go the other way: they change the
+    // state and keep the URL honest, so a reload or a shared link lands on
+    // the view that was showing.
+    const setShowCanvas = useCallback(
+        (on: boolean) => {
+            setShowCanvasState(on);
+            router.replace(`/workflow/${workflowId}${on ? "?view=graph" : ""}`, { scroll: false });
+        },
+        [router, workflowId],
+    );
     const useSimpleView = graphIsSimple && !showCanvas;
     /* Everything else opens on its prompts too. A template makes a four-step
      * agent, and until now every one of them opened on the canvas — the one
@@ -543,7 +561,7 @@ function RenderWorkflow({
                 {/* One agent, five tabs -- the shape Vapi uses. These were four
                     unrelated URLs reached from a back arrow and a menu, so an
                     agent was never one thing you were looking at. */}
-                <AgentTabs workflowId={workflowId} />
+                <AgentTabs workflowId={workflowId} view={showCanvas ? "graph" : "instructions"} />
 
                 {/* Workflow Canvas */}
                 <div className="flex-1 min-h-0">
