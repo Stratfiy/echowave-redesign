@@ -114,10 +114,10 @@ const STEPS = ["Identity", "Conversation", "Closing"] as const;
  * The account's real credit, read rather than assumed.
  *
  * This was a hardcoded 250000 paise — Rs2,500 — and no account has ever had
- * that. The signup bonus is `SIGNUP_BONUS_MICROS_USD`, $5 by default, about
- * Rs480. So the wizard told a first-time customer their balance bought roughly
- * 483 minutes when it bought about 93, and the first campaign would stop a
- * fifth of the way in with no warning anybody could have read.
+ * that. A new account earns its Free 1,000 credits (Rs500) step by step. So
+ * the wizard told a first-time customer their balance bought roughly 483
+ * minutes when it bought a fraction of that, and the first campaign would stop
+ * early with no warning anybody could have read.
  *
  * `/billing/balance` is the same figure the billing screen shows and the same
  * one calls are actually drawn against, so the number here cannot drift from

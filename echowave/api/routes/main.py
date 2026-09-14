@@ -29,6 +29,7 @@ from api.routes.managed_numbers import router as managed_numbers_router
 from api.routes.missed_calls import router as missed_calls_router
 from api.routes.node_types import router as node_types_router
 from api.routes.notifications import router as notifications_router
+from api.routes.onboarding import router as onboarding_router
 from api.routes.organisation import router as organisation_router
 from api.routes.organisation_memory import router as organisation_memory_router
 from api.routes.organization import router as organization_router
@@ -76,6 +77,7 @@ router.include_router(telephony_admin_router)
 router.include_router(superuser_router)
 router.include_router(billing_dashboard_router)
 router.include_router(admin_kpis_router)
+router.include_router(onboarding_router)
 router.include_router(agent_builder_router)
 router.include_router(agent_templates_router)
 router.include_router(agent_options_router)

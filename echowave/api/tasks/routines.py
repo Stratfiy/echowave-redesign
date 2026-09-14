@@ -26,6 +26,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
+from api.services.billing import onboarding_credits
 from api.services.compliance import dnd
 from api.services.organization_preferences import get_organization_preferences
 from api.services.workflow import agent_timeline, routines
@@ -94,6 +95,10 @@ async def fire_due_routines(ctx) -> None:
                     FunctionNames.RUN_AGENT_ROUTINE, routine.id
                 )
                 fired += 1
+                # The onboarding step "schedule a routine, and let it run"
+                # pays on the first firing (KAN-132). Best effort; Home
+                # catches up if this misses.
+                await onboarding_credits.settle_in_own_session(organization_id)
                 continue
 
             if not decision.needs_attention:

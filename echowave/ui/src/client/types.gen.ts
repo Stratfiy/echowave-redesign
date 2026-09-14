@@ -593,6 +593,10 @@ export type AuthResponse = {
      */
     token: string;
     user: UserResponse;
+    /**
+     * Email Verification Required
+     */
+    email_verification_required?: boolean;
 };
 
 /**
@@ -16179,6 +16183,49 @@ export type GetKpiCatalogueApiV1AdminKpisCatalogueGetResponses = {
 };
 
 export type GetKpiCatalogueApiV1AdminKpisCatalogueGetResponse = GetKpiCatalogueApiV1AdminKpisCatalogueGetResponses[keyof GetKpiCatalogueApiV1AdminKpisCatalogueGetResponses];
+
+export type GetOnboardingCreditsApiV1OnboardingCreditsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/onboarding/credits';
+};
+
+export type GetOnboardingCreditsApiV1OnboardingCreditsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetOnboardingCreditsApiV1OnboardingCreditsGetError = GetOnboardingCreditsApiV1OnboardingCreditsGetErrors[keyof GetOnboardingCreditsApiV1OnboardingCreditsGetErrors];
+
+export type GetOnboardingCreditsApiV1OnboardingCreditsGetResponses = {
+    /**
+     * Response Get Onboarding Credits Api V1 Onboarding Credits Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetOnboardingCreditsApiV1OnboardingCreditsGetResponse = GetOnboardingCreditsApiV1OnboardingCreditsGetResponses[keyof GetOnboardingCreditsApiV1OnboardingCreditsGetResponses];
 
 export type GetBuilderConfigApiV1AgentBuilderConfigGetData = {
     body?: never;

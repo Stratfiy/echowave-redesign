@@ -426,6 +426,7 @@ async def cost_workflow_run(
     )
 
     await session.flush()
+
     return cost
 
 

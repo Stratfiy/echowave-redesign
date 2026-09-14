@@ -19,6 +19,7 @@
 
 import { HomeAboveTheFold } from '@/components/home/HomeAboveTheFold';
 import { LazySection } from '@/components/home/LazySection';
+import { OnboardingChecklist } from '@/components/home/OnboardingChecklist';
 import { PageBody, PageHeader } from '@/components/layout/PageHeader';
 import { OverviewDashboard } from '@/components/overview/OverviewDashboard';
 import { useAuth } from '@/lib/auth';
@@ -48,6 +49,8 @@ export default function OverviewPage() {
                 {/* What happened, in sentences: the greeting, the composer,
                     chips built from this account's own state, and the team. */}
                 <HomeAboveTheFold firstName={firstName} />
+                {/* Six steps that pay the free credits, until they are all done. */}
+                <OnboardingChecklist />
                 {/* How it is trending, in charts — and not before somebody
                     scrolls to them. These are four analytics endpoints and a
                     charting library; paying for them on first paint made the

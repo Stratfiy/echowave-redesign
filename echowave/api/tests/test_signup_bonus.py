@@ -1,10 +1,11 @@
-"""Free credit for a new account.
+"""The first onboarding step: a proved address pays 150 credits.
 
-Two properties matter. It must actually arrive — a prepaid account with no
-credit cannot make a single call, so a bonus that silently fails to land makes
-the product look broken to someone who has just signed up. And it must arrive
-exactly once, because the obvious way to abuse a signup bonus is to sign up
-twice.
+The entry points signup and the verify route call are unchanged; what they
+pay is now the first tranche of the Free allowance (KAN-132) rather than a
+dollar figure converted on the day. Two properties still matter most:
+
+* it lands as a gift, never a sale, so revenue reporting can exclude it; and
+* it is granted exactly once, however many requests race for it.
 """
 
 import asyncio
@@ -13,21 +14,13 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy import func, select
 
-from api.db.models import (
-    CreditLedgerModel,
-    OrganizationModel,
-    UsdInrRateHistoryModel,
-    UserModel,
-)
+from api.db.models import CreditLedgerModel, OrganizationModel
 from api.enums import CreditLedgerKind
-from api.services.billing import signup_bonus
+from api.services.billing import onboarding_credits
 from api.services.billing.costing import current_balance_paise
 from api.services.billing.signup_bonus import REF_TYPE, grant_signup_bonus
 
-
-@pytest.fixture(autouse=True)
-def five_dollars(monkeypatch):
-    monkeypatch.setattr(signup_bonus, "SIGNUP_BONUS_MICROS_USD", 5_000_000)
+VERIFY_EMAIL_PAISE = 150 * 50
 
 
 async def _org(async_session, slug: str) -> OrganizationModel:
@@ -54,36 +47,16 @@ async def _bonus_rows(async_session, org) -> int:
 
 @pytest.mark.asyncio
 class TestTheBonusArrives:
-    async def test_a_new_account_gets_credit(self, async_session):
+    async def test_a_new_account_gets_the_first_tranche(self, async_session):
         org = await _org(async_session, "bonus")
 
         granted = await grant_signup_bonus(async_session, organization_id=org.id)
 
-        assert granted > 0
+        assert granted == VERIFY_EMAIL_PAISE
         assert (
             await current_balance_paise(async_session, organization_id=org.id)
             == granted
         )
-
-    async def test_it_is_converted_from_dollars_at_the_current_rate(
-        self, async_session
-    ):
-        """Denominated in dollars like the list price. A rupee figure would get
-        quietly cheaper in dollar terms every time the rupee weakened."""
-        async_session.add(
-            UsdInrRateHistoryModel(
-                paise_per_usd=10_000,  # Rs 100 to the dollar, exactly
-                effective_from=datetime(2020, 1, 1, tzinfo=UTC),
-                source="test",
-            )
-        )
-        await async_session.flush()
-        org = await _org(async_session, "fx")
-
-        granted = await grant_signup_bonus(async_session, organization_id=org.id)
-
-        # $5 at Rs 100 = Rs 500 = 50,000 paise.
-        assert granted == 50_000
 
     async def test_it_lands_as_trial_not_topup(self, async_session):
         """It is a gift, not a sale. Keeping the kinds apart is what lets
@@ -95,7 +68,8 @@ class TestTheBonusArrives:
             select(CreditLedgerModel).where(CreditLedgerModel.organization_id == org.id)
         )
         assert row.kind == CreditLedgerKind.TRIAL.value
-        assert row.ref_type == REF_TYPE
+        # The historical ref, so accounts paid before KAN-132 count as done.
+        assert row.ref_type == REF_TYPE == "signup_bonus"
 
     async def test_the_bonus_is_spendable(self, async_session):
         """The whole point: a brand-new account can place a call."""
@@ -123,11 +97,20 @@ class TestItIsGrantedOnce:
         )
 
     async def test_switching_it_off_grants_nothing(self, async_session, monkeypatch):
-        monkeypatch.setattr(signup_bonus, "SIGNUP_BONUS_MICROS_USD", 0)
+        monkeypatch.setattr(onboarding_credits, "ENABLED", False)
         org = await _org(async_session, "disabled")
 
         assert await grant_signup_bonus(async_session, organization_id=org.id) == 0
         assert await _bonus_rows(async_session, org) == 0
+
+    async def test_our_own_accounts_get_nothing(self, async_session):
+        org = OrganizationModel(
+            provider_id="org-ours", quota_decibyl_tokens=0, internal_billing=True
+        )
+        async_session.add(org)
+        await async_session.flush()
+
+        assert await grant_signup_bonus(async_session, organization_id=org.id) == 0
 
 
 @pytest.mark.asyncio
@@ -139,7 +122,7 @@ class TestConcurrentSignup:
     """
 
     async def test_concurrent_grants_produce_exactly_one_bonus(
-        self, test_engine, setup_test_database, monkeypatch
+        self, test_engine, setup_test_database
     ):
         from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -157,7 +140,6 @@ class TestConcurrentSignup:
 
         async def grant() -> int:
             async with maker() as session:
-                # Patched per-session: the module global is read inside.
                 granted = await grant_signup_bonus(session, organization_id=org_id)
                 if granted:
                     await session.commit()
@@ -197,115 +179,3 @@ class TestConcurrentSignup:
                     )
                 )
                 await cleanup.commit()
-
-
-@pytest.mark.asyncio
-class TestItIsNotASale:
-    async def test_no_tax_document_is_issued_for_a_bonus(self, async_session):
-        """No money changed hands, so there is no supply to document. A receipt
-        voucher for a gift would misstate a payment that never happened."""
-        from api.db.models import TaxDocumentModel
-
-        org = await _org(async_session, "notasale")
-        await grant_signup_bonus(async_session, organization_id=org.id)
-
-        documents = int(
-            await async_session.scalar(
-                select(func.count())
-                .select_from(TaxDocumentModel)
-                .where(TaxDocumentModel.organization_id == org.id)
-            )
-            or 0
-        )
-        assert documents == 0
-
-    async def test_no_payment_row_is_created(self, async_session):
-        from api.db.models import PaymentModel
-
-        org = await _org(async_session, "nopayment")
-        await grant_signup_bonus(async_session, organization_id=org.id)
-
-        payments = int(
-            await async_session.scalar(
-                select(func.count())
-                .select_from(PaymentModel)
-                .where(PaymentModel.organization_id == org.id)
-            )
-            or 0
-        )
-        assert payments == 0
-
-
-@pytest.mark.asyncio
-class TestItWaitsForAProvedAddress:
-    """Free credit that lands on form submission is free vendor minutes for a
-    loop and a list of addresses. Where a code can be sent, the bonus waits for
-    it; where it cannot, waiting would be forever."""
-
-    async def _user(self, async_session, slug: str, *, verified: bool) -> UserModel:
-        user = UserModel(
-            provider_id=f"user-{slug}",
-            email_verified_at=datetime.now(UTC) if verified else None,
-        )
-        async_session.add(user)
-        await async_session.flush()
-        return user
-
-    async def test_an_unproved_address_gets_nothing_yet(
-        self, async_session, monkeypatch
-    ):
-        monkeypatch.setattr(signup_bonus, "verification_gates_the_bonus", lambda: True)
-        org = await _org(async_session, "waits")
-        user = await self._user(async_session, "waits", verified=False)
-
-        granted = await signup_bonus.grant_bonus_if_due(
-            async_session, organization_id=org.id, user=user
-        )
-
-        assert granted == 0
-        assert await _bonus_rows(async_session, org) == 0
-
-    async def test_a_proved_address_gets_it_at_creation(
-        self, async_session, monkeypatch
-    ):
-        monkeypatch.setattr(signup_bonus, "verification_gates_the_bonus", lambda: True)
-        org = await _org(async_session, "proved")
-        user = await self._user(async_session, "proved", verified=True)
-
-        granted = await signup_bonus.grant_bonus_if_due(
-            async_session, organization_id=org.id, user=user
-        )
-
-        assert granted > 0
-        assert await _bonus_rows(async_session, org) == 1
-
-    async def test_a_door_that_cannot_ask_does_not_wait(
-        self, async_session, monkeypatch
-    ):
-        """Stack and Google vouch for the address; a deployment without mail
-        has no code to send."""
-        monkeypatch.setattr(signup_bonus, "verification_gates_the_bonus", lambda: False)
-        org = await _org(async_session, "no-mail")
-        user = await self._user(async_session, "no-mail", verified=False)
-
-        assert (
-            await signup_bonus.grant_bonus_if_due(
-                async_session, organization_id=org.id, user=user
-            )
-            > 0
-        )
-
-    def test_only_local_auth_with_mail_gates_it(self, monkeypatch):
-        from api import constants
-        from api.services.messaging import email
-
-        monkeypatch.setattr(constants, "AUTH_PROVIDER", "local")
-        monkeypatch.setattr(email, "email_is_configured", lambda: True)
-        assert signup_bonus.verification_gates_the_bonus() is True
-
-        monkeypatch.setattr(email, "email_is_configured", lambda: False)
-        assert signup_bonus.verification_gates_the_bonus() is False
-
-        monkeypatch.setattr(email, "email_is_configured", lambda: True)
-        monkeypatch.setattr(constants, "AUTH_PROVIDER", "stack")
-        assert signup_bonus.verification_gates_the_bonus() is False
