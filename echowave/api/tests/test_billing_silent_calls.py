@@ -14,7 +14,12 @@ nothing was said. Everything else pays.
 from __future__ import annotations
 
 from api.enums import CostComponent, RateUnit
-from api.services.billing.cost_engine import RateSpec, UsageItem, compute_call_cost
+from api.services.billing.cost_engine import (
+    CREDIT_ROUNDING_PROVIDER,
+    RateSpec,
+    UsageItem,
+    compute_call_cost,
+)
 from api.services.billing.credits import round_up_to_credits
 from api.services.billing.delivery import (
     agent_spoke,
@@ -153,7 +158,12 @@ class TestWhatTheReceiptShows:
         )
         assert cost.platform_fee_paise == 0
         assert cost.platform_fee_waived is True
-        assert all(line.component != "platform" for line in cost.line_items)
+        # The credit-rounding line shares the platform component (KAN-52) but
+        # is not a fee; the fee line is the one that must be absent.
+        assert all(
+            line.component != "platform" or line.provider == CREDIT_ROUNDING_PROVIDER
+            for line in cost.line_items
+        )
 
     def test_the_provider_is_still_paid_for(self):
         """We paid the carrier for those seconds whether or not the call worked."""
