@@ -111,9 +111,12 @@ class TestNoManagedTierRunsOnAnUnconfirmedPrice:
     rate has been confirmed against an invoice, is the whole point of the flag.
     """
 
-    def _provisional_llm_providers(self) -> set[str]:
+    def _provisional_llm_rows(self) -> set[tuple[str, str]]:
+        """(provider, model) of every provisional LLM row. Per row, not per
+        vendor: Sarvam prices 105B off its page and Gemma-4 in beta, and a
+        beta row must not make the confirmed one unsellable."""
         return {
-            r.provider
+            (r.provider, r.model)
             for r in DEFAULT_RATES
             if r.provisional and r.component.value == "llm"
         }
@@ -122,15 +125,20 @@ class TestNoManagedTierRunsOnAnUnconfirmedPrice:
         """These figures came off published price pages, not invoices. If a
         later change confirms one, drop the flag in that same change — this
         assertion is the reminder."""
-        assert set(NEW_PROVIDERS) <= self._provisional_llm_providers()
+        provisional_providers = {p for p, _ in self._provisional_llm_rows()}
+        assert set(NEW_PROVIDERS) <= provisional_providers
 
     def test_no_managed_llm_tier_resolves_to_a_provisional_provider(self):
-        provisional = self._provisional_llm_providers()
+        provisional = self._provisional_llm_rows()
         offending = []
 
         for tier in managed_tiers.LLM_TIERS:
             upstream = managed_tiers._defaults()[("llm", tier)]
-            if upstream.provider in provisional:
+            # The row that would price it: the model's own if it has one,
+            # else the provider-wide fallback — the resolver's own two steps.
+            named = {m for p, m in provisional if p == upstream.provider}
+            priced_by = upstream.model if upstream.model in named else ""
+            if (upstream.provider, priced_by) in provisional:
                 offending.append((tier, upstream.provider, upstream.model))
 
         assert not offending, (

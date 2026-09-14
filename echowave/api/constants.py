@@ -510,7 +510,9 @@ AGENT_BUILDER_PROVIDER = (os.getenv("AGENT_BUILDER_PROVIDER") or "").strip().low
 # models do poorly, and it runs a handful of times per account rather than per
 # call.
 AGENT_BUILDER_MODELS = {
-    "anthropic": os.getenv("AGENT_BUILDER_MODEL_ANTHROPIC", "claude-sonnet-4-5"),
+    # Sonnet 5 since KAN-58: newer than 4.5 and a third cheaper ($2/$10 against
+    # $3/$15 per million), so there is no reason left to build on the old one.
+    "anthropic": os.getenv("AGENT_BUILDER_MODEL_ANTHROPIC", "claude-sonnet-5"),
     "openai": os.getenv("AGENT_BUILDER_MODEL_OPENAI", "gpt-4.1"),
     "google": os.getenv("AGENT_BUILDER_MODEL_GOOGLE", "gemini-2.5-flash"),
 }

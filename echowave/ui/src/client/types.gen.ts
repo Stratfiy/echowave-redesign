@@ -8432,6 +8432,16 @@ export type ProviderRateRequest = {
      * Note
      */
     note?: string | null;
+    /**
+     * Source Url
+     */
+    source_url?: string | null;
+    /**
+     * Source Checked On
+     *
+     * YYYY-MM-DD, the day the source was read
+     */
+    source_checked_on?: string | null;
 };
 
 /**
@@ -8472,6 +8482,14 @@ export type ProviderRatesRequest = {
     model_rates_micros_usd?: {
         [key: string]: number;
     };
+    /**
+     * Source Url
+     */
+    source_url?: string | null;
+    /**
+     * Source Checked On
+     */
+    source_checked_on?: string | null;
 };
 
 /**
@@ -9470,6 +9488,22 @@ export type ScheduleConfigResponse = {
      * Slots
      */
     slots: Array<TimeSlotResponse>;
+};
+
+/**
+ * SeedRatesRequest
+ *
+ * Load the starter price book, or bring seeded rows up to it.
+ */
+export type SeedRatesRequest = {
+    /**
+     * Refresh Seeded
+     */
+    refresh_seeded?: boolean;
+    /**
+     * Dry Run
+     */
+    dry_run?: boolean;
 };
 
 /**
@@ -14832,6 +14866,49 @@ export type SetProviderRateApiV1AdminBillingRateCardProvidersPutResponses = {
 };
 
 export type SetProviderRateApiV1AdminBillingRateCardProvidersPutResponse = SetProviderRateApiV1AdminBillingRateCardProvidersPutResponses[keyof SetProviderRateApiV1AdminBillingRateCardProvidersPutResponses];
+
+export type SeedProviderRatesApiV1AdminBillingRateCardSeedPostData = {
+    body: SeedRatesRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/rate-card/seed';
+};
+
+export type SeedProviderRatesApiV1AdminBillingRateCardSeedPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SeedProviderRatesApiV1AdminBillingRateCardSeedPostError = SeedProviderRatesApiV1AdminBillingRateCardSeedPostErrors[keyof SeedProviderRatesApiV1AdminBillingRateCardSeedPostErrors];
+
+export type SeedProviderRatesApiV1AdminBillingRateCardSeedPostResponses = {
+    /**
+     * Response Seed Provider Rates Api V1 Admin Billing Rate Card Seed Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SeedProviderRatesApiV1AdminBillingRateCardSeedPostResponse = SeedProviderRatesApiV1AdminBillingRateCardSeedPostResponses[keyof SeedProviderRatesApiV1AdminBillingRateCardSeedPostResponses];
 
 export type ClearManagedTierApiV1AdminBillingManagedTiersDeleteData = {
     body?: never;

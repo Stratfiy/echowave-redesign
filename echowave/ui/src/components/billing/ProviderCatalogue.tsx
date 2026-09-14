@@ -63,6 +63,11 @@ type ModelEntry = {
     rate_micros_usd: number | null;
     unit: string | null;
     from_provider_rate: boolean;
+    /** Where the figure was read and when (KAN-58). */
+    source_url?: string | null;
+    source_checked_on?: string | null;
+    /** Still the seeded default, not a figure somebody chose. */
+    is_seeded?: boolean;
 };
 
 type ComponentEntry = {
@@ -72,7 +77,47 @@ type ComponentEntry = {
     flat_unit: string | null;
     has_platform_key: boolean;
     models: ModelEntry[];
+    flat_source_url?: string | null;
+    flat_source_checked_on?: string | null;
+    flat_is_seeded?: boolean;
 };
+
+/**
+ * Where a rate came from, in one line. A seeded list price and a negotiated
+ * contract rate look identical as numbers; this is the only thing on the
+ * screen that tells them apart.
+ */
+function Provenance({
+    url,
+    checkedOn,
+    seeded,
+}: {
+    url?: string | null;
+    checkedOn?: string | null;
+    seeded?: boolean;
+}) {
+    if (!url && !checkedOn && !seeded) return null;
+    return (
+        <span className="inline-flex flex-wrap items-center gap-1.5 text-[0.6875rem] text-muted-foreground">
+            {seeded && (
+                <Badge variant="outline" className="h-4 px-1 text-[0.625rem] font-normal">
+                    seeded default
+                </Badge>
+            )}
+            {url && (
+                <a
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline decoration-dotted underline-offset-2 hover:text-foreground"
+                >
+                    source
+                </a>
+            )}
+            {checkedOn && <span>checked {checkedOn}</span>}
+        </span>
+    );
+}
 
 type ProviderEntry = {
     provider: string;
@@ -420,6 +465,11 @@ function ComponentEditor({
                     <h3 className="text-sm font-medium text-foreground">
                         {COMPONENT_LABEL[component.component] ?? component.component}
                     </h3>
+                    <Provenance
+                        url={component.flat_source_url}
+                        checkedOn={component.flat_source_checked_on}
+                        seeded={component.flat_is_seeded}
+                    />
                     {!component.has_platform_key && (
                         <p className="mt-0.5 flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400">
                             <AlertTriangle className="h-3 w-3" />
@@ -551,6 +601,13 @@ function ComponentEditor({
                                           ? "from provider rate"
                                           : "own rate"}
                                 </span>
+                                {!model.from_provider_rate && (
+                                    <Provenance
+                                        url={model.source_url}
+                                        checkedOn={model.source_checked_on}
+                                        seeded={model.is_seeded}
+                                    />
+                                )}
                                 <Input
                                     value={shown}
                                     inputMode="decimal"

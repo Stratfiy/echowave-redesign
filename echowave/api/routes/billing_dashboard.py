@@ -694,6 +694,23 @@ class ProviderRateRequest(BaseModel):
     model: str = Field("", max_length=128, description="Empty = provider-wide fallback")
     effective_from: datetime | None = None
     note: str | None = None
+    #: Where the figure was read and when (KAN-58): a vendor page, or the
+    #: invoice or contract it came from. Optional, but a rate without them
+    #: shows on the card as one nobody can audit.
+    source_url: str | None = Field(None, max_length=512)
+    source_checked_on: str | None = Field(
+        None, max_length=10, description="YYYY-MM-DD, the day the source was read"
+    )
+
+
+class SeedRatesRequest(BaseModel):
+    """Load the starter price book, or bring seeded rows up to it."""
+
+    #: Also replace rows still on the seeded default (told by their note).
+    #: A rate an operator set is never touched either way.
+    refresh_seeded: bool = False
+    #: Show the plan without writing it.
+    dry_run: bool = True
 
 
 class ExchangeRateRequest(BaseModel):
@@ -753,6 +770,11 @@ async def get_rate_card() -> dict[str, Any]:
         "exchange_rate": card.exchange_rate,
         "using_fallback_platform_rate": card.using_fallback_platform_rate,
         "fallback": card.fallback,
+        # KAN-54: the multiplier each managed line sells at and the bundle
+        # rate by plan. Computed on the card since #265 but never returned,
+        # so the panel that reads them stayed hidden on the screen.
+        "component_multipliers": card.component_multipliers,
+        "bundles": card.bundles,
         "realized": [
             {
                 "provider": r.provider,
@@ -900,6 +922,8 @@ async def set_provider_rate(
                 model=request.model,
                 effective_from=request.effective_from,
                 note=request.note,
+                source_url=request.source_url,
+                source_checked_on=request.source_checked_on,
             )
         except RateCardError as exc:
             raise _rate_card_error(exc) from exc
@@ -919,6 +943,31 @@ async def set_provider_rate(
             if models
         },
     }
+
+
+@router.post("/rate-card/seed")
+async def seed_provider_rates(
+    request: SeedRatesRequest, user: UserModel = Depends(get_superuser)
+) -> dict[str, Any]:
+    """Load the starter price book into the card, or refresh the rows still on it.
+
+    The same thing ``scripts/seed_provider_rates`` does, from the screen, so
+    a card seeded from an older book can take a survey (KAN-58) without a
+    shell on the box. Rows an operator wrote are never replaced: the plan
+    names each row's fate before anything is written, and a dry run is the
+    default.
+    """
+    from api.services.billing import seed_rates
+
+    async with db_client.async_session() as session:
+        if request.dry_run:
+            plan = await seed_rates.plan(session, refresh_seeded=request.refresh_seeded)
+            return {"written": 0, **plan.as_dict()}
+        plan = await seed_rates.apply(
+            session, actor_user_id=user.id, refresh_seeded=request.refresh_seeded
+        )
+        await session.commit()
+    return {"written": len(plan.to_write), **plan.as_dict()}
 
 
 @router.delete("/rate-card/providers")
@@ -992,6 +1041,9 @@ class ProviderRatesRequest(BaseModel):
     #: A separate map rather than a currency field per entry, so a rupee value
     #: can never be read as a dollar one.
     model_rates_micros_usd: dict[str, int] = {}
+    #: Provenance for every row this call writes (KAN-58).
+    source_url: str | None = Field(None, max_length=512)
+    source_checked_on: str | None = Field(None, max_length=10)
 
 
 @router.get("/providers")
@@ -1021,12 +1073,18 @@ async def list_providers(user: UserModel = Depends(get_superuser)) -> dict[str, 
                         "flat_rate_micros_usd": component.flat_rate_micros_usd,
                         "flat_unit": component.flat_unit,
                         "has_platform_key": component.has_platform_key,
+                        "flat_source_url": component.flat_source_url,
+                        "flat_source_checked_on": component.flat_source_checked_on,
+                        "flat_is_seeded": component.flat_is_seeded,
                         "models": [
                             {
                                 "model": model.model,
                                 "rate_mpaise": model.rate_mpaise,
                                 "rate_micros_usd": model.rate_micros_usd,
                                 "unit": model.unit,
+                                "source_url": model.source_url,
+                                "source_checked_on": model.source_checked_on,
+                                "is_seeded": model.is_seeded,
                                 # True when this price is the provider's rather
                                 # than the model's. The flat-rate case, and the
                                 # reason an edit to one can look like it did
@@ -1070,6 +1128,8 @@ async def set_provider_rates(
                 flat_rate_micros_usd=request.flat_rate_micros_usd,
                 model_rates_micros_usd=request.model_rates_micros_usd,
                 model_rates=request.model_rates,
+                source_url=request.source_url,
+                source_checked_on=request.source_checked_on,
             )
         except RateCardError as exc:
             raise _rate_card_error(exc) from exc
