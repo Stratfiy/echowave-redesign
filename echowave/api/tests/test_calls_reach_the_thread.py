@@ -182,3 +182,47 @@ class TestTalkingToABotDirectly:
         finally:
             app.dependency_overrides.pop(get_user, None)
         assert both.status_code == 422 and neither.status_code == 422
+
+
+@pytest.mark.asyncio
+class TestAnsweredIsJudgedOnTalkTime:
+    """answered_at comes from the carrier webhook, which only outbound calls
+    have. An inbound call with talk time was answered."""
+
+    async def test_an_inbound_call_with_seconds_is_answered(self):
+        run = _run(answered_at=None, billable_seconds=95, gathered_context={})
+        with (
+            patch(
+                "api.services.workflow.agent_timeline.db_client.get_workflow_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                "api.services.workflow.agent_timeline.db_client.get_organization_id_by_workflow_run_id",
+                new=AsyncMock(return_value=7),
+            ),
+            patch(
+                "api.services.workflow.agent_timeline.record", new=AsyncMock()
+            ) as record,
+        ):
+            await agent_timeline.record_call_ended(77)
+        kwargs = record.await_args.kwargs
+        assert kwargs["summary"] == "Call · 1m35s"
+        assert kwargs["payload"]["answered"] is True
+
+    async def test_no_stamp_and_no_seconds_is_still_missed(self):
+        run = _run(answered_at=None, billable_seconds=0, gathered_context={})
+        with (
+            patch(
+                "api.services.workflow.agent_timeline.db_client.get_workflow_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                "api.services.workflow.agent_timeline.db_client.get_organization_id_by_workflow_run_id",
+                new=AsyncMock(return_value=7),
+            ),
+            patch(
+                "api.services.workflow.agent_timeline.record", new=AsyncMock()
+            ) as record,
+        ):
+            await agent_timeline.record_call_ended(77)
+        assert record.await_args.kwargs["summary"] == "Call not answered"

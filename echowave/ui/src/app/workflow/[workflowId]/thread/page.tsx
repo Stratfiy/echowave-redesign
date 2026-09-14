@@ -36,6 +36,7 @@ export default function BotChatPage({
     const [name, setName] = useState<string>('');
     const started = useRef(false);
     const refreshStream = useRef<() => void>(() => {});
+    const [waitingFor, setWaitingFor] = useState<{ since: string; bots: number[] } | null>(null);
 
     useEffect(() => {
         if (authLoading || !user || started.current) return;
@@ -78,12 +79,16 @@ export default function BotChatPage({
                 workflowId={id}
                 botNames={{ [id]: botName }}
                 onRegisterRefresh={registerRefresh}
+                waitingFor={waitingFor}
             />
             <ChannelComposer
                 workflowId={id}
                 bots={[]}
                 channelName={botName}
-                onSent={() => refreshStream.current()}
+                onSent={(asked) => {
+                    setWaitingFor(asked.length ? { since: new Date().toISOString(), bots: asked } : null);
+                    refreshStream.current();
+                }}
             />
         </div>
     );

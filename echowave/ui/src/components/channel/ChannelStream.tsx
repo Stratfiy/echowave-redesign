@@ -24,7 +24,7 @@
  * every few seconds does not justify building one.
  */
 
-import { AlertTriangle, Bot, CheckCircle2, CircleSlash, Clock, FileText, Phone } from 'lucide-react';
+import { AlertTriangle, Bot, CheckCircle2, CircleSlash, Clock, FileText, Loader2, Phone } from 'lucide-react';
 import Link from 'next/link';
 import React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -94,11 +94,40 @@ function sizeOf(bytes?: number): string {
 
 export type ChannelStreamHandle = { refresh: () => void };
 
+/** Rows that read as one line when they run together. A clinic's evening of
+ *  missed calls is one fact, not nine; a bot's five tool calls on one message
+ *  are one "working" line that ends on the latest step. Anything a person
+ *  said, or a bot decided, is never folded. */
+type Group = { key: string; events: TimelineEvent[] };
+
+export function groupRows(inOrder: TimelineEvent[]): Group[] {
+    const groups: Group[] = [];
+    for (const event of inOrder) {
+        const foldable =
+            (event.kind === 'call_ended' && (event.payload as { answered?: boolean } | null)?.answered === false) ||
+            event.kind === 'agent_acted';
+        const key = foldable ? `${event.kind}:${event.workflow_id}` : '';
+        const last = groups[groups.length - 1];
+        if (foldable && last && last.key === key) {
+            last.events.push(event);
+        } else {
+            groups.push({ key, events: [event] });
+        }
+    }
+    return groups;
+}
+
+/** How long a bot may show as thinking before the row is taken down. A reply
+ *  that has not landed in three minutes is not coming, and a spinner that
+ *  never stops is a lie. */
+const THINKING_FOR_MS = 3 * 60 * 1000;
+
 export function ChannelStream({
     folderId,
     workflowId,
     botNames,
     onRegisterRefresh,
+    waitingFor,
 }: {
     /** A channel's thread, or -- with `workflowId` instead -- one bot's own
      *  chat. Exactly one of the two. */
@@ -109,6 +138,9 @@ export function ChannelStream({
      *  blank line. */
     botNames: Record<number, string>;
     onRegisterRefresh?: (refresh: () => void) => void;
+    /** Bots asked something at this time and not yet heard from. Each shows
+     *  as a thinking row until a row of theirs newer than this arrives. */
+    waitingFor?: { since: string; bots: number[] } | null;
 }) {
     const { user, loading: authLoading } = useAuth();
     const [events, setEvents] = useState<TimelineEvent[]>([]);
@@ -116,7 +148,12 @@ export function ChannelStream({
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const started = useRef(false);
+    const scroller = useRef<HTMLDivElement | null>(null);
     const bottom = useRef<HTMLDivElement | null>(null);
+    // The newest row last scrolled to. The list is replaced on every poll;
+    // only a genuinely new row moves the reader, and only inside this box.
+    const newestSeen = useRef<number | null>(null);
+    const [expanded, setExpanded] = useState<Record<string, boolean>>({});
     // On a bot's own chat: when this person last opened it here, taken once
     // on arrival, then the mark moves to now. Rows newer than it sit under a
     // NEW line. Channels have no mark yet; nothing is drawn for them.
@@ -189,7 +226,11 @@ export function ChannelStream({
     }, [onRegisterRefresh, loadLatest]);
 
     useEffect(() => {
-        if (pinned.current) bottom.current?.scrollIntoView({ block: 'end' });
+        const newest = events[0]?.id ?? null;
+        if (newest === newestSeen.current) return;
+        newestSeen.current = newest;
+        const element = scroller.current;
+        if (pinned.current && element) element.scrollTop = element.scrollHeight;
     }, [events]);
 
     if (loading) {
@@ -200,9 +241,23 @@ export function ChannelStream({
     // the direction the cursor runs; only the display is reversed.
     const inOrder = [...events].reverse();
 
+    // Bots asked and not yet heard from. A row of theirs newer than the
+    // question ends it; so does the clock, because a reply that has not
+    // landed in three minutes is not coming.
+    const thinking =
+        waitingFor && Date.now() - new Date(waitingFor.since).getTime() < THINKING_FOR_MS
+            ? waitingFor.bots.filter(
+                  (bot) =>
+                      !events.some(
+                          (e) => e.workflow_id === bot && e.actor !== 'human' && e.at > waitingFor.since,
+                      ),
+              )
+            : [];
+
     return (
         <div
-            className="flex-1 overflow-y-auto px-6 py-4"
+            ref={scroller}
+            className="min-h-0 flex-1 overflow-y-auto px-6 py-4"
             onScroll={(scroll) => {
                 const element = scroll.currentTarget;
                 pinned.current =
@@ -239,7 +294,74 @@ export function ChannelStream({
             )}
 
             <ol className="flex flex-col gap-4">
-                {inOrder.map((event, index) => {
+                {groupRows(inOrder).map((group) => {
+                    if (group.events.length > 1 && !expanded[group.key + group.events[0].id]) {
+                        // One line for the run: the latest of them, and how
+                        // many. Opening it shows every row as it was.
+                        const latest = group.events[group.events.length - 1];
+                        const id = group.key + group.events[0].id;
+                        const isCall = latest.kind === 'call_ended';
+                        const who = (latest.workflow_id != null && botNames[latest.workflow_id]) || 'A bot';
+                        const line = isCall
+                            ? `${group.events.length} calls not answered`
+                            : `${latest.summary} · ${group.events.length} steps`;
+                        return (
+                            <li key={`group-${id}`} className="flex gap-3">
+                                <span
+                                    aria-hidden
+                                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--accent-brand-soft)] text-[var(--accent-brand)]"
+                                >
+                                    {isCall ? <Phone className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-sm">
+                                        <span className="font-medium">{who}</span>
+                                        <span className="ml-2 text-xs text-muted-foreground">
+                                            <time dateTime={latest.at}>{when(latest.at)}</time>
+                                        </span>
+                                    </p>
+                                    <p className="mt-0.5 text-sm">
+                                        {line}
+                                        <button
+                                            type="button"
+                                            className="ml-2 text-xs text-muted-foreground underline-offset-2 hover:underline"
+                                            onClick={() => setExpanded((all) => ({ ...all, [id]: true }))}
+                                        >
+                                            Show all
+                                        </button>
+                                    </p>
+                                </div>
+                            </li>
+                        );
+                    }
+                    return group.events.map((event) => renderEvent(event, inOrder.indexOf(event)));
+                })}
+                {thinking.map((bot) => (
+                    <li key={`thinking-${bot}`} className="flex gap-3" aria-label={`${botNames[bot] || 'A bot'} is thinking`}>
+                        <span
+                            aria-hidden
+                            className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--accent-brand-soft)] text-[var(--accent-brand)]"
+                        >
+                            <Bot className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                            <p className="text-sm">
+                                <span className="font-medium">{botNames[bot] || 'A bot'}</span>
+                            </p>
+                            <p className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                                Thinking…
+                            </p>
+                        </div>
+                    </li>
+                ))}
+            </ol>
+            <div ref={bottom} />
+        </div>
+    );
+
+    function renderEvent(event: TimelineEvent, index: number) {
+        {
                     // Oldest first, so the NEW line goes above the first row
                     // newer than the previous visit.
                     const previous = inOrder[index - 1];
@@ -390,11 +512,8 @@ export function ChannelStream({
                         </li>
                         </React.Fragment>
                     );
-                })}
-            </ol>
-            <div ref={bottom} />
-        </div>
-    );
+                }
+    }
 }
 
 export default ChannelStream;

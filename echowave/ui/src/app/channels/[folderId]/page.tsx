@@ -42,6 +42,7 @@ export default function ChannelPage() {
     const [loading, setLoading] = useState(true);
     const fetched = useRef(false);
     const refreshStream = useRef<() => void>(() => {});
+    const [waitingFor, setWaitingFor] = useState<{ since: string; bots: number[] } | null>(null);
 
     useEffect(() => {
         // Wait for auth: the interceptor that attaches the token is registered
@@ -143,13 +144,17 @@ export default function ChannelPage() {
                 folderId={folderId}
                 botNames={botNames}
                 onRegisterRefresh={registerRefresh}
+                waitingFor={waitingFor}
             />
 
             <ChannelComposer
                 folderId={folderId}
                 bots={bots}
                 channelName={name ?? 'channel'}
-                onSent={() => refreshStream.current()}
+                onSent={(asked) => {
+                    setWaitingFor(asked.length ? { since: new Date().toISOString(), bots: asked } : null);
+                    refreshStream.current();
+                }}
             />
         </div>
     );

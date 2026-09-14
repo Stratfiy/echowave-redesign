@@ -135,3 +135,69 @@ describe('a file is a message', () => {
         expect(files.textContent).toContain('2 KB');
     });
 });
+
+describe('runs of the same thing fold into one line', () => {
+    it('nine missed calls are one row with a count, and open on request', async () => {
+        const missed = (id: number, hour: number) =>
+            event({
+                id,
+                kind: 'call_ended',
+                summary: 'Call not answered',
+                at: `2026-09-13T${String(hour).padStart(2, '0')}:00:00Z`,
+                payload: { run_id: id, answered: false },
+            });
+        timeline.mockResolvedValue({
+            data: {
+                events: [missed(3, 8), missed(2, 7), missed(1, 6)],
+                next_before_at: null,
+                next_before_id: null,
+            },
+        });
+        const { getByText, queryAllByText } = render(
+            <ChannelStream workflowId={3} botNames={{ 3: 'Front desk' }} />,
+        );
+        await screen.findByText('3 calls not answered');
+        expect(queryAllByText('Call not answered')).toHaveLength(0);
+        getByText('Show all').click();
+        await waitFor(() => expect(screen.getAllByText('Call not answered')).toHaveLength(3));
+    });
+
+    it('an answered call is never folded', async () => {
+        timeline.mockResolvedValue({
+            data: {
+                events: [
+                    event({ id: 2, kind: 'call_ended', summary: 'Call · 1m35s', payload: { run_id: 2, answered: true } }),
+                    event({ id: 1, kind: 'call_ended', summary: 'Call · 0m40s', payload: { run_id: 1, answered: true } }),
+                ],
+                next_before_at: null,
+                next_before_id: null,
+            },
+        });
+        render(<ChannelStream workflowId={3} botNames={{ 3: 'Front desk' }} />);
+        expect(await screen.findByText('Call · 1m35s')).toBeTruthy();
+        expect(screen.getByText('Call · 0m40s')).toBeTruthy();
+    });
+});
+
+describe('a bot that was asked shows as thinking', () => {
+    it('until a row of its own arrives', async () => {
+        timeline.mockResolvedValue({ data: { events: [], next_before_at: null, next_before_id: null } });
+        const since = new Date(Date.now() - 1000).toISOString();
+        const { rerender } = render(
+            <ChannelStream workflowId={3} botNames={{ 3: 'Front desk' }} waitingFor={{ since, bots: [3] }} />,
+        );
+        expect(await screen.findByLabelText('Front desk is thinking')).toBeTruthy();
+        timeline.mockResolvedValue({
+            data: {
+                events: [event({ id: 5, at: new Date().toISOString(), summary: 'Booked.' })],
+                next_before_at: null,
+                next_before_id: null,
+            },
+        });
+        rerender(
+            <ChannelStream workflowId={3} botNames={{ 3: 'Front desk' }} waitingFor={{ since, bots: [3] }} />,
+        );
+        // The next poll brings the reply; the row goes.
+        await waitFor(() => expect(screen.queryByLabelText('Front desk is thinking')).toBeNull(), { timeout: 7000 });
+    }, 10000);
+});

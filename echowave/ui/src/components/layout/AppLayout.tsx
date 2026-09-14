@@ -103,9 +103,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       <SidebarStateRestorer />
       {shouldShowSidebar ? (
         <LeadFormsProvider>
-          <div className="flex min-h-screen w-full">
+          {/* h-screen, not min-h-screen: the column is bounded, so a page
+              that wants to scroll its own list (a chat) can say h-full and
+              have it mean something. Ordinary pages scroll inside <main>. */}
+          <div className="flex h-screen w-full">
             <AppSidebar />
-            <SidebarInset className="flex-1">
+            <SidebarInset className="min-h-0 flex-1">
               <BackendStatusBanner />
               <VerifyEmailBanner />
               {/* The workflow editor is the one full-bleed canvas in the app —
@@ -116,7 +119,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                   second way to put a header on a screen — two of them is how the
                   app ended up with titles at different sizes in different
                   places. */}
-              <main className="app-surface flex-1">
+              <main className="app-surface min-h-0 flex-1 overflow-y-auto">
                 {children}
               </main>
             </SidebarInset>
