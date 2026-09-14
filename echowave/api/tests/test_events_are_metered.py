@@ -27,6 +27,8 @@ class TestThePrices:
             "text_reply": 1,
             "knowledge_answer": 2,
             "routine_run": 2,
+            # KAN-137, study §25: one event, one turn.
+            "trigger_run": 1,
             "tool_call": 1,
             "tool_call_premium": 3,
             "builder_message": 5,

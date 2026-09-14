@@ -5643,3 +5643,69 @@ class AgentRoutineModel(Base):
         ),
         Index("ix_agent_routines_org_workflow", "organization_id", "workflow_id"),
     )
+
+
+class BotTriggerModel(Base):
+    """A doorbell on a bot: an outside system rings it, the bot does a job.
+
+    The routine above is the bot acting on the clock. This is the bot acting
+    on an *event* -- an order placed, a form filled, a payment failed --
+    delivered as a webhook from whatever system saw it. Same runtime as a
+    routine (one text turn, one card at the end), different ignition.
+
+    **Written as a sentence, stored as a plan.** The operator types "when a
+    Shopify order over Rs 5,000 comes in, check stock and message the
+    customer"; the builder model turns that into a name, the fields the
+    event must carry, a filter, and the instruction the bot is handed. The
+    sentence is kept too, because it is the thing the operator will
+    recognise when they come back to edit it.
+
+    **Missing fields are asked for, never errored on.** At setup, the
+    builder asks before saving when the sentence leaves something it needs
+    unsaid. At run time, an event missing a required field is not refused:
+    the bot is told what is missing and may ask the team on a decision card.
+    A webhook that 400s is a webhook the sender silently stops retrying.
+    """
+
+    __tablename__ = "bot_triggers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id"), nullable=False, index=True
+    )
+    # CASCADE: a deleted bot's doorbells must not keep accepting events.
+    workflow_id = Column(
+        Integer,
+        ForeignKey("workflows.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    #: The public address. Random, so it cannot be enumerated.
+    uuid = Column(String(36), unique=True, nullable=False, index=True)
+    #: What the sender must present. Rotatable without changing the address.
+    secret = Column(String(64), nullable=False)
+
+    name = Column(String(120), nullable=False)
+    #: ``webhook`` today; ``email`` (KAN-138) and ``app`` (KAN-139) next.
+    source = Column(String(16), nullable=False, default="webhook")
+    #: The operator's own words, kept verbatim.
+    sentence = Column(Text, nullable=False, default="")
+    #: What the bot is told each time, compiled from the sentence.
+    instruction = Column(Text, nullable=False, default="")
+    #: ``[{"name", "description", "required"}]`` -- what an event should carry.
+    fields = Column(JSON, nullable=False, default=list)
+    #: ``[{"field", "op", "value"}]`` -- all must hold, or the event is ignored
+    #: at no charge. See ``bot_triggers.matches``.
+    filter = Column(JSON, nullable=False, default=list)
+
+    is_active = Column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    last_fired_at = Column(DateTime(timezone=True), nullable=True)
+    fired_count = Column(Integer, nullable=False, default=0, server_default=text("0"))
+
+    __table_args__ = (
+        Index("ix_bot_triggers_org_workflow", "organization_id", "workflow_id"),
+    )

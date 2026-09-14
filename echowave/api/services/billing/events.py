@@ -31,6 +31,8 @@ from api.services.billing.credits import PAISE_PER_CREDIT
 TEXT_REPLY = "text_reply"
 KNOWLEDGE_ANSWER = "knowledge_answer"
 ROUTINE_RUN = "routine_run"
+#: A trigger fired and the bot did one turn on the event (KAN-137, study §25).
+TRIGGER_RUN = "trigger_run"
 TOOL_CALL = "tool_call"
 TOOL_CALL_PREMIUM = "tool_call_premium"
 BUILDER_MESSAGE = "builder_message"
@@ -49,6 +51,7 @@ EVENT_CREDITS: dict[str, int] = {
     TEXT_REPLY: 1,
     KNOWLEDGE_ANSWER: 2,
     ROUTINE_RUN: 2,
+    TRIGGER_RUN: 1,
     TOOL_CALL: 1,
     TOOL_CALL_PREMIUM: 3,
     BUILDER_MESSAGE: 5,
@@ -61,6 +64,7 @@ EVENT_LABELS: dict[str, str] = {
     TEXT_REPLY: "Text reply",
     KNOWLEDGE_ANSWER: "Knowledge answer",
     ROUTINE_RUN: "Routine run",
+    TRIGGER_RUN: "Trigger run",
     TOOL_CALL: "Tool call",
     TOOL_CALL_PREMIUM: "Tool call (premium connector)",
     BUILDER_MESSAGE: "Builder message past the allowance",

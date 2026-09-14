@@ -20,7 +20,6 @@ down and the run has stopped" arrives as one line rather than as a thousand.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Optional
 
 from loguru import logger
 
@@ -163,12 +162,25 @@ async def run_agent_routine(_ctx, routine_id: int) -> None:
     )
 
 
+async def run_bot_trigger(_ctx, trigger_id: int, payload, event_id=None) -> None:
+    """A webhook rang a bot's doorbell (KAN-137): run it, then process the run
+    like any other, for the same reason ``run_agent_routine`` does."""
+    from api.services.workflow.trigger_runner import run_trigger
+
+    run_id = await run_trigger(int(trigger_id), payload, event_id)
+    if run_id is None:
+        return
+    await _ctx["redis"].enqueue_job(
+        FunctionNames.PROCESS_WORKFLOW_COMPLETION, int(run_id)
+    )
+
+
 async def answer_channel_message(
     _ctx,
     workflow_id: int,
-    folder_id: Optional[int],
+    folder_id: int | None,
     text: str,
-    preset: Optional[str] = None,
+    preset: str | None = None,
     hop: int = 0,
 ) -> None:
     """One bot answers one thing somebody said in a channel, then the run is
@@ -233,8 +245,8 @@ async def answer_decibyl_message(
     _ctx,
     organization_id: int,
     text: str,
-    asked: Optional[list[int]] = None,
-    preset: Optional[str] = None,
+    asked: list[int] | None = None,
+    preset: str | None = None,
 ) -> None:
     """Decibyl's turn on its own thread. See services/workflow/decibyl.py."""
     from api.services.workflow import decibyl

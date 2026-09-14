@@ -735,3 +735,19 @@ Seven decisions taken one at a time, each recorded on KAN-47, applied here.
   bonus code, before a revoke is honoured. Every create, change and revoke
   is a billing audit row.
 
+
+## 25. Notes from triggers (KAN-137, 15 Sept)
+
+- **A new billable event: Trigger run, 1 credit.** A webhook event that
+  passes the trigger's filter starts one text turn on the published bot,
+  the same runtime as a routine. Priced below a routine run (2) because
+  the turn is shorter -- one event, one instruction -- and because the
+  volume is the sender's, not the operator's: a shop that gets three
+  hundred orders a day should not pay a routine's price three hundred
+  times. Events the filter ignores cost nothing and start nothing.
+- **Cap of 120 a bot an hour**, above which the doorbell answers 429. A
+  stuck sender must not spend an account's credits overnight. Raise on
+  request, as with every cap.
+- **Not a call.** A trigger that should *ring a phone* is the existing
+  call trigger on the graph, priced per minute as before. This one is the
+  text half of the product.

@@ -1,0 +1,66 @@
+---
+title: "Triggers"
+description: "Ring a bot from an outside system: write a sentence, get a webhook address"
+---
+
+A **trigger** lets an outside system start a bot. An order is placed, a payment fails, a form is submitted — the system that saw it posts the event to the trigger's address, and the bot does one job with it and reports in its thread.
+
+You do not write the webhook. You write a sentence.
+
+---
+
+## Setting one up
+
+Open the bot, then **Triggers**. Type what should happen and when:
+
+> When a Shopify order over Rs 5,000 comes in, check stock and message the customer
+
+Press **Work it out**. Decibyl turns the sentence into a plan: a name, the fields the event should carry, the condition under which the bot acts, and what the bot is told each time. If the sentence leaves out something the plan needs — which field holds the amount, what counts as "big" — you are asked, and nothing is saved until you answer. It never fails on the sentence.
+
+Save the plan and the trigger gets a **web address** and a **secret**. Paste the address into the sending system's webhook settings and send the secret with it, either as the `X-Trigger-Secret` header or, for senders that cannot set headers, as `?key=` on the address.
+
+Every bot can have up to 10 triggers.
+
+---
+
+## What the sender gets back
+
+The address always answers quickly and, wherever it can, with `202 Accepted`. The bot runs in the background: a sender left waiting on the bot would time out and retry, and a retry is a second run.
+
+| Reply | Meaning |
+|---|---|
+| `202` `accepted` | The bot is acting on it. |
+| `202` `filtered` | The event did not match the trigger's condition. Nothing ran, nothing was charged. |
+| `202` `duplicate` | An event with this id was already delivered in the last day. Nothing ran again. |
+| `202` `paused` | The trigger is switched off. Nothing ran. |
+| `401` | Wrong or missing secret. |
+| `404` | No such trigger. |
+| `429` | This trigger has fired 120 times in the last hour and will not fire again until the hour turns. Check whether the sender is stuck. |
+
+Send an event id as the `X-Event-Id` header, or as `event_id` or `id` in the body, and a redelivery will not become a second run.
+
+The body may be JSON (an object or an array), form-encoded, or plain text. It is shown to the bot as it arrived, up to about 6,000 characters.
+
+---
+
+## When a field is missing
+
+If an event arrives without a field the plan marked as required, the bot is not refused the event and the sender is not sent an error. The bot is told what is missing and, if it cannot do the job without it, asks the team on a **decision card** in the thread. Answer the card and the bot carries on.
+
+---
+
+## Trying it
+
+Each trigger card has **Try it with a sample event**: paste a sample JSON body and press **Fire once**. It is the real run, on the published bot, and it tells you before running whether the sample would have matched the condition.
+
+---
+
+## Price
+
+One credit per event the bot acts on. Events the condition ignores are free. See [Billing](/account/billing/).
+
+---
+
+## Rotating the secret
+
+**New secret** on the card mints a fresh one at the same address; the old one stops working at once. Update the sending system afterwards.

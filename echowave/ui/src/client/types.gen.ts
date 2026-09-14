@@ -11286,6 +11286,260 @@ export type TriggerCallResponse = {
 };
 
 /**
+ * TriggerCompileRequest
+ *
+ * A sentence, and the answers to whatever the last compile asked.
+ */
+export type TriggerCompileRequest = {
+    /**
+     * Sentence
+     */
+    sentence: string;
+    /**
+     * Answers
+     */
+    answers?: {
+        [key: string]: string;
+    };
+};
+
+/**
+ * TriggerCompileResponse
+ */
+export type TriggerCompileResponse = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Instruction
+     */
+    instruction: string;
+    /**
+     * Fields
+     */
+    fields?: Array<TriggerField>;
+    /**
+     * Filter
+     */
+    filter?: Array<TriggerRule>;
+    /**
+     * Questions
+     */
+    questions?: Array<TriggerQuestion>;
+    /**
+     * Ready
+     */
+    ready?: boolean;
+    /**
+     * Note
+     */
+    note?: string;
+    /**
+     * Filter Summary
+     */
+    filter_summary?: string;
+};
+
+/**
+ * TriggerField
+ */
+export type TriggerField = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description?: string;
+    /**
+     * Required
+     */
+    required?: boolean;
+};
+
+/**
+ * TriggerListResponse
+ */
+export type TriggerListResponse = {
+    /**
+     * Triggers
+     */
+    triggers?: Array<TriggerResponse>;
+    /**
+     * Max Per Workflow
+     */
+    max_per_workflow: number;
+};
+
+/**
+ * TriggerQuestion
+ */
+export type TriggerQuestion = {
+    /**
+     * Field
+     */
+    field: string;
+    /**
+     * Question
+     */
+    question: string;
+};
+
+/**
+ * TriggerResponse
+ */
+export type TriggerResponse = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Workflow Id
+     */
+    workflow_id: number;
+    /**
+     * Uuid
+     */
+    uuid: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * Sentence
+     */
+    sentence: string;
+    /**
+     * Instruction
+     */
+    instruction: string;
+    /**
+     * Fields
+     */
+    fields?: Array<TriggerField>;
+    /**
+     * Filter
+     */
+    filter?: Array<TriggerRule>;
+    /**
+     * Filter Summary
+     */
+    filter_summary?: string;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Url
+     */
+    url: string;
+    /**
+     * Secret
+     */
+    secret: string;
+    /**
+     * Last Fired At
+     */
+    last_fired_at?: string | null;
+    /**
+     * Fired Count
+     */
+    fired_count?: number;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+};
+
+/**
+ * TriggerRule
+ */
+export type TriggerRule = {
+    /**
+     * Field
+     */
+    field: string;
+    /**
+     * Op
+     */
+    op: string;
+    /**
+     * Value
+     */
+    value?: string | null;
+};
+
+/**
+ * TriggerTestRequest
+ *
+ * A sample event to fire the trigger with, right now.
+ */
+export type TriggerTestRequest = {
+    /**
+     * Payload
+     */
+    payload?: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * TriggerTestResponse
+ */
+export type TriggerTestResponse = {
+    /**
+     * Started
+     */
+    started: boolean;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Detail
+     */
+    detail?: string;
+    /**
+     * Missing Fields
+     */
+    missing_fields?: Array<string>;
+};
+
+/**
+ * TriggerWrite
+ *
+ * Saving a compiled plan. ``is_active`` is its own endpoint.
+ */
+export type TriggerWrite = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Sentence
+     */
+    sentence?: string;
+    /**
+     * Instruction
+     */
+    instruction?: string;
+    /**
+     * Fields
+     */
+    fields?: Array<TriggerField>;
+    /**
+     * Filter
+     */
+    filter?: Array<TriggerRule>;
+};
+
+/**
  * TurnCredentialsResponse
  *
  * Response model for TURN credentials.
@@ -24981,6 +25235,383 @@ export type TestRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdTestPostResponse
 
 export type TestRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdTestPostResponse = TestRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdTestPostResponses[keyof TestRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdTestPostResponses];
 
+export type ListTriggersApiV1WorkflowsWorkflowIdTriggersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflows/{workflow_id}/triggers';
+};
+
+export type ListTriggersApiV1WorkflowsWorkflowIdTriggersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListTriggersApiV1WorkflowsWorkflowIdTriggersGetError = ListTriggersApiV1WorkflowsWorkflowIdTriggersGetErrors[keyof ListTriggersApiV1WorkflowsWorkflowIdTriggersGetErrors];
+
+export type ListTriggersApiV1WorkflowsWorkflowIdTriggersGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TriggerListResponse;
+};
+
+export type ListTriggersApiV1WorkflowsWorkflowIdTriggersGetResponse = ListTriggersApiV1WorkflowsWorkflowIdTriggersGetResponses[keyof ListTriggersApiV1WorkflowsWorkflowIdTriggersGetResponses];
+
+export type CreateTriggerApiV1WorkflowsWorkflowIdTriggersPostData = {
+    body: TriggerWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflows/{workflow_id}/triggers';
+};
+
+export type CreateTriggerApiV1WorkflowsWorkflowIdTriggersPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateTriggerApiV1WorkflowsWorkflowIdTriggersPostError = CreateTriggerApiV1WorkflowsWorkflowIdTriggersPostErrors[keyof CreateTriggerApiV1WorkflowsWorkflowIdTriggersPostErrors];
+
+export type CreateTriggerApiV1WorkflowsWorkflowIdTriggersPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: TriggerResponse;
+};
+
+export type CreateTriggerApiV1WorkflowsWorkflowIdTriggersPostResponse = CreateTriggerApiV1WorkflowsWorkflowIdTriggersPostResponses[keyof CreateTriggerApiV1WorkflowsWorkflowIdTriggersPostResponses];
+
+export type CompileTriggerApiV1WorkflowsWorkflowIdTriggersCompilePostData = {
+    body: TriggerCompileRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflows/{workflow_id}/triggers/compile';
+};
+
+export type CompileTriggerApiV1WorkflowsWorkflowIdTriggersCompilePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CompileTriggerApiV1WorkflowsWorkflowIdTriggersCompilePostError = CompileTriggerApiV1WorkflowsWorkflowIdTriggersCompilePostErrors[keyof CompileTriggerApiV1WorkflowsWorkflowIdTriggersCompilePostErrors];
+
+export type CompileTriggerApiV1WorkflowsWorkflowIdTriggersCompilePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: TriggerCompileResponse;
+};
+
+export type CompileTriggerApiV1WorkflowsWorkflowIdTriggersCompilePostResponse = CompileTriggerApiV1WorkflowsWorkflowIdTriggersCompilePostResponses[keyof CompileTriggerApiV1WorkflowsWorkflowIdTriggersCompilePostResponses];
+
+export type DeleteTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+        /**
+         * Trigger Id
+         */
+        trigger_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflows/{workflow_id}/triggers/{trigger_id}';
+};
+
+export type DeleteTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdDeleteError = DeleteTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdDeleteErrors[keyof DeleteTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdDeleteErrors];
+
+export type DeleteTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdDeleteResponse = DeleteTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdDeleteResponses[keyof DeleteTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdDeleteResponses];
+
+export type UpdateTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdPutData = {
+    body: TriggerWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+        /**
+         * Trigger Id
+         */
+        trigger_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflows/{workflow_id}/triggers/{trigger_id}';
+};
+
+export type UpdateTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdPutError = UpdateTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdPutErrors[keyof UpdateTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdPutErrors];
+
+export type UpdateTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: TriggerResponse;
+};
+
+export type UpdateTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdPutResponse = UpdateTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdPutResponses[keyof UpdateTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdPutResponses];
+
+export type SetActiveApiV1WorkflowsWorkflowIdTriggersTriggerIdActivePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+        /**
+         * Trigger Id
+         */
+        trigger_id: number;
+    };
+    query: {
+        /**
+         * Active
+         */
+        active: boolean;
+    };
+    url: '/api/v1/workflows/{workflow_id}/triggers/{trigger_id}/active';
+};
+
+export type SetActiveApiV1WorkflowsWorkflowIdTriggersTriggerIdActivePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetActiveApiV1WorkflowsWorkflowIdTriggersTriggerIdActivePostError = SetActiveApiV1WorkflowsWorkflowIdTriggersTriggerIdActivePostErrors[keyof SetActiveApiV1WorkflowsWorkflowIdTriggersTriggerIdActivePostErrors];
+
+export type SetActiveApiV1WorkflowsWorkflowIdTriggersTriggerIdActivePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: TriggerResponse;
+};
+
+export type SetActiveApiV1WorkflowsWorkflowIdTriggersTriggerIdActivePostResponse = SetActiveApiV1WorkflowsWorkflowIdTriggersTriggerIdActivePostResponses[keyof SetActiveApiV1WorkflowsWorkflowIdTriggersTriggerIdActivePostResponses];
+
+export type RotateSecretApiV1WorkflowsWorkflowIdTriggersTriggerIdRotateSecretPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+        /**
+         * Trigger Id
+         */
+        trigger_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflows/{workflow_id}/triggers/{trigger_id}/rotate-secret';
+};
+
+export type RotateSecretApiV1WorkflowsWorkflowIdTriggersTriggerIdRotateSecretPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RotateSecretApiV1WorkflowsWorkflowIdTriggersTriggerIdRotateSecretPostError = RotateSecretApiV1WorkflowsWorkflowIdTriggersTriggerIdRotateSecretPostErrors[keyof RotateSecretApiV1WorkflowsWorkflowIdTriggersTriggerIdRotateSecretPostErrors];
+
+export type RotateSecretApiV1WorkflowsWorkflowIdTriggersTriggerIdRotateSecretPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: TriggerResponse;
+};
+
+export type RotateSecretApiV1WorkflowsWorkflowIdTriggersTriggerIdRotateSecretPostResponse = RotateSecretApiV1WorkflowsWorkflowIdTriggersTriggerIdRotateSecretPostResponses[keyof RotateSecretApiV1WorkflowsWorkflowIdTriggersTriggerIdRotateSecretPostResponses];
+
+export type TestTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdTestPostData = {
+    body: TriggerTestRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+        /**
+         * Trigger Id
+         */
+        trigger_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflows/{workflow_id}/triggers/{trigger_id}/test';
+};
+
+export type TestTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdTestPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TestTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdTestPostError = TestTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdTestPostErrors[keyof TestTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdTestPostErrors];
+
+export type TestTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdTestPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: TriggerTestResponse;
+};
+
+export type TestTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdTestPostResponse = TestTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdTestPostResponses[keyof TestTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdTestPostResponses];
+
 export type OrganisationApiV1OrganisationGetData = {
     body?: never;
     headers?: {
@@ -28995,6 +29626,59 @@ export type InitiateCallTestByWorkflowUuidApiV1PublicAgentTestWorkflowWorkflowUu
 };
 
 export type InitiateCallTestByWorkflowUuidApiV1PublicAgentTestWorkflowWorkflowUuidPostResponse = InitiateCallTestByWorkflowUuidApiV1PublicAgentTestWorkflowWorkflowUuidPostResponses[keyof InitiateCallTestByWorkflowUuidApiV1PublicAgentTestWorkflowWorkflowUuidPostResponses];
+
+export type ReceiveEventApiV1PublicTriggersTriggerUuidPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * X-Trigger-Secret
+         */
+        'X-Trigger-Secret'?: string | null;
+        /**
+         * X-Event-Id
+         */
+        'X-Event-Id'?: string | null;
+    };
+    path: {
+        /**
+         * Trigger Uuid
+         */
+        trigger_uuid: string;
+    };
+    query?: {
+        /**
+         * Key
+         */
+        key?: string | null;
+    };
+    url: '/api/v1/public/triggers/{trigger_uuid}';
+};
+
+export type ReceiveEventApiV1PublicTriggersTriggerUuidPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReceiveEventApiV1PublicTriggersTriggerUuidPostError = ReceiveEventApiV1PublicTriggersTriggerUuidPostErrors[keyof ReceiveEventApiV1PublicTriggersTriggerUuidPostErrors];
+
+export type ReceiveEventApiV1PublicTriggersTriggerUuidPostResponses = {
+    /**
+     * Response Receive Event Api V1 Public Triggers  Trigger Uuid  Post
+     *
+     * Successful Response
+     */
+    202: {
+        [key: string]: unknown;
+    };
+};
+
+export type ReceiveEventApiV1PublicTriggersTriggerUuidPostResponse = ReceiveEventApiV1PublicTriggersTriggerUuidPostResponses[keyof ReceiveEventApiV1PublicTriggersTriggerUuidPostResponses];
 
 export type DownloadWorkflowArtifactApiV1PublicDownloadWorkflowTokenArtifactTypeGetData = {
     body?: never;
