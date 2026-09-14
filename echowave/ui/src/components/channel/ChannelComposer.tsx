@@ -107,7 +107,8 @@ export function ChannelComposer({
     const filePicker = useRef<HTMLInputElement | null>(null);
 
     // The brain for this message. Remembered per chat on this device.
-    const chatKey = workflowId != null ? `bot:${workflowId}` : `channel:${folderId}`;
+    const chatKey =
+        workflowId != null ? `bot:${workflowId}` : assistant ? 'assistant' : `channel:${folderId}`;
     const [preset, setPreset] = useState<string>(() => rememberedPreset(chatKey));
     const choosePreset = (slug: string) => {
         setPreset(slug);
@@ -116,12 +117,17 @@ export function ChannelComposer({
     const presetLabel = CHAT_PRESETS.find((p) => p.slug === preset)?.label ?? OWN_BRAIN.label;
 
     // Where a dropped file is knowledge for: this chat, and nowhere else.
+    // Decibyl is the exception on purpose: it is the workspace's own
+    // assistant and answers from Company knowledge, so a PDF handed to it
+    // lands there -- the one place every bot can read it from.
     const target: KnowledgeTarget | null =
         workflowId != null
             ? { scope: 'bot', workflowId }
             : folderId != null
               ? { scope: 'channel', folderId }
-              : null;
+              : assistant
+                ? { scope: 'org' }
+                : null;
 
     const attach = async (file: File) => {
         if (!target) return;
