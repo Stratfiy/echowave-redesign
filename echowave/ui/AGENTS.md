@@ -45,8 +45,15 @@ The `src/client/` directory is auto-generated from the backend OpenAPI spec. Whe
 new api route in backend, and wish to use it in the UI, generate the client using below command.
 
 ```bash
-npm run generate-client
+# from echowave/, with api/.env sourced: writes docs/api-reference/openapi.json
+# (public) and ui/openapi.internal.json (the whole app, ignored by git)
+python -m scripts.dump_docs_openapi
+cd ui && npm run generate-client   # reads openapi.internal.json
 ```
+
+The client is generated from the internal dump on purpose: a running backend
+serves only the public OpenAPI document, which leaves out the staff-only
+operations the superadmin screens call.
 
 ## Conventions
 

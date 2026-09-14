@@ -42,3 +42,7 @@ next-env.d.ts
 
 .env
 openapi-ts-error-*.log
+
+# The whole-app OpenAPI dump the client is generated from; describes
+# staff-only routes the public document does not. See scripts/dump_docs_openapi.py.
+openapi.internal.json

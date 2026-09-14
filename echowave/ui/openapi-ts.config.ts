@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+
 import { defineConfig } from '@hey-api/openapi-ts';
 import { loadEnvConfig } from '@next/env';
 
@@ -13,11 +15,15 @@ const backendUrl = (
 ).replace(/\/+$/, '');
 
 export default defineConfig({
-    // OPENAPI_FILE points generation at a spec dumped to disk instead of a
-    // running backend — `python -c "from api.app import app; app.openapi()"`.
-    // Needed where the dev port is claimed by something else, and it is the
-    // only way to generate against routes that are not deployed yet.
-    input: process.env.OPENAPI_FILE || `${backendUrl}/api/v1/openapi.json`,
+    // The client needs the WHOLE app, superadmin operations included, and a
+    // running backend serves only the public document at /openapi.json (see
+    // api/services/openapi_surface.py). So generation reads the internal
+    // dump `python -m scripts.dump_docs_openapi` writes to
+    // ui/openapi.internal.json; OPENAPI_FILE overrides it, and the live
+    // backend is the last resort for a public-only client.
+    input:
+        process.env.OPENAPI_FILE ||
+        (existsSync('openapi.internal.json') ? 'openapi.internal.json' : `${backendUrl}/api/v1/openapi.json`),
     output: 'src/client',
     plugins: [{
         name: '@hey-api/client-fetch',
