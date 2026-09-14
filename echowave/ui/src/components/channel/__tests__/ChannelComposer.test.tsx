@@ -21,9 +21,11 @@ import { ChannelComposer, handleOf, mentionFragment } from '../ChannelComposer';
 
 const post = vi.hoisted(() => vi.fn());
 const translate = vi.hoisted(() => vi.fn());
+const transcribe = vi.hoisted(() => vi.fn());
 vi.mock('@/client/sdk.gen', () => ({
     postMessageApiV1TimelineMessagePost: post,
     translateTextApiV1TranslatePost: translate,
+    transcribeAudioApiV1WorkflowRecordingsTranscribePost: transcribe,
 }));
 const upload = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/uploadKnowledge', async (importOriginal) => ({
@@ -306,5 +308,17 @@ describe('a draft in an Indian script', () => {
         fireEvent.change(screen.getByRole('textbox'), { target: { value: 'मीरा को 4 बजे बुक करो' } });
         fireEvent.click(screen.getByRole('button', { name: 'Roman script' }));
         await waitFor(() => expect(translate.mock.calls[0][0].body.mode).toBe('transliterate'));
+    });
+});
+
+describe('speaking instead of typing', () => {
+    it('offers a microphone, and says so when the browser cannot record', async () => {
+        composer();
+        const mic = screen.getByRole('button', { name: 'Speak' });
+        fireEvent.click(mic);
+        // jsdom has no MediaRecorder: the honest answer, not a silent button.
+        expect(await screen.findByRole('alert')).toBeTruthy();
+        expect(screen.getByRole('alert').textContent).toContain('cannot record audio');
+        expect(transcribe).not.toHaveBeenCalled();
     });
 });
