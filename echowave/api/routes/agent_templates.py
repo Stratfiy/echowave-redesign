@@ -43,6 +43,8 @@ def _summary(template: AgentTemplate) -> dict[str, Any]:
         "id": template.id,
         "name": template.name,
         "vertical": template.vertical,
+        "industry": template.industry,
+        "function": template.function,
         "direction": template.direction.value,
         "summary": template.summary,
         "languages": template.languages,

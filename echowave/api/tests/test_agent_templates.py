@@ -125,6 +125,16 @@ class TestEveryTemplate:
         """Every vertical here touches personal data over a phone line."""
         assert template.compliance_notes
 
+    def test_is_filed_in_the_marketplace(self, template):
+        """The marketplace browses bots by industry and by function. A blank
+        on either axis is a bot under no heading, which nobody reports."""
+        from api.services.agent_templates._base import BOT_FUNCTIONS
+
+        assert template.industry
+        assert template.function in BOT_FUNCTIONS, (
+            f"{template.id}: {template.function!r} is not one of the marketplace functions"
+        )
+
     def test_is_findable_by_its_own_example_requests(self, template):
         """The example phrasings exist to route intent. If a template's own
         examples do not reach it, they are decoration."""

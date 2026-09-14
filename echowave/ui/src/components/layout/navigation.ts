@@ -200,6 +200,13 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         ],
       },
       {
+        title: "Marketplace",
+        url: "/marketplace",
+        activePaths: ["/marketplace"],
+        icon: ShoppingBag,
+        keywords: ["marketplace", "bots", "templates", "tools", "hire", "connect"],
+      },
+      {
         title: "Integrations",
         url: "/integrations/apps",
         activePaths: ["/integrations", "/tools", "/provider-keys"],
@@ -482,10 +489,9 @@ export const NAV_CONTEXTS: NavContext[] = [
     id: "marketplace",
     title: "Marketplace",
     icon: ShoppingBag,
-    // Connectors today; the shelf of bots joins them here. Until that shelf
-    // exists this panel is one entry, which is honest — a Marketplace door
-    // that opens on nothing advertises a shop and shows dust.
-    urls: ["/integrations/apps"],
+    // The shelf of bots and the shelf of tools, then the screens where a
+    // connected tool is set up.
+    urls: ["/marketplace", "/marketplace/tools", "/integrations/apps"],
   },
   {
     id: "setup",

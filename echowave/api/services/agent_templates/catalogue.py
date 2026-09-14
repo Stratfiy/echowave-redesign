@@ -153,6 +153,8 @@ def _all() -> tuple[AgentTemplate, ...]:
             id="clinic_appointment",
             name="Clinic front desk",
             vertical="Healthcare — clinics, diagnostics labs, dental and eye care",
+            industry="Healthcare",
+            function="Answer calls",
             direction=CallDirection.inbound,
             summary=(
                 "Answers the clinic's phone, books and reschedules appointments, "
@@ -322,6 +324,8 @@ def _all() -> tuple[AgentTemplate, ...]:
             id="real_estate_lead_qual",
             name="Property lead qualifier",
             vertical="Real estate — builders, brokers and listing portals",
+            industry="Real estate",
+            function="Follow up leads",
             direction=CallDirection.outbound,
             summary=(
                 "Calls a new property enquiry within minutes, qualifies budget, "
@@ -481,6 +485,8 @@ def _all() -> tuple[AgentTemplate, ...]:
             id="lending_payment_reminder",
             name="Loan payment reminder",
             vertical="Lending — NBFCs, fintech lenders and collections teams",
+            industry="Lending",
+            function="Collect payments",
             direction=CallDirection.outbound,
             summary=(
                 "A pre-due and early-bucket payment reminder that stays inside "
@@ -654,6 +660,8 @@ def _all() -> tuple[AgentTemplate, ...]:
             id="edtech_admissions",
             name="Admissions counsellor",
             vertical="Edtech — colleges, coaching institutes and online courses",
+            industry="Education",
+            function="Follow up leads",
             direction=CallDirection.outbound,
             summary=(
                 "Follows up on a course enquiry, understands what the student "
@@ -811,6 +819,8 @@ def _all() -> tuple[AgentTemplate, ...]:
             id="ecom_cod_confirmation",
             name="COD order confirmation",
             vertical="E-commerce and D2C — cash-on-delivery order verification",
+            industry="E-commerce",
+            function="Confirm orders",
             direction=CallDirection.outbound,
             summary=(
                 "Confirms a cash-on-delivery order before dispatch and cuts the "
@@ -906,6 +916,8 @@ def _all() -> tuple[AgentTemplate, ...]:
             id="restaurant_reservation",
             name="Restaurant reservations",
             vertical="Hospitality — restaurants, salons, spas and gyms",
+            industry="Hospitality",
+            function="Answer calls",
             direction=CallDirection.inbound,
             summary=(
                 "Takes table bookings, answers timings and location, and passes "
@@ -1024,6 +1036,8 @@ def _all() -> tuple[AgentTemplate, ...]:
             id="internal_knowledge",
             name="Internal knowledge",
             vertical="Any business with staff who ask the same questions",
+            industry="Any business",
+            function="Answer staff questions",
             direction=CallDirection.message,
             summary=(
                 "Answers a staff member's question from the documents the "
@@ -1116,6 +1130,8 @@ def _all() -> tuple[AgentTemplate, ...]:
             id="compliance_reminder",
             name="Compliance reminder",
             vertical="Any business with dated obligations -- filings, renewals, licences",
+            industry="Any business",
+            function="Send reminders",
             direction=CallDirection.scheduled,
             summary=(
                 "Runs on a routine, checks what is coming due, and tells the "

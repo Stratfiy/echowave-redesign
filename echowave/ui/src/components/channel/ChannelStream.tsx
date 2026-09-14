@@ -273,7 +273,7 @@ export function ChannelStream({
     return (
         <div
             ref={scroller}
-            className="min-h-0 flex-1 overflow-y-auto px-6 py-4"
+            className="brand-wash min-h-0 flex-1 overflow-y-auto px-6 py-4"
             onScroll={(scroll) => {
                 const element = scroll.currentTarget;
                 pinned.current =
