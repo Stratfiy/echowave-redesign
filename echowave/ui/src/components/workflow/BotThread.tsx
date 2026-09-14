@@ -17,6 +17,7 @@
  */
 
 import { AlertTriangle, CheckCircle2, CircleSlash, Clock, FileText } from 'lucide-react';
+import React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { timelineApiV1TimelineGet } from '@/client/sdk.gen';
@@ -25,6 +26,7 @@ import { Button } from '@/components/ui/button';
 import { DecisionCard } from '@/components/workflow/DecisionCard';
 import { detailFromResult } from '@/lib/apiError';
 import { useAuth } from '@/lib/auth';
+import { markSeen } from '@/lib/botSeen';
 import { cn } from '@/lib/utils';
 
 /**
@@ -57,6 +59,9 @@ export function BotThread({ workflowId }: { workflowId: number }) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const started = useRef(false);
+    // When this person last opened this bot here, taken once on arrival and
+    // then the mark is moved to now. Rows newer than it sit above a NEW line.
+    const seenBefore = useRef<string | null>(null);
 
     const load = useCallback(
         async (after: { at: string; id: number } | null) => {
@@ -89,8 +94,9 @@ export function BotThread({ workflowId }: { workflowId: number }) {
         // quietly — see ui/AGENTS.md.
         if (authLoading || !user || started.current) return;
         started.current = true;
+        seenBefore.current = markSeen(workflowId);
         load(null).finally(() => setLoading(false));
-    }, [authLoading, user, load]);
+    }, [authLoading, user, load, workflowId]);
 
     if (loading) {
         return <p className="px-1 py-8 text-sm text-muted-foreground">Loading…</p>;
@@ -119,38 +125,60 @@ export function BotThread({ workflowId }: { workflowId: number }) {
     return (
         <div className="flex flex-col">
             <ol className="flex flex-col gap-4 py-2">
-                {events.map((event) => {
+                {events.map((event, index) => {
+                    // Newest first, so the NEW line goes under the last row
+                    // that is newer than the previous visit -- between what
+                    // has happened since and what was already read.
+                    const isNew = !!seenBefore.current && event.at > seenBefore.current;
+                    const next = events[index + 1];
+                    const dividerAfter =
+                        isNew && (!next || !(next.at > (seenBefore.current ?? '')));
+                    const divider = dividerAfter ? (
+                        <li key={`new-${event.id}`} aria-label="New" className="flex items-center gap-2">
+                            <span className="h-px flex-1 bg-[var(--accent-brand)]/40" />
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--accent-brand)]">
+                                New
+                            </span>
+                            <span className="h-px flex-1 bg-[var(--accent-brand)]/40" />
+                        </li>
+                    ) : null;
                     if (event.kind === 'needs_decision') {
                         return (
-                            <li key={event.id}>
-                                <DecisionCard
-                                    event={event}
-                                    onDecided={(updated) =>
-                                        setEvents((all) => all.map((e) => (e.id === updated.id ? updated : e)))
-                                    }
-                                />
-                            </li>
+                            <React.Fragment key={event.id}>
+                                <li>
+                                    <DecisionCard
+                                        event={event}
+                                        onDecided={(updated) =>
+                                            setEvents((all) => all.map((e) => (e.id === updated.id ? updated : e)))
+                                        }
+                                    />
+                                </li>
+                                {divider}
+                            </React.Fragment>
                         );
                     }
                     const tone = TONE[event.kind];
                     const Icon = tone?.icon ?? Clock;
                     return (
-                        <li key={event.id} className="flex gap-3">
-                            <Icon
-                                aria-hidden
-                                className={cn(
-                                    'mt-0.5 h-4 w-4 shrink-0',
-                                    tone?.className ?? 'text-muted-foreground',
-                                )}
-                            />
-                            <div className="min-w-0 flex-1">
-                                <p className="text-sm leading-relaxed">{event.summary}</p>
-                                <p className="mt-0.5 text-xs text-muted-foreground">
-                                    <time dateTime={event.at}>{when(event.at)}</time>
-                                    {event.is_deliverable ? ' · handed to you' : ''}
-                                </p>
-                            </div>
-                        </li>
+                        <React.Fragment key={event.id}>
+                            <li className="flex gap-3">
+                                <Icon
+                                    aria-hidden
+                                    className={cn(
+                                        'mt-0.5 h-4 w-4 shrink-0',
+                                        tone?.className ?? 'text-muted-foreground',
+                                    )}
+                                />
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-sm leading-relaxed">{event.summary}</p>
+                                    <p className="mt-0.5 text-xs text-muted-foreground">
+                                        <time dateTime={event.at}>{when(event.at)}</time>
+                                        {event.is_deliverable ? ' · handed to you' : ''}
+                                    </p>
+                                </div>
+                            </li>
+                            {divider}
+                        </React.Fragment>
                     );
                 })}
             </ol>

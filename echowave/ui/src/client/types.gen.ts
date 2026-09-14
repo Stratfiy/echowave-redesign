@@ -10084,6 +10084,18 @@ export type TeamMember = {
      */
     failures: number;
     last_action: LastAction | null;
+    /**
+     * Last Line
+     */
+    last_line?: string | null;
+    /**
+     * Last At
+     */
+    last_at?: string | null;
+    /**
+     * Last Actor
+     */
+    last_actor?: string | null;
 };
 
 /**

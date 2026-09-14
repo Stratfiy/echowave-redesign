@@ -108,3 +108,38 @@ describe('the bot thread', () => {
         expect(screen.queryByRole('button', { name: 'Show earlier' })).toBeNull();
     });
 });
+
+describe('what is new since last time', () => {
+    it('draws the NEW line under the rows newer than the previous visit', async () => {
+        localStorage.setItem('decibyl.bot-seen', JSON.stringify({ '7': '2026-09-13T06:00:00Z' }));
+        timeline.mockResolvedValue({
+            data: {
+                events: [
+                    event({ id: 3, at: '2026-09-13T07:00:00Z', summary: 'Newest' }),
+                    event({ id: 2, at: '2026-09-13T06:30:00Z', summary: 'Also new' }),
+                    event({ id: 1, at: '2026-09-13T05:00:00Z', summary: 'Already read' }),
+                ],
+                next_before_at: null,
+                next_before_id: null,
+            },
+        });
+        render(<BotThread workflowId={7} />);
+        await waitFor(() => expect(screen.getByText('Newest')).toBeTruthy());
+        const items = Array.from(document.querySelectorAll('ol > li'));
+        const labels = items.map((li) => li.getAttribute('aria-label') ?? li.textContent);
+        expect(labels.findIndex((l) => l === 'New')).toBe(2);
+        // And the visit moves the mark, so a reload shows nothing as new.
+        expect(JSON.parse(localStorage.getItem('decibyl.bot-seen')!)['7'] > '2026-09-13T06:00:00Z').toBe(true);
+        localStorage.clear();
+    });
+
+    it('draws no line on a first visit', async () => {
+        localStorage.clear();
+        timeline.mockResolvedValue({
+            data: { events: [event({ id: 1, at: '2026-09-13T07:00:00Z' })], next_before_at: null, next_before_id: null },
+        });
+        render(<BotThread workflowId={8} />);
+        await waitFor(() => expect(timeline).toHaveBeenCalled());
+        expect(screen.queryByLabelText('New')).toBeNull();
+    });
+});

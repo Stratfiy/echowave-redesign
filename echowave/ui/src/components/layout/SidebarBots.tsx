@@ -35,6 +35,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/lib/auth";
+import { isUnread } from "@/lib/botSeen";
 import { cn } from "@/lib/utils";
 
 /** Same four tones as the home screen and the bot list. One vocabulary. */
@@ -124,9 +125,10 @@ export function SidebarBots({ collapsed }: { collapsed: boolean }) {
           // made this read as a builder rather than a team.
           const href = `/workflow/${bot.workflow_id}/thread`;
           const active = pathname.startsWith(`/workflow/${bot.workflow_id}`);
+          const unread = !active && isUnread(bot.workflow_id, bot.last_at);
           return (
             <SidebarMenuItem key={bot.workflow_id}>
-              <SidebarMenuButton asChild isActive={active} tooltip={bot.status} className="h-9">
+              <SidebarMenuButton asChild isActive={active} tooltip={bot.status} className="h-11">
                 {/* `title` as well as the status tooltip: a name long enough
                     to truncate is exactly the name somebody needs to read in
                     full, and the tooltip slot is already spent on what the bot
@@ -138,14 +140,34 @@ export function SidebarBots({ collapsed }: { collapsed: boolean }) {
                   >
                     {initials(bot.name)}
                   </span>
-                  <span className="min-w-0 flex-1 truncate">{bot.name}</span>
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      "h-1.5 w-1.5 shrink-0 rounded-full",
-                      TONE_DOT[bot.tone] ?? TONE_DOT.idle,
+                  {/* Two lines, like a chat list: the name, and the last
+                      thing said or done. The rail read as a directory with
+                      one line; a teammate you talk to has a last message. */}
+                  <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                    <span className={cn("truncate", unread && "font-semibold")}>{bot.name}</span>
+                    {bot.last_line && (
+                      <span className="truncate text-[11px] text-muted-foreground">
+                        {bot.last_actor === "human" ? "You: " : ""}
+                        {bot.last_line}
+                      </span>
                     )}
-                  />
+                  </span>
+                  {unread ? (
+                    // Unread, in the brand colour: something happened since
+                    // this person last opened the bot here.
+                    <span
+                      aria-label="Unread"
+                      className="h-2 w-2 shrink-0 rounded-full bg-[var(--accent-brand)]"
+                    />
+                  ) : (
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "h-1.5 w-1.5 shrink-0 rounded-full",
+                        TONE_DOT[bot.tone] ?? TONE_DOT.idle,
+                      )}
+                    />
+                  )}
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
