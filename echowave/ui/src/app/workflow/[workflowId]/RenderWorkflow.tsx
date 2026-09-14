@@ -26,7 +26,6 @@ import AddNodePanel from "../../../components/flow/AddNodePanel";
 import CustomEdge from "../../../components/flow/edges/CustomEdge";
 import { GenericNode } from "../../../components/flow/nodes/GenericNode";
 import { AgentTabs } from './components/AgentTabs';
-import { ModelRow } from './components/ModelRow';
 import { PhoneCallDialog } from './components/PhoneCallDialog';
 import { VersionHistoryPanel, WorkflowVersion } from './components/VersionHistoryPanel';
 import type { WorkflowRuntimeNodeTransition } from './components/workflow-tester/types';
@@ -87,7 +86,10 @@ function RenderWorkflow({
     const { hasCompletedAction } = useOnboarding();
     const [isPhoneCallDialogOpen, setIsPhoneCallDialogOpen] = useState(false);
     const [isVersionPanelOpen, setIsVersionPanelOpen] = useState(false);
-    const [isTesterRailOpen, setIsTesterRailOpen] = useState(true);
+    // Closed until asked. The Chat tab is where you talk to the bot now, and
+    // Test on the header opens this; a tester that opened itself on every
+    // visit made "Instructions" a split screen with a chat nobody asked for.
+    const [isTesterRailOpen, setIsTesterRailOpen] = useState(false);
     const [isTesterSheetOpen, setIsTesterSheetOpen] = useState(false);
     const [isDesktopViewport, setIsDesktopViewport] = useState(false);
     const [versions, setVersions] = useState<WorkflowVersion[]>([]);
@@ -122,7 +124,6 @@ function RenderWorkflow({
         saveWorkflow,
         workflowConfigurations,
         saveWorkflowConfigurations,
-        saveConfigurationPatch,
         onConnect,
         onEdgesChange,
         onNodesChange,
@@ -378,13 +379,13 @@ function RenderWorkflow({
     }, []);
 
     useEffect(() => {
-        if (hasAutoOpenedTester.current || !openTesterOnLoad || !shouldShowWebCallOnboarding || testerDisabledReason) {
+        if (hasAutoOpenedTester.current || !openTesterOnLoad || testerDisabledReason) {
             return;
         }
 
         handleOpenTester();
         hasAutoOpenedTester.current = true;
-    }, [handleOpenTester, openTesterOnLoad, shouldShowWebCallOnboarding, testerDisabledReason]);
+    }, [handleOpenTester, openTesterOnLoad, testerDisabledReason]);
 
     // Fetch documents, tools, and recordings once for the entire workflow
     useEffect(() => {
@@ -574,14 +575,6 @@ function RenderWorkflow({
                                 onNodesChange={handleSimpleNodesChange}
                                 onOpenCanvas={() => setShowCanvas(true)}
                                 readOnly={isViewingHistoricalVersion}
-                                header={
-                                    <ModelRow
-                                        workflowId={workflowId}
-                                        editable={!isViewingHistoricalVersion}
-                                        configurations={workflowConfigurations}
-                                        onSaveConfigurations={saveConfigurationPatch}
-                                    />
-                                }
                             />
                         ) : useSimpleView ? (
                             <SimpleAgentEditor
@@ -589,22 +582,6 @@ function RenderWorkflow({
                                 onNodesChange={handleSimpleNodesChange}
                                 onOpenCanvas={() => setShowCanvas(true)}
                                 readOnly={isViewingHistoricalVersion}
-                                // What the agent runs on belongs on the screen
-                                // someone opens to work on the agent, which is
-                                // this one. It spent one release behind the
-                                // settings page, where a summary of the agent
-                                // helps nobody who has not already gone
-                                // looking for it. Not on the canvas: that view
-                                // is dense already and the row would compete
-                                // with the graph for the same attention.
-                                header={
-                                    <ModelRow
-                                        workflowId={workflowId}
-                                        editable={!isViewingHistoricalVersion}
-                                        configurations={workflowConfigurations}
-                                        onSaveConfigurations={saveConfigurationPatch}
-                                    />
-                                }
                             />
                         ) : (
                         <>
