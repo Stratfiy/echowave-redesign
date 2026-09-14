@@ -3493,6 +3493,24 @@ export type DecibylTtsService = {
 };
 
 /**
+ * DecideRequest
+ */
+export type DecideRequest = {
+    /**
+     * Event Id
+     */
+    event_id: number;
+    /**
+     * Choice
+     */
+    choice?: Array<string>;
+    /**
+     * Other
+     */
+    other?: string | null;
+};
+
+/**
  * DeepSeek
  *
  * Very low cost per token, for high-volume scripted calls.
@@ -10066,6 +10084,18 @@ export type TeamMember = {
      */
     failures: number;
     last_action: LastAction | null;
+    /**
+     * Last Line
+     */
+    last_line?: string | null;
+    /**
+     * Last At
+     */
+    last_at?: string | null;
+    /**
+     * Last Actor
+     */
+    last_actor?: string | null;
 };
 
 /**
@@ -24385,6 +24415,45 @@ export type PostMessageApiV1TimelineMessagePostResponses = {
 };
 
 export type PostMessageApiV1TimelineMessagePostResponse = PostMessageApiV1TimelineMessagePostResponses[keyof PostMessageApiV1TimelineMessagePostResponses];
+
+export type DecideApiV1TimelineDecidePostData = {
+    body: DecideRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/timeline/decide';
+};
+
+export type DecideApiV1TimelineDecidePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DecideApiV1TimelineDecidePostError = DecideApiV1TimelineDecidePostErrors[keyof DecideApiV1TimelineDecidePostErrors];
+
+export type DecideApiV1TimelineDecidePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: TimelineEvent;
+};
+
+export type DecideApiV1TimelineDecidePostResponse = DecideApiV1TimelineDecidePostResponses[keyof DecideApiV1TimelineDecidePostResponses];
 
 export type ListToolsApiV1ToolsGetData = {
     body?: never;

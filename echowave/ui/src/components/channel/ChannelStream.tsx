@@ -30,6 +30,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { timelineApiV1TimelineGet } from '@/client/sdk.gen';
 import type { TimelineEvent } from '@/client/types.gen';
 import { Button } from '@/components/ui/button';
+import { DecisionCard } from '@/components/workflow/DecisionCard';
 import { detailFromResult } from '@/lib/apiError';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
@@ -204,6 +205,38 @@ export function ChannelStream({
 
             <ol className="flex flex-col gap-4">
                 {inOrder.map((event) => {
+                    if (event.kind === 'needs_decision') {
+                        // The bot's question, as a card with something to
+                        // press. Attributed like any other bot row.
+                        const asker =
+                            (event.workflow_id != null && botNames[event.workflow_id]) || 'A bot';
+                        return (
+                            <li key={event.id} className="flex gap-3">
+                                <span
+                                    aria-hidden
+                                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--accent-brand-soft)] text-[var(--accent-brand)]"
+                                >
+                                    <Bot className="h-4 w-4" />
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                    <p className="mb-1 text-sm">
+                                        <span className="font-medium">{asker}</span>
+                                        <span className="ml-2 text-xs text-muted-foreground">
+                                            <time dateTime={event.at}>{when(event.at)}</time>
+                                        </span>
+                                    </p>
+                                    <DecisionCard
+                                        event={event}
+                                        onDecided={(updated) =>
+                                            setEvents((all) =>
+                                                all.map((e) => (e.id === updated.id ? updated : e)),
+                                            )
+                                        }
+                                    />
+                                </div>
+                            </li>
+                        );
+                    }
                     const fromPerson = event.actor === 'human';
                     const tone = TONE[event.kind];
                     const Icon = tone?.icon ?? (fromPerson ? Clock : Bot);

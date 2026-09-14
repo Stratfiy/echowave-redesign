@@ -47,6 +47,14 @@ class TeamMember(BaseModel):
     outcomes: int
     failures: int
     last_action: Optional[LastAction]
+    #: The most recent line on the bot's timeline -- what a chat list shows
+    #: under a name -- and when, and who wrote it ("agent" or "human"). None
+    #: for a bot that has done nothing yet. Read by the rail, which lights an
+    #: unread dot when ``last_at`` is newer than the last time this person
+    #: opened the bot.
+    last_line: Optional[str] = None
+    last_at: Optional[datetime] = None
+    last_actor: Optional[str] = None
 
 
 class TeamResponse(BaseModel):
@@ -78,9 +86,17 @@ async def _members(organization_id: int, hours: int) -> list[TeamMember]:
     activity = await db_client.agent_activity(
         organization_id=organization_id, hours=hours
     )
+    # Built for the rail and never read until now: the helper existed, the
+    # rail showed a status dot, and the line a chat list lives on was in
+    # neither. Wired here so the rail and the home screen carry the same one.
+    latest = await db_client.latest_event_per_workflow(
+        organization_id=organization_id,
+        workflow_ids=[workflow.id for workflow in workflows],
+    )
 
     members: list[TeamMember] = []
     for workflow in workflows:
+        last = latest.get(workflow.id) or {}
         line = status_lines.status_line(
             activity.get(workflow.id),
             is_live=bool(workflow.is_live),
@@ -103,6 +119,9 @@ async def _members(organization_id: int, hours: int) -> list[TeamMember]:
                 last_action=(
                     LastAction(**line["last_action"]) if line["last_action"] else None
                 ),
+                last_line=last.get("summary") or None,
+                last_at=last.get("at"),
+                last_actor=last.get("actor"),
             )
         )
 

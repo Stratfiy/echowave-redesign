@@ -37,7 +37,7 @@ from api.db import db_client
 from api.db.models import UserModel
 from api.enums import AgentEventActor, AgentEventKind
 from api.services.auth.depends import get_user
-from api.services.workflow import agent_timeline, mentions
+from api.services.workflow import agent_timeline, decisions, mentions
 from api.tasks.arq import enqueue_job
 from api.tasks.function_names import FunctionNames
 
@@ -304,3 +304,41 @@ async def post_message(
         unknown=resolution.unknown,
         ambiguous=resolution.ambiguous,
     )
+
+
+class DecideRequest(BaseModel):
+    event_id: int
+    #: The options picked, by their text. One for single and approve modes.
+    choice: list[str] = Field(default_factory=list, max_length=decisions.MAX_OPTIONS)
+    #: A written answer, where the question allows one.
+    other: Optional[str] = Field(default=None, max_length=decisions.MAX_OPTION_CHARS)
+
+
+@router.post("/decide", response_model=TimelineEvent)
+async def decide(body: DecideRequest, user: UserModel = Depends(get_user)):
+    """Answer a bot's question on the card that asked it.
+
+    The answer is written into the question's own row, so the card everyone
+    sees shows what was decided and by whom; it is also posted as a message in
+    the channel and handed to the bot, which carries on with it. A question
+    already answered stays answered: the bot has acted on the first answer.
+    """
+    organization_id = user.selected_organization_id
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+    try:
+        await decisions.decide(
+            organization_id=organization_id,
+            event_id=body.event_id,
+            choice=body.choice,
+            other=body.other,
+            user_id=user.id,
+        )
+    except decisions.DecisionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    row = await db_client.get_agent_event(
+        body.event_id, organization_id=organization_id
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="That question is not here")
+    return _as_event(row)

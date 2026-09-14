@@ -58,3 +58,18 @@ describe("the agent's tabs", () => {
         }
     });
 });
+
+describe("chat, instructions, graph", () => {
+    it("opens on chat and offers both views of the definition", () => {
+        const labels = AGENT_TABS.map((tab) => tab.label);
+        expect(labels.slice(0, 3)).toEqual(["Chat", "Instructions", "Graph"]);
+    });
+
+    it("makes the graph a place with an address", () => {
+        // A view that was a button inside another view was a view nobody
+        // could link to. ?view=graph is the link.
+        const graph = AGENT_TABS.find((tab) => tab.key === "graph");
+        expect(graph).toBeTruthy();
+        expect("settingsTab" in graph!).toBe(false);
+    });
+});

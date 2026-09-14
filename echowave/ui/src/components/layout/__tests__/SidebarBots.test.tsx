@@ -131,3 +131,44 @@ describe("it waits for auth", () => {
         expect(teamStatus).toHaveBeenCalledTimes(1);
     });
 });
+
+describe("the last line and the unread dot", () => {
+    it("shows the last thing said under the name, and who said it", async () => {
+        teamStatus.mockResolvedValue({
+            data: {
+                hours: 24,
+                members: [
+                    { ...member(1, "Front desk"), last_line: "Booked Meera for 4pm.", last_at: "2026-09-14T06:30:00Z", last_actor: "agent" },
+                    { ...member(2, "Quote desk"), last_line: "Can you quote Chennai?", last_at: "2026-09-14T06:00:00Z", last_actor: "human" },
+                ],
+            },
+        });
+        render(<SidebarBots collapsed={false} />);
+        await waitFor(() => expect(screen.getByText("Booked Meera for 4pm.")).toBeTruthy());
+        expect(screen.getByText(/You: Can you quote Chennai\?/)).toBeTruthy();
+    });
+
+    it("lights the dot for a bot with news since it was last opened here", async () => {
+        localStorage.setItem(
+            "decibyl.bot-seen",
+            JSON.stringify({ "1": "2026-09-14T07:00:00Z", "2": "2026-09-14T05:00:00Z" }),
+        );
+        teamStatus.mockResolvedValue({
+            data: {
+                hours: 24,
+                members: [
+                    { ...member(1, "Read"), last_line: "old", last_at: "2026-09-14T06:30:00Z" },
+                    { ...member(2, "Unread"), last_line: "new", last_at: "2026-09-14T06:00:00Z" },
+                    { ...member(3, "Never opened"), last_line: "first", last_at: "2026-09-14T06:00:00Z" },
+                    { ...member(4, "Silent"), last_line: null, last_at: null },
+                ],
+            },
+        });
+        render(<SidebarBots collapsed={false} />);
+        await waitFor(() => expect(screen.getByText("Unread")).toBeTruthy());
+        const dots = screen.getAllByLabelText("Unread").filter((el) => el.tagName === "SPAN");
+        // Unread and Never opened; not Read, not a bot with nothing to say.
+        expect(dots.length).toBe(2);
+        localStorage.clear();
+    });
+});
