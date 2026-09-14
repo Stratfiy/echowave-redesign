@@ -79,7 +79,11 @@ function SignupForm() {
         body: JSON.stringify({ token: res.data.token, user: res.data.user }),
       });
 
-      window.location.href = "/after-sign-in";
+      // The code screen comes before the workspace (KAN-132): the first
+      // free credits land on the code, and nobody meets a wall later.
+      window.location.href = res.data.email_verification_required
+        ? "/auth/verify"
+        : "/after-sign-in";
     } catch {
       posthog.capture(PostHogEvent.SIGNUP_FAILED, { reason: "network" });
       toast.error("An error occurred. Please try again.");

@@ -91,3 +91,8 @@ class UserResponse(BaseModel):
 class AuthResponse(BaseModel):
     token: str
     user: UserResponse
+    #: True when the account must enter the emailed code before it can do
+    #: anything: local email/password signup with mail configured. Google and
+    #: Stack accounts arrive vouched for. The signup screen reads this to send
+    #: the person to the code, not into a workspace with a banner.
+    email_verification_required: bool = False

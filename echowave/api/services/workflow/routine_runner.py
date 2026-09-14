@@ -150,12 +150,18 @@ async def run_routine(routine_id: int) -> Optional[int]:
         # A routine run is one event at one price (KAN-56), whether or not
         # it had anything to report: the model ran and the tools were tried.
         # Keyed on the run, so a re-fired job charges it once.
-        await billing_events.charge_in_own_session(
-            organization_id=organization_id,
-            event=billing_events.ROUTINE_RUN,
-            ref_id=str(run_id),
-            note=routine["name"][:80],
-        )
+        # Except the very first one (KAN-132): the onboarding step that pays
+        # 200 credits for a routine firing would otherwise arrive in the same
+        # second as a 2-credit bill for it, which reads as a trick.
+        if await _first_routine_run_is_free(organization_id):
+            logger.info("Org {} ran its first routine; on the house", organization_id)
+        else:
+            await billing_events.charge_in_own_session(
+                organization_id=organization_id,
+                event=billing_events.ROUTINE_RUN,
+                ref_id=str(run_id),
+                note=routine["name"][:80],
+            )
         if not answer:
             # Ran, produced nothing. The single most important case to record:
             # a blank run and a run that never happened look identical from
@@ -227,3 +233,20 @@ async def _load(routine_id: int) -> Optional[dict[str, Any]]:
 
 
 __all__ = ["MAX_DELIVERABLE", "run_routine"]
+
+
+async def _first_routine_run_is_free(organization_id: int | None) -> bool:
+    """Best effort: a ledger hiccup must bill the run, not fail it."""
+    if organization_id is None:
+        return False
+    from api.db import db_client
+    from api.services.billing import onboarding_credits
+
+    try:
+        async with db_client.async_session() as session:
+            return await onboarding_credits.first_routine_run_is_free(
+                session, organization_id=organization_id
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not decide whether the routine run is free: {}", exc)
+        return False

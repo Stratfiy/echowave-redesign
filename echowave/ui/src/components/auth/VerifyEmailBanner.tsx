@@ -68,7 +68,7 @@ export function VerifyEmailBanner() {
     const granted = (response.data as { bonus_granted_paise?: number } | undefined)
       ?.bonus_granted_paise;
     toast.success(
-      granted ? "Email verified. Your free credits are in." : "Email verified."
+      granted ? `Email verified. ${Math.floor(granted / 50)} free credits are in.` : "Email verified."
     );
     if (granted) announceBalanceChanged();
     setNeeded(false);
@@ -97,7 +97,7 @@ export function VerifyEmailBanner() {
       <MailCheck className="h-4 w-4 shrink-0 text-foreground/70" />
       <span className="min-w-0">
         Verify {address ? <strong className="font-medium">{address}</strong> : "your email"} —
-        enter the six-digit code we sent you, and your free credits land.
+        enter the six-digit code we sent you, and your first 150 free credits land.
       </span>
       <div className="flex items-center gap-2">
         <Input

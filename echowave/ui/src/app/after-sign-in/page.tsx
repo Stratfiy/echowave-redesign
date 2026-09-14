@@ -1,7 +1,7 @@
 import { isNextRouterError } from "next/dist/client/components/is-next-router-error";
 import { redirect } from "next/navigation";
 
-import { getWorkflowCountApiV1WorkflowCountGet } from "@/client/sdk.gen";
+import { getAuthUserApiV1UserAuthUserGet, getWorkflowCountApiV1WorkflowCountGet } from "@/client/sdk.gen";
 import { getServerAccessToken,getServerAuthProvider, getServerUser } from "@/lib/auth/server";
 import logger from '@/lib/logger';
 import { getRedirectUrl } from "@/lib/utils";
@@ -35,6 +35,16 @@ export default async function AfterSignInPage() {
     try {
         const accessToken = await getServerAccessToken();
         if (accessToken) {
+            // Verification at the door (KAN-132). Only local accounts have a
+            // code to enter; anything that cannot answer falls through.
+            const me = await getAuthUserApiV1UserAuthUserGet({
+                headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            if (me.data && me.data.email_verified === false) {
+                logger.debug('[AfterSignInPage] Email not verified - redirecting to /auth/verify');
+                redirect('/auth/verify');
+            }
+
             const countResponse = await getWorkflowCountApiV1WorkflowCountGet({
                 headers: {
                     Authorization: `Bearer ${accessToken}`,

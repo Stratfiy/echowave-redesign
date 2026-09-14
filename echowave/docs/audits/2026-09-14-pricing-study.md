@@ -607,3 +607,32 @@ change will be judged on, so what it can and cannot see is worth recording.
 - **What the board replaces.** The unit-economics and pricing-inputs screens
   stay: they are per-minute depth on voice. The board is the breadth view the
   founders read weekly.
+
+## 20. Notes from onboarding credits (KAN-132, 14 Sept)
+
+**One change to a published number.** The Free allowance was a $5 signup
+bonus, converted on the day (about 830 credits). KAN-47 fixed Free at 1,000
+credits; this step applies it, and pays it in six tranches rather than one:
+
+| Step | Credits |
+|---|---:|
+| Verify email | 150 |
+| Build first bot | 150 |
+| Put it on a channel | 150 |
+| First real conversation | 200 |
+| First routine fires | 200 |
+| Move in (document or teammate) | 150 |
+
+- **Why tranches.** Each step costs a claimant effort a script cannot fake
+  cheaply, so bonus farming stops paying; each step is one of the activation
+  events the KPI board measures, so onboarding and the funnel are one list.
+- **Derived, not event-driven.** Done-ness is read from the database on
+  every Home load and settled then, so a missed hook cannot leave a step
+  done and unpaid.
+- **Ceiling.** Accounts holding the old bonus keep it and earn the rest up
+  to 1,000, never past.
+- **The first routine run is free** of its 2-credit charge, so the 200-credit
+  reward and the bill never land together.
+- **Verification moves to the door.** Email/password signups enter the code
+  before the workspace; Google and Stack accounts pass straight through.
+

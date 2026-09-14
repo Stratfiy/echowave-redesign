@@ -111,7 +111,7 @@ async def signup(request: SignupRequest, http_request: Request):
     # cost somebody their account — they are already provisioned, already
     # signed in, and can ask for another code from inside the app. Failing the
     # signup here would turn a transient SMTP fault into a lost customer.
-    await email_verification_flow.issue_code(user.id, request.email)
+    code_sent = await email_verification_flow.issue_code(user.id, request.email)
 
     # Create JWT token
     token = create_jwt_token(user.id, request.email)
@@ -135,6 +135,10 @@ async def signup(request: SignupRequest, http_request: Request):
             provider_id=user.provider_id,
             mfa_enabled=bool(user.mfa_enabled),
         ),
+        # Verification happens at the door (KAN-132): the code screen comes
+        # before the workspace, and the first free credits land on the code.
+        email_verification_required=bool(code_sent)
+        and email_verification.verification_is_enforceable(),
     )
 
 
