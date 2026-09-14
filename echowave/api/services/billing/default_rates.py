@@ -495,6 +495,35 @@ STT_RATES = (
 
 #: Speech synthesis — unit is 1k characters, which is what voice vendors bill.
 TTS_RATES = (
+    # Smallest publishes per 10k characters; both Lightning models are
+    # pay-as-you-go with no plan tiers. Confirmed against
+    # smallest.ai/pricing/models on 14 Sep 2026, the day the `natural` tier
+    # was pointed at v3.1 Pro. Pro is named so a tier we sell is never priced
+    # off the provider-wide row.
+    DefaultRate(
+        "smallest",
+        "",
+        CostComponent.TTS,
+        RateUnit.THOUSAND_CHARS,
+        0.0175,
+        "Lightning v3.1 $0.175 per 10k characters.",
+    ),
+    DefaultRate(
+        "smallest",
+        "lightning_v3.1",
+        CostComponent.TTS,
+        RateUnit.THOUSAND_CHARS,
+        0.0175,
+        "Lightning v3.1 $0.175 per 10k characters.",
+    ),
+    DefaultRate(
+        "smallest",
+        "lightning_v3.1_pro",
+        CostComponent.TTS,
+        RateUnit.THOUSAND_CHARS,
+        0.0195,
+        "Lightning v3.1 Pro $0.195 per 10k characters. The `natural` managed tier.",
+    ),
     DefaultRate(
         "openai",
         "",
@@ -579,6 +608,10 @@ TTS_RATES = (
         _inr(1.50),
         "Rs15 per 10k chars. The model the default managed tier resolves to.",
     ),
+    # Kept at list on purpose. The account carries Rs25,000 of Sarvam credit
+    # for six months from Sep 2026 and 30% off list after that; the card
+    # states what the vendor charges, so margin reads conservative rather
+    # than a discount somebody has to remember to remove.
     DefaultRate(
         "sarvam",
         "bulbul:v3",
@@ -614,14 +647,6 @@ TTS_RATES = (
         RateUnit.THOUSAND_CHARS,
         _inr(0.99),
         "Rs0.99 per 1k chars published — the expressive model, twice Mulberry",
-    ),
-    DefaultRate(
-        "smallest",
-        "",
-        CostComponent.TTS,
-        RateUnit.THOUSAND_CHARS,
-        0.0250,
-        "Lightning V3.1 — approx $0.25 per 10k characters",
     ),
 )
 

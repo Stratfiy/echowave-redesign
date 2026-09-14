@@ -103,7 +103,7 @@ STT_TIERS = ("default", "instant")
 #: quality scale: ``basic`` is the cheapest synthesis on the card and speaks
 #: Hindi and English; ``default`` speaks every Indian language; ``global`` is
 #: the international voice for an English-first caller.
-TTS_TIERS = ("default", "basic", "global")
+TTS_TIERS = ("default", "natural", "basic", "global")
 
 #: What the customer reads, the same discipline as the brain tiers: what the
 #: choice does, not who serves it. The language limit belongs on the screen --
@@ -116,6 +116,10 @@ TTS_TIER_LABELS: dict[str, tuple[str, str]] = {
     "default": (
         "Every language",
         "Speaks every Indian language, switching mid-sentence.",
+    ),
+    "natural": (
+        "Natural",
+        "The most natural Indian voice. Hindi and English.",
     ),
     "global": (
         "Global",
@@ -275,6 +279,14 @@ def _defaults() -> dict[tuple[str, str], ManagedUpstream]:
         # only, with twelve preset voices the picker can play. The bottom rung
         # of the preset ladder, and the reason there is a ladder at all.
         ("tts", "basic"): _tier("tts", "basic", "rumik", "mulberry"),
+        # Smallest Lightning v3.1 Pro: the premium pool with Indian-accent
+        # voices, and the vendor's own benchmarks lead on prosody, breathing
+        # and the small non-verbal sounds a caller reads as a person. No
+        # emotion knobs -- the expressiveness is in the voice, not a
+        # parameter -- and English + Hindi only, which is why it sits beside
+        # Every-language rather than replacing it. $0.195 per 10k characters,
+        # under Sarvam's Rs3/1k and well under ElevenLabs.
+        ("tts", "natural"): _tier("tts", "natural", "smallest", "lightning_v3.1_pro"),
         # ElevenLabs Flash: the international voice. Dearer than Sarvam, and
         # its premade voices are what the template gallery already plays.
         ("tts", "global"): _tier("tts", "global", "elevenlabs", "eleven_flash_v2_5"),

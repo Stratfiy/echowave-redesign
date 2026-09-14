@@ -114,10 +114,11 @@ class TestAvailability:
 
 
 class TestTheSetItself:
-    def test_the_ladder_is_the_four_rungs_in_price_order(self):
+    def test_the_ladder_is_the_five_rungs_in_price_order(self):
         assert [p.slug for p in model_presets.MODEL_PRESETS] == [
             "basic",
             "standard",
+            "natural",
             "smart",
             "global",
         ]

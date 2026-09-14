@@ -68,6 +68,13 @@ MODEL_PRESETS: tuple[ModelPreset, ...] = (
         llm_tier="lite",
     ),
     ModelPreset(
+        slug="natural",
+        label="Natural",
+        blurb="The most natural Indian voice, Hindi and English. For calls that must not sound like a bot.",
+        tts_tier="natural",
+        llm_tier="lite",
+    ),
+    ModelPreset(
         slug="smart",
         label="Smart",
         blurb="A stronger brain for calls that use tools, documents, or go off script.",
