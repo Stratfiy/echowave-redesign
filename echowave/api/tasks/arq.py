@@ -55,6 +55,7 @@ from api.tasks.evals import run_eval_case
 from api.tasks.fx import refresh_exchange_rate
 from api.tasks.heartbeat import record_worker_heartbeat
 from api.tasks.knowledge_base_processing import process_knowledge_base_document
+from api.tasks.knowledge_base_translation import translate_knowledge_base_document
 from api.tasks.low_balance import notify_low_balances
 from api.tasks.margin_watch import watch_margins
 from api.tasks.missed_call_tasks import place_missed_call_callback
@@ -108,6 +109,7 @@ class WorkerSettings:
         run_agent_routine,
         answer_channel_message,
         compact_channel_context,
+        translate_knowledge_base_document,
     ]
     cron_jobs = [
         # Every minute, and at startup so a deployment is not indistinguishable

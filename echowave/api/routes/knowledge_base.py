@@ -21,7 +21,7 @@ from api.schemas.knowledge_base import (
 from api.sdk_expose import sdk_expose
 from api.services.auth.depends import get_user
 from api.services.billing import subscription_plans
-from api.services.knowledge_base import staleness, upload_keys
+from api.services.knowledge_base import staleness, translate_document, upload_keys
 from api.services.posthog_client import capture_event
 from api.services.storage import storage_fs
 from api.tasks.arq import enqueue_job
@@ -694,3 +694,63 @@ async def search_chunks(
     except Exception as exc:
         logger.error(f"Error searching chunks: {exc}")
         raise HTTPException(status_code=500, detail="Failed to search chunks") from exc
+
+
+class TranslateDocumentRequest(BaseModel):
+    #: A Sarvam language code. English by default.
+    target_language_code: str = "en-IN"
+
+
+@router.post(
+    "/documents/{document_uuid}/translate",
+    response_model=DocumentResponseSchema,
+    status_code=202,
+    summary="Make a copy of a document in another language",
+)
+async def translate_document_route(
+    document_uuid: str,
+    request: TranslateDocumentRequest,
+    user=Depends(get_user),
+):
+    """A translated copy, as a document of its own in the same scope.
+
+    Returned pending; the list already polls pending rows to completion. The
+    ingestion quota applies as it does to an upload -- this is one.
+    """
+    if not user.selected_organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+    await _assert_room_to_ingest(user.selected_organization_id)
+    try:
+        document = await translate_document.start(
+            source_uuid=document_uuid,
+            organization_id=user.selected_organization_id,
+            user_id=user.id,
+            provider_id=str(user.provider_id),
+            target=request.target_language_code,
+        )
+    except translate_document.NotTranslatable as exc:
+        status = 404 if "not found" in str(exc).lower() else 409
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+    return DocumentResponseSchema(
+        id=document.id,
+        document_uuid=document.document_uuid,
+        filename=document.filename,
+        file_size_bytes=0,
+        file_hash="",
+        mime_type="text/plain",
+        processing_status="pending",
+        processing_error=None,
+        total_chunks=0,
+        retrieval_mode=document.retrieval_mode or "chunked",
+        custom_metadata=document.custom_metadata or {},
+        docling_metadata={},
+        source_url=None,
+        scope=document.scope,
+        folder_id=document.folder_id,
+        workflow_id=document.workflow_id,
+        created_at=document.created_at,
+        updated_at=document.updated_at,
+        organization_id=user.selected_organization_id,
+        created_by=user.id,
+        is_active=True,
+    )

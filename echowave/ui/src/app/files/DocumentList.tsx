@@ -1,12 +1,13 @@
 'use client';
 
-import { AlertTriangle, FileText, RefreshCw, Search, SearchX, Trash2 } from 'lucide-react';
+import { AlertTriangle, FileText, Languages, RefreshCw, Search, SearchX, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
   deleteDocumentApiV1KnowledgeBaseDocumentsDocumentUuidDelete,
   listDocumentsApiV1KnowledgeBaseDocumentsGet,
+  translateDocumentRouteApiV1KnowledgeBaseDocumentsDocumentUuidTranslatePost,
 } from '@/client/sdk.gen';
 import { getUsageApiV1KnowledgeBaseUsageGet } from "@/client/sdk.gen";
 import type { DocumentResponseSchema } from '@/client/types.gen';
@@ -14,9 +15,33 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { EmptyState } from '@/components/EmptyState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { detailFromError } from '@/lib/apiError';
 import logger from '@/lib/logger';
+
+/** The languages a copy can be made in. Mirrors LANGUAGE_NAMES in
+ *  api/services/knowledge_base/translate_document.py. */
+export const TRANSLATION_LANGUAGES: { code: string; name: string }[] = [
+  { code: 'en-IN', name: 'English' },
+  { code: 'hi-IN', name: 'Hindi' },
+  { code: 'ta-IN', name: 'Tamil' },
+  { code: 'te-IN', name: 'Telugu' },
+  { code: 'kn-IN', name: 'Kannada' },
+  { code: 'ml-IN', name: 'Malayalam' },
+  { code: 'mr-IN', name: 'Marathi' },
+  { code: 'bn-IN', name: 'Bengali' },
+  { code: 'gu-IN', name: 'Gujarati' },
+  { code: 'pa-IN', name: 'Punjabi' },
+  { code: 'od-IN', name: 'Odia' },
+];
 
 interface DocumentListProps {
   refreshTrigger: number;
@@ -120,6 +145,22 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete document');
       logger.error('Error deleting document:', err);
     }
+  };
+
+  // A copy in another language, as a document of its own in the same scope.
+  // Offered on a document that has been read; the copy shows up pending and
+  // the list's own polling carries it to completed.
+  const handleTranslate = async (documentUuid: string, filename: string, code: string, name: string) => {
+    const response = await translateDocumentRouteApiV1KnowledgeBaseDocumentsDocumentUuidTranslatePost({
+      path: { document_uuid: documentUuid },
+      body: { target_language_code: code },
+    });
+    if (response.error) {
+      toast.error(detailFromError(response.error, 'Could not start the translation'));
+      return;
+    }
+    toast.success(`Making a ${name} copy of "${filename}"`);
+    fetchDocuments();
   };
 
   const getStatusBadge = (status: string) => {
@@ -337,6 +378,11 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
                       Error: {doc.processing_error}
                     </p>
                   )}
+                  {typeof doc.custom_metadata?.translated_from === 'string' && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      A translation of another document here
+                    </p>
+                  )}
                   {doc.docling_metadata &&
                    typeof doc.docling_metadata === 'object' &&
                    'duplicate_of' in doc.docling_metadata && (
@@ -346,14 +392,38 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
                   )}
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleDelete(doc.document_uuid, doc.filename)}
-                className="text-destructive hover:text-destructive/90"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              <div className="flex shrink-0 items-center gap-1">
+                {doc.processing_status === 'completed' && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" aria-label={`Translate ${doc.filename}`} title="Translate">
+                        <Languages className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
+                      <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                        Make a copy in
+                      </DropdownMenuLabel>
+                      {TRANSLATION_LANGUAGES.map((language) => (
+                        <DropdownMenuItem
+                          key={language.code}
+                          onSelect={() => void handleTranslate(doc.document_uuid, doc.filename, language.code, language.name)}
+                        >
+                          {language.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDelete(doc.document_uuid, doc.filename)}
+                  className="text-destructive hover:text-destructive/90"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           ))}
         </div>
