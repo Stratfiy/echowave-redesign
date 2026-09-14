@@ -82,7 +82,8 @@ export function ChannelComposer({
     workflowId?: number;
     bots: ChannelBot[];
     channelName: string;
-    onSent?: () => void;
+    /** Sent, with the bots it was handed to. */
+    onSent?: (asked: number[]) => void;
 }) {
     const [text, setText] = useState('');
     const [sending, setSending] = useState(false);
@@ -204,7 +205,7 @@ export function ChannelComposer({
             );
         }
         setNotice(said.join(' ') || null);
-        onSent?.();
+        onSent?.(response.data?.asked ?? []);
     };
 
     return (
