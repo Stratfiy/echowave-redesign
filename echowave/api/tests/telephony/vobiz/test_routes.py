@@ -277,7 +277,7 @@ async def test_vobiz_hangup_callback_rejects_missing_signature():
                 request=request,
             )
 
-    assert exc_info.value.status_code == 403
+    assert exc_info.value.status_code == 401
     process_status.assert_not_awaited()
 
 
@@ -324,7 +324,7 @@ async def test_vobiz_ring_callback_rejects_missing_signature():
                 request=request,
             )
 
-    assert exc_info.value.status_code == 403
+    assert exc_info.value.status_code == 401
     db_client.update_workflow_run.assert_not_awaited()
 
 
@@ -376,5 +376,5 @@ async def test_vobiz_hangup_callback_by_workflow_rejects_missing_signature():
                 request=request,
             )
 
-    assert exc_info.value.status_code == 403
+    assert exc_info.value.status_code == 401
     process_status.assert_not_awaited()
