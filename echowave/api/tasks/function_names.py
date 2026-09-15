@@ -16,6 +16,7 @@ class FunctionNames:
     #: Decibyl, the workspace assistant, answers on its own thread.
     ANSWER_DECIBYL_MESSAGE = "answer_decibyl_message"
     EXTRACT_DOCUMENT_FIELDS = "extract_document_fields"
+    EXPORT_MEMORY = "export_memory"
     #: A confirmed action fires once its undo window has passed.
     RUN_PROPOSED_ACTION = "run_proposed_action"
     COMPACT_CHANNEL_CONTEXT = "compact_channel_context"
