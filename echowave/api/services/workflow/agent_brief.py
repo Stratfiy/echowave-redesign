@@ -29,6 +29,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from api.services.workflow import untrusted
+
 #: Applied to every agent unless the operator removes them, because each one is
 #: something an Indian voice deployment gets wrong by default and is judged on.
 #: The first four are how a caller decides whether the thing is worth talking
@@ -40,6 +42,7 @@ DEFAULT_GUARDRAILS: tuple[str, ...] = (
     "Ask one question per turn. Never stack two questions in a single turn.",
     "Keep every turn under about three sentences. Callers interrupt long turns "
     "and everything after the interruption is lost.",
+    untrusted.GUARDRAIL,
     "Read back phone numbers digit by digit, and read back dates, times and "
     "amounts, before treating them as confirmed.",
     "Never invent a fact, a price, a date or a commitment. If you do not have "
