@@ -34,7 +34,7 @@ Same two halves as ``decisions``: ``propose`` is what the model calls,
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 
 from loguru import logger
 
@@ -45,8 +45,9 @@ from api.services.workflow import agent_timeline
 TOOL_NAME = "propose_action"
 DESCRIPTION = (
     "Propose to do one of the things you are allowed to do: turn a bot on "
-    "or off, call back a caller the business missed, or forget one of the "
-    "facts in your memory when a person asks you to. Nothing happens "
+    "or off, call back a caller the business missed, forget one of the "
+    "facts in your memory when a person asks you to, or create a new bot "
+    "from a template with the answers it needs. Nothing happens "
     "until a person on the team confirms on the card, and they can undo it "
     "for a few seconds after. Say in one line why. You will not know the "
     "outcome in this turn; say that you have proposed it and end your reply."
@@ -60,7 +61,12 @@ TURN_BOT_ON = "turn_bot_on"
 TURN_BOT_OFF = "turn_bot_off"
 RETURN_MISSED_CALL = "return_missed_call"
 FORGET_FACT = "forget_fact"
-ACTIONS = (TURN_BOT_ON, TURN_BOT_OFF, RETURN_MISSED_CALL, FORGET_FACT)
+#: Build a colleague (KAN-140). The card shows the template, the name and
+#: the answers; Confirm creates the bot with a handle; the done card
+#: offers Hear it and Try it. Missing answers are reported to the model so
+#: it asks, never guessed and never a failed card.
+CREATE_BOT = "create_bot"
+ACTIONS = (TURN_BOT_ON, TURN_BOT_OFF, RETURN_MISSED_CALL, FORGET_FACT, CREATE_BOT)
 
 #: The states a proposal moves through. Terminal ones are the last four.
 PROPOSED = "proposed"
@@ -83,8 +89,29 @@ def tool_properties() -> dict[str, Any]:
                 "'turn_bot_on' or 'turn_bot_off' for a bot's live switch; "
                 "'return_missed_call' to ring back a caller from the missed "
                 "calls in your context; 'forget_fact' to drop one remembered "
-                "fact, named by its key."
+                "fact, named by its key; 'create_bot' to build a new bot from "
+                "one of the templates in your context."
             ),
+        },
+        "template_id": {
+            "type": "string",
+            "description": "For create_bot: the template id from your context.",
+        },
+        "name": {
+            "type": "string",
+            "description": (
+                "For create_bot: what to call the bot, in the person's words, "
+                "e.g. 'Narayani Dental front desk'."
+            ),
+        },
+        "variables": {
+            "type": "object",
+            "description": (
+                "For create_bot: the answers the template needs, keyed by the "
+                "names listed under 'Needs' in your context. Ask for any you "
+                "do not have before proposing."
+            ),
+            "additionalProperties": {"type": "string"},
         },
         "bot": {
             "type": "string",
@@ -128,7 +155,7 @@ class ActionError(ValueError):
 # --- resolving what was proposed -------------------------------------------
 
 
-def _match_bot(wanted: str, roster: list[Any]) -> Optional[Any]:
+def _match_bot(wanted: str, roster: list[Any]) -> Any | None:
     """Case-insensitive match on handle or name. Never a guess: an ambiguous
     name resolves to nothing, and the model is told to be specific."""
     key = wanted.strip().lstrip("@").casefold()
@@ -146,7 +173,7 @@ def _match_bot(wanted: str, roster: list[Any]) -> Optional[Any]:
 async def resolve(
     *,
     organization_id: int,
-    workflow_id: Optional[int],
+    workflow_id: int | None,
     arguments: dict[str, Any],
 ) -> dict[str, Any]:
     """Turn the model's arguments into a payload a card can render and a
@@ -185,6 +212,51 @@ async def resolve(
             "label": f"Turn {target_name} {'on' if on else 'off'}",
             "why": why,
             "reversible": True,
+            "state": PROPOSED,
+        }
+
+    if action == CREATE_BOT:
+        from api.services.agent_builder.assemble import AssemblyError, assemble
+        from api.services.agent_templates import get_template
+
+        template_id = str(arguments.get("template_id") or "").strip()
+        name = str(arguments.get("name") or "").strip()[:120]
+        raw = arguments.get("variables") or {}
+        variables = {
+            str(k): str(v) for k, v in dict(raw).items() if str(v or "").strip()
+        }
+        template = get_template(template_id) if template_id else None
+        if template is None:
+            raise ActionError(
+                "Say which template, by its id from the templates in your context."
+            )
+        if not name:
+            raise ActionError("Say what to call the bot.")
+        try:
+            built = assemble(template, name=name, variables=variables)
+        except AssemblyError as exc:
+            raise ActionError(str(exc)) from exc
+        if built.missing_variables:
+            asks = ", ".join(
+                f"{key} ({template.template_variables.get(key, key)})"
+                for key in built.missing_variables
+            )
+            # The ask-and-fill rule: the model is told what to ask, and no
+            # card is written until it has the answers.
+            raise ActionError(
+                f"Ask the person for these first, then propose again: {asks}."
+            )
+        return {
+            "action": action,
+            "args": {
+                "template_id": template.id,
+                "template_name": template.name,
+                "name": built.name,
+                "variables": variables,
+            },
+            "label": f"Create {built.name}",
+            "why": why or f"From the {template.name} template",
+            "reversible": False,
             "state": PROPOSED,
         }
 
@@ -245,9 +317,9 @@ async def resolve(
 
 async def propose(
     *,
-    organization_id: Optional[int],
-    workflow_id: Optional[int],
-    workflow_run_id: Optional[int],
+    organization_id: int | None,
+    workflow_id: int | None,
+    workflow_run_id: int | None,
     arguments: dict[str, Any],
     in_channel: bool = True,
 ) -> dict[str, Any]:
@@ -341,7 +413,7 @@ async def settle(
                 organization_id,
                 _defer_by=timedelta(seconds=UNDO_WINDOW_SECONDS),
             )
-        except Exception as exc:  # noqa: BLE001 - said on the card, not lost
+        except Exception as exc:
             logger.error(
                 "Action {} confirmed but could not be queued: {}", event_id, exc
             )
@@ -427,6 +499,39 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
         ):
             raise ActionError("That fact is no longer in memory.")
         return f"Forgotten: {args.get('key', 'that')}."
+    if action == CREATE_BOT:
+        from api.services.agent_builder import tools as builder_tools
+
+        user_id = int(((payload.get("confirmed") or {}).get("by")) or 0)
+        if not user_id:
+            raise ActionError("Nobody confirmed this, so nobody owns the bot.")
+        result = await builder_tools._create_agent(
+            organization_id=organization_id,
+            user_id=user_id,
+            template_id=str(args.get("template_id") or ""),
+            name=str(args.get("name") or ""),
+            variables=dict(args.get("variables") or {}),
+        )
+        if not result.get("created"):
+            raise ActionError(str(result.get("error") or "Could not build it."))
+        workflow_id = int(result["workflow_id"])
+        workflow = await db_client.get_workflow(
+            workflow_id, organization_id=organization_id
+        )
+        handle = getattr(workflow, "handle", None) if workflow else None
+        # Kept on the card, so Hear it and Try it know where to go.
+        payload.setdefault("result", {}).update(
+            {
+                "workflow_id": workflow_id,
+                "handle": handle,
+                "open_url": result.get("open_url"),
+            }
+        )
+        who = f"@{handle}" if handle else result.get("name", "the bot")
+        return (
+            f"Created {result.get('name', 'the bot')} ({who}). Hear it or try it "
+            "from this card; it needs a number before it can take real calls."
+        )
     if action == RETURN_MISSED_CALL:
         from api.services.telephony import missed_call
 

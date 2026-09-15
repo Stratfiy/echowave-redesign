@@ -24,7 +24,7 @@
  * every few seconds does not justify building one.
  */
 
-import { AlertTriangle, Bot, CheckCircle2, CircleSlash, Clock, FileText, Loader2, Phone } from 'lucide-react';
+import { AlertTriangle, Bot, CheckCircle2, CircleSlash, Clock, FileText, Loader2, MessageSquare, Phone } from 'lucide-react';
 import Link from 'next/link';
 import React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -116,6 +116,17 @@ function attachmentsOf(event: TimelineEvent): Attached[] {
         (a): a is Attached =>
             !!a && typeof a === 'object' && typeof (a as Attached).filename === 'string',
     );
+}
+
+type TestOffer = { workflow_id: number; bot_name?: string; how?: string; brief?: string; url: string };
+
+/** A Hear it / Try it card Decibyl offered (KAN-140), if this row carries one. */
+function testOf(event: TimelineEvent): TestOffer | null {
+    const test = (event.payload as { test?: unknown } | null)?.test;
+    if (!test || typeof test !== 'object') return null;
+    const offer = test as Partial<TestOffer>;
+    if (typeof offer.workflow_id !== 'number' || typeof offer.url !== 'string') return null;
+    return offer as TestOffer;
 }
 
 function sizeOf(bytes?: number): string {
@@ -756,6 +767,26 @@ export function ChannelStream({
                                             <p className="whitespace-pre-wrap border-l-2 border-border pl-2 text-muted-foreground" aria-label="Translation">
                                                 {translated[event.id]}
                                             </p>
+                                        )}
+                                    </div>
+                                )}
+                                {testOf(event) && (
+                                    <div className="mt-2 flex flex-wrap items-center gap-2" aria-label="Test">
+                                        <Button size="sm" asChild>
+                                            <Link href={testOf(event)!.url}>
+                                                {testOf(event)!.how === 'try' ? (
+                                                    <MessageSquare aria-hidden className="mr-1 h-3.5 w-3.5" />
+                                                ) : (
+                                                    <Phone aria-hidden className="mr-1 h-3.5 w-3.5" />
+                                                )}
+                                                {testOf(event)!.how === 'try' ? 'Try it' : 'Hear it'}
+                                            </Link>
+                                        </Button>
+                                        <span className="rounded border border-border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                            Test
+                                        </span>
+                                        {testOf(event)!.bot_name && (
+                                            <span className="text-xs text-muted-foreground">{testOf(event)!.bot_name}</span>
                                         )}
                                     </div>
                                 )}

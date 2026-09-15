@@ -23,7 +23,7 @@ from __future__ import annotations
 import copy
 import difflib
 from datetime import UTC, datetime
-from typing import Any, Optional
+from typing import Any
 
 from loguru import logger
 
@@ -123,7 +123,7 @@ def steps_block(definition: dict[str, Any] | None) -> str:
     return "\n\n".join(lines)
 
 
-def find_step(definition: dict[str, Any], step: str) -> Optional[dict[str, Any]]:
+def find_step(definition: dict[str, Any], step: str) -> dict[str, Any] | None:
     """The node a name points at, or None. Case-insensitive; id accepted."""
     wanted = (step or "").strip().lower()
     if not wanted:
@@ -151,13 +151,20 @@ def unified_diff(old: str, new: str, *, name: str) -> str:
 
 async def propose(
     *,
-    organization_id: Optional[int],
-    workflow_id: Optional[int],
-    workflow_run_id: Optional[int],
+    organization_id: int | None,
+    workflow_id: int | None,
+    workflow_run_id: int | None,
     arguments: dict[str, Any],
+    on_assistant_thread: bool = False,
 ) -> dict[str, Any]:
     """Write the change into the draft and post the card. Returns what the
-    model is told, never raises."""
+    model is told, never raises.
+
+    ``on_assistant_thread`` is Decibyl proposing a change to a colleague
+    (KAN-140): the card goes on Decibyl's thread -- a row with no bot and
+    no channel -- and carries the bot's id in its payload, so Publish still
+    knows whose draft it is.
+    """
     step = str(arguments.get("step") or "").strip()
     new_prompt = str(arguments.get("new_prompt") or "").strip()[:MAX_PROMPT_CHARS]
     why = str(arguments.get("why") or "").strip()[:MAX_WHY_CHARS]
@@ -194,6 +201,8 @@ async def propose(
     )
     label = _label(node)
     payload = {
+        "workflow_id": workflow_id,
+        "bot_name": getattr(workflow, "name", None),
         "step": label,
         "node_id": node.get("id"),
         "why": why,
@@ -202,13 +211,19 @@ async def propose(
         "diff": unified_diff(old_prompt, new_prompt, name=label),
         "draft_version": getattr(draft, "version_number", None),
     }
+    summary = (
+        f"Proposed a change to {getattr(workflow, 'name', 'the bot')}'s {label}"
+        if on_assistant_thread
+        else f"Proposed a change to {label}"
+    ) + (f": {why}" if why else "")
     await agent_timeline.record(
         organization_id=organization_id,
         kind=AgentEventKind.EDIT_PROPOSED.value,
-        summary=f"Proposed a change to {label}" + (f": {why}" if why else ""),
-        workflow_id=workflow_id,
+        summary=summary,
+        workflow_id=None if on_assistant_thread else workflow_id,
         workflow_run_id=workflow_run_id,
         payload=payload,
+        in_channel=not on_assistant_thread,
     )
     return {
         "status": "proposed",
@@ -239,14 +254,18 @@ async def settle(
     payload = dict(event.payload or {})
     if payload.get("decided"):
         raise EditError("Already settled.")
-    if event.workflow_id is None:
+    # A card on Decibyl's thread has no workflow on the row; the payload
+    # names the bot. Org-scoped either way: the event was fetched by org.
+    workflow_id = event.workflow_id or payload.get("workflow_id")
+    if workflow_id is None:
         raise EditError("That change belongs to no bot.")
+    workflow_id = int(workflow_id)
 
     try:
         if action == "publish":
-            await db_client.publish_workflow_draft(event.workflow_id)
+            await db_client.publish_workflow_draft(workflow_id)
         else:
-            await db_client.discard_workflow_draft(event.workflow_id)
+            await db_client.discard_workflow_draft(workflow_id)
     except ValueError as exc:
         # No draft any more: somebody published or discarded it from the
         # editor. The card says so rather than pretending the click did it.

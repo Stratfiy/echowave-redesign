@@ -49,6 +49,8 @@ interface RenderWorkflowProps {
     workflowUuid?: string;
     initialTotalRuns?: number | null;
     openTesterOnLoad?: boolean;
+    /** Which tab the tester opens on when opened on load. */
+    testerInitialMode?: "audio" | "text";
     initialFlow?: {
         nodes: FlowNode[];
         edges: FlowEdge[];
@@ -73,6 +75,7 @@ function RenderWorkflow({
     workflowUuid,
     initialTotalRuns,
     openTesterOnLoad = false,
+    testerInitialMode,
     initialFlow,
     initialTemplateContextVariables,
     initialWorkflowConfigurations,
@@ -791,6 +794,7 @@ function RenderWorkflow({
                             <aside className="hidden h-full w-[400px] shrink-0 border-l border-border xl:block">
                                 <WorkflowTesterPanel
                                     workflowId={workflowId}
+                                    initialMode={testerInitialMode}
                                     initialContextVariables={templateContextVariables}
                                     disabled={testerDisabledReason !== null}
                                     disabledReason={testerDisabledReason}
@@ -807,6 +811,7 @@ function RenderWorkflow({
                         <SheetContent side="right" className="w-full max-w-none p-0 sm:max-w-xl xl:hidden">
                             <WorkflowTesterPanel
                                 workflowId={workflowId}
+                                initialMode={testerInitialMode}
                                 initialContextVariables={templateContextVariables}
                                 disabled={testerDisabledReason !== null}
                                 disabledReason={testerDisabledReason}

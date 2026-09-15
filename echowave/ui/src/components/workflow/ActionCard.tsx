@@ -15,7 +15,8 @@
  * later is the record: who confirmed, who took it back, what it did.
  */
 
-import { Check, CircleSlash, Loader2, Undo2, Zap } from 'lucide-react';
+import { Check, CircleSlash, Loader2, MessageSquare, Phone, Undo2, Zap } from 'lucide-react';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import { settleActionApiV1TimelineActionsSettlePost } from '@/client/sdk.gen';
@@ -41,6 +42,8 @@ export type ActionPayload = {
     fires_at?: string;
     error?: string;
     done?: { at?: string; note?: string };
+    /** What a build produced (KAN-140): where Hear it and Try it go. */
+    result?: { workflow_id?: number; handle?: string | null; open_url?: string | null };
 };
 
 export function actionOf(event: TimelineEvent): ActionPayload {
@@ -165,6 +168,26 @@ export function ActionCard({
                             <Undo2 aria-hidden className="mr-1 h-3.5 w-3.5" />
                             {saving === 'undo' ? 'Putting back…' : 'Put it back'}
                         </Button>
+                    ) : action.result?.workflow_id ? (
+                        // A built bot is not undone; it is heard. The two
+                        // test verbs go straight into the tester, marked TEST.
+                        <>
+                            <Button size="sm" asChild>
+                                <Link href={`/workflow/${action.result.workflow_id}?test=call`}>
+                                    <Phone aria-hidden className="mr-1 h-3.5 w-3.5" />
+                                    Hear it
+                                </Link>
+                            </Button>
+                            <Button size="sm" variant="outline" asChild>
+                                <Link href={`/workflow/${action.result.workflow_id}?test=text`}>
+                                    <MessageSquare aria-hidden className="mr-1 h-3.5 w-3.5" />
+                                    Try it
+                                </Link>
+                            </Button>
+                            {action.result.handle && (
+                                <span className="text-xs text-muted-foreground">@{action.result.handle}</span>
+                            )}
+                        </>
                     ) : (
                         <span className="text-xs text-muted-foreground">Cannot be undone</span>
                     )}
