@@ -26,3 +26,30 @@ class TestMasking:
 
     def test_the_patcher_never_raises(self):
         redact_record({})  # no message key: nothing happens, nothing thrown
+
+
+class TestNoLogLineCarriesANumberOrToken:
+    """The plan's check, as a test: no logger call interpolates a phone
+    number, transcript, key or token unmasked."""
+
+    NAMES = r"\{(to|sender|number|caller|phone_number|from_number|to_number|target_number|transcript|api_key|token|session_token|secret|password)(\[[^\]]*\])?\}"
+
+    def test_grep_finds_nothing_unmasked(self):
+        import pathlib
+        import re
+
+        root = pathlib.Path(__file__).resolve().parents[1]
+        offenders = []
+        for path in root.rglob("*.py"):
+            if "tests" in path.parts:
+                continue
+            for lineno, line in enumerate(path.read_text().splitlines(), 1):
+                if "logger." not in line:
+                    continue
+                if (
+                    re.search(self.NAMES, line)
+                    and "last_four(" not in line
+                    and "short_token(" not in line
+                ):
+                    offenders.append(f"{path.relative_to(root)}:{lineno}")
+        assert offenders == [], offenders

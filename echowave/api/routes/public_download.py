@@ -12,6 +12,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.services.storage import get_storage_for_backend
+from api.utils.phone_masking import short_token
 from api.utils.recording_artifacts import (
     get_recording_storage_backend,
     get_recording_storage_key,
@@ -52,7 +53,7 @@ async def download_workflow_artifact(
     # 1. Lookup workflow run by token
     workflow_run = await db_client.get_workflow_run_by_public_token(token)
     if not workflow_run:
-        logger.warning(f"Invalid public access token: {token[:8]}...")
+        logger.warning(f"Invalid public access token: {short_token(token)}")
         raise HTTPException(status_code=404, detail="Invalid or expired token")
 
     # 2. Get file path based on artifact type

@@ -33,6 +33,18 @@ def mask_phone_numbers(text: str) -> str:
     return PHONE.sub(_mask, text)
 
 
+def last_four(number: Any) -> str:
+    """A number as a log line should carry it: its last four digits."""
+    digits = "".join(ch for ch in str(number or "") if ch.isdigit())
+    return f"…{digits[-4:]}" if len(digits) >= 4 else "…"
+
+
+def short_token(token: Any) -> str:
+    """A token as a log line should carry it: enough to find, not to use."""
+    text = str(token or "")
+    return f"{text[:6]}…" if len(text) > 6 else "…"
+
+
 def redact_record(record: dict[str, Any]) -> None:
     """loguru patcher: rewrite the message before any handler sees it."""
     try:
@@ -41,4 +53,4 @@ def redact_record(record: dict[str, Any]) -> None:
         pass
 
 
-__all__ = ["mask_phone_numbers", "redact_record"]
+__all__ = ["last_four", "mask_phone_numbers", "redact_record", "short_token"]
