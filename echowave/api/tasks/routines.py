@@ -264,10 +264,52 @@ async def answer_decibyl_message(
     reply_to: dict | None = None,
     author_id: int | None = None,
     attachments: list[dict] | None = None,
+    attempt: int = 0,
 ) -> None:
     """Decibyl's turn on its own thread. See services/workflow/decibyl.py.
-    ``reply_to`` sends the answer back on the channel it came from too."""
+    ``reply_to`` sends the answer back on the channel it came from too.
+
+    ``attempt`` is how many times this turn has already come back for a
+    file that was still being read. A document takes longer to ingest than
+    any reply is worth holding, so the first turn answers with what it has
+    and this re-runs it once the text has landed -- which is what makes
+    "I'll come back when I have read it" a true sentence rather than the
+    promise it used to be, where nothing ever re-read the file.
+    """
     from api.services.workflow import decibyl
+
+    pending = await decibyl.unread(int(organization_id), attachments)
+    if pending and attempt < decibyl.UNREAD_RETRIES:
+        from datetime import timedelta
+
+        from api.tasks.arq import enqueue_job
+        from api.tasks.function_names import FunctionNames
+
+        try:
+            await enqueue_job(
+                FunctionNames.ANSWER_DECIBYL_MESSAGE,
+                organization_id,
+                text,
+                asked=asked,
+                preset=preset,
+                subjects=subjects,
+                reply_to=reply_to,
+                author_id=author_id,
+                attachments=attachments,
+                attempt=attempt + 1,
+                _defer_by=timedelta(seconds=decibyl.UNREAD_RETRY_SECONDS),
+            )
+        except Exception as exc:  # noqa: BLE001
+            # A queue that will not take the retry is a turn that answers
+            # once with what it has, which is what it did before. Logged,
+            # never raised at a person waiting on a reply.
+            logger.warning("Could not queue Decibyl's re-read: {}", exc)
+        else:
+            # The first turn still answers -- silence while a file is read
+            # is worse than an answer that says it is reading. The later
+            # ones only speak once there is something new to say.
+            if attempt > 0:
+                return
 
     body = await decibyl.answer(
         organization_id,

@@ -719,7 +719,53 @@ async def answer(
 ATTACHMENT_CHARS = 12_000
 ATTACHMENTS_CHARS = 30_000
 #: How long to wait for a file that arrived a moment ago to be read.
-ATTACHMENT_WAIT_SECONDS = 20
+#:
+#: Short on purpose. A real document takes longer than any wait worth
+#: holding a reply for, so the wait covers only the small-file case and
+#: everything else is handled by coming back (see ``unread`` and
+#: ``answer_decibyl_message``) rather than by waiting longer.
+ATTACHMENT_WAIT_SECONDS = 8
+
+
+#: How many times Decibyl comes back for a file that was still being read,
+#: and how long it leaves between tries. Three tries about a minute apart
+#: covers the ordinary document; a file still unread after that is a
+#: failed ingestion, and repeating past it would spend an account's credits
+#: on the same unanswerable question.
+UNREAD_RETRIES = 3
+UNREAD_RETRY_SECONDS = 45
+
+
+async def unread(
+    organization_id: int, attachments: list[dict[str, Any]] | None
+) -> list[str]:
+    """The filenames on this line whose text is not readable yet.
+
+    Decibyl used to answer "it is still being read, I'll let you know as
+    soon as it's ready" and then never come back: nothing re-read the
+    document and nothing re-ran the turn, so a person who attached a file
+    and asked a question about it got a promise and silence. This is what
+    makes that sentence true -- the caller asks again in a minute.
+    """
+    pending: list[str] = []
+    for attachment in (attachments or [])[:10]:
+        uuid = str(attachment.get("document_uuid") or "")
+        if not uuid:
+            continue
+        try:
+            document = await db_client.get_document_by_uuid(
+                uuid, organization_id=organization_id
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not check attachment {}: {}", uuid, exc)
+            continue
+        # A document that is gone is not pending: it will never arrive, and
+        # treating it as pending would retry until the cap for nothing.
+        if document is None:
+            continue
+        if not (getattr(document, "full_text", None) or "").strip():
+            pending.append(str(attachment.get("filename") or "the file"))
+    return pending
 
 
 async def attached_block(
@@ -761,7 +807,10 @@ async def attached_block(
             waited += 2
         if not text:
             parts.append(
-                f"### {name}\n(still being read; say so and offer to continue once it is)"
+                f"### {name}\n(still being read. Say you are reading it and "
+                "will come back with the answer -- you will: this turn runs "
+                "again by itself once the text has landed. Answer whatever "
+                "else was asked meanwhile.)"
             )
             continue
         take = min(ATTACHMENT_CHARS, budget)
