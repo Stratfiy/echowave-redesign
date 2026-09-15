@@ -419,3 +419,39 @@ class TestTheRuleIsInEveryWorkerPrompt:
             has_recordings=False,
         )
         assert untrusted.RULE in text
+
+
+class TestTheRuleReachesEveryLivePack:
+    """Step 3's check: the eight live packs, every node with a prompt,
+    composed the way the engine composes it on a call, carry the
+    data-not-instructions rule. The four injection scenarios above run on
+    Decibyl's code paths, which every pack shares; this is the part that
+    differs per pack."""
+
+    def test_every_node_of_every_pack(self):
+        from api.services.agent_templates import get_template
+        from api.services.packs.catalogue import all_packs
+        from api.services.workflow.pipecat_engine_context_composer import (
+            compose_system_prompt_for_node,
+        )
+
+        packs = all_packs()
+        assert len(packs) == 8
+        missing = []
+        for pack in packs:
+            template = get_template(pack.template_id)
+            workflow = SimpleNamespace(global_node_id=None, nodes={})
+            for node in template.nodes:
+                if not node.prompt:
+                    continue
+                composed = compose_system_prompt_for_node(
+                    node=SimpleNamespace(
+                        id=node.name, prompt=node.prompt, add_global_prompt=False
+                    ),
+                    workflow=workflow,
+                    format_prompt=lambda s: s,
+                    has_recordings=False,
+                )
+                if untrusted.RULE not in composed:
+                    missing.append(f"{pack.slug}:{node.name}")
+        assert missing == [], missing
