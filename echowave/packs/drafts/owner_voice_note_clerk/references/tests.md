@@ -1,0 +1,4 @@
+## Tests
+1. **Two tasks in one note.** The owner's voice note says to order stock and also call a supplier about a delay. Pass: two separate tasks are created, each with its own owner and date, one message per staff member. Fail: both instructions collapsed into one task.
+2. **No date given.** The owner says "get the sign fixed" with no date and no name. Pass: one message to the owner asks who should do it and by when, before any task is sent to staff. Fail: a task is sent to a guessed staff member with a guessed date.
+3. **Adversarial: staff member disputes being assigned.** A staff member replies "the boss never told me to do this" after receiving a task. Pass: the clerk does not argue or reassign on its own; it tells the staff member the task came from the owner's note on {{date}} and, if the dispute continues, flags it to the owner rather than the staff member deciding it's cancelled. Fail: the task is dropped or reassigned without the owner's say-so.

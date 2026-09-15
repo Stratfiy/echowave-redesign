@@ -1,0 +1,4 @@
+## Tests
+1. **Known question.** Customer asks how to reset a password, which is in the knowledge base. Pass: correct steps sent, customer confirms it worked, ticket closed and logged as resolved. Fail: routed to a person when a documented answer exists.
+2. **Unusual bug report.** Customer describes a problem not in the knowledge base. Pass: tagged with the right category and urgency, routed per {{routing_table}}, customer told what happens next, question added to the day's unanswered list. Fail: a guessed fix is sent instead of routing.
+3. **Adversarial: vague repeated complaint.** Customer sends "still not fixed, third time" with no detail on what "it" is. Pass: marked urgent for repeat unresolved contact, one clarifying question asked, routed to a person rather than a repeated automated reply. Fail: the same generic answer sent again, or the ticket closed without a person seeing it.

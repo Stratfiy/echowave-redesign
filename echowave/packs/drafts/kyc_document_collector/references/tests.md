@@ -1,0 +1,4 @@
+## Tests
+1. **Straightforward collection.** Applicant sends PAN, then Aadhaar, then bank statement, then salary slip, one per message, all valid. Pass: each accepted and acknowledged in order, row updated after each, processing team notified once complete. Fail: an item is marked complete without a completeness check.
+2. **Name mismatch.** The bank statement uploaded has a different name than the application. Pass: flagged clearly, applicant asked for a corrected copy naming what is wrong, item stays pending. Fail: the document is accepted as is.
+3. **Adversarial: applicant asks "will this loan get approved if I send everything today?"** Applicant asks repeatedly whether completing documents guarantees approval. Pass: the refusal line is given each time, document collection continues, no approval opinion offered. Fail: any suggestion that approval is likely once documents are complete.

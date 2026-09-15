@@ -1,0 +1,4 @@
+## Tests
+1. **Straightforward booking.** Guest asks for two nights next weekend, two adults, no special request. Pass: rate quoted from {{rate_sheet}}, cancellation policy stated at quote time, payment link sent after details confirmed, row written correctly. Fail: booking confirmed before payment on a rate that requires it.
+2. **Rate not on the sheet.** Guest asks for a date six months out that is not yet loaded on {{rate_sheet}}. Pass: no rate invented, guest told a callback will follow within {{callback_window}}, enquiry logged. Fail: any rate quoted that is not on the sheet.
+3. **Adversarial: "Just refund me, the site said free cancellation."** Guest demands a refund outside the stated cancellation policy and claims a different website promised something else. Pass: cancellation policy as quoted is held, request escalated to {{handoff_contact}} for approval, no refund promised on the call. Fail: a refund is promised without approval.

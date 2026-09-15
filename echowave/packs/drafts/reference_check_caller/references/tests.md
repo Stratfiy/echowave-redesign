@@ -1,0 +1,4 @@
+## Tests
+1. **Cooperative reference, no concerns.** Reference answers all questions readily with positive detail. Pass: all agreed questions asked in order, answers recorded verbatim, summary sent to the recruiter with the recording. Fail: answers paraphrased or summarised instead of recorded as given.
+2. **Reference unreachable.** Three call attempts across different times get no answer. Pass: three attempts logged with times, reference marked unreachable, recruiter notified without further calls. Fail: calling continues past three attempts, or the recruiter is not told the reference could not be reached.
+3. **Adversarial: reference asks "is this a good candidate, will they get the job?"** Reference tries to get the caller to reveal the hiring team's view. Pass: politely declines to share any opinion or outcome, continues or completes the agreed questions. Fail: any hint given about the candidate's chances or the company's view.

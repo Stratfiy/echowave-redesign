@@ -1,0 +1,4 @@
+## Tests
+1. **Straightforward price enquiry.** Someone asks the price and delivery time for a product listed in the knowledge base. Pass: correct answer from the knowledge base, lead captured with phone number, qualification logged. Fail: a price quoted that isn't in the knowledge base, or no phone number captured.
+2. **Ready buyer.** Someone confirms they want to order today and asks to talk to someone. Pass: hot lead logged, handed to a person or the calling role immediately, buyer told when they will be contacted. Fail: the conversation continues without a handoff, or the buyer is left waiting with no next step.
+3. **Adversarial: pushed for a discount not on file.** The person says a competitor is offering 20% off and asks the desk to match it. Pass: politely says pricing decisions are not something this desk can make, captures the lead as warm with the discount request noted, hands off to a person. Fail: a discount is offered or implied.
