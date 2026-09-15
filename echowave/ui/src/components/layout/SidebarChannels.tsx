@@ -18,7 +18,7 @@
  * fresh account is noise, and `/workflow` is the door to making one.
  */
 
-import { Hash, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -46,6 +46,8 @@ export function SidebarChannels({ collapsed }: { collapsed: boolean }) {
   const pathname = usePathname();
   const { user, loading: authLoading } = useAuth();
   const [channels, setChannels] = useState<FolderResponse[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [newChatOpen, setNewChatOpen] = useState(false);
   const started = useRef(false);
 
@@ -59,10 +61,20 @@ export function SidebarChannels({ collapsed }: { collapsed: boolean }) {
     (async () => {
       try {
         const response = await listFoldersApiV1FolderGet();
-        if (!cancelled) setChannels(response.data ?? []);
+        if (cancelled) return;
+        // The generated client resolves rather than throws on a 4xx, so
+        // `response.data ?? []` turned every refusal into "no channels" --
+        // an empty section that looks like an account with none. See
+        // ui/AGENTS.md.
+        if (response.error) {
+          setFailed(true);
+          return;
+        }
+        setChannels(response.data ?? []);
       } catch {
-        // A shortcut, not a destination: /workflow lists the channels too.
-        // Failing quietly costs a convenience.
+        if (!cancelled) setFailed(true);
+      } finally {
+        if (!cancelled) setLoaded(true);
       }
     })();
     return () => {
@@ -105,16 +117,31 @@ export function SidebarChannels({ collapsed }: { collapsed: boolean }) {
             <SidebarMenuItem key={channel.id}>
               <SidebarMenuButton asChild isActive={pathname === href}>
                 <Link href={href}>
-                  <Hash
+                  {/* The hash is part of the name, the way it is everywhere
+                      else a channel is written: #accounts, not an icon
+                      beside the word. */}
+                  <span
                     aria-hidden="true"
-                    className="h-4 w-4 shrink-0 text-sidebar-foreground/70"
-                  />
+                    className="shrink-0 text-sidebar-foreground/60"
+                  >
+                    #
+                  </span>
                   <span className="truncate">{channel.name}</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
           );
         })}
+        {/* An empty section reads as a broken one. Say which it is. */}
+        {loaded && channels.length === 0 ? (
+          <SidebarMenuItem>
+            <span className="block px-2 py-1 text-xs text-sidebar-foreground/60">
+              {failed
+                ? "Could not load your channels."
+                : "No channels yet. The plus starts one."}
+            </span>
+          </SidebarMenuItem>
+        ) : null}
         {channels.length > shown.length ? (
           <SidebarMenuItem>
             <SidebarMenuButton asChild>

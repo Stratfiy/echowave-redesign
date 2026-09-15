@@ -5,12 +5,12 @@ import { Suspense } from 'react';
 import { getWorkflowsApiV1WorkflowFetchGet, listFoldersApiV1FolderGet } from '@/client/sdk.gen';
 import type { FolderResponse, WorkflowListResponse } from '@/client/types.gen';
 import { PageBody, PageHeader } from '@/components/layout/PageHeader';
+import { BOTS_TABS } from '@/components/layout/SectionTabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { CreateWorkflowButton } from "@/components/workflow/CreateWorkflowButton";
 import { AgentFolderView } from '@/components/workflow/folders/AgentFolderView';
 import { CreateFolderButton } from '@/components/workflow/folders/CreateFolderButton';
-import { FolderSection } from '@/components/workflow/folders/FolderSection';
 import { StartFromTemplate } from '@/components/workflow/StartFromTemplate';
 import { UploadWorkflowButton } from '@/components/workflow/UploadWorkflowButton';
 import { WorkflowTable } from '@/components/workflow/WorkflowTable';
@@ -133,11 +133,18 @@ async function WorkflowList() {
                     )}
                 </div>
 
-                {/* Archived Section — collapsible, same design as the folder/Uncategorized sections */}
+                {/* Archived bots are the Archived tab now. A collapsed
+                    section at the foot of this page was indistinguishable
+                    from not existing. */}
                 {archivedWorkflows.length > 0 && (
-                    <div className="mb-8">
-                        <FolderSection kind="archived" workflows={archivedWorkflows} />
-                    </div>
+                    <p className="mb-8 text-sm text-muted-foreground">
+                        {archivedWorkflows.length}{" "}
+                        {archivedWorkflows.length === 1 ? "bot is" : "bots are"} archived.{" "}
+                        <Link href="/workflow/archived" className="underline underline-offset-4 hover:text-foreground">
+                            See them
+                        </Link>
+                        .
+                    </p>
                 )}
             </>
         );
@@ -199,6 +206,7 @@ export default function WorkflowPage() {
             <PageHeader
                 title="Your bots"
                 description="Each one does a job — on the phone, on WhatsApp, or on a schedule."
+                tabs={BOTS_TABS}
                 actions={
                     <>
                         <UploadWorkflowButton />
