@@ -371,7 +371,9 @@ async def grant_step(session: AsyncSession, *, organization_id: int, key: str) -
         return 0
 
     from api.services.billing.costing import current_balance_paise
+    from api.services.billing.ledger_lock import lock_organization_ledger
 
+    await lock_organization_ledger(session, organization_id=organization_id)
     balance = await current_balance_paise(session, organization_id=organization_id)
     try:
         async with session.begin_nested():

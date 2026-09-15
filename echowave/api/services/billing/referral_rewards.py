@@ -141,6 +141,9 @@ async def _grant(
     from api.services.billing.costing import current_balance_paise
 
     amount = REWARD_CREDITS * PAISE_PER_CREDIT
+    from api.services.billing.ledger_lock import lock_organization_ledger
+
+    await lock_organization_ledger(session, organization_id=organization_id)
     balance = await current_balance_paise(session, organization_id=organization_id)
     try:
         async with session.begin_nested():

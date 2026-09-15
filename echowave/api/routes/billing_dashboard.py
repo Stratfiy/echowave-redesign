@@ -459,6 +459,9 @@ async def adjust_credit(
         if org is None:
             raise HTTPException(status_code=404, detail="Account not found")
 
+        from api.services.billing.ledger_lock import lock_organization_ledger
+
+        await lock_organization_ledger(session, organization_id=organization_id)
         before = await current_balance_paise(session, organization_id=organization_id)
         after = before + request.delta_paise
 

@@ -473,6 +473,9 @@ async def _debit_ledger(
         await session.delete(existing)
         await session.flush()
 
+    from api.services.billing.ledger_lock import lock_organization_ledger
+
+    await lock_organization_ledger(session, organization_id=organization_id)
     balance = await current_balance_paise(session, organization_id=organization_id)
     session.add(
         CreditLedgerModel(

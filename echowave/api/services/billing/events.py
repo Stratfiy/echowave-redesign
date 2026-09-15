@@ -309,6 +309,11 @@ async def charge(
         logger.debug("{} {} already debited", event, ref_id)
         return 0
     amount = paise_for(event, quantity)
+    # Under the organisation's ledger lock (KAN-44): the balance read and the
+    # row that records balance_after_paise happen with nothing in between.
+    from api.services.billing.ledger_lock import lock_organization_ledger
+
+    await lock_organization_ledger(session, organization_id=organization_id)
     balance = await _balance_paise(session, organization_id=organization_id)
     credits = amount // PAISE_PER_CREDIT
     label = EVENT_LABELS[event]

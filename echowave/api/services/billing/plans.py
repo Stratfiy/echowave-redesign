@@ -195,8 +195,10 @@ async def expire_grant(
     if remaining <= 0:
         return 0
 
+    from api.services.billing.ledger_lock import lock_organization_ledger
     from api.services.billing.payments import current_balance_paise
 
+    await lock_organization_ledger(session, organization_id=grant.organization_id)
     balance = await current_balance_paise(
         session, organization_id=grant.organization_id
     )
@@ -343,8 +345,10 @@ async def grant_plan_cycle(
 
     # Imported here rather than at module scope: payments imports this module
     # to route the event, and importing it back at the top closes the loop.
+    from api.services.billing.ledger_lock import lock_organization_ledger
     from api.services.billing.payments import current_balance_paise
 
+    await lock_organization_ledger(session, organization_id=mandate.organization_id)
     balance = await current_balance_paise(
         session, organization_id=mandate.organization_id
     )
