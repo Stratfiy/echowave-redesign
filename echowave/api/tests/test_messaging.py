@@ -19,6 +19,8 @@ from pydantic import ValidationError
 from api.services.messaging import follow_up
 from api.services.messaging.send import (
     MAX_BODY_LENGTH,
+    MAX_IMAGE_BYTES,
+    Attachment,
     MessagingError,
     MessagingProviderNotSupported,
     SendResult,
@@ -28,6 +30,7 @@ from api.services.workflow.dto import SmsNodeData
 
 TWILIO = {"account_sid": "ACtest", "auth_token": "secret"}
 PLIVO = {"auth_id": "MAtest", "auth_token": "secret"}
+META = {"access_token": "EAAtest", "phone_number_id": "1050", "graph_version": "v21.0"}
 
 
 def _response(status: int, payload: dict | None = None) -> httpx.Response:
@@ -375,3 +378,221 @@ class TestTheSenderNumberComesFromTheCarrierConfig:
         invented keys must resolve to nothing, because that is the truth."""
         assert self._resolve({"caller_id": "+919999999999"}) == ""
         assert self._resolve({"from_number": "+919999999999"}) == ""
+
+
+class TestSendingAFile:
+    """A document or a photo on the platform WhatsApp sender (KAN-A1): the
+    bytes go up to Meta first, and the message references the media id."""
+
+    def _posts(self, *responses):
+        post = AsyncMock(side_effect=list(responses))
+        return post
+
+    async def test_a_pdf_is_uploaded_then_sent_as_a_document(self):
+        post = self._posts(
+            _response(200, {"id": "media-77"}),
+            _response(200, {"messages": [{"id": "wamid.1"}]}),
+        )
+        with patch("httpx.AsyncClient.post", post):
+            result = await send_message(
+                provider="meta_whatsapp",
+                credentials=META,
+                to="+919876543210",
+                from_="",
+                body="Here is your rent agreement.",
+                attachment=Attachment(
+                    data=b"%PDF-1.4 ...", filename="Rent agreement - Meera.pdf"
+                ),
+            )
+        assert result.ok and result.message_id == "wamid.1"
+        upload, message = post.await_args_list
+        assert upload.args[0].endswith("/1050/media")
+        assert upload.kwargs["data"] == {
+            "messaging_product": "whatsapp",
+            "type": "application/pdf",
+        }
+        assert upload.kwargs["files"]["file"][0] == "Rent agreement - Meera.pdf"
+        payload = message.kwargs["json"]
+        assert payload["type"] == "document"
+        assert payload["document"] == {
+            "id": "media-77",
+            "filename": "Rent agreement - Meera.pdf",
+            "caption": "Here is your rent agreement.",
+        }
+        assert "text" not in payload
+
+    async def test_a_photo_is_an_image_message_with_no_filename(self):
+        post = self._posts(
+            _response(200, {"id": "media-78"}),
+            _response(200, {"messages": [{"id": "wamid.2"}]}),
+        )
+        with patch("httpx.AsyncClient.post", post):
+            result = await send_message(
+                provider="meta_whatsapp",
+                credentials=META,
+                to="+919876543210",
+                from_="",
+                body="",
+                attachment=Attachment(
+                    data=b"\xff\xd8jpeg", filename="policy.jpg", mime_type="image/jpeg"
+                ),
+            )
+        assert result.ok
+        payload = post.await_args_list[1].kwargs["json"]
+        assert payload["type"] == "image"
+        assert payload["image"] == {"id": "media-78"}
+
+    async def test_the_caption_wins_over_the_body_when_both_are_given(self):
+        post = self._posts(
+            _response(200, {"id": "m"}),
+            _response(200, {"messages": [{"id": "w"}]}),
+        )
+        with patch("httpx.AsyncClient.post", post):
+            await send_message(
+                provider="meta_whatsapp",
+                credentials=META,
+                to="+919876543210",
+                from_="",
+                body="ignored",
+                attachment=Attachment(
+                    data=b"x", filename="a.pdf", caption="Aadhaar - Meera"
+                ),
+            )
+        assert post.await_args_list[1].kwargs["json"]["document"]["caption"] == (
+            "Aadhaar - Meera"
+        )
+
+    async def test_an_upload_refusal_carries_metas_own_words_and_sends_nothing(self):
+        post = self._posts(
+            _response(400, {"error": {"message": "(#131052) Media upload error"}}),
+        )
+        with patch("httpx.AsyncClient.post", post):
+            result = await send_message(
+                provider="meta_whatsapp",
+                credentials=META,
+                to="+919876543210",
+                from_="",
+                body="",
+                attachment=Attachment(data=b"x", filename="a.pdf"),
+            )
+        assert not result.ok
+        assert "Media upload error" in (result.error or "")
+        assert "a.pdf" in (result.error or "")
+        assert post.await_count == 1
+
+    async def test_a_closed_window_is_metas_refusal_on_the_message_not_a_crash(self):
+        post = self._posts(
+            _response(200, {"id": "m"}),
+            _response(
+                400,
+                {"error": {"message": "(#131047) Re-engagement message"}},
+            ),
+        )
+        with patch("httpx.AsyncClient.post", post):
+            result = await send_message(
+                provider="meta_whatsapp",
+                credentials=META,
+                to="+919876543210",
+                from_="",
+                body="",
+                attachment=Attachment(data=b"x", filename="a.pdf"),
+            )
+        assert not result.ok and "131047" in (result.error or "")
+
+    async def test_a_carrier_that_cannot_carry_a_file_says_so_before_any_network(self):
+        post = AsyncMock()
+        with patch("httpx.AsyncClient.post", post):
+            with pytest.raises(MessagingError, match="cannot send a file"):
+                await send_message(
+                    provider="twilio",
+                    credentials=TWILIO,
+                    to="+919876543210",
+                    from_="+911111111111",
+                    body="",
+                    attachment=Attachment(data=b"x", filename="a.pdf"),
+                )
+        assert post.await_count == 0
+
+    async def test_an_oversize_image_is_refused_with_the_limit(self):
+        with pytest.raises(MessagingError, match="up to 5 MB"):
+            await send_message(
+                provider="meta_whatsapp",
+                credentials=META,
+                to="+919876543210",
+                from_="",
+                body="",
+                attachment=Attachment(
+                    data=b"0" * (MAX_IMAGE_BYTES + 1),
+                    filename="big.png",
+                    mime_type="image/png",
+                ),
+            )
+
+    async def test_an_empty_body_is_still_refused_without_a_file(self):
+        with pytest.raises(MessagingError, match="empty"):
+            await send_message(
+                provider="meta_whatsapp",
+                credentials=META,
+                to="+919876543210",
+                from_="",
+                body="   ",
+            )
+
+
+class TestEmailAttachmentsAreTypedByWhatTheyAre:
+    def test_a_photo_attaches_as_a_photo_and_a_pdf_stays_the_default(self):
+        from email.message import EmailMessage
+
+        from api.services.messaging import email as mail
+
+        captured: list[EmailMessage] = []
+
+        class _Client:
+            def __init__(self, *a, **k):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def starttls(self):
+                pass
+
+            def login(self, *a):
+                pass
+
+            def send_message(self, message):
+                captured.append(message)
+
+        with (
+            patch.object(mail, "SMTP_HOST", "smtp.example"),
+            patch.object(mail, "SMTP_PORT", 587),
+            patch.object(mail, "SMTP_USE_TLS", False),
+            patch.object(mail, "smtplib") as smtplib,
+        ):
+            smtplib.SMTP = _Client
+            smtplib.SMTP_SSL = _Client
+            mail._send_sync(
+                to="meera@example.com",
+                subject="Your policy",
+                body_text="Attached.",
+                attachment_bytes=b"\xff\xd8",
+                attachment_filename="policy.jpg",
+                from_address="hello@decibyl.ai",
+                attachment_mime_type="image/jpeg",
+            )
+            mail._send_sync(
+                to="meera@example.com",
+                subject="Your agreement",
+                body_text="Attached.",
+                attachment_bytes=b"%PDF",
+                attachment_filename="agreement.pdf",
+                from_address="hello@decibyl.ai",
+            )
+        photo, pdf = captured
+        photo_part = [p for p in photo.iter_attachments()][0]
+        pdf_part = [p for p in pdf.iter_attachments()][0]
+        assert photo_part.get_content_type() == "image/jpeg"
+        assert pdf_part.get_content_type() == "application/pdf"
