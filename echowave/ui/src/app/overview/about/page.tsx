@@ -39,6 +39,7 @@ export default function DecibylAboutPage() {
                 tabs={[
                     { href: "/overview", label: "Messages" },
                     { href: "/review", label: "History", prefix: true },
+                    { href: "/overview/memory", label: "Memory" },
                     { href: "/overview/about", label: "About" },
                 ]}
             />

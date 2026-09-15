@@ -175,3 +175,204 @@ async def set_status(
         if row.id == fact_id:
             return _item(row)
     raise HTTPException(status_code=404, detail="Not found")
+
+
+# --- The graph, the export, the delete (B7, B8) ----------------------------
+
+
+class MemoryGraphNode(BaseModel):
+    id: str
+    label: str
+    summary: str = ""
+    #: "confirmed" when any fact on it is held by the account's own record;
+    #: "inferred" otherwise, and drawn faint.
+    status: str
+    connections: int = 0
+    labels: list[str] = Field(default_factory=list)
+
+
+class MemoryGraphEdge(BaseModel):
+    id: str
+    source: str
+    target: str
+    relation: str
+    fact: str
+    status: str
+    valid_at: Optional[str] = None
+    sources: int = 0
+
+
+class MemoryGraphResponse(BaseModel):
+    nodes: list[MemoryGraphNode]
+    edges: list[MemoryGraphEdge]
+    #: False when the knowledge graph could not be read; the screen says so
+    #: rather than showing an empty picture as if nothing were known.
+    graph_available: bool = True
+    #: Remembered facts and gaps in the account's own table, for the count.
+    records: int = 0
+
+
+class MemoryConnection(BaseModel):
+    id: str
+    other_id: str
+    other: str
+    relation: str
+    fact: str
+    status: str
+    valid_at: Optional[str] = None
+    invalid_at: Optional[str] = None
+    current: bool = True
+
+
+class MemorySource(BaseModel):
+    id: str
+    name: str
+    source: str
+    when: Optional[str] = None
+    excerpt: str
+    run_id: Optional[int] = None
+
+
+class MemoryNodeDetail(BaseModel):
+    id: str
+    label: str
+    summary: str = ""
+    labels: list[str] = Field(default_factory=list)
+    status: str
+    connections: list[MemoryConnection]
+    sources: list[MemorySource]
+
+
+def _organization_id(user: UserModel) -> int:
+    organization_id = user.selected_organization_id
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+    return int(organization_id)
+
+
+@router.get("/graph", response_model=MemoryGraphResponse)
+async def memory_graph(user: UserModel = Depends(get_user)) -> MemoryGraphResponse:
+    """The knowledge graph as nodes and edges, confirmed and inferred told
+    apart, for the memory screen."""
+    from api.services.knowledge_graph import export
+
+    snap = await export.snapshot(_organization_id(user))
+    return MemoryGraphResponse(**export.graph_view(snap))
+
+
+@router.get("/graph/{node_id}", response_model=MemoryNodeDetail)
+async def memory_node(
+    node_id: str, user: UserModel = Depends(get_user)
+) -> MemoryNodeDetail:
+    """One node opened: its connections and the conversations behind them."""
+    from api.services.knowledge_graph import export
+
+    snap = await export.snapshot(_organization_id(user))
+    detail = export.node_detail(snap, node_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="No such node in this memory")
+    return MemoryNodeDetail(**detail)
+
+
+class ExportRequested(BaseModel):
+    sent_to: str
+    note: str
+
+
+@router.post("/export", response_model=ExportRequested)
+async def request_export(user: UserModel = Depends(get_user)) -> ExportRequested:
+    """Email the whole memory as an Obsidian vault to the person asking."""
+    from api.services.messaging.email import email_is_configured
+    from api.tasks.arq import enqueue_job
+    from api.tasks.function_names import FunctionNames
+
+    organization_id = _organization_id(user)
+    email = str(getattr(user, "email", "") or "").strip()
+    if not email:
+        raise HTTPException(
+            status_code=400, detail="Your account has no email to send to"
+        )
+    if not email_is_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Email is not configured on this deployment; download the zip instead",
+        )
+    await enqueue_job(FunctionNames.EXPORT_MEMORY, organization_id, int(user.id))
+    return ExportRequested(
+        sent_to=email,
+        note="On its way. Unzip it and open the folder in Obsidian; every link works.",
+    )
+
+
+@router.get("/export.zip")
+async def download_export(user: UserModel = Depends(get_user)):
+    """The same vault, straight down, for a deployment with no email or a
+    person who wants it now."""
+    from fastapi.responses import Response
+
+    from api.services.knowledge_graph import export
+
+    organization_id = _organization_id(user)
+    organization = await db_client.get_organization_by_id(organization_id)
+    business = str(getattr(organization, "name", "") or "This business")
+    snap = await export.snapshot(organization_id)
+    data = export.obsidian_zip(snap, business_name=business)
+    filename = f"{export._file_stem(business)} memory.zip"
+    return Response(
+        content=data,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+#: What a person types to delete everything. A phrase rather than a click,
+#: because this is the one action on the screen that cannot be undone.
+FORGET_PHRASE = "delete everything"
+
+
+class ForgetEverythingRequest(BaseModel):
+    confirm: str = Field(description=f"Must be exactly '{FORGET_PHRASE}'.")
+
+
+class ForgetEverythingResponse(BaseModel):
+    entities: int
+    episodes: int
+    records: int
+    note: str
+
+
+@router.post("/forget-everything", response_model=ForgetEverythingResponse)
+async def forget_everything(
+    body: ForgetEverythingRequest, user: UserModel = Depends(get_user)
+) -> ForgetEverythingResponse:
+    """Delete the organisation's memory: graph partition, remembered facts
+    and gaps, day-slot marks. Not reversible; the phrase is the confirm."""
+    from api.enums import AgentEventActor, AgentEventKind
+    from api.services.knowledge_graph import export
+    from api.services.workflow import agent_timeline
+
+    organization_id = _organization_id(user)
+    if body.confirm.strip().lower() != FORGET_PHRASE:
+        raise HTTPException(
+            status_code=422, detail=f"Type '{FORGET_PHRASE}' to confirm"
+        )
+    try:
+        counts = await export.forget_everything(organization_id)
+    except Exception as exc:  # noqa: BLE001 - say so, never half-delete quietly
+        raise HTTPException(
+            status_code=503, detail=f"Could not delete the memory: {exc}"
+        ) from exc
+    line = (
+        f"Deleted everything the business had taught its workers: "
+        f"{counts['records']} remembered, {counts['entities']} people and "
+        f"things, {counts['episodes']} conversations"
+    )
+    await agent_timeline.record(
+        organization_id=organization_id,
+        kind=AgentEventKind.AGENT_ACTED.value,
+        actor=AgentEventActor.HUMAN.value,
+        summary=line,
+        payload={"by": int(user.id), "counts": counts},
+        in_channel=False,
+    )
+    return ForgetEverythingResponse(**counts, note=line + ".")

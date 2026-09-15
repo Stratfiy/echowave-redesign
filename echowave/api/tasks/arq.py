@@ -59,6 +59,7 @@ from api.tasks.knowledge_base_processing import process_knowledge_base_document
 from api.tasks.knowledge_base_translation import translate_knowledge_base_document
 from api.tasks.low_balance import notify_low_balances
 from api.tasks.margin_watch import watch_margins
+from api.tasks.memory_export import export_memory
 from api.tasks.memory_notices import notice_connections, resurface_asked
 from api.tasks.missed_call_tasks import place_missed_call_callback
 from api.tasks.plan_expiry import expire_lapsed_plan_balance
@@ -119,6 +120,7 @@ class WorkerSettings:
         answer_channel_message,
         answer_decibyl_message,
         extract_document_fields,
+        export_memory,
         remind_due_tasks,
         send_sunday_reviews,
         notice_connections,
