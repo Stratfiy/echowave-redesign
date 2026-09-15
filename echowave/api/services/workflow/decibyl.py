@@ -34,6 +34,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
+from api.services.knowledge_graph import recall
 from api.services.workflow import (
     actions,
     agent_timeline,
@@ -109,6 +110,15 @@ SYSTEM = (
     "confirm_document with the document_uuid from the context and only the "
     "corrected fields; then say what is now remembered and which reminders "
     "were set.\n"
+    "- Memory: recall asks what was said or done on calls, on this thread "
+    "and in documents that arrived on a channel, by whom and when. Use it "
+    "for a question about a person, a supplier, a promise, a decision or a "
+    "reason, and pass a date range when the person gives one. A fact "
+    "labelled inferred is something that was said or implied: say it that "
+    'way ("on the 3rd Ravi said he would pay by Friday"), never as '
+    "settled, and never set a reminder on it without asking. Only a fact "
+    "labelled confirmed is stated as fact. If recall is unavailable, say "
+    "memory is not switched on here and answer from the context.\n"
     "- Never repeat an OTP, a card number or an identity number.\n"
 )
 
@@ -573,6 +583,7 @@ def office_tools() -> list[dict[str, Any]]:
         documents.find_tool_schema(),
         documents.send_tool_schema(),
         document_fields.tool_schema(),
+        recall.tool_schema(),
     ]
 
 
@@ -593,7 +604,10 @@ def _was_a_read(call: Any, result: Any) -> bool:
     find_document, after which the model may still need to send."""
     name = str(getattr(call, "name", "") or "")
     return (
-        (name.startswith(connected_tools.PREFIX) or name == documents.FIND_TOOL_NAME)
+        (
+            name.startswith(connected_tools.PREFIX)
+            or name in (documents.FIND_TOOL_NAME, recall.TOOL_NAME)
+        )
         and isinstance(result, dict)
         and result.get("status") in ("success", "error")
     )
@@ -669,6 +683,12 @@ async def _tool(organization_id: int, call: Any) -> dict[str, Any]:
         )
     if call.name == document_fields.TOOL_NAME:
         return await document_fields.confirm_for_thread(organization_id, arguments)
+    if call.name == recall.TOOL_NAME:
+        return await recall.for_thread(
+            organization_id,
+            arguments,
+            ref_id=f"decibyl:{organization_id}:{call.id or call.name}",
+        )
     if call.name == documents.SEND_TOOL_NAME:
         return await documents.send_for_thread(
             organization_id,
