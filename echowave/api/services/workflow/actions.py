@@ -61,12 +61,24 @@ TURN_BOT_ON = "turn_bot_on"
 TURN_BOT_OFF = "turn_bot_off"
 RETURN_MISSED_CALL = "return_missed_call"
 FORGET_FACT = "forget_fact"
+#: Everything: the graph partition, every remembered fact and gap. A delete,
+#: not a status, and not reversible -- the one action here whose card says
+#: so in as many words. A business asking to be forgotten is not asking to
+#: be hidden (B8).
+FORGET_EVERYTHING = "forget_everything"
 #: Build a colleague (KAN-140). The card shows the template, the name and
 #: the answers; Confirm creates the bot with a handle; the done card
 #: offers Hear it and Try it. Missing answers are reported to the model so
 #: it asks, never guessed and never a failed card.
 CREATE_BOT = "create_bot"
-ACTIONS = (TURN_BOT_ON, TURN_BOT_OFF, RETURN_MISSED_CALL, FORGET_FACT, CREATE_BOT)
+ACTIONS = (
+    TURN_BOT_ON,
+    TURN_BOT_OFF,
+    RETURN_MISSED_CALL,
+    FORGET_FACT,
+    FORGET_EVERYTHING,
+    CREATE_BOT,
+)
 
 #: Run one connected-app tool -- a Composio write such as sending a mail
 #: or creating a CRM record -- that Decibyl was asked to do from the thread.
@@ -101,8 +113,11 @@ def tool_properties() -> dict[str, Any]:
                 "'turn_bot_on' or 'turn_bot_off' for a bot's live switch; "
                 "'return_missed_call' to ring back a caller from the missed "
                 "calls in your context; 'forget_fact' to drop one remembered "
-                "fact, named by its key; 'create_bot' to build a new bot from "
-                "one of the templates in your context."
+                "fact, named by its key; 'forget_everything' to delete all "
+                "the business has taught its workers -- only when the person "
+                "asks for everything to be forgotten or deleted, never for "
+                "one fact; 'create_bot' to build a new bot from one of the "
+                "templates in your context."
             ),
         },
         "template_id": {
@@ -335,6 +350,18 @@ async def resolve(
             "state": PROPOSED,
         }
 
+    if action == FORGET_EVERYTHING:
+        return {
+            "action": action,
+            "args": {},
+            "label": "Delete everything the business has taught its workers",
+            "why": why or "Asked to forget everything.",
+            # There is no undo for a memory that is gone; the card says so
+            # and a person confirms it knowing that.
+            "reversible": False,
+            "state": PROPOSED,
+        }
+
     if action == FORGET_FACT:
         wanted = str(arguments.get("fact") or "").strip()
         if not wanted:
@@ -563,6 +590,15 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
         except ValueError as exc:
             raise ActionError("That bot no longer exists.") from exc
         return f"{args.get('bot_name', 'The bot')} is now {'on' if args['is_live'] else 'off'}."
+    if action == FORGET_EVERYTHING:
+        from api.services.knowledge_graph import export
+
+        counts = await export.forget_everything(organization_id)
+        return (
+            f"Forgotten everything: {counts['records']} remembered, "
+            f"{counts['entities']} people and things, "
+            f"{counts['episodes']} conversations."
+        )
     if action == FORGET_FACT:
         # Forgetting is a status, not a delete: the row stays, out of every
         # prompt and every screen, so it can be put back and so it stays

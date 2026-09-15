@@ -4352,6 +4352,20 @@ export type ExchangeRateRequest = {
 };
 
 /**
+ * ExportRequested
+ */
+export type ExportRequested = {
+    /**
+     * Sent To
+     */
+    sent_to: string;
+    /**
+     * Note
+     */
+    note: string;
+};
+
+/**
  * ExtractionLibraryResponse
  *
  * The catalog, and the order its sections should be shown in.
@@ -4527,6 +4541,40 @@ export type FolderResponse = {
      * Created At
      */
     created_at: string;
+};
+
+/**
+ * ForgetEverythingRequest
+ */
+export type ForgetEverythingRequest = {
+    /**
+     * Confirm
+     *
+     * Must be exactly 'delete everything'.
+     */
+    confirm: string;
+};
+
+/**
+ * ForgetEverythingResponse
+ */
+export type ForgetEverythingResponse = {
+    /**
+     * Entities
+     */
+    entities: number;
+    /**
+     * Episodes
+     */
+    episodes: number;
+    /**
+     * Records
+     */
+    records: number;
+    /**
+     * Note
+     */
+    note: string;
 };
 
 /**
@@ -6288,6 +6336,48 @@ export type McpToolDefinition = {
 };
 
 /**
+ * MemoryConnection
+ */
+export type MemoryConnection = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Other Id
+     */
+    other_id: string;
+    /**
+     * Other
+     */
+    other: string;
+    /**
+     * Relation
+     */
+    relation: string;
+    /**
+     * Fact
+     */
+    fact: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Valid At
+     */
+    valid_at?: string | null;
+    /**
+     * Invalid At
+     */
+    invalid_at?: string | null;
+    /**
+     * Current
+     */
+    current?: boolean;
+};
+
+/**
  * MemoryEntry
  */
 export type MemoryEntry = {
@@ -6327,6 +6417,96 @@ export type MemoryEntry = {
      * Source Run Id
      */
     source_run_id: number | null;
+};
+
+/**
+ * MemoryGraphEdge
+ */
+export type MemoryGraphEdge = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * Target
+     */
+    target: string;
+    /**
+     * Relation
+     */
+    relation: string;
+    /**
+     * Fact
+     */
+    fact: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Valid At
+     */
+    valid_at?: string | null;
+    /**
+     * Sources
+     */
+    sources?: number;
+};
+
+/**
+ * MemoryGraphNode
+ */
+export type MemoryGraphNode = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Summary
+     */
+    summary?: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Connections
+     */
+    connections?: number;
+    /**
+     * Labels
+     */
+    labels?: Array<string>;
+};
+
+/**
+ * MemoryGraphResponse
+ */
+export type MemoryGraphResponse = {
+    /**
+     * Nodes
+     */
+    nodes: Array<MemoryGraphNode>;
+    /**
+     * Edges
+     */
+    edges: Array<MemoryGraphEdge>;
+    /**
+     * Graph Available
+     */
+    graph_available?: boolean;
+    /**
+     * Records
+     */
+    records?: number;
 };
 
 /**
@@ -6401,6 +6581,40 @@ export type MemoryMessages = {
 };
 
 /**
+ * MemoryNodeDetail
+ */
+export type MemoryNodeDetail = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Summary
+     */
+    summary?: string;
+    /**
+     * Labels
+     */
+    labels?: Array<string>;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Connections
+     */
+    connections: Array<MemoryConnection>;
+    /**
+     * Sources
+     */
+    sources: Array<MemorySource>;
+};
+
+/**
  * MemoryResponse
  */
 export type MemoryResponse = {
@@ -6412,6 +6626,36 @@ export type MemoryResponse = {
      * Gaps
      */
     gaps: Array<MemoryItem>;
+};
+
+/**
+ * MemorySource
+ */
+export type MemorySource = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * When
+     */
+    when?: string | null;
+    /**
+     * Excerpt
+     */
+    excerpt: string;
+    /**
+     * Run Id
+     */
+    run_id?: number | null;
 };
 
 /**
@@ -26142,6 +26386,204 @@ export type SetStatusApiV1OrganisationMemoryFactIdStatusPostResponses = {
 };
 
 export type SetStatusApiV1OrganisationMemoryFactIdStatusPostResponse = SetStatusApiV1OrganisationMemoryFactIdStatusPostResponses[keyof SetStatusApiV1OrganisationMemoryFactIdStatusPostResponses];
+
+export type MemoryGraphApiV1OrganisationMemoryGraphGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organisation/memory/graph';
+};
+
+export type MemoryGraphApiV1OrganisationMemoryGraphGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MemoryGraphApiV1OrganisationMemoryGraphGetError = MemoryGraphApiV1OrganisationMemoryGraphGetErrors[keyof MemoryGraphApiV1OrganisationMemoryGraphGetErrors];
+
+export type MemoryGraphApiV1OrganisationMemoryGraphGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: MemoryGraphResponse;
+};
+
+export type MemoryGraphApiV1OrganisationMemoryGraphGetResponse = MemoryGraphApiV1OrganisationMemoryGraphGetResponses[keyof MemoryGraphApiV1OrganisationMemoryGraphGetResponses];
+
+export type MemoryNodeApiV1OrganisationMemoryGraphNodeIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Node Id
+         */
+        node_id: string;
+    };
+    query?: never;
+    url: '/api/v1/organisation/memory/graph/{node_id}';
+};
+
+export type MemoryNodeApiV1OrganisationMemoryGraphNodeIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MemoryNodeApiV1OrganisationMemoryGraphNodeIdGetError = MemoryNodeApiV1OrganisationMemoryGraphNodeIdGetErrors[keyof MemoryNodeApiV1OrganisationMemoryGraphNodeIdGetErrors];
+
+export type MemoryNodeApiV1OrganisationMemoryGraphNodeIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: MemoryNodeDetail;
+};
+
+export type MemoryNodeApiV1OrganisationMemoryGraphNodeIdGetResponse = MemoryNodeApiV1OrganisationMemoryGraphNodeIdGetResponses[keyof MemoryNodeApiV1OrganisationMemoryGraphNodeIdGetResponses];
+
+export type RequestExportApiV1OrganisationMemoryExportPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organisation/memory/export';
+};
+
+export type RequestExportApiV1OrganisationMemoryExportPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RequestExportApiV1OrganisationMemoryExportPostError = RequestExportApiV1OrganisationMemoryExportPostErrors[keyof RequestExportApiV1OrganisationMemoryExportPostErrors];
+
+export type RequestExportApiV1OrganisationMemoryExportPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ExportRequested;
+};
+
+export type RequestExportApiV1OrganisationMemoryExportPostResponse = RequestExportApiV1OrganisationMemoryExportPostResponses[keyof RequestExportApiV1OrganisationMemoryExportPostResponses];
+
+export type DownloadExportApiV1OrganisationMemoryExportZipGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organisation/memory/export.zip';
+};
+
+export type DownloadExportApiV1OrganisationMemoryExportZipGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DownloadExportApiV1OrganisationMemoryExportZipGetError = DownloadExportApiV1OrganisationMemoryExportZipGetErrors[keyof DownloadExportApiV1OrganisationMemoryExportZipGetErrors];
+
+export type DownloadExportApiV1OrganisationMemoryExportZipGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ForgetEverythingApiV1OrganisationMemoryForgetEverythingPostData = {
+    body: ForgetEverythingRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organisation/memory/forget-everything';
+};
+
+export type ForgetEverythingApiV1OrganisationMemoryForgetEverythingPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ForgetEverythingApiV1OrganisationMemoryForgetEverythingPostError = ForgetEverythingApiV1OrganisationMemoryForgetEverythingPostErrors[keyof ForgetEverythingApiV1OrganisationMemoryForgetEverythingPostErrors];
+
+export type ForgetEverythingApiV1OrganisationMemoryForgetEverythingPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ForgetEverythingResponse;
+};
+
+export type ForgetEverythingApiV1OrganisationMemoryForgetEverythingPostResponse = ForgetEverythingApiV1OrganisationMemoryForgetEverythingPostResponses[keyof ForgetEverythingApiV1OrganisationMemoryForgetEverythingPostResponses];
 
 export type ShelfApiV1PacksGetData = {
     body?: never;

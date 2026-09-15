@@ -373,6 +373,22 @@ class OrganisationFactClient(BaseDBClient):
             result = await session.execute(query)
             return list(result.scalars().all())
 
+    async def delete_organisation_facts(self, organization_id: int) -> int:
+        """Everything this organisation remembers, gone: facts, gaps, every
+        subject, every bot's own. A delete, not a status -- the one place
+        in this client that removes rows, because a business asking to be
+        forgotten is not asking to be hidden."""
+        from sqlalchemy import delete as sa_delete
+
+        async with self.async_session() as session:
+            result = await session.execute(
+                sa_delete(OrganisationFactModel).where(
+                    OrganisationFactModel.organization_id == organization_id
+                )
+            )
+            await session.commit()
+            return int(result.rowcount or 0)
+
     async def subject_facts(
         self,
         *,
