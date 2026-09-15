@@ -69,6 +69,13 @@ class DefaultConfigurationsResponse(BaseModel):
 
 @router.get("/configurations/defaults")
 async def get_default_configurations() -> DefaultConfigurationsResponse:
+    """The provider and model schemas the configuration screens are built from.
+
+    Intentionally unauthenticated: these are static provider schemas and the
+    default provider names, identical for every tenant and carrying no customer
+    data. The screen that reads them renders before an org context exists, so
+    it is deliberately public rather than a tenant route.
+    """
     configurations = {
         "llm": {
             provider: model_cls.model_json_schema()

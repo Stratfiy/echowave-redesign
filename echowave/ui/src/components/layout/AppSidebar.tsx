@@ -102,7 +102,11 @@ export function AppSidebar() {
   // worse than making a reviewer reload.
   const roles = useAccessRoles();
 
-  const navSections = getVisibleNavSections(roles);
+  const navSections = getVisibleNavSections({
+    isStaff: roles.isStaff,
+    isOrganizationAdmin: roles.isOrganizationAdmin,
+    isSuperadmin: roles.staffRole === "superadmin",
+  });
   const activeUrl = getActiveNavUrl(pathname, navSections);
 
   /* Which panel the rail is showing.

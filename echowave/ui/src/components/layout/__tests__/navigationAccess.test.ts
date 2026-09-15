@@ -19,7 +19,7 @@ import { describe, expect, it } from "vitest";
 
 import { getVisibleNavSections, NAV_SECTIONS, type SidebarNavItem, STAFF_SECTION } from "../navigation";
 
-type Roles = { isStaff: boolean; isOrganizationAdmin: boolean };
+type Roles = { isStaff: boolean; isOrganizationAdmin: boolean; isSuperadmin?: boolean };
 
 /** The filter both the sidebar and the search index apply. */
 function visibleTo(roles: Roles): SidebarNavItem[] {
@@ -28,7 +28,10 @@ function visibleTo(roles: Roles): SidebarNavItem[] {
 
 const MEMBER: Roles = { isStaff: false, isOrganizationAdmin: false };
 const ADMIN: Roles = { isStaff: false, isOrganizationAdmin: true };
+// Support-tier staff: KYC review and nothing else.
 const STAFF: Roles = { isStaff: true, isOrganizationAdmin: false };
+// The full staff tier.
+const SUPERADMIN: Roles = { isStaff: true, isOrganizationAdmin: false, isSuperadmin: true };
 
 const urls = (roles: Roles) => visibleTo(roles).map((item) => item.url);
 
@@ -44,8 +47,21 @@ describe("the staff area is not offered to customers", () => {
         expect(urls(ADMIN)).not.toContain("/superadmin");
     });
 
-    it("shows it to staff", () => {
-        expect(urls(STAFF)).toContain("/superadmin");
+    it("shows support staff only the KYC review queue, not the console", () => {
+        // Support is get_staff, so the KYC queue is theirs; the /superadmin
+        // console hub and its neighbours are get_superuser and must not appear.
+        expect(urls(STAFF)).toContain("/superadmin/verification");
+        expect(urls(STAFF)).not.toContain("/superadmin");
+        expect(urls(STAFF)).not.toContain("/superadmin/partners");
+        expect(urls(STAFF)).not.toContain("/superadmin/telephony/shared-outbound");
+        expect(urls(STAFF)).not.toContain("/superadmin/privacy/readiness");
+    });
+
+    it("shows the superadmin tier the whole staff section", () => {
+        const seen = urls(SUPERADMIN);
+        for (const item of STAFF_SECTION.items) {
+            expect(seen, item.title).toContain(item.url);
+        }
     });
 
     it("never lands a customer on the staff queue, whatever they type", () => {

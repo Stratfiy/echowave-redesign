@@ -38,7 +38,7 @@ function useNavSearch(query: string, roles: AccessRoles) {
   return useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
-    const all: SidebarNavItem[] = getVisibleNavSections({ isStaff: roles.isStaff, isOrganizationAdmin: roles.isOrganizationAdmin }).flatMap(section => section.items);
+    const all: SidebarNavItem[] = getVisibleNavSections({ isStaff: roles.isStaff, isOrganizationAdmin: roles.isOrganizationAdmin, isSuperadmin: roles.staffRole === "superadmin" }).flatMap(section => section.items);
     return all
       .map((item) => {
         const title = item.title.toLowerCase();
@@ -55,7 +55,7 @@ function useNavSearch(query: string, roles: AccessRoles) {
       .sort((a, b) => a.score - b.score)
       .slice(0, 7)
       .map((r) => r.item);
-  }, [query, roles.isStaff, roles.isOrganizationAdmin]);
+  }, [query, roles.isStaff, roles.isOrganizationAdmin, roles.staffRole]);
 }
 
 function GlobalSearch() {

@@ -39,7 +39,14 @@ async def agent_stream_websocket(
     ``provider_name`` is the registered telephony provider name
     (e.g. ``cloudonix``).
     """
-    await websocket.accept()
+    # The handshake is validated before it is accepted. Accepting first hands
+    # a caller who named a bad provider or a workflow that does not exist an
+    # open socket for the round trip it takes to notice, and leaves a trail of
+    # accepted-then-closed sockets that never carried a run. Rejecting during
+    # the handshake (a close before accept) is the WebSocket equivalent of a
+    # 4xx: the query params are already readable, so nothing here needs the
+    # socket open. The UUID is parsed before the lookup so a malformed one is
+    # turned away here rather than in a database cast.
     params = dict(websocket.query_params)
     params.pop("provider", None)
 
@@ -49,11 +56,20 @@ async def agent_stream_websocket(
         await websocket.close(code=1008, reason=f"Unknown provider: {provider_name}")
         return
 
+    try:
+        uuid.UUID(str(workflow_uuid))
+    except ValueError:
+        logger.warning(f"agent-stream malformed workflow uuid: {workflow_uuid}")
+        await websocket.close(code=1008, reason="Workflow not found")
+        return
+
     workflow = await db_client.get_workflow_by_uuid_unscoped(workflow_uuid)
     if not workflow:
         logger.warning(f"agent-stream workflow {workflow_uuid} not found")
         await websocket.close(code=1008, reason="Workflow not found")
         return
+
+    await websocket.accept()
 
     try:
         concurrency_slot = await call_concurrency.acquire_org_slot(
