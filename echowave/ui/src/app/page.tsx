@@ -44,9 +44,9 @@ export default async function Home() {
           redirect("/overview");
         } else {
           logger.debug(
-            "[HomePage] Redirecting to /workflow/create - no workflows found",
+            "[HomePage] Redirecting to /start - no workflows found",
           );
-          redirect("/workflow/create");
+          redirect("/start");
         }
       } else {
         redirect("/auth/login");
@@ -63,7 +63,7 @@ export default async function Home() {
       );
       // Default to /workflow/create on actual errors
       logger.debug("[HomePage] Defaulting to /workflow/create due to error");
-      redirect("/workflow/create");
+      redirect("/start");
     }
   }
 

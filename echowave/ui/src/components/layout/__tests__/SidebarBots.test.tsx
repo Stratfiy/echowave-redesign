@@ -92,7 +92,7 @@ describe("the bots in the rail", () => {
         teamStatus.mockResolvedValue({ data: { hours: 24, members: [] } });
         render(<SidebarBots collapsed={false} />);
         await waitFor(() => expect(teamStatus).toHaveBeenCalled());
-        expect(screen.getByLabelText("Add a bot").getAttribute("href")).toBe("/workflow/create");
+        expect(screen.getByLabelText("Add a bot").getAttribute("href")).toBe("/start");
         expect(screen.queryByRole("link", { name: /Front desk/ })).toBeNull();
     });
 
