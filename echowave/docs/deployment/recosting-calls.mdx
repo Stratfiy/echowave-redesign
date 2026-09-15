@@ -4,7 +4,7 @@ sidebarTitle: "Recosting Calls"
 description: "Fixing receipts for calls that recorded usage with no rate on file"
 ---
 
-When a call is costed and some component has no rate in the price book, Decibyl still bills the platform fee and records the unpriced component on the run rather than failing the receipt. The call is charged, but **that provider cost is missing from the receipt, and margin reads overstated for exactly that call.**
+When a call is costed and some component has no rate in the price book, Decibyl still charges the call's credits and records the unpriced component on the run rather than failing the receipt. The call is charged, but **that provider cost is missing from the receipt, and margin reads overstated for exactly that call.**
 
 Adding the missing rate afterwards does not fix the receipts already written. Nothing revisits them on its own. `scripts/recost_uncosted_calls.py` is what does.
 
