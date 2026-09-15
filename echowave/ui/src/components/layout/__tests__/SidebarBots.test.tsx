@@ -92,7 +92,7 @@ describe("the bots in the rail", () => {
         teamStatus.mockResolvedValue({ data: { hours: 24, members: [] } });
         render(<SidebarBots collapsed={false} />);
         await waitFor(() => expect(teamStatus).toHaveBeenCalled());
-        expect(screen.getByLabelText("Hire a bot").getAttribute("href")).toBe("/workflow/create");
+        expect(screen.getByLabelText("Add a bot").getAttribute("href")).toBe("/workflow/create");
         expect(screen.queryByRole("link", { name: /Front desk/ })).toBeNull();
     });
 
@@ -101,7 +101,7 @@ describe("the bots in the rail", () => {
         render(<SidebarBots collapsed={false} />);
         await waitFor(() => expect(teamStatus).toHaveBeenCalled());
         // No rows and no error; the door is still there.
-        expect(screen.getByLabelText("Hire a bot")).toBeTruthy();
+        expect(screen.getByLabelText("Add a bot")).toBeTruthy();
         expect(screen.queryByRole("link", { name: /Front desk/ })).toBeNull();
     });
 });

@@ -186,7 +186,7 @@ def _onboarding_step(pack: AgentPack) -> Optional[dict[str, Any]]:
     return {
         "key": STEP_ONBOARDING,
         "title": "Tell it about your business",
-        "detail": "Answered once. Every agent you hire after this already knows.",
+        "detail": "Answered once. Every bot you add after this already knows.",
         "facts": [fact.model_dump(mode="json") for fact in pack.required_facts],
         "blocking": any(fact.required for fact in pack.required_facts),
     }
@@ -370,8 +370,8 @@ def _standard_steps(pack: AgentPack) -> list[dict[str, Any]]:
 def _hire_step() -> dict[str, Any]:
     return {
         "key": STEP_HIRE,
-        "title": "Hire it",
-        "detail": "You can pause it any time, and a paused agent is not billed.",
+        "title": "Add it",
+        "detail": "You can pause it any time, and a paused bot is not billed.",
         "blocking": False,
     }
 
@@ -395,13 +395,13 @@ def blank_flow() -> list[dict[str, Any]]:
         {
             "key": STEP_SIMILAR,
             "title": "Roles that already do this",
-            "detail": "Somebody has probably hired one. Proven beats new.",
+            "detail": "Somebody has probably added one. Proven beats new.",
             "blocking": False,
         },
         {
             "key": STEP_ONBOARDING,
             "title": "Tell it about your business",
-            "detail": "Answered once. Every agent you hire after this already knows.",
+            "detail": "Answered once. Every bot you add after this already knows.",
             "facts": [],
             "blocking": True,
         },

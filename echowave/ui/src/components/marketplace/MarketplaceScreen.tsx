@@ -61,7 +61,7 @@ function Hero({ kind }: { kind: ShelfKind }) {
             </p>
             <h2 className="mt-2 max-w-xl text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">
                 {kind === "bots"
-                    ? "A bot for every job, ready the day you hire it."
+                    ? "A bot for every job, ready the day you add it."
                     : "Every system you already run, in your bots' hands."}
             </h2>
             <p className="mt-2 max-w-xl text-sm text-muted-foreground">
@@ -172,7 +172,7 @@ function BotCard({ template }: { template: BotTemplate }) {
                 <div className="mt-auto pt-1">
                     <Button asChild size="sm" className="w-full">
                         <Link href={hireHref(template.id)}>
-                            Hire {template.name}
+                            Add {template.name}
                             <ArrowRight className="ml-1 h-3 w-3" />
                         </Link>
                     </Button>
@@ -496,7 +496,7 @@ export function MarketplaceScreen({ kind }: { kind: ShelfKind }) {
         <>
             <PageHeader
                 title="Marketplace"
-                description="Bots to hire and tools to connect. Everything here works with what you already run."
+                description="Bots to add and tools to connect. Everything here works with what you already run."
                 tabs={TABS}
             />
             <PageBody className="space-y-8">
