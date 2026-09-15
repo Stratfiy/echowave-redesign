@@ -188,6 +188,9 @@ async def debit_ingestion_cost(
     if price.charged_paise <= 0:
         return price
 
+    from api.services.billing.ledger_lock import lock_organization_ledger
+
+    await lock_organization_ledger(session, organization_id=organization_id)
     balance = await _current_balance_paise(session, organization_id=organization_id)
     session.add(
         CreditLedgerModel(

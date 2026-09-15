@@ -237,6 +237,9 @@ async def settle(
     if credits <= 0:
         return 0
     amount = credits * PAISE_PER_CREDIT
+    from api.services.billing.ledger_lock import lock_organization_ledger
+
+    await lock_organization_ledger(session, organization_id=organization_id)
     balance = await _balance_paise(session, organization_id=organization_id)
     parts = []
     if q.charged_typed:

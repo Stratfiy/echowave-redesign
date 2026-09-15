@@ -67,6 +67,9 @@ async def debit_message(
     if existing is not None:
         logger.debug("Message {} already debited", message_id)
         return 0
+    from api.services.billing.ledger_lock import lock_organization_ledger
+
+    await lock_organization_ledger(session, organization_id=organization_id)
     balance = await _balance_paise(session, organization_id=organization_id)
     label = "WhatsApp message"
     if node_name:

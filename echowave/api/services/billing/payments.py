@@ -1024,6 +1024,9 @@ async def handle_webhook(
     if credited <= 0:
         raise PaymentError("Refusing to credit a non-positive amount")
 
+    from api.services.billing.ledger_lock import lock_organization_ledger
+
+    await lock_organization_ledger(session, organization_id=payment.organization_id)
     balance = await current_balance_paise(
         session, organization_id=payment.organization_id
     )

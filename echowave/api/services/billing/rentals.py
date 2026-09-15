@@ -434,6 +434,9 @@ async def charge_period(
             else charge.cost_paise
         )
 
+        from api.services.billing.ledger_lock import lock_organization_ledger
+
+        await lock_organization_ledger(session, organization_id=charge.organization_id)
         balance = await current_balance_paise(
             session, organization_id=charge.organization_id
         )
