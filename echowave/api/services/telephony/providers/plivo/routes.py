@@ -7,7 +7,7 @@ provider registry — see ProviderSpec.router.
 import json
 from xml.sax.saxutils import escape
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from loguru import logger
 from pipecat.utils.run_context import set_current_run_id
 from starlette.responses import HTMLResponse, Response
@@ -56,7 +56,7 @@ async def _handle_plivo_status_callback(
     )
     if not is_valid:
         logger.warning(f"[run {workflow_run_id}] Invalid Plivo webhook signature")
-        return {"status": "error", "reason": "invalid_signature"}
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
     parsed_data = provider.parse_status_callback(callback_data)
     status_update = StatusCallbackRequest(

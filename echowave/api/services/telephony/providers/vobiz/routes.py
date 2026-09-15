@@ -41,20 +41,20 @@ async def _verify_vobiz_callback(
 
     Vobiz signs every callback, so a missing signature header is an invalid
     request — ``provider.verify_inbound_signature`` returns ``False`` for both
-    missing and forged signatures. Reject with HTTP 403 (per Vobiz's
-    callback-validation docs) so the caller never reaches status processing.
+    missing and forged signatures. Reject with HTTP 401, as every other
+    carrier callback does, so the caller never reaches status processing.
     """
     is_valid = await provider.verify_inbound_signature(
         webhook_url, callback_data, headers, raw_body
     )
     if not is_valid:
         logger.warning(f"{log_prefix} Invalid or missing Vobiz callback signature")
-        raise HTTPException(status_code=403, detail="Invalid webhook signature")
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
 
 @router.post("/vobiz-xml", include_in_schema=False)
 async def handle_vobiz_xml_webhook(
-    workflow_id: int, workflow_run_id: int, organization_id: int
+    request: Request, workflow_id: int, workflow_run_id: int, organization_id: int
 ):
     """
     Handle initial webhook from Vobiz when call is answered.
@@ -70,6 +70,18 @@ async def handle_vobiz_xml_webhook(
 
     workflow_run = await db_client.get_workflow_run_by_id(workflow_run_id)
     provider = await get_telephony_provider_for_run(workflow_run, organization_id)
+
+    # The answer webhook hands back the media stream for this run; only the
+    # carrier may ask for it.
+    callback_data, raw_body = await parse_webhook_request(request)
+    await _verify_vobiz_callback(
+        provider,
+        str(request.url),
+        callback_data,
+        dict(request.headers),
+        raw_body,
+        log_prefix=f"[run {workflow_run_id}]",
+    )
 
     logger.debug(f"[run {workflow_run_id}] Using provider: {provider.PROVIDER_NAME}")
 
