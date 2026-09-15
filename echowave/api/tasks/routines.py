@@ -262,13 +262,19 @@ async def answer_decibyl_message(
     preset: str | None = None,
     subjects: list[int] | None = None,
     reply_to: dict | None = None,
+    author_id: int | None = None,
 ) -> None:
     """Decibyl's turn on its own thread. See services/workflow/decibyl.py.
     ``reply_to`` sends the answer back on the channel it came from too."""
     from api.services.workflow import decibyl
 
     body = await decibyl.answer(
-        organization_id, text, asked=asked, preset=preset, subjects=subjects
+        organization_id,
+        text,
+        asked=asked,
+        preset=preset,
+        subjects=subjects,
+        author_id=author_id,
     )
     if reply_to and reply_to.get("channel") == "whatsapp" and reply_to.get("to"):
         from api.services.messaging import whatsapp_inbound

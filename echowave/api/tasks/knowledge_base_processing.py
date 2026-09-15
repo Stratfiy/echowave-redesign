@@ -547,6 +547,17 @@ async def process_knowledge_base_document(
                 await enqueue_job(
                     FunctionNames.EXTRACT_DOCUMENT_FIELDS, document_id, organization_id
                 )
+                # And into the graph, with time, so what it says can be
+                # asked about alongside calls and the thread (Family B).
+                from api.services.knowledge_graph import feed as graph_feed
+
+                await graph_feed.remember_document(
+                    organization_id=organization_id,
+                    document_uuid=str(refreshed.document_uuid),
+                    filename=filename,
+                    chunks=list(chunk_texts),
+                    published_at=refreshed.created_at,
+                )
         except Exception as exc:  # noqa: BLE001 - filing succeeded; reading is extra
             logger.warning(
                 "Could not queue field reading for document {}: {}", document_id, exc

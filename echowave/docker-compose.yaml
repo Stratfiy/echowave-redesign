@@ -78,6 +78,32 @@ services:
     networks:
       - app-network
 
+  falkordb:
+    # The knowledge graph: Redis with the FalkorDB module, operated like the
+    # redis service above. Reached only when KNOWLEDGE_GRAPH_URL names it
+    # (falkor://:${FALKORDB_PASSWORD}@falkordb:6379/decibyl); with the
+    # variable unset the api and worker never open a connection and every
+    # memory feature answers "no graph" quietly. Postgres stays the record
+    # of what is confirmed; this holds who-did-what-with-whom-and-when.
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+    mem_limit: 1g
+    image: falkordb/falkordb:latest
+    command: >
+      redis-server --loadmodule /var/lib/falkordb/bin/falkordb.so
+      --requirepass ${FALKORDB_PASSWORD:-falkorsecret}
+    volumes:
+      - falkordb_data:/var/lib/falkordb/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${FALKORDB_PASSWORD:-falkorsecret}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   redis:
     # Bounded, like every other service here -- see the note on postgres.
     logging:
@@ -608,6 +634,7 @@ volumes:
   embeddings-cache:
   postgres_data:
   redis_data:
+  falkordb_data:
   minio-data:
     driver: local
   nginx-generated:
