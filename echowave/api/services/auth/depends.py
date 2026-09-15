@@ -362,6 +362,18 @@ async def _handle_api_key_auth(api_key: str, *, method: str | None = None) -> Us
     # Set the organization context to the API key's organization
     user.selected_organization_id = api_key_model.organization_id
 
+    # KAN-83: an API key must NEVER carry Decibyl-staff powers. The key's
+    # creator may be a superadmin, but a key is an *organisation* credential,
+    # not a staff session: a production key printed in a config file, handed
+    # to a contractor, or committed by mistake must not be able to reach
+    # /admin/*, impersonate an account, or change platform rates. The staff
+    # dependencies read ``user.staff_role``; clearing it here (in memory only,
+    # never committed -- same as the selected_organization_id line above)
+    # makes every staff-gated route answer 403 for an API-key caller,
+    # whatever tier the key's creator holds. Enforced here, at the one place
+    # every API-key request is minted, rather than route by route.
+    user.staff_role = None
+
     if is_sandbox(getattr(api_key_model, "environment", None)) and method not in (
         None,
         "GET",
