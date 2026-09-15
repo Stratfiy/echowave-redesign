@@ -176,8 +176,17 @@ export function resolveAccent(stored: string | null | undefined): Accent {
  */
 export function accentVariables(accent: Accent): Record<string, string> {
   // The frame follows the accent, the way a Slack theme colours the rail,
-  // the column and the top bar together: dark rail, tinted panel, the bright
-  // half on active states. Content stays white whatever is chosen.
+  // the column and the top bar together: dark rail, a panel one step up
+  // from it in the same family, the bright half on active states. Content
+  // stays white whatever is chosen.
+  //
+  // The panel is dark, not tinted (globals.css, option B of 15 Sept). This
+  // map used to write a light tint here while the panel's text stayed the
+  // rail's off-white, and because a stored theme is re-applied on every
+  // load, every account with a theme saved had a panel of near-invisible
+  // rows: the one selected row read, the rest were off-white on cream.
+  // The panel's own text tokens are written alongside so the two can never
+  // again come from different builds.
   const railForeground = tint(accent.bright, 0.93);
   return {
     "--rail": shade(accent.bright, 0.15),
@@ -185,9 +194,13 @@ export function accentVariables(accent: Accent): Record<string, string> {
     "--rail-accent": accent.deep,
     "--rail-accent-foreground": "#ffffff",
     "--rail-border": withAlpha(railForeground, 0.12),
-    "--sidebar": tint(accent.bright, 0.9),
-    "--sidebar-accent": tint(accent.bright, 0.78),
-    "--sidebar-border": tint(accent.bright, 0.7),
+    "--sidebar": shade(accent.bright, 0.28),
+    "--sidebar-foreground": railForeground,
+    "--sidebar-primary": accent.deep,
+    "--sidebar-primary-foreground": "#ffffff",
+    "--sidebar-accent": withAlpha(railForeground, 0.1),
+    "--sidebar-accent-foreground": "#ffffff",
+    "--sidebar-border": withAlpha(railForeground, 0.12),
     "--accent-brand": accent.bright,
     "--accent-brand-soft": withAlpha(accent.bright, 0.1),
     "--accent-brand-tint": tint(accent.bright, 0.88),
