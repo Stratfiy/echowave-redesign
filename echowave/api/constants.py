@@ -135,6 +135,14 @@ REDIS_URL = os.environ["REDIS_URL"]
 # the container holding it. Liveness comes from that instance's own volume;
 # safety comes from the nightly backup, not from the graph being local.
 KNOWLEDGE_GRAPH_URL = os.getenv("KNOWLEDGE_GRAPH_URL") or None
+
+#: The sandbox service (``sandbox/server.py``) that runs a bot's scripts in a
+#: box with no network. ``http://sandbox:8080`` on the compose network. Unset
+#: means no boxes: a script tool is not offered, and a developer's laptop
+#: may run scripts as a plain subprocess instead (see
+#: ``services/sandbox/runner.py``).
+SANDBOX_URL = os.getenv("SANDBOX_URL") or None
+SANDBOX_SECRET = os.getenv("SANDBOX_SECRET") or None
 # What the graph extracts and embeds with, on the platform's own OpenAI key
 # (the vault's llm/openai credential). Small and cheap on purpose: every
 # call, thread message and channel document becomes an extraction.

@@ -301,7 +301,7 @@ EOF
 trap rollback ERR
 
 say "Building"
-docker compose build api ui
+docker compose build api ui sandbox
 
 say "Starting"
 # --profile remote is not optional, and leaving it off fails silently.
