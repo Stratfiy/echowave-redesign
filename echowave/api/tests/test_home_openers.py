@@ -198,3 +198,43 @@ def test_decibyl_is_told_who_it_is_talking_to():
     assert decibyl.door_block({"role": "owner", "business": "real_estate"}) == (
         "Signing up, they said their role: owner; their business: real estate."
     )
+
+
+class TestDecibylKnowsTheFiles:
+    """An account with three documents filed against bots was told its
+    knowledge base was empty, while looking at them on the Knowledge base
+    screen. The search was empty; the files were not."""
+
+    def test_says_what_each_file_is_for(self):
+        from api.services.workflow import decibyl
+
+        rows = [
+            SimpleNamespace(
+                filename="rates.pdf",
+                scope="bot",
+                workflow_id=3,
+                processing_status="completed",
+            ),
+            SimpleNamespace(
+                filename="policy.docx",
+                scope="org",
+                workflow_id=None,
+                processing_status="completed",
+            ),
+            SimpleNamespace(
+                filename="huge.pdf",
+                scope="library",
+                workflow_id=None,
+                processing_status="processing",
+            ),
+        ]
+        block = decibyl.documents_block(rows, {3: "Front desk"})
+        assert "rates.pdf: Front desk's own" in block
+        assert "policy.docx: Company knowledge, read by every bot" in block
+        assert "huge.pdf: the library" in block
+        assert "(still being read)" in block
+
+    def test_an_empty_account_says_so_rather_than_nothing(self):
+        from api.services.workflow import decibyl
+
+        assert decibyl.documents_block([], {}) == "Nothing uploaded yet."

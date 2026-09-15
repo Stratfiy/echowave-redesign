@@ -38,6 +38,14 @@ export const CALLS_TABS: PageTab[] = [
   { href: "/reports", label: "Daily reports", prefix: true },
 ];
 
+/** Working bots and archived ones. Archived used to be a collapsed
+ *  section at the foot of a long page, which is indistinguishable from
+ *  not existing: people archived a bot and could not find it again. */
+export const BOTS_TABS: PageTab[] = [
+  { href: "/workflow", label: "Bots" },
+  { href: "/workflow/archived", label: "Archived" },
+];
+
 export const KNOWLEDGE_TABS: PageTab[] = [
   { href: "/files", label: "Documents", prefix: true },
   { href: "/recordings", label: "Audio clips", prefix: true },
