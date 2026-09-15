@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 from urllib.parse import urlencode
 
 import pytest
+from fastapi import HTTPException
 from starlette.requests import Request
 
 from api.services.telephony.providers.plivo.provider import PlivoProvider
@@ -175,9 +176,8 @@ async def test_plivo_status_callback_rejects_missing_signature():
             return_value=SimpleNamespace(organization_id=11)
         )
 
-        result = await handle_plivo_hangup_callback(
-            workflow_run_id=123, request=request
-        )
+        with pytest.raises(HTTPException) as refused:
+            await handle_plivo_hangup_callback(workflow_run_id=123, request=request)
 
-    assert result == {"status": "error", "reason": "invalid_signature"}
+    assert refused.value.status_code == 401
     process_status.assert_not_awaited()
