@@ -155,7 +155,7 @@ type Saved = {
 
 const STORAGE_KEY = "decibyl.firstAgent";
 const STEPS: { id: Step; title: string; hint: string }[] = [
-    { id: "pick", title: "Pick a template", hint: "A working agent for your industry" },
+    { id: "pick", title: "Meet your team", hint: "Hire one; it already does the job" },
     { id: "name", title: "Name it", hint: "Name, business, opening line" },
     { id: "hear", title: "Hear it", hint: "A real call, in the browser or to your phone" },
 ];
@@ -516,6 +516,33 @@ function JourneyRail({
 // Step 1 — pick a template
 // ---------------------------------------------------------------------------
 
+/** A colour for a teammate's tile, steady per name. Six from the accent's
+ *  family so a row of cards reads as a team rather than a rainbow. */
+const TILE_COLOURS = [
+    "bg-rose-100 text-rose-900",
+    "bg-amber-100 text-amber-900",
+    "bg-emerald-100 text-emerald-900",
+    "bg-sky-100 text-sky-900",
+    "bg-violet-100 text-violet-900",
+    "bg-teal-100 text-teal-900",
+];
+
+function tileColour(name: string): string {
+    let hash = 0;
+    for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+    return TILE_COLOURS[hash % TILE_COLOURS.length];
+}
+
+function initials(name: string): string {
+    const words = name.split(/\s+/).filter(Boolean);
+    return (words[0]?.[0] ?? "") + (words[1]?.[0] ?? "");
+}
+
+/**
+ * "Meet your team": the templates as teammates you hire, the way Wingman
+ * introduces its people -- a face, a name, what they do, and Hire. A card
+ * is one working agent for that job; the whole shelf is a link away.
+ */
 function PickStep({
     templates,
     selected,
@@ -538,64 +565,87 @@ function PickStep({
     onScratch: () => void;
 }) {
     const chosen = templates?.find((t) => t.id === selected);
+    const hire = (t: Template) => {
+        onPick(t);
+        onContinue();
+    };
 
     return (
         <div className="space-y-6">
-            <header className="flex flex-wrap items-start justify-between gap-3">
+            <header className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                    <h2 className="text-2xl font-semibold tracking-tight">Pick a template</h2>
+                    <h2 className="text-2xl font-semibold tracking-tight">Meet your team</h2>
                     <p className="mt-1 text-sm text-muted-foreground">
-                        Each one already works. Change anything after.
+                        Each one already does the job. Hire one, name it, and hear it in a minute.
                     </p>
                 </div>
-                <button
-                    type="button"
-                    onClick={onScratch}
-                    className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                <Link
+                    href="/marketplace"
+                    className="inline-flex items-center gap-1 text-sm font-medium text-[var(--accent-brand)] underline-offset-4 hover:underline"
                 >
-                    Skip — start from scratch
-                </button>
+                    More agents
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
             </header>
 
             {templates === null ? (
-                <div className="grid gap-3 sm:grid-cols-2" aria-busy>
-                    {[0, 1, 2, 3].map((i) => (
-                        <div key={i} className="h-28 animate-pulse rounded-xl bg-muted" />
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-busy>
+                    {[0, 1, 2, 3, 4, 5].map((i) => (
+                        <div key={i} className="h-52 animate-pulse rounded-2xl bg-muted" />
                     ))}
                 </div>
             ) : templates.length === 0 ? (
                 <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-                    No templates are available on this deployment. Start from scratch instead.
+                    No teammates are available on this deployment. Start from scratch instead.
                 </div>
             ) : (
-                <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Templates">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" role="radiogroup" aria-label="Teammates">
                     {templates.map((t) => {
                         const active = t.id === selected;
                         return (
-                            <button
+                            <div
                                 key={t.id}
-                                type="button"
                                 role="radio"
                                 aria-checked={active}
+                                aria-label={t.name}
+                                tabIndex={0}
                                 onClick={() => onPick(t)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault();
+                                        onPick(t);
+                                    }
+                                }}
                                 className={cn(
-                                    "rounded-xl border p-4 text-left transition-colors",
+                                    "flex cursor-pointer flex-col rounded-2xl border p-5 text-left shadow-[var(--shadow-card)] transition-colors",
                                     active
                                         ? "border-[var(--accent-brand)] bg-[var(--accent-brand-soft)] ring-1 ring-[var(--accent-brand)]"
-                                        : "border-border hover:bg-muted/40",
+                                        : "border-border bg-card hover:bg-muted/40",
                                 )}
                             >
-                                <span className="flex items-start justify-between gap-2">
-                                    <span className="font-medium">{t.name}</span>
-                                    <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
-                                        {industryOf(t)}
+                                <span className="flex items-center gap-3">
+                                    <span
+                                        aria-hidden="true"
+                                        className={cn(
+                                            "flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-base font-semibold",
+                                            tileColour(t.name),
+                                        )}
+                                    >
+                                        {initials(t.name)}
+                                    </span>
+                                    <span className="min-w-0">
+                                        <span className="block font-semibold leading-tight">{t.name}</span>
+                                        <span className="block text-xs text-muted-foreground">
+                                            {industryOf(t)} · {t.direction === "inbound" ? "Answers calls" : "Makes calls"}
+                                        </span>
                                     </span>
                                 </span>
-                                <span className="mt-1 block text-sm text-muted-foreground">{t.summary}</span>
-                                <span className="mt-2 block text-xs text-muted-foreground">
-                                    {t.direction === "inbound" ? "Answers calls" : "Makes calls"}
-                                    {t.languages.length > 0 && ` · ${t.languages.length} languages`}
-                                </span>
+                                <span className="mt-3 block text-sm text-muted-foreground">{t.summary}</span>
+                                {t.languages.length > 0 && (
+                                    <span className="mt-2 block text-xs text-muted-foreground">
+                                        Speaks {t.languages.map((l) => LANGUAGE_NAMES[l] ?? l).join(", ")}
+                                    </span>
+                                )}
                                 <VoiceChips
                                     voices={t.suggested_voices ?? []}
                                     selected={selected === t.id ? voiceId : null}
@@ -604,7 +654,22 @@ function PickStep({
                                         onSuggestedVoice(v);
                                     }}
                                 />
-                            </button>
+                                <span className="mt-4 flex items-center justify-end">
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant={active ? "default" : "outline"}
+                                        aria-label={`Hire ${t.name}`}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            hire(t);
+                                        }}
+                                    >
+                                        Hire
+                                        <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                                    </Button>
+                                </span>
+                            </div>
                         );
                     })}
                 </div>
@@ -651,13 +716,28 @@ function PickStep({
                             Selected: <span className="font-medium text-foreground">{chosen.name}</span>
                         </>
                     ) : (
-                        "Pick one to continue."
+                        <>
+                            Pick one to continue, or{" "}
+                            <Link href="/marketplace" className="underline underline-offset-4 hover:text-foreground">
+                                see every agent
+                            </Link>
+                            .
+                        </>
                     )}
                 </p>
-                <Button onClick={onContinue} disabled={!chosen}>
-                    Continue
-                    <ArrowRight className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-3">
+                    <button
+                        type="button"
+                        onClick={onScratch}
+                        className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                    >
+                        Start from scratch
+                    </button>
+                    <Button onClick={onContinue} disabled={!chosen}>
+                        Continue
+                        <ArrowRight className="h-4 w-4" />
+                    </Button>
+                </div>
             </footer>
         </div>
     );

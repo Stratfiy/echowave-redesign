@@ -198,6 +198,14 @@ describe("first-agent journey", () => {
         expect(screen.getByLabelText("Agent name")).toBeTruthy();
     });
 
+    it("shows the team like a roster: Hire on a card goes straight to naming, and More agents opens the shelf", async () => {
+        render(<FirstAgentJourney />);
+        expect(await screen.findByRole("heading", { name: "Meet your team" })).toBeTruthy();
+        expect(screen.getByRole("link", { name: /More agents/ }).getAttribute("href")).toBe("/marketplace");
+        fireEvent.click(screen.getByRole("button", { name: "Hire Clinic front desk" }));
+        expect(await screen.findByLabelText("Name of the clinic")).toBeTruthy();
+    });
+
     it("sends people who skip to the wizard", async () => {
         render(<FirstAgentJourney />);
         await screen.findByText("Clinic front desk");

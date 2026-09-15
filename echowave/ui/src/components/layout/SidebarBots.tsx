@@ -111,7 +111,7 @@ export function SidebarBots({ collapsed }: { collapsed: boolean }) {
           Your bots
         </Link>
         <Link
-          href="/workflow/create"
+          href="/start"
           aria-label="Add a bot"
           title="Add a bot"
           className="rounded p-0.5 hover:bg-sidebar-accent hover:text-sidebar-foreground"

@@ -83,7 +83,7 @@ function ConnectScreen() {
                             </div>
                             {!loadError && (
                                 <Button asChild className="mt-1">
-                                    <Link href="/workflow/create">Create an agent</Link>
+                                    <Link href="/start">Create an agent</Link>
                                 </Button>
                             )}
                         </CardContent>
