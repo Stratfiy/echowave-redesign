@@ -127,6 +127,32 @@ SUPPLIER_SAC_CODE=998314
 The values for the production entity are on the Jira ticket for GST
 readiness (KAN-80), not in this file or in source.
 
+## 2b. WhatsApp receiving — the platform number hears (A3)
+
+The platform number could only send. With these, Meta POSTs every message
+to `/api/v1/public/whatsapp/webhook`; a message from a number an account
+has verified goes to that account's Decibyl thread and the answer comes
+back on WhatsApp; a document or photo becomes a knowledge-base document
+(OCR, extraction) and Decibyl reads it.
+
+```bash
+# Meta app dashboard → WhatsApp → Configuration. The app secret signs
+# every POST (X-Hub-Signature-256); the verify token is whatever you type
+# into the Callback URL form — it only has to match.
+WHATSAPP_APP_SECRET=
+WHATSAPP_WEBHOOK_VERIFY_TOKEN=
+
+# Optional. An approved template with one placeholder ("Reply to receive
+# {{1}}") that offers a file when the 24-hour window has closed. Unset, a
+# send outside the window is refused with the reason.
+WHATSAPP_FILE_OFFER_TEMPLATE=
+```
+
+Register the webhook at `https://api.decibyl.ai/api/v1/public/whatsapp/webhook`
+with the field `messages` subscribed. Redis holds the 24-hour window and the
+message-id dedupe; without it, receiving still works and senders take
+Meta's word on the window.
+
 ## 3. Outbound mail — new requirement this round
 
 The markup confirmation code goes to a fixed address, `hello@decibyl.ai`. That

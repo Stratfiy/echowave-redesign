@@ -477,6 +477,17 @@ ADDON_CALL_QA_MICROS_USD = int(os.getenv("ADDON_CALL_QA_MICROS_USD", "20000"))
 WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
 WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
 WHATSAPP_GRAPH_VERSION = os.getenv("WHATSAPP_GRAPH_VERSION", "v21.0")
+# Receiving. Meta POSTs every message to the platform number at
+# /api/v1/public/whatsapp/webhook, signed with the app secret
+# (X-Hub-Signature-256); the verify token answers Meta's one-time GET when
+# the webhook is registered. Both empty means the platform number can send
+# and never hear -- the state before A3.
+WHATSAPP_APP_SECRET = os.getenv("WHATSAPP_APP_SECRET", "")
+WHATSAPP_WEBHOOK_VERIFY_TOKEN = os.getenv("WHATSAPP_WEBHOOK_VERIFY_TOKEN", "")
+# An approved template that offers a file when the 24-hour window has
+# closed ("Reply to receive {{1}}"). Empty: a send outside the window is
+# refused with the reason instead.
+WHATSAPP_FILE_OFFER_TEMPLATE = os.getenv("WHATSAPP_FILE_OFFER_TEMPLATE", "")
 # One line on the invoice: a message sent from the platform sender costs the
 # account this much, and Meta charges us roughly the second figure for an
 # Indian utility message. Both in paise.

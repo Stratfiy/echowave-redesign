@@ -134,6 +134,26 @@ class VerifiedNumberClient(BaseDBClient):
             )
             await session.commit()
 
+    async def find_organization_by_verified_number(
+        self, phone_number: str
+    ) -> Optional[int]:
+        """The account that has proved it answers this number, if exactly one.
+
+        Inbound WhatsApp is routed by this: a message from a number nobody has
+        verified belongs to nobody and is dropped. Two accounts verifying the
+        same number is a state the verification flow should prevent; if it
+        happens, neither gets the message rather than one getting the other's.
+        """
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(VerifiedNumberModel.organization_id).where(
+                    VerifiedNumberModel.phone_number == phone_number,
+                    VerifiedNumberModel.status == "verified",
+                )
+            )
+            organizations = {int(row) for row in result.scalars().all()}
+            return organizations.pop() if len(organizations) == 1 else None
+
     async def list_verified_numbers(
         self, organization_id: int
     ) -> Sequence[VerifiedNumberModel]:
