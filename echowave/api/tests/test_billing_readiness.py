@@ -743,3 +743,81 @@ class TestSellingToAnExportCustomer:
 
         checks = _by_key(await assess(async_session))
         assert checks["export_supply"].status == UNKNOWN
+
+
+class TestScriptRuns:
+    """Scripts in the sandbox (Step 20): the calls they make are not on any
+    receipt, so this is the one place the money would show if Composio's
+    free allowance ran out."""
+
+    async def _job(
+        self, async_session, org, *, calls: int, status: str = "done", started=None
+    ):
+        from api.db.models import SandboxJobModel
+
+        row = SandboxJobModel(
+            organization_id=org.id,
+            code_hash="abc",
+            code_chars=10,
+            status=status,
+            calls=calls,
+            started_at=started or datetime.now(UTC),
+        )
+        async_session.add(row)
+        await async_session.flush()
+        return row
+
+    async def test_no_script_ever_is_unknown_with_the_setup_as_remedy(
+        self, async_session, configured
+    ):
+        check = _by_key(await assess(async_session))["script_runs_within_allowance"]
+        assert check.status == UNKNOWN
+        assert "SANDBOX_SECRET" in check.remedy
+
+    async def test_it_counts_running_today_failed_and_this_months_calls(
+        self, async_session, configured
+    ):
+        org = await _org(async_session, "scripts")
+        await self._job(async_session, org, calls=151)
+        await self._job(async_session, org, calls=3, status="running")
+        await self._job(async_session, org, calls=200, status="capped")
+        await self._job(
+            async_session, org, calls=50, started=datetime.now(UTC) - timedelta(days=3)
+        )
+        check = _by_key(await assess(async_session))["script_runs_within_allowance"]
+        assert check.status == READY
+        assert "1 running now" in check.detail
+        assert "3 in the last 24 hours, 1 of them failed" in check.detail
+        assert "404 app calls inside scripts this month of 100,000 free" in check.detail
+
+    async def test_last_months_calls_do_not_count(self, async_session, configured):
+        org = await _org(async_session, "scripts-old")
+        now = datetime.now(UTC)
+        last_month = (now.replace(day=1) - timedelta(days=1)).replace(hour=12)
+        await self._job(async_session, org, calls=99_000, started=last_month)
+        await self._job(async_session, org, calls=10)
+        check = _by_key(await assess(async_session, now=now))[
+            "script_runs_within_allowance"
+        ]
+        assert check.status == READY
+        assert "10 app calls" in check.detail
+
+    async def test_past_the_allowance_is_action_required_and_says_the_price(
+        self, async_session, configured
+    ):
+        org = await _org(async_session, "scripts-over")
+        for _ in range(6):
+            await self._job(async_session, org, calls=20_000)
+        check = _by_key(await assess(async_session))["script_runs_within_allowance"]
+        assert check.status == ACTION_REQUIRED
+        assert "2.5 paise" in check.remedy
+
+    async def test_four_fifths_of_the_allowance_needs_a_person(
+        self, async_session, configured
+    ):
+        from api.services.billing.readiness import NEEDS_A_HUMAN
+
+        org = await _org(async_session, "scripts-near")
+        await self._job(async_session, org, calls=85_000)
+        check = _by_key(await assess(async_session))["script_runs_within_allowance"]
+        assert check.status == NEEDS_A_HUMAN
