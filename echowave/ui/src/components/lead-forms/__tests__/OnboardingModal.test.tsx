@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 const submitOnboarding = vi.hoisted(() => vi.fn(async () => {}));
 vi.mock("../submitOnboarding", () => ({ submitOnboarding }));
+// The door's answers are also kept on the account, best-effort.
+vi.mock("@/client/sdk.gen", () => ({ recordDoorApiV1OnboardingDoorPost: vi.fn(async () => ({ data: { ok: true } })) }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { email: "a@b.in", provider: "local" } }) }));
 vi.mock("@/context/AppConfigContext", () => ({ useAppConfig: () => ({ config: { deploymentMode: "oss" } }) }));
 

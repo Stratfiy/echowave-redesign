@@ -277,6 +277,20 @@ def team_block(
     return "\n".join(lines)
 
 
+def door_block(door: dict[str, str]) -> str:
+    """The door's answers as a line: role and business, when recorded."""
+    role = (door.get("role") or "").replace("_", " ")
+    business = (door.get("business") or "").replace("_", " ")
+    if not role and not business:
+        return "They have not said. Ask, if it matters to the answer."
+    parts = []
+    if role:
+        parts.append(f"their role: {role}")
+    if business:
+        parts.append(f"their business: {business}")
+    return "Signing up, they said " + "; ".join(parts) + "."
+
+
 def memory_block(rows: list[Any]) -> str:
     facts = [
         f"- {r.key}: {r.value}" for r in rows if getattr(r, "kind", "fact") == "fact"
@@ -399,6 +413,12 @@ async def build_context(organization_id: int, question: str) -> str:
         missed = []
 
     knowledge = await _knowledge(organization_id, question)
+    # What they said at the door: a clinic owner and a logistics ops lead
+    # want different first bots, and the same question means different
+    # things from each.
+    from api.services.workflow import home_openers
+
+    door = await home_openers.door_answers(organization_id)
     # Which apps are connected, so the model knows what it can reach before
     # it tries. The listing never raises; an empty workspace reads as such.
     apps = await connected_tools.list_for_organization(organization_id)
@@ -416,6 +436,7 @@ async def build_context(organization_id: int, question: str) -> str:
 
     return (
         f"## Team\n{team_block(headline, members, hours)}\n\n"
+        f"## Who you are talking to\n{door_block(door)}\n\n"
         f"## What the business has confirmed\n{memory_block(memory_rows)}\n\n"
         f"## Lately\n{recent_block(recent, bot_names)}\n\n"
         f"## Missed calls not returned\n{missed_block(missed)}\n\n"

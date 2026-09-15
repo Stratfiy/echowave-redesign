@@ -19,6 +19,7 @@ import { Rocket } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { recordDoorApiV1OnboardingDoorPost } from "@/client/sdk.gen";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -79,6 +80,20 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
     // The door opens first; the answers travel after. A lead service that
     // is slow or down must never hold somebody outside their own account.
     onComplete(false);
+    // Kept on the account too: Home's first cards and Decibyl read it.
+    void (async () => {
+      try {
+        await recordDoorApiV1OnboardingDoorPost({
+          body: {
+            role: answers["ob-role"] ?? "",
+            business: answers["ob-business"] ?? "",
+            heard: answers["ob-heard"] ?? "",
+          },
+        });
+      } catch {
+        // The account is already open; the cards fall back to the general list.
+      }
+    })();
     void submitOnboarding(
       {
         role: answers["ob-role"],
