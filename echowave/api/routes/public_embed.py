@@ -39,7 +39,7 @@ from api.services.storage import (
     get_storage_for_backend,
 )
 
-router = APIRouter(prefix="/public/embed")
+router = APIRouter(prefix="/public/embed", tags=["public-embed"])
 
 EMBED_CORS_ALLOW_HEADERS = "Content-Type, Origin"
 EMBED_CORS_MAX_AGE = "86400"

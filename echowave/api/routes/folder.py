@@ -8,7 +8,7 @@ from api.db.folder_client import FolderNameConflictError
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
 
-router = APIRouter(prefix="/folder")
+router = APIRouter(prefix="/folder", tags=["folders"])
 
 
 class FolderResponse(BaseModel):

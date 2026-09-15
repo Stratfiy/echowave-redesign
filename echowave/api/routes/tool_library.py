@@ -21,7 +21,7 @@ from api.services.integrations.tool_library import (
     seed_definition,
 )
 
-router = APIRouter(prefix="/tool-library")
+router = APIRouter(prefix="/tool-library", tags=["tool-library"])
 
 
 @router.get(

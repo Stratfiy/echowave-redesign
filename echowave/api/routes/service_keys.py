@@ -13,7 +13,7 @@ from api.schemas.service_key import (
 from api.services.auth.depends import get_user
 from api.services.mps_service_key_client import mps_service_key_client
 
-router = APIRouter()
+router = APIRouter(tags=["service-keys"])
 
 
 #: What a service key actually is, said once so the three handlers below can

@@ -30,7 +30,7 @@ from api.services.quota_service import authorize_workflow_run_start
 from api.services.reports import campaign_summary, generate_campaign_report_csv
 from api.services.storage import storage_fs
 
-router = APIRouter(prefix="/campaign")
+router = APIRouter(prefix="/campaign", tags=["campaigns"])
 
 
 async def _get_org_concurrent_limit(organization_id: int) -> int:

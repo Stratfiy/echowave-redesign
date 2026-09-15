@@ -73,8 +73,12 @@ from api.routes.workflow_recording import router as workflow_recording_router
 from api.routes.workflow_text_chat import router as workflow_text_chat_router
 from api.services.integrations import all_routers
 
+# No tag here on purpose. A parent tag is merged onto every child route, so
+# for years every operation carried "main" beside its own tag and a router
+# that forgot to tag itself was indistinguishable from one that had. Now a
+# router declares its own tag or the guard in
+# tests/test_public_api_is_grouped.py names it.
 router = APIRouter(
-    tags=["main"],
     responses={404: {"description": "Not found"}},
 )
 
@@ -169,7 +173,7 @@ class HealthResponse(BaseModel):
     stack_publishable_client_key: str | None = None
 
 
-@router.get("/health", response_model=HealthResponse)
+@router.get("/health", response_model=HealthResponse, tags=["health"])
 async def health() -> HealthResponse:
     from api.constants import (
         APP_VERSION,
@@ -241,7 +245,7 @@ def _verify_devops_secret(
         )
 
 
-@router.get("/health/active-calls", response_model=ActiveCallsResponse)
+@router.get("/health/active-calls", response_model=ActiveCallsResponse, tags=["health"])
 async def active_calls(
     x_decibyl_devops_secret: Annotated[
         str | None,
@@ -275,7 +279,7 @@ class WorkerHealthResponse(BaseModel):
     detail: str
 
 
-@router.get("/health/workers", response_model=WorkerHealthResponse)
+@router.get("/health/workers", response_model=WorkerHealthResponse, tags=["health"])
 async def worker_health_check(
     x_decibyl_devops_secret: Annotated[
         str | None,

@@ -25,7 +25,7 @@ from api.services.call_concurrency import (
 from api.services.quota_service import authorize_workflow_run_start
 from api.services.telephony import registry as telephony_registry
 
-router = APIRouter(prefix="/agent-stream")
+router = APIRouter(prefix="/agent-stream", tags=["agent-stream"])
 
 
 @router.websocket("/{provider_name}/{workflow_uuid}")

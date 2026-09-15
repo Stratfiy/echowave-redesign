@@ -20,7 +20,7 @@ from api.sdk_expose import sdk_expose
 from api.services.auth.depends import get_user
 from api.services.contacts import MAX_CONTACT_ROWS, parse_contacts_csv
 
-router = APIRouter(prefix="/contact-lists")
+router = APIRouter(prefix="/contact-lists", tags=["contacts"])
 
 #: Refuse an upload larger than this without reading it. The row cap is the
 #: real limit; this stops a 2GB file being buffered to find that out.

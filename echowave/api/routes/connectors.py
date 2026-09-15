@@ -24,7 +24,7 @@ from api.services.integrations.composio.client import (
     toolkit_name,
 )
 
-router = APIRouter(prefix="/connectors")
+router = APIRouter(prefix="/connectors", tags=["connectors"])
 
 #: How many favourites the collection row carries.
 #:

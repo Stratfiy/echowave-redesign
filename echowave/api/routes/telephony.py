@@ -76,7 +76,7 @@ from api.utils.telephony_helper import (
     parse_webhook_request,
 )
 
-router = APIRouter(prefix="/telephony")
+router = APIRouter(prefix="/telephony", tags=["telephony"])
 
 
 class InitiateCallRequest(BaseModel):

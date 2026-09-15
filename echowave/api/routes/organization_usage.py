@@ -19,7 +19,7 @@ from api.services.reports import (
 from api.utils.artifacts import artifact_url
 from api.utils.recording_artifacts import has_recording_track
 
-router = APIRouter(prefix="/organizations")
+router = APIRouter(prefix="/organizations", tags=["usage"])
 
 
 class CurrentUsageResponse(BaseModel):

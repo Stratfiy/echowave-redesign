@@ -39,7 +39,7 @@ from api.services.workflow.triggered_calls import (
 )
 from api.utils.common import get_backend_endpoints
 
-router = APIRouter(prefix="/public/agent")
+router = APIRouter(prefix="/public/agent", tags=["public-calls"])
 
 
 class TriggerCallRequest(BaseModel):

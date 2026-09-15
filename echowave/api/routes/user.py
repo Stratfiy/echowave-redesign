@@ -41,7 +41,7 @@ from api.services.user_onboarding import (
     update_onboarding_state,
 )
 
-router = APIRouter(prefix="/user")
+router = APIRouter(prefix="/user", tags=["user"])
 
 
 class AuthUserResponse(TypedDict):
