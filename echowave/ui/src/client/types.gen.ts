@@ -29946,6 +29946,87 @@ export type ReceiveEmailApiV1PublicEmailInboundPostResponses = {
 
 export type ReceiveEmailApiV1PublicEmailInboundPostResponse = ReceiveEmailApiV1PublicEmailInboundPostResponses[keyof ReceiveEmailApiV1PublicEmailInboundPostResponses];
 
+export type VerifyWebhookApiV1PublicWhatsappWebhookGetData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Hub.Mode
+         */
+        'hub.mode'?: string | null;
+        /**
+         * Hub.Verify Token
+         */
+        'hub.verify_token'?: string | null;
+        /**
+         * Hub.Challenge
+         */
+        'hub.challenge'?: string | null;
+    };
+    url: '/api/v1/public/whatsapp/webhook';
+};
+
+export type VerifyWebhookApiV1PublicWhatsappWebhookGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type VerifyWebhookApiV1PublicWhatsappWebhookGetError = VerifyWebhookApiV1PublicWhatsappWebhookGetErrors[keyof VerifyWebhookApiV1PublicWhatsappWebhookGetErrors];
+
+export type VerifyWebhookApiV1PublicWhatsappWebhookGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: string;
+};
+
+export type VerifyWebhookApiV1PublicWhatsappWebhookGetResponse = VerifyWebhookApiV1PublicWhatsappWebhookGetResponses[keyof VerifyWebhookApiV1PublicWhatsappWebhookGetResponses];
+
+export type ReceiveApiV1PublicWhatsappWebhookPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * X-Hub-Signature-256
+         */
+        'X-Hub-Signature-256'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/public/whatsapp/webhook';
+};
+
+export type ReceiveApiV1PublicWhatsappWebhookPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReceiveApiV1PublicWhatsappWebhookPostError = ReceiveApiV1PublicWhatsappWebhookPostErrors[keyof ReceiveApiV1PublicWhatsappWebhookPostErrors];
+
+export type ReceiveApiV1PublicWhatsappWebhookPostResponses = {
+    /**
+     * Response Receive Api V1 Public Whatsapp Webhook Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ReceiveApiV1PublicWhatsappWebhookPostResponse = ReceiveApiV1PublicWhatsappWebhookPostResponses[keyof ReceiveApiV1PublicWhatsappWebhookPostResponses];
+
 export type DownloadWorkflowArtifactApiV1PublicDownloadWorkflowTokenArtifactTypeGetData = {
     body?: never;
     path: {
