@@ -23,6 +23,7 @@ from api.services.telephony.base import (
     TelephonyProvider,
 )
 from api.utils.common import get_backend_endpoints
+from api.utils.phone_masking import last_four
 from api.utils.telephony_address import normalize_telephony_address
 
 if TYPE_CHECKING:
@@ -86,7 +87,9 @@ class VobizProvider(TelephonyProvider):
         # Use provided from_number or select a random one
         if from_number is None:
             from_number = random.choice(self.from_numbers)
-        logger.info(f"Selected Vobiz phone number {from_number} for outbound call")
+        logger.info(
+            f"Selected Vobiz phone number {last_four(from_number)} for outbound call"
+        )
 
         # Remove + prefix if present (Vobiz expects E.164 without +)
         to_number_clean = to_number.lstrip("+")

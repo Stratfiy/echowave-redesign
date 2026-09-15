@@ -27,6 +27,7 @@ from api.services.telephony.base import (
 )
 from api.services.telephony.escalation import DEFAULT_BRIEFING
 from api.utils.common import get_backend_endpoints
+from api.utils.phone_masking import last_four
 from api.utils.telephony_address import normalize_telephony_address
 
 if TYPE_CHECKING:
@@ -640,7 +641,7 @@ class PlivoProvider(TelephonyProvider):
                         )
                     payload = json.loads(body) if body else {}
         except Exception as e:
-            logger.error(f"Plivo number purchase raised for {number}: {e}")
+            logger.error(f"Plivo number purchase raised for {last_four(number)}: {e}")
             return NumberPurchaseResult(
                 ok=False, number=number, message=f"Purchase failed: {e}"
             )
@@ -695,10 +696,10 @@ class PlivoProvider(TelephonyProvider):
                             message=f"Plivo {response.status}: {body[:300]}",
                         )
         except Exception as e:
-            logger.error(f"Plivo release raised for {number}: {e}")
+            logger.error(f"Plivo release raised for {last_four(number)}: {e}")
             return ProviderSyncResult(ok=False, message=f"Release failed: {e}")
 
-        logger.info(f"Released Plivo number {number}")
+        logger.info(f"Released Plivo number {last_four(number)}")
         return ProviderSyncResult(ok=True)
 
     async def list_owned_numbers(self) -> List[str]:
@@ -824,7 +825,7 @@ class PlivoProvider(TelephonyProvider):
             raise ValueError("Plivo provider not properly configured")
 
         from_number = random.choice(self.from_numbers)
-        logger.info(f"Selected phone number {from_number} for transfer call")
+        logger.info(f"Selected phone number {last_four(from_number)} for transfer call")
 
         backend_endpoint, _ = await get_backend_endpoints()
 

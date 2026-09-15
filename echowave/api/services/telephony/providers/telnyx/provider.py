@@ -34,6 +34,7 @@ from api.services.telephony.base import (
     TelephonyProvider,
 )
 from api.utils.common import get_backend_endpoints
+from api.utils.phone_masking import last_four
 from api.utils.telephony_address import normalize_telephony_address
 
 if TYPE_CHECKING:
@@ -96,7 +97,7 @@ class TelnyxProvider(TelephonyProvider):
 
         if from_number is None:
             from_number = random.choice(self.from_numbers)
-        logger.info(f"Selected phone number {from_number} for outbound call")
+        logger.info(f"Selected phone number {last_four(from_number)} for outbound call")
 
         backend_endpoint, _ = await get_backend_endpoints()
 
@@ -752,7 +753,9 @@ class TelnyxProvider(TelephonyProvider):
             raise ValueError("Telnyx provider not properly configured")
 
         from_number = random.choice(self.from_numbers)
-        logger.info(f"Selected phone number {from_number} for Telnyx transfer call")
+        logger.info(
+            f"Selected phone number {last_four(from_number)} for Telnyx transfer call"
+        )
 
         backend_endpoint, _ = await get_backend_endpoints()
         webhook_url = (

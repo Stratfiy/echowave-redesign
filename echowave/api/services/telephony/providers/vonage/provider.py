@@ -22,6 +22,7 @@ from api.services.telephony.base import (
     TelephonyProvider,
 )
 from api.utils.common import get_backend_endpoints
+from api.utils.phone_masking import last_four
 
 if TYPE_CHECKING:
     from fastapi import WebSocket
@@ -101,7 +102,7 @@ class VonageProvider(TelephonyProvider):
         from_number = from_number.replace("+", "")
         to_number = to_number.replace("+", "")
 
-        logger.info(f"Selected phone number {from_number} for outbound call")
+        logger.info(f"Selected phone number {last_four(from_number)} for outbound call")
 
         # Prepare call data
         data = {

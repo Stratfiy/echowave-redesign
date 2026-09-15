@@ -73,6 +73,7 @@ from api.services.workflow import agent_hours, liveness
 from api.tasks.arq import enqueue_job
 from api.tasks.function_names import FunctionNames
 from api.utils.common import get_backend_endpoints
+from api.utils.phone_masking import last_four
 from api.utils.telephony_helper import (
     generic_hangup_response,
     normalize_webhook_data,
@@ -556,7 +557,7 @@ async def _verify_organization_phone_number(
 
     except Exception as e:
         logger.error(
-            f"Error verifying phone number {phone_number} for organization "
+            f"Error verifying phone number {last_four(phone_number)} for organization "
             f"{organization_id} / config {telephony_configuration_id}: {e}"
         )
         return None
@@ -598,7 +599,9 @@ async def _record_missed_call(organization_id: int, phone_row, normalized_data) 
             f"callback queued as event {event.id}"
         )
     except Exception as exc:  # noqa: BLE001 -- see docstring
-        logger.error(f"Could not queue missed-call callback for {caller}: {exc}")
+        logger.error(
+            f"Could not queue missed-call callback for {last_four(caller)}: {exc}"
+        )
 
 
 async def _detect_provider(webhook_data: dict, headers: dict):
