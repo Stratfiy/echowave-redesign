@@ -114,19 +114,23 @@ describe("the bot shelf", () => {
 });
 
 describe("the tool shelf", () => {
-    it("shows categories with counts, the most asked for, and every group", async () => {
+    it("shows category chips with counts, Featured first, every group, and Other", async () => {
         render(<MarketplaceScreen kind="tools" />);
-        expect(await screen.findByRole("button", { name: /Messaging\s*2 tools/ })).toBeTruthy();
-        expect(screen.getByRole("button", { name: /Money\s*1 tool/ })).toBeTruthy();
-        expect(screen.getByText("Most asked for")).toBeTruthy();
+        expect(await screen.findByRole("button", { name: /^Messaging\s*2$/ })).toBeTruthy();
+        expect(screen.getByRole("button", { name: /^Money\s*1$/ })).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Featured" })).toBeTruthy();
+        expect(screen.getByRole("heading", { name: "Featured" })).toBeTruthy();
         expect(screen.getByText("Razorpay")).toBeTruthy();
-        // The long tail is a door, never dropped.
-        expect(screen.getByText("1 more tool")).toBeTruthy();
+        // The long tail is a chip and a section, never dropped.
+        expect(screen.getByRole("button", { name: /^Other\s*1$/ })).toBeTruthy();
+        expect(screen.getByText("Odd one")).toBeTruthy();
+        // Rows, with Add on each app not yet on.
+        expect(screen.getAllByRole("button", { name: /^Add / }).length).toBeGreaterThan(0);
     });
 
-    it("a category card narrows to that category", async () => {
+    it("a chip narrows to that category", async () => {
         render(<MarketplaceScreen kind="tools" />);
-        fireEvent.click(await screen.findByRole("button", { name: /Money\s*1 tool/ }));
+        fireEvent.click(await screen.findByRole("button", { name: /^Money\s*1$/ }));
         await waitFor(() => expect(screen.queryByText("Slack")).toBeNull());
         expect(screen.getByText("Razorpay")).toBeTruthy();
     });

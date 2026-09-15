@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { client } from "@/client/client.gen";
 import { EmptyState } from "@/components/EmptyState";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import { CALLS_TABS } from "@/components/layout/SectionTabs";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { detailFromResult } from "@/lib/apiError";
@@ -95,6 +96,7 @@ export default function ReviewPage() {
   return (
     <>
       <PageHeader
+        tabs={CALLS_TABS}
         title="Review"
         description="Calls worth listening to, worst first. Graded after every call."
         actions={
