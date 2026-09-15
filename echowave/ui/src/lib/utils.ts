@@ -146,7 +146,10 @@ export async function impersonateAsSuperadmin(params: {
     redirectPath,
     openInNewTab = false,
   } = params;
-  const targetWindow = openInNewTab ? window.open("", "_blank") : null;
+  const IMPERSONATION_TARGET = "decibyl_impersonation";
+  const targetWindow = openInNewTab
+    ? window.open("", IMPERSONATION_TARGET)
+    : null;
   if (targetWindow) {
     targetWindow.opener = null;
   }
@@ -217,17 +220,34 @@ export async function impersonateAsSuperadmin(params: {
   // Build the redirect URL to the helper route, passing along the refresh token and
   // the final destination.
   const impersonateUrl = new URL("/impersonate", appBaseUrl);
-  impersonateUrl.searchParams.set("refresh_token", refreshToken);
-  impersonateUrl.searchParams.set("redirect_path", finalRedirect);
 
+  // Submit the refresh token in a POST body, never in the URL (KAN-82). A
+  // form submission navigates the browser exactly as a link would -- so the
+  // impersonation cookie is written first-party on the target origin -- while
+  // the token stays out of the address bar, history, logs and Referer.
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = impersonateUrl.toString();
+  form.style.display = "none";
   if (openInNewTab) {
     if (!targetWindow) {
       throw new Error(
         "Unable to open impersonation tab. Please allow pop-ups and try again.",
       );
     }
-    targetWindow.location.href = impersonateUrl.toString();
-  } else {
-    window.location.href = impersonateUrl.toString();
+    form.target = IMPERSONATION_TARGET;
   }
+  for (const [key, value] of Object.entries({
+    refresh_token: refreshToken,
+    redirect_path: finalRedirect,
+  })) {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = key;
+    input.value = value;
+    form.appendChild(input);
+  }
+  document.body.appendChild(form);
+  form.submit();
+  form.remove();
 }

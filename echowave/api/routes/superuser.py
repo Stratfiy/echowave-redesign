@@ -1,12 +1,12 @@
 import json
 from datetime import datetime
-from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from loguru import logger
 from pydantic import BaseModel
 
 from api.db import db_client
-from api.db.models import UserModel
+from api.db.models import AdminActionLogModel, UserModel
 from api.services.auth.depends import get_superuser
 from api.services.auth.stack_auth import (
     StackAuthSessionError,
@@ -39,23 +39,23 @@ class SuperuserWorkflowRunResponse(BaseModel):
     id: int
     name: str
     workflow_id: int
-    workflow_name: Optional[str]
-    user_id: Optional[int]
-    organization_id: Optional[int]
-    organization_name: Optional[str]
+    workflow_name: str | None
+    user_id: int | None
+    organization_id: int | None
+    organization_name: str | None
     mode: str
     is_completed: bool
-    recording_url: Optional[str]
-    transcript_url: Optional[str]
-    usage_info: Optional[dict]
-    cost_info: Optional[dict]
-    initial_context: Optional[dict]
-    gathered_context: Optional[dict]
+    recording_url: str | None
+    transcript_url: str | None
+    usage_info: dict | None
+    cost_info: dict | None
+    initial_context: dict | None
+    gathered_context: dict | None
     created_at: datetime
 
 
 class SuperuserWorkflowRunsListResponse(BaseModel):
-    workflow_runs: List[SuperuserWorkflowRunResponse]
+    workflow_runs: list[SuperuserWorkflowRunResponse]
     total_count: int
     page: int
     limit: int
@@ -64,7 +64,9 @@ class SuperuserWorkflowRunsListResponse(BaseModel):
 
 @router.post("/impersonate")
 async def impersonate(
-    request: ImpersonateRequest, user: UserModel = Depends(get_superuser)
+    request: ImpersonateRequest,
+    http_request: Request,
+    user: UserModel = Depends(get_superuser),
 ) -> ImpersonateResponse:
     """Impersonate a user as a super-admin.
     Internally, Stack Auth requires the **provider user ID** (a UUID-ish string)
@@ -125,6 +127,48 @@ async def impersonate(
             )
 
     # ------------------------------------------------------------------
+    # KAN-82: never impersonate another staff account, and audit every start.
+    # A superadmin borrowing a customer's session is the most powerful action
+    # in the product; borrowing another *staff* member's session would let one
+    # admin act as another with no separation, and every start must leave a
+    # durable trace an account can be shown.
+    # ------------------------------------------------------------------
+    target_user = await db_client.get_user_by_provider_id(provider_user_id)
+    if target_user is not None and getattr(target_user, "staff_role", None):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="A staff account cannot be impersonated.",
+        )
+    try:
+        async with db_client.async_session() as audit_session:
+            audit_session.add(
+                AdminActionLogModel(
+                    actor_user_id=user.id,
+                    action="impersonation_started",
+                    target_user_id=getattr(target_user, "id", None),
+                    target_provider_id=provider_user_id,
+                    target_organization_id=getattr(
+                        target_user, "selected_organization_id", None
+                    ),
+                    actor_ip=(
+                        http_request.client.host if http_request.client else None
+                    ),
+                    note=(email or (target_user.email if target_user else None) or "")[
+                        :500
+                    ],
+                )
+            )
+            await audit_session.commit()
+    except Exception as exc:
+        # A failed audit write must not let an UNAUDITED impersonation proceed:
+        # the whole point is that none happens without a trace.
+        logger.error("Could not audit impersonation start: {}", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not record this impersonation; not proceeding.",
+        ) from exc
+
+    # ------------------------------------------------------------------
     # Call Stack Auth to create the impersonation session
     # ------------------------------------------------------------------
     try:
@@ -155,13 +199,11 @@ async def impersonate(
 async def get_workflow_runs(
     page: int = Query(1, ge=1, description="Page number (starts from 1)"),
     limit: int = Query(50, ge=1, le=100, description="Number of items per page"),
-    filters: Optional[str] = Query(None, description="JSON-encoded filter criteria"),
-    sort_by: Optional[str] = Query(
+    filters: str | None = Query(None, description="JSON-encoded filter criteria"),
+    sort_by: str | None = Query(
         None, description="Field to sort by (e.g., 'duration', 'created_at')"
     ),
-    sort_order: Optional[str] = Query(
-        "desc", description="Sort order ('asc' or 'desc')"
-    ),
+    sort_order: str | None = Query("desc", description="Sort order ('asc' or 'desc')"),
     user: UserModel = Depends(get_superuser),
 ) -> SuperuserWorkflowRunsListResponse:
     """

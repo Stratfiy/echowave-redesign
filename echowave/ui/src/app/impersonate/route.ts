@@ -88,11 +88,22 @@ function serializeSetCookie(
     return parts.join("; ");
 }
 
-export async function GET(request: NextRequest) {
-    const { searchParams } = new URL(request.url);
-
-    const refreshToken = searchParams.get("refresh_token");
-    const redirectPath = searchParams.get("redirect_path") ?? "/workflow/create";
+// POST, not GET (KAN-82): the refresh token arrives in the request body, never
+// in the URL. A token in a query string lands in server access logs, the
+// browser's address bar and history, and any Referer header a later navigation
+// sends -- a session-stealing leak for the single most powerful credential in
+// the product. A form POST navigates the browser (so the cookie is written
+// first-party on this origin) while keeping the token out of every log.
+export async function POST(request: NextRequest) {
+    const form = await request.formData().catch(() => null);
+    const refreshToken =
+        typeof form?.get("refresh_token") === "string"
+            ? (form.get("refresh_token") as string)
+            : null;
+    const redirectPath =
+        (typeof form?.get("redirect_path") === "string"
+            ? (form.get("redirect_path") as string)
+            : null) ?? "/workflow/create";
 
     if (!refreshToken) {
         return new Response("Missing refresh_token", { status: 400 });
@@ -116,7 +127,9 @@ export async function GET(request: NextRequest) {
         // Malformed redirect_path (e.g. "https://") — keep the fallback.
     }
 
-    const response = NextResponse.redirect(redirectUrl);
+    // 303: the POST that carried the token becomes a plain GET at the
+    // destination, so the app page loads normally with the fresh cookie.
+    const response = NextResponse.redirect(redirectUrl, 303);
 
     const forwardedProto = request.headers
         .get("x-forwarded-proto")
