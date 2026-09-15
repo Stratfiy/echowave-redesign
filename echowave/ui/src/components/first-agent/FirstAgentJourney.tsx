@@ -37,6 +37,7 @@ import posthog from "posthog-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { EmbeddedVoiceTester } from "@/app/workflow/[workflowId]/components/workflow-tester/EmbeddedVoiceTester";
+import { ManualTextChatPanel } from "@/app/workflow/[workflowId]/components/workflow-tester/ManualTextChatPanel";
 import { client } from "@/client/client.gen";
 import {
     createWorkflowRunApiV1WorkflowWorkflowIdRunsPost,
@@ -67,7 +68,7 @@ type Template = {
     id: string;
     name: string;
     vertical: string;
-    direction: "inbound" | "outbound";
+    direction: "inbound" | "outbound" | "message" | "scheduled";
     summary: string;
     languages: string[];
     variables?: { name: string; asks_for: string }[];
@@ -154,11 +155,40 @@ type Saved = {
 };
 
 const STORAGE_KEY = "decibyl.firstAgent";
-const STEPS: { id: Step; title: string; hint: string }[] = [
-    { id: "pick", title: "Meet your team", hint: "Hire one; it already does the job" },
-    { id: "name", title: "Name it", hint: "Name, business, opening line" },
-    { id: "hear", title: "Hear it", hint: "A real call, in the browser or to your phone" },
-];
+/** Voice bots ring a phone; the other two kinds are tested by typing. */
+function isVoice(template: Template | null | undefined): boolean {
+    return !template || template.direction === "inbound" || template.direction === "outbound";
+}
+
+function whatItDoes(template: Template): string {
+    switch (template.direction) {
+        case "inbound":
+            return "Answers calls";
+        case "outbound":
+            return "Makes calls";
+        case "message":
+            return "Replies to messages";
+        default:
+            return "Runs on a schedule";
+    }
+}
+
+/** How many bots the door shows. The rest are a link away. */
+const FEATURED = 5;
+
+/** What the composer opens with when somebody would rather describe the
+ *  bot than pick one. Decibyl builds it from the sentence. */
+export const DESCRIBE_PROMPT = "Build me a bot that ";
+
+function steps(voice: boolean): { id: Step; title: string; hint: string }[] {
+    return [
+        { id: "pick", title: "Pick a bot", hint: "Each one already does the job" },
+        { id: "name", title: "Name it", hint: "Name, business, opening line" },
+        voice
+            ? { id: "hear", title: "Hear it", hint: "A real call, in the browser or to your phone" }
+            : { id: "hear", title: "Test it", hint: "Type to it, the way a customer would" },
+    ];
+}
 
 function readSaved(): Saved | null {
     try {
@@ -297,12 +327,13 @@ export function FirstAgentJourney() {
         setStep(to);
     };
 
-    const startFromScratch = () => {
+    // "Describe your bot": Decibyl's thread, with the sentence started.
+    const describe = () => {
         posthog.capture(PostHogEvent.FIRST_AGENT_SCRATCH_CHOSEN, {
             templates_offered: templates?.length ?? 0,
         });
         writeSaved(null);
-        router.push("/workflow/create");
+        router.push(`/overview?say=${encodeURIComponent(DESCRIBE_PROMPT)}`);
     };
 
     const create = async () => {
@@ -366,6 +397,7 @@ export function FirstAgentJourney() {
             <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[280px_1fr]">
                 <JourneyRail
                     step={step}
+                    voice={isVoice(template)}
                     templateName={template?.name}
                     agentSummary={
                         step === "hear" || step === "ready"
@@ -386,7 +418,7 @@ export function FirstAgentJourney() {
                             onVoice={pickVoice}
                             onSuggestedVoice={pickSuggestedVoice}
                             onContinue={() => setStep("name")}
-                            onScratch={startFromScratch}
+                            onDescribe={describe}
                         />
                     )}
                     {step === "name" && template && (
@@ -410,6 +442,7 @@ export function FirstAgentJourney() {
                     {step === "hear" && workflowId !== null && (
                         <HearStep
                             workflowId={workflowId}
+                            voice={isVoice(template)}
                             displayName={displayName}
                             getAccessToken={getAccessToken}
                             onRun={setRunId}
@@ -420,6 +453,7 @@ export function FirstAgentJourney() {
                     {step === "ready" && workflowId !== null && (
                         <ReadyStep
                             workflowId={workflowId}
+                            voice={isVoice(template)}
                             runId={runId}
                             displayName={displayName}
                             onFinish={finish}
@@ -437,15 +471,18 @@ export function FirstAgentJourney() {
 
 function JourneyRail({
     step,
+    voice,
     templateName,
     agentSummary,
     firstName,
 }: {
     step: Step;
+    voice: boolean;
     templateName?: string;
     agentSummary?: string;
     firstName?: string;
 }) {
+    const STEPS = steps(voice);
     const index = step === "ready" ? STEPS.length : STEPS.findIndex((s) => s.id === step);
     const chosen: Partial<Record<Step, string | undefined>> = {
         pick: templateName,
@@ -552,7 +589,7 @@ function PickStep({
     onVoice,
     onSuggestedVoice,
     onContinue,
-    onScratch,
+    onDescribe,
 }: {
     templates: Template[] | null;
     selected: string | null;
@@ -562,9 +599,10 @@ function PickStep({
     onVoice: (voice: VoiceGender | null) => void;
     onSuggestedVoice: (voice: SuggestedVoice) => void;
     onContinue: () => void;
-    onScratch: () => void;
+    onDescribe: () => void;
 }) {
     const chosen = templates?.find((t) => t.id === selected);
+    const featured = templates?.slice(0, FEATURED) ?? null;
     const hire = (t: Template) => {
         onPick(t);
         onContinue();
@@ -574,33 +612,33 @@ function PickStep({
         <div className="space-y-6">
             <header className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                    <h2 className="text-2xl font-semibold tracking-tight">Meet your team</h2>
+                    <h2 className="text-2xl font-semibold tracking-tight">Pick a bot</h2>
                     <p className="mt-1 text-sm text-muted-foreground">
-                        Each one already does the job. Hire one, name it, and hear it in a minute.
+                        Each one already does the job. Add one to your team, name it, and try it in a minute.
                     </p>
                 </div>
                 <Link
                     href="/marketplace"
                     className="inline-flex items-center gap-1 text-sm font-medium text-[var(--accent-brand)] underline-offset-4 hover:underline"
                 >
-                    More agents
+                    More bots
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Link>
             </header>
 
-            {templates === null ? (
+            {featured === null ? (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-busy>
                     {[0, 1, 2, 3, 4, 5].map((i) => (
                         <div key={i} className="h-52 animate-pulse rounded-2xl bg-muted" />
                     ))}
                 </div>
-            ) : templates.length === 0 ? (
+            ) : featured.length === 0 ? (
                 <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-                    No teammates are available on this deployment. Start from scratch instead.
+                    No bots are available on this deployment. Describe yours instead.
                 </div>
             ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" role="radiogroup" aria-label="Teammates">
-                    {templates.map((t) => {
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" role="radiogroup" aria-label="Bots">
+                    {featured.map((t) => {
                         const active = t.id === selected;
                         return (
                             <div
@@ -636,7 +674,7 @@ function PickStep({
                                     <span className="min-w-0">
                                         <span className="block font-semibold leading-tight">{t.name}</span>
                                         <span className="block text-xs text-muted-foreground">
-                                            {industryOf(t)} · {t.direction === "inbound" ? "Answers calls" : "Makes calls"}
+                                            {industryOf(t)} · {whatItDoes(t)}
                                         </span>
                                     </span>
                                 </span>
@@ -659,19 +697,40 @@ function PickStep({
                                         type="button"
                                         size="sm"
                                         variant={active ? "default" : "outline"}
-                                        aria-label={`Hire ${t.name}`}
+                                        aria-label={`Add ${t.name} to team`}
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             hire(t);
                                         }}
                                     >
-                                        Hire
+                                        Add to team
                                         <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                                     </Button>
                                 </span>
                             </div>
                         );
                     })}
+                    {/* The sixth card is the one that is not on the shelf: say
+                        what you need and Decibyl builds it. */}
+                    <button
+                        type="button"
+                        onClick={onDescribe}
+                        className="flex flex-col items-start justify-between rounded-2xl border border-dashed border-border p-5 text-left transition-colors hover:bg-muted/40"
+                    >
+                        <span>
+                            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                                <Sparkles className="h-5 w-5" aria-hidden="true" />
+                            </span>
+                            <span className="mt-3 block font-semibold">Describe your bot</span>
+                            <span className="mt-1 block text-sm text-muted-foreground">
+                                Not on the shelf? Tell Decibyl what it should do, in your words, and it builds one.
+                            </span>
+                        </span>
+                        <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-[var(--accent-brand)]">
+                            Chat to Decibyl
+                            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                        </span>
+                    </button>
                 </div>
             )}
 
@@ -702,7 +761,7 @@ function PickStep({
                 </div>
                 <span className="text-xs text-muted-foreground">
                     {voiceId
-                        ? "Your agent will answer in the voice you just heard."
+                        ? "Your bot will answer in the voice you just heard."
                         : voice
                           ? "Change it on the agent whenever you like."
                           : "Press a voice on a card to hear it and choose it."}
@@ -719,20 +778,13 @@ function PickStep({
                         <>
                             Pick one to continue, or{" "}
                             <Link href="/marketplace" className="underline underline-offset-4 hover:text-foreground">
-                                see every agent
+                                see every bot
                             </Link>
                             .
                         </>
                     )}
                 </p>
                 <div className="flex items-center gap-3">
-                    <button
-                        type="button"
-                        onClick={onScratch}
-                        className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-                    >
-                        Start from scratch
-                    </button>
                     <Button onClick={onContinue} disabled={!chosen}>
                         Continue
                         <ArrowRight className="h-4 w-4" />
@@ -882,6 +934,7 @@ function NameStep({
 
 function HearStep({
     workflowId,
+    voice,
     displayName,
     getAccessToken,
     onRun,
@@ -889,6 +942,8 @@ function HearStep({
     onDone,
 }: {
     workflowId: number;
+    /** A voice bot is heard on a call; any other kind is tested by typing. */
+    voice: boolean;
     displayName: string;
     getAccessToken: () => Promise<string>;
     onRun: (runId: number) => void;
@@ -1025,6 +1080,32 @@ function HearStep({
                     onReset={() => setBrowserRunId(null)}
                     onCompleted={onBrowserCompleted}
                 />
+            </div>
+        );
+    }
+
+    if (!voice) {
+        return (
+            <div className="space-y-6">
+                <header>
+                    <h2 className="text-2xl font-semibold tracking-tight">Now test it.</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                        {displayName} is ready. Write to it the way a customer would; the test is free.
+                    </p>
+                </header>
+                <div className="rounded-xl border border-border p-4">
+                    <ManualTextChatPanel workflowId={workflowId} ready disabled={false} disabledReason={null} />
+                </div>
+                <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5">
+                    <Button variant="ghost" onClick={onBack}>
+                        <ArrowLeft className="h-4 w-4" />
+                        Back
+                    </Button>
+                    <Button onClick={onDone}>
+                        Done
+                        <ArrowRight className="h-4 w-4" />
+                    </Button>
+                </footer>
             </div>
         );
     }
@@ -1195,11 +1276,13 @@ function ModeCard({
 
 function ReadyStep({
     workflowId,
+    voice,
     runId,
     displayName,
     onFinish,
 }: {
     workflowId: number;
+    voice: boolean;
     runId: number | null;
     displayName: string;
     onFinish: (next: "number" | "agent" | "recording") => void;
@@ -1209,9 +1292,11 @@ function ReadyStep({
             <header>
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--accent-brand-soft)] px-2.5 py-1 text-xs font-medium text-[var(--accent-brand)]">
                     <Sparkles className="h-3.5 w-3.5" />
-                    First call done
+                    {voice ? "First call done" : "First test done"}
                 </span>
-                <h2 className="mt-3 text-2xl font-semibold tracking-tight">{displayName} took its first call.</h2>
+                <h2 className="mt-3 text-2xl font-semibold tracking-tight">
+                    {voice ? `${displayName} took its first call.` : `${displayName} is on the team.`}
+                </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
                     Paid from your credits — the first ones came free with the account.
                     {runId !== null && " The recording and transcript are saved with the call."}

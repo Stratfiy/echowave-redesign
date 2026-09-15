@@ -132,6 +132,23 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   // The roster for `@`: every bot on the account. Decibyl's thread had
   // none, so the @ button opened nothing.
   const [bots, setBots] = useState<ChannelBot[]>([]);
+  // "?say=" on the URL: words for the box, from "Describe your bot" at the
+  // door. Read once and taken off the address, so a refresh does not put
+  // them back after the person has sent or deleted them.
+  const [prefill, setPrefill] = useState<string>("");
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const say = params.get("say");
+      if (!say) return;
+      setPrefill(say);
+      params.delete("say");
+      const rest = params.toString();
+      window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}`);
+    } catch {
+      // No URL to read: the box opens empty, as it always did.
+    }
+  }, []);
   const onCountChange = useCallback((count: number) => setRows(count), []);
   const refreshStream = useRef<() => void>(() => {});
   const registerRefresh = useCallback((refresh: () => void) => {
@@ -284,6 +301,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         <ChannelComposer
           assistant
           bots={bots}
+          initialText={prefill || undefined}
           channelName="Decibyl"
           onSent={() => {
             asked();

@@ -137,6 +137,7 @@ export function ChannelComposer({
     channels,
     channelName,
     onSent,
+    initialText,
 }: {
     /** A channel, or -- with `workflowId` instead -- one bot's own chat, where
      *  there is nobody to @ because the bot is implied. */
@@ -150,8 +151,11 @@ export function ChannelComposer({
     channelName: string;
     /** Sent, with the bots it was handed to. */
     onSent?: (asked: number[]) => void;
+    /** Words already in the box when it opens -- "Build me a bot that " from
+     *  the door -- with the caret at the end, so the person just carries on. */
+    initialText?: string;
 }) {
-    const [text, setText] = useState('');
+    const [text, setText] = useState(initialText ?? '');
     const [sending, setSending] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
@@ -179,6 +183,15 @@ export function ChannelComposer({
     }, [channels]);
     const mirror = useRef<HTMLDivElement | null>(null);
     const input = useRef<HTMLTextAreaElement | null>(null);
+    useEffect(() => {
+        if (!initialText) return;
+        setText(initialText);
+        const box = input.current;
+        if (box) {
+            box.focus();
+            box.setSelectionRange(initialText.length, initialText.length);
+        }
+    }, [initialText]);
     // Files already uploaded and waiting to go with the next message. The
     // upload happens on pick, not on send: a 5MB PDF takes a moment, and a
     // send button that stalls for it reads as broken.
