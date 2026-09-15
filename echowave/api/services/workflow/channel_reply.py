@@ -215,6 +215,14 @@ async def answer_in_channel(
         colleagues = teammates_line(roster)
         if colleagues:
             thread = f"{colleagues}\n\n{thread}" if thread else colleagues
+        # The procedures this bot has been taught (services/skills). Ahead of
+        # the thread because a procedure is how to read what follows, and
+        # empty for a bot nobody has taught anything.
+        from api.services.skills import shelf as skills_shelf
+
+        taught = await skills_shelf.prompt_for_workflow(organization_id, workflow_id)
+        if taught:
+            thread = f"{taught}\n\n{thread}" if thread else taught
         text_session = await append_text_chat_user_message(
             run_id=run_id,
             text_session=text_session,

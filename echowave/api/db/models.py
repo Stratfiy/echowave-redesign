@@ -5836,3 +5836,56 @@ class SandboxJobModel(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     finished_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class OrganisationSkillModel(Base):
+    """A portable skill an account installed, and the bot it is on.
+
+    The catalogue is files on disk (services/skills/catalogue); this is what
+    an account did with it. One table rather than two: a row with no
+    ``workflow_id`` is "installed, not on a bot yet" -- the state the shelf
+    calls Installed -- and a row with one is the skill on that bot.
+
+    ``slug`` is deliberately not a foreign key. The catalogue ships with the
+    release, and a skill withdrawn from one should leave these rows alone
+    rather than fail a migration or cascade a customer's choice away.
+    """
+
+    __tablename__ = "organisation_skills"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    slug = Column(String(64), nullable=False)
+    workflow_id = Column(
+        Integer,
+        ForeignKey("workflows.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    added_by_user_id = Column(Integer, nullable=True)
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        Index(
+            "uq_organisation_skills_bot",
+            "organization_id",
+            "slug",
+            "workflow_id",
+            unique=True,
+            postgresql_where=text("workflow_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_organisation_skills_installed",
+            "organization_id",
+            "slug",
+            unique=True,
+            postgresql_where=text("workflow_id IS NULL"),
+        ),
+    )

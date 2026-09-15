@@ -5,6 +5,7 @@ import {
   ContactRound,
   Database,
   Globe,
+  GraduationCap,
   Handshake,
   Home,
   Key,
@@ -13,6 +14,7 @@ import {
   Megaphone,
   Phone,
   PhoneCall,
+  Plug,
   Settings,
   Shield,
   ShieldCheck,
@@ -21,6 +23,7 @@ import {
   UserCog,
   Wallet,
   Workflow,
+  Wrench,
 } from "lucide-react";
 
 export type SidebarNavItem = {
@@ -162,7 +165,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         //
         // "agents" and "team" both stay as search keywords: a rename that
         // makes a destination unsearchable is a rename that loses it.
-        title: "Bots",
+        title: "Your bots",
         url: "/workflow",
         // The old models page redirects here; keep it lit while it does.
         activePaths: ["/model-configurations"],
@@ -213,23 +216,43 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
           "playback",
         ],
       },
+      // The shop's departments, in the order somebody shops them: what a
+      // bot can do, how it should do it, the bot itself, and the systems it
+      // reaches. Entries rather than a tab strip across the screen -- the
+      // panel beside the rail is where a shop's departments belong.
       {
-        title: "Marketplace",
-        url: "/marketplace",
-        activePaths: ["/marketplace", "/integrations/apps"],
-        icon: ShoppingBag,
+        title: "Tools",
+        url: "/marketplace/tools",
+        icon: Wrench,
+        keywords: ["tools", "actions", "ready-made", "http", "webhook", "lookup"],
+      },
+      {
+        title: "Skills",
+        url: "/marketplace/skills",
+        icon: GraduationCap,
         keywords: [
-          "marketplace",
-          "bots",
-          "templates",
-          "tools",
-          "add",
-          "hire",
-          "connect",
-          "integrations",
-          "apps",
-          "connectors",
+          "skills",
+          "procedure",
+          "playbook",
+          "teach",
+          "how to",
+          "markdown",
+          "md",
         ],
+      },
+      {
+        title: "Bots",
+        url: "/marketplace",
+        activePaths: ["/marketplace"],
+        icon: ShoppingBag,
+        keywords: ["marketplace", "bots", "templates", "hire", "add", "shop"],
+      },
+      {
+        title: "Integrations",
+        url: "/marketplace/integrations",
+        activePaths: ["/integrations/apps"],
+        icon: Plug,
+        keywords: ["integrations", "apps", "connectors", "connect", "gmail", "whatsapp"],
       },
       // What this account has, not what it could add: the catalogue of apps
       // is the Marketplace's Integrations tab, and it was a second copy of
@@ -535,7 +558,13 @@ export const NAV_CONTEXTS: NavContext[] = [
     icon: ShoppingBag,
     // The whole shop -- tools, bots, the apps a bot reaches -- and beside
     // it what this account has taken from it.
-    urls: ["/marketplace", "/tools"],
+    urls: [
+      "/marketplace",
+      "/marketplace/tools",
+      "/marketplace/skills",
+      "/marketplace/integrations",
+      "/tools",
+    ],
   },
   {
     id: "setup",
