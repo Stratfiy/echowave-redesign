@@ -129,10 +129,13 @@ async def ask(
     attachments: list[dict[str, Any]],
     line: str,
     preset: str | None,
+    reply_to: dict[str, Any] | None = None,
 ) -> list[int]:
     """Record the person's line, hand off any mentions, queue the reply.
 
-    Returns the bots the line was handed to.
+    Returns the bots the line was handed to. ``reply_to`` names a channel
+    the answer should also go back on -- a person who wrote on WhatsApp
+    reads the answer there, as well as on the thread.
     """
     workflows = await db_client.get_all_workflows_for_listing(
         organization_id=organization_id
@@ -161,6 +164,7 @@ async def ask(
             "attachments": attachments,
             "preset": preset,
             "to": NAME,
+            "via": (reply_to or {}).get("channel"),
         },
         in_channel=False,
     )
@@ -200,6 +204,7 @@ async def ask(
             asked,
             preset,
             subjects,
+            reply_to,
         )
     except Exception as exc:  # noqa: BLE001 - said out loud below
         logger.error("Decibyl could not be asked to answer: {}", exc)

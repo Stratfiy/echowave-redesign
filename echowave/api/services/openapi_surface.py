@@ -78,6 +78,7 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "triggers",
             "public-triggers",
             "public-email",
+            "public-whatsapp",
             "routines",
             "tasks",
             "google-calendar",

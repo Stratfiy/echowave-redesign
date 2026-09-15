@@ -361,6 +361,39 @@ async def deliver(
 
         if not platform_whatsapp.is_configured():
             raise DocumentError("WhatsApp sending is not set up on this deployment.")
+        # The 24-hour rule, as a fact: a file goes only while the person's
+        # window is open. Closed, an approved template offers it on reply;
+        # no template, an honest refusal. Unknown (no Redis), we try and
+        # take Meta's word for it.
+        from api import constants
+        from api.services.messaging import whatsapp_inbound
+
+        window = await whatsapp_inbound.session_open(to)
+        if window is False:
+            template = (constants.WHATSAPP_FILE_OFFER_TEMPLATE or "").strip()
+            if not template:
+                raise DocumentError(
+                    "WhatsApp only lets us send a file within 24 hours of the "
+                    "person's last message. Ask them to message the number "
+                    "first, or send it by email."
+                )
+            offer = await send_message(
+                provider=platform_whatsapp.PROVIDER,
+                credentials=platform_whatsapp.credentials(),
+                to=to,
+                from_="",
+                body=f"Reply to receive {filename}",
+                template={"name": template, "language": "en", "params": [filename]},
+            )
+            if not offer.ok:
+                raise DocumentError(f"WhatsApp did not take the offer: {offer.error}")
+            await _charge_whatsapp(
+                organization_id, message_id=offer.message_id or ref_id
+            )
+            return (
+                f"Offered {filename} to {mask_destination(to)} on WhatsApp; it goes "
+                "when they reply."
+            )
         result = await send_message(
             provider=platform_whatsapp.PROVIDER,
             credentials=platform_whatsapp.credentials(),
