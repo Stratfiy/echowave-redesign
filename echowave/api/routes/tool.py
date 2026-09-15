@@ -39,7 +39,7 @@ from api.services.tool_management import (
     populate_discovered_tools as _populate_discovered_tools,
 )
 
-router = APIRouter(prefix="/tools")
+router = APIRouter(prefix="/tools", tags=["tools"])
 
 __all__ = [
     "CalculatorToolDefinition",

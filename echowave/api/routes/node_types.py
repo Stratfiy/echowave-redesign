@@ -22,7 +22,7 @@ from api.services.workflow.node_specs import (
     get_spec,
 )
 
-router = APIRouter(prefix="/node-types")
+router = APIRouter(prefix="/node-types", tags=["node-types"])
 
 
 class NodeTypesResponse(BaseModel):

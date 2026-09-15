@@ -91,6 +91,42 @@ The platform fee and the per-unit rates themselves are **not** environment
 variables — they live in the rate card in the database and are edited at
 `/superadmin/billing`.
 
+## 2a. GST and invoices — who is supplying
+
+Every invoice, receipt voucher and credit note prints the supplier from these.
+None has a default worth shipping: a box without them issues documents with an
+empty top half, and `/superadmin/billing` → Readiness says so.
+
+```bash
+# The legal entity on the invoice. GSTIN's first two digits are the state
+# code, which decides CGST+SGST (same state as the customer) versus IGST for
+# every domestic sale — the single most consequential value here.
+SUPPLIER_LEGAL_NAME=
+SUPPLIER_GSTIN=
+SUPPLIER_STATE_CODE=          # derived from the GSTIN when empty
+SUPPLIER_ADDRESS=
+SUPPLIER_PAN=
+
+# Printed on every invoice. Udyam is what makes the 45-day payment rule
+# (MSMED Act s15) bind an enterprise customer.
+SUPPLIER_UDYAM_NUMBER=
+
+# Export of services. Without a Letter of Undertaking on file an export is
+# not zero-rated, so dollar sales are refused rather than invoiced at zero.
+# The LUT is filed per financial year; past VALID_UNTIL, exports are refused
+# again and Readiness reports it.
+SUPPLIER_HAS_LUT=false
+SUPPLIER_LUT_NUMBER=          # the ARN on the acknowledgement
+SUPPLIER_LUT_VALID_UNTIL=     # ISO date, e.g. 2027-03-31
+
+# Rarely changed. 1800 = 18%; the SAC for IT/SaaS services.
+GST_RATE_BASIS_POINTS=1800
+SUPPLIER_SAC_CODE=998314
+```
+
+The values for the production entity are on the Jira ticket for GST
+readiness (KAN-80), not in this file or in source.
+
 ## 3. Outbound mail — new requirement this round
 
 The markup confirmation code goes to a fixed address, `hello@decibyl.ai`. That

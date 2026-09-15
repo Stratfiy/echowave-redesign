@@ -52,7 +52,7 @@ from api.services.pipecat.ws_sender_registry import (
 )
 from api.services.quota_service import authorize_workflow_run_start
 
-router = APIRouter(prefix="/ws")
+router = APIRouter(prefix="/ws", tags=["webrtc"])
 
 
 class NonRelayFilterPolicy(Enum):

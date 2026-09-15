@@ -17,7 +17,7 @@ from api.utils.recording_artifacts import (
     get_recording_storage_key,
 )
 
-router = APIRouter(prefix="/public/download")
+router = APIRouter(prefix="/public/download", tags=["public-download"])
 
 
 @router.get("/workflow/{token}/{artifact_type}")

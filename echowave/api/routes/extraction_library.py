@@ -19,7 +19,7 @@ from api.services.workflow.extraction_library import (
     get_library,
 )
 
-router = APIRouter(prefix="/extraction-library")
+router = APIRouter(prefix="/extraction-library", tags=["extraction-library"])
 
 
 @router.get(

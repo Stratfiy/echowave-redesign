@@ -8,7 +8,7 @@ from api.db.models import UserModel
 from api.services.auth.depends import get_user
 from api.services.reports import DailyReportService
 
-router = APIRouter(prefix="/organizations/reports")
+router = APIRouter(prefix="/organizations/reports", tags=["reports"])
 
 
 class DailyReportResponse(BaseModel):

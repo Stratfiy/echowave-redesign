@@ -26,7 +26,7 @@ from api.services.embed_logo import (
 from api.services.posthog_client import capture_event
 from api.services.storage import get_current_storage_backend, get_storage
 
-router = APIRouter(prefix="/workflow")
+router = APIRouter(prefix="/workflow", tags=["embed"])
 
 
 def generate_embed_script(token: EmbedTokenModel) -> str:

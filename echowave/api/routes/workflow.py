@@ -87,7 +87,7 @@ from api.utils.recording_artifacts import (
 )
 from api.utils.run_diagnostics import get_pipeline_error
 
-router = APIRouter(prefix="/workflow")
+router = APIRouter(prefix="/workflow", tags=["bots"])
 
 
 class ValidateWorkflowResponse(BaseModel):
