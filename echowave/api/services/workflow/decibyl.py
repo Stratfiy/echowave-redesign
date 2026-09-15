@@ -131,6 +131,12 @@ SYSTEM = (
     "- An 'Asked before' block in the context is something the person once "
     "asked memory about that this line touches: mention it in a clause "
     "only when it helps the line, never as a separate announcement.\n"
+    "- A file attached to the line (under 'Attached to this line') is the "
+    "material for the request. Read it before answering. 'Build a bot for "
+    "this' with a document attached is a brief: pick the closest template "
+    "yourself from what the document describes, name the bot from it, fill "
+    "the template's answers from the document, and call create_bot; do not "
+    "ask which template. Ask only for an answer the document does not give.\n"
     "- Never repeat an OTP, a card number or an identity number.\n"
     f"- {untrusted.RULE}\n"
 )
@@ -234,6 +240,7 @@ async def ask(
             subjects,
             reply_to,
             user_id,
+            attachments,
         )
     except Exception as exc:  # noqa: BLE001 - said out loud below
         logger.error("Decibyl could not be asked to answer: {}", exc)
@@ -474,8 +481,14 @@ async def answer(
     preset: str | None = None,
     subjects: list[int] | None = None,
     author_id: int | None = None,
+    attachments: list[dict[str, Any]] | None = None,
 ) -> str:
     """Compose the context, call the model, record the reply. Returns it.
+
+    ``attachments`` are the files on the line (document uuid, filename):
+    their text joins the context, because a file on a line is the material
+    for the request -- "build a bot for this" with a document attached is
+    a brief, not a question about templates.
 
     ``author_id`` is the signed-in person who wrote the line, when known:
     a switch that is theirs alone (memory_messages) needs it.
@@ -527,6 +540,9 @@ async def answer(
         asked_before = ""
     if asked_before:
         context = f"{context}\n\n{asked_before}"
+    attached = await attached_block(organization_id, attachments)
+    if attached:
+        context = f"{context}\n\n{attached}"
     conversation.add_user(f"{context}\n\n## Question\n{text}{handed}")
 
     try:
@@ -599,6 +615,64 @@ async def answer(
     except Exception as exc:  # noqa: BLE001
         logger.warning("Could not note decisions from the thread: {}", exc)
     return body
+
+
+#: How much of an attached file the model is shown, per file and in all.
+ATTACHMENT_CHARS = 12_000
+ATTACHMENTS_CHARS = 30_000
+#: How long to wait for a file that arrived a moment ago to be read.
+ATTACHMENT_WAIT_SECONDS = 20
+
+
+async def attached_block(
+    organization_id: int, attachments: list[dict[str, Any]] | None
+) -> str:
+    """The text of the files on this line, as a context block, or empty.
+
+    A file dropped on the thread is filed and read by the knowledge-base
+    pipeline; its text is usually there within seconds. A short wait covers
+    the usual case, and a file still being read is named as such so the
+    model says so rather than asking what the person meant."""
+    import asyncio
+
+    if not attachments:
+        return ""
+    parts: list[str] = []
+    budget = ATTACHMENTS_CHARS
+    for attachment in attachments[:10]:
+        uuid = str(attachment.get("document_uuid") or "")
+        name = str(attachment.get("filename") or "file")
+        if not uuid:
+            continue
+        text = ""
+        waited = 0.0
+        while waited <= ATTACHMENT_WAIT_SECONDS:
+            try:
+                document = await db_client.get_document_by_uuid(
+                    uuid, organization_id=organization_id
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Could not read attachment {}: {}", uuid, exc)
+                document = None
+            text = (
+                (getattr(document, "full_text", None) or "").strip() if document else ""
+            )
+            if text or document is None:
+                break
+            await asyncio.sleep(2)
+            waited += 2
+        if not text:
+            parts.append(
+                f"### {name}\n(still being read; say so and offer to continue once it is)"
+            )
+            continue
+        take = min(ATTACHMENT_CHARS, budget)
+        clipped = text[:take] + (" …" if len(text) > take else "")
+        budget -= len(clipped)
+        parts.append(f"### {name}\n{clipped}")
+        if budget <= 0:
+            break
+    return "## Attached to this line\n" + "\n\n".join(parts) if parts else ""
 
 
 #: Tool rounds a single reply may take. Four covers "look it up, then do
