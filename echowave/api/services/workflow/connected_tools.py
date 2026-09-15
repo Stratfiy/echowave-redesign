@@ -28,12 +28,13 @@ notices; the worst case of guessing "read" is an email that went out.
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, Optional
 
 from loguru import logger
 
 from api.db import db_client
 from api.enums import ToolCategory, ToolStatus
+from api.services.integrations.composio import schema as tool_schema
 from api.services.integrations.composio.client import (
     ComposioNotConfigured,
 )
@@ -45,6 +46,17 @@ from api.services.workflow.tools.custom_tool import tool_to_function_schema
 #: Function names the model sees, so a connected app can never shadow one of
 #: Decibyl's own tools (``propose_action`` and friends).
 PREFIX = "app_"
+
+#: The one tool that stands in for every connected app's argument list.
+#:
+#: **Deferred loading.** A workspace with thirty connected tools would put
+#: thirty argument schemas into every turn, most of them for tools this
+#: turn will never call. So the model is shown each tool by name and one
+#: line, and asked to call this first for the one it means to use. The reply
+#: is that tool's full schema, and from the next round the tool is offered
+#: with it. Two hops for the first use of a tool in a thread; one line per
+#: tool on every other turn.
+LOAD_TOOL_NAME = "load_tool"
 
 #: The verb in a Composio slug that marks a tool as changing nothing. Slugs
 #: are ``TOOLKIT_VERB_OBJECT``; the verb is the second token.
@@ -133,23 +145,113 @@ async def list_for_organization(organization_id: int) -> list[Any]:
     return [t for t in rows if is_connected(t)]
 
 
-def schema_for(tool: Any) -> dict[str, Any]:
-    """One tool in the shape the workspace assistant's model client takes."""
-    generated = tool_to_function_schema(tool)["function"]
+def _description(tool: Any, generated: dict[str, Any]) -> str:
     verb = "reads" if is_read(tool) else "proposes a card for"
     app = toolkit_of(tool)
     where = f" in {app}" if app else ""
+    return f"{generated['description']} ({verb} the connected app{where}.)"
+
+
+def schema_for(tool: Any, full: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    """One tool in the shape the workspace assistant's model client takes.
+
+    With ``full`` -- the tool's argument schema, from
+    :func:`load` -- the model gets every argument. Without it, the row's own
+    declared parameters, which for a tool attached from the chat is none.
+    """
+    generated = tool_to_function_schema(tool)["function"]
+    parameters = generated["parameters"]
+    if full and not parameters.get("properties"):
+        parameters = full
     return {
         "name": function_name(tool),
-        "description": (
-            f"{generated['description']} ({verb} the connected app{where}.)"
-        )[:1_000],
-        "parameters": generated["parameters"],
+        "description": _description(tool, generated)[:1_000],
+        "parameters": parameters,
     }
 
 
-def schemas(tools: list[Any]) -> list[dict[str, Any]]:
-    return [schema_for(t) for t in tools]
+def index_entry(tool: Any) -> dict[str, Any]:
+    """The tool by name and one line, with no arguments: what every turn
+    carries for a tool it has not loaded."""
+    generated = tool_to_function_schema(tool)["function"]
+    return {
+        "name": function_name(tool),
+        "description": (
+            f"{_description(tool, generated)} Call {LOAD_TOOL_NAME} with this "
+            "name first to get its arguments."
+        )[:1_000],
+        "parameters": {"type": "object", "properties": {}},
+    }
+
+
+def load_tool_schema() -> dict[str, Any]:
+    return {
+        "name": LOAD_TOOL_NAME,
+        "description": (
+            "Get the full argument list of one connected-app tool before "
+            "calling it. The app_… tools are listed by name only; call this "
+            "with the exact name of the one you need, then call that tool "
+            "with the arguments it returns. Load only what this reply needs."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "The app_… tool name, exactly as listed.",
+                }
+            },
+            "required": ["name"],
+        },
+    }
+
+
+def schemas(
+    tools: list[Any], loaded: Optional[dict[str, dict[str, Any]]] = None
+) -> list[dict[str, Any]]:
+    """The connected apps as the model sees them this round.
+
+    ``loaded`` maps a function name to its argument schema, for the tools
+    the thread has asked about; those are offered in full. Every other tool
+    is a name and a line, plus the one tool that loads the rest. No tools,
+    no loader: an empty workspace is not offered a way to load nothing.
+    """
+    if not tools:
+        return []
+    loaded = loaded or {}
+    out = [load_tool_schema()]
+    for tool in tools:
+        name = function_name(tool)
+        if name in loaded:
+            out.append(schema_for(tool, loaded[name]))
+        else:
+            out.append(index_entry(tool))
+    return out
+
+
+async def load(tool: Any) -> dict[str, Any]:
+    """The tool's argument schema, for the model that asked.
+
+    A schema that could not be read is not an error the model can act on:
+    it is told to call the tool with what the description implies, which is
+    what it would have done before deferred loading existed.
+    """
+    slug = slug_of(tool) or ""
+    declared = tool_to_function_schema(tool)["function"]["parameters"]
+    schema = (
+        declared if declared.get("properties") else await tool_schema.input_schema(slug)
+    )
+    if not schema:
+        return {
+            "status": "success",
+            "tool": function_name(tool),
+            "parameters": {"type": "object", "properties": {}},
+            "note": (
+                "No argument list is published for this tool. Call it with "
+                "the arguments its description implies."
+            ),
+        }
+    return {"status": "success", "tool": function_name(tool), "parameters": schema}
 
 
 def by_function_name(tools: list[Any]) -> dict[str, Any]:
@@ -166,7 +268,8 @@ def apps_block(tools: list[Any]) -> str:
     return (
         f"Connected: {', '.join(apps)}. {len(tools)} tools ({reads} read-only). "
         "Read tools run as you answer; anything that sends, creates or changes "
-        "something proposes a card first."
+        f"something proposes a card first. Tools are listed by name; call "
+        f"{LOAD_TOOL_NAME} for the one you need before using it."
     )
 
 
@@ -230,6 +333,7 @@ async def execute(
 
 
 __all__ = [
+    "LOAD_TOOL_NAME",
     "MAX_RESULT_CHARS",
     "PREFIX",
     "READ_VERBS",
@@ -237,9 +341,12 @@ __all__ = [
     "by_function_name",
     "execute",
     "function_name",
+    "index_entry",
     "is_connected",
     "is_read",
     "list_for_organization",
+    "load",
+    "load_tool_schema",
     "schema_for",
     "schemas",
     "slug_of",

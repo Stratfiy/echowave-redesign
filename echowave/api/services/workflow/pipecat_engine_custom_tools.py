@@ -24,6 +24,7 @@ from pipecat.utils.enums import EndTaskReason
 from api.db import db_client
 from api.enums import ToolCategory, WorkflowRunMode
 from api.schemas.tool import DEFAULT_COMPOSIO_TIMEOUT_SECS
+from api.services.integrations.composio import schema as composio_schema
 from api.services.integrations.composio.client import (
     ComposioNotConfigured,
 )
@@ -422,15 +423,31 @@ class CustomToolManager:
 
                 raw_schema = tool_to_function_schema(tool)
                 function_name = raw_schema["function"]["name"]
+                properties = raw_schema["function"]["parameters"].get("properties", {})
+                required = raw_schema["function"]["parameters"].get("required", [])
+
+                if tool.category == ToolCategory.COMPOSIO.value and not properties:
+                    # A Composio tool attached from the chat declares no
+                    # arguments, so the model was guessing them. Its schema
+                    # is read on demand: from the cache when this tool has
+                    # been seen before, and behind the call when not -- a
+                    # caller is never made to wait on a vendor for it, and
+                    # the next call opens with the arguments known.
+                    slug = ((tool.definition or {}).get("config") or {}).get(
+                        "tool_slug"
+                    ) or ""
+                    if slug:
+                        known = await composio_schema.cached(slug)
+                        if known is None:
+                            composio_schema.warm(slug)
+                        properties, required = composio_schema.properties_of(known)
 
                 # Convert to FunctionSchema object for compatibility with update_llm_context
                 func_schema = get_function_schema(
                     function_name,
                     raw_schema["function"]["description"],
-                    properties=raw_schema["function"]["parameters"].get(
-                        "properties", {}
-                    ),
-                    required=raw_schema["function"]["parameters"].get("required", []),
+                    properties=properties,
+                    required=required,
                 )
                 schemas.append(func_schema)
 

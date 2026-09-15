@@ -548,7 +548,10 @@ async def answer(
     try:
         async with db_client.async_session() as session:
             model = await settings.resolve_model(session)
-        tools = await tools_for(organization_id)
+        # Schemas the model has loaded this thread, by tool name. Starts
+        # empty: every connected app is a name and a line until asked for.
+        loaded: dict[str, dict[str, Any]] = {}
+        tools = await tools_for(organization_id, loaded)
         reply = await _speak(model, conversation, organization_id, tools=tools)
         # Up to MAX_TOOL_ROUNDS rounds, not one: a read of a connected app
         # feeds the answer, and a read may precede a proposed write ("find
@@ -567,11 +570,19 @@ async def answer(
             rounds += 1
             conversation.add_assistant(reply)
             reads_only = True
+            asked_for_schema = False
             for call in reply.tool_calls:
-                result = await _tool(organization_id, call, author_id)
+                if call.name == connected_tools.LOAD_TOOL_NAME:
+                    result = await _load_tool(organization_id, call, loaded)
+                    asked_for_schema = True
+                else:
+                    result = await _tool(organization_id, call, author_id)
                 conversation.add_tool_result(call, result)
                 if not _was_a_read(call, result):
                     reads_only = False
+            if asked_for_schema:
+                # The tool it asked about is now offered with its arguments.
+                tools = await tools_for(organization_id, loaded)
             reply = await _speak(
                 model,
                 conversation,
@@ -703,11 +714,17 @@ def office_tools() -> list[dict[str, Any]]:
 TOOLS = office_tools
 
 
-async def tools_for(organization_id: int) -> list[dict[str, Any]]:
+async def tools_for(
+    organization_id: int, loaded: dict[str, dict[str, Any]] | None = None
+) -> list[dict[str, Any]]:
     """The five, plus the workspace's connected apps (see connected_tools).
-    A read runs in the turn; a write becomes a run_tool card."""
+    A read runs in the turn; a write becomes a run_tool card.
+
+    Connected apps are deferred: each is a name and a line until the model
+    loads it, and ``loaded`` carries the schemas this thread has asked for
+    so far, so a loaded tool is offered in full on every later round."""
     connected = await connected_tools.list_for_organization(organization_id)
-    return office_tools() + connected_tools.schemas(connected)
+    return office_tools() + connected_tools.schemas(connected, loaded)
 
 
 def _was_a_read(call: Any, result: Any) -> bool:
@@ -718,11 +735,37 @@ def _was_a_read(call: Any, result: Any) -> bool:
     return (
         (
             name.startswith(connected_tools.PREFIX)
-            or name in (documents.FIND_TOOL_NAME, recall.TOOL_NAME)
+            or name
+            in (
+                documents.FIND_TOOL_NAME,
+                recall.TOOL_NAME,
+                connected_tools.LOAD_TOOL_NAME,
+            )
         )
         and isinstance(result, dict)
         and result.get("status") in ("success", "error")
     )
+
+
+async def _load_tool(
+    organization_id: int, call: Any, loaded: dict[str, dict[str, Any]]
+) -> dict[str, Any]:
+    """The model asked for a connected tool's arguments. Answer with the
+    schema and remember it, so the next round offers the tool in full."""
+    name = str((call.arguments or {}).get("name") or "").strip()
+    available = connected_tools.by_function_name(
+        await connected_tools.list_for_organization(organization_id)
+    )
+    tool = available.get(name)
+    if tool is None:
+        return {
+            "status": "unavailable",
+            "reason": "no connected tool by that name; use a name from the list",
+        }
+    result = await connected_tools.load(tool)
+    if isinstance(result.get("parameters"), dict):
+        loaded[name] = result["parameters"]
+    return result
 
 
 async def _app_tool(organization_id: int, call: Any) -> dict[str, Any]:

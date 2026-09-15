@@ -100,7 +100,7 @@ def _thread(last_line: str, *, context: str = "## Team\nnothing", apps=None):
             patch.object(
                 connected_tools,
                 "schemas",
-                lambda tools: [
+                lambda tools, loaded=None: [
                     {
                         "name": t.name,
                         "description": t.name,
