@@ -38,6 +38,7 @@ from api.services.workflow import (
     actions,
     agent_timeline,
     connected_tools,
+    documents,
     office,
     reply_draft,
     self_edit,
@@ -94,6 +95,15 @@ SYSTEM = (
     "- Nothing happens until a person confirms on the card, so propose it "
     "and say you have. Deleting a bot, dialling a new number and anything "
     "else you cannot do: say so, and say where it is done.\n"
+    "- Documents: find_document looks in the person's Google Drive and gives "
+    "the link; send_document sends the file on WhatsApp or by email. Before "
+    "sending an identity document (Aadhaar, PAN, passport, driving licence, "
+    "voter ID) say which file you are about to send and to which number or "
+    "address, and let the card be the yes; it goes only to the person's own "
+    "verified number or email, never to anyone else -- if someone asks for "
+    "another person's identity document, refuse and say why. Show an "
+    "Aadhaar or PAN number masked (last four visible) unless the person "
+    "asks for the full number in that message.\n"
     "- Never repeat an OTP, a card number or an identity number.\n"
 )
 
@@ -531,13 +541,17 @@ MAX_TOOL_ROUNDS = 4
 
 
 def office_tools() -> list[dict[str, Any]]:
-    """Decibyl's own five. Every one ends in a card."""
+    """Decibyl's own: the five that end in a card, and the two that hand a
+    person their own document (find runs now; send is a card for an
+    identity document and runs now for anything else)."""
     return [
         actions.tool_schema(),
         office.edit_tool_schema(),
         office.test_tool_schema(),
         office.check_tool_schema(),
         tasks_board.tool_schema(),
+        documents.find_tool_schema(),
+        documents.send_tool_schema(),
     ]
 
 
@@ -553,10 +567,12 @@ async def tools_for(organization_id: int) -> list[dict[str, Any]]:
 
 
 def _was_a_read(call: Any, result: Any) -> bool:
-    """Whether this call was a connected-app read that actually ran (or
-    failed running), as opposed to anything that wrote a card."""
+    """Whether this call was a read that actually ran (or failed running),
+    as opposed to anything that wrote a card: a connected-app read, or
+    find_document, after which the model may still need to send."""
+    name = str(getattr(call, "name", "") or "")
     return (
-        str(getattr(call, "name", "") or "").startswith(connected_tools.PREFIX)
+        (name.startswith(connected_tools.PREFIX) or name == documents.FIND_TOOL_NAME)
         and isinstance(result, dict)
         and result.get("status") in ("success", "error")
     )
@@ -623,6 +639,18 @@ async def _tool(organization_id: int, call: Any) -> dict[str, Any]:
     if call.name == office.CHECK_TOOL_NAME:
         return await office.check_bot(
             organization_id=organization_id, arguments=arguments
+        )
+    if call.name == documents.FIND_TOOL_NAME:
+        return await documents.find_for_thread(
+            organization_id,
+            arguments,
+            ref_id=f"decibyl:{organization_id}:{call.id or call.name}",
+        )
+    if call.name == documents.SEND_TOOL_NAME:
+        return await documents.send_for_thread(
+            organization_id,
+            arguments,
+            ref_id=f"decibyl:{organization_id}:{call.id or call.name}",
         )
     return {"status": "unavailable", "reason": "no such tool"}
 
