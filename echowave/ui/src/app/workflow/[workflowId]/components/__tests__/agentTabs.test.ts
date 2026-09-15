@@ -59,17 +59,16 @@ describe("the agent's tabs", () => {
     });
 });
 
-describe("chat, instructions, graph", () => {
-    it("opens on chat and offers both views of the definition", () => {
+describe("chat, then the definition", () => {
+    it("opens on chat, with the definition beside it", () => {
         const labels = AGENT_TABS.map((tab) => tab.label);
-        expect(labels.slice(0, 3)).toEqual(["Chat", "Instructions", "Graph"]);
+        expect(labels.slice(0, 2)).toEqual(["Chat", "Instructions"]);
     });
 
-    it("makes the graph a place with an address", () => {
-        // A view that was a button inside another view was a view nobody
-        // could link to. ?view=graph is the link.
-        const graph = AGENT_TABS.find((tab) => tab.key === "graph");
-        expect(graph).toBeTruthy();
-        expect("settingsTab" in graph!).toBe(false);
+    it("does not offer the graph as a tab of its own", () => {
+        // The canvas is how the instructions are drawn, not a thing the bot
+        // has beside Logs and Tools. It is still a linkable place
+        // (?view=graph) and Instructions carries the button to it.
+        expect(AGENT_TABS.map((tab) => tab.label as string)).not.toContain("Graph");
     });
 });

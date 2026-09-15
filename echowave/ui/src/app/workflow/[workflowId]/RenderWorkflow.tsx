@@ -583,7 +583,7 @@ function RenderWorkflow({
                 {/* One agent, five tabs -- the shape Vapi uses. These were four
                     unrelated URLs reached from a back arrow and a menu, so an
                     agent was never one thing you were looking at. */}
-                <AgentTabs workflowId={workflowId} view={showCanvas ? "graph" : "instructions"} />
+                <AgentTabs workflowId={workflowId} />
 
                 {/* Workflow Canvas */}
                 <div className="flex-1 min-h-0">
