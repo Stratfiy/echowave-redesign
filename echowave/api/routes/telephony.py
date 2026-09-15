@@ -65,6 +65,10 @@ from api.services.telephony.transfer_event_protocol import (
     TransferEvent,
     TransferEventType,
 )
+from api.services.telephony.webhook_guard import (
+    provider_for_transfer,
+    require_signature,
+)
 from api.services.workflow import agent_hours, liveness
 from api.tasks.arq import enqueue_job
 from api.tasks.function_names import FunctionNames
@@ -1554,6 +1558,10 @@ async def complete_transfer_function_call(transfer_id: str, request: Request):
     """
     form_data = await request.form()
     data = dict(form_data)
+    resolved = await provider_for_transfer(transfer_id)
+    if resolved is None:
+        return {"status": "ignored", "reason": "unknown_transfer"}
+    await require_signature(request, resolved[0], data)
 
     call_status = data.get("CallStatus", "")
     call_sid = data.get("CallSid", "")
