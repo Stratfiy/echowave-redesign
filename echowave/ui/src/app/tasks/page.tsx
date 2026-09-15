@@ -49,11 +49,24 @@ type Task = {
 type BotRow = { id: number; name: string; handle: string | null };
 
 const COLUMNS: { id: string; label: string; hint: string }[] = [
-    { id: "todo", label: "To do", hint: "Filed, not started" },
+    // Scheduled is not a status in the database and should not be: a task
+    // filed for Tuesday *is* to-do, and on Tuesday it is to-do that day.
+    // It is the same rows read by their due date, which is what somebody
+    // scanning the board wants -- what is waiting for a date, and what is
+    // waiting for them.
+    { id: "scheduled", label: "Scheduled", hint: "Filed for a date still ahead" },
+    { id: "todo", label: "To do", hint: "Filed, nothing holding it" },
     { id: "doing", label: "Doing", hint: "A bot is on it" },
     { id: "waiting", label: "Waiting", hint: "Needs a person or a retry" },
     { id: "done", label: "Done", hint: "With the result" },
 ];
+
+/** A task filed for a date that has not arrived. */
+function isScheduled(task: Task, now: number): boolean {
+    if (task.status !== "todo" || !task.due_at) return false;
+    const due = new Date(task.due_at).getTime();
+    return Number.isFinite(due) && due > now;
+}
 
 function when(iso: string | null): string {
     if (!iso) return "";
@@ -148,8 +161,17 @@ export default function TasksPage() {
 
     if (authLoading || loading) return <SpinLoader />;
 
-    const inColumn = (id: string) =>
-        tasks.filter((t) => (id === "done" ? t.status === "done" || t.status === "could_not" : t.status === id));
+    const now = Date.now();
+    const inColumn = (id: string) => {
+        if (id === "done") {
+            return tasks.filter((t) => t.status === "done" || t.status === "could_not");
+        }
+        if (id === "scheduled") return tasks.filter((t) => isScheduled(t, now));
+        if (id === "todo") {
+            return tasks.filter((t) => t.status === "todo" && !isScheduled(t, now));
+        }
+        return tasks.filter((t) => t.status === id);
+    };
 
     return (
         <>
@@ -226,7 +248,7 @@ export default function TasksPage() {
                 </CardContent>
             </Card>
 
-            <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                 {COLUMNS.map((column) => (
                     <section key={column.id} aria-label={column.label} className="min-w-0">
                         <h2 className="text-sm font-semibold">
