@@ -18,6 +18,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from api import constants
 from api.services.workflow import bot_triggers
 
 UUID = "11111111-2222-3333-4444-555555555555"
@@ -132,6 +133,33 @@ def _trigger(**overrides):
 
 
 @pytest.mark.asyncio
+class TestOurOwnMailNeverFiresABot:
+    """A bot's reply to the address that triggered it must not trigger it."""
+
+    def test_mail_from_the_inbound_domain_is_ours(self):
+        assert bot_triggers.is_own_mail(f"{UUID}@in.decibyl.ai")
+        assert bot_triggers.is_own_mail(f"Front desk <{UUID}@IN.decibyl.ai>")
+
+    def test_mail_from_a_platform_sender_is_ours(self):
+        with (
+            patch.object(constants, "EMAIL_FROM_ADDRESS", "hello@decibyl.ai"),
+            patch.object(constants, "EMAIL_FROM_BILLING", "billing@decibyl.ai"),
+        ):
+            assert bot_triggers.is_own_mail("hello@decibyl.ai")
+            assert bot_triggers.is_own_mail("Decibyl Billing <Billing@decibyl.ai>")
+
+    def test_a_customer_on_our_sending_domain_is_not_ours(self):
+        """Only the exact sending addresses count, not everyone at decibyl.ai."""
+        with patch.object(constants, "EMAIL_FROM_ADDRESS", "hello@decibyl.ai"):
+            assert not bot_triggers.is_own_mail("someone@decibyl.ai")
+
+    def test_ordinary_senders_and_junk_are_not_ours(self):
+        assert not bot_triggers.is_own_mail("meera@shop.example")
+        assert not bot_triggers.is_own_mail("")
+        assert not bot_triggers.is_own_mail(None)
+        assert not bot_triggers.is_own_mail("not an address")
+
+
 class TestTheInboundRoute:
     """The public route, with the store and the queue stood in for."""
 
@@ -179,6 +207,22 @@ class TestTheInboundRoute:
         assert args[0] == "run_bot_trigger" and args[1] == 7
         assert args[2]["from"] == "meera@shop.example" and args[3] == "<m1@x>"
         assert remember.await_args.args[1] == "<m1@x>"
+
+    async def test_a_bots_own_reply_is_dropped_before_anything_is_counted(self):
+        response, enqueue, remember = await self._post(
+            _trigger(),
+            json={
+                "to": f"{UUID}@in.decibyl.ai",
+                "from": f"Orders bot <{UUID}@in.decibyl.ai>",
+                "subject": "Re: Order 91",
+                "text": "Noted, thanks.",
+                "message-id": "<reply-1@x>",
+            },
+        )
+        assert response.status_code == 200
+        assert response.json()["status"] == "own_mail"
+        assert not enqueue.await_count
+        assert not remember.await_count
 
     async def test_a_message_with_no_recipient_does_nothing(self):
         response, enqueue, _ = await self._post(
