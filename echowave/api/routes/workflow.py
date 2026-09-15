@@ -2106,6 +2106,21 @@ async def create_workflow_run(
         use_draft=True,
         organization_id=user.selected_organization_id,
     )
+    # This route is the tester's: a person in the editor, on the draft.
+    # Stamped so the numbers, the outcomes and the memory can leave it out
+    # (services/workflow/test_runs.py), the way the text tester's run is.
+    from api.services.workflow import test_runs
+
+    run = await db_client.update_workflow_run(
+        run.id,
+        annotations={
+            **(run.annotations or {}),
+            **test_runs.stamp(
+                "workflow_editor",
+                "voice" if str(request.mode) in test_runs.TEST_MODES else "text",
+            ),
+        },
+    )
     return {
         "id": run.id,
         "workflow_id": run.workflow_id,

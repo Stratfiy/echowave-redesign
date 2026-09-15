@@ -166,15 +166,24 @@ async def record_call_ended(workflow_run_id: int) -> None:
         if duration is None and run.answered_at and run.ended_at:
             duration = int((run.ended_at - run.answered_at).total_seconds())
         answered = run.answered_at is not None or (duration or 0) > 0
+        from api.services.workflow import test_runs
+
+        is_test = test_runs.is_test(run)
+        summary = call_summary(
+            answered=answered,
+            duration_seconds=duration or 0,
+            disposition=str(disposition) if disposition else None,
+        )
+        if is_test:
+            # Said on the row, not only in the payload: the thread is read
+            # by people, and a test call that looked like a customer's would
+            # be a thread that lies (KAN-140).
+            summary = f"Test call · {summary}"
         await record(
             organization_id=organization_id,
             kind=AgentEventKind.CALL_ENDED.value,
             actor=AgentEventActor.AGENT.value,
-            summary=call_summary(
-                answered=answered,
-                duration_seconds=duration or 0,
-                disposition=str(disposition) if disposition else None,
-            ),
+            summary=summary,
             workflow_id=run.workflow_id,
             workflow_run_id=workflow_run_id,
             payload={
@@ -185,6 +194,7 @@ async def record_call_ended(workflow_run_id: int) -> None:
                 "call_type": str(getattr(run.call_type, "value", run.call_type) or ""),
                 "disposition": str(disposition) if disposition else None,
                 "has_recording": bool(run.recording_url),
+                "test": is_test,
             },
         )
     except Exception as exc:  # noqa: BLE001 - a timeline must never fail a completion

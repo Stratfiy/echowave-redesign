@@ -518,7 +518,7 @@ export function ChannelStream({
                     if (event.kind === 'call_ended') {
                         // A call is a row with a door: the length and how it
                         // ended here, the transcript and recording behind it.
-                        const call = (event.payload ?? {}) as { run_id?: number; answered?: boolean };
+                        const call = (event.payload ?? {}) as { run_id?: number; answered?: boolean; test?: boolean };
                         const href =
                             event.workflow_id != null && (call.run_id ?? event.workflow_run_id) != null
                                 ? `/workflow/${event.workflow_id}/run/${call.run_id ?? event.workflow_run_id}`
@@ -538,6 +538,11 @@ export function ChannelStream({
                                             <span className="font-medium">
                                                 {(event.workflow_id != null && botNames[event.workflow_id]) || fallbackName}
                                             </span>
+                                            {call.test && (
+                                                <span className="ml-2 rounded border border-border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                                    Test
+                                                </span>
+                                            )}
                                             <span className="ml-2 text-xs text-muted-foreground">
                                                 <time dateTime={event.at}>{when(event.at)}</time>
                                             </span>

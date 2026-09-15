@@ -13,6 +13,7 @@ from api.db.models import (
     WorkflowRunModel,
 )
 from api.enums import CARRIER_RUN_MODES
+from api.services.workflow import test_runs
 
 
 def _empty_activity() -> dict[str, Any]:
@@ -336,6 +337,12 @@ class AppInteractionClient(BaseDBClient):
                     .where(
                         WorkflowModel.organization_id == organization_id,
                         WorkflowRunModel.created_at >= since,
+                        # A test is not a call the business took (KAN-140):
+                        # a browser call, or any run a test verb stamped.
+                        WorkflowRunModel.mode.notin_(list(test_runs.TEST_MODES)),
+                        WorkflowRunModel.annotations[test_runs.STAMP_KEY].astext.is_(
+                            None
+                        ),
                     )
                     .group_by(WorkflowRunModel.workflow_id)
                 )
