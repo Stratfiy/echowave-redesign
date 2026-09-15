@@ -41,6 +41,7 @@ from api.services.configuration import chat_presets
 from api.services.workflow import (
     actions,
     agent_timeline,
+    chat_memory,
     decibyl,
     decisions,
     mentions,
@@ -227,9 +228,10 @@ class PostMessageRequest(BaseModel):
     #: Empty is allowed only alongside an attachment: a file is a message.
     text: str = Field(default="", max_length=MAX_MESSAGE)
     attachments: list[Attachment] = Field(default_factory=list, max_length=10)
-    #: The brain for this message: a chat preset slug (everyday, smart, deep,
-    #: advanced), or nothing for the bot's own. See chat_presets.
-    preset: Optional[str] = Field(default=None, max_length=32)
+    #: The brain for this message: a chat preset slug (everyday, smart, deep)
+    #: or a catalogue model (``model:openai/gpt-5``), or nothing for the
+    #: bot's own. See chat_presets.
+    preset: Optional[str] = Field(default=None, max_length=96)
 
 
 class PostMessageResponse(BaseModel):
@@ -245,6 +247,91 @@ class PostMessageResponse(BaseModel):
     #: came back first would hide a naming collision behind a bot that
     #: sometimes replies and sometimes does not.
     ambiguous: list[str]
+
+
+class BrainModel(BaseModel):
+    slug: str
+    label: str
+
+
+class BrainVendor(BaseModel):
+    id: str
+    label: str
+    models: list[BrainModel]
+
+
+class BrainPreset(BaseModel):
+    slug: str
+    label: str
+    blurb: str
+
+
+class BrainsResponse(BaseModel):
+    #: The three words on the menu.
+    presets: list[BrainPreset]
+    #: "More models", by vendor: only vendors the platform holds a key for.
+    vendors: list[BrainVendor]
+
+
+@router.get("/brains", response_model=BrainsResponse)
+async def brains(
+    assistant: Annotated[bool, Query()] = False,
+    user: UserModel = Depends(get_user),
+) -> BrainsResponse:
+    """What the composer's picker offers.
+
+    Decibyl's own thread runs on the builder client, which drives three
+    vendors; a bot's chat runs on the pipeline, which drives every vendor
+    in the catalogue. ``assistant`` says which menu.
+    """
+    vendors: Optional[list[str]] = None
+    if assistant:
+        from api.services.agent_builder.client import SUPPORTED_PROVIDERS
+
+        vendors = list(SUPPORTED_PROVIDERS)
+    async with db_client.async_session() as session:
+        menu = await chat_presets.menu(session, vendors=vendors)
+    return BrainsResponse(**menu)
+
+
+class ChatMemoryResponse(BaseModel):
+    #: Tokens of the thread inside the window, and the window.
+    used_tokens: int
+    budget_tokens: int
+    messages_kept: int
+    messages_total: int
+    plan_code: str
+    #: The plan with a bigger memory, or null when none has.
+    raise_to: Optional[str]
+
+
+@router.get("/memory", response_model=ChatMemoryResponse)
+async def memory(
+    workflow_id: Annotated[Optional[int], Query()] = None,
+    folder_id: Annotated[Optional[int], Query()] = None,
+    assistant: Annotated[bool, Query()] = False,
+    user: UserModel = Depends(get_user),
+) -> ChatMemoryResponse:
+    """The meter beside the composer: what this chat keeps in mind, out of
+    what the plan allows. The same arithmetic the reply uses."""
+    organization_id = user.selected_organization_id
+    if workflow_id is not None:
+        workflow = await db_client.get_workflow(
+            workflow_id, organization_id=organization_id
+        )
+        if workflow is None:
+            raise HTTPException(status_code=404, detail="No such bot here")
+    if folder_id is not None:
+        folder = await db_client.get_folder(folder_id, organization_id=organization_id)
+        if folder is None:
+            raise HTTPException(status_code=404, detail="No such channel here")
+    usage = await chat_memory.usage(
+        organization_id,
+        workflow_id=workflow_id,
+        folder_id=folder_id,
+        assistant=assistant,
+    )
+    return ChatMemoryResponse(**usage.as_dict())
 
 
 @router.post("/message", response_model=PostMessageResponse)

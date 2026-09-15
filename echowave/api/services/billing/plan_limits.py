@@ -87,6 +87,14 @@ LIMITS: tuple[LimitSpec, ...] = (
     LimitSpec(
         "topup_balance_ceiling_credits", "Top-up balance ceiling", "credits", False
     ),
+    LimitSpec(
+        "chat_context_tokens",
+        "Chat memory",
+        "tokens",
+        False,
+        "How much of a conversation a bot keeps in mind when it replies. "
+        "Every reply carries this much, so it is a cost as well as a feature.",
+    ),
 )
 
 LIMITS_BY_KEY: dict[str, LimitSpec] = {spec.key: spec for spec in LIMITS}
@@ -114,6 +122,7 @@ SEED: dict[str, dict[str, int | None]] = {
         "builder_messages": 30,
         "builder_voice_minutes": 10,
         "topup_balance_ceiling_credits": 2_000,
+        "chat_context_tokens": 8_000,
     },
     "everyday": {
         "bots": 3,
@@ -131,6 +140,7 @@ SEED: dict[str, dict[str, int | None]] = {
         "builder_messages": 30,
         "builder_voice_minutes": 30,
         "topup_balance_ceiling_credits": 20_000,
+        "chat_context_tokens": 16_000,
     },
     "business": {
         "bots": 10,
@@ -148,6 +158,7 @@ SEED: dict[str, dict[str, int | None]] = {
         "builder_messages": 100,
         "builder_voice_minutes": 100,
         "topup_balance_ceiling_credits": 100_000,
+        "chat_context_tokens": 32_000,
     },
     "growth": {
         "bots": 30,
@@ -165,6 +176,7 @@ SEED: dict[str, dict[str, int | None]] = {
         "builder_messages": 300,
         "builder_voice_minutes": 300,
         "topup_balance_ceiling_credits": 500_000,
+        "chat_context_tokens": 64_000,
     },
     "scale": {
         "bots": UNLIMITED,
@@ -182,6 +194,7 @@ SEED: dict[str, dict[str, int | None]] = {
         "builder_messages": UNLIMITED,
         "builder_voice_minutes": UNLIMITED,
         "topup_balance_ceiling_credits": UNLIMITED,
+        "chat_context_tokens": 128_000,
     },
 }
 SEED["campus"] = dict(SEED["business"])

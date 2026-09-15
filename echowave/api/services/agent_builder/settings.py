@@ -103,3 +103,44 @@ async def available_providers(session: AsyncSession) -> list[str]:
         if key:
             found.append(provider)
     return found
+
+
+async def resolve_choice(session: AsyncSession, choice: str | None) -> BuilderModel:
+    """The model for one Decibyl turn, honouring the picker when it can.
+
+    ``choice`` is a chat preset (``deep``) or a named model
+    (``model:openai/gpt-5``), or nothing. A preset resolves through its
+    managed tier; a name is taken as given. Either runs only on a vendor
+    the builder client can drive and holds a key for -- otherwise the turn
+    falls back to :func:`resolve_model`, and says so in the log, rather
+    than failing a message over a brain it could not use.
+    """
+    from api.services.configuration import chat_presets, managed_tiers
+
+    chosen = (choice or "").strip().lower()
+    if not chosen:
+        return await resolve_model(session)
+
+    pair = chat_presets.named_model(chosen)
+    if pair is None and chosen in chat_presets.PRESETS_BY_SLUG:
+        upstream = managed_tiers.resolve(
+            "llm", chat_presets.PRESETS_BY_SLUG[chosen].llm_tier
+        )
+        pair = (upstream.provider, upstream.model)
+    if pair is None:
+        return await resolve_model(session)
+
+    provider, model = pair
+    if provider in SUPPORTED_PROVIDERS:
+        api_key = await platform_credentials.resolve_api_key(
+            session, component=CostComponent.LLM, provider=provider
+        )
+        if api_key:
+            return BuilderModel(provider=provider, model=model, api_key=api_key)
+    logger.info(
+        "Decibyl cannot run {} on {} ({}); answering on the builder's model.",
+        model,
+        provider,
+        "no key" if provider in SUPPORTED_PROVIDERS else "not a builder vendor",
+    )
+    return await resolve_model(session)
