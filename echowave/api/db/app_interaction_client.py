@@ -340,9 +340,12 @@ class AppInteractionClient(BaseDBClient):
                         # A test is not a call the business took (KAN-140):
                         # a browser call, or any run a test verb stamped.
                         WorkflowRunModel.mode.notin_(list(test_runs.TEST_MODES)),
-                        WorkflowRunModel.annotations[test_runs.STAMP_KEY].astext.is_(
-                            None
-                        ),
+                        # `as_string()`, not `.astext`: `annotations` is JSON,
+                        # not JSONB, and the JSONB-only accessor raised on
+                        # every read of the home screen. Compiles to `->>`.
+                        WorkflowRunModel.annotations[test_runs.STAMP_KEY]
+                        .as_string()
+                        .is_(None),
                     )
                     .group_by(WorkflowRunModel.workflow_id)
                 )
