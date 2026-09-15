@@ -77,8 +77,9 @@ function when(at: string): string {
     });
 }
 
-/** The words somebody typed, whole. `summary` truncates at 500; `payload.body`
- *  does not, and a message silently cut short is the product editing them. */
+/** The words somebody typed, or a bot's whole reply. `summary` truncates at
+ *  500; `payload.body` does not, and a message silently cut short is the
+ *  product editing them. A bot's reply was cut mid-word on the home screen. */
 function messageBody(event: TimelineEvent): string {
     const body = (event.payload as { body?: unknown } | null)?.body;
     return typeof body === 'string' && body ? body : event.summary;
@@ -786,19 +787,19 @@ export function ChannelStream({
                                 </p>
                                 {/* whitespace-pre-wrap: somebody who typed a
                                     list wrote the line breaks on purpose. */}
-                                {(fromPerson ? messageBody(event) : event.summary) && (
+                                {messageBody(event) && (
                                     <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed">
-                                        {fromPerson ? messageBody(event) : event.summary}
+                                        {messageBody(event)}
                                     </p>
                                 )}
-                                {hasIndicScript(fromPerson ? messageBody(event) : event.summary) && (
+                                {hasIndicScript(messageBody(event)) && (
                                     <div className="mt-1 text-xs">
                                         {translated[event.id] === undefined ? (
                                             <button
                                                 type="button"
                                                 className="text-muted-foreground underline-offset-2 hover:underline"
                                                 onClick={() =>
-                                                    void translateRow(event, fromPerson ? messageBody(event) : event.summary)
+                                                    void translateRow(event, messageBody(event))
                                                 }
                                             >
                                                 Translate
