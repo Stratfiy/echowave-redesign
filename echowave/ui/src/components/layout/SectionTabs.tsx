@@ -24,8 +24,17 @@ import type { PageTab } from "./PageHeader";
 
 export type SectionTab = PageTab;
 
+/** Everything about what the calls did, as one strip.
+ *
+ *  These were three sidebar entries -- Review, Calls, Analytics -- and two
+ *  tab strips, for one subject. Somebody looking for "how did yesterday go"
+ *  had to guess which of the three was the one. One entry, five tabs. */
 export const CALLS_TABS: PageTab[] = [
   { href: "/usage", label: "Calls", prefix: true },
+  { href: "/review", label: "Review", prefix: true },
+  // No prefix: /analytics/spend is its own tab and must not light this one.
+  { href: "/analytics", label: "Analytics" },
+  { href: "/analytics/spend", label: "Spend", prefix: true },
   { href: "/reports", label: "Daily reports", prefix: true },
 ];
 

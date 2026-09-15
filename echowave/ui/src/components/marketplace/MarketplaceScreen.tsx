@@ -14,14 +14,14 @@
  * advertise what the catalogue does not carry.
  */
 
-import { ArrowRight, Search } from "lucide-react";
+import { ArrowRight, Search, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { client } from "@/client/client.gen";
 import { listConnectorsApiV1ConnectorsGet } from "@/client/sdk.gen";
 import type { ConnectorGroupResponse, ConnectorResponse } from "@/client/types.gen";
-import { ConnectorCard } from "@/components/integrations/ConnectorCard";
+import { ConnectorLogo, ConnectorRow } from "@/components/integrations/ConnectorRow";
 import { PageBody, PageHeader, type PageTab } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -49,9 +49,6 @@ const TABS: PageTab[] = [
     { href: "/marketplace", label: "Bots" },
     { href: "/marketplace/tools", label: "Tools", prefix: true },
 ];
-
-/** How many rows a category shows before "See all". */
-const ROWS_PER_GROUP = 6;
 
 function Hero({ kind }: { kind: ShelfKind }) {
     return (
@@ -317,15 +314,55 @@ function BotsShelf({ query }: { query: string }) {
     );
 }
 
+/** How many rows a category shows on the shelf before "View all". */
+const ROWS_PER_SECTION = 6;
+
+/** A chip on the shelf: an icon, the name, the count. One press narrows. */
+function FilterChip({
+    label,
+    count,
+    icon: Icon,
+    selected,
+    onSelect,
+}: {
+    label: string;
+    count?: number;
+    icon?: React.ComponentType<{ className?: string }>;
+    selected: boolean;
+    onSelect: () => void;
+}) {
+    return (
+        <button
+            type="button"
+            aria-pressed={selected}
+            onClick={onSelect}
+            className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors",
+                selected
+                    ? "border-foreground bg-foreground text-background"
+                    : "border-border bg-card text-foreground hover:bg-muted/40",
+            )}
+        >
+            {Icon ? <Icon className="h-3.5 w-3.5" aria-hidden="true" /> : null}
+            {label}
+            {count !== undefined ? (
+                <span className={cn("text-xs", selected ? "opacity-70" : "text-muted-foreground")}>{count}</span>
+            ) : null}
+        </button>
+    );
+}
+
 function ToolsShelf({ query }: { query: string }) {
     const [available, setAvailable] = useState(true);
     const [loading, setLoading] = useState(true);
     const [failed, setFailed] = useState(false);
     const [popular, setPopular] = useState<ConnectorResponse[]>([]);
     const [groups, setGroups] = useState<ConnectorGroupResponse[]>([]);
-    const [otherCount, setOtherCount] = useState(0);
-    const [group, setGroup] = useState<string | null>(null);
-    const [expanded, setExpanded] = useState<string[]>([]);
+    const [other, setOther] = useState<ConnectorResponse[]>([]);
+    const [connectedCount, setConnectedCount] = useState(0);
+    // "all", "featured", a group's name, or "other".
+    const [filter, setFilter] = useState<string>("all");
+    const [reloads, setReloads] = useState(0);
 
     useEffect(() => {
         let cancelled = false;
@@ -345,7 +382,8 @@ function ToolsShelf({ query }: { query: string }) {
                     setAvailable(response.data.available);
                     setPopular(response.data.popular ?? []);
                     setGroups(response.data.groups ?? []);
-                    setOtherCount(response.data.other?.length ?? 0);
+                    setOther(response.data.other ?? []);
+                    setConnectedCount(response.data.connected_count ?? 0);
                 } catch {
                     if (!cancelled) setFailed(true);
                 } finally {
@@ -357,10 +395,23 @@ function ToolsShelf({ query }: { query: string }) {
             cancelled = true;
             clearTimeout(timer);
         };
-    }, [query]);
+    }, [query, reloads]);
 
-    const reload = () => setExpanded((e) => [...e]);
-    const visible = group ? groups.filter((g) => g.group === group) : groups;
+    const reload = () => setReloads((n) => n + 1);
+    const searching = Boolean(query.trim());
+    // The apps already on: the logos in the strip at the top, the way a
+    // plugin shelf shows what you have before what you could have.
+    const installed = useMemo(() => {
+        const seen = new Set<string>();
+        const out: ConnectorResponse[] = [];
+        for (const c of [...groups.flatMap((g) => g.connectors), ...other]) {
+            if (c.connected && !seen.has(c.slug)) {
+                seen.add(c.slug);
+                out.push(c);
+            }
+        }
+        return out;
+    }, [groups, other]);
 
     if (!available) {
         return (
@@ -381,45 +432,75 @@ function ToolsShelf({ query }: { query: string }) {
         );
     }
 
+    // What the shelf shows for the chip pressed. A search shows everything
+    // that matched, whatever the chip.
+    const sections: { key: string; title: string; rows: ConnectorResponse[] }[] = [];
+    if (searching) {
+        for (const g of groups) sections.push({ key: g.group, title: g.group, rows: g.connectors });
+        if (other.length) sections.push({ key: "other", title: "Other", rows: other });
+    } else if (filter === "featured") {
+        sections.push({ key: "featured", title: "Featured", rows: popular });
+    } else if (filter === "other") {
+        sections.push({ key: "other", title: "Other", rows: other });
+    } else if (filter !== "all") {
+        const g = groups.find((x) => x.group === filter);
+        if (g) sections.push({ key: g.group, title: g.group, rows: g.connectors });
+    } else {
+        if (popular.length) sections.push({ key: "featured", title: "Featured", rows: popular });
+        for (const g of groups) sections.push({ key: g.group, title: g.group, rows: g.connectors });
+        if (other.length) sections.push({ key: "other", title: "Other", rows: other });
+    }
+    const narrowed = searching || filter !== "all";
+
     return (
         <>
-            {!query.trim() ? (
-                <section className="space-y-3">
-                    <SectionTitle>Categories</SectionTitle>
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {groups.map((g) => (
-                            <CategoryCard
-                                key={g.group}
-                                name={g.group}
-                                count={g.connectors.length}
-                                noun="tool"
-                                icon={toolIcon(g.group)}
-                                selected={group === g.group}
-                                onSelect={() => setGroup((cur) => (cur === g.group ? null : g.group))}
-                            />
+            {installed.length > 0 && !searching ? (
+                <Link
+                    href="/integrations/apps"
+                    className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-sm hover:bg-muted/40"
+                    aria-label={`${connectedCount || installed.length} installed`}
+                >
+                    <span className="flex -space-x-1.5">
+                        {installed.slice(0, 5).map((c) => (
+                            <ConnectorLogo key={c.slug} connector={c} className="h-6 w-6 rounded-md ring-2 ring-card" />
                         ))}
-                    </div>
-                </section>
+                    </span>
+                    <span className="text-muted-foreground">{connectedCount || installed.length} installed</span>
+                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+                </Link>
             ) : null}
 
-            {!query.trim() && !group && popular.length > 0 ? (
-                <section className="space-y-3">
-                    <SectionTitle>Most asked for</SectionTitle>
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {popular.map((connector) => (
-                            <ConnectorCard
-                                key={`popular:${connector.slug}`}
-                                connector={connector}
-                                onConnected={reload}
-                            />
-                        ))}
-                    </div>
-                </section>
+            {!searching ? (
+                <div className="flex flex-wrap gap-2" role="group" aria-label="Categories">
+                    <FilterChip label="All" selected={filter === "all"} onSelect={() => setFilter("all")} />
+                    {popular.length > 0 ? (
+                        <FilterChip label="Featured" icon={Sparkles} selected={filter === "featured"} onSelect={() => setFilter("featured")} />
+                    ) : null}
+                    {groups.map((g) => (
+                        <FilterChip
+                            key={g.group}
+                            label={g.group}
+                            count={g.connectors.length}
+                            icon={toolIcon(g.group)}
+                            selected={filter === g.group}
+                            onSelect={() => setFilter((cur) => (cur === g.group ? "all" : g.group))}
+                        />
+                    ))}
+                    {other.length > 0 ? (
+                        <FilterChip
+                            label="Other"
+                            count={other.length}
+                            icon={toolIcon("Other")}
+                            selected={filter === "other"}
+                            onSelect={() => setFilter("other")}
+                        />
+                    ) : null}
+                </div>
             ) : null}
 
             {loading && groups.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Loading…</p>
-            ) : visible.length === 0 ? (
+            ) : sections.every((s) => s.rows.length === 0) ? (
                 <Card>
                     <CardContent className="space-y-2 py-8 text-center">
                         <p className="text-sm">Nothing matches &ldquo;{query.trim()}&rdquo;.</p>
@@ -433,58 +514,33 @@ function ToolsShelf({ query }: { query: string }) {
                     </CardContent>
                 </Card>
             ) : (
-                visible.map((g) => {
-                    const open = Boolean(group) || Boolean(query.trim()) || expanded.includes(g.group);
-                    const rows = open ? g.connectors : g.connectors.slice(0, ROWS_PER_GROUP);
-                    const hidden = g.connectors.length - rows.length;
-                    return (
-                        <section key={g.group} className="space-y-3">
-                            <SectionTitle
-                                action={
-                                    hidden > 0 ? (
-                                        <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            onClick={() => setExpanded((e) => [...e, g.group])}
-                                        >
-                                            See all {g.connectors.length}
-                                        </Button>
-                                    ) : null
-                                }
-                            >
-                                {g.group}
-                            </SectionTitle>
-                            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                                {rows.map((connector) => (
-                                    <ConnectorCard
-                                        key={connector.slug}
-                                        connector={connector}
-                                        onConnected={reload}
-                                    />
-                                ))}
-                            </div>
-                        </section>
-                    );
-                })
+                sections
+                    .filter((s) => s.rows.length > 0)
+                    .map((s) => {
+                        const rows = narrowed ? s.rows : s.rows.slice(0, ROWS_PER_SECTION);
+                        const hidden = s.rows.length - rows.length;
+                        return (
+                            <section key={s.key} className="space-y-2">
+                                <SectionTitle
+                                    action={
+                                        hidden > 0 ? (
+                                            <Button size="sm" variant="ghost" onClick={() => setFilter(s.key)}>
+                                                View all {s.rows.length}
+                                            </Button>
+                                        ) : null
+                                    }
+                                >
+                                    {s.title}
+                                </SectionTitle>
+                                <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
+                                    {rows.map((connector) => (
+                                        <ConnectorRow key={`${s.key}:${connector.slug}`} connector={connector} onConnected={reload} />
+                                    ))}
+                                </div>
+                            </section>
+                        );
+                    })
             )}
-
-            {otherCount > 0 && !query.trim() && !group ? (
-                <Card>
-                    <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
-                        <div>
-                            <p className="text-sm font-medium">
-                                {otherCount} more tool{otherCount === 1 ? "" : "s"}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                                Everything that did not fit a category above. Searching covers these too.
-                            </p>
-                        </div>
-                        <Button asChild size="sm" variant="outline">
-                            <Link href="/integrations/apps/more">Browse all</Link>
-                        </Button>
-                    </CardContent>
-                </Card>
-            ) : null}
         </>
     );
 }
@@ -500,7 +556,7 @@ export function MarketplaceScreen({ kind }: { kind: ShelfKind }) {
                 tabs={TABS}
             />
             <PageBody className="space-y-8">
-                <Hero kind={kind} />
+                {kind === "bots" ? <Hero kind={kind} /> : null}
                 <div className="relative max-w-md">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input

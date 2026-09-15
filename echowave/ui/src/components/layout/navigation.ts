@@ -347,21 +347,14 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
   {
     label: "MONITOR",
     items: [
-      // Daily reports are a view over the same calls, so they are a tab here
-      // rather than a fifth MONITOR entry. Missed calls moved to Phone numbers,
-      // where the telephony tab strip already listed them.
-      // The queue of calls worth listening to, graded by post-call QA.
-      // Before Calls: the one you open every morning goes first.
-      {
-        title: "Review",
-        url: "/review",
-        icon: ClipboardCheck,
-        keywords: ["review", "qa", "grades", "bad calls", "quality", "score"],
-      },
+      // One entry for one subject. Review, Calls and Analytics were three
+      // sidebar rows and two tab strips over the same calls; somebody asking
+      // "how did yesterday go" had to guess which. They are tabs of this now
+      // (CALLS_TABS), so the answer is one click from one place.
       {
         title: "Calls",
         url: "/usage",
-        activePaths: ["/reports"],
+        activePaths: ["/reports", "/review", "/analytics"],
         icon: PhoneCall,
         keywords: [
           "agent runs",
@@ -373,13 +366,15 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
           "export",
           "csv",
           "download",
+          "review",
+          "qa",
+          "grades",
+          "quality",
+          "analytics",
+          "charts",
+          "spend",
+          "trends",
         ],
-      },
-      {
-        title: "Analytics",
-        url: "/analytics",
-        icon: ChartColumnBig,
-        keywords: ["metrics", "latency", "cost", "charts"],
       },
     ],
   },

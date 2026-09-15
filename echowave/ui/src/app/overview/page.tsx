@@ -18,10 +18,8 @@
  */
 
 import { HomeAboveTheFold } from "@/components/home/HomeAboveTheFold";
-import { LazySection } from "@/components/home/LazySection";
 import { HOME_TABS } from "@/components/home/tabs";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
-import { OverviewDashboard } from "@/components/overview/OverviewDashboard";
 import { useAuth } from "@/lib/auth";
 
 export default function OverviewPage() {
@@ -49,14 +47,11 @@ export default function OverviewPage() {
             menu beside the credits chip: they are about the account, not
             the conversation, and here they pushed the composer up the
             screen and sat under it as two cards of chores. */}
-        {/* How it is trending, in charts — and not before somebody
-                    scrolls to them. These are four analytics endpoints and a
-                    charting library; paying for them on first paint made the
-                    screen that decides whether the product feels alive the
-                    slowest one in it. */}
-        <LazySection>
-          <OverviewDashboard firstName={firstName} />
-        </LazySection>
+        {/* No charts here. Home is the conversation: a greeting, the
+            thread, the composer. How it is trending is the Analytics and
+            Spend tabs of Calls, which is where somebody goes to read a
+            chart -- and this screen no longer pays for a charting library
+            to put two of them under a chat nobody scrolls past. */}
       </PageBody>
     </>
   );
