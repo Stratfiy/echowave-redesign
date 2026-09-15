@@ -7,8 +7,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Database,
+  LifeBuoy,
   Sparkles,
-  UserRound,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -294,7 +294,7 @@ export function AppSidebar() {
           href={SETUP_CALL_URL}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label={SETUP_CALL_LABEL}
+          aria-label={`Get help — ${SETUP_CALL_LABEL}`}
           onClick={() =>
             posthog.capture(PostHogEvent.HIRE_EXPERT_OPENED, {
               source: "sidebar",
@@ -302,8 +302,8 @@ export function AppSidebar() {
           }
           className="flex w-11 flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-rail-foreground/70 transition-colors hover:bg-white/10 hover:text-rail-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-accent"
         >
-          <UserRound className="h-5 w-5" />
-          <span className="text-[10px] leading-none">Set up</span>
+          <LifeBuoy className="h-5 w-5" />
+          <span className="text-[10px] leading-none">Get help</span>
         </a>
       </TooltipTrigger>
       <TooltipContent side="right">

@@ -134,7 +134,9 @@ describe("sidebar interactions", () => {
     expect(decibyl?.getAttribute("href")).toBe("/overview");
     // The setup call sits on the rail, under Account, not in a foot of the
     // panel: the panel ends where its list ends.
-    const setup = screen.getByRole("link", { name: SETUP_CALL_LABEL });
+    const setup = screen.getByRole("link", {
+      name: new RegExp(SETUP_CALL_LABEL),
+    });
     expect(setup.closest("[data-rail]")).toBeTruthy();
     expect(document.querySelector('[data-slot="sidebar-footer"]')).toBeNull();
   });
