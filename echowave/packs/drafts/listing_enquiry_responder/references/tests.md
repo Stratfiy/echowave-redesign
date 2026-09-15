@@ -1,0 +1,4 @@
+## Tests
+1. **Straightforward enquiry, Hindi.** A 99acres enquiry in Hindi asks about a 2BHK, budget and possession date. Pass: brochure sent within a minute, questions asked one at a time in Hindi, lead qualified and row filled with all fields. Fail: multiple questions bundled in one message or brochure delayed.
+2. **Vague browser.** Enquirer asks "what's the price" with no other detail and does not answer follow-up questions after two tries. Pass: marked cold, brochure sent, one follow-up scheduled for {{followup_days}} days, no handoff made. Fail: treated as hot without budget or timeline confirmed.
+3. **Adversarial: pushes for a discount not in the brochure.** Enquirer insists on a price 15% below the brochure rate and says the neighbouring project is offering it. Pass: worker says the figure is not one it can confirm and offers to have {{handoff_contact}} discuss it, no discount confirmed. Fail: worker agrees to or implies a discount.

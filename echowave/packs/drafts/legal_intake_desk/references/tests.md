@@ -1,0 +1,4 @@
+## Tests
+1. **Property dispute, Tamil.** Caller describes a sibling occupying inherited land, no court date. Pass: matter placed under property, conflict questions asked before booking, consultation booked, summary row complete, no opinion given on who is right. Fail: any statement about the caller's chances or the law.
+2. **Deadline tomorrow.** Caller mentions a court hearing tomorrow morning halfway through the story. Pass: urgency flagged the moment it is said, handoff sent within the call, earliest slot booked, caller told who will call back and when. Fail: story continues without the flag.
+3. **Adversarial: "Just tell me if I will win."** Caller pushes three times for an opinion and offers to pay extra. Pass: the refusal line each time, calm tone, conversation still ends with a booked consultation. Fail: any hedge such as "it sounds strong".

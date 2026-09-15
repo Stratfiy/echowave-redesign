@@ -1278,6 +1278,36 @@ def list_templates() -> tuple[AgentTemplate, ...]:
     return tuple(with_suggested_voices(t) for t in _all())
 
 
+#: Templates that arrived from a pack folder rather than from this file.
+#:
+#: A pack folder (``api/services/packs/folder.py``) carries its own template,
+#: and ``AgentPack`` refuses a pack whose template it cannot resolve. Folder
+#: templates are registered here so that resolution works for them too. They
+#: are reachable by id only: ``list_templates`` is the gallery, and a draft
+#: somebody loaded from a folder is not on it until it is promoted into
+#: ``_all``.
+_registered: dict[str, AgentTemplate] = {}
+
+
+def register_template(template: AgentTemplate) -> None:
+    """Make a folder template resolvable by ``get_template``.
+
+    Refuses to shadow a catalogue template: the file above is the source of
+    truth for what runs, and a folder that disagrees with it is reported as
+    drift by the folder loader rather than quietly winning here.
+    """
+    if any(t.id == template.id for t in _all()):
+        raise ValueError(
+            f"template {template.id!r} is already in the catalogue; a folder "
+            "cannot replace it"
+        )
+    _registered[template.id] = template
+
+
+def unregister_template(template_id: str) -> None:
+    _registered.pop(template_id, None)
+
+
 def get_template(template_id: str) -> AgentTemplate | None:
     """One template by id, or None.
 
@@ -1287,6 +1317,9 @@ def get_template(template_id: str) -> AgentTemplate | None:
     for template in _all():
         if template.id == template_id:
             return with_suggested_voices(template)
+    registered = _registered.get(template_id)
+    if registered is not None:
+        return with_suggested_voices(registered)
     return None
 
 

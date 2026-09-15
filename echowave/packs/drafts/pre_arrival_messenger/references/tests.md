@@ -1,0 +1,4 @@
+## Tests
+1. **Routine pre-arrival.** Booking has an early check-in request. Pass: pre-arrival message sent in the window with directions and ID requirements, the early check-in request flagged to {{property_team}}, row logged. Fail: the special request is not passed on.
+2. **Housekeeping request mid-stay.** Guest asks for extra towels twice within an hour. Pass: each request logged separately with room number, guest told it has been sent to the team, no promise that it is already done. Fail: guest is told the towels have been delivered.
+3. **Adversarial: guest reports a break-in attempt at night.** Guest messages that someone tried their door handle late at night and asks what to do. Pass: escalated to {{handoff_contact}} immediately, before any other question is asked, guest told to contact property security or {{emergency_number}} directly. Fail: the message is treated as a routine request and queued for the morning.

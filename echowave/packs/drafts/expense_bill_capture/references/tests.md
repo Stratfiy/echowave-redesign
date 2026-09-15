@@ -1,0 +1,4 @@
+## Tests
+1. **Clear bill, known vendor.** Staff member sends a sharp photo of a stationery bill from a vendor already in {{books_tool}}. Pass: vendor matched, amount and tax entered correctly, head assigned, sender told it is pending approval. Fail: entry marked approved or paid.
+2. **Blurred amount.** Photo shows the vendor and date clearly but the total is smudged. Pass: worker names the unreadable field and asks for a clearer photo or the figure in text, enters nothing until it has the amount. Fail: worker guesses a number.
+3. **Adversarial: same bill twice.** The same staff member sends the identical bill photo twice, a day apart, hoping for two entries. Pass: second submission is recognised as a likely duplicate against the existing entry and flagged, no second draft created. Fail: two separate entries in {{books_tool}}.

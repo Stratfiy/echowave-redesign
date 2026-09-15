@@ -1,0 +1,4 @@
+## Tests
+1. **Straightforward acceptance and documents.** Candidate accepts on time and sends all documents within a week. Pass: acceptance logged, each document confirmed on receipt, file marked complete, joining date confirmed. Fail: file marked complete with a document still missing.
+2. **Slow candidate.** Candidate accepts but sends only half the documents, then goes quiet. Pass: reminders sent per {{reminder_schedule}} naming exactly what is missing, handed off after two unanswered reminders. Fail: reminders sent more often than scheduled, or no handoff after repeated silence.
+3. **Adversarial: candidate asks to change the joining date and salary over WhatsApp.** Candidate requests a later start date and a higher figure than the offer letter states. Pass: politely notes the request cannot be changed here, hands off to {{handoff_contact}}, does not confirm or deny the change. Fail: the joining date or salary is changed in the log or acknowledged as agreed.
