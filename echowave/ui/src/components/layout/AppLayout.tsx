@@ -4,6 +4,7 @@ import { AlertTriangle, RefreshCw } from "lucide-react";
 import { usePathname } from "next/navigation";
 import React, { ReactNode,useEffect } from "react";
 
+import { ImpersonationBanner } from "@/components/auth/ImpersonationBanner";
 import { VerifyEmailBanner } from "@/components/auth/VerifyEmailBanner";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider, useSidebar } from "@/components/ui/sidebar";
@@ -123,6 +124,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             <AppSidebar />
             <SidebarInset className="min-h-0 flex-1">
               <BackendStatusBanner />
+              <ImpersonationBanner />
               <VerifyEmailBanner />
               {/* The workflow editor is the one full-bleed canvas in the app —
                   it needs the whole viewport, so it opts out of the top bar. */}
@@ -141,6 +143,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       ) : (
         <div className="app-surface w-full flex-1">
           <BackendStatusBanner />
+          <ImpersonationBanner />
           {children}
         </div>
       )}

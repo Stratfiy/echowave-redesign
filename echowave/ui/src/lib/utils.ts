@@ -240,6 +240,8 @@ export async function impersonateAsSuperadmin(params: {
   for (const [key, value] of Object.entries({
     refresh_token: refreshToken,
     redirect_path: finalRedirect,
+    // Who the banner names for the hour (KAN-82). A hint, never an identity.
+    who: email ?? (userId !== undefined ? `user ${userId}` : providerUserId ?? ""),
   })) {
     const input = document.createElement("input");
     input.type = "hidden";
