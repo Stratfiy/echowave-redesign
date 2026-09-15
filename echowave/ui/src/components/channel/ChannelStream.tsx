@@ -24,12 +24,17 @@
  * every few seconds does not justify building one.
  */
 
-import { AlertTriangle, Bot, CheckCircle2, CircleSlash, Clock, FileText, Loader2, MessageSquare, Phone } from 'lucide-react';
+import { AlertTriangle, Bot, CheckCircle2, CircleSlash, Clock, FileText, Loader2, MessageSquare, Phone, Wrench } from 'lucide-react';
 import Link from 'next/link';
 import React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { replyDraftTextApiV1TimelineDraftGet, timelineApiV1TimelineGet, translateTextApiV1TranslatePost } from '@/client/sdk.gen';
+import {
+    postMessageApiV1TimelineMessagePost,
+    replyDraftTextApiV1TimelineDraftGet,
+    timelineApiV1TimelineGet,
+    translateTextApiV1TranslatePost,
+} from '@/client/sdk.gen';
 import type { TimelineEvent } from '@/client/types.gen';
 import { Button } from '@/components/ui/button';
 import { ActionCard } from '@/components/workflow/ActionCard';
@@ -116,6 +121,27 @@ function attachmentsOf(event: TimelineEvent): Attached[] {
         (a): a is Attached =>
             !!a && typeof a === 'object' && typeof (a as Attached).filename === 'string',
     );
+}
+
+type CheckResult = {
+    result_id: number;
+    workflow_id: number;
+    bot_name?: string;
+    handle?: string | null;
+    brief?: string;
+    status: string;
+    passed: boolean;
+    verdict?: string;
+    evals_url?: string;
+};
+
+/** A Check it verdict Decibyl posted (KAN-140 P1), if this row carries one. */
+function checkOf(event: TimelineEvent): CheckResult | null {
+    const check = (event.payload as { check?: unknown } | null)?.check;
+    if (!check || typeof check !== 'object') return null;
+    const result = check as Partial<CheckResult>;
+    if (typeof result.result_id !== 'number' || typeof result.status !== 'string') return null;
+    return result as CheckResult;
 }
 
 type TestOffer = { workflow_id: number; bot_name?: string; how?: string; brief?: string; url: string };
@@ -213,6 +239,17 @@ export function ChannelStream({
     // a clinic's Tamil is not a problem to be corrected, and the translation
     // costs a request.
     const [translated, setTranslated] = useState<Record<number, string | null>>({});
+    // Fix it on a Result card: the verdict goes to Decibyl as a line, and
+    // Decibyl proposes the edit. The card only knows it asked.
+    const [fixing, setFixing] = useState<number | null>(null);
+    const askToFix = async (event: TimelineEvent, check: CheckResult) => {
+        const who = check.handle ? `@${check.handle}` : check.bot_name ?? 'the bot';
+        const text = `Fix ${who} after the check: ${check.verdict || check.brief || 'it did not handle the caller'}`;
+        setFixing(event.id);
+        const response = await postMessageApiV1TimelineMessagePost({ body: { assistant: true, text } });
+        setFixing(null);
+        if (!response.error) void loadLatest();
+    };
     const translateRow = async (event: TimelineEvent, text: string) => {
         setTranslated((all) => ({ ...all, [event.id]: null }));
         const response = await translateTextApiV1TranslatePost({ body: { text } });
@@ -773,6 +810,49 @@ export function ChannelStream({
                                                 {translated[event.id]}
                                             </p>
                                         )}
+                                    </div>
+                                )}
+                                {checkOf(event) && (
+                                    <div
+                                        className={cn(
+                                            'mt-2 rounded-md border p-3 text-sm',
+                                            checkOf(event)!.passed
+                                                ? 'border-emerald-300/60 bg-emerald-50/60'
+                                                : 'border-amber-300/60 bg-amber-50/60',
+                                        )}
+                                        aria-label="Check result"
+                                    >
+                                        <p className="flex items-center gap-1.5 font-medium">
+                                            {checkOf(event)!.passed ? (
+                                                <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden />
+                                            ) : (
+                                                <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden />
+                                            )}
+                                            {checkOf(event)!.passed ? 'Handled' : checkOf(event)!.status === 'failed' ? 'Not handled' : 'Could not check'}
+                                            <span className="ml-1 rounded border border-border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                                Test
+                                            </span>
+                                        </p>
+                                        {checkOf(event)!.verdict && (
+                                            <p className="mt-1 text-muted-foreground">{checkOf(event)!.verdict}</p>
+                                        )}
+                                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                                            {!checkOf(event)!.passed && checkOf(event)!.status !== 'error' && (
+                                                <Button
+                                                    size="sm"
+                                                    disabled={fixing === event.id}
+                                                    onClick={() => void askToFix(event, checkOf(event)!)}
+                                                >
+                                                    <Wrench className="mr-1 h-3.5 w-3.5" aria-hidden />
+                                                    {fixing === event.id ? 'Asking…' : 'Fix it'}
+                                                </Button>
+                                            )}
+                                            {checkOf(event)!.evals_url && (
+                                                <Button size="sm" variant="outline" asChild>
+                                                    <Link href={checkOf(event)!.evals_url!}>Transcript</Link>
+                                                </Button>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
                                 {testOf(event) && (

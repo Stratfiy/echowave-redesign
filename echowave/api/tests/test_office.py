@@ -358,7 +358,7 @@ class TestTheTestVerbs:
 
     def test_decibyl_carries_all_three_tools(self):
         names = [t["name"] for t in decibyl.TOOLS()]
-        assert names == ["propose_action", "propose_edit", "test_bot"]
+        assert names == ["propose_action", "propose_edit", "test_bot", "check_bot"]
         assert "create_bot" in actions.ACTIONS
         assert AgentEventKind.EDIT_PROPOSED.value in decibyl.thread_filter()["kinds"]
 
@@ -378,3 +378,109 @@ class TestTheTemplatesBlock:
             block = office.templates_block()
         assert "clinic_front_desk" in block
         assert "Needs: clinic_name (the clinic name), hours (the hours)" in block
+
+
+@pytest.mark.asyncio
+class TestTheCheckVerb:
+    async def test_a_check_is_a_case_a_result_a_job_and_a_line(self):
+        added: list = []
+
+        class _Session:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_):
+                return False
+
+            def add(self, row):
+                added.append(row)
+                row.id = len(added)
+
+            async def flush(self):
+                pass
+
+            async def commit(self):
+                pass
+
+        with (
+            patch(
+                "api.services.workflow.office.db_client.get_all_workflows_for_listing",
+                new=AsyncMock(return_value=[_bot(3, "Front desk", "reception")]),
+            ),
+            patch("api.services.workflow.office.db_client.async_session", _Session),
+            patch("api.tasks.arq.enqueue_job", new=AsyncMock()) as enqueue,
+            patch(
+                "api.services.workflow.office.agent_timeline.record_activity",
+                new=AsyncMock(),
+            ) as activity,
+        ):
+            result = await office.check_bot(
+                organization_id=7,
+                arguments={
+                    "bot": "@reception",
+                    "brief": "a patient asking for Saturday hours",
+                    "must_say": ["Saturday"],
+                },
+            )
+        assert result["status"] == "checking"
+        case, row = added
+        assert (
+            case.workflow_id == 3 and case.goal == "a patient asking for Saturday hours"
+        )
+        assert case.must_say == ["Saturday"]
+        assert row.origin == office.CHECK_ORIGIN and row.status == "queued"
+        assert enqueue.await_args.args == (FunctionNames.RUN_EVAL_CASE, row.id)
+        assert activity.await_args.kwargs["payload"]["check"]["result_id"] == row.id
+
+    async def test_the_verdict_comes_back_as_a_card_with_fix_it(self):
+        result = SimpleNamespace(
+            id=9,
+            case_id=4,
+            organization_id=7,
+            workflow_id=3,
+            status="failed",
+            verdict="Never said the Saturday hours.",
+            workflow_run_id=77,
+            origin=office.CHECK_ORIGIN,
+        )
+
+        class _Session:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_):
+                return False
+
+            async def get(self, _model, _id):
+                return SimpleNamespace(
+                    goal="a patient asking for Saturday hours", name="x"
+                )
+
+        with (
+            patch(
+                "api.services.workflow.office.db_client.get_workflow",
+                new=AsyncMock(return_value=_bot(3, "Front desk", "reception")),
+            ),
+            patch("api.services.workflow.office.db_client.async_session", _Session),
+            patch(
+                "api.services.workflow.office.agent_timeline.record", new=AsyncMock()
+            ) as record,
+        ):
+            await office.post_check_result(result)
+        row = record.await_args.kwargs
+        assert row["in_channel"] is False
+        check = row["payload"]["check"]
+        assert check["passed"] is False and check["handle"] == "reception"
+        assert check["verdict"] == "Never said the Saturday hours."
+        assert check["evals_url"] == "/workflow/3/evals"
+        assert "did not handle" in row["summary"]
+
+    async def test_a_result_from_the_evals_screen_posts_nothing(self):
+        with patch(
+            "api.services.workflow.office.agent_timeline.record", new=AsyncMock()
+        ) as record:
+            await office.post_check_result(SimpleNamespace(origin=None))
+        record.assert_not_awaited()
+
+    def test_decibyl_carries_the_check_tool(self):
+        assert "check_bot" in [t["name"] for t in decibyl.TOOLS()]

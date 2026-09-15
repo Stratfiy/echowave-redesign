@@ -76,6 +76,11 @@ SYSTEM = (
     "- propose_edit: change one step of a named bot. Use the bot's steps in "
     "the context; give the complete new prompt.\n"
     "- test_bot: offer to hear (a call) or try (text) a named bot.\n"
+    "- check_bot: a scripted caller plays a scenario and a judge grades it; "
+    "the verdict comes back to this thread as a card. Offer it before an "
+    "edit lands on a live bot. When a person asks you to fix a bot after a "
+    "check, use the verdict and the bot's steps in the context to propose "
+    "one edit with propose_edit.\n"
     "- Nothing happens until a person confirms on the card, so propose it "
     "and say you have. Deleting a bot, dialling a new number and anything "
     "else you cannot do: say so, and say where it is done.\n"
@@ -492,6 +497,7 @@ def TOOLS() -> list[dict[str, Any]]:
         actions.tool_schema(),
         office.edit_tool_schema(),
         office.test_tool_schema(),
+        office.check_tool_schema(),
     ]
 
 
@@ -511,6 +517,10 @@ async def _tool(organization_id: int, call: Any) -> dict[str, Any]:
         )
     if call.name == office.TEST_TOOL_NAME:
         return await office.offer_test(
+            organization_id=organization_id, arguments=arguments
+        )
+    if call.name == office.CHECK_TOOL_NAME:
+        return await office.check_bot(
             organization_id=organization_id, arguments=arguments
         )
     return {"status": "unavailable", "reason": "no such tool"}

@@ -3137,6 +3137,10 @@ class EvalResultModel(Base):
     status = Column(String(16), nullable=False, default="queued")
     verdict = Column(Text, nullable=True)
     transcript = Column(JSON, nullable=False, default=list)
+    #: Where the run was asked for. ``office`` is a Check it from Decibyl's
+    #: thread (KAN-140 P1): the verdict is posted back there as a Result
+    #: card with Fix it. NULL is the evals screen.
+    origin = Column(String(16), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     finished_at = Column(DateTime(timezone=True), nullable=True)
 
