@@ -28,6 +28,7 @@ quiet 404 on an audio element rather than a broken page.
 from __future__ import annotations
 
 import re
+import time
 
 from loguru import logger
 
@@ -85,6 +86,21 @@ def sample_path(
     )
 
 
+#: How long a looked-up sample URL is remembered, in seconds. The templates
+#: list asks for every suggested voice of every template on each load, two
+#: storage round trips per voice; with storage slow or unreachable that was
+#: the marketplace showing "Loading..." for minutes. A sample is recorded
+#: once and never moves, so ten minutes is safe and the signed URL outlives
+#: it by far.
+SAMPLE_URL_TTL_SECONDS = 600
+_url_cache: dict[tuple[str, str, str | None], tuple[float, str | None]] = {}
+
+
+def forget_sample_urls() -> None:
+    """Drop the remembered URLs (after a sample is recorded, and in tests)."""
+    _url_cache.clear()
+
+
 async def sample_url(
     voice_id: str, language: str = "en", model: str | None = None
 ) -> str | None:
@@ -97,6 +113,18 @@ async def sample_url(
     if language not in SAMPLE_LANGUAGES:
         return None
 
+    key = (voice_id, language, model)
+    remembered = _url_cache.get(key)
+    if remembered and remembered[0] > time.monotonic():
+        return remembered[1]
+    url = await _look_up_sample_url(voice_id, language, model)
+    _url_cache[key] = (time.monotonic() + SAMPLE_URL_TTL_SECONDS, url)
+    return url
+
+
+async def _look_up_sample_url(
+    voice_id: str, language: str, model: str | None
+) -> str | None:
     storage = get_storage()
     # WAV from Sarvam, MP3 from ElevenLabs; the browser plays either.
     for ext in ("wav", "mp3"):
@@ -186,6 +214,8 @@ async def ensure_sample_url(
         storage = get_storage()
         await storage.acreate_file_from_bytes(path, audio)
         logger.info("Recorded voice sample {}", path)
+        # The lookup may have remembered "no sample" moments ago.
+        _url_cache.pop((voice_id, language, model), None)
         return await storage.aget_signed_url(path)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Recorded {} but could not store it: {}", voice_id, exc)

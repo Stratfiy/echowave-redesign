@@ -12,6 +12,16 @@ export function LocalProviderWrapper({ children }: { children: React.ReactNode }
   const [user, setUser] = useState<LocalUser | null>(null);
   const [loading, setLoading] = useState(true);
   const tokenRef = useRef<string | null>(null);
+  // The first load of the token, as a promise the getter can wait on. A
+  // screen's first fetches fire before the cookie has been read, and a
+  // getter that answered "" then sent them out with an empty bearer: the
+  // connectors, credentials and template lists all opened on a 401.
+  const readyRef = useRef<{ promise: Promise<void>; resolve: () => void } | null>(null);
+  if (readyRef.current === null) {
+    let resolve: () => void = () => {};
+    const promise = new Promise<void>((r) => { resolve = r; });
+    readyRef.current = { promise, resolve };
+  }
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -38,6 +48,7 @@ export function LocalProviderWrapper({ children }: { children: React.ReactNode }
         logger.error('Error initializing OSS auth', error);
       } finally {
         setLoading(false);
+        readyRef.current?.resolve();
       }
     };
 
@@ -48,6 +59,7 @@ export function LocalProviderWrapper({ children }: { children: React.ReactNode }
     if (typeof window === 'undefined') {
       return 'ssr-placeholder-token';
     }
+    await readyRef.current?.promise;
     if (!tokenRef.current) {
       logger.warn('No OSS token available after initialization');
       return '';
