@@ -18,6 +18,7 @@ router = APIRouter()
 
 @router.get("/ncco", include_in_schema=False)
 async def handle_ncco_webhook(
+    request: Request,
     workflow_id: int,
     workflow_run_id: int,
     organization_id: int,
@@ -29,6 +30,13 @@ async def handle_ncco_webhook(
 
     workflow_run = await db_client.get_workflow_run_by_id(workflow_run_id)
     provider = await get_telephony_provider_for_run(workflow_run, organization_id)
+    # The answer webhook hands back the media stream for this run; only the
+    # carrier may ask for it. Vonage signs it with a JWT in Authorization.
+    signature_valid = await provider.verify_inbound_signature(
+        str(request.url), dict(request.query_params), dict(request.headers), ""
+    )
+    if not signature_valid:
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
     response_content = await provider.get_webhook_response(
         workflow_id, organization_id, workflow_run_id

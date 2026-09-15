@@ -27,6 +27,10 @@ from api.services.telephony.transfer_event_protocol import (
     TransferEvent,
     TransferEventType,
 )
+from api.services.telephony.webhook_guard import (
+    provider_for_transfer,
+    require_signature,
+)
 
 router = APIRouter()
 
@@ -156,7 +160,12 @@ async def handle_telnyx_transfer_result(transfer_id: str, request: Request):
         - call.answered: https://developers.telnyx.com/api-reference/callbacks/call-answered
         - call.hangup:   https://developers.telnyx.com/api-reference/callbacks/call-hangup
     """
-    event_data = await request.json()
+    raw_body = (await request.body()).decode("utf-8", errors="replace")
+    event_data = json.loads(raw_body) if raw_body.strip() else {}
+    resolved = await provider_for_transfer(transfer_id)
+    if resolved is None:
+        return {"status": "ignored", "reason": "unknown_transfer"}
+    await require_signature(request, resolved[0], event_data, raw_body)
     logger.info(
         f"Telnyx transfer-result webhook (transfer_id={transfer_id}): "
         f"{json.dumps(event_data)}"

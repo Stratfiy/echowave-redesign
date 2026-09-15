@@ -22,6 +22,11 @@ from api.services.telephony.transfer_event_protocol import (
     TransferEvent,
     TransferEventType,
 )
+from api.services.telephony.webhook_guard import (
+    provider_for_run_id,
+    provider_for_transfer,
+    require_signature,
+)
 
 router = APIRouter()
 
@@ -68,13 +73,15 @@ async def handle_cloudonix_transfer_result(transfer_id: str, request: Request):
         f"token={destination_token}"
     )
 
-    call_transfer_manager = await get_call_transfer_manager()
-    transfer_context = await call_transfer_manager.get_transfer_context(transfer_id)
-    if not transfer_context:
+    resolved = await provider_for_transfer(transfer_id)
+    if resolved is None:
         logger.warning(
             f"[Cloudonix Transfer] No transfer context for {transfer_id}; ignoring"
         )
         return {"status": "ignored", "reason": "unknown_transfer"}
+    provider, transfer_context = resolved
+    await require_signature(request, provider, data if isinstance(data, dict) else {})
+    call_transfer_manager = await get_call_transfer_manager()
 
     original_call_sid = transfer_context.original_call_sid
     conference_name = transfer_context.conference_name
@@ -154,6 +161,7 @@ async def handle_cloudonix_status_callback(
     )
 
     # Parse the callback data into generic format
+    await require_signature(request, provider, callback_data)
     parsed_data = provider.parse_status_callback(callback_data)
 
     # Create StatusCallbackRequest from parsed data
@@ -211,6 +219,10 @@ async def handle_cloudonix_cdr(request: Request):
 
     workflow_run_id = workflow_run.id
     set_current_run_id(workflow_run_id)
+    resolved = await provider_for_run_id(workflow_run_id)
+    if resolved is None:
+        return {"status": "ignored", "reason": "workflow_not_found"}
+    await require_signature(request, resolved[0], cdr_data)
     logger.info(f"[run {workflow_run_id}] Processing Cloudonix CDR for call {call_id}")
 
     parsed_data = CloudonixProvider.parse_cdr_status_callback(cdr_data)
