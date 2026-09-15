@@ -10,6 +10,7 @@ from api.db import db_client
 from api.db.models import (
     UserModel,
 )
+from api.schemas.memory_messages import MemoryMessages
 from api.schemas.onboarding_state import OnboardingState, OnboardingStateUpdate
 from api.schemas.workflow_configurations import (
     WorkflowConfigurationDefaults,
@@ -274,6 +275,30 @@ async def update_user_configurations(
             }
 
     return masked_config
+
+
+@router.get("/memory-messages")
+async def get_memory_messages(
+    user: UserModel = Depends(get_user),
+) -> MemoryMessages:
+    """What memory may say to this person unasked. Off until turned on."""
+    from api.services.knowledge_graph import quiet
+
+    return MemoryMessages(**await quiet.switches_for(user.id))
+
+
+@router.put("/memory-messages")
+async def update_memory_messages(
+    request: MemoryMessages,
+    user: UserModel = Depends(get_user),
+) -> MemoryMessages:
+    """Set this person's own switches; nobody else's change."""
+    from api.services.knowledge_graph import quiet
+
+    current: dict[str, bool] = {}
+    for switch, on in request.model_dump().items():
+        current = await quiet.set_switch(user.id, switch, on)
+    return MemoryMessages(**current)
 
 
 @router.get("/onboarding-state")

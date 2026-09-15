@@ -8,7 +8,11 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.future import select
 
 from api.db.base_client import BaseDBClient
-from api.db.models import UserConfigurationModel, UserModel
+from api.db.models import (
+    OrganizationMembershipModel,
+    UserConfigurationModel,
+    UserModel,
+)
 from api.enums import UserConfigurationKey
 from api.schemas.ai_model_configuration import EffectiveAIModelConfiguration
 
@@ -102,6 +106,29 @@ class UserClient(BaseDBClient):
                 await session.rollback()
                 raise e
             return result.scalar_one()
+
+    async def users_with_configuration_flag(
+        self, key: str, flag: str
+    ) -> list[tuple[int, UserModel]]:
+        """Every (organization_id, user) whose JSON under ``key`` has ``flag``
+        true. One query for a job that runs once a week and must not read
+        every account to find the few who asked for something."""
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(OrganizationMembershipModel.organization_id, UserModel)
+                .join(UserModel, UserModel.id == OrganizationMembershipModel.user_id)
+                .join(
+                    UserConfigurationModel,
+                    UserConfigurationModel.user_id == UserModel.id,
+                )
+                .where(
+                    UserConfigurationModel.key == key,
+                    UserConfigurationModel.configuration[flag].as_boolean().is_(True),
+                )
+            )
+            return [
+                (int(organization_id), user) for organization_id, user in result.all()
+            ]
 
     async def get_user_configurations(
         self, user_id: int

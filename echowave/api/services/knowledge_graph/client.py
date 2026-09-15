@@ -236,10 +236,15 @@ async def search_facts(
     limit: int = 12,
     since: datetime | None = None,
     until: datetime | None = None,
+    include_closed: bool = False,
 ) -> list[Fact] | None:
     """Facts in this organisation's partition that bear on ``query``, newest
     first, with the confirmed/inferred overlay. None when there is no graph
-    (the caller says so); an empty list when the graph has nothing."""
+    (the caller says so); an empty list when the graph has nothing.
+
+    An edge the graph has closed (``invalid_at`` set -- a later episode,
+    such as a correction, contradicted it) is history and left out unless
+    ``include_closed``: a present-tense answer must not carry it."""
     from api.services.knowledge_graph.scoping import group_ids_for_search
 
     graph = await get_graph()
@@ -257,11 +262,31 @@ async def search_facts(
     except Exception as exception:  # noqa: BLE001 - no graph answer is an answer
         logger.warning(f"Graph search failed for org {organization_id}: {exception}")
         return None
+    facts = _facts_from_edges(
+        edges or [], since=since, until=until, include_closed=include_closed
+    )[:limit]
+    return await _overlay_confirmed(organization_id, facts)
+
+
+def _facts_from_edges(
+    edges: Any,
+    *,
+    since: datetime | None = None,
+    until: datetime | None = None,
+    include_closed: bool = False,
+    by: str = "valid_at",
+) -> list[Fact]:
+    """Edges to facts, newest first, within the window. ``by`` names which
+    time the window and order use: when the fact held (recall) or when the
+    graph learned it (the Sunday review's "added this week")."""
     facts: list[Fact] = []
-    for edge in edges or []:
+    for edge in edges:
         valid_at = getattr(edge, "valid_at", None)
         created_at = getattr(edge, "created_at", None)
-        when = valid_at or created_at
+        invalid_at = getattr(edge, "invalid_at", None)
+        if invalid_at and not include_closed:
+            continue
+        when = created_at if by == "created_at" else (valid_at or created_at)
         if since and when and when < since:
             continue
         if until and when and when > until:
@@ -271,19 +296,51 @@ async def search_facts(
                 uuid=str(getattr(edge, "uuid", "")),
                 fact=str(getattr(edge, "fact", "") or ""),
                 valid_at=valid_at,
-                invalid_at=getattr(edge, "invalid_at", None),
+                invalid_at=invalid_at,
                 created_at=created_at,
                 episodes=tuple(str(e) for e in (getattr(edge, "episodes", None) or [])),
             )
         )
-    facts.sort(
-        key=lambda f: (
-            f.valid_at or f.created_at or datetime.min.replace(tzinfo=None)
-        ).replace(tzinfo=None),
-        reverse=True,
+
+    def _when(f: Fact) -> datetime:
+        t = f.created_at if by == "created_at" else (f.valid_at or f.created_at)
+        return (t or datetime.min).replace(tzinfo=None)
+
+    facts.sort(key=_when, reverse=True)
+    return facts
+
+
+async def recent_facts(
+    organization_id: int, *, since: datetime, limit: int = 200
+) -> list[Fact] | None:
+    """What the graph learned about this organisation since ``since``,
+    newest first -- not a query, a listing, for the Sunday review (B3).
+    None when there is no graph."""
+    from api.services.knowledge_graph.scoping import group_ids_for_search
+
+    graph = await get_graph()
+    if graph is None:
+        return None
+    try:
+        from graphiti_core.edges import EntityEdge
+
+        # Listed by uuid, not time, so over-fetch and filter here. Small
+        # accounts by a wide margin; a large one gets its newest page.
+        edges = await asyncio.wait_for(
+            EntityEdge.get_by_group_ids(
+                graph.driver,
+                group_ids_for_search(organization_id),
+                limit=max(limit * 4, 400),
+            ),
+            timeout=SEARCH_TIMEOUT_SECONDS,
+        )
+    except Exception as exception:  # noqa: BLE001
+        logger.warning(f"Graph listing failed for org {organization_id}: {exception}")
+        return None
+    facts = _facts_from_edges(
+        edges or [], since=since, include_closed=True, by="created_at"
     )
-    facts = facts[:limit]
-    return await _overlay_confirmed(organization_id, facts)
+    return await _overlay_confirmed(organization_id, facts[:limit])
 
 
 async def _overlay_confirmed(organization_id: int, facts: list[Fact]) -> list[Fact]:
@@ -295,8 +352,17 @@ async def _overlay_confirmed(organization_id: int, facts: list[Fact]) -> list[Fa
     try:
         from api.db import db_client
 
-        rows = await db_client.organisation_memory(
-            organization_id=organization_id, kind="fact", status="confirmed", limit=500
+        rows = list(
+            await db_client.organisation_memory(
+                organization_id=organization_id,
+                kind="fact",
+                status="confirmed",
+                limit=500,
+            )
+        ) + list(
+            await db_client.subject_facts(
+                organization_id=organization_id, status="confirmed"
+            )
         )
     except Exception as exception:  # noqa: BLE001
         logger.warning(

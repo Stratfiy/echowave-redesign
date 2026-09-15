@@ -27,7 +27,7 @@ from typing import Any
 from loguru import logger
 
 from api.services.billing import events as billing_events
-from api.services.knowledge_graph.client import search_facts
+from api.services.knowledge_graph.client import Fact, search_facts
 
 TOOL_NAME = "recall"
 
@@ -128,6 +128,10 @@ async def for_thread(
         note="recall from memory (Decibyl)",
     )
 
+    # What the person confirmed about the subject outranks anything the
+    # graph inferred (B5): the record's facts come first, as confirmed.
+    facts = [*await _record_facts(organization_id, about), *facts]
+
     if not facts:
         return {
             "status": "success",
@@ -146,6 +150,39 @@ async def for_thread(
             "with when; state a confirmed fact as fact."
         ),
     }
+
+
+async def _record_facts(organization_id: int, about: str) -> list[Fact]:
+    """Confirmed facts in the account's own record about ``about``."""
+    if not about:
+        return []
+    from api.db import db_client
+    from api.services.knowledge_graph.teach import subject_key
+
+    try:
+        rows = await db_client.subject_facts(
+            organization_id=organization_id,
+            subject_key=subject_key(about),
+            status="confirmed",
+            limit=20,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Recall could not read the record for org {}: {}", organization_id, exc
+        )
+        return []
+    return [
+        Fact(
+            uuid=f"record:{row.id}",
+            fact=f"{about} — {row.key}: {row.value}",
+            valid_at=getattr(row, "confirmed_at", None),
+            invalid_at=None,
+            created_at=getattr(row, "confirmed_at", None),
+            episodes=(),
+            status="confirmed",
+        )
+        for row in rows
+    ]
 
 
 __all__ = ["TOOL_NAME", "for_thread", "parse_day", "tool_schema"]

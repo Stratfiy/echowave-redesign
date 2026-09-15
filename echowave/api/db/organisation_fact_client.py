@@ -373,6 +373,36 @@ class OrganisationFactClient(BaseDBClient):
             result = await session.execute(query)
             return list(result.scalars().all())
 
+    async def subject_facts(
+        self,
+        *,
+        organization_id: int,
+        subject_type: Optional[str] = None,
+        subject_key: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 200,
+    ) -> list[Any]:
+        """Facts about things other than the organisation itself: a person, a
+        document, a supplier. What a correction on the thread writes (B5)
+        and what recall reads first. ``organisation_memory`` deliberately
+        never returns these; this deliberately never returns those."""
+        async with self.async_session() as session:
+            query = select(OrganisationFactModel).where(
+                OrganisationFactModel.organization_id == organization_id,
+                OrganisationFactModel.subject_type != SUBJECT_ORGANISATION,
+            )
+            if subject_type:
+                query = query.where(OrganisationFactModel.subject_type == subject_type)
+            if subject_key:
+                query = query.where(OrganisationFactModel.subject_key == subject_key)
+            if status:
+                query = query.where(OrganisationFactModel.status == status)
+            query = query.order_by(OrganisationFactModel.last_seen_at.desc()).limit(
+                limit
+            )
+            result = await session.execute(query)
+            return list(result.scalars().all())
+
     async def set_organisation_fact_status(
         self,
         *,
