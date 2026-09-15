@@ -243,6 +243,16 @@ async def confirm(
     line = f"Remembered {len(fields)} details from {document.filename}"
     if reminders:
         line += f"; reminders on {', '.join(reminders)}"
+    # An identity document waits for this moment to be filed: its holder's
+    # name is now a person's word, not a model's reading (A3).
+    from api.services.workflow import filing
+
+    try:
+        await filing.on_confirmed(organization_id, document, fields)
+    except Exception as exc:  # noqa: BLE001 - the confirmation stands regardless
+        logger.warning(
+            "Could not file {} after confirmation: {}", document.filename, exc
+        )
     await agent_timeline.record(
         organization_id=organization_id,
         kind=AgentEventKind.AGENT_ACTED.value,
