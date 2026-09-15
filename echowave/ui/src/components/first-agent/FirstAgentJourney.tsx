@@ -496,10 +496,10 @@ function JourneyRail({
             </Link>
             <h1 className="mt-8 text-xl font-semibold leading-snug">
                 {step === "ready"
-                    ? "Your first agent is live."
+                    ? "Your first bot is live."
                     : firstName
-                      ? `Hi ${firstName}, let's build your first agent.`
-                      : "Let's build your first agent."}
+                      ? `Hi ${firstName}, let's build your first bot.`
+                      : "Let's build your first bot."}
             </h1>
 
             <ol className="mt-8 space-y-5" aria-label="Steps">
