@@ -585,6 +585,20 @@ export type Attachment = {
 };
 
 /**
+ * Attribution
+ */
+export type Attribution = {
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * License
+     */
+    license: string;
+};
+
+/**
  * AuthResponse
  */
 export type AuthResponse = {
@@ -1315,6 +1329,20 @@ export type BodyUploadNumbersApiV1DoNotCallUploadPost = {
      * File
      */
     file: Blob | File;
+};
+
+/**
+ * BotsRequest
+ */
+export type BotsRequest = {
+    /**
+     * Slug
+     */
+    slug: string;
+    /**
+     * Workflow Ids
+     */
+    workflow_ids?: Array<number>;
 };
 
 /**
@@ -5892,6 +5920,16 @@ export type InitiateCallRequest = {
 };
 
 /**
+ * InstallRequest
+ */
+export type InstallRequest = {
+    /**
+     * Slug
+     */
+    slug: string;
+};
+
+/**
  * InternalBillingRequest
  */
 export type InternalBillingRequest = {
@@ -10302,20 +10340,6 @@ export type SharedOutboundRequest = {
 };
 
 /**
- * ShelfResponse
- */
-export type ShelfResponse = {
-    /**
-     * Jobs
-     */
-    jobs: Array<string>;
-    /**
-     * Packs
-     */
-    packs: Array<PackCard>;
-};
-
-/**
  * SignupRequest
  */
 export type SignupRequest = {
@@ -10339,6 +10363,110 @@ export type SignupRequest = {
      * Accepted Agreements
      */
     accepted_agreements?: Array<string>;
+};
+
+/**
+ * SkillCard
+ */
+export type SkillCard = {
+    /**
+     * Slug
+     */
+    slug: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Division
+     */
+    division: string;
+    /**
+     * Emoji
+     */
+    emoji: string;
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * License
+     */
+    license: string;
+    /**
+     * Lines
+     */
+    lines: number;
+    /**
+     * On Bots
+     */
+    on_bots?: Array<SkillOnBot>;
+};
+
+/**
+ * SkillDetail
+ */
+export type SkillDetail = {
+    /**
+     * Slug
+     */
+    slug: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Division
+     */
+    division: string;
+    /**
+     * Emoji
+     */
+    emoji: string;
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * License
+     */
+    license: string;
+    /**
+     * Lines
+     */
+    lines: number;
+    /**
+     * On Bots
+     */
+    on_bots?: Array<SkillOnBot>;
+    /**
+     * Body
+     */
+    body: string;
+};
+
+/**
+ * SkillOnBot
+ *
+ * A bot carrying this skill. Named so the picker can tick it.
+ */
+export type SkillOnBot = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
 };
 
 /**
@@ -13465,6 +13593,16 @@ export type WorkflowRunsResponse = {
 };
 
 /**
+ * WorkflowSkillsResponse
+ */
+export type WorkflowSkillsResponse = {
+    /**
+     * Slugs
+     */
+    slugs: Array<string>;
+};
+
+/**
  * WorkflowSummaryResponse
  */
 export type WorkflowSummaryResponse = {
@@ -13597,6 +13735,20 @@ export type ApiRoutesKycAdminRejectRequest = {
 };
 
 /**
+ * ShelfResponse
+ */
+export type ApiRoutesPacksShelfResponse = {
+    /**
+     * Jobs
+     */
+    jobs: Array<string>;
+    /**
+     * Packs
+     */
+    packs: Array<PackCard>;
+};
+
+/**
  * RejectRequest
  */
 export type ApiRoutesPartnerAdminRejectRequest = {
@@ -13606,6 +13758,32 @@ export type ApiRoutesPartnerAdminRejectRequest = {
      * Why not. Shown to the applicant, so write it for them.
      */
     note?: string | null;
+};
+
+/**
+ * ShelfResponse
+ */
+export type ApiRoutesSkillsShelfResponse = {
+    /**
+     * Installed
+     */
+    installed: Array<SkillCard>;
+    /**
+     * Skills
+     */
+    skills: Array<SkillCard>;
+    /**
+     * Divisions
+     */
+    divisions: Array<string>;
+    /**
+     * Attributions
+     */
+    attributions: Array<Attribution>;
+    /**
+     * Max Per Bot
+     */
+    max_per_bot: number;
 };
 
 export type InitiateCallApiV1TelephonyInitiateCallPostData = {
@@ -26178,6 +26356,264 @@ export type TestTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdTestPostResponse
 
 export type TestTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdTestPostResponse = TestTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdTestPostResponses[keyof TestTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdTestPostResponses];
 
+export type ListSkillsApiV1SkillsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/skills';
+};
+
+export type ListSkillsApiV1SkillsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListSkillsApiV1SkillsGetError = ListSkillsApiV1SkillsGetErrors[keyof ListSkillsApiV1SkillsGetErrors];
+
+export type ListSkillsApiV1SkillsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ApiRoutesSkillsShelfResponse;
+};
+
+export type ListSkillsApiV1SkillsGetResponse = ListSkillsApiV1SkillsGetResponses[keyof ListSkillsApiV1SkillsGetResponses];
+
+export type ReadSkillApiV1SkillsSlugGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Slug
+         *
+         * The catalogue slug, e.g. sales-coach.
+         */
+        slug: string;
+    };
+    query?: never;
+    url: '/api/v1/skills/{slug}';
+};
+
+export type ReadSkillApiV1SkillsSlugGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadSkillApiV1SkillsSlugGetError = ReadSkillApiV1SkillsSlugGetErrors[keyof ReadSkillApiV1SkillsSlugGetErrors];
+
+export type ReadSkillApiV1SkillsSlugGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SkillDetail;
+};
+
+export type ReadSkillApiV1SkillsSlugGetResponse = ReadSkillApiV1SkillsSlugGetResponses[keyof ReadSkillApiV1SkillsSlugGetResponses];
+
+export type InstallSkillApiV1SkillsInstallPostData = {
+    body: InstallRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/skills/install';
+};
+
+export type InstallSkillApiV1SkillsInstallPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type InstallSkillApiV1SkillsInstallPostError = InstallSkillApiV1SkillsInstallPostErrors[keyof InstallSkillApiV1SkillsInstallPostErrors];
+
+export type InstallSkillApiV1SkillsInstallPostResponses = {
+    /**
+     * Response Install Skill Api V1 Skills Install Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type InstallSkillApiV1SkillsInstallPostResponse = InstallSkillApiV1SkillsInstallPostResponses[keyof InstallSkillApiV1SkillsInstallPostResponses];
+
+export type UninstallSkillApiV1SkillsUninstallPostData = {
+    body: InstallRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/skills/uninstall';
+};
+
+export type UninstallSkillApiV1SkillsUninstallPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UninstallSkillApiV1SkillsUninstallPostError = UninstallSkillApiV1SkillsUninstallPostErrors[keyof UninstallSkillApiV1SkillsUninstallPostErrors];
+
+export type UninstallSkillApiV1SkillsUninstallPostResponses = {
+    /**
+     * Response Uninstall Skill Api V1 Skills Uninstall Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type UninstallSkillApiV1SkillsUninstallPostResponse = UninstallSkillApiV1SkillsUninstallPostResponses[keyof UninstallSkillApiV1SkillsUninstallPostResponses];
+
+export type SetSkillBotsApiV1SkillsBotsPostData = {
+    body: BotsRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/skills/bots';
+};
+
+export type SetSkillBotsApiV1SkillsBotsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetSkillBotsApiV1SkillsBotsPostError = SetSkillBotsApiV1SkillsBotsPostErrors[keyof SetSkillBotsApiV1SkillsBotsPostErrors];
+
+export type SetSkillBotsApiV1SkillsBotsPostResponses = {
+    /**
+     * Response Set Skill Bots Api V1 Skills Bots Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetSkillBotsApiV1SkillsBotsPostResponse = SetSkillBotsApiV1SkillsBotsPostResponses[keyof SetSkillBotsApiV1SkillsBotsPostResponses];
+
+export type SkillsOnWorkflowApiV1SkillsOnWorkflowIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/skills/on/{workflow_id}';
+};
+
+export type SkillsOnWorkflowApiV1SkillsOnWorkflowIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SkillsOnWorkflowApiV1SkillsOnWorkflowIdGetError = SkillsOnWorkflowApiV1SkillsOnWorkflowIdGetErrors[keyof SkillsOnWorkflowApiV1SkillsOnWorkflowIdGetErrors];
+
+export type SkillsOnWorkflowApiV1SkillsOnWorkflowIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: WorkflowSkillsResponse;
+};
+
+export type SkillsOnWorkflowApiV1SkillsOnWorkflowIdGetResponse = SkillsOnWorkflowApiV1SkillsOnWorkflowIdGetResponses[keyof SkillsOnWorkflowApiV1SkillsOnWorkflowIdGetResponses];
+
 export type ListTasksApiV1TasksGetData = {
     body?: never;
     headers?: {
@@ -26821,7 +27257,7 @@ export type ShelfApiV1PacksGetResponses = {
     /**
      * Successful Response
      */
-    200: ShelfResponse;
+    200: ApiRoutesPacksShelfResponse;
 };
 
 export type ShelfApiV1PacksGetResponse = ShelfApiV1PacksGetResponses[keyof ShelfApiV1PacksGetResponses];

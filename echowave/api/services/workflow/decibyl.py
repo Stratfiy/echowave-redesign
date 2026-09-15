@@ -291,6 +291,43 @@ def door_block(door: dict[str, str]) -> str:
     return "Signing up, they said " + "; ".join(parts) + "."
 
 
+#: Scope names as somebody would say them, for the documents block.
+_SCOPE_WORDS = {
+    "org": "Company knowledge, read by every bot",
+    "bot": "one bot's own",
+    "channel": "a channel's",
+    "library": "the library, read only by a step that names it",
+}
+
+
+def documents_block(rows: list[Any], names: dict[int, str]) -> str:
+    """What the account has uploaded, and who reads it.
+
+    Without this the model knew only whether a *search* of Company knowledge
+    matched, so an account with three documents filed against bots was told
+    its knowledge base was empty -- true of the search, false of the files,
+    and the person is looking at them on the Knowledge base screen while
+    reading it.
+    """
+    if not rows:
+        return "Nothing uploaded yet."
+    lines = []
+    for row in rows[:20]:
+        scope = str(getattr(row, "scope", "") or "library")
+        where = _SCOPE_WORDS.get(scope, scope)
+        if scope == "bot":
+            bot = names.get(getattr(row, "workflow_id", None) or -1)
+            if bot:
+                where = f"{bot}'s own"
+        state = str(getattr(row, "processing_status", "") or "")
+        still = " (still being read)" if state and state != "completed" else ""
+        lines.append(f"- {getattr(row, 'filename', 'a file')}: {where}{still}")
+    more = len(rows) - len(lines)
+    if more > 0:
+        lines.append(f"- and {more} more")
+    return "\n".join(lines)
+
+
 def memory_block(rows: list[Any]) -> str:
     facts = [
         f"- {r.key}: {r.value}" for r in rows if getattr(r, "kind", "fact") == "fact"
@@ -413,6 +450,15 @@ async def build_context(organization_id: int, question: str) -> str:
         missed = []
 
     knowledge = await _knowledge(organization_id, question)
+    # The files themselves, not just whether a search of them matched: see
+    # documents_block.
+    try:
+        documents = await db_client.get_documents_for_organization(
+            organization_id, limit=50
+        )
+    except Exception as exc:  # noqa: BLE001 - a list is a nicety, not a dependency
+        logger.warning("Decibyl could not list the documents: {}", exc)
+        documents = []
     # What they said at the door: a clinic owner and a logistics ops lead
     # want different first bots, and the same question means different
     # things from each.
@@ -441,7 +487,8 @@ async def build_context(organization_id: int, question: str) -> str:
         f"## Lately\n{recent_block(recent, bot_names)}\n\n"
         f"## Missed calls not returned\n{missed_block(missed)}\n\n"
         f"## Connected apps\n{connected_tools.apps_block(apps)}\n\n"
-        f"## From Company knowledge\n{knowledge_block(knowledge)}\n"
+        f"## From Company knowledge\n{knowledge_block(knowledge)}\n\n"
+        f"## Files this account has uploaded\n{documents_block(documents, bot_names)}\n"
     )
 
 
