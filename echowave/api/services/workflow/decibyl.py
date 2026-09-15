@@ -127,6 +127,9 @@ SYSTEM = (
     "reminders of things asked about) are off until the person asks; "
     "memory_messages turns each on or off for the person asking. Say what "
     "is now on or off.\n"
+    "- An 'Asked before' block in the context is something the person once "
+    "asked memory about that this line touches: mention it in a clause "
+    "only when it helps the line, never as a separate announcement.\n"
     "- Never repeat an OTP, a card number or an identity number.\n"
 )
 
@@ -511,6 +514,17 @@ async def answer(
             conversation.messages.append(
                 {"role": "assistant", "content": turn["content"]}
             )
+    # Something asked about before that this line touches (B6): a block,
+    # not a message, and only at its interval.
+    try:
+        from api.services.knowledge_graph import spaced_recall
+
+        asked_before = await spaced_recall.related_context(organization_id, text)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not read what was asked before: {}", exc)
+        asked_before = ""
+    if asked_before:
+        context = f"{context}\n\n{asked_before}"
     conversation.add_user(f"{context}\n\n## Question\n{text}{handed}")
 
     try:
@@ -575,6 +589,13 @@ async def answer(
         )
     except Exception as exc:  # noqa: BLE001 - the reply is already on the thread
         logger.warning("Graph could not remember the exchange: {}", exc)
+    # A decision in the person's line goes into the journal (B2), inferred.
+    try:
+        from api.services.knowledge_graph import decisions
+
+        await decisions.note(organization_id, text, source="thread")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not note decisions from the thread: {}", exc)
     return body
 
 

@@ -160,9 +160,31 @@ async def remember_correction(
         return False
 
 
+async def remember_decision(*, organization_id: int, line: str, at: datetime) -> bool:
+    """A decision the journal noted (B2), as a dated episode of its own."""
+    if not graph_is_configured():
+        return False
+    try:
+        episode = episodes.Episode(
+            name=f"decision-{organization_id}-{int(at.timestamp())}",
+            body=line,
+            source_description="Decision noted from a conversation (inferred)",
+            reference_time=at,
+            group_id=scoping.group_id_for_organization(organization_id),
+            source=episodes.SOURCE_TEXT,
+        )
+        return await ingest.remember(episode)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Could not remember a decision for org {}: {}", organization_id, exc
+        )
+        return False
+
+
 __all__ = [
     "remember_call",
     "remember_correction",
+    "remember_decision",
     "remember_document",
     "remember_exchange",
 ]
