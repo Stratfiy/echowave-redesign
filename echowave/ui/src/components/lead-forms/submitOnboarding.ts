@@ -17,6 +17,9 @@ import type { LeadOrigin } from "./leadFieldOptions";
 import { postOnboardingToService } from "./onboardingServiceClient";
 
 export interface OnboardingAnswers {
+  /** The three questions at the door: role, business, where heard. */
+  role?: string;
+  business?: string;
   persona?: string;
   // Only present when persona unlocks the on-prem question.
   onPremNeed?: string;

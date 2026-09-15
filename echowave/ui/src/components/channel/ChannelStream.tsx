@@ -36,6 +36,7 @@ import {
     translateTextApiV1TranslatePost,
 } from '@/client/sdk.gen';
 import type { TimelineEvent } from '@/client/types.gen';
+import { tagTokens } from '@/components/channel/ChannelComposer';
 import { Button } from '@/components/ui/button';
 import { ActionCard } from '@/components/workflow/ActionCard';
 import { DecisionCard } from '@/components/workflow/DecisionCard';
@@ -77,8 +78,26 @@ function when(at: string): string {
     });
 }
 
-/** The words somebody typed, whole. `summary` truncates at 500; `payload.body`
- *  does not, and a message silently cut short is the product editing them. */
+/** A message with its `@bot` and `#channel` tags painted blue. */
+function Tagged({ text }: { text: string }) {
+    return (
+        <>
+            {tagTokens(text).map((token, index) =>
+                token.tag ? (
+                    <span key={index} className="font-medium text-[var(--brand-blue)]">
+                        {token.text}
+                    </span>
+                ) : (
+                    <span key={index}>{token.text}</span>
+                ),
+            )}
+        </>
+    );
+}
+
+/** The words somebody typed, or a bot's whole reply. `summary` truncates at
+ *  500; `payload.body` does not, and a message silently cut short is the
+ *  product editing them. A bot's reply was cut mid-word on the home screen. */
 function messageBody(event: TimelineEvent): string {
     const body = (event.payload as { body?: unknown } | null)?.body;
     return typeof body === 'string' && body ? body : event.summary;
@@ -786,19 +805,19 @@ export function ChannelStream({
                                 </p>
                                 {/* whitespace-pre-wrap: somebody who typed a
                                     list wrote the line breaks on purpose. */}
-                                {(fromPerson ? messageBody(event) : event.summary) && (
+                                {messageBody(event) && (
                                     <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed">
-                                        {fromPerson ? messageBody(event) : event.summary}
+                                        <Tagged text={messageBody(event)} />
                                     </p>
                                 )}
-                                {hasIndicScript(fromPerson ? messageBody(event) : event.summary) && (
+                                {hasIndicScript(messageBody(event)) && (
                                     <div className="mt-1 text-xs">
                                         {translated[event.id] === undefined ? (
                                             <button
                                                 type="button"
                                                 className="text-muted-foreground underline-offset-2 hover:underline"
                                                 onClick={() =>
-                                                    void translateRow(event, fromPerson ? messageBody(event) : event.summary)
+                                                    void translateRow(event, messageBody(event))
                                                 }
                                             >
                                                 Translate

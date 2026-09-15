@@ -413,6 +413,7 @@ export function FirstAgentJourney() {
                             displayName={displayName}
                             getAccessToken={getAccessToken}
                             onRun={setRunId}
+                            onBack={() => back("hear", "name")}
                             onDone={() => setStep("ready")}
                         />
                     )}
@@ -804,12 +805,16 @@ function HearStep({
     displayName,
     getAccessToken,
     onRun,
+    onBack,
     onDone,
 }: {
     workflowId: number;
     displayName: string;
     getAccessToken: () => Promise<string>;
     onRun: (runId: number) => void;
+    // "Now hear it" was the one step with no way back: a wrong name or the
+    // wrong template meant starting the whole journey over.
+    onBack: () => void;
     onDone: () => void;
 }) {
     const { user, loading: authLoading } = useAuth();
@@ -1045,8 +1050,20 @@ function HearStep({
                 </p>
             )}
 
+            {mode === "phone" && (
+                <footer className="flex items-center justify-start border-t border-border pt-5">
+                    <Button type="button" variant="ghost" onClick={onBack} disabled={busy}>
+                        <ArrowLeft className="h-4 w-4" />
+                        Back
+                    </Button>
+                </footer>
+            )}
             {mode === "browser" && (
-                <footer className="flex items-center justify-end border-t border-border pt-5">
+                <footer className="flex items-center justify-between border-t border-border pt-5">
+                    <Button type="button" variant="ghost" onClick={onBack} disabled={busy}>
+                        <ArrowLeft className="h-4 w-4" />
+                        Back
+                    </Button>
                     <Button onClick={() => void startBrowser()} disabled={busy}>
                         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Headphones className="h-4 w-4" />}
                         Start test call

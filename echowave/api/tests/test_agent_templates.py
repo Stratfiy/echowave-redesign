@@ -22,6 +22,7 @@ from api.services.agent_templates.materialise import (
     TemplateShapeError,
     to_workflow_definition,
 )
+from api.services.workflow.dto import ReactFlowDTO
 
 ALL = list_templates()
 
@@ -528,3 +529,12 @@ def test_a_workflow_with_a_handoff_counts_as_a_squad():
         ],
     }
     assert has_handoffs(squad)
+
+
+@pytest.mark.parametrize("template", ALL, ids=lambda t: t.id)
+def test_the_bot_it_makes_passes_the_workflow_schema(template):
+    """The first test call validates the whole definition against the DTO.
+    The clinic template's extraction variables carried no type, so the first
+    thing a new account saw was a dialog of seven "node: Field required"
+    lines. Every template must make a bot the schema accepts."""
+    ReactFlowDTO.model_validate(to_workflow_definition(template))

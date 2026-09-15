@@ -11,6 +11,8 @@ vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: 1 }, loading: false
 vi.mock("@/client/sdk.gen", () => ({
     teamHomeApiV1TeamHomeGet: api.home,
     postMessageApiV1TimelineMessagePost: api.post,
+    // The roster for @ on Decibyl's thread: no bots in these tests.
+    getWorkflowsApiV1WorkflowFetchGet: async () => ({ data: [] }),
 }));
 vi.mock("@/components/channel/ChannelStream", () => ({
     ChannelStream: (props: Record<string, unknown>) => {

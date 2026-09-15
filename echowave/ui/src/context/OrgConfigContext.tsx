@@ -62,9 +62,11 @@ export function OrgConfigProvider({ children }: { children: ReactNode }) {
     const hasFetchedConfig = useRef(false);
     const hasFetchedPermissions = useRef(false);
 
-    if (!auth.loading && auth.isAuthenticated) {
-        setupAuthInterceptor(client, auth.getAccessToken);
-    }
+    // Registered on the first render, not once auth has resolved: a
+    // screen's first fetches go out before that, and an interceptor that
+    // was not there yet sent them with no bearer at all. The getter reads
+    // the live auth through the ref and itself waits for the token.
+    setupAuthInterceptor(client, () => authRef.current.getAccessToken());
 
     useEffect(() => {
         if (auth.loading || hasFetchedPermissions.current) {

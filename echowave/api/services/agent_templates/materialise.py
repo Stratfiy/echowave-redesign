@@ -90,7 +90,10 @@ def to_workflow_definition(template: AgentTemplate) -> dict[str, Any]:
             agent_seen += 1
             node_id = _slug(agent_seen, "agent")
             extraction = (
-                [{"name": k, "description": v} for k, v in node.extract.items()]
+                [
+                    {"name": k, "type": "string", "description": v}
+                    for k, v in node.extract.items()
+                ]
                 if node.extract
                 else None
             )

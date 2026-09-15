@@ -59,8 +59,13 @@ class ExtractionVariableDTO(BaseModel):
         description="snake_case identifier used downstream.",
         required=True,
     )
+    # Defaults to a string rather than being required: every template that
+    # ever wrote a variable without a type, and every bot made from one,
+    # failed validation on the first test call with seven lines of
+    # "node: Field required" and no way to know why. A missing type is a
+    # string, which is what every such variable was anyway.
     type: VariableType = spec_field(
-        ...,
+        default=VariableType.string,
         display_name="Type",
         description="Data type of the extracted value.",
         required=True,

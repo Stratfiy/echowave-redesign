@@ -18,9 +18,8 @@
  */
 
 import { HomeAboveTheFold } from "@/components/home/HomeAboveTheFold";
-import { InviteCard } from "@/components/home/InviteCard";
 import { LazySection } from "@/components/home/LazySection";
-import { OnboardingChecklist } from "@/components/home/OnboardingChecklist";
+import { HOME_TABS } from "@/components/home/tabs";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { OverviewDashboard } from "@/components/overview/OverviewDashboard";
 import { useAuth } from "@/lib/auth";
@@ -36,12 +35,7 @@ export default function OverviewPage() {
         // The greeting moved into the body, where it can say what
         // actually happened rather than what the page contains.
         description="Your team's assistant. Ask what happened, or build a new bot."
-        tabs={[
-          { href: "/overview", label: "Messages" },
-          { href: "/review", label: "History", prefix: true },
-          { href: "/overview/memory", label: "Memory" },
-          { href: "/overview/about", label: "About" },
-        ]}
+        tabs={HOME_TABS}
       />
       {/* The one screen that keeps a reading-width column inside the body.
                 Everything below is a chat composer and two prose cards; run
@@ -51,10 +45,10 @@ export default function OverviewPage() {
         {/* What happened, in sentences: the greeting, the composer,
                     chips built from this account's own state, and the team. */}
         <HomeAboveTheFold firstName={firstName} />
-        {/* Six steps that pay the free credits, until they are all done. */}
-        <OnboardingChecklist />
-        {/* The referral link, and who came through it (KAN-133). */}
-        <InviteCard compact />
+        {/* The free-credit steps and the referral link moved to the gift
+            menu beside the credits chip: they are about the account, not
+            the conversation, and here they pushed the composer up the
+            screen and sat under it as two cards of chores. */}
         {/* How it is trending, in charts — and not before somebody
                     scrolls to them. These are four analytics endpoints and a
                     charting library; paying for them on first paint made the

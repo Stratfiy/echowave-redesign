@@ -731,7 +731,9 @@ export const useWebSocketRTC = ({ workflowId, workflowRunId, accessToken, initia
                 const errorDetail = workflowResponse.error as { detail?: { errors: WorkflowValidationError[] } };
                 if (errorDetail?.detail?.errors) {
                     msg = errorDetail.detail.errors
-                        .map(err => `${err.kind}: ${err.message}`)
+                        // The step and the field, not just "node": seven lines
+                        // of "node: Field required" told nobody what to fix.
+                        .map(err => `${err.kind} ${err.id}${err.field ? ` (${err.field})` : ""}: ${err.message}`)
                         .join('\n');
                 }
                 setWorkflowConfigError(msg);

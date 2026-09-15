@@ -19,6 +19,8 @@ import {
     listTasksApiV1TasksGet,
     setTaskStatusApiV1TasksTaskIdStatusPost,
 } from "@/client/sdk.gen";
+import { HOME_TABS } from "@/components/home/tabs";
+import { PageHeader } from "@/components/layout/PageHeader";
 import SpinLoader from "@/components/SpinLoader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -150,12 +152,15 @@ export default function TasksPage() {
         tasks.filter((t) => (id === "done" ? t.status === "done" || t.status === "could_not" : t.status === id));
 
     return (
+        <>
+        {/* The board is a tab of Home, beside the conversation: what the bots
+            and the team were handed is the other half of what happened. */}
+        <PageHeader
+            title="Decibyl"
+            description="What the bots and the team have been handed, and what came of it. A bot files a task for a colleague or for you; you file one for a bot or for the team."
+            tabs={HOME_TABS}
+        />
         <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
-            <h1 className="text-xl font-bold tracking-tight">Tasks</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-                What the bots and the team have been handed, and what came of it. A bot files a task for a
-                colleague or for you; you file one for a bot or for the team.
-            </p>
 
             {error && (
                 <div className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -295,5 +300,6 @@ export default function TasksPage() {
                 ))}
             </div>
         </div>
+        </>
     );
 }

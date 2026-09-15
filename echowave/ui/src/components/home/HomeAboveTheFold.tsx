@@ -20,17 +20,29 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  getWorkflowsApiV1WorkflowFetchGet,
   postMessageApiV1TimelineMessagePost,
   teamHomeApiV1TeamHomeGet,
 } from "@/client/sdk.gen";
 import type { Headline, Suggestion } from "@/client/types.gen";
-import { ChannelComposer } from "@/components/channel/ChannelComposer";
+import { type ChannelBot, ChannelComposer } from "@/components/channel/ChannelComposer";
 import { ChannelStream } from "@/components/channel/ChannelStream";
 import { useAuth } from "@/lib/auth";
 
 export const OPENERS = [
   "What happened this week?",
   "What needs my attention today?",
+] as const;
+
+/** What a brand-new account is asked instead: the first job, as things
+ *  you would say to a colleague. Each one is a message to Decibyl, which
+ *  knows the templates and starts the bot. */
+export const FIRST_JOBS = [
+  "Answer my phone and book appointments",
+  "Reply to customers on WhatsApp",
+  "Chase overdue payments",
+  "Answer staff questions from our documents",
+  "Send me a summary every morning",
 ] as const;
 
 /** Built from the reader's own clock. The server's is in a data centre, and
@@ -101,6 +113,9 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   // rows load reads as a glitch. Once there is a conversation the greeting
   // steps aside, the way every chat product's empty-state does.
   const [rows, setRows] = useState<number | null>(null);
+  // The roster for `@`: every bot on the account. Decibyl's thread had
+  // none, so the @ button opened nothing.
+  const [bots, setBots] = useState<ChannelBot[]>([]);
   const onCountChange = useCallback((count: number) => setRows(count), []);
   const refreshStream = useRef<() => void>(() => {});
   const registerRefresh = useCallback((refresh: () => void) => {
@@ -108,6 +123,9 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   }, []);
 
   const greeting = useMemo(() => partOfDay(new Date()), []);
+  // No bot yet: the door has just closed behind them. The two questions
+  // about what happened have no answer, so the cards are the first job.
+  const brandNew = headline !== null && headline.agents === 0;
 
   useEffect(() => {
     if (authLoading || !user) return;
@@ -124,6 +142,13 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         // The thread below still works. A greeting that failed to
         // load is a missing sentence, not a broken screen.
       }
+    })();
+    (async () => {
+      const response = await getWorkflowsApiV1WorkflowFetchGet();
+      if (cancelled || response.error || !response.data) return;
+      setBots(
+        response.data.map((w) => ({ id: w.id, name: w.name, handle: w.handle ?? null })),
+      );
     })();
     return () => {
       cancelled = true;
@@ -167,15 +192,16 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         <p className="mt-1 max-w-md text-sm text-muted-foreground">
           {greeting}
           {firstName ? `, ${firstName}` : ""}.{" "}
-          {headline ? summarise(headline) : ""} I know your bots, your numbers
-          and your company&apos;s documents.
+          {brandNew
+            ? "Say hi, or tell me one thing you'd love off your plate this week. I'll set up a bot for it and you can hear it in a minute."
+            : `${headline ? summarise(headline) : ""} I know your bots, your numbers and your company's documents.`}
         </p>
         <div
           className="mt-4 flex w-full max-w-lg flex-col gap-2"
           aria-label="Ask Decibyl"
         >
-          {OPENERS.map((text, index) => {
-            const Icon = index === 0 ? Sparkles : Bell;
+          {(brandNew ? FIRST_JOBS : OPENERS).map((text, index) => {
+            const Icon = brandNew ? Sparkles : index === 0 ? Sparkles : Bell;
             return (
               <button
                 key={text}
@@ -234,7 +260,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         />
         <ChannelComposer
           assistant
-          bots={[]}
+          bots={bots}
           channelName="Decibyl"
           onSent={() => {
             asked();
