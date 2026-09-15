@@ -15,12 +15,13 @@ from pydantic import BaseModel
 from api.db.models import UserModel
 from api.enums import OrganizationRole
 from api.services.auth.depends import get_user, require_organization_role
-from api.services.integrations.composio import catalogue
+from api.services.integrations.composio import catalogue, tool_sync
 from api.services.integrations.composio.client import (
     connect_link,
     connected_accounts,
     connected_toolkits,
     is_configured,
+    toolkit_actions,
     toolkit_name,
 )
 
@@ -236,6 +237,112 @@ async def start_connecting(
         app_name=display_name,
         connect_url=link["url"],
         expires_at=link.get("expires_at"),
+    )
+
+
+class AppTool(BaseModel):
+    """One thing an app can be asked to do, as a person reads it."""
+
+    slug: str
+    name: str
+    does: str | None = None
+
+
+class AppToolsResponse(BaseModel):
+    app: str
+    app_name: str
+    tools: list[AppTool] = []
+    #: Set when the vendor's catalogue could not be read. An empty list and a
+    #: failed read are different sentences on the screen: "this app exposes
+    #: nothing" is a fact about the app, "we could not ask" is a retry.
+    error: str | None = None
+
+
+@router.get("/{slug}/tools", response_model=AppToolsResponse)
+async def list_app_tools(
+    slug: str = Path(description="The connector's slug, e.g. gmail."),
+    user: UserModel = Depends(get_user),
+) -> AppToolsResponse:
+    """What this app can be asked to do, one line each.
+
+    Read by the Integrations screen under each app, so somebody deciding
+    whether to connect Gmail can see that it means reading, searching and
+    sending mail rather than a number in a corner. A member may read it:
+    it is the vendor's public catalogue, not this account's anything.
+    """
+    wanted = slug.strip().lower()
+    display_name = await toolkit_name(wanted) if is_configured() else None
+    if not display_name:
+        raise HTTPException(status_code=404, detail=f"No app called '{wanted}'.")
+    actions = await toolkit_actions(wanted, limit=tool_sync.MAX_PER_APP)
+    if actions is None:
+        return AppToolsResponse(
+            app=wanted,
+            app_name=display_name,
+            error=f"Could not read what {display_name} can do just now.",
+        )
+    return AppToolsResponse(
+        app=wanted,
+        app_name=display_name,
+        tools=[
+            AppTool(
+                slug=a["slug"],
+                name=tool_sync.action_words(a["slug"]),
+                does=a.get("does"),
+            )
+            for a in actions
+        ],
+    )
+
+
+class SyncToolsResponse(BaseModel):
+    app: str
+    created: int
+    total: int
+    error: str | None = None
+
+
+@router.post("/{slug}/tools/sync", response_model=SyncToolsResponse)
+async def sync_app_tools(
+    slug: str = Path(description="The connector's slug, e.g. gmail."),
+    # Admin, like connecting: this writes rows every bot on the account can
+    # be given, under the authorization an admin granted.
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
+) -> SyncToolsResponse:
+    """Make the tool rows for an app that is connected.
+
+    Called when a sign-in finishes, so connecting an app is the whole job:
+    the tools exist by the time somebody goes looking for them. Safe to
+    call twice -- it creates only what is missing.
+    """
+    organization_id = user.selected_organization_id
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+    wanted = slug.strip().lower()
+    if not is_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Connecting outside apps is not switched on for this platform.",
+        )
+    if wanted.upper() not in {
+        t.upper() for t in await connected_toolkits(organization_id)
+    }:
+        raise HTTPException(
+            status_code=409,
+            detail=f"{wanted} is not connected to this account yet.",
+        )
+    display_name = await toolkit_name(wanted) or wanted
+    synced = await tool_sync.ensure_tools(
+        organization_id=organization_id,
+        app=wanted,
+        app_name=display_name,
+        actor=user,
+    )
+    return SyncToolsResponse(
+        app=synced.app,
+        created=synced.created,
+        total=synced.total,
+        error=synced.error,
     )
 
 

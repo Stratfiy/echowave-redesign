@@ -495,6 +495,48 @@ export type AnthropicLlmConfiguration = {
 };
 
 /**
+ * AppTool
+ *
+ * One thing an app can be asked to do, as a person reads it.
+ */
+export type AppTool = {
+    /**
+     * Slug
+     */
+    slug: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Does
+     */
+    does?: string | null;
+};
+
+/**
+ * AppToolsResponse
+ */
+export type AppToolsResponse = {
+    /**
+     * App
+     */
+    app: string;
+    /**
+     * App Name
+     */
+    app_name: string;
+    /**
+     * Tools
+     */
+    tools?: Array<AppTool>;
+    /**
+     * Error
+     */
+    error?: string | null;
+};
+
+/**
  * AppendTextChatMessageRequest
  */
 export type AppendTextChatMessageRequest = {
@@ -10944,6 +10986,28 @@ export type SwitchOrganizationRequest = {
      * Organization Id
      */
     organization_id: number;
+};
+
+/**
+ * SyncToolsResponse
+ */
+export type SyncToolsResponse = {
+    /**
+     * App
+     */
+    app: string;
+    /**
+     * Created
+     */
+    created: number;
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Error
+     */
+    error?: string | null;
 };
 
 /**
@@ -25610,6 +25674,98 @@ export type StartConnectingApiV1ConnectorsSlugConnectPostResponses = {
 };
 
 export type StartConnectingApiV1ConnectorsSlugConnectPostResponse = StartConnectingApiV1ConnectorsSlugConnectPostResponses[keyof StartConnectingApiV1ConnectorsSlugConnectPostResponses];
+
+export type ListAppToolsApiV1ConnectorsSlugToolsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Slug
+         *
+         * The connector's slug, e.g. gmail.
+         */
+        slug: string;
+    };
+    query?: never;
+    url: '/api/v1/connectors/{slug}/tools';
+};
+
+export type ListAppToolsApiV1ConnectorsSlugToolsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListAppToolsApiV1ConnectorsSlugToolsGetError = ListAppToolsApiV1ConnectorsSlugToolsGetErrors[keyof ListAppToolsApiV1ConnectorsSlugToolsGetErrors];
+
+export type ListAppToolsApiV1ConnectorsSlugToolsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: AppToolsResponse;
+};
+
+export type ListAppToolsApiV1ConnectorsSlugToolsGetResponse = ListAppToolsApiV1ConnectorsSlugToolsGetResponses[keyof ListAppToolsApiV1ConnectorsSlugToolsGetResponses];
+
+export type SyncAppToolsApiV1ConnectorsSlugToolsSyncPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Slug
+         *
+         * The connector's slug, e.g. gmail.
+         */
+        slug: string;
+    };
+    query?: never;
+    url: '/api/v1/connectors/{slug}/tools/sync';
+};
+
+export type SyncAppToolsApiV1ConnectorsSlugToolsSyncPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SyncAppToolsApiV1ConnectorsSlugToolsSyncPostError = SyncAppToolsApiV1ConnectorsSlugToolsSyncPostErrors[keyof SyncAppToolsApiV1ConnectorsSlugToolsSyncPostErrors];
+
+export type SyncAppToolsApiV1ConnectorsSlugToolsSyncPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SyncToolsResponse;
+};
+
+export type SyncAppToolsApiV1ConnectorsSlugToolsSyncPostResponse = SyncAppToolsApiV1ConnectorsSlugToolsSyncPostResponses[keyof SyncAppToolsApiV1ConnectorsSlugToolsSyncPostResponses];
 
 export type ConnectorActivityApiV1ConnectorsActivityGetData = {
     body?: never;

@@ -39,6 +39,7 @@ import type { TimelineEvent } from '@/client/types.gen';
 import { tagTokens } from '@/components/channel/ChannelComposer';
 import { Button } from '@/components/ui/button';
 import { ActionCard } from '@/components/workflow/ActionCard';
+import { ConnectorCard } from '@/components/workflow/ConnectorCard';
 import { DecisionCard } from '@/components/workflow/DecisionCard';
 import { EditCard } from '@/components/workflow/EditCard';
 import { SecretCard } from '@/components/workflow/SecretCard';
@@ -697,6 +698,36 @@ export function ChannelStream({
                                         }
                                         onFired={() => void loadLatest()}
                                     />
+                                </div>
+                            </li>
+                            </React.Fragment>
+                        );
+                    }
+                    if (event.kind === 'connector_offered') {
+                        // Decibyl offered an app. The card is the whole
+                        // answer: what it is, what it brings, and the
+                        // button that starts the sign-in, in the thread
+                        // that needed it.
+                        const asker =
+                            (event.workflow_id != null && botNames[event.workflow_id]) || fallbackName;
+                        return (
+                            <React.Fragment key={event.id}>
+                            {divider}
+                            <li className="flex gap-3">
+                                <span
+                                    aria-hidden
+                                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--accent-brand-soft)] text-[var(--accent-brand)]"
+                                >
+                                    <Bot className="h-4 w-4" />
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                    <p className="mb-1 text-sm">
+                                        <span className="font-medium">{asker}</span>
+                                        <span className="ml-2 text-xs text-muted-foreground">
+                                            <time dateTime={event.at}>{when(event.at)}</time>
+                                        </span>
+                                    </p>
+                                    <ConnectorCard event={event} />
                                 </div>
                             </li>
                             </React.Fragment>

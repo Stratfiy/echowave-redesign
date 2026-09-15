@@ -40,6 +40,7 @@ from api.services.workflow import (
     agent_timeline,
     chat_memory,
     connected_tools,
+    connector_offer,
     document_fields,
     documents,
     filing,
@@ -144,13 +145,21 @@ SYSTEM = (
 
 
 def thread_filter() -> dict[str, Any]:
-    """The timeline filter that is Decibyl's thread."""
+    """The timeline filter that is Decibyl's thread.
+
+    An allowlist, and therefore the shape AGENTS.md warns about: a card
+    written with a kind missing from this list is written correctly, read
+    by nobody, and fails nowhere. Anything Decibyl's tools can put on the
+    thread belongs here, and ``test_decibyl_thread_shows_what_it_writes``
+    fails when one is added without it.
+    """
     return {
         "assistant_thread": True,
         "kinds": [
             AgentEventKind.MESSAGE.value,
             AgentEventKind.ACTION_PROPOSED.value,
             AgentEventKind.EDIT_PROPOSED.value,
+            AgentEventKind.CONNECTOR_OFFERED.value,
             AgentEventKind.ACTIVITY.value,
         ],
     }
@@ -779,6 +788,7 @@ def office_tools() -> list[dict[str, Any]]:
         office.test_tool_schema(),
         office.check_tool_schema(),
         tasks_board.tool_schema(),
+        connector_offer.tool_schema(),
         documents.find_tool_schema(),
         documents.send_tool_schema(),
         document_fields.tool_schema(),
@@ -906,6 +916,10 @@ async def _tool(
             from_workflow_id=None,
             workflow_run_id=None,
             arguments=arguments,
+        )
+    if call.name == connector_offer.TOOL_NAME:
+        return await connector_offer.offer(
+            organization_id=organization_id, arguments=arguments
         )
     if call.name == office.CHECK_TOOL_NAME:
         return await office.check_bot(
