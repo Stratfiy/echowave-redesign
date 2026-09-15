@@ -23,6 +23,7 @@ import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 import { BalanceChip } from "./BalanceChip";
+import { GiftMenu } from "./GiftMenu";
 import { getVisibleNavSections, type SidebarNavItem } from "./navigation";
 import { NotificationBell } from "./NotificationBell";
 
@@ -216,6 +217,9 @@ export function TopBar() {
             most people met the number for the first time after a call had
             already been refused. */}
         <BalanceChip />
+        {/* What adds to that number for free: the credit steps and the
+            referral link, one tap from the chip they feed. */}
+        <GiftMenu />
 
         {/* The workspace is named at the head of the panel now, the way
             Slack names it, so it is not said a second time up here. */}
