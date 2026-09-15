@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db.base_client import BaseDBClient
 from api.db.models import EmbedSessionModel, EmbedTokenModel
+from api.utils.phone_masking import short_token
 
 
 class EmbedTokenClient(BaseDBClient):
@@ -67,7 +68,9 @@ class EmbedTokenClient(BaseDBClient):
             await session.commit()
             await session.refresh(embed_token)
 
-            logger.info(f"Created embed token {token} for workflow {workflow_id}")
+            logger.info(
+                f"Created embed token {short_token(token)} for workflow {workflow_id}"
+            )
             return embed_token
 
     async def _token_exists(self, session: AsyncSession, token: str) -> bool:
@@ -250,7 +253,7 @@ class EmbedTokenClient(BaseDBClient):
             await session.commit()
             await session.refresh(embed_session)
 
-            logger.info(f"Created embed session {session_token}")
+            logger.info(f"Created embed session {short_token(session_token)}")
             return embed_session
 
     async def get_embed_session_by_token(

@@ -21,6 +21,8 @@ from typing import Any, Mapping
 import httpx
 from loguru import logger
 
+from api.utils.phone_masking import last_four
+
 #: Carriers that can send as well as dial. Twilio and Plivo both bill messaging
 #: to the same account as voice, so a customer who can place a call can already
 #: send a message. WhatsApp is Twilio's Business API, which is why it shares the
@@ -475,7 +477,9 @@ async def send_message(
         except httpx.HTTPError as exc:
             # The network, not the carrier. Same shape either way: the caller
             # records it and the call is unaffected.
-            logger.warning("Message to {} failed to reach {}: {}", to, provider, exc)
+            logger.warning(
+                "Message to {} failed to reach {}: {}", last_four(to), provider, exc
+            )
             return SendResult(ok=False, provider=provider, to=to, error=str(exc))
 
     if result.ok:

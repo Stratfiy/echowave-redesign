@@ -7,6 +7,7 @@ import redis.asyncio as aioredis
 from loguru import logger
 
 from api.constants import REDIS_URL
+from api.utils.phone_masking import last_four
 
 
 @dataclass(frozen=True)
@@ -467,7 +468,9 @@ class RateLimiter:
         try:
             result = await redis_client.eval(lua_script, 1, key, now, stale_cutoff)
             if result:
-                logger.debug(f"Acquired from_number {result} for org {organization_id}")
+                logger.debug(
+                    f"Acquired from_number {last_four(result)} for org {organization_id}"
+                )
             return result
         except Exception as e:
             logger.error(f"Error acquiring from_number: {e}")

@@ -26,6 +26,7 @@ from api.services.telephony.escalation import (
     TRANSFER_AMD_TIMEOUT_SECONDS,
 )
 from api.utils.common import get_backend_endpoints
+from api.utils.phone_masking import last_four
 from api.utils.telephony_address import normalize_telephony_address
 
 if TYPE_CHECKING:
@@ -81,7 +82,7 @@ class TwilioProvider(TelephonyProvider):
         # Use provided from_number or select a random one
         if from_number is None:
             from_number = random.choice(self.from_numbers)
-        logger.info(f"Selected phone number {from_number} for outbound call")
+        logger.info(f"Selected phone number {last_four(from_number)} for outbound call")
         logger.info(f"Webhook url received - {webhook_url}")
 
         # Prepare call data
@@ -626,7 +627,7 @@ class TwilioProvider(TelephonyProvider):
 
         # Select a random phone number for the transfer
         from_number = random.choice(self.from_numbers)
-        logger.info(f"Selected phone number {from_number} for transfer call")
+        logger.info(f"Selected phone number {last_four(from_number)} for transfer call")
 
         backend_endpoint, _ = await get_backend_endpoints()
 

@@ -36,6 +36,7 @@ import redis.asyncio as aioredis
 from loguru import logger
 
 from api.constants import REDIS_URL
+from api.utils.phone_masking import last_four
 
 #: How long one caller is ignored after we have called them back.
 #:
@@ -221,9 +222,11 @@ def log_refusal(caller: str, exc: CallbackRefused) -> None:
     something, so it gets a warning with the number in it.
     """
     if isinstance(exc, CallbackLoop):
-        logger.warning("Missed-call callback refused for {}: {}", caller, exc)
+        logger.warning(
+            "Missed-call callback refused for {}: {}", last_four(caller), exc
+        )
     else:
-        logger.info("Missed-call callback refused for {}: {}", caller, exc)
+        logger.info("Missed-call callback refused for {}: {}", last_four(caller), exc)
 
 
 # ---------------------------------------------------------------------------
