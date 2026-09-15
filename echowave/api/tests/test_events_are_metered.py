@@ -31,6 +31,9 @@ class TestThePrices:
             "trigger_run": 1,
             # KAN-140 P1: a task handed to a bot, one turn.
             "task_run": 1,
+            # Step 20, decided 15 Sept 2026: one script in the sandbox, the
+            # app calls inside it not counted, Everyday and above.
+            "script_run": 4,
             "tool_call": 1,
             "tool_call_premium": 3,
             "builder_message": 5,
