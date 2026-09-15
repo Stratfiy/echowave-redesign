@@ -245,7 +245,7 @@ assumptions to replace.
 | GitHub Team, Atlassian, Google Workspace (2 seats) | 5,000 | |
 | Vercel Pro for the public site | 1,900 | $20 |
 | Sentry Team, PostHog | 2,500 | free tiers until volume |
-| Composio platform plan | 2,800 | $29 tier; confirm |
+| Composio platform plan | 2,800 | Pro, $29 a month, 100,000 tool calls included; confirmed 15 Sept 2026 |
 | AI coding and design tools (this session's own bill) | 19,000 | $200 class subscription |
 | CA, GST filing, TDS, ROC | 4,000 | retainer |
 | **Tooling and compliance** | **35,200** | |
@@ -269,7 +269,7 @@ for six months, then 30% off) is a credit against cost of revenue, not a fee.
 | Text reply (1,400 tokens, gpt-4.1-mini) | 0.10 | |
 | Knowledge answer (retrieval + reply) | 0.13 | embeddings are self-hosted |
 | Routine run (about 3,000 tokens) | 0.25 | |
-| Composio tool call | 0.10 to 0.50 | depends on plan tier; confirm |
+| Composio tool call | 0.025 | $0.0003 past 100,000 free calls a month on Hobby and Pro; composio.dev/pricing, read 15 Sept 2026 |
 | WhatsApp, service window or utility template | 0.12 | Meta India utility rate |
 | WhatsApp, marketing template | 0.80 | Meta India marketing rate |
 | Phone number, per month | 250 | Plivo, confirmed |
