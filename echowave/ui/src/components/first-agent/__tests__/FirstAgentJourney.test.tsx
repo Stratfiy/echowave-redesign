@@ -87,7 +87,7 @@ describe("first-agent journey", () => {
     it("goes template → name → hear → ready, reporting every step", async () => {
         render(<FirstAgentJourney />);
         expect(await screen.findByText("Clinic front desk")).toBeTruthy();
-        expect(screen.getByText("Hi Nithish, let's build your first agent.")).toBeTruthy();
+        expect(screen.getByText("Hi Nithish, let's build your first bot.")).toBeTruthy();
         expect(events()).toContain("first_agent_started");
 
         // Nothing chosen yet: continue is off.
