@@ -35,6 +35,11 @@ ROUTINE_RUN = "routine_run"
 TRIGGER_RUN = "trigger_run"
 #: A bot did a task from the board: one hand-off, one turn (KAN-140, study §26).
 TASK_RUN = "task_run"
+#: A bot ran one script in the sandbox (Step 20, Code Mode). Decided 15 Sept
+#: 2026: 4 credits, on Everyday and above, and the app calls the script
+#: makes from inside are not counted -- that is the whole saving for a
+#: customer whose routine used to be two hundred tool calls.
+SCRIPT_RUN = "script_run"
 TOOL_CALL = "tool_call"
 TOOL_CALL_PREMIUM = "tool_call_premium"
 BUILDER_MESSAGE = "builder_message"
@@ -55,6 +60,7 @@ EVENT_CREDITS: dict[str, int] = {
     ROUTINE_RUN: 2,
     TRIGGER_RUN: 1,
     TASK_RUN: 1,
+    SCRIPT_RUN: 4,
     TOOL_CALL: 1,
     TOOL_CALL_PREMIUM: 3,
     BUILDER_MESSAGE: 5,
@@ -69,6 +75,7 @@ EVENT_LABELS: dict[str, str] = {
     ROUTINE_RUN: "Routine run",
     TRIGGER_RUN: "Trigger run",
     TASK_RUN: "Task run",
+    SCRIPT_RUN: "Script run",
     TOOL_CALL: "Tool call",
     TOOL_CALL_PREMIUM: "Tool call (premium connector)",
     BUILDER_MESSAGE: "Builder message past the allowance",

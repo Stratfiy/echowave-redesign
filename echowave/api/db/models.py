@@ -5800,3 +5800,39 @@ class AdminActionLogModel(Base):
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), index=True
     )
+
+
+class SandboxJobModel(Base):
+    """One script a bot ran in the sandbox (Step 20).
+
+    Written when the box starts and finished when it ends, so a box that
+    dies mid-way leaves a row that says so. The code itself is not stored,
+    only its hash and size: the script is the model's working, and the
+    output is what the business paid for.
+    """
+
+    __tablename__ = "sandbox_jobs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="SET NULL"), nullable=True
+    )
+    workflow_run_id = Column(Integer, nullable=True, index=True)
+    #: ``running`` | ``done`` | ``failed`` | ``timed_out`` | ``capped``.
+    status = Column(String(16), nullable=False, default="running", index=True)
+    code_hash = Column(String(32), nullable=False)
+    code_chars = Column(Integer, nullable=False, default=0)
+    calls = Column(Integer, nullable=False, default=0)
+    exit_code = Column(Integer, nullable=True)
+    output = Column(Text, nullable=True)
+    error = Column(Text, nullable=True)
+    started_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    finished_at = Column(DateTime(timezone=True), nullable=True)
