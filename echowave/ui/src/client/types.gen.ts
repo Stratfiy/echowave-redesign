@@ -1318,6 +1318,70 @@ export type BodyUploadNumbersApiV1DoNotCallUploadPost = {
 };
 
 /**
+ * BrainModel
+ */
+export type BrainModel = {
+    /**
+     * Slug
+     */
+    slug: string;
+    /**
+     * Label
+     */
+    label: string;
+};
+
+/**
+ * BrainPreset
+ */
+export type BrainPreset = {
+    /**
+     * Slug
+     */
+    slug: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Blurb
+     */
+    blurb: string;
+};
+
+/**
+ * BrainVendor
+ */
+export type BrainVendor = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Models
+     */
+    models: Array<BrainModel>;
+};
+
+/**
+ * BrainsResponse
+ */
+export type BrainsResponse = {
+    /**
+     * Presets
+     */
+    presets: Array<BrainPreset>;
+    /**
+     * Vendors
+     */
+    vendors: Array<BrainVendor>;
+};
+
+/**
  * BusinessDetailsRequest
  */
 export type BusinessDetailsRequest = {
@@ -1937,6 +2001,36 @@ export type CerebrasLlmConfiguration = {
      * How long a reasoning model may think before answering. Only models that accept it are sent it. Thinking time is dead air on a phone call, but too little of it and the model answers in words where it should have called a tool -- which, in a workflow, means never moving off the first step. One of: minimal, low, medium, high.
      */
     reasoning_effort?: string | null;
+};
+
+/**
+ * ChatMemoryResponse
+ */
+export type ChatMemoryResponse = {
+    /**
+     * Used Tokens
+     */
+    used_tokens: number;
+    /**
+     * Budget Tokens
+     */
+    budget_tokens: number;
+    /**
+     * Messages Kept
+     */
+    messages_kept: number;
+    /**
+     * Messages Total
+     */
+    messages_total: number;
+    /**
+     * Plan Code
+     */
+    plan_code: string;
+    /**
+     * Raise To
+     */
+    raise_to: string | null;
 };
 
 /**
@@ -26990,6 +27084,102 @@ export type TimelineApiV1TimelineGetResponses = {
 };
 
 export type TimelineApiV1TimelineGetResponse = TimelineApiV1TimelineGetResponses[keyof TimelineApiV1TimelineGetResponses];
+
+export type BrainsApiV1TimelineBrainsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Assistant
+         */
+        assistant?: boolean;
+    };
+    url: '/api/v1/timeline/brains';
+};
+
+export type BrainsApiV1TimelineBrainsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type BrainsApiV1TimelineBrainsGetError = BrainsApiV1TimelineBrainsGetErrors[keyof BrainsApiV1TimelineBrainsGetErrors];
+
+export type BrainsApiV1TimelineBrainsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: BrainsResponse;
+};
+
+export type BrainsApiV1TimelineBrainsGetResponse = BrainsApiV1TimelineBrainsGetResponses[keyof BrainsApiV1TimelineBrainsGetResponses];
+
+export type MemoryApiV1TimelineMemoryGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Workflow Id
+         */
+        workflow_id?: number | null;
+        /**
+         * Folder Id
+         */
+        folder_id?: number | null;
+        /**
+         * Assistant
+         */
+        assistant?: boolean;
+    };
+    url: '/api/v1/timeline/memory';
+};
+
+export type MemoryApiV1TimelineMemoryGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MemoryApiV1TimelineMemoryGetError = MemoryApiV1TimelineMemoryGetErrors[keyof MemoryApiV1TimelineMemoryGetErrors];
+
+export type MemoryApiV1TimelineMemoryGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ChatMemoryResponse;
+};
+
+export type MemoryApiV1TimelineMemoryGetResponse = MemoryApiV1TimelineMemoryGetResponses[keyof MemoryApiV1TimelineMemoryGetResponses];
 
 export type PostMessageApiV1TimelineMessagePostData = {
     body: PostMessageRequest;
