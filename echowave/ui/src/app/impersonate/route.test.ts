@@ -2,7 +2,7 @@
 import { NextRequest } from "next/server";
 import { describe, expect, it, vi } from "vitest";
 
-import { GET } from "./route";
+import { POST } from "./route";
 
 const PROJECT_ID = "proj-123";
 
@@ -17,10 +17,24 @@ function makeRequest(
     url: string,
     { cookie, forwardedProto }: { cookie?: string; forwardedProto?: string } = {},
 ) {
+    // KAN-82: the token now travels in the POST body, never the URL. Tests
+    // still pass it as a query string for readability; this helper moves it
+    // into a urlencoded body and posts to the bare path.
+    const u = new URL(url);
+    const body = new URLSearchParams();
+    const rt = u.searchParams.get("refresh_token");
+    const rp = u.searchParams.get("redirect_path");
+    if (rt !== null) body.set("refresh_token", rt);
+    if (rp !== null) body.set("redirect_path", rp);
     const headers = new Headers();
+    headers.set("content-type", "application/x-www-form-urlencoded");
     if (cookie) headers.set("cookie", cookie);
     if (forwardedProto) headers.set("x-forwarded-proto", forwardedProto);
-    return new NextRequest(url, { headers });
+    return new NextRequest(u.origin + u.pathname, {
+        method: "POST",
+        headers,
+        body: body.toString(),
+    });
 }
 
 function parseSetCookie(header: string) {
@@ -41,28 +55,28 @@ function parseSetCookie(header: string) {
     };
 }
 
-describe("GET /impersonate", () => {
+describe("POST /impersonate", () => {
     it("returns 400 when refresh_token is missing", async () => {
-        const response = await GET(
+        const response = await POST(
             makeRequest("https://app.decibyl.ai/impersonate"),
         );
         expect(response.status).toBe(400);
     });
 
     it("redirects to redirect_path on the same origin", async () => {
-        const response = await GET(
+        const response = await POST(
             makeRequest(
                 "https://app.decibyl.ai/impersonate?refresh_token=rt-new&redirect_path=/workflow/42",
             ),
         );
-        expect(response.status).toBe(307);
+        expect(response.status).toBe(303);
         expect(response.headers.get("location")).toBe(
             "https://app.decibyl.ai/workflow/42",
         );
     });
 
     it("falls back to /workflow/create for a cross-origin redirect_path", async () => {
-        const response = await GET(
+        const response = await POST(
             makeRequest(
                 "https://app.decibyl.ai/impersonate?refresh_token=rt-new&redirect_path=https://evil.com/phish",
             ),
@@ -73,12 +87,12 @@ describe("GET /impersonate", () => {
     });
 
     it("falls back to /workflow/create for a malformed redirect_path", async () => {
-        const response = await GET(
+        const response = await POST(
             makeRequest(
                 "https://app.decibyl.ai/impersonate?refresh_token=rt-new&redirect_path=https%3A%2F%2F",
             ),
         );
-        expect(response.status).toBe(307);
+        expect(response.status).toBe(303);
         expect(response.headers.get("location")).toBe(
             "https://app.decibyl.ai/workflow/create",
         );
@@ -86,7 +100,7 @@ describe("GET /impersonate", () => {
 
     it("clears presented session cookies in both jars and all domain scopes on https", async () => {
         const hostRefresh = `__Host-hexclave-refresh-${PROJECT_ID}--default`;
-        const response = await GET(
+        const response = await POST(
             makeRequest(
                 "https://app.decibyl.ai/impersonate?refresh_token=rt-new",
                 {
@@ -156,7 +170,7 @@ describe("GET /impersonate", () => {
 
     it("sets the fresh refresh cookie once with Partitioned, after the deletions", async () => {
         const hostRefresh = `__Host-hexclave-refresh-${PROJECT_ID}--default`;
-        const response = await GET(
+        const response = await POST(
             makeRequest(
                 "https://app.decibyl.ai/impersonate?refresh_token=rt-new",
                 { cookie: `${hostRefresh}=old-session` },
@@ -190,7 +204,7 @@ describe("GET /impersonate", () => {
     });
 
     it("honors x-forwarded-proto case-insensitively when the request is http", async () => {
-        const response = await GET(
+        const response = await POST(
             makeRequest("http://app.decibyl.ai/impersonate?refresh_token=rt", {
                 forwardedProto: "HTTPS",
             }),
@@ -206,7 +220,7 @@ describe("GET /impersonate", () => {
     });
 
     it("uses no __Host- prefix and no partitioned attribute on plain http", async () => {
-        const response = await GET(
+        const response = await POST(
             makeRequest("http://localhost:3010/impersonate?refresh_token=rt", {
                 cookie: `hexclave-refresh-${PROJECT_ID}--default=old`,
             }),

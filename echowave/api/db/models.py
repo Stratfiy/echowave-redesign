@@ -5766,3 +5766,37 @@ class AgentTaskModel(Base):
     finished_at = Column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (Index("ix_agent_tasks_org_status", "organization_id", "status"),)
+
+
+class AdminActionLogModel(Base):
+    """A durable record of a sensitive staff action (KAN-82).
+
+    Impersonation is the first: a superadmin borrowing a customer's session
+    is the single most powerful thing anyone can do in the product, and it
+    left no trace. Every start writes a row here -- who, whom, when, from
+    where -- so an account can be told, and a review can answer "who looked
+    at this account and when" without reading application logs that rotate.
+
+    Deliberately its own table rather than the billing audit log: this is
+    not a price change, and a security review should not have to filter it
+    out of one. ``action`` is a literal string so a second kind of audited
+    action needs no migration.
+    """
+
+    __tablename__ = "admin_action_log"
+
+    id = Column(Integer, primary_key=True, index=True)
+    #: The staff member who acted.
+    actor_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    #: ``impersonation_started`` today.
+    action = Column(String(48), nullable=False, index=True)
+    #: Who it was done to, when the action targets a user.
+    target_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    target_provider_id = Column(String(128), nullable=True)
+    target_organization_id = Column(Integer, nullable=True)
+    #: Where the actor was, best effort, for a review that needs it.
+    actor_ip = Column(String(64), nullable=True)
+    note = Column(String(500), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), index=True
+    )

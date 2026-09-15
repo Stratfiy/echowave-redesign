@@ -220,6 +220,20 @@ class UserClient(BaseDBClient):
             )
             return result.scalars().first()
 
+    async def get_user_by_provider_id(self, provider_id: str) -> UserModel | None:
+        """Fetch a user by their auth-provider id, without creating one.
+
+        ``get_or_create_user_by_provider_id`` is the wrong tool for a read:
+        it would mint a row for a provider id that is not ours yet, which is
+        exactly what a security check (KAN-82: is this target our staff?)
+        must not do.
+        """
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(UserModel).where(UserModel.provider_id == provider_id)
+            )
+            return result.scalars().first()
+
     async def create_user_with_email(
         self, email: str, password_hash: str | None = None, name: str | None = None
     ) -> UserModel:

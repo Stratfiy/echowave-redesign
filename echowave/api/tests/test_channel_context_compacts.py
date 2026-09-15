@@ -266,6 +266,10 @@ class TestTheReplyCarriesTheThread:
                 AsyncMock(return_value=session),
             ),
             patch.object(channel_reply, "append_text_chat_user_message", fake_append),
+            # The roster read (added with @-mention hand-off) hits the DB;
+            # without this the outer guard swallows the connection error and
+            # the append under test is never reached. No teammates here.
+            patch.object(channel_reply, "_teammates", AsyncMock(return_value=[])),
             patch.object(
                 channel_reply.channel_context,
                 "recent_thread",
