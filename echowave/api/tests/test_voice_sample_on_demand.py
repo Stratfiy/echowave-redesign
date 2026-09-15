@@ -17,6 +17,19 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+
+@pytest.fixture(autouse=True)
+def _fresh_sample_memory():
+    """Each test looks storage up for itself."""
+    from api.services.configuration import voice_samples
+
+    voice_samples.forget_sample_urls()
+    yield
+    voice_samples.forget_sample_urls()
+
+
+import pytest
+
 from api.services.configuration import voice_samples, voice_synthesis
 
 
@@ -304,3 +317,34 @@ class TestSmallestCanBeHeardAtLast:
         assert voice_synthesis.SMALLEST_LANGUAGES <= set(SMALLEST_TTS_LANGUAGES)
         assert voice_synthesis.SMALLEST_LANGUAGES <= set(voice_samples.SAMPLE_LANGUAGES)
         assert "ta" in voice_synthesis.SMALLEST_LANGUAGES
+
+
+class TestTheListRemembersLookups:
+    """The templates list asks for every voice of every template on every
+    load. Storage is asked once per voice per ten minutes, not every time,
+    and a storage that is down does not hang the marketplace twice."""
+
+    async def test_a_second_ask_within_the_window_reads_no_storage(self):
+        from api.services.configuration import voice_samples
+
+        with patch.object(voice_samples, "get_storage") as storage:
+            storage.return_value.aget_file_metadata = AsyncMock(
+                return_value={"size": 1}
+            )
+            storage.return_value.aget_signed_url = AsyncMock(
+                return_value="https://s/a.wav"
+            )
+            assert await voice_samples.sample_url("ritu", "en") == "https://s/a.wav"
+            assert await voice_samples.sample_url("ritu", "en") == "https://s/a.wav"
+            assert storage.return_value.aget_file_metadata.await_count == 1
+
+    async def test_no_sample_is_remembered_too(self):
+        from api.services.configuration import voice_samples
+
+        with patch.object(voice_samples, "get_storage") as storage:
+            storage.return_value.aget_file_metadata = AsyncMock(
+                side_effect=RuntimeError("down")
+            )
+            assert await voice_samples.sample_url("ritu", "en") is None
+            assert await voice_samples.sample_url("ritu", "en") is None
+            assert storage.return_value.aget_file_metadata.await_count == 1
