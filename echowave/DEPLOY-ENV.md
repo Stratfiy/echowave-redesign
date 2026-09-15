@@ -153,6 +153,29 @@ with the field `messages` subscribed. Redis holds the 24-hour window and the
 message-id dedupe; without it, receiving still works and senders take
 Meta's word on the window.
 
+## 2c. The memory graph (Family B)
+
+Relations and time -- who promised what to whom, what the doctor said the
+last two times, why a supplier was chosen -- live in a graph beside the
+main database. Postgres stays the record of what is *confirmed*; the graph
+holds what conversations, calls and documents implied, and every answer
+from it is labelled inferred unless the record confirms it.
+
+```bash
+# The FalkorDB service in docker-compose.yaml. Unset = no graph: every
+# memory feature answers "no graph" quietly and nothing else changes.
+KNOWLEDGE_GRAPH_URL=falkor://:${FALKORDB_PASSWORD}@falkordb:6379/decibyl
+FALKORDB_PASSWORD=
+
+# Extraction and embedding run on the platform's own OpenAI key (the
+# vault's llm/openai credential -- PLATFORM_KEY_LLM_OPENAI seeds it).
+# Small models on purpose: every call, thread message and channel document
+# is an extraction.
+KNOWLEDGE_GRAPH_MODEL=gpt-4.1-mini
+KNOWLEDGE_GRAPH_SMALL_MODEL=gpt-4.1-mini
+KNOWLEDGE_GRAPH_EMBEDDING_MODEL=text-embedding-3-small
+```
+
 ## 3. Outbound mail — new requirement this round
 
 The markup confirmation code goes to a fixed address, `hello@decibyl.ai`. That
