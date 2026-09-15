@@ -35,6 +35,22 @@ class AgentTaskClient(BaseDBClient):
             )
             return result.scalar_one_or_none()
 
+    async def tasks_due_between(self, start, end) -> list[AgentTaskModel]:
+        """Open tasks, every account, due inside [start, end): the daily
+        reminder sweep's one query."""
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(AgentTaskModel)
+                .where(
+                    AgentTaskModel.status == "todo",
+                    AgentTaskModel.due_at.is_not(None),
+                    AgentTaskModel.due_at >= start,
+                    AgentTaskModel.due_at < end,
+                )
+                .order_by(AgentTaskModel.organization_id, AgentTaskModel.due_at)
+            )
+            return list(result.scalars().all())
+
     async def create_task(self, *, organization_id: int, **fields) -> AgentTaskModel:
         async with self.async_session() as session:
             task = AgentTaskModel(organization_id=organization_id, **fields)
