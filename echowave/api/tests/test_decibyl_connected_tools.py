@@ -138,12 +138,10 @@ class TestFromTheThread:
             tool_calls=(ToolCall(id="c2", name=fn, arguments={"to": "meera@x"}),),
         )
         answers = ModelReply(text="I have proposed sending that; confirm on the card.")
+        stream = AsyncMock(side_effect=[asks, answers])
         with (
             _thread(),
-            patch(
-                "api.services.agent_builder.client.stream",
-                new=AsyncMock(side_effect=[asks, answers]),
-            ),
+            patch("api.services.agent_builder.client.stream", new=stream),
             patch.object(
                 connected_tools, "list_for_organization", AsyncMock(return_value=[tool])
             ),
@@ -162,6 +160,9 @@ class TestFromTheThread:
         assert args["tool_uuid"] == "t-1"
         assert args["arguments"] == {"to": "meera@x"}
         assert propose.await_args.kwargs["in_channel"] is False
+        # A card ends the tool phase: the model is given no tools and told to
+        # say it has proposed, so it cannot propose the same thing twice.
+        assert stream.await_args_list[-1].kwargs["tools"] is None
 
     async def test_a_model_that_keeps_asking_is_cut_off_at_the_round_limit(self):
         tool = _tool("GMAIL_FETCH_EMAILS")

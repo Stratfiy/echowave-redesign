@@ -481,18 +481,27 @@ async def answer(
         # model is given no tools, so it answers with what it has and a
         # loop of reads cannot spend credit all afternoon. Anything it asks
         # for that is not one of its tools is answered as unavailable.
+        #
+        # Tools are offered again only after a round that was purely reads
+        # of connected apps. A round that produced a card -- any of the
+        # five, or an app write -- ends the tool phase: the model is given
+        # no tools and answers, which is the "propose it, say so, end"
+        # rule and what stops it proposing the same thing twice.
         rounds = 0
         while reply.wants_tools and rounds < MAX_TOOL_ROUNDS:
             rounds += 1
             conversation.add_assistant(reply)
+            reads_only = True
             for call in reply.tool_calls:
                 result = await _tool(organization_id, call)
                 conversation.add_tool_result(call, result)
+                if not _was_a_read(call, result):
+                    reads_only = False
             reply = await _speak(
                 model,
                 conversation,
                 organization_id,
-                tools=tools if rounds < MAX_TOOL_ROUNDS else None,
+                tools=tools if (reads_only and rounds < MAX_TOOL_ROUNDS) else None,
             )
         body = (reply.text or "").strip() or "I have nothing to add on that."
     except Exception as exc:  # noqa: BLE001 - the thread must say something
@@ -541,6 +550,16 @@ async def tools_for(organization_id: int) -> list[dict[str, Any]]:
     A read runs in the turn; a write becomes a run_tool card."""
     connected = await connected_tools.list_for_organization(organization_id)
     return office_tools() + connected_tools.schemas(connected)
+
+
+def _was_a_read(call: Any, result: Any) -> bool:
+    """Whether this call was a connected-app read that actually ran (or
+    failed running), as opposed to anything that wrote a card."""
+    return (
+        str(getattr(call, "name", "") or "").startswith(connected_tools.PREFIX)
+        and isinstance(result, dict)
+        and result.get("status") in ("success", "error")
+    )
 
 
 async def _app_tool(organization_id: int, call: Any) -> dict[str, Any]:
