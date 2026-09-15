@@ -45,6 +45,7 @@ from api.services.workflow import (
     reply_draft,
     self_edit,
     tasks_board,
+    untrusted,
 )
 
 NAME = "Decibyl"
@@ -131,6 +132,7 @@ SYSTEM = (
     "asked memory about that this line touches: mention it in a clause "
     "only when it helps the line, never as a separate announcement.\n"
     "- Never repeat an OTP, a card number or an identity number.\n"
+    f"- {untrusted.RULE}\n"
 )
 
 
