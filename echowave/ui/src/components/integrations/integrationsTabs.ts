@@ -23,11 +23,10 @@ export function useIntegrationsTabs(): PageTab[] {
   const ownKeysAllowed = useOwnKeysAllowed();
 
   return [
-    // First, because it is the question people arrive with: what does this
-    // connect to. The two behind it are where you then set one up.
-    { href: "/integrations/apps", label: "Apps", prefix: true },
-    // Exact match, or the Apps sub-route would light both it and Providers.
+    // The app catalogue is the Marketplace's Integrations tab now; what is
+    // left here is what this account has rather than what it could add.
+    { href: "/tools", label: "Your tools", prefix: true },
+    // Exact match, or a sub-route would light this as well as itself.
     ...(ownKeysAllowed ? [{ href: "/integrations", label: "Providers" }] : []),
-    { href: "/tools", label: "Tools", prefix: true },
   ];
 }

@@ -70,11 +70,11 @@ describe("sidebar interactions", () => {
     expect(screen.queryByRole("link", { name: "Billing" })).toBeNull();
   });
   it("opens a saved closed group when navigating to a related page", () => {
-    localStorage.setItem("decibyl.sidebar.closedSections", JSON.stringify(["BUILD"]));
-    route.pathname = "/tools/42";
+    localStorage.setItem("decibyl.sidebar.closedSections", JSON.stringify(["DEPLOY"]));
+    route.pathname = "/numbers";
     render(<SidebarProvider><AppSidebar /></SidebarProvider>);
-    expect(screen.getByRole("link", { name: "Integrations" }).getAttribute("aria-current")).toBe("page");
-    expect(screen.getByRole("button", { name: "Build" }).getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("link", { name: "Phone numbers" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("button", { name: "Deploy" }).getAttribute("aria-expanded")).toBe("true");
   });
   /* Collapsed is the rail, and nothing may become unreachable from it.
    *

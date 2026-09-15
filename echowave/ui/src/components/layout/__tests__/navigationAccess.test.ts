@@ -34,6 +34,10 @@ const STAFF: Roles = { isStaff: true, isOrganizationAdmin: false };
 const SUPERADMIN: Roles = { isStaff: true, isOrganizationAdmin: false, isSuperadmin: true };
 
 const urls = (roles: Roles) => visibleTo(roles).map((item) => item.url);
+/** Every destination a role can navigate to: the entries and the routes
+ *  folded under them as tabs. */
+const reachable = (roles: Roles) =>
+    visibleTo(roles).flatMap((item) => [item.url, ...(item.activePaths ?? [])]);
 
 describe("the staff area is not offered to customers", () => {
     it("hides the review queue from a member", () => {
@@ -98,13 +102,13 @@ describe("admin-only destinations are hidden from members", () => {
         // three links in the model editor point straight here. Adding, pausing
         // and removing are gated inside the screen instead.
         //
-        // The nav entry now points at the Apps catalogue rather than the keys
-        // screen — "Integrations" in a sidebar is read as "what does this
-        // connect to" — and the keys are a tab away from it. What must hold is
-        // that the area is not role-gated, not which of its tabs is the entry.
+        // The entry is "Your tools" now and the keys are a tab under it: the
+        // catalogue of apps moved to the Marketplace, where the shopping is.
+        // What must hold is that the area is not role-gated, not which of its
+        // tabs the sidebar points at.
         for (const roles of [MEMBER, ADMIN]) {
             expect(
-                urls(roles).some((url) => url.startsWith("/integrations")),
+                reachable(roles).some((url) => url.startsWith("/integrations")),
             ).toBe(true);
         }
     });
@@ -160,8 +164,11 @@ describe("what stays open to every member", () => {
         // the moment they choose "your own key" for a slot. Those links go
         // straight to `/integrations` and are unaffected by which tab the nav
         // points at; this checks the member can also get there by navigating.
+        // A tab of Your tools since the app catalogue moved to the
+        // Marketplace, so this asks what the member can reach rather than
+        // which entries the sidebar lists.
         expect(
-            urls(MEMBER).some((url) => url.startsWith("/integrations")),
+            reachable(MEMBER).some((url) => url.startsWith("/integrations")),
         ).toBe(true);
     });
 
