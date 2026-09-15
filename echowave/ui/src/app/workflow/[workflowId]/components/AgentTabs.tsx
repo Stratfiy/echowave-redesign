@@ -32,7 +32,6 @@ import {
     ScrollText,
     Share2,
     Variable,
-    Workflow,
     Wrench,
     Zap,
 } from "lucide-react";
@@ -64,12 +63,12 @@ export const AGENT_TABS = [
     // been doing. Configuration is a thing you set once; the thread is the
     // thing you come back for.
     { key: "thread", label: "Chat", icon: MessagesSquare },
-    // Instructions and Graph are two views of the same definition -- the
-    // form is the readable one, the canvas is the whole action graph -- so
-    // they are two tabs on one route, told apart by ?view=graph. A view that
-    // was a button inside the other view was a place nobody could link to.
+    // Instructions carries "Open canvas", and the canvas is still its own
+    // linkable place (?view=graph). It is not a tab: two tabs on one route
+    // for two views of one definition made the strip say the bot had a
+    // "Graph" the way it has Logs and Tools, which it does not -- the graph
+    // is how the instructions are drawn.
     { key: "assistant", label: "Instructions", icon: Bot },
-    { key: "graph", label: "Graph", icon: Workflow },
     { key: "logs", label: "Logs", icon: ScrollText },
     { key: "tools", label: "Tools", icon: Wrench },
     // What rings this bot from outside: a webhook today (KAN-137), an inbox
@@ -89,8 +88,6 @@ function hrefFor(tab: Tab, workflowId: number): string {
     switch (tab.key) {
         case "thread":
             return `${base}/thread`;
-        case "graph":
-            return `${base}?view=graph`;
         case "logs":
             return `${base}/runs`;
         case "tools":
@@ -105,17 +102,11 @@ function hrefFor(tab: Tab, workflowId: number): string {
 export function AgentTabs({
     workflowId,
     settingsTab,
-    view,
     dirtyTabs,
 }: {
     workflowId: number;
     /** Which settings tab is showing, when the settings page is the one open. */
     settingsTab?: TabId;
-    /** Which of the two definition views is showing, when the editor is the
-     *  page open. Passed down for the same reason settingsTab is: the page
-     *  that knows the answer says, rather than the strip reading the query
-     *  string during render. */
-    view?: "instructions" | "graph";
     /** Settings tabs holding an edit nobody has saved. */
     dirtyTabs?: ReadonlySet<string>;
 }) {
@@ -130,10 +121,9 @@ export function AgentTabs({
         if (tab.key === "triggers") return pathname.startsWith(`${base}/triggers`);
         // The editor, and only the editor. `startsWith` would light it on
         // every tab, since every one of these lives under the same base.
-        // Which of its two views is lit is the page's word, not the URL's.
-        if (pathname !== base) return false;
-        if (tab.key === "graph") return view === "graph";
-        return view !== "graph";
+        // The editor, whichever of its two views is showing: the canvas is
+        // reached from inside Instructions rather than from the strip.
+        return pathname === base;
     };
 
     return (
