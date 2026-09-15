@@ -7,6 +7,20 @@ const nextConfig: NextConfig = {
   experimental: {
     serverSourceMaps: true,
   },
+  // A page is never cached by a device. The hashed assets under _next/static
+  // are immutable and cached for a year, which is right; the HTML that names
+  // them carried no Cache-Control at all, so a browser kept it by heuristic
+  // and a tablet opened this morning still showed last night's build (the
+  // pale sidebar, seen on 15 September) hours after the deploy that replaced
+  // it. no-cache keeps every page revalidated on open.
+  async headers() {
+    return [
+      {
+        source: "/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-icon.png).*)",
+        headers: [{ key: "Cache-Control", value: "no-cache, must-revalidate" }],
+      },
+    ];
+  },
   async rewrites() {
     return [
       {
