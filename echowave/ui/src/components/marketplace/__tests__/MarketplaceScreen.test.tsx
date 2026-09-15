@@ -86,9 +86,9 @@ describe("the bot shelf", () => {
         expect(screen.getByRole("button", { name: /Healthcare\s*1 bot/ })).toBeTruthy();
         expect(screen.getByRole("button", { name: /Lending\s*1 bot/ })).toBeTruthy();
         expect(screen.getByRole("button", { name: "Collect payments · 1" })).toBeTruthy();
-        // Hire goes to the first-agent flow with the template chosen.
+        // Add goes to the first-agent flow with the template chosen.
         expect(
-            screen.getByRole("link", { name: /Hire Clinic front desk/ }).getAttribute("href"),
+            screen.getByRole("link", { name: /Add Clinic front desk/ }).getAttribute("href"),
         ).toBe("/start?template=clinic_appointment");
     });
 

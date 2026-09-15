@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * The agent a prospect hears before hiring a role.
+ * The agent a prospect hears before adding a bot.
  *
  * This is the switch that takes the shelf from empty to listed. A role that
  * makes or takes calls cannot be published without a way to be heard, because
@@ -102,7 +102,7 @@ export default function DemoAgentPage() {
             <div>
                 <h1 className="text-2xl font-semibold">Demo agent</h1>
                 <p className="mt-1 text-sm text-muted-foreground">
-                    The agent a prospect hears before hiring a role. Until one is set,
+                    The agent a prospect hears before adding a bot. Until one is set,
                     every role that makes or takes calls stays unlisted on the shelf.
                 </p>
             </div>

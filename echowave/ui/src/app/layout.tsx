@@ -51,7 +51,7 @@ const appMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Decibyl — AI teammates for Indian businesses",
   description:
-    "Hire a bot for a job — answering the phone, confirming orders, chasing payments, answering from your own documents. Self-hostable, BYOK, MCP-native.",
+    "Add a bot for a job — answering the phone, confirming orders, chasing payments, answering from your own documents. Self-hostable, BYOK, MCP-native.",
 };
 
 export default function RootLayout({

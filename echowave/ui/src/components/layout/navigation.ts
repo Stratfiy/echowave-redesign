@@ -237,7 +237,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         url: "/marketplace",
         activePaths: ["/marketplace"],
         icon: ShoppingBag,
-        keywords: ["marketplace", "bots", "templates", "tools", "hire", "connect"],
+        keywords: ["marketplace", "bots", "templates", "tools", "add", "hire", "connect"],
       },
       {
         title: "Integrations",
