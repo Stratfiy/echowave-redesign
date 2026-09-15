@@ -160,8 +160,8 @@ def sentence(known: dict[str, Any]) -> Optional[str]:
 
     if len(candidates) == 1:
         return (
-            f"From what you've hired I'm assuming {candidates[0]} — "
+            f"From the bots you've added I'm assuming {candidates[0]} — "
             "tell me if that's wrong."
         )
     listed = ", ".join(candidates[:3])
-    return f"From what you've hired this looks like {listed} — tell me if that's wrong."
+    return f"From the bots you've added this looks like {listed} — tell me if that's wrong."

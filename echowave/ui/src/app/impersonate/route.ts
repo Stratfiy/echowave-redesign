@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getStackConfig } from "@/lib/auth/config";
 
+import {
+    IMPERSONATION_MAX_AGE,
+    markerHeader,
+    requestIsSecure,
+    serializeSetCookie,
+    sessionClearingHeaders,
+} from "./session-cookies";
+
 /**
  * Helper route that receives a Stack refresh token via query parameters, wipes
  * every Stack SDK session cookie the browser presented, stores the impersonated
@@ -25,68 +33,13 @@ import { getStackConfig } from "@/lib/auth/config";
  * both jars instead would plant a copy the SDK never updates, recreating the
  * stale-session bug this route exists to fix.
  *
- * Example usage (client side):
- *   /impersonate?refresh_token=<REFRESH>&redirect_path=/workflow/123
+ * The session cookie lives ONE HOUR, the Stack session's own life, and a
+ * marker cookie is set beside it so the shell can show that it is running as
+ * somebody else and offer /impersonate/stop (KAN-82).
+ *
+ * Example usage (client side): a hidden form POSTing refresh_token,
+ * redirect_path and who -- see lib/utils.ts.
  */
-
-// Stack SDK cookies that hold session identity: hexclave/stack access cookies
-// and every refresh-cookie variant (bare legacy, project-scoped legacy,
-// --default, --custom-<domain>, __Host- prefixed). Deliberately excludes
-// non-identity SDK cookies (is-https flags, in-flight OAuth state) so an
-// impersonation redirect can't abort an unrelated concurrent sign-in.
-const SESSION_COOKIE_RE = /^(?:__Host-)?(?:stack|hexclave)-(?:access|refresh)(?:-|$)/;
-
-/**
- * Domains a cookie could have been scoped to from this host, e.g.
- * "app.decibyl.ai" -> ["app.decibyl.ai", "decibyl.ai"]. Returns [] for
- * localhost / IP hosts. Stops before the last label, which over-generates for
- * multi-label public suffixes (app.example.co.uk also yields co.uk) — the
- * browser just rejects those deletions, so the cost is a wasted header.
- */
-function parentDomains(hostname: string): string[] {
-    if (!hostname.includes(".") || /^[\d.]+$/.test(hostname)) {
-        return [];
-    }
-    const parts = hostname.split(".");
-    const domains: string[] = [];
-    for (let i = 0; i + 2 <= parts.length; i++) {
-        domains.push(parts.slice(i).join("."));
-    }
-    return domains;
-}
-
-interface SetCookieAttrs {
-    maxAge: number;
-    secure?: boolean;
-    domain?: string;
-    partitioned?: boolean;
-}
-
-// No HttpOnly: the Stack SDK reads these cookies from document.cookie.
-function serializeSetCookie(
-    name: string,
-    value: string,
-    attrs: SetCookieAttrs,
-): string {
-    const parts = [
-        `${name}=${encodeURIComponent(value)}`,
-        "Path=/",
-        `Max-Age=${attrs.maxAge}`,
-    ];
-    if (attrs.domain) {
-        parts.push(`Domain=${attrs.domain}`);
-    }
-    if (attrs.partitioned) {
-        // CHIPS requires Secure and SameSite=None.
-        parts.push("Secure", "SameSite=None", "Partitioned");
-    } else {
-        if (attrs.secure) {
-            parts.push("Secure");
-        }
-        parts.push("SameSite=Lax");
-    }
-    return parts.join("; ");
-}
 
 // POST, not GET (KAN-82): the refresh token arrives in the request body, never
 // in the URL. A token in a query string lands in server access logs, the
@@ -131,47 +84,8 @@ export async function POST(request: NextRequest) {
     // destination, so the app page loads normally with the fresh cookie.
     const response = NextResponse.redirect(redirectUrl, 303);
 
-    const forwardedProto = request.headers
-        .get("x-forwarded-proto")
-        ?.split(",")[0]
-        ?.trim()
-        .toLowerCase();
-    const isSecure =
-        request.nextUrl.protocol === "https:" || forwardedProto === "https";
-
-    // Every scope a stale SDK cookie may live in: host-only plus each parent
-    // domain, each in the regular jar and (on https) its partitioned twin. The
-    // request's Cookie header is the complete list of names to clear: the SDK
-    // only sets Lax or None+Partitioned cookies, both of which the browser
-    // attaches to this top-level navigation.
-    const domains: (string | undefined)[] = [
-        undefined,
-        ...parentDomains(request.nextUrl.hostname),
-    ];
-    const jars = isSecure ? [false, true] : [false];
-
-    const setCookieHeaders: string[] = [];
-    for (const cookie of request.cookies.getAll()) {
-        if (!SESSION_COOKIE_RE.test(cookie.name)) {
-            continue;
-        }
-        const isHostPrefixed = cookie.name.startsWith("__Host-");
-        for (const partitioned of jars) {
-            for (const domain of domains) {
-                if (isHostPrefixed && domain) {
-                    continue; // __Host- cookies never have a Domain attribute
-                }
-                setCookieHeaders.push(
-                    serializeSetCookie(cookie.name, "", {
-                        maxAge: 0,
-                        secure: isHostPrefixed || isSecure,
-                        domain,
-                        partitioned,
-                    }),
-                );
-            }
-        }
-    }
+    const isSecure = requestIsSecure(request);
+    const setCookieHeaders = sessionClearingHeaders(request);
 
     // Fresh impersonated session, written AFTER the deletions so it survives
     // them, in the name/shape Stack's nextjs-cookie token store reads. Single
@@ -183,11 +97,16 @@ export async function POST(request: NextRequest) {
     });
     setCookieHeaders.push(
         serializeSetCookie(refreshCookieName, refreshCookieValue, {
-            maxAge: 60 * 60 * 24 * 365,
+            maxAge: IMPERSONATION_MAX_AGE,
             secure: isSecure,
             partitioned: isSecure,
         }),
     );
+    // And the marker the shell reads to show the banner and the way out
+    // (/impersonate/stop). The "who" is a display hint only.
+    const who =
+        typeof form?.get("who") === "string" ? (form.get("who") as string) : "";
+    setCookieHeaders.push(markerHeader(request, who.slice(0, 120) || "1"));
 
     for (const header of setCookieHeaders) {
         response.headers.append("set-cookie", header);

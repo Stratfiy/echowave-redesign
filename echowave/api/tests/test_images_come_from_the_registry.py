@@ -26,8 +26,11 @@ import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
+# The repository root, one above the application: GitHub reads workflows from
+# there and nowhere else, which is why the file moved up (KAN-35).
+REPO = ROOT.parent
 COMPOSE = ROOT / "docker-compose.yaml"
-WORKFLOW = ROOT / ".github" / "workflows" / "build-images.yml"
+WORKFLOW = REPO / ".github" / "workflows" / "build-images.yml"
 
 #: The services whose images this project builds. Everything else in the compose
 #: file is a third-party image (postgres, redis, nginx) and is not ours to push.
@@ -116,16 +119,27 @@ class TestTheBuildCanActuallySucceed:
         looks like a registry problem and is not."""
         assert _workflow()["permissions"]["packages"] == "write"
 
-    def test_the_build_context_is_the_repository_root(self):
+    def test_the_build_context_is_the_application_root(self):
         """The API Dockerfile needs pipecat/ beside api/, and the UI Dockerfile
-        copies from ui/ by path. A service-directory context breaks both."""
+        copies from ui/ by path. A service-directory context breaks both, and
+        so does the repository root now that the application lives a
+        directory down: the Dockerfiles address api/ and ui/ from echowave/."""
         steps = _workflow()["jobs"]["build"]["steps"]
         build = next(
             s
             for s in steps
             if str(s.get("uses", "")).startswith("docker/build-push-action")
         )
-        assert build["with"]["context"] == "."
+        assert build["with"]["context"] == ROOT.name
+        for entry in _workflow()["jobs"]["build"]["strategy"]["matrix"]["include"]:
+            dockerfile = REPO / entry["dockerfile"]
+            assert dockerfile.is_file(), entry["dockerfile"]
+
+    def test_the_workflow_is_where_github_reads_it(self):
+        """A workflow under echowave/.github/ has never run once. Both copies
+        existing would be worse than one: the stale one reads as the truth."""
+        assert WORKFLOW.is_file()
+        assert not (ROOT / ".github" / "workflows" / "build-images.yml").exists()
 
     def test_the_cache_does_not_live_on_a_production_disk(self):
         """`type=gha` keeps it with the runner. A registry or local cache would

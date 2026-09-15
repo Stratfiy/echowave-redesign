@@ -89,31 +89,58 @@ class Provider:
 
 
 class Daytona(Provider):
+    """Daytona self-hosted, Python SDK ``daytona`` 0.190.0.
+
+    The SDK takes a params object (not kwargs) and its allow list is a
+    comma-separated list of CIDRs, not hostnames, so a named host is
+    resolved here and passed as /32s. The API URL is the self-hosted
+    server; nothing defaults to app.daytona.io.
+    """
+
     name = "daytona"
 
+    @staticmethod
+    def _to_cidrs(hosts: list[str]) -> str:
+        import ipaddress
+        import socket
+
+        cidrs: list[str] = []
+        for h in hosts:
+            try:
+                ipaddress.ip_network(h, strict=False)
+                cidrs.append(h)
+                continue
+            except ValueError:
+                pass
+            for info in socket.getaddrinfo(h, 443, socket.AF_INET, socket.SOCK_STREAM):
+                ip = info[4][0]
+                if f"{ip}/32" not in cidrs:
+                    cidrs.append(f"{ip}/32")
+        return ",".join(cidrs)
+
     def create(self, *, allow_egress=None):
-        from daytona_sdk import Daytona as Client  # type: ignore
-        from daytona_sdk import DaytonaConfig
+        from daytona import CreateSandboxFromSnapshotParams  # type: ignore
+        from daytona import Daytona as Client
+        from daytona import DaytonaConfig
 
         client = Client(
-            DaytonaConfig(
-                api_key=self.args.key, server_url=self.args.url, target="local"
-            )
+            DaytonaConfig(api_key=self.args.key, api_url=self.args.url, target=self.args.target)
         )
-        params: dict[str, Any] = {"language": "python"}
-        if allow_egress is not None:
-            params["network_allow_list"] = ",".join(allow_egress)
-            params["network_block_all"] = not allow_egress
+        if allow_egress:
+            params = CreateSandboxFromSnapshotParams(
+                language="python", network_allow_list=self._to_cidrs(allow_egress)
+            )
         else:
-            params["network_block_all"] = True
+            params = CreateSandboxFromSnapshotParams(language="python", network_block_all=True)
         self._client = client
-        return client.create(**params)
+        return client.create(params, timeout=180)
 
     def run_python(self, box, code):
-        return box.process.code_run(code).result
+        r = box.process.code_run(code, timeout=60)
+        return r.result or ""
 
     def destroy(self, box):
-        self._client.remove(box)
+        self._client.delete(box)
 
 
 class E2B(Provider):
@@ -127,12 +154,10 @@ class E2B(Provider):
         os.environ["E2B_API_KEY"] = self.args.key
         if self.args.domain:
             os.environ["E2B_DOMAIN"] = self.args.domain
-        kwargs: dict[str, Any] = {}
-        if allow_egress is not None:
-            kwargs["network"] = {
-                "allow_out": allow_egress or [],
-                "deny_out": ["0.0.0.0/0"] if not allow_egress else [],
-            }
+        kwargs: dict[str, Any] = {"allow_internet_access": False}
+        if allow_egress:
+            # allow_out takes hostnames; everything else stays denied.
+            kwargs = {"network": {"allow_out": list(allow_egress), "deny_out": ["0.0.0.0/0"]}}
         return Sandbox.create(**kwargs)
 
     def run_python(self, box, code):
@@ -246,6 +271,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("provider", choices=sorted(PROVIDERS))
     parser.add_argument("--url", help="Daytona server URL")
     parser.add_argument("--domain", help="E2B self-hosted domain")
+    parser.add_argument("--target", help="Daytona region id (the compose stack defines 'us')")
     parser.add_argument(
         "--key",
         required=True,

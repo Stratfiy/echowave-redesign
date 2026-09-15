@@ -20,12 +20,31 @@
 # It also makes rollback real. Every image is tagged with its commit SHA, so
 # going back is `IMAGE_TAG=<sha> ./remote_up.sh` -- a pull, not a rebuild on a
 # loaded four-core box.
+#
+# THIS FILE LIVES AT THE REPOSITORY ROOT, like deploy.yml and for the same
+# reason: GitHub reads workflows from `<repo-root>/.github/workflows/` only,
+# and this repository's root is echowave-redesign with the application under
+# echowave/. It sat in echowave/.github/workflows/ from 2 Sept to 15 Sept and
+# never ran once (KAN-35). Every path below is therefore prefixed echowave/.
+#
+# What this does NOT yet do: ci_deploy.sh still runs `docker compose build`
+# on the box, because the box cannot reach a registry today (KAN-35 names the
+# owner actions: a pull credential or ECR and an egress rule). Once it can,
+# the deploy becomes `REGISTRY=ghcr.io/stratfiy docker compose pull && up`
+# and the build step on the box goes. Until then these images are the
+# rollback store and proof the Dockerfiles build clean on every merge.
 
 name: Build images
 
 on:
   push:
     branches: [main]
+    # Matched from the repository root; a docs-only merge builds nothing.
+    paths:
+      - "echowave/**"
+      - "!echowave/docs/**"
+      - "!**/*.md"
+      - ".github/workflows/build-images.yml"
   # So a release can be rebuilt without an empty commit, and so the first run
   # can be triggered by hand before anything merges.
   workflow_dispatch:
@@ -51,9 +70,9 @@ jobs:
       matrix:
         include:
           - name: api
-            dockerfile: api/Dockerfile
+            dockerfile: echowave/api/Dockerfile
           - name: ui
-            dockerfile: ui/Dockerfile
+            dockerfile: echowave/ui/Dockerfile
 
     steps:
       - name: Check out, with pipecat
@@ -82,10 +101,12 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          # The repository root for both, not the service directory: the API
+          # The application root for both, not the service directory: the API
           # Dockerfile needs pipecat/ beside api/, and the UI Dockerfile copies
-          # from ui/ by path.
-          context: .
+          # from ui/ by path. Not the repository root either -- the Dockerfiles
+          # were written when echowave/ was the root and address api/ and ui/
+          # from there.
+          context: echowave
           file: ${{ matrix.dockerfile }}
           push: true
           # The box is x86. Building arm64 as well would roughly double the

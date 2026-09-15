@@ -12,6 +12,9 @@ What this promises the provider:
   and a bounce is a message the sender sees. Unknown recipient, a paused
   trigger, a filtered message: all 200 with a status, nothing runs.
 - **A redelivery is not a second run.** The message id dedupes for a day.
+- **Our own mail never runs a bot.** A message from the inbound domain or one
+  of our sending addresses is dropped: a bot's reply to its own trigger is
+  the loop this would otherwise be.
 - **Only our provider may POST.** When ``INBOUND_EMAIL_TOKEN`` is set it must
   be presented (``X-Inbound-Token`` header or ``?token=``); email addresses
   are guessable-ish and inbound mail is spoofable, so the provider hop is
@@ -85,6 +88,11 @@ async def receive_email(
         return {"status": "unknown_address"}
     if not trigger.is_active:
         return {"status": "paused", "trigger": trigger.name}
+    # Mail we sent, arriving at an address we own: a bot replying to the
+    # message that triggered it, or two bots answering each other. Not a
+    # run, not a credit, not a counter tick -- and never a bounce.
+    if bot_triggers.is_own_mail(email.get("from")):
+        return {"status": "own_mail", "trigger": trigger.name}
 
     identifier = f"{_KEY_PREFIX}{trigger.uuid}"
     message_id = str(email.get("message_id") or "") or None

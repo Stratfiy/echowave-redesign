@@ -102,6 +102,45 @@ def address_uuid(recipient: str) -> Optional[str]:
     return local or None
 
 
+def _bare_address(value: Any) -> str:
+    """``"Meera <meera@shop.example>"`` -> ``meera@shop.example``, lowercased."""
+    raw = str(value or "")
+    if "<" in raw and ">" in raw:
+        raw = raw[raw.rfind("<") + 1 : raw.rfind(">")]
+    return raw.strip().lower()
+
+
+def is_own_mail(sender: Any) -> bool:
+    """Whether a message came from the platform itself, so must not fire a bot.
+
+    A bot's reply to the address that triggered it, an auto-reply bouncing
+    between two bots, a receipt from billing forwarded to a trigger: each is
+    mail *we* sent arriving at an address *we* own, and a bot that acts on it
+    acts on itself -- a loop that costs a credit a turn until the hourly cap.
+    Dedupe by message id catches an exact redelivery, not a fresh reply. So
+    anything from our inbound domain or one of our sending addresses is
+    dropped before the filter, the counter and the queue.
+    """
+    from api import constants
+
+    address = _bare_address(sender)
+    if not address or "@" not in address:
+        return False
+    domain = address.rsplit("@", 1)[1]
+    if domain == INBOUND_EMAIL_DOMAIN.lower():
+        return True
+    ours = {
+        str(a).strip().lower()
+        for a in (
+            constants.EMAIL_FROM_ADDRESS,
+            constants.EMAIL_FROM_BILLING,
+            constants.EMAIL_FROM_NOTIFICATIONS,
+        )
+        if a
+    }
+    return address in ours
+
+
 #: Where each provider keeps the fields we need. First hit wins.
 _EMAIL_KEYS = {
     "recipient": ("recipient", "to", "To", "OriginalRecipient", "envelope_to"),

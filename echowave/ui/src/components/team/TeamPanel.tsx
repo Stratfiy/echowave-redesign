@@ -147,7 +147,7 @@ export function TeamPanel({ members: supplied }: { members?: TeamMember[] } = {}
                 <Button asChild size="sm" variant="outline">
                     <Link href="/workflow/create">
                         <Plus className="mr-1 h-3.5 w-3.5" />
-                        Hire
+                        Add a bot
                     </Link>
                 </Button>
             </CardHeader>
