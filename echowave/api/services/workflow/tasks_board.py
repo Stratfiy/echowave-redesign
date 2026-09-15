@@ -28,6 +28,7 @@ Rules:
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from typing import Any
 
@@ -60,6 +61,21 @@ MAX_DEPTH = 2
 MAX_TITLE = 200
 MAX_BRIEF = 4_000
 MAX_RESULT = 2_000
+
+#: How much of a delegate's result reaches the bot that asked.
+#:
+#: **The summary rule.** A delegate returns a summary; its raw tool output
+#: stays in its own run. The bot that filed the task is a coordinator, and
+#: a coordinator that receives forty CRM rows from one colleague and a
+#: ledger from another has a context full of other bots' working and no
+#: room for its own. So the result is asked for as a colleague's report,
+#: cut to a few lines here regardless of what the model did, and stripped
+#: of anything that reads as pasted output: a code block, a table, a JSON
+#: blob. The full result stays on the task card, where a person reads it,
+#: and the tool results stay on the delegate's run, where the timeline
+#: shows them.
+MAX_SUMMARY = 600
+MAX_SUMMARY_LINES = 6
 
 
 def tool_properties() -> dict[str, Any]:
@@ -314,11 +330,83 @@ def run_message(*, title: str, brief: str, asker: str) -> str:
             (
                 "Do it now with what you have and your tools. Reply with the "
                 "result as you would report it to a colleague: what you did, "
-                "what you found, anything they must know. If you truly cannot, "
-                "say why in one line. Do not file this task back to them."
+                "what you found, anything they must know, in a few lines. "
+                "Report, do not paste: no raw rows, records, tables or tool "
+                "output -- those stay on your own run, and only your summary "
+                "reaches them. If you truly cannot, say why in one line. Do "
+                "not file this task back to them."
             ),
         ]
     )
+
+
+_FENCE = re.compile(r"```.*?```", re.DOTALL)
+_TABLE_ROW = re.compile(r"^\s*\|.*\|\s*$")
+_RULE = re.compile(r"^\s*[-=_*]{3,}\s*$")
+_RECORD = re.compile(r"^\s*[\[{].*[\]}]\s*,?\s*$")
+_KEY_VALUE_ROW = re.compile(r'^\s*"?[A-Za-z_][A-Za-z0-9_ ]*"?\s*[:=]\s*\S.*$')
+
+
+def summarise_for_asker(result: str) -> str:
+    """The delegate's result as the asker hears it: a report, never a dump.
+
+    Drops what reads as pasted output -- fenced blocks, table rows, JSON
+    records, runs of ``key: value`` lines -- keeps the prose, and cuts the
+    rest to a few lines. Says when it cut, so the asker knows the card
+    has more rather than believing the summary is all there was.
+    """
+    text = _FENCE.sub(" ", result or "")
+    kept: list[str] = []
+    key_value_run = 0
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            key_value_run = 0
+            continue
+        if (
+            _TABLE_ROW.match(stripped)
+            or _RULE.match(stripped)
+            or _RECORD.match(stripped)
+        ):
+            continue
+        if _KEY_VALUE_ROW.match(stripped) and not stripped.endswith((".", "?", "!")):
+            # One "Status: done" is a report. Six in a row is a record.
+            key_value_run += 1
+            if key_value_run > 2:
+                if kept and kept[-1] and _KEY_VALUE_ROW.match(kept[-1]):
+                    kept.pop()
+                if len(kept) >= 2 and _KEY_VALUE_ROW.match(kept[-1]):
+                    kept.pop()
+                continue
+        else:
+            key_value_run = 0
+        kept.append(stripped)
+
+    cut = len(kept) > MAX_SUMMARY_LINES
+    lines = kept[:MAX_SUMMARY_LINES]
+    summary = "\n".join(lines)
+    if len(summary) > MAX_SUMMARY:
+        cut = True
+        head = summary[:MAX_SUMMARY]
+        stop = max(head.rfind(". "), head.rfind("\n"))
+        summary = head[: stop + 1] if stop > MAX_SUMMARY // 2 else head
+    summary = summary.strip()
+    if not summary:
+        return "Done; the details are on the task card."
+    if cut or len(summary) < len((result or "").strip()) - 80:
+        summary += " (More on the task card.)"
+    return summary
+
+
+def _tool_calls_in(turns: list[dict[str, Any]]) -> int:
+    """How many tool results the delegate's run holds -- the raw output
+    that stays with it rather than travelling to the asker."""
+    count = 0
+    for turn in turns:
+        for event in turn.get("events") or []:
+            if isinstance(event, dict) and event.get("type") == "tool_call_result":
+                count += 1
+    return count
 
 
 async def run_task(task_id: int) -> int | None:
@@ -420,6 +508,23 @@ async def run_task(task_id: int) -> int | None:
             (turns[-1].get("assistant_message") or {}).get("text") if turns else ""
         ) or ""
         answer = answer.strip()[:MAX_DELIVERABLE]
+        used = _tool_calls_in(turns)
+        if used:
+            # The raw output stays here, on the delegate's own run, and the
+            # timeline says so -- a person who wants the rows opens this run,
+            # and the asker never carried them.
+            await agent_timeline.record_activity(
+                organization_id=organization_id,
+                summary=(
+                    f"{assignee_name} used {used} tool call"
+                    f"{'s' if used != 1 else ''} for the task; the full output "
+                    "stays on this run"
+                ),
+                workflow_id=assignee_id,
+                workflow_run_id=run_id,
+                payload={"task_id": task_id, "tool_calls": used},
+                in_channel=False,
+            )
         await billing_events.charge_in_own_session(
             organization_id=organization_id,
             event=billing_events.TASK_RUN,
@@ -501,7 +606,11 @@ async def _finish(
         from api.tasks.arq import enqueue_job
         from api.tasks.function_names import FunctionNames
 
-        report = f"Task result from {assignee_name} ({title}): {result[:MAX_RESULT]}"
+        # The summary, not the result: the asker is a coordinator, and its
+        # context carries the colleague's report, never the colleague's rows.
+        report = (
+            f"Task result from {assignee_name} ({title}): {summarise_for_asker(result)}"
+        )
         try:
             await enqueue_job(
                 FunctionNames.ANSWER_CHANNEL_MESSAGE, from_id, None, report
