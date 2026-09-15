@@ -915,6 +915,19 @@ class PipecatEngine:
                 mcp_tool_filters=getattr(node, "mcp_tool_filters", None),
             )
 
+        # Running a script (Step 20): text and channel runs on a paid plan,
+        # on a node that has tools for the script to call. Same gate as the
+        # schema below, so the model is never offered a tool nothing answers.
+        can_run_scripts = False
+        if not self._is_voice and node.tool_uuids:
+            from api.services.sandbox import code_mode
+
+            can_run_scripts = await code_mode.allowed(await self._get_organization_id())
+            if can_run_scripts:
+                self.llm.register_function(
+                    code_mode.TOOL_NAME, self._run_script_handler
+                )
+
         # Register knowledge base retrieval over what the node names plus
         # what the run reads unasked (company, channel, bot). Same union the
         # composer offers, so the tool the model sees is the tool that runs.
@@ -944,6 +957,7 @@ class PipecatEngine:
             can_ask_for_decision=not self._is_voice,
             scoped_document_uuids=scoped_document_uuids,
             can_edit_self=self._can_edit_self,
+            can_run_scripts=can_run_scripts,
         )
         await self._update_llm_context(system_prompt, functions)
 
@@ -1698,6 +1712,38 @@ class PipecatEngine:
         except Exception as exc:  # noqa: BLE001 - the turn must finish
             logger.warning("Could not record a secret request: {}", exc)
             result = {"status": "not_asked", "reason": "could not be recorded"}
+        await function_call_params.result_callback(result)
+
+    async def _run_script_handler(self, function_call_params) -> None:
+        """The model wrote a script. Run it in a box with this node's tools
+        reachable by name, bill one script run, and hand back the output."""
+        from api.services.sandbox import code_mode
+
+        arguments = getattr(function_call_params, "arguments", None) or {}
+        code = str(arguments.get("code") or "") if isinstance(arguments, dict) else ""
+        why = str(arguments.get("why") or "") if isinstance(arguments, dict) else ""
+        organization_id = await self._get_organization_id()
+        node = self._current_node
+        tools: list = []
+        if (
+            organization_id
+            and node is not None
+            and node.tool_uuids
+            and self._custom_tool_manager
+        ):
+            tools = await self._custom_tool_manager._load_tools(
+                list(node.tool_uuids), organization_id
+            )
+        call_id = getattr(function_call_params, "tool_call_id", None)
+        result = await code_mode.run_for_bot(
+            organization_id=int(organization_id or 0),
+            code=code,
+            why=why,
+            tools=tools,
+            workflow_id=getattr(self.workflow, "id", None),
+            workflow_run_id=self._workflow_run_id,
+            ref_id=f"{self._workflow_run_id or 'run'}:script:{call_id or 'x'}",
+        )
         await function_call_params.result_callback(result)
 
     async def _end_call_tool_handler(self, function_call_params) -> None:

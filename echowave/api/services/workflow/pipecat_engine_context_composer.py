@@ -254,6 +254,7 @@ async def compose_functions_for_node(
     can_ask_for_decision: bool = False,
     scoped_document_uuids: Optional[list[str]] = None,
     can_edit_self: bool = False,
+    can_run_scripts: bool = False,
 ) -> list[dict]:
     """Compose the function/tool schemas for a workflow node.
 
@@ -351,6 +352,20 @@ async def compose_functions_for_node(
                 self_edit.DESCRIPTION,
                 properties=self_edit.tool_properties(),
                 required=["step", "new_prompt", "why"],
+            )
+        )
+
+    # Running a script (Step 20, Code Mode): text and channel runs on a paid
+    # plan, and only when the node has connected tools for a script to call.
+    if can_run_scripts and node.tool_uuids:
+        from api.services.sandbox import code_mode
+
+        functions.append(
+            get_function_schema(
+                code_mode.TOOL_NAME,
+                code_mode.DESCRIPTION,
+                properties=code_mode.tool_properties(),
+                required=["code", "why"],
             )
         )
 
