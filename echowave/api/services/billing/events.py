@@ -33,6 +33,8 @@ KNOWLEDGE_ANSWER = "knowledge_answer"
 ROUTINE_RUN = "routine_run"
 #: A trigger fired and the bot did one turn on the event (KAN-137, study §25).
 TRIGGER_RUN = "trigger_run"
+#: A bot did a task from the board: one hand-off, one turn (KAN-140, study §26).
+TASK_RUN = "task_run"
 TOOL_CALL = "tool_call"
 TOOL_CALL_PREMIUM = "tool_call_premium"
 BUILDER_MESSAGE = "builder_message"
@@ -52,6 +54,7 @@ EVENT_CREDITS: dict[str, int] = {
     KNOWLEDGE_ANSWER: 2,
     ROUTINE_RUN: 2,
     TRIGGER_RUN: 1,
+    TASK_RUN: 1,
     TOOL_CALL: 1,
     TOOL_CALL_PREMIUM: 3,
     BUILDER_MESSAGE: 5,
@@ -65,6 +68,7 @@ EVENT_LABELS: dict[str, str] = {
     KNOWLEDGE_ANSWER: "Knowledge answer",
     ROUTINE_RUN: "Routine run",
     TRIGGER_RUN: "Trigger run",
+    TASK_RUN: "Task run",
     TOOL_CALL: "Tool call",
     TOOL_CALL_PREMIUM: "Tool call (premium connector)",
     BUILDER_MESSAGE: "Builder message past the allowance",

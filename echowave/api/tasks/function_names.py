@@ -10,6 +10,8 @@ class FunctionNames:
     RUN_AGENT_ROUTINE = "run_agent_routine"
     #: A webhook rang a bot's doorbell (KAN-137).
     RUN_BOT_TRIGGER = "run_bot_trigger"
+    #: A task on the board was handed to a bot (KAN-140 P1).
+    RUN_AGENT_TASK = "run_agent_task"
     ANSWER_CHANNEL_MESSAGE = "answer_channel_message"
     #: Decibyl, the workspace assistant, answers on its own thread.
     ANSWER_DECIBYL_MESSAGE = "answer_decibyl_message"

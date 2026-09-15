@@ -40,6 +40,7 @@ from api.services.workflow import (
     office,
     reply_draft,
     self_edit,
+    tasks_board,
 )
 
 NAME = "Decibyl"
@@ -81,6 +82,9 @@ SYSTEM = (
     "edit lands on a live bot. When a person asks you to fix a bot after a "
     "check, use the verdict and the bot's steps in the context to propose "
     "one edit with propose_edit.\n"
+    "- create_task: file a task on the team's board for a bot (by @handle) "
+    "or for the team, when a person asks you to have a bot do something "
+    "later or hand work between bots. The board shows who did what.\n"
     "- Nothing happens until a person confirms on the card, so propose it "
     "and say you have. Deleting a bot, dialling a new number and anything "
     "else you cannot do: say so, and say where it is done.\n"
@@ -498,6 +502,7 @@ def TOOLS() -> list[dict[str, Any]]:
         office.edit_tool_schema(),
         office.test_tool_schema(),
         office.check_tool_schema(),
+        tasks_board.tool_schema(),
     ]
 
 
@@ -518,6 +523,13 @@ async def _tool(organization_id: int, call: Any) -> dict[str, Any]:
     if call.name == office.TEST_TOOL_NAME:
         return await office.offer_test(
             organization_id=organization_id, arguments=arguments
+        )
+    if call.name == tasks_board.TOOL_NAME:
+        return await tasks_board.create(
+            organization_id=organization_id,
+            from_workflow_id=None,
+            workflow_run_id=None,
+            arguments=arguments,
         )
     if call.name == office.CHECK_TOOL_NAME:
         return await office.check_bot(

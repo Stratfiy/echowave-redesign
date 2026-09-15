@@ -175,6 +175,19 @@ async def run_bot_trigger(_ctx, trigger_id: int, payload, event_id=None) -> None
     )
 
 
+async def run_agent_task(_ctx, task_id: int) -> None:
+    """A task on the board was handed to a bot (KAN-140 P1): run it, then
+    process the run like any other."""
+    from api.services.workflow.tasks_board import run_task
+
+    run_id = await run_task(int(task_id))
+    if run_id is None:
+        return
+    await _ctx["redis"].enqueue_job(
+        FunctionNames.PROCESS_WORKFLOW_COMPLETION, int(run_id)
+    )
+
+
 async def answer_channel_message(
     _ctx,
     workflow_id: int,

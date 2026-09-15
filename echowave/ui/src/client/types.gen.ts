@@ -10418,6 +10418,42 @@ export type SwitchOrganizationRequest = {
 };
 
 /**
+ * TaskStatus
+ */
+export type TaskStatus = {
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Result
+     */
+    result?: string | null;
+};
+
+/**
+ * TaskWrite
+ */
+export type TaskWrite = {
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Brief
+     */
+    brief?: string;
+    /**
+     * Assignee
+     */
+    assignee?: string;
+    /**
+     * Due
+     */
+    due?: string | null;
+};
+
+/**
  * TeamMember
  */
 export type TeamMember = {
@@ -25611,6 +25647,184 @@ export type TestTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdTestPostResponse
 };
 
 export type TestTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdTestPostResponse = TestTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdTestPostResponses[keyof TestTriggerApiV1WorkflowsWorkflowIdTriggersTriggerIdTestPostResponses];
+
+export type ListTasksApiV1TasksGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/tasks';
+};
+
+export type ListTasksApiV1TasksGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListTasksApiV1TasksGetError = ListTasksApiV1TasksGetErrors[keyof ListTasksApiV1TasksGetErrors];
+
+export type ListTasksApiV1TasksGetResponses = {
+    /**
+     * Response List Tasks Api V1 Tasks Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListTasksApiV1TasksGetResponse = ListTasksApiV1TasksGetResponses[keyof ListTasksApiV1TasksGetResponses];
+
+export type CreateTaskApiV1TasksPostData = {
+    body: TaskWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/tasks';
+};
+
+export type CreateTaskApiV1TasksPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateTaskApiV1TasksPostError = CreateTaskApiV1TasksPostErrors[keyof CreateTaskApiV1TasksPostErrors];
+
+export type CreateTaskApiV1TasksPostResponses = {
+    /**
+     * Response Create Task Api V1 Tasks Post
+     *
+     * Successful Response
+     */
+    201: {
+        [key: string]: unknown;
+    };
+};
+
+export type CreateTaskApiV1TasksPostResponse = CreateTaskApiV1TasksPostResponses[keyof CreateTaskApiV1TasksPostResponses];
+
+export type SetTaskStatusApiV1TasksTaskIdStatusPostData = {
+    body: TaskStatus;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: number;
+    };
+    query?: never;
+    url: '/api/v1/tasks/{task_id}/status';
+};
+
+export type SetTaskStatusApiV1TasksTaskIdStatusPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetTaskStatusApiV1TasksTaskIdStatusPostError = SetTaskStatusApiV1TasksTaskIdStatusPostErrors[keyof SetTaskStatusApiV1TasksTaskIdStatusPostErrors];
+
+export type SetTaskStatusApiV1TasksTaskIdStatusPostResponses = {
+    /**
+     * Response Set Task Status Api V1 Tasks  Task Id  Status Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetTaskStatusApiV1TasksTaskIdStatusPostResponse = SetTaskStatusApiV1TasksTaskIdStatusPostResponses[keyof SetTaskStatusApiV1TasksTaskIdStatusPostResponses];
+
+export type DeleteTaskApiV1TasksTaskIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: number;
+    };
+    query?: never;
+    url: '/api/v1/tasks/{task_id}';
+};
+
+export type DeleteTaskApiV1TasksTaskIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteTaskApiV1TasksTaskIdDeleteError = DeleteTaskApiV1TasksTaskIdDeleteErrors[keyof DeleteTaskApiV1TasksTaskIdDeleteErrors];
+
+export type DeleteTaskApiV1TasksTaskIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteTaskApiV1TasksTaskIdDeleteResponse = DeleteTaskApiV1TasksTaskIdDeleteResponses[keyof DeleteTaskApiV1TasksTaskIdDeleteResponses];
 
 export type OrganisationApiV1OrganisationGetData = {
     body?: never;

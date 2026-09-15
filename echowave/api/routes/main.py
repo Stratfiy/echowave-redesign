@@ -54,6 +54,7 @@ from api.routes.routines import router as routines_router
 from api.routes.s3_signed_url import router as s3_router
 from api.routes.service_keys import router as service_keys_router
 from api.routes.superuser import router as superuser_router
+from api.routes.tasks import router as tasks_router
 from api.routes.team import router as team_router
 from api.routes.telephony import router as telephony_router
 from api.routes.telephony_admin import router as telephony_admin_router
@@ -111,6 +112,7 @@ router.include_router(credentials_router)
 router.include_router(connectors_router)
 router.include_router(routines_router)
 router.include_router(bot_triggers_router)
+router.include_router(tasks_router)
 router.include_router(organisation_router)
 router.include_router(organisation_memory_router)
 router.include_router(packs_router)

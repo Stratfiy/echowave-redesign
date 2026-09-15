@@ -116,6 +116,14 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       // properties of an agent, chosen on its Models tab. The workspace
       // default is a setting, under Settings → Model defaults.
       {
+        // The office's board: what the bots and the team have been handed and
+        // what came of it. One list for people and bots alike (KAN-140 P1).
+        title: "Tasks",
+        url: "/tasks",
+        icon: ClipboardCheck,
+        keywords: ["tasks", "board", "kanban", "delegate", "hand-off", "todo"],
+      },
+      {
         // "Bots", not "Team", and not because "Team" was unfriendly.
         //
         // It meant three different things in one product: this list of bots,
@@ -476,7 +484,7 @@ export const NAV_CONTEXTS: NavContext[] = [
     icon: Home,
     // The bots are listed under Home by SidebarBots, which reads the roster
     // rather than this list — this is the door to all of them.
-    urls: ["/overview", "/workflow"],
+    urls: ["/overview", "/workflow", "/tasks"],
   },
   {
     id: "activity",

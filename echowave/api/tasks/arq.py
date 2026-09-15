@@ -71,6 +71,7 @@ from api.tasks.routines import (
     compact_channel_context,
     fire_due_routines,
     run_agent_routine,
+    run_agent_task,
     run_bot_trigger,
     run_proposed_action,
 )
@@ -110,6 +111,7 @@ class WorkerSettings:
         watch_margins,
         run_eval_case,
         run_agent_routine,
+        run_agent_task,
         run_bot_trigger,
         answer_channel_message,
         answer_decibyl_message,

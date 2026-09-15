@@ -15,7 +15,13 @@ if TYPE_CHECKING:
     from api.services.workflow.workflow_graph import Node, WorkflowGraph
 
 from api.constants import DEFAULT_ORGANIZATION_TIMEZONE
-from api.services.workflow import actions, decisions, secrets_request, self_edit
+from api.services.workflow import (
+    actions,
+    decisions,
+    secrets_request,
+    self_edit,
+    tasks_board,
+)
 from api.services.workflow.known_values import known_values_block
 from api.services.workflow.pipecat_engine_custom_tools import get_function_schema
 from api.services.workflow.speaking_style import CODE_MIXED_INSTRUCTIONS
@@ -299,6 +305,16 @@ async def compose_functions_for_node(
                 decisions.DESCRIPTION,
                 properties=decisions.tool_properties(),
                 required=["question", "options", "mode"],
+            )
+        )
+        # Filing a task for a colleague goes with asking a person: both are
+        # the bot handing something on rather than doing it (KAN-140 P1).
+        functions.append(
+            get_function_schema(
+                tasks_board.TOOL_NAME,
+                tasks_board.DESCRIPTION,
+                properties=tasks_board.tool_properties(),
+                required=["title", "brief", "assignee"],
             )
         )
         # Asking for a key goes with asking a person: the form is on the

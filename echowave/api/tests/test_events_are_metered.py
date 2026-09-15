@@ -29,6 +29,8 @@ class TestThePrices:
             "routine_run": 2,
             # KAN-137, study §25: one event, one turn.
             "trigger_run": 1,
+            # KAN-140 P1: a task handed to a bot, one turn.
+            "task_run": 1,
             "tool_call": 1,
             "tool_call_premium": 3,
             "builder_message": 5,

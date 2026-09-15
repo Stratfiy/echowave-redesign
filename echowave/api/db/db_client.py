@@ -1,5 +1,6 @@
 from api.db.activation_client import ActivationClient
 from api.db.agent_event_client import AgentEventClient
+from api.db.agent_task_client import AgentTaskClient
 from api.db.agent_trigger_client import AgentTriggerClient
 from api.db.api_key_client import APIKeyClient
 from api.db.app_interaction_client import AppInteractionClient
@@ -39,6 +40,7 @@ class DBClient(
     AgentEventClient,
     RoutineClient,
     BotTriggerClient,
+    AgentTaskClient,
     AppInteractionClient,
     OrganisationFactClient,
     KycClient,
