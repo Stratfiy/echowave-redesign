@@ -65,6 +65,7 @@ def _send_sync(
     attachment_bytes: bytes | None,
     attachment_filename: str | None,
     from_address: str,
+    attachment_mime_type: str | None = None,
 ) -> None:
     message = EmailMessage()
     message["Subject"] = subject
@@ -73,10 +74,16 @@ def _send_sync(
     message.set_content(body_text)
 
     if attachment_bytes is not None:
+        # Typed by what it is: a photo of a policy arrives as a photo, not as
+        # a PDF that will not open. PDF stays the default for every caller
+        # that never said.
+        maintype, _, subtype = (attachment_mime_type or "application/pdf").partition(
+            "/"
+        )
         message.add_attachment(
             attachment_bytes,
-            maintype="application",
-            subtype="pdf",
+            maintype=maintype or "application",
+            subtype=subtype or "pdf",
             filename=attachment_filename or "document.pdf",
         )
 
@@ -101,6 +108,7 @@ async def send_email(
     attachment_bytes: bytes | None = None,
     attachment_filename: str | None = None,
     sender: str = "notifications",
+    attachment_mime_type: str | None = None,
 ) -> SendResult:
     """Send one email, best-effort.
 
@@ -128,6 +136,7 @@ async def send_email(
             body_text=body_text,
             attachment_bytes=attachment_bytes,
             attachment_filename=attachment_filename,
+            attachment_mime_type=attachment_mime_type,
             from_address=sender_address(sender),
         )
     except Exception as exc:  # noqa: BLE001 -- reported, not propagated; see docstring

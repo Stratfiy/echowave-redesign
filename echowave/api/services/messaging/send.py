@@ -82,6 +82,49 @@ class SendResult:
         }
 
 
+#: The largest file Meta accepts as a document message (100 MB), and as an
+#: image (5 MB). Checked here so a refusal names the limit rather than Meta's
+#: "(#131052) Media upload error".
+MAX_DOCUMENT_BYTES = 100 * 1024 * 1024
+MAX_IMAGE_BYTES = 5 * 1024 * 1024
+
+#: MIME types Meta renders as an image message. Anything else is a document.
+IMAGE_MIME_TYPES = frozenset({"image/jpeg", "image/png"})
+
+
+@dataclass(frozen=True)
+class Attachment:
+    """A file to send with (or instead of) the text: a PDF, a photo.
+
+    Sent by *uploading* the bytes to the provider and referencing the media
+    id, never by a link. A Drive link to a private file fails for anyone not
+    signed in, and the whole point of sending someone their own document is
+    that it arrives (KAN-A1).
+    """
+
+    data: bytes
+    filename: str
+    mime_type: str = "application/pdf"
+    caption: str | None = None
+
+    @property
+    def is_image(self) -> bool:
+        return self.mime_type.lower() in IMAGE_MIME_TYPES
+
+    def check(self) -> None:
+        limit = MAX_IMAGE_BYTES if self.is_image else MAX_DOCUMENT_BYTES
+        if not self.data:
+            raise MessagingError(f"'{self.filename}' is empty.")
+        if len(self.data) > limit:
+            raise MessagingError(
+                f"'{self.filename}' is {len(self.data) // (1024 * 1024)} MB; "
+                f"WhatsApp takes {'images' if self.is_image else 'documents'} up "
+                f"to {limit // (1024 * 1024)} MB."
+            )
+        if not self.filename.strip():
+            raise MessagingError("The file has no name.")
+
+
 def supported_providers() -> tuple[str, ...]:
     return PROVIDERS
 
@@ -101,7 +144,7 @@ def _normalise_number(value: str) -> str:
     return cleaned
 
 
-def _validate(to: str, body: str) -> None:
+def _validate(to: str, body: str, *, has_attachment: bool = False) -> None:
     number = _normalise_number(to)
     if not number:
         raise MessagingError("No recipient number.")
@@ -110,7 +153,7 @@ def _validate(to: str, body: str) -> None:
             f"'{to}' has no country code. Carriers need E.164 (+919876543210) — "
             "a bare 10-digit number is ambiguous and will be rejected."
         )
-    if not body.strip():
+    if not body.strip() and not has_attachment:
         raise MessagingError("Message body is empty.")
     if len(body) > MAX_BODY_LENGTH:
         raise MessagingError(
@@ -201,6 +244,48 @@ async def _send_plivo(
     )
 
 
+async def _upload_meta_media(
+    client: httpx.AsyncClient,
+    credentials: Mapping[str, Any],
+    attachment: Attachment,
+) -> str | SendResult:
+    """Put the bytes on Meta and get a media id back, or the refusal.
+
+    Meta's media endpoint takes a multipart upload and returns an id that a
+    message may reference for thirty days. The bytes stay on Meta's side --
+    never a public URL of ours, so a document is reachable only through the
+    message it was sent in.
+    """
+    token = credentials["access_token"]
+    phone_number_id = credentials["phone_number_id"]
+    version = credentials.get("graph_version") or "v21.0"
+    response = await client.post(
+        f"https://graph.facebook.com/{version}/{phone_number_id}/media",
+        headers={"Authorization": f"Bearer {token}"},
+        data={"messaging_product": "whatsapp", "type": attachment.mime_type},
+        files={"file": (attachment.filename, attachment.data, attachment.mime_type)},
+    )
+    if response.status_code >= 400:
+        return SendResult(
+            ok=False,
+            provider=META_WHATSAPP,
+            to="",
+            error=f"Upload of '{attachment.filename}' refused: "
+            + _carrier_error(response),
+            status_code=response.status_code,
+        )
+    media_id = (response.json() or {}).get("id")
+    if not media_id:
+        return SendResult(
+            ok=False,
+            provider=META_WHATSAPP,
+            to="",
+            error=f"Upload of '{attachment.filename}' returned no media id.",
+            status_code=response.status_code,
+        )
+    return str(media_id)
+
+
 async def _send_meta_whatsapp(
     client: httpx.AsyncClient,
     credentials: Mapping[str, Any],
@@ -208,14 +293,20 @@ async def _send_meta_whatsapp(
     to: str,
     body: str,
     template: Mapping[str, Any] | None = None,
+    attachment: Attachment | None = None,
 ) -> SendResult:
-    """One message on Meta's Cloud API, as a template or as free text.
+    """One message on Meta's Cloud API: a template, free text, or a file.
 
     A template is what a business may send unprompted: the name of an approved
     template, its language, and the values for its numbered placeholders.
     Free text is accepted by Meta only inside the 24 hours after the customer
     last wrote, so a node with no template works for a reply and fails, with
-    Meta's own words, for a first contact.
+    Meta's own words, for a first contact. A file is under the same rule:
+    uploaded first (``_upload_meta_media``), then sent as a ``document`` or
+    ``image`` message with the filename and the text as its caption. When
+    Meta refuses because the window has closed, the result carries its
+    words and the caller decides whether a template offering the file on
+    reply is the right next move.
     """
     token = credentials.get("access_token")
     phone_number_id = credentials.get("phone_number_id")
@@ -229,7 +320,28 @@ async def _send_meta_whatsapp(
         "to": to.lstrip("+"),
     }
     name = (template or {}).get("name") if template else None
-    if name:
+    if attachment is not None:
+        uploaded = await _upload_meta_media(client, credentials, attachment)
+        if isinstance(uploaded, SendResult):
+            return SendResult(
+                ok=False,
+                provider=META_WHATSAPP,
+                to=to,
+                error=uploaded.error,
+                status_code=uploaded.status_code,
+            )
+        caption = (attachment.caption or body or "").strip()
+        if attachment.is_image:
+            media: dict[str, Any] = {"id": uploaded}
+            if caption:
+                media["caption"] = caption[:1024]
+            payload.update({"type": "image", "image": media})
+        else:
+            media = {"id": uploaded, "filename": attachment.filename}
+            if caption:
+                media["caption"] = caption[:1024]
+            payload.update({"type": "document", "document": media})
+    elif name:
         params = [str(v) for v in (template or {}).get("params") or []]
         component: dict[str, Any] = {
             "name": name,
@@ -300,8 +412,14 @@ async def send_message(
     from_: str,
     body: str,
     template: Mapping[str, Any] | None = None,
+    attachment: Attachment | None = None,
 ) -> SendResult:
     """Send one message and report what happened.
+
+    ``attachment`` sends a file (a PDF, a photo) with the text as its caption.
+    Only the platform WhatsApp sender can carry one today: Twilio and Plivo
+    take media by public URL, and a public URL for somebody's Aadhaar is
+    exactly what this feature exists to avoid.
 
     Raises :class:`MessagingError` only for things the caller got wrong — an
     unsupported provider, a missing credential, an unusable number. A carrier
@@ -314,7 +432,14 @@ async def send_message(
             f"'{provider}' cannot send messages. Supported: {', '.join(PROVIDERS)}."
         )
 
-    _validate(to, body)
+    if attachment is not None:
+        if provider != META_WHATSAPP:
+            raise MessagingError(
+                f"'{provider}' cannot send a file; only the platform WhatsApp "
+                "sender can, and email can carry an attachment."
+            )
+        attachment.check()
+    _validate(to, body, has_attachment=attachment is not None)
     to = _normalise_number(to)
     from_ = _normalise_number(from_)
     if not from_ and provider != META_WHATSAPP:
@@ -327,7 +452,12 @@ async def send_message(
         try:
             if provider == META_WHATSAPP:
                 result = await _send_meta_whatsapp(
-                    client, credentials, to=to, body=body, template=template
+                    client,
+                    credentials,
+                    to=to,
+                    body=body,
+                    template=template,
+                    attachment=attachment,
                 )
             elif provider == "plivo":
                 result = await _send_plivo(
