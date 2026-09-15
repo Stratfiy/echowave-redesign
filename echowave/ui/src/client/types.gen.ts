@@ -4034,6 +4034,28 @@ export type DocumentUploadResponseSchema = {
 };
 
 /**
+ * DoorAnswers
+ *
+ * The three questions at the door. Kept on the account so Home's first
+ * cards and Decibyl know who they are talking to; the lead service gets
+ * its own copy from the browser as before.
+ */
+export type DoorAnswers = {
+    /**
+     * Role
+     */
+    role?: string;
+    /**
+     * Business
+     */
+    business?: string;
+    /**
+     * Heard
+     */
+    heard?: string;
+};
+
+/**
  * DraftResponse
  */
 export type DraftResponse = {
@@ -5415,6 +5437,10 @@ export type HomeResponse = {
      * Suggestions
      */
     suggestions: Array<Suggestion>;
+    /**
+     * Openers
+     */
+    openers: Array<Opener>;
     /**
      * Members
      */
@@ -7565,6 +7591,22 @@ export type OpenRouterLlmConfiguration = {
      * Override only if proxying OpenRouter through your own gateway.
      */
     base_url?: string;
+};
+
+/**
+ * Opener
+ *
+ * A question card under the hello: pressed, it is sent to Decibyl.
+ */
+export type Opener = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Text
+     */
+    text: string;
 };
 
 /**
@@ -17139,6 +17181,49 @@ export type GetOnboardingCreditsApiV1OnboardingCreditsGetResponses = {
 };
 
 export type GetOnboardingCreditsApiV1OnboardingCreditsGetResponse = GetOnboardingCreditsApiV1OnboardingCreditsGetResponses[keyof GetOnboardingCreditsApiV1OnboardingCreditsGetResponses];
+
+export type RecordDoorApiV1OnboardingDoorPostData = {
+    body: DoorAnswers;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/onboarding/door';
+};
+
+export type RecordDoorApiV1OnboardingDoorPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RecordDoorApiV1OnboardingDoorPostError = RecordDoorApiV1OnboardingDoorPostErrors[keyof RecordDoorApiV1OnboardingDoorPostErrors];
+
+export type RecordDoorApiV1OnboardingDoorPostResponses = {
+    /**
+     * Response Record Door Api V1 Onboarding Door Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RecordDoorApiV1OnboardingDoorPostResponse = RecordDoorApiV1OnboardingDoorPostResponses[keyof RecordDoorApiV1OnboardingDoorPostResponses];
 
 export type GetReferralsApiV1ReferralsGetData = {
     body?: never;

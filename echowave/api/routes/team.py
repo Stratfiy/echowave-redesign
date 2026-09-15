@@ -19,7 +19,7 @@ from api.db import db_client
 from api.db.models import UserModel
 from api.enums import WorkflowStatus
 from api.services.auth.depends import get_user
-from api.services.workflow import home_suggestions, status_lines
+from api.services.workflow import home_openers, home_suggestions, status_lines
 
 router = APIRouter(prefix="/team", tags=["team"])
 
@@ -174,10 +174,19 @@ class Suggestion(BaseModel):
     href: Optional[str] = None
 
 
+class Opener(BaseModel):
+    """A question card under the hello: pressed, it is sent to Decibyl."""
+
+    kind: str
+    text: str
+
+
 class HomeResponse(BaseModel):
     hours: int
     headline: Headline
     suggestions: list[Suggestion]
+    #: Built from this account's own life -- see home_openers.
+    openers: list[Opener]
     members: list[TeamMember]
 
 
@@ -207,10 +216,14 @@ async def team_home(
     }
     missed = await db_client.unreturned_missed_call_count(organization_id, hours=48)
 
+    member_rows = [member.model_dump() for member in members]
     suggestions = home_suggestions.build(
-        members=[member.model_dump() for member in members],
+        members=member_rows,
         failures_by_app=failures,
         unreturned_missed_calls=missed,
+    )
+    openers = await home_openers.gather(
+        organization_id, members=member_rows, unreturned_missed_calls=missed
     )
 
     return HomeResponse(
@@ -226,5 +239,6 @@ async def team_home(
             ),
         ),
         suggestions=[Suggestion(**chip) for chip in suggestions],
+        openers=[Opener(**card) for card in openers],
         members=members,
     )
