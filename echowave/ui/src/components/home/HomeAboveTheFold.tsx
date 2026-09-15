@@ -15,7 +15,7 @@
  * opens the screen that fixes it; a prompt chip opens the shelf.
  */
 
-import { AlertTriangle, ArrowRight, Bell, Sparkles } from "lucide-react";
+import { AlertTriangle, ArrowRight, Bell, Bot, History, ListTodo, PhoneMissed, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -24,15 +24,29 @@ import {
   postMessageApiV1TimelineMessagePost,
   teamHomeApiV1TeamHomeGet,
 } from "@/client/sdk.gen";
-import type { Headline, Suggestion } from "@/client/types.gen";
+import type { Headline, Opener, Suggestion } from "@/client/types.gen";
 import { type ChannelBot, ChannelComposer } from "@/components/channel/ChannelComposer";
 import { ChannelStream } from "@/components/channel/ChannelStream";
 import { useAuth } from "@/lib/auth";
 
+/** The fallback when the server sends no cards of its own: the two
+ *  questions an owner arrives with. The server's cards (`openers` on the
+ *  home response, see api/services/workflow/home_openers.py) come from
+ *  this account's own life -- what they asked last, their busiest bot,
+ *  callers nobody rang back -- and replace these when present. */
 export const OPENERS = [
   "What happened this week?",
   "What needs my attention today?",
 ] as const;
+
+/** The mark on a card, by what it came from. */
+const CARD_ICONS: Record<string, typeof Sparkles> = {
+  asked_before: History,
+  missed_calls: PhoneMissed,
+  stuck_tasks: ListTodo,
+  busiest_bot: Bot,
+  attention: Bell,
+};
 
 /** What a brand-new account is asked instead: the first job, as things
  *  you would say to a colleague. Each one is a message to Decibyl, which
@@ -103,6 +117,8 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   const { user, loading: authLoading } = useAuth();
   const [headline, setHeadline] = useState<Headline | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  // The server's question cards, built from this account's own history.
+  const [openers, setOpeners] = useState<Opener[]>([]);
   const [waitingFor, setWaitingFor] = useState<{
     since: string;
     bots: number[];
@@ -138,6 +154,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         if (cancelled || response.error || !response.data) return;
         setHeadline(response.data.headline ?? null);
         setSuggestions(response.data.suggestions ?? []);
+        setOpeners(response.data.openers ?? []);
       } catch {
         // The thread below still works. A greeting that failed to
         // load is a missing sentence, not a broken screen.
@@ -200,8 +217,14 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
           className="mt-4 flex w-full max-w-lg flex-col gap-2"
           aria-label="Ask Decibyl"
         >
-          {(brandNew ? FIRST_JOBS : OPENERS).map((text, index) => {
-            const Icon = brandNew ? Sparkles : index === 0 ? Sparkles : Bell;
+          {(openers.length > 0
+            ? openers
+            : (brandNew ? FIRST_JOBS : OPENERS).map((text, index) => ({
+                kind: brandNew || index === 0 ? "time" : "attention",
+                text,
+              }))
+          ).map(({ kind, text }) => {
+            const Icon = CARD_ICONS[kind] ?? Sparkles;
             return (
               <button
                 key={text}

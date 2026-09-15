@@ -80,6 +80,47 @@ describe("home is Decibyl's thread", () => {
         });
     });
 
+    it("shows the server's own cards when it sends them, and pressing one sends that line", async () => {
+        // ChatGPT's opening suggestions come from what you did before; so do
+        // ours. When the server has cards, the two fixed questions step aside.
+        api.home.mockResolvedValue({
+            data: {
+                hours: 24,
+                headline,
+                suggestions: [],
+                openers: [
+                    { kind: "asked_before", text: "Which bots took calls today?" },
+                    { kind: "missed_calls", text: "Call back the 3 people who rang and got nobody" },
+                    { kind: "time", text: "What happened since yesterday?" },
+                ],
+                members: [],
+            },
+        });
+        api.post.mockResolvedValue({ data: { asked: [], unknown: [], ambiguous: [] } });
+        render(<HomeAboveTheFold />);
+        expect(await screen.findByRole("button", { name: "Which bots took calls today?" })).toBeTruthy();
+        expect(screen.getByRole("button", { name: /Call back the 3 people/ })).toBeTruthy();
+        expect(screen.queryByRole("button", { name: "What happened this week?" })).toBeNull();
+        fireEvent.click(screen.getByRole("button", { name: "Which bots took calls today?" }));
+        await waitFor(() => expect(api.post).toHaveBeenCalled());
+        expect(api.post.mock.calls[0][0].body).toEqual({ assistant: true, text: "Which bots took calls today?" });
+    });
+
+    it("a brand-new account gets the first jobs for its business from the server", async () => {
+        api.home.mockResolvedValue({
+            data: {
+                hours: 24,
+                headline: { ...headline, agents: 0 },
+                suggestions: [],
+                openers: [{ kind: "first_job", text: "Quote shipments from our rate card" }],
+                members: [],
+            },
+        });
+        render(<HomeAboveTheFold />);
+        expect(await screen.findByRole("button", { name: "Quote shipments from our rate card" })).toBeTruthy();
+        expect(screen.queryByRole("button", { name: "Answer my phone and book appointments" })).toBeNull();
+    });
+
     it("a link chip opens the screen that fixes it; a prompt chip opens the shelf", async () => {
         api.home.mockResolvedValue({
             data: {
