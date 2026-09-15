@@ -1,14 +1,15 @@
 /* One product, one look.
  *
  * The tokens below are the app's (`ui/src/app/globals.css`): ivory floor,
- * ink text, a coral accent used sparingly, Inter for reading and Outfit for
- * display. The docs used to be Mintlify blue with a green search box left
+ * ink text, a coral accent used sparingly, and one face for everything:
+ * Lato, the app's face since 15 Sept (`ui/src/app/layout.tsx` says why),
+ * with Geist Mono for code. The docs used to be Mintlify blue with a green search box left
  * over from the template, so a customer arriving from the dashboard read
  * them as a different company's site. The values are copied rather than
  * imported because the two builds do not share a pipeline; when one moves,
  * move both. */
 :root {
-  --sl-font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --sl-font: "Lato", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --sl-font-system: var(--sl-font);
   --sl-font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --sl-color-accent-low: #3a1714;
@@ -32,13 +33,15 @@
   --sl-color-bg-nav: #ffffff;
   --sl-color-bg-sidebar: #f8f9fa;
 }
-/* Display type: the app's headline face. */
+/* Display type: the same face, bold, tightened. The app gave up its separate
+   display face; a heading in a second family read as a second product. */
 .sl-markdown-content h1,
 .sl-markdown-content h2,
 .sl-markdown-content h3,
 h1#_top {
-  font-family: "Outfit", var(--sl-font);
-  letter-spacing: -0.02em;
+  font-family: var(--sl-font);
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 /* Links inside prose stay ink with an underline; the accent is for state,
    not for every link on the page. */
