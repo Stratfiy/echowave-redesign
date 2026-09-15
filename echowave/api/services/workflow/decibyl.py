@@ -542,6 +542,16 @@ async def answer(
     # After the row, so the screen swaps the forming text for the row rather
     # than showing a blank between them.
     await reply_draft.clear(organization_id)
+    # And into the graph, with time, so what the person said on the thread
+    # can be asked about later (Family B). No graph, nothing happens.
+    try:
+        from api.services.knowledge_graph import feed as graph_feed
+
+        await graph_feed.remember_exchange(
+            organization_id=organization_id, person_said=text, decibyl_said=body
+        )
+    except Exception as exc:  # noqa: BLE001 - the reply is already on the thread
+        logger.warning("Graph could not remember the exchange: {}", exc)
     return body
 
 

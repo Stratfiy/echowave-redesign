@@ -135,6 +135,14 @@ REDIS_URL = os.environ["REDIS_URL"]
 # the container holding it. Liveness comes from that instance's own volume;
 # safety comes from the nightly backup, not from the graph being local.
 KNOWLEDGE_GRAPH_URL = os.getenv("KNOWLEDGE_GRAPH_URL") or None
+# What the graph extracts and embeds with, on the platform's own OpenAI key
+# (the vault's llm/openai credential). Small and cheap on purpose: every
+# call, thread message and channel document becomes an extraction.
+KNOWLEDGE_GRAPH_MODEL = os.getenv("KNOWLEDGE_GRAPH_MODEL", "gpt-4.1-mini")
+KNOWLEDGE_GRAPH_SMALL_MODEL = os.getenv("KNOWLEDGE_GRAPH_SMALL_MODEL", "gpt-4.1-mini")
+KNOWLEDGE_GRAPH_EMBEDDING_MODEL = os.getenv(
+    "KNOWLEDGE_GRAPH_EMBEDDING_MODEL", "text-embedding-3-small"
+)
 
 DEPLOYMENT_MODE = os.getenv("DEPLOYMENT_MODE", "oss")
 

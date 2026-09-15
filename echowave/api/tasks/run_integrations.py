@@ -570,6 +570,34 @@ async def run_integrations_post_workflow_run(_ctx, workflow_run_id: int):
                 gathered_context=workflow_run.gathered_context,
                 interactions=await db_client.app_interactions_for_run(workflow_run_id),
             )
+            # And into the graph, with time: who said what to whom on this
+            # call, so relations can be asked about later (Family B). A
+            # deployment with no graph returns False here and nothing
+            # else changes.
+            try:
+                from api.services.knowledge_graph import feed as graph_feed
+
+                await graph_feed.remember_call(
+                    organization_id=organization_id,
+                    workflow_run_id=workflow_run_id,
+                    agent_name=workflow_run.workflow.name
+                    if workflow_run.workflow
+                    else "the bot",
+                    transcript=format_transcript(
+                        build_conversation_structure(
+                            (workflow_run.logs or {}).get(
+                                "realtime_feedback_events", []
+                            )
+                        )
+                    ),
+                    happened_at=getattr(workflow_run, "created_at", None)
+                    or datetime.now(UTC),
+                    gathered_context=workflow_run.gathered_context,
+                )
+            except Exception as exc:  # noqa: BLE001 - the graph never fails a run
+                logger.warning(
+                    "Graph could not remember run {}: {}", workflow_run_id, exc
+                )
 
         if not webhook_nodes:
             logger.debug("No webhook nodes in workflow")
