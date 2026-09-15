@@ -68,6 +68,14 @@ FORGET_FACT = "forget_fact"
 CREATE_BOT = "create_bot"
 ACTIONS = (TURN_BOT_ON, TURN_BOT_OFF, RETURN_MISSED_CALL, FORGET_FACT, CREATE_BOT)
 
+#: Run one connected-app tool -- a Composio write such as sending a mail
+#: or creating a CRM record -- that Decibyl was asked to do from the thread.
+#: Not offered in propose_action's enum: Decibyl reaches an app through the
+#: app's own function (see connected_tools), and a write is turned into this
+#: card rather than run. Accepted by resolve/_execute like any other kind.
+RUN_TOOL = "run_tool"
+INTERNAL_ACTIONS = (RUN_TOOL,)
+
 #: The states a proposal moves through. Terminal ones are the last four.
 PROPOSED = "proposed"
 ARMED = "armed"
@@ -182,9 +190,38 @@ async def resolve(
     Raises ActionError with a line the model is told, so it can say so.
     """
     action = str(arguments.get("action") or "").strip()
-    if action not in ACTIONS:
+    if action not in ACTIONS and action not in INTERNAL_ACTIONS:
         raise ActionError("That is not something I can propose.")
     why = str(arguments.get("why") or "").strip()[:MAX_WHY_CHARS]
+
+    if action == RUN_TOOL:
+        from api.services.workflow import connected_tools
+
+        tool_uuid = str(arguments.get("tool_uuid") or "").strip()
+        if not tool_uuid:
+            raise ActionError("Say which tool.")
+        tool = await db_client.get_tool_by_uuid(
+            tool_uuid, organization_id=organization_id
+        )
+        if tool is None or not connected_tools.is_connected(tool):
+            raise ActionError("That app is not connected here.")
+        app = connected_tools.toolkit_of(tool)
+        return {
+            "action": action,
+            "args": {
+                "tool_uuid": tool.tool_uuid,
+                "tool_name": tool.name,
+                "toolkit": app,
+                "arguments": dict(arguments.get("arguments") or {}),
+            },
+            "label": f"{tool.name} via {app}" if app else str(tool.name),
+            "why": why,
+            # An email sent or a record created in somebody else's system
+            # has no inverse we can promise; the undo window before it fires
+            # is the safety, not a button after.
+            "reversible": False,
+            "state": PROPOSED,
+        }
 
     if action in (TURN_BOT_ON, TURN_BOT_OFF):
         wanted = str(arguments.get("bot") or "").strip()
@@ -559,6 +596,25 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
             workflow_run_id=run_id,
         )
         return f"Calling {row.caller} back now."
+    if action == RUN_TOOL:
+        from api.services.workflow import connected_tools
+
+        tool = await db_client.get_tool_by_uuid(
+            str(args.get("tool_uuid") or ""), organization_id=organization_id
+        )
+        if tool is None or not connected_tools.is_connected(tool):
+            raise ActionError("That app is no longer connected.")
+        confirmed_at = str((payload.get("confirmed") or {}).get("at") or "")
+        result = await connected_tools.execute(
+            organization_id=organization_id,
+            tool=tool,
+            arguments=dict(args.get("arguments") or {}),
+            ref_id=f"run_tool:{organization_id}:{tool.tool_uuid}:{confirmed_at}",
+        )
+        if result.get("status") != "success":
+            raise ActionError(str(result.get("error") or "It did not go through."))
+        payload.setdefault("result", {})["data"] = result.get("data")
+        return f"Done: {args.get('tool_name', 'the tool')}."
     raise ActionError("That is not something that can be done.")
 
 

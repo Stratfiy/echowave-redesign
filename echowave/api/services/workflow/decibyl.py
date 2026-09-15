@@ -37,6 +37,7 @@ from api.enums import AgentEventActor, AgentEventKind
 from api.services.workflow import (
     actions,
     agent_timeline,
+    connected_tools,
     office,
     reply_draft,
     self_edit,
@@ -85,6 +86,11 @@ SYSTEM = (
     "- create_task: file a task on the team's board for a bot (by @handle) "
     "or for the team, when a person asks you to have a bot do something "
     "later or hand work between bots. The board shows who did what.\n"
+    "- Connected apps (the app_… tools): a read -- fetch, list, search, "
+    "find -- runs as you answer, so use it to look things up and say what "
+    "you found. Anything that sends, creates, updates or deletes proposes a "
+    "card, like your other actions; say you have proposed it. Only use an "
+    "app that is listed under Connected apps in the context.\n"
     "- Nothing happens until a person confirms on the card, so propose it "
     "and say you have. Deleting a bot, dialling a new number and anything "
     "else you cannot do: say so, and say where it is done.\n"
@@ -341,6 +347,9 @@ async def build_context(organization_id: int, question: str) -> str:
         missed = []
 
     knowledge = await _knowledge(organization_id, question)
+    # Which apps are connected, so the model knows what it can reach before
+    # it tries. The listing never raises; an empty workspace reads as such.
+    apps = await connected_tools.list_for_organization(organization_id)
 
     await agent_timeline.record_activity(
         organization_id=organization_id,
@@ -358,6 +367,7 @@ async def build_context(organization_id: int, question: str) -> str:
         f"## What the business has confirmed\n{memory_block(memory_rows)}\n\n"
         f"## Lately\n{recent_block(recent, bot_names)}\n\n"
         f"## Missed calls not returned\n{missed_block(missed)}\n\n"
+        f"## Connected apps\n{connected_tools.apps_block(apps)}\n\n"
         f"## From Company knowledge\n{knowledge_block(knowledge)}\n"
     )
 
@@ -463,16 +473,36 @@ async def answer(
     try:
         async with db_client.async_session() as session:
             model = await settings.resolve_model(session)
-        reply = await _speak(model, conversation, organization_id, tools=TOOLS())
-        # One round of tools: the model proposes, is told the card is up,
-        # and says so. Anything it asks for that is not one of its tools is
-        # answered as unavailable rather than looped on.
-        if reply.wants_tools:
+        tools = await tools_for(organization_id)
+        reply = await _speak(model, conversation, organization_id, tools=tools)
+        # Up to MAX_TOOL_ROUNDS rounds, not one: a read of a connected app
+        # feeds the answer, and a read may precede a proposed write ("find
+        # the lead, then draft the mail"). On the last allowed round the
+        # model is given no tools, so it answers with what it has and a
+        # loop of reads cannot spend credit all afternoon. Anything it asks
+        # for that is not one of its tools is answered as unavailable.
+        #
+        # Tools are offered again only after a round that was purely reads
+        # of connected apps. A round that produced a card -- any of the
+        # five, or an app write -- ends the tool phase: the model is given
+        # no tools and answers, which is the "propose it, say so, end"
+        # rule and what stops it proposing the same thing twice.
+        rounds = 0
+        while reply.wants_tools and rounds < MAX_TOOL_ROUNDS:
+            rounds += 1
             conversation.add_assistant(reply)
+            reads_only = True
             for call in reply.tool_calls:
                 result = await _tool(organization_id, call)
                 conversation.add_tool_result(call, result)
-            reply = await _speak(model, conversation, organization_id)
+                if not _was_a_read(call, result):
+                    reads_only = False
+            reply = await _speak(
+                model,
+                conversation,
+                organization_id,
+                tools=tools if (reads_only and rounds < MAX_TOOL_ROUNDS) else None,
+            )
         body = (reply.text or "").strip() or "I have nothing to add on that."
     except Exception as exc:  # noqa: BLE001 - the thread must say something
         logger.error("Decibyl could not answer: {}", exc)
@@ -495,8 +525,13 @@ async def answer(
     return body
 
 
-def TOOLS() -> list[dict[str, Any]]:
-    """What Decibyl may reach for. Every one ends in a card."""
+#: Tool rounds a single reply may take. Four covers "look it up, then do
+#: it" with room for a retry; more is a model going in circles on credit.
+MAX_TOOL_ROUNDS = 4
+
+
+def office_tools() -> list[dict[str, Any]]:
+    """Decibyl's own five. Every one ends in a card."""
     return [
         actions.tool_schema(),
         office.edit_tool_schema(),
@@ -506,7 +541,61 @@ def TOOLS() -> list[dict[str, Any]]:
     ]
 
 
+#: The old name, kept for anything that imported it.
+TOOLS = office_tools
+
+
+async def tools_for(organization_id: int) -> list[dict[str, Any]]:
+    """The five, plus the workspace's connected apps (see connected_tools).
+    A read runs in the turn; a write becomes a run_tool card."""
+    connected = await connected_tools.list_for_organization(organization_id)
+    return office_tools() + connected_tools.schemas(connected)
+
+
+def _was_a_read(call: Any, result: Any) -> bool:
+    """Whether this call was a connected-app read that actually ran (or
+    failed running), as opposed to anything that wrote a card."""
+    return (
+        str(getattr(call, "name", "") or "").startswith(connected_tools.PREFIX)
+        and isinstance(result, dict)
+        and result.get("status") in ("success", "error")
+    )
+
+
+async def _app_tool(organization_id: int, call: Any) -> dict[str, Any]:
+    """A connected app was called: a read runs now, a write becomes a card."""
+    available = connected_tools.by_function_name(
+        await connected_tools.list_for_organization(organization_id)
+    )
+    tool = available.get(call.name)
+    if tool is None:
+        return {"status": "unavailable", "reason": "that app is not connected here"}
+    arguments = dict(call.arguments or {})
+    if connected_tools.is_read(tool):
+        return await connected_tools.execute(
+            organization_id=organization_id,
+            tool=tool,
+            arguments=arguments,
+            # Keyed on the model's own call id so a retried turn charges once.
+            ref_id=f"decibyl:{organization_id}:{call.id or call.name}",
+        )
+    return await actions.propose(
+        organization_id=organization_id,
+        workflow_id=None,
+        workflow_run_id=None,
+        arguments={
+            "action": actions.RUN_TOOL,
+            "tool_uuid": tool.tool_uuid,
+            "arguments": arguments,
+            "why": f"Asked in the thread: {tool.name}",
+        },
+        in_channel=False,
+    )
+
+
 async def _tool(organization_id: int, call: Any) -> dict[str, Any]:
+    if str(call.name or "").startswith(connected_tools.PREFIX):
+        return await _app_tool(organization_id, call)
     arguments = dict(call.arguments or {})
     if call.name == actions.TOOL_NAME:
         return await actions.propose(
