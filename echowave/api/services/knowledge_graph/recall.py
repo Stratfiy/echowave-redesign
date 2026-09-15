@@ -130,7 +130,13 @@ async def for_thread(
 
     # What the person confirmed about the subject outranks anything the
     # graph inferred (B5): the record's facts come first, as confirmed.
-    facts = [*await _record_facts(organization_id, about), *facts]
+    # Then the journal's decisions that touch the question (B2).
+    from api.services.knowledge_graph import decisions, spaced_recall
+
+    record = [f.as_dict() for f in await _record_facts(organization_id, about)]
+    journal = await decisions.recall_decisions(organization_id, query)
+    facts = [*record, *journal, *[f.as_dict() for f in facts]]
+    await spaced_recall.remember_asked(organization_id, about=about, question=question)
 
     if not facts:
         return {
@@ -144,7 +150,7 @@ async def for_thread(
         }
     return {
         "status": "success",
-        "facts": [f.as_dict() for f in facts],
+        "facts": facts,
         "note": (
             "Say an inferred fact as something that was said or implied, "
             "with when; state a confirmed fact as fact."
