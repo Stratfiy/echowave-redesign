@@ -79,12 +79,26 @@ describe("resolveAccent", () => {
 });
 
 describe("accentVariables", () => {
-  it("themes the frame: a dark rail, a tinted panel, the deep half on the rail's active state", () => {
+  it("themes the frame: a dark rail, a dark panel one step up, the deep half on the rail's active state", () => {
     const vars = accentVariables(ACCENTS[2]); // indigo
     expect(vars["--rail"]).toMatch(/^#[0-9a-f]{6}$/);
     expect(contrastOnWhite(vars["--rail"])).toBeGreaterThan(10);
-    expect(contrastOnWhite(vars["--sidebar"])).toBeLessThan(1.3);
+    expect(contrastOnWhite(vars["--sidebar"])).toBeGreaterThan(8);
+    expect(contrastOnWhite(vars["--sidebar"])).toBeLessThan(contrastOnWhite(vars["--rail"]));
     expect(vars["--rail-accent"]).toBe(ACCENTS[2].deep);
+  });
+
+  it("keeps the panel's text readable on the panel, for every preset", () => {
+    // The regression this guards: a light panel written by the theme while
+    // globals.css set the panel's text to off-white, so every row but the
+    // selected one vanished. Panel dark, text near-white, both from one map.
+    for (const accent of ACCENTS) {
+      const vars = accentVariables(accent);
+      expect(contrastOnWhite(vars["--sidebar"])).toBeGreaterThan(8);
+      expect(contrastOnWhite(vars["--sidebar-foreground"])).toBeLessThan(1.2);
+      expect(vars["--sidebar-primary"]).toBe(accent.deep);
+      expect(vars["--sidebar-primary-foreground"]).toBe("#ffffff");
+    }
   });
 
   it("never touches the button tokens", () => {
