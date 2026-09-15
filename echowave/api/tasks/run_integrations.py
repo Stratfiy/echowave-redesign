@@ -598,6 +598,26 @@ async def run_integrations_post_workflow_run(_ctx, workflow_run_id: int):
                 logger.warning(
                     "Graph could not remember run {}: {}", workflow_run_id, exc
                 )
+            # And its decisions into the journal (B2), inferred, graph or not.
+            try:
+                from api.services.knowledge_graph import decisions
+
+                await decisions.note(
+                    organization_id,
+                    format_transcript(
+                        build_conversation_structure(
+                            (workflow_run.logs or {}).get(
+                                "realtime_feedback_events", []
+                            )
+                        )
+                    ),
+                    at=getattr(workflow_run, "created_at", None) or datetime.now(UTC),
+                    source=f"call:{workflow_run_id}",
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Could not note decisions from run {}: {}", workflow_run_id, exc
+                )
 
         if not webhook_nodes:
             logger.debug("No webhook nodes in workflow")

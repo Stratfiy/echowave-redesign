@@ -59,6 +59,7 @@ from api.tasks.knowledge_base_processing import process_knowledge_base_document
 from api.tasks.knowledge_base_translation import translate_knowledge_base_document
 from api.tasks.low_balance import notify_low_balances
 from api.tasks.margin_watch import watch_margins
+from api.tasks.memory_notices import notice_connections, resurface_asked
 from api.tasks.missed_call_tasks import place_missed_call_callback
 from api.tasks.plan_expiry import expire_lapsed_plan_balance
 from api.tasks.provider_balances import check_provider_balances
@@ -120,6 +121,8 @@ class WorkerSettings:
         extract_document_fields,
         remind_due_tasks,
         send_sunday_reviews,
+        notice_connections,
+        resurface_asked,
         run_proposed_action,
         compact_channel_context,
         translate_knowledge_base_document,
@@ -138,6 +141,11 @@ class WorkerSettings:
             second=30,
             run_at_startup=False,
         ),
+        # Daily 10:00 IST, after the reminders and the Sunday review have had
+        # their turn at the day's one slot: a connection memory noticed (B4)
+        # and a fact resurfaced before a related event (B6).
+        cron(notice_connections, hour={4}, minute={30}, second=0, run_at_startup=False),
+        cron(resurface_asked, hour={4}, minute={30}, second=30, run_at_startup=False),
         # Every minute, and at startup so a deployment is not indistinguishable
         # from a dead worker for the first minute. This is the only signal that
         # separates "the worker is down" from "nothing needed doing" — see

@@ -327,6 +327,13 @@ class TestTeachingItBack:
             patch.object(graph_client, "KNOWLEDGE_GRAPH_URL", "falkor://here"),
             patch.object(db_client, "organisation_memory", AsyncMock(return_value=[])),
             patch.object(db_client, "subject_facts", AsyncMock(return_value=[row])),
+            patch(
+                "api.services.knowledge_graph.decisions.recall_decisions",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "api.services.knowledge_graph.spaced_recall.remember_asked", AsyncMock()
+            ),
             patch.object(billing_events, "charge_in_own_session", AsyncMock()),
         ):
             out = await recall.for_thread(
