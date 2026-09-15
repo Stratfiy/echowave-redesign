@@ -298,3 +298,46 @@ class TestTheDescription:
         assert (
             "tools.call(" in text and "tools.spilled(" in text and "no network" in text
         )
+
+
+class TestTheModelIsNotFedMore:
+    """A script run must not cost more model tokens than the turn it
+    replaces. What comes back is bounded whatever the script printed, a
+    preview is bounded whatever the rows are, and the tool tells the
+    model to print a summary."""
+
+    def test_script_output_back_to_the_model_is_bounded(self):
+        from datetime import UTC, datetime
+
+        now = datetime.now(UTC)
+        result = jobs.JobResult(
+            job_id=1,
+            status=jobs.DONE,
+            exit_code=0,
+            output="reminded Customer 12, due 340\n" * 2_000,
+            error="",
+            calls=1,
+            started_at=now,
+            finished_at=now,
+        )
+        told = result.as_result()
+        assert len(told["output"]) < jobs.OUTPUT_TO_MODEL_CHARS + 120
+        assert told["output"].startswith("[") and "print a summary" in told["output"]
+        assert told["output"].endswith("reminded Customer 12, due 340\n")
+
+    def test_a_preview_is_small_even_when_each_row_is_a_document(self):
+        import json
+
+        from api.services.sandbox import spill
+
+        rows = [{"blob": "x" * 20_000} for _ in range(10)]
+        shown = spill.preview({"rows": rows}, stored_as="sandbox/1/2/k.json")
+        assert shown["rows"] == 10
+        assert len(json.dumps(shown)) < spill.PREVIEW_CHARS + 600
+        small = [{"name": f"C{i}", "due": i} for i in range(400)]
+        shown = spill.preview({"rows": small}, stored_as="k")
+        assert shown["first"] == small[: spill.PREVIEW_ITEMS]
+
+    def test_the_tool_tells_the_model_to_print_a_summary(self):
+        assert "short summary" in code_mode.DESCRIPTION
+        assert "not every row" in code_mode.DESCRIPTION
