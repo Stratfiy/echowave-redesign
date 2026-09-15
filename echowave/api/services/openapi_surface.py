@@ -90,6 +90,7 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
         (
             "tools",
             "tool-library",
+            "skills",
             "connectors",
             "credentials",
             "provider-keys",
