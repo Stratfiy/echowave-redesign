@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from loguru import logger
 
+from api.db import db_client
+
 from .base import BaseTranscriptionService, TranscriptionNotSupportedError
 from .providers import (
     DeepgramTranscriptionService,
@@ -72,6 +74,37 @@ async def build_transcription_service(
                 "falling back to managed transcription: {}",
                 organization_id,
                 exc,
+            )
+
+    # A managed account holds no vendor key of its own: the tier resolves to a
+    # real vendor and the platform's key pays for it, exactly as a call does.
+    # Without this the dictation button told somebody to "add a speech-to-text
+    # key under Model Configurations" on an account that is not supposed to
+    # have one -- a wall in front of the microphone, on the managed default.
+    if provider and provider != "decibyl" and not api_key:
+        from api.enums import CostComponent
+        from api.services.configuration import platform_credentials
+
+        try:
+            async with db_client.async_session() as session:
+                api_key = await platform_credentials.resolve_api_key(
+                    session, component=CostComponent.STT, provider=provider
+                )
+        except Exception as exc:  # noqa: BLE001 - MPS is still there
+            logger.warning(
+                "Could not read the platform speech-to-text key for {}: {}",
+                provider,
+                exc,
+            )
+        if not api_key:
+            # Nothing to authenticate with, but the managed service can still
+            # do it. Better than telling a customer to paste a key we never
+            # asked them for.
+            logger.info(
+                "No key for {} transcription; using the managed service.", provider
+            )
+            return MPSTranscriptionService(
+                organization_id=organization_id, created_by=created_by
             )
 
     if provider is None or provider == "decibyl":

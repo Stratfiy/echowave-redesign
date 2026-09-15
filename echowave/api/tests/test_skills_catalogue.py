@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from api.services.skills import catalogue
 from api.services.skills.document import prompt_block
 
@@ -59,3 +61,87 @@ class TestWhatShips:
     def test_an_unknown_slug_is_none_rather_than_a_raise(self):
         assert catalogue.get("no-such-skill") is None
         assert catalogue.get("") is None
+
+
+class TestDictationDoesNotAskForAKeyWeNeverAskedFor:
+    """The microphone on the composer told a managed account to "add a
+    speech-to-text key under Model Configurations". A managed account holds
+    no vendor key by design: the tier resolves to a vendor and the platform's
+    key pays for it, exactly as a call does."""
+
+    @staticmethod
+    def _resolved(provider: str, api_key: str | None):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(
+            effective=SimpleNamespace(
+                stt=SimpleNamespace(
+                    provider=provider, api_key=api_key, model=None, base_url=None
+                )
+            )
+        )
+
+    @pytest.mark.asyncio
+    async def test_the_platform_key_is_used_when_the_account_has_none(
+        self, monkeypatch
+    ):
+        from unittest.mock import AsyncMock, patch
+
+        from api.services.gen_ai.transcription import factory
+
+        with (
+            patch(
+                "api.services.configuration.ai_model_configuration.get_resolved_ai_model_configuration",
+                new=AsyncMock(return_value=self._resolved("sarvam", None)),
+            ),
+            patch(
+                "api.services.configuration.platform_credentials.resolve_api_key",
+                new=AsyncMock(return_value="platform-key"),
+            ),
+            patch("api.services.gen_ai.transcription.factory.db_client.async_session"),
+        ):
+            service = await factory.build_transcription_service(organization_id=7)
+        assert isinstance(service, factory.SarvamTranscriptionService)
+
+    @pytest.mark.asyncio
+    async def test_no_key_anywhere_falls_to_the_managed_service_not_an_error(
+        self, monkeypatch
+    ):
+        from unittest.mock import AsyncMock, patch
+
+        from api.services.gen_ai.transcription import factory
+
+        with (
+            patch(
+                "api.services.configuration.ai_model_configuration.get_resolved_ai_model_configuration",
+                new=AsyncMock(return_value=self._resolved("sarvam", None)),
+            ),
+            patch(
+                "api.services.configuration.platform_credentials.resolve_api_key",
+                new=AsyncMock(return_value=None),
+            ),
+            patch("api.services.gen_ai.transcription.factory.db_client.async_session"),
+        ):
+            service = await factory.build_transcription_service(organization_id=7)
+        assert isinstance(service, factory.MPSTranscriptionService)
+
+    @pytest.mark.asyncio
+    async def test_an_account_with_its_own_key_still_uses_it(self, monkeypatch):
+        from unittest.mock import AsyncMock, patch
+
+        from api.services.gen_ai.transcription import factory
+
+        platform = AsyncMock(return_value="platform-key")
+        with (
+            patch(
+                "api.services.configuration.ai_model_configuration.get_resolved_ai_model_configuration",
+                new=AsyncMock(return_value=self._resolved("deepgram", "their-own")),
+            ),
+            patch(
+                "api.services.configuration.platform_credentials.resolve_api_key",
+                new=platform,
+            ),
+        ):
+            service = await factory.build_transcription_service(organization_id=7)
+        assert isinstance(service, factory.DeepgramTranscriptionService)
+        assert not platform.await_count, "should not reach for ours when they have one"
