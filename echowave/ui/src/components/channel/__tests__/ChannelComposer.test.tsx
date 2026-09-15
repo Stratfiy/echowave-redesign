@@ -428,3 +428,13 @@ describe('the memory meter', () => {
         await waitFor(() => expect(post).toHaveBeenCalled());
     });
 });
+
+describe('words already in the box', () => {
+    it('opens with the sentence started and the caret at its end', async () => {
+        render(<ChannelComposer assistant bots={[]} channelName="Decibyl" initialText="Build me a bot that " />);
+        const box = screen.getByRole('textbox') as HTMLTextAreaElement;
+        expect(box.value).toBe('Build me a bot that ');
+        expect(box.selectionStart).toBe('Build me a bot that '.length);
+        expect(document.activeElement).toBe(box);
+    });
+});
