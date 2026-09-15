@@ -190,28 +190,9 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       },
       // The partner programme is a commercial arrangement on the account, so
       // it lives as a tab on Billing rather than as its own door in WORKSPACE.
-      {
-        title: "Billing",
-        url: "/billing",
-        activePaths: ["/partner"],
-        icon: Wallet,
-        keywords: [
-          "credit",
-          "top up",
-          "invoice",
-          "payment",
-          "balance",
-          "partner",
-          "reseller",
-          "agency",
-          "commission",
-          "referral",
-        ],
-      },
     ],
   },
   {
-    label: "BUILD",
     items: [
       // Pre-recorded audio clips are agent material, like documents: both are
       // things an agent draws on mid-call, so they share one door with a tab
@@ -235,14 +216,28 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       {
         title: "Marketplace",
         url: "/marketplace",
-        activePaths: ["/marketplace"],
+        activePaths: ["/marketplace", "/integrations/apps"],
         icon: ShoppingBag,
-        keywords: ["marketplace", "bots", "templates", "tools", "add", "hire", "connect"],
+        keywords: [
+          "marketplace",
+          "bots",
+          "templates",
+          "tools",
+          "add",
+          "hire",
+          "connect",
+          "integrations",
+          "apps",
+          "connectors",
+        ],
       },
+      // What this account has, not what it could add: the catalogue of apps
+      // is the Marketplace's Integrations tab, and it was a second copy of
+      // the same list under a second name.
       {
-        title: "Integrations",
-        url: "/integrations/apps",
-        activePaths: ["/integrations", "/tools", "/provider-keys"],
+        title: "Your tools",
+        url: "/tools",
+        activePaths: ["/integrations", "/provider-keys"],
         icon: KeyRound,
         keywords: [
           "byok",
@@ -267,6 +262,24 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
           "webhook",
           "calendar",
           "google calendar",
+        ],
+      },
+      {
+        title: "Billing",
+        url: "/billing",
+        activePaths: ["/partner"],
+        icon: Wallet,
+        keywords: [
+          "credit",
+          "top up",
+          "invoice",
+          "payment",
+          "balance",
+          "partner",
+          "reseller",
+          "agency",
+          "commission",
+          "referral",
         ],
       },
     ],
