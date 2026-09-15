@@ -238,4 +238,37 @@ describe("POST /impersonate", () => {
         expect(freshSets).toHaveLength(1);
         expect(freshSets[0].secure).toBe(false);
     });
+
+    // KAN-82: the borrowed session lives an hour, and the shell is told.
+    it("keeps the borrowed session for one hour, not a year", async () => {
+        const response = await POST(
+            makeRequest("https://app.decibyl.ai/impersonate?refresh_token=abc"),
+        );
+        const fresh = response.headers
+            .getSetCookie()
+            .map(parseSetCookie)
+            .find((c) => c.name === `__Host-hexclave-refresh-${PROJECT_ID}--default`);
+        expect(fresh?.maxAge).toBe(60 * 60);
+    });
+
+    it("sets the impersonation marker the banner reads, with the who", async () => {
+        const u = new URL("https://app.decibyl.ai/impersonate");
+        const body = new URLSearchParams({
+            refresh_token: "abc",
+            who: "owner@clinic.example",
+        });
+        const headers = new Headers({
+            "content-type": "application/x-www-form-urlencoded",
+        });
+        const response = await POST(
+            new NextRequest(u.toString(), { method: "POST", headers, body: body.toString() }),
+        );
+        const marker = response.headers
+            .getSetCookie()
+            .map(parseSetCookie)
+            .find((c) => c.name === "decibyl-impersonating");
+        expect(marker?.value).toBe("owner@clinic.example");
+        expect(marker?.maxAge).toBe(60 * 60);
+        expect(marker?.partitioned).toBe(false);
+    });
 });
