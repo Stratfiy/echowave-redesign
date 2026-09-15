@@ -50,6 +50,7 @@ from api.tasks.campaign_tasks import (
 from api.tasks.credential_health import check_platform_credentials
 from api.tasks.credit_reservations import sweep_credit_reservations
 from api.tasks.data_retention import purge_expired_call_data
+from api.tasks.document_fields import extract_document_fields, remind_due_tasks
 from api.tasks.email_tax_document import email_tax_document
 from api.tasks.evals import run_eval_case
 from api.tasks.fx import refresh_exchange_rate
@@ -115,11 +116,16 @@ class WorkerSettings:
         run_bot_trigger,
         answer_channel_message,
         answer_decibyl_message,
+        extract_document_fields,
+        remind_due_tasks,
         run_proposed_action,
         compact_channel_context,
         translate_knowledge_base_document,
     ]
     cron_jobs = [
+        # Reminders filed against a document's expiry (A4) go out once a day,
+        # 09:00 IST, one message per account, and only when something is due.
+        cron(remind_due_tasks, hour={3}, minute={30}, second=0, run_at_startup=False),
         # Every minute, and at startup so a deployment is not indistinguishable
         # from a dead worker for the first minute. This is the only signal that
         # separates "the worker is down" from "nothing needed doing" — see
