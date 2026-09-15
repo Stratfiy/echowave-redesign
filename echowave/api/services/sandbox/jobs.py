@@ -42,6 +42,10 @@ FAILED = "failed"
 TIMED_OUT = "timed_out"
 CAPPED = "capped"
 
+#: What of a script's printed output goes back to the model. The rest is on
+#: the job's row and the timeline; the model is told how much was cut.
+OUTPUT_TO_MODEL_CHARS = 3_000
+
 
 @dataclass
 class JobResult:
@@ -62,9 +66,15 @@ class JobResult:
 
     def as_result(self) -> dict[str, Any]:
         """What the model is told."""
+        output = self.output
+        if len(output) > OUTPUT_TO_MODEL_CHARS:
+            output = (
+                f"[{len(output) - OUTPUT_TO_MODEL_CHARS} earlier characters cut; "
+                "print a summary, not every row]\n" + output[-OUTPUT_TO_MODEL_CHARS:]
+            )
         out: dict[str, Any] = {
             "status": "success" if self.ok else "error",
-            "output": self.output[-8_000:],
+            "output": output,
             "calls": self.calls,
             "seconds": round((self.finished_at - self.started_at).total_seconds(), 1),
         }
@@ -223,6 +233,7 @@ __all__ = [
     "READ_SPILLED",
     "RUNNING",
     "TIMED_OUT",
+    "OUTPUT_TO_MODEL_CHARS",
     "JobResult",
     "run",
 ]

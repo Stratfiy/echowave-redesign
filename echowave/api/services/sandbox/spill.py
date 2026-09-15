@@ -71,7 +71,18 @@ def preview(data: Any, *, stored_as: str) -> dict[str, Any]:
     if rows is not None:
         items, count = rows
         out["rows"] = count
-        out["first"] = json.loads(json.dumps(items[:PREVIEW_ITEMS], default=str))
+        first: list[Any] = []
+        spent = 0
+        for item in items[:PREVIEW_ITEMS]:
+            text = json.dumps(item, default=str)
+            if spent + len(text) > PREVIEW_CHARS:
+                # A single row can be a document. The preview stays small
+                # whatever the rows are; the store has them whole.
+                first.append(text[: max(0, PREVIEW_CHARS - spent)] + " …")
+                break
+            first.append(json.loads(text))
+            spent += len(text)
+        out["first"] = first
     else:
         text = json.dumps(data, default=str)
         out["head"] = text[:PREVIEW_CHARS] + (" …" if len(text) > PREVIEW_CHARS else "")
