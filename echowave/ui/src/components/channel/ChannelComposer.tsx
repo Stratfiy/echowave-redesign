@@ -146,9 +146,13 @@ export function ChannelComposer({
         if (channels) return;
         let cancelled = false;
         void (async () => {
-            const response = await listFoldersApiV1FolderGet();
-            if (cancelled || response.error || !response.data) return;
-            setFetchedChannels(response.data.map((f) => ({ id: f.id, name: f.name })));
+            try {
+                const response = await listFoldersApiV1FolderGet();
+                if (cancelled || response.error || !response.data) return;
+                setFetchedChannels(response.data.map((f) => ({ id: f.id, name: f.name })));
+            } catch {
+                // No channel list: # offers nothing, and the box still sends.
+            }
         })();
         return () => {
             cancelled = true;
