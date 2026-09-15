@@ -247,11 +247,14 @@ async def answer_decibyl_message(
     text: str,
     asked: list[int] | None = None,
     preset: str | None = None,
+    subjects: list[int] | None = None,
 ) -> None:
     """Decibyl's turn on its own thread. See services/workflow/decibyl.py."""
     from api.services.workflow import decibyl
 
-    await decibyl.answer(organization_id, text, asked=asked, preset=preset)
+    await decibyl.answer(
+        organization_id, text, asked=asked, preset=preset, subjects=subjects
+    )
 
 
 async def run_proposed_action(_ctx, event_id: int, organization_id: int) -> None:

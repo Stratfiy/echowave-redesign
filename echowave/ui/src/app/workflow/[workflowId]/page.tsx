@@ -60,7 +60,14 @@ export default function WorkflowDetailPage() {
     }, [params.workflowId, user]);
 
     const stableUser = useMemo(() => user, [user]);
-    const openTesterOnLoad = searchParams.get('onboarding') === 'web_call';
+    // ?test=call or ?test=text: a Hear it / Try it card on Decibyl's thread
+    // (KAN-140) lands here with the tester open in that mode. The run it
+    // starts is a tester run like any other.
+    const testParam = searchParams.get('test');
+    const testerInitialMode: 'audio' | 'text' | undefined =
+        testParam === 'text' ? 'text' : testParam === 'call' ? 'audio' : undefined;
+    const openTesterOnLoad =
+        searchParams.get('onboarding') === 'web_call' || testerInitialMode !== undefined;
     // Instructions and Graph are two views of one definition on one route;
     // the query string says which, so a Graph tab is a link somebody can share.
     const initialView = searchParams.get('view') === 'graph' ? 'graph' : 'instructions';
@@ -95,6 +102,7 @@ export default function WorkflowDetailPage() {
                     workflowUuid={workflow.workflow_uuid ?? undefined}
                     initialTotalRuns={workflow.total_runs ?? 0}
                     openTesterOnLoad={openTesterOnLoad}
+                    testerInitialMode={testerInitialMode}
                     initialFlow={{
                         nodes: workflow.workflow_definition.nodes as FlowNode[],
                         edges: workflow.workflow_definition.edges as FlowEdge[],

@@ -96,6 +96,29 @@ describe("once done", () => {
         expect(settle.mock.calls[0][0].body).toEqual({ event_id: 99, verb: "undo" });
     });
 
+    it("a built bot offers Hear it and Try it into the tester", () => {
+        render(
+            <ActionCard
+                event={event({
+                    action: "create_bot",
+                    label: "Create Narayani front desk",
+                    reversible: false,
+                    state: "done",
+                    done: { note: "Created Narayani front desk (@narayani-front-desk)." },
+                    result: { workflow_id: 99, handle: "narayani-front-desk", open_url: "/workflow/99" },
+                })}
+            />,
+        );
+        expect(screen.getByRole("link", { name: /Hear it/ }).getAttribute("href")).toBe(
+            "/workflow/99?test=call",
+        );
+        expect(screen.getByRole("link", { name: /Try it/ }).getAttribute("href")).toBe(
+            "/workflow/99?test=text",
+        );
+        expect(screen.getByText("@narayani-front-desk")).toBeTruthy();
+        expect(screen.queryByText(/Cannot be undone/)).toBeNull();
+    });
+
     it("a placed call says it cannot be undone and offers nothing", () => {
         render(
             <ActionCard

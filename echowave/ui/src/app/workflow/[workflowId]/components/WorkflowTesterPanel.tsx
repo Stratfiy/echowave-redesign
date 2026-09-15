@@ -27,6 +27,8 @@ import { extractSdkErrorMessage, getErrorMessage } from "./workflow-tester/utils
 
 interface WorkflowTesterPanelProps {
     workflowId: number;
+    /** Open on the call tab or the text tab. Defaults to the call. */
+    initialMode?: "audio" | "text";
     initialContextVariables?: Record<string, string>;
     disabled: boolean;
     disabledReason: string | null;
@@ -39,6 +41,7 @@ interface WorkflowTesterPanelProps {
 
 export function WorkflowTesterPanel({
     workflowId,
+    initialMode,
     initialContextVariables,
     disabled,
     disabledReason,
@@ -52,7 +55,7 @@ export function WorkflowTesterPanel({
     const { markActionCompleted } = useOnboarding();
     const { isAuthenticated, loading: authLoading, getAccessToken } = auth;
     const [accessToken, setAccessToken] = useState<string | null>(null);
-    const [activeMode, setActiveMode] = useState<"audio" | "text">("audio");
+    const [activeMode, setActiveMode] = useState<"audio" | "text">(initialMode ?? "audio");
     const [chatMode, setChatMode] = useState<"manual" | "simulated">("manual");
     const [chatSessionKey, setChatSessionKey] = useState(0);
     const [chatActive, setChatActive] = useState(false);

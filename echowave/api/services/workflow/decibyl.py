@@ -28,13 +28,19 @@ from __future__ import annotations
 
 import time
 from datetime import UTC, datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 
 from loguru import logger
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
-from api.services.workflow import actions, agent_timeline, mentions, reply_draft
+from api.services.workflow import (
+    actions,
+    agent_timeline,
+    office,
+    reply_draft,
+    self_edit,
+)
 
 NAME = "Decibyl"
 
@@ -59,13 +65,20 @@ SYSTEM = (
     "context does not have it, say so in one line and say where it would be.\n"
     "- When the question is about one bot, name the bot. When something "
     "needs a person, say what and why.\n"
-    "- You can propose four things with the propose_action tool: turn a bot "
-    "on, turn a bot off, call back a missed caller listed in the context, or "
-    "forget one of the confirmed facts (by its key) when asked to. "
-    "Nothing happens until a person confirms on the card, so propose it and "
-    "say you have. Anything else -- editing a bot, deleting, dialling a new "
-    "number -- you cannot do: say that the bot's own chat can propose an "
-    "edit, and that calls are placed from campaigns.\n"
+    "- You are the manager of this office. The bots are colleagues with "
+    "@handles; you build them, change them and test them, and a person "
+    "confirms each of those on a card. A line that starts with @handle is "
+    "for that bot, not you; it has already been handed over.\n"
+    "- propose_action: turn a bot on or off, call back a missed caller from "
+    "the context, forget a confirmed fact by its key, or create_bot from a "
+    "template in the context. For create_bot, ask for every answer the "
+    "template needs before proposing; never invent an answer.\n"
+    "- propose_edit: change one step of a named bot. Use the bot's steps in "
+    "the context; give the complete new prompt.\n"
+    "- test_bot: offer to hear (a call) or try (text) a named bot.\n"
+    "- Nothing happens until a person confirms on the card, so propose it "
+    "and say you have. Deleting a bot, dialling a new number and anything "
+    "else you cannot do: say so, and say where it is done.\n"
     "- Never repeat an OTP, a card number or an identity number.\n"
 )
 
@@ -77,6 +90,7 @@ def thread_filter() -> dict[str, Any]:
         "kinds": [
             AgentEventKind.MESSAGE.value,
             AgentEventKind.ACTION_PROPOSED.value,
+            AgentEventKind.EDIT_PROPOSED.value,
             AgentEventKind.ACTIVITY.value,
         ],
     }
@@ -89,7 +103,7 @@ async def ask(
     text: str,
     attachments: list[dict[str, Any]],
     line: str,
-    preset: Optional[str],
+    preset: str | None,
 ) -> list[int]:
     """Record the person's line, hand off any mentions, queue the reply.
 
@@ -102,8 +116,12 @@ async def ask(
         {"id": w.id, "handle": getattr(w, "handle", None), "name": w.name}
         for w in workflows
     ]
-    resolution = mentions.resolve(text, roster)
-    asked = [m.workflow_id for m in resolution.mentioned]
+    # The leading-handle rule (office.py): only a line that opens with a
+    # handle is for that bot. A handle elsewhere is what the line is about.
+    who = office.addressee(text, roster)
+    handed_to = [who.leading] if who.leading else []
+    asked = [m.workflow_id for m in handed_to]
+    subjects = [m.workflow_id for m in who.subjects]
 
     await agent_timeline.record(
         organization_id=organization_id,
@@ -114,6 +132,7 @@ async def ask(
             "body": text,
             "author_id": user_id,
             "asked": asked,
+            "subjects": subjects,
             "attachments": attachments,
             "preset": preset,
             "to": NAME,
@@ -127,7 +146,7 @@ async def ask(
     # A mentioned bot answers in its own chat, with the line as said. Decibyl
     # is told who was asked so its reply can point there.
     names = {w.id: w.name for w in workflows}
-    for mention in resolution.mentioned:
+    for mention in handed_to:
         try:
             await enqueue_job(
                 FunctionNames.ANSWER_CHANNEL_MESSAGE,
@@ -155,6 +174,7 @@ async def ask(
             text,
             asked,
             preset,
+            subjects,
         )
     except Exception as exc:  # noqa: BLE001 - said out loud below
         logger.error("Decibyl could not be asked to answer: {}", exc)
@@ -387,13 +407,20 @@ async def _history(organization_id: int) -> list[dict[str, str]]:
 async def answer(
     organization_id: int,
     text: str,
-    asked: Optional[list[int]] = None,
-    preset: Optional[str] = None,
+    asked: list[int] | None = None,
+    preset: str | None = None,
+    subjects: list[int] | None = None,
 ) -> str:
-    """Compose the context, call the model, record the reply. Returns it."""
+    """Compose the context, call the model, record the reply. Returns it.
+
+    ``subjects`` are the bots the line named without addressing (KAN-140):
+    their steps join the context so an edit can name a real step, and the
+    templates join it so a build can name a real template.
+    """
     from api.services.agent_builder import client, settings
 
     context = await build_context(organization_id, text)
+    context = f"{context}\n\n{await office_context(organization_id, subjects)}"
     handed = ""
     if asked:
         names = []
@@ -427,25 +454,14 @@ async def answer(
     try:
         async with db_client.async_session() as session:
             model = await settings.resolve_model(session)
-        reply = await _speak(
-            model, conversation, organization_id, tools=[actions.tool_schema()]
-        )
+        reply = await _speak(model, conversation, organization_id, tools=TOOLS())
         # One round of tools: the model proposes, is told the card is up,
-        # and says so. Anything it asks for that is not the one tool it has
-        # is answered as unavailable rather than looped on.
+        # and says so. Anything it asks for that is not one of its tools is
+        # answered as unavailable rather than looped on.
         if reply.wants_tools:
             conversation.add_assistant(reply)
             for call in reply.tool_calls:
-                if call.name == actions.TOOL_NAME:
-                    result = await actions.propose(
-                        organization_id=organization_id,
-                        workflow_id=None,
-                        workflow_run_id=None,
-                        arguments=dict(call.arguments or {}),
-                        in_channel=False,
-                    )
-                else:
-                    result = {"status": "unavailable", "reason": "no such tool"}
+                result = await _tool(organization_id, call)
                 conversation.add_tool_result(call, result)
             reply = await _speak(model, conversation, organization_id)
         body = (reply.text or "").strip() or "I have nothing to add on that."
@@ -470,11 +486,72 @@ async def answer(
     return body
 
 
+def TOOLS() -> list[dict[str, Any]]:
+    """What Decibyl may reach for. Every one ends in a card."""
+    return [
+        actions.tool_schema(),
+        office.edit_tool_schema(),
+        office.test_tool_schema(),
+    ]
+
+
+async def _tool(organization_id: int, call: Any) -> dict[str, Any]:
+    arguments = dict(call.arguments or {})
+    if call.name == actions.TOOL_NAME:
+        return await actions.propose(
+            organization_id=organization_id,
+            workflow_id=None,
+            workflow_run_id=None,
+            arguments=arguments,
+            in_channel=False,
+        )
+    if call.name == self_edit.TOOL_NAME:
+        return await office.propose_edit(
+            organization_id=organization_id, arguments=arguments
+        )
+    if call.name == office.TEST_TOOL_NAME:
+        return await office.offer_test(
+            organization_id=organization_id, arguments=arguments
+        )
+    return {"status": "unavailable", "reason": "no such tool"}
+
+
+async def office_context(organization_id: int, subjects: list[int] | None) -> str:
+    """Templates, and the steps of any bot the line is about. Each reading
+    fails alone, as the four in build_context do."""
+    parts: list[str] = []
+    try:
+        parts.append(office.templates_block())
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Decibyl could not list templates: {}", exc)
+    if subjects:
+        try:
+            workflows = await db_client.get_all_workflows_for_listing(
+                organization_id=organization_id
+            )
+            by_id = {w.id: w for w in workflows}
+            mentions_ = [
+                office.mentions.Mention(
+                    workflow_id=wid,
+                    handle=getattr(by_id[wid], "handle", None)
+                    or office.mentions.handle_for(by_id[wid].name),
+                )
+                for wid in subjects
+                if wid in by_id
+            ]
+            block = await office.subjects_block(organization_id, mentions_)
+            if block:
+                parts.append(block)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Decibyl could not read the subject bots: {}", exc)
+    return "\n\n".join(parts)
+
+
 async def _speak(
     model: Any,
     conversation: Any,
     organization_id: int,
-    tools: Optional[list[dict[str, Any]]] = None,
+    tools: list[dict[str, Any]] | None = None,
 ) -> Any:
     """One turn, streamed into the draft as it forms. The text the screen
     shows growing is the text that becomes the row; a tool call, if any,
