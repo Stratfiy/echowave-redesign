@@ -76,7 +76,7 @@ const TABS = [
  * deterministic, so the picture is the same the second time somebody
  * opens it, and a person can find the node they saw yesterday.
  */
-export function layoutRings(
+function layoutRings(
     nodes: MemoryGraphResponse["nodes"],
 ): Map<string, { x: number; y: number }> {
     const sorted = [...nodes].sort(
