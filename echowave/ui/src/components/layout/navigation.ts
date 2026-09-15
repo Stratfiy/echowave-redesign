@@ -533,9 +533,9 @@ export const NAV_CONTEXTS: NavContext[] = [
     id: "marketplace",
     title: "Marketplace",
     icon: ShoppingBag,
-    // The shelf of bots and the shelf of tools, then the screens where a
-    // connected tool is set up.
-    urls: ["/marketplace", "/marketplace/tools", "/integrations/apps"],
+    // The whole shop -- tools, bots, the apps a bot reaches -- and beside
+    // it what this account has taken from it.
+    urls: ["/marketplace", "/tools"],
   },
   {
     id: "setup",
