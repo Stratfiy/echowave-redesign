@@ -21,6 +21,7 @@ from api.services.workflow import (
     secrets_request,
     self_edit,
     tasks_board,
+    untrusted,
 )
 from api.services.workflow.known_values import known_values_block
 from api.services.workflow.pipecat_engine_custom_tools import get_function_schema
@@ -163,6 +164,9 @@ def compose_system_prompt_for_node(
     # Tuesday" has started reasoning from the wrong year.
     dated = today_line if today_line is not None else compose_today_line()
     parts = [p for p in (dated, global_prompt, formatted_node_prompt) if p]
+    # Right after the operator's own words, on every node of every bot:
+    # what the bot reads is data, never an instruction (services/workflow/untrusted.py).
+    parts.append(untrusted.RULE)
 
     # After the operator's own prompts, so it reads as the most recent
     # instruction, and before the recording block, which is a response *format*

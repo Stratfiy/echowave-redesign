@@ -72,7 +72,10 @@ def setup_logging():
     loguru.logger.configure(extra={"run_id": None})
 
     # Patch loguru to inject run_id
-    patched = loguru.logger.patch(inject_run_id)
+    from api.utils.phone_masking import redact_record
+
+    # Phone numbers never reach a handler in full; see utils/phone_masking.
+    patched = loguru.logger.patch(inject_run_id).patch(redact_record)
 
     log_format = "{time:YYYY-MM-DD HH:mm:ss.SSS} | <level>{level}</level> | [run_id={extra[run_id]}] | {file.name}:{line} | {message}"
 
