@@ -104,3 +104,29 @@ export const ONBOARDING_ONPREM_OPTIONS = [
   { value: "no", label: "No" },
   { value: "not_sure", label: "Not sure" },
 ] as const;
+
+/** The three questions at the door (15 Sept): your role, your business,
+ *  where you heard of us. Call volume and "which provider are you
+ *  leaving" were a phone product's questions; they are gone. */
+export const ONBOARDING_ROLE_OPTIONS = [
+  { value: "owner", label: "Owner or founder" },
+  { value: "manager", label: "Manager" },
+  { value: "operations", label: "Operations or admin" },
+  { value: "sales_marketing", label: "Sales or marketing" },
+  { value: "developer", label: "Developer or IT" },
+  { value: "agency", label: "Agency, building for clients" },
+  { value: "other", label: "Something else" },
+] as const;
+
+export const ONBOARDING_BUSINESS_OPTIONS = [
+  { value: "clinic", label: "Clinic or hospital" },
+  { value: "real_estate", label: "Real estate" },
+  { value: "education", label: "Education or coaching" },
+  { value: "retail", label: "Retail or e-commerce" },
+  { value: "logistics", label: "Logistics or manufacturing" },
+  { value: "finance", label: "Finance or lending" },
+  { value: "hospitality", label: "Restaurant or hospitality" },
+  { value: "services", label: "Services or consulting" },
+  { value: "software", label: "Software or startup" },
+  { value: "other", label: "Something else" },
+] as const;
