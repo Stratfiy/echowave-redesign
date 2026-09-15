@@ -145,7 +145,7 @@ export function TeamPanel({ members: supplied }: { members?: TeamMember[] } = {}
                     <CardDescription>What each agent has done in the last 24 hours.</CardDescription>
                 </div>
                 <Button asChild size="sm" variant="outline">
-                    <Link href="/workflow/create">
+                    <Link href="/start">
                         <Plus className="mr-1 h-3.5 w-3.5" />
                         Add a bot
                     </Link>
