@@ -706,7 +706,7 @@ export function MarketplaceScreen({ kind }: { kind: ShelfKind }) {
         <>
             <PageHeader
                 title="Marketplace"
-                description="Bots to add and tools to connect. Everything here works with what you already run."
+                description="Tools to hand a bot, bots to put to work, and the apps they reach. Everything here works with what you already run."
                 tabs={TABS}
             />
             <PageBody className="space-y-8">
