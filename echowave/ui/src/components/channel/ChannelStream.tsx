@@ -36,6 +36,7 @@ import {
     translateTextApiV1TranslatePost,
 } from '@/client/sdk.gen';
 import type { TimelineEvent } from '@/client/types.gen';
+import { tagTokens } from '@/components/channel/ChannelComposer';
 import { Button } from '@/components/ui/button';
 import { ActionCard } from '@/components/workflow/ActionCard';
 import { DecisionCard } from '@/components/workflow/DecisionCard';
@@ -75,6 +76,23 @@ function when(at: string): string {
         hour: 'numeric',
         minute: '2-digit',
     });
+}
+
+/** A message with its `@bot` and `#channel` tags painted blue. */
+function Tagged({ text }: { text: string }) {
+    return (
+        <>
+            {tagTokens(text).map((token, index) =>
+                token.tag ? (
+                    <span key={index} className="font-medium text-[var(--brand-blue)]">
+                        {token.text}
+                    </span>
+                ) : (
+                    <span key={index}>{token.text}</span>
+                ),
+            )}
+        </>
+    );
 }
 
 /** The words somebody typed, or a bot's whole reply. `summary` truncates at
@@ -789,7 +807,7 @@ export function ChannelStream({
                                     list wrote the line breaks on purpose. */}
                                 {messageBody(event) && (
                                     <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed">
-                                        {messageBody(event)}
+                                        <Tagged text={messageBody(event)} />
                                     </p>
                                 )}
                                 {hasIndicScript(messageBody(event)) && (

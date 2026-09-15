@@ -20,11 +20,12 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  getWorkflowsApiV1WorkflowFetchGet,
   postMessageApiV1TimelineMessagePost,
   teamHomeApiV1TeamHomeGet,
 } from "@/client/sdk.gen";
 import type { Headline, Suggestion } from "@/client/types.gen";
-import { ChannelComposer } from "@/components/channel/ChannelComposer";
+import { type ChannelBot, ChannelComposer } from "@/components/channel/ChannelComposer";
 import { ChannelStream } from "@/components/channel/ChannelStream";
 import { useAuth } from "@/lib/auth";
 
@@ -101,6 +102,9 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   // rows load reads as a glitch. Once there is a conversation the greeting
   // steps aside, the way every chat product's empty-state does.
   const [rows, setRows] = useState<number | null>(null);
+  // The roster for `@`: every bot on the account. Decibyl's thread had
+  // none, so the @ button opened nothing.
+  const [bots, setBots] = useState<ChannelBot[]>([]);
   const onCountChange = useCallback((count: number) => setRows(count), []);
   const refreshStream = useRef<() => void>(() => {});
   const registerRefresh = useCallback((refresh: () => void) => {
@@ -124,6 +128,13 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         // The thread below still works. A greeting that failed to
         // load is a missing sentence, not a broken screen.
       }
+    })();
+    (async () => {
+      const response = await getWorkflowsApiV1WorkflowFetchGet();
+      if (cancelled || response.error || !response.data) return;
+      setBots(
+        response.data.map((w) => ({ id: w.id, name: w.name, handle: w.handle ?? null })),
+      );
     })();
     return () => {
       cancelled = true;
@@ -234,7 +245,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         />
         <ChannelComposer
           assistant
-          bots={[]}
+          bots={bots}
           channelName="Decibyl"
           onSent={() => {
             asked();

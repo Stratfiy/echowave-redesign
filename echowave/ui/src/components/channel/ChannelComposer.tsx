@@ -17,10 +17,10 @@
  * channel has no record of.
  */
 
-import { AtSign, Brain, Check, ChevronDown, FileText, Loader2, Mic, Paperclip, SendHorizontal, Square, X } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { AtSign, Brain, Check, ChevronDown, FileText, Hash, Loader2, Mic, Paperclip, SendHorizontal, Square, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { postMessageApiV1TimelineMessagePost, translateTextApiV1TranslatePost } from '@/client/sdk.gen';
+import { listFoldersApiV1FolderGet, postMessageApiV1TimelineMessagePost, translateTextApiV1TranslatePost } from '@/client/sdk.gen';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -44,6 +44,44 @@ import { cn } from '@/lib/utils';
 import { Waveform } from './Waveform';
 
 export type ChannelBot = { id: number; name: string; handle?: string | null };
+/** A channel a message can be sent to with `#`. */
+export type ChannelRef = { id: number; name: string };
+
+/** The slug a channel answers to: its name, lower-case, spaces as dashes. */
+export function channelSlug(channel: ChannelRef): string {
+    return channel.name
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+}
+
+export type Tag = { kind: 'bot' | 'channel'; fragment: string };
+
+/** What is being typed at the caret: `@` a bot or `#` a channel, or null.
+ *  Same boundary rule as `mentionFragment`: at the start or after a space. */
+export function tagFragment(text: string, caret: number): Tag | null {
+    const before = text.slice(0, caret);
+    const match = /(?:^|\s)([@#])([a-z0-9_-]*)$/i.exec(before);
+    if (!match) return null;
+    return { kind: match[1] === '@' ? 'bot' : 'channel', fragment: match[2].toLowerCase() };
+}
+
+/** Every `@handle` and `#channel` in a message, for painting them blue. */
+export function tagTokens(text: string): { text: string; tag: boolean }[] {
+    const out: { text: string; tag: boolean }[] = [];
+    const re = /(^|\s)([@#][a-z0-9_-]+)/gi;
+    let last = 0;
+    for (const match of text.matchAll(re)) {
+        const start = (match.index ?? 0) + match[1].length;
+        if (start > last) out.push({ text: text.slice(last, start), tag: false });
+        out.push({ text: match[2], tag: true });
+        last = start + match[2].length;
+    }
+    if (last < text.length) out.push({ text: text.slice(last), tag: false });
+    return out;
+}
 
 /** The handle a bot answers to, falling back to one derived from its name.
  *
@@ -68,9 +106,8 @@ export function handleOf(bot: ChannelBot): string {
  *  after whitespace, so "ramesh@clinic.example" offers nothing. Without that,
  *  typing a customer's email address pops a bot list mid-word. */
 export function mentionFragment(text: string, caret: number): string | null {
-    const before = text.slice(0, caret);
-    const match = /(?:^|\s)@([a-z0-9_-]*)$/i.exec(before);
-    return match ? match[1].toLowerCase() : null;
+    const tag = tagFragment(text, caret);
+    return tag && tag.kind === 'bot' ? tag.fragment : null;
 }
 
 export function ChannelComposer({
@@ -78,6 +115,7 @@ export function ChannelComposer({
     workflowId,
     assistant = false,
     bots,
+    channels,
     channelName,
     onSent,
 }: {
@@ -88,6 +126,8 @@ export function ChannelComposer({
     /** Decibyl's own thread: neither a channel nor a bot. */
     assistant?: boolean;
     bots: ChannelBot[];
+    /** The channels `#` offers. Fetched here when not given. */
+    channels?: ChannelRef[];
     channelName: string;
     /** Sent, with the bots it was handed to. */
     onSent?: (asked: number[]) => void;
@@ -96,8 +136,25 @@ export function ChannelComposer({
     const [sending, setSending] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
-    const [fragment, setFragment] = useState<string | null>(null);
+    const [tag, setTag] = useState<Tag | null>(null);
     const [highlighted, setHighlighted] = useState(0);
+    // `#channel` chosen: the message goes there, and a blue chip says so.
+    const [routeTo, setRouteTo] = useState<ChannelRef | null>(null);
+    const [fetchedChannels, setFetchedChannels] = useState<ChannelRef[]>([]);
+    const channelList = channels ?? fetchedChannels;
+    useEffect(() => {
+        if (channels) return;
+        let cancelled = false;
+        void (async () => {
+            const response = await listFoldersApiV1FolderGet();
+            if (cancelled || response.error || !response.data) return;
+            setFetchedChannels(response.data.map((f) => ({ id: f.id, name: f.name })));
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [channels]);
+    const mirror = useRef<HTMLDivElement | null>(null);
     const input = useRef<HTMLTextAreaElement | null>(null);
     // Files already uploaded and waiting to go with the next message. The
     // upload happens on pick, not on send: a 5MB PDF takes a moment, and a
@@ -176,26 +233,33 @@ export function ChannelComposer({
     });
 
     const suggestions = useMemo(() => {
-        if (fragment === null) return [];
+        if (tag === null) return [];
+        if (tag.kind === 'channel') {
+            return channelList
+                .map((channel) => ({ kind: 'channel' as const, id: channel.id, name: channel.name, handle: channelSlug(channel), channel }))
+                .filter(({ handle }) => handle && handle.startsWith(tag.fragment))
+                .slice(0, 6);
+        }
         return bots
-            .map((bot) => ({ bot, handle: handleOf(bot) }))
-            .filter(({ handle }) => handle && handle.startsWith(fragment))
+            .map((bot) => ({ kind: 'bot' as const, id: bot.id, name: bot.name, handle: handleOf(bot), bot }))
+            .filter(({ handle }) => handle && handle.startsWith(tag.fragment))
             .slice(0, 6);
-    }, [bots, fragment]);
+    }, [bots, channelList, tag]);
 
     const syncFragment = (value: string, caret: number) => {
-        const next = mentionFragment(value, caret);
-        setFragment(next);
+        setTag(tagFragment(value, caret));
         setHighlighted(0);
     };
 
-    const complete = (handle: string) => {
+    const complete = (choice: (typeof suggestions)[number]) => {
         const element = input.current;
         const caret = element?.selectionStart ?? text.length;
-        const before = text.slice(0, caret).replace(/@[a-z0-9_-]*$/i, `@${handle} `);
+        const sigil = choice.kind === 'bot' ? '@' : '#';
+        const before = text.slice(0, caret).replace(/[@#][a-z0-9_-]*$/i, `${sigil}${choice.handle} `);
         const next = before + text.slice(caret);
+        if (choice.kind === 'channel') setRouteTo(choice.channel);
         setText(next);
-        setFragment(null);
+        setTag(null);
         // Put the caret back after the handle rather than at the end: the
         // person is mid-sentence, and a caret that jumps to the end of a
         // message they are editing is a message they have to repair.
@@ -205,17 +269,34 @@ export function ChannelComposer({
         });
     };
 
+    const typeSigil = (sigil: '@' | '#') => {
+        const element = input.current;
+        const caret = element?.selectionStart ?? text.length;
+        const before = text.slice(0, caret);
+        const lead = before && !/\s$/.test(before) ? ' ' : '';
+        const next = `${before}${lead}${sigil}${text.slice(caret)}`;
+        setText(next);
+        const at = before.length + lead.length + 1;
+        requestAnimationFrame(() => {
+            element?.focus();
+            element?.setSelectionRange(at, at);
+            syncFragment(next, at);
+        });
+    };
+
     const send = async () => {
         const body = text.trim();
         if ((!body && attachments.length === 0) || sending || uploadingFile) return;
         setSending(true);
         setError(null);
         setNotice(null);
-        const where = assistant
-            ? { assistant: true }
-            : workflowId != null
-              ? { workflow_id: workflowId }
-              : { folder_id: folderId };
+        const where = routeTo
+            ? { folder_id: routeTo.id }
+            : assistant
+              ? { assistant: true }
+              : workflowId != null
+                ? { workflow_id: workflowId }
+                : { folder_id: folderId };
         const response = await postMessageApiV1TimelineMessagePost({
             body: { ...where, text: body, attachments, preset: preset || null },
         });
@@ -226,7 +307,8 @@ export function ChannelComposer({
         }
         setText('');
         setAttachments([]);
-        setFragment(null);
+        setTag(null);
+        setRouteTo(null);
 
         // The server refuses to guess, and the screen has to say so. A handle
         // that matched nothing leaves somebody waiting on a reply that was
@@ -268,11 +350,11 @@ export function ChannelComposer({
                 {suggestions.length > 0 && (
                     <ul
                         role="listbox"
-                        aria-label="Bots in this channel"
+                        aria-label={tag?.kind === 'channel' ? 'Channels' : 'Bots in this channel'}
                         className="absolute bottom-full mb-1 w-full max-w-sm overflow-hidden rounded-md border border-border bg-popover shadow-md"
                     >
-                        {suggestions.map(({ bot, handle }, index) => (
-                            <li key={bot.id}>
+                        {suggestions.map((choice, index) => (
+                            <li key={`${choice.kind}-${choice.id}`}>
                                 <button
                                     type="button"
                                     role="option"
@@ -282,7 +364,7 @@ export function ChannelComposer({
                                         // blurs first otherwise and the caret
                                         // position this needs is gone.
                                         event.preventDefault();
-                                        complete(handle);
+                                        complete(choice);
                                     }}
                                     className={cn(
                                         'flex w-full flex-col items-start px-3 py-1.5 text-left text-sm',
@@ -291,9 +373,9 @@ export function ChannelComposer({
                                             : 'hover:bg-accent',
                                     )}
                                 >
-                                    <span className="font-medium">{bot.name}</span>
-                                    <span className="text-xs text-muted-foreground">
-                                        @{handle}
+                                    <span className="font-medium">{choice.name}</span>
+                                    <span className="text-xs text-[var(--brand-blue)]">
+                                        {choice.kind === 'bot' ? '@' : '#'}{choice.handle}
                                     </span>
                                 </button>
                             </li>
@@ -397,25 +479,28 @@ export function ChannelComposer({
                         className="shrink-0 text-muted-foreground"
                         onMouseDown={(event) => {
                             event.preventDefault();
-                            const element = input.current;
-                            const caret = element?.selectionStart ?? text.length;
-                            const before = text.slice(0, caret);
-                            // A space first if the caret is mid-word, so the
-                            // mention starts at a boundary the server accepts.
-                            const lead = before && !/\s$/.test(before) ? ' ' : '';
-                            const next = `${before}${lead}@${text.slice(caret)}`;
-                            setText(next);
-                            const at = before.length + lead.length + 1;
-                            requestAnimationFrame(() => {
-                                element?.focus();
-                                element?.setSelectionRange(at, at);
-                                syncFragment(next, at);
-                            });
+                            typeSigil('@');
                         }}
                     >
                         <AtSign className="h-4 w-4" />
                     </Button>
                     )}
+                    {/* The other half: # opens the channels, and the message
+                        goes to the one chosen. */}
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Send to a channel"
+                        title="Send to a channel"
+                        className="shrink-0 text-muted-foreground"
+                        onMouseDown={(event) => {
+                            event.preventDefault();
+                            typeSigil('#');
+                        }}
+                    >
+                        <Hash className="h-4 w-4" />
+                    </Button>
                     <Button
                         type="button"
                         variant="ghost"
@@ -443,18 +528,56 @@ export function ChannelComposer({
                             <span className="hidden sm:inline">Listening… press stop when done</span>
                         </div>
                     )}
+                    <div className={cn('relative min-w-0 flex-1', dictation.listening && 'hidden')}>
+                    {routeTo && (
+                        <span
+                            className="absolute -top-7 left-0 inline-flex items-center gap-1 rounded-full bg-[var(--brand-blue-soft)] px-2 py-0.5 text-xs font-medium text-[var(--brand-blue)]"
+                            data-testid="route-chip"
+                        >
+                            to #{channelSlug(routeTo)}
+                            <button
+                                type="button"
+                                aria-label="Send here instead"
+                                className="ml-0.5 rounded-full px-1 hover:bg-[var(--brand-blue-glow)]"
+                                onClick={() => setRouteTo(null)}
+                            >
+                                ×
+                            </button>
+                        </span>
+                    )}
+                    {/* The same words as the box, painted: a tag in blue, the
+                        rest in ink. The textarea over it writes in transparent
+                        so this shows through, and scrolls with it. */}
+                    <div
+                        ref={mirror}
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-md px-3 py-2 text-sm"
+                    >
+                        {tagTokens(text).map((token, index) =>
+                            token.tag ? (
+                                <span key={index} className="font-medium text-[var(--brand-blue)]">
+                                    {token.text}
+                                </span>
+                            ) : (
+                                <span key={index} className="text-foreground">{token.text}</span>
+                            ),
+                        )}
+                        {'\u200b'}
+                    </div>
                     <textarea
                         ref={input}
                         rows={1}
                         value={text}
-                        hidden={dictation.listening}
+                        onScroll={(event) => {
+                            if (mirror.current) mirror.current.scrollTop = event.currentTarget.scrollTop;
+                        }}
                         aria-label={`Message ${channelName}`}
                         placeholder={
                             workflowId != null
                                 ? `Message ${channelName}`
                                 : `Message #${channelName} — @ a bot to ask it for something`
                         }
-                        className="max-h-40 min-h-[38px] flex-1 resize-y rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring"
+                        className="relative max-h-40 min-h-[38px] w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 text-sm text-transparent caret-foreground outline-none focus-visible:border-ring"
                         onChange={(event) => {
                             setText(event.target.value);
                             syncFragment(
@@ -486,11 +609,11 @@ export function ChannelComposer({
                                 }
                                 if (event.key === 'Tab' || event.key === 'Enter') {
                                     event.preventDefault();
-                                    complete(suggestions[highlighted].handle);
+                                    complete(suggestions[highlighted]);
                                     return;
                                 }
                                 if (event.key === 'Escape') {
-                                    setFragment(null);
+                                    setTag(null);
                                     return;
                                 }
                             }
@@ -504,6 +627,7 @@ export function ChannelComposer({
                             }
                         }}
                     />
+                    </div>
                     {/* How hard the bot should think about this one. A
                         product choice, not a vendor: each is a managed tier
                         the platform prices and resolves. */}
