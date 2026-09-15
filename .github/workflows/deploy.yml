@@ -20,9 +20,9 @@ name: Deploy
 # **This file has to live at the repository root, not under echowave/.**
 # GitHub only reads workflows from `<repo-root>/.github/workflows/`, and this
 # repository's root is echowave-redesign with the application one level down.
-# The seven workflows still sitting in echowave/.github/workflows/ are inherited
-# from upstream, where echowave *was* the root, and not one of them has ever
-# run here — `actions_list` on this repository returns zero workflows. A deploy
+# The workflows that used to sit in echowave/.github/workflows/ were inherited
+# from upstream, where echowave *was* the root, and not one of them ever ran
+# here; the last of them, build-images.yml, moved up on 15 Sept 2026. A deploy
 # workflow that never fires is worse than no deploy workflow: it looks like
 # automation while every push goes nowhere.
 
