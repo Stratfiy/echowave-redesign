@@ -20,16 +20,35 @@
 import { AtSign, Brain, Check, ChevronDown, FileText, Hash, Loader2, Mic, Paperclip, SendHorizontal, Square, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { listFoldersApiV1FolderGet, postMessageApiV1TimelineMessagePost, translateTextApiV1TranslatePost } from '@/client/sdk.gen';
+import {
+    brainsApiV1TimelineBrainsGet,
+    listFoldersApiV1FolderGet,
+    memoryApiV1TimelineMemoryGet,
+    postMessageApiV1TimelineMessagePost,
+    translateTextApiV1TranslatePost,
+} from '@/client/sdk.gen';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuSub,
+    DropdownMenuSubContent,
+    DropdownMenuSubTrigger,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { detailFromResult } from '@/lib/apiError';
-import { CHAT_PRESETS, OWN_BRAIN, rememberedPreset,rememberPreset } from '@/lib/chatPresets';
+import {
+    type BrainVendor,
+    CHAT_PRESETS,
+    formatTokens,
+    labelFor,
+    OWN_BRAIN,
+    rememberedPreset,
+    rememberPreset,
+} from '@/lib/chatPresets';
 import { hasIndicScript } from '@/lib/indic';
 import {
     ACCEPTED_FILE_TYPES,
@@ -175,7 +194,55 @@ export function ChannelComposer({
         setPreset(slug);
         rememberPreset(chatKey, slug);
     };
-    const presetLabel = CHAT_PRESETS.find((p) => p.slug === preset)?.label ?? OWN_BRAIN.label;
+    // "More models": the catalogue by vendor, for the vendors the platform
+    // holds a key for. Decibyl's own thread gets the vendors its client
+    // can drive; a bot's chat gets every vendor in the catalogue.
+    const [vendors, setVendors] = useState<BrainVendor[]>([]);
+    useEffect(() => {
+        let cancelled = false;
+        void (async () => {
+            try {
+                const response = await brainsApiV1TimelineBrainsGet({ query: { assistant } });
+                if (cancelled || response.error || !response.data) return;
+                setVendors(response.data.vendors ?? []);
+            } catch {
+                // No catalogue: the three words still work.
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [assistant]);
+    const presetLabel = labelFor(preset, vendors);
+
+    // The meter: what this chat keeps in mind out of what the plan allows,
+    // the same arithmetic the reply uses. Read on open and after every
+    // send, once more when the reply has had time to land.
+    const [memory, setMemory] = useState<{ used: number; budget: number; plan: string; raiseTo: string | null } | null>(null);
+    const readMemory = async () => {
+        try {
+            const response = await memoryApiV1TimelineMemoryGet({
+                query: { workflow_id: workflowId, folder_id: folderId, assistant },
+            });
+            if (response.error || !response.data) return;
+            setMemory({
+                used: response.data.used_tokens,
+                budget: response.data.budget_tokens,
+                plan: response.data.plan_code,
+                raiseTo: response.data.raise_to ?? null,
+            });
+        } catch {
+            // No meter: the box still sends.
+        }
+    };
+    useEffect(() => {
+        void readMemory();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [chatKey]);
+    const memoryAfterReply = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => () => {
+        if (memoryAfterReply.current) clearTimeout(memoryAfterReply.current);
+    }, []);
 
     // Where a dropped file is knowledge for: this chat, and nowhere else.
     // Decibyl is the exception on purpose: it is the workspace's own
@@ -305,6 +372,9 @@ export function ChannelComposer({
             body: { ...where, text: body, attachments, preset: preset || null },
         });
         setSending(false);
+        void readMemory();
+        if (memoryAfterReply.current) clearTimeout(memoryAfterReply.current);
+        memoryAfterReply.current = setTimeout(() => void readMemory(), 12_000);
         if (response.error) {
             setError(detailFromResult(response, 'Could not send that'));
             return;
@@ -632,9 +702,41 @@ export function ChannelComposer({
                         }}
                     />
                     </div>
-                    {/* How hard the bot should think about this one. A
-                        product choice, not a vendor: each is a managed tier
-                        the platform prices and resolves. */}
+                    {/* What this chat keeps in mind, out of what the plan
+                        allows. A ring and two numbers, the way Claude's
+                        composer shows its context. */}
+                    {memory && (
+                        <span
+                            role="img"
+                            aria-label={`Memory: ${formatTokens(memory.used)} of ${formatTokens(memory.budget)} tokens`}
+                            title={
+                                `This chat keeps the last ${formatTokens(memory.used)} tokens of ` +
+                                `${formatTokens(memory.budget)} in mind on the ${memory.plan} plan.` +
+                                (memory.raiseTo ? ` The ${memory.raiseTo} plan keeps more.` : '')
+                            }
+                            className="hidden shrink-0 items-center gap-1 text-[11px] tabular-nums text-muted-foreground sm:inline-flex"
+                        >
+                            <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+                                <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2.5" />
+                                <circle
+                                    cx="8"
+                                    cy="8"
+                                    r="6"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2.5"
+                                    strokeLinecap="round"
+                                    strokeDasharray={`${Math.min(1, memory.budget ? memory.used / memory.budget : 0) * 37.7} 37.7`}
+                                    transform="rotate(-90 8 8)"
+                                />
+                            </svg>
+                            {formatTokens(memory.used)} / {formatTokens(memory.budget)}
+                        </span>
+                    )}
+                    {/* How hard the bot should think about this one. Three
+                        words, each a managed tier the platform prices and
+                        resolves; and behind "More models", the catalogue by
+                        vendor for somebody who knows one model from another. */}
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button
@@ -669,6 +771,38 @@ export function ChannelComposer({
                                     </span>
                                 </DropdownMenuItem>
                             ))}
+                            {vendors.length > 0 && (
+                                <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuSub>
+                                        <DropdownMenuSubTrigger className="text-sm">More models</DropdownMenuSubTrigger>
+                                        <DropdownMenuSubContent className="max-h-80 w-60 overflow-y-auto">
+                                            {vendors.map((vendor) => (
+                                                <div key={vendor.id} role="group" aria-label={vendor.label}>
+                                                    <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                                                        {vendor.label}
+                                                    </DropdownMenuLabel>
+                                                    {vendor.models.map((model) => (
+                                                        <DropdownMenuItem
+                                                            key={model.slug}
+                                                            onSelect={() => choosePreset(model.slug)}
+                                                            className="flex items-center gap-2"
+                                                        >
+                                                            <Check
+                                                                className={cn(
+                                                                    'h-3.5 w-3.5 shrink-0',
+                                                                    preset === model.slug ? 'opacity-100' : 'opacity-0',
+                                                                )}
+                                                            />
+                                                            <span className="text-sm">{model.label}</span>
+                                                        </DropdownMenuItem>
+                                                    ))}
+                                                </div>
+                                            ))}
+                                        </DropdownMenuSubContent>
+                                    </DropdownMenuSub>
+                                </>
+                            )}
                         </DropdownMenuContent>
                     </DropdownMenu>
                     <Button

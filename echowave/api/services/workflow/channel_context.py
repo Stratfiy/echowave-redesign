@@ -135,11 +135,16 @@ def render(
     names: Mapping[int, str],
     *,
     summary: Optional[str] = None,
+    max_chars: int = MAX_CHARS,
+    max_events: int = MAX_EVENTS,
 ) -> Optional[str]:
     """The thread as a block: the précis, then the window, newest-last.
 
     ``events`` arrive newest-first, the order `agent_events` returns. The block
     reads oldest-first, because a conversation does.
+
+    ``max_chars`` and ``max_events`` are the window. The defaults are the
+    floor; a plan's chat memory (chat_memory) widens both.
     """
     ordered = list(events)
     summary = (summary or "").strip() or None
@@ -156,12 +161,12 @@ def render(
         line = _line(event, names)
         if line is None:
             continue
-        if used + len(line) + 1 > MAX_CHARS:
+        if used + len(line) + 1 > max_chars:
             overflowed = True
             break
         lines.append(line)
         used += len(line) + 1
-    if len(ordered) >= MAX_EVENTS:
+    if len(ordered) >= max_events:
         overflowed = True
     lines.reverse()
 
@@ -185,6 +190,20 @@ def render(
     if lines:
         parts.append("Recent messages, oldest first:\n" + "\n".join(lines))
     return "\n".join(parts)
+
+
+async def _window(organization_id: int) -> tuple[int, int]:
+    """``(max_chars, max_events)`` for this account: the plan's memory.
+
+    Never narrower than the module floor. The line cap stays: a pasted
+    contract is still one line's worth of thread, whatever the plan.
+    """
+    from api.services.workflow import chat_memory
+
+    plan = await chat_memory.budget(organization_id)
+    chars = max(MAX_CHARS, plan.tokens * chat_memory.CHARS_PER_TOKEN)
+    events = min(chat_memory.MAX_ROWS, max(MAX_EVENTS, chars // MAX_LINE))
+    return chars, events
 
 
 async def _names_for(organization_id: int) -> dict[int, str]:
@@ -216,17 +235,24 @@ async def recent_thread(
         folder = await db_client.get_folder(folder_id, organization_id=organization_id)
         if folder is None:
             return None
+        max_chars, max_events = await _window(organization_id)
         rows = await db_client.agent_events(
             organization_id=organization_id,
             folder_id=folder_id,
             after_id=folder.context_summarised_through,
-            limit=MAX_EVENTS,
+            limit=max_events,
         )
         names = await _names_for(organization_id)
     except Exception as exc:  # noqa: BLE001 - context is an improvement, not a dependency
         logger.warning("Could not read channel {} for context: {}", folder_id, exc)
         return None
-    return render(rows, names, summary=folder.context_summary)
+    return render(
+        rows,
+        names,
+        summary=folder.context_summary,
+        max_chars=max_chars,
+        max_events=max_events,
+    )
 
 
 async def recent_bot_thread(
@@ -241,14 +267,15 @@ async def recent_bot_thread(
     if not organization_id or not workflow_id:
         return None
     try:
+        max_chars, max_events = await _window(organization_id)
         rows = await db_client.agent_events(
-            organization_id=organization_id, workflow_id=workflow_id, limit=MAX_EVENTS
+            organization_id=organization_id, workflow_id=workflow_id, limit=max_events
         )
         names = await _names_for(organization_id)
     except Exception as exc:  # noqa: BLE001 - context is an improvement, not a dependency
         logger.warning("Could not read bot {} thread for context: {}", workflow_id, exc)
         return None
-    return render(rows, names)
+    return render(rows, names, max_chars=max_chars, max_events=max_events)
 
 
 async def compact(*, organization_id: int, folder_id: int, run_id: int) -> bool:

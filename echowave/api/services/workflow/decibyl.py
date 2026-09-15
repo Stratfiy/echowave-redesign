@@ -38,6 +38,7 @@ from api.services.knowledge_graph import quiet, recall, teach
 from api.services.workflow import (
     actions,
     agent_timeline,
+    chat_memory,
     connected_tools,
     document_fields,
     documents,
@@ -51,9 +52,8 @@ from api.services.workflow import (
 
 NAME = "Decibyl"
 
-#: How much of the recent thread the model sees. A workspace assistant is
-#: asked short questions; ten turns is plenty and keeps the prompt small.
-HISTORY_TURNS = 10
+#: How much of the thread the model sees is the plan's chat memory --
+#: see _history and services/workflow/chat_memory.py.
 #: Timeline rows folded into "what the bots did lately".
 RECENT_EVENTS = 40
 #: Chunks read from Company knowledge for one question.
@@ -450,14 +450,20 @@ def missed_block(rows: list[Any]) -> str:
 
 
 async def _history(organization_id: int) -> list[dict[str, str]]:
-    """The last turns of the thread, oldest first, as chat messages."""
+    """The last turns of the thread, oldest first, as chat messages.
+
+    As many as the account's memory holds (chat_memory): the window is
+    filled from the newest row back until the plan's token budget is spent,
+    so a bigger plan remembers further and a one-line "ok" costs one line.
+    """
+    plan = await chat_memory.budget(organization_id)
     rows = await db_client.agent_events(
         organization_id=organization_id,
-        limit=HISTORY_TURNS * 2,
+        limit=chat_memory.MAX_ROWS,
         **thread_filter(),
     )
-    out: list[dict[str, str]] = []
-    for row in reversed(rows):
+    newest_first: list[tuple[str, str]] = []
+    for row in rows:
         role = "user" if row.actor == AgentEventActor.HUMAN.value else "assistant"
         payload = row.payload or {}
         if getattr(row, "kind", None) == AgentEventKind.ACTIVITY.value:
@@ -471,8 +477,11 @@ async def _history(organization_id: int) -> list[dict[str, str]]:
         else:
             body = payload.get("body") or row.summary
         if body:
-            out.append({"role": role, "content": str(body)})
-    return out
+            newest_first.append((role, str(body)))
+    kept, _ = chat_memory.window((body for _, body in newest_first), plan.tokens)
+    return [
+        {"role": role, "content": body} for role, body in reversed(newest_first[:kept])
+    ]
 
 
 async def answer(
@@ -548,7 +557,7 @@ async def answer(
 
     try:
         async with db_client.async_session() as session:
-            model = await settings.resolve_model(session)
+            model = await settings.resolve_choice(session, preset)
         # Schemas the model has loaded this thread, by tool name. Starts
         # empty: every connected app is a name and a line until asked for.
         loaded: dict[str, dict[str, Any]] = {}

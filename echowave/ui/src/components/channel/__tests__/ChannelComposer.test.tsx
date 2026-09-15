@@ -22,10 +22,15 @@ import { ChannelComposer, handleOf, mentionFragment } from '../ChannelComposer';
 const post = vi.hoisted(() => vi.fn());
 const translate = vi.hoisted(() => vi.fn());
 const transcribe = vi.hoisted(() => vi.fn());
+const brains = vi.hoisted(() => vi.fn());
+const memory = vi.hoisted(() => vi.fn());
 vi.mock('@/client/sdk.gen', () => ({
     postMessageApiV1TimelineMessagePost: post,
     translateTextApiV1TranslatePost: translate,
     transcribeAudioApiV1WorkflowRecordingsTranscribePost: transcribe,
+    listFoldersApiV1FolderGet: async () => ({ data: [] }),
+    brainsApiV1TimelineBrainsGet: brains,
+    memoryApiV1TimelineMemoryGet: memory,
 }));
 const upload = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/uploadKnowledge', async (importOriginal) => ({
@@ -55,6 +60,38 @@ beforeEach(() => {
     post.mockResolvedValue({ data: { asked: [1], unknown: [], ambiguous: [] } });
     upload.mockReset();
     translate.mockReset();
+    brains.mockReset();
+    brains.mockResolvedValue({
+        data: {
+            presets: [],
+            vendors: [
+                {
+                    id: 'openai',
+                    label: 'OpenAI',
+                    models: [
+                        { slug: 'model:openai/gpt-5', label: 'GPT-5' },
+                        { slug: 'model:openai/gpt-4.1', label: 'GPT-4.1' },
+                    ],
+                },
+                {
+                    id: 'anthropic',
+                    label: 'Anthropic',
+                    models: [{ slug: 'model:anthropic/claude-sonnet-5', label: 'Claude Sonnet 5' }],
+                },
+            ],
+        },
+    });
+    memory.mockReset();
+    memory.mockResolvedValue({
+        data: {
+            used_tokens: 3_200,
+            budget_tokens: 16_000,
+            messages_kept: 12,
+            messages_total: 40,
+            plan_code: 'everyday',
+            raise_to: 'business',
+        },
+    });
     // The brain picked for a chat is remembered on the device; one test's
     // choice must not become the next test's default.
     localStorage.clear();
@@ -320,5 +357,74 @@ describe('speaking instead of typing', () => {
         expect(await screen.findByRole('alert')).toBeTruthy();
         expect(screen.getByRole('alert').textContent).toContain('cannot record audio');
         expect(transcribe).not.toHaveBeenCalled();
+    });
+});
+
+describe('the brain menu', () => {
+    it('offers three words and no Advanced', async () => {
+        composer();
+        fireEvent.keyDown(screen.getByRole('button', { name: 'Brain for this message' }), { key: 'Enter' });
+        expect(await screen.findByText('Everyday')).toBeTruthy();
+        expect(screen.getByText('Smart')).toBeTruthy();
+        expect(screen.getByText('Deep')).toBeTruthy();
+        expect(screen.queryByText('Advanced')).toBeNull();
+    });
+
+    it('lists more models by vendor, and a pick rides the message as model:vendor/model', async () => {
+        composer();
+        await waitFor(() => expect(brains).toHaveBeenCalled());
+        fireEvent.keyDown(screen.getByRole('button', { name: 'Brain for this message' }), { key: 'Enter' });
+        const more = await screen.findByText('More models');
+        fireEvent.keyDown(more, { key: 'ArrowRight' });
+        expect(await screen.findByText('OpenAI')).toBeTruthy();
+        expect(screen.getByText('Anthropic')).toBeTruthy();
+        fireEvent.click(screen.getByText('Claude Sonnet 5'));
+        // The button now says the model's name.
+        expect(await screen.findByText('Claude Sonnet 5')).toBeTruthy();
+        const box = screen.getByRole('textbox') as HTMLTextAreaElement;
+        fireEvent.change(box, { target: { value: 'think' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+        await waitFor(() => expect(post).toHaveBeenCalled());
+        expect(post.mock.calls[0][0].body.preset).toBe('model:anthropic/claude-sonnet-5');
+    });
+
+    it('asks Decibyl\'s thread for its own menu', async () => {
+        render(<ChannelComposer assistant bots={[]} channelName="Decibyl" />);
+        await waitFor(() => expect(brains).toHaveBeenCalledWith({ query: { assistant: true } }));
+    });
+
+    it('hides More models when no vendor has a key', async () => {
+        brains.mockResolvedValue({ data: { presets: [], vendors: [] } });
+        composer();
+        fireEvent.keyDown(screen.getByRole('button', { name: 'Brain for this message' }), { key: 'Enter' });
+        expect(await screen.findByText('Deep')).toBeTruthy();
+        expect(screen.queryByText('More models')).toBeNull();
+    });
+});
+
+describe('the memory meter', () => {
+    it('shows what the chat keeps out of what the plan allows, and re-reads after a send', async () => {
+        composer();
+        expect(await screen.findByText('3.2k / 16k')).toBeTruthy();
+        const meter = screen.getByRole('img', { name: 'Memory: 3.2k of 16k tokens' });
+        expect(meter.getAttribute('title')).toContain('everyday plan');
+        expect(meter.getAttribute('title')).toContain('business plan keeps more');
+        expect(memory).toHaveBeenCalledWith({ query: { workflow_id: undefined, folder_id: 9, assistant: false } });
+        const box = screen.getByRole('textbox') as HTMLTextAreaElement;
+        fireEvent.change(box, { target: { value: 'hello' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+        await waitFor(() => expect(post).toHaveBeenCalled());
+        await waitFor(() => expect(memory).toHaveBeenCalledTimes(2));
+    });
+
+    it('is absent when it cannot be read, and the box still sends', async () => {
+        memory.mockRejectedValue(new Error('down'));
+        composer();
+        await waitFor(() => expect(memory).toHaveBeenCalled());
+        expect(screen.queryByRole('img', { name: /Memory/ })).toBeNull();
+        const box = screen.getByRole('textbox') as HTMLTextAreaElement;
+        fireEvent.change(box, { target: { value: 'hello' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+        await waitFor(() => expect(post).toHaveBeenCalled());
     });
 });
