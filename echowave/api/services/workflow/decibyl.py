@@ -34,7 +34,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
-from api.services.knowledge_graph import recall
+from api.services.knowledge_graph import quiet, recall, teach
 from api.services.workflow import (
     actions,
     agent_timeline,
@@ -119,6 +119,14 @@ SYSTEM = (
     "settled, and never set a reminder on it without asking. Only a fact "
     "labelled confirmed is stated as fact. If recall is unavailable, say "
     "memory is not switched on here and answer from the context.\n"
+    '- Corrections: when the person corrects something memory had ("no, '
+    'Arun is from college, not work"), call correct_memory with the '
+    "subject, the point and what is true (and what memory had, if said), "
+    "then say what changed in one line, as the tool returns it.\n"
+    "- Memory's own messages (the Sunday review, connection notices, "
+    "reminders of things asked about) are off until the person asks; "
+    "memory_messages turns each on or off for the person asking. Say what "
+    "is now on or off.\n"
     "- Never repeat an OTP, a card number or an identity number.\n"
 )
 
@@ -220,6 +228,7 @@ async def ask(
             preset,
             subjects,
             reply_to,
+            user_id,
         )
     except Exception as exc:  # noqa: BLE001 - said out loud below
         logger.error("Decibyl could not be asked to answer: {}", exc)
@@ -459,8 +468,12 @@ async def answer(
     asked: list[int] | None = None,
     preset: str | None = None,
     subjects: list[int] | None = None,
+    author_id: int | None = None,
 ) -> str:
     """Compose the context, call the model, record the reply. Returns it.
+
+    ``author_id`` is the signed-in person who wrote the line, when known:
+    a switch that is theirs alone (memory_messages) needs it.
 
     ``subjects`` are the bots the line named without addressing (KAN-140):
     their steps join the context so an edit can name a real step, and the
@@ -523,7 +536,7 @@ async def answer(
             conversation.add_assistant(reply)
             reads_only = True
             for call in reply.tool_calls:
-                result = await _tool(organization_id, call)
+                result = await _tool(organization_id, call, author_id)
                 conversation.add_tool_result(call, result)
                 if not _was_a_read(call, result):
                     reads_only = False
@@ -584,6 +597,8 @@ def office_tools() -> list[dict[str, Any]]:
         documents.send_tool_schema(),
         document_fields.tool_schema(),
         recall.tool_schema(),
+        teach.tool_schema(),
+        quiet.tool_schema(),
     ]
 
 
@@ -644,7 +659,9 @@ async def _app_tool(organization_id: int, call: Any) -> dict[str, Any]:
     )
 
 
-async def _tool(organization_id: int, call: Any) -> dict[str, Any]:
+async def _tool(
+    organization_id: int, call: Any, author_id: int | None = None
+) -> dict[str, Any]:
     if str(call.name or "").startswith(connected_tools.PREFIX):
         return await _app_tool(organization_id, call)
     arguments = dict(call.arguments or {})
@@ -689,6 +706,14 @@ async def _tool(organization_id: int, call: Any) -> dict[str, Any]:
             arguments,
             ref_id=f"decibyl:{organization_id}:{call.id or call.name}",
         )
+    if call.name == teach.TOOL_NAME:
+        return await teach.correct(
+            organization_id,
+            arguments,
+            ref_id=f"decibyl:{organization_id}:{call.id or call.name}",
+        )
+    if call.name == quiet.TOOL_NAME:
+        return await quiet.for_thread(organization_id, author_id, arguments)
     if call.name == documents.SEND_TOOL_NAME:
         return await documents.send_for_thread(
             organization_id,

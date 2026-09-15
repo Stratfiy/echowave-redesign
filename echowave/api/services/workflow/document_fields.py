@@ -305,22 +305,13 @@ async def confirm_for_thread(
 
 # --- The daily sweep ------------------------------------------------------
 
-_DAILY_PREFIX = "reminders:sent:"
-
 
 async def _already_sent_today(organization_id: int) -> bool:
-    """One message a day per account, combined -- the silence rule."""
-    import redis.asyncio as aioredis
+    """One message a day per account, combined with everything else memory
+    says unasked -- the silence rule, held in one place (quiet)."""
+    from api.services.knowledge_graph import quiet
 
-    from api import constants
-
-    try:
-        client = await aioredis.from_url(constants.REDIS_URL, decode_responses=True)
-        key = f"{_DAILY_PREFIX}{organization_id}:{datetime.now(UTC).date().isoformat()}"
-        return not await client.set(key, "1", ex=36 * 3600, nx=True)
-    except Exception as exc:  # noqa: BLE001 - no Redis: send, do not loop
-        logger.warning("Reminder cap unavailable: {}", exc)
-        return False
+    return not await quiet.claim_daily_slot(organization_id)
 
 
 async def remind_due(now: datetime | None = None) -> int:

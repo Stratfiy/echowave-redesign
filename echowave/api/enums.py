@@ -191,6 +191,7 @@ class UserConfigurationKey(Enum):
         "MODEL_CONFIGURATION"  # Legacy per-user v1 AI model configuration
     )
     ONBOARDING = "ONBOARDING"  # Post-signup onboarding state (gate, tooltips, actions)
+    MEMORY_MESSAGES = "MEMORY_MESSAGES"  # Per-person switches for memory messages (Sunday review, connections, spaced recall)
 
 
 class WorkflowStatus(Enum):

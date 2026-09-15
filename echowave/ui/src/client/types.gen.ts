@@ -6380,6 +6380,27 @@ export type MemoryItem = {
 };
 
 /**
+ * MemoryMessages
+ *
+ * The person's own switches for what memory may say unasked
+ * (UserConfigurationKey.MEMORY_MESSAGES). All off until turned on.
+ */
+export type MemoryMessages = {
+    /**
+     * Sunday Review
+     */
+    sunday_review?: boolean;
+    /**
+     * Connections
+     */
+    connections?: boolean;
+    /**
+     * Spaced Recall
+     */
+    spaced_recall?: boolean;
+};
+
+/**
  * MemoryResponse
  */
 export type MemoryResponse = {
@@ -23621,6 +23642,84 @@ export type UpdateUserConfigurationsApiV1UserConfigurationsUserPutResponses = {
 };
 
 export type UpdateUserConfigurationsApiV1UserConfigurationsUserPutResponse = UpdateUserConfigurationsApiV1UserConfigurationsUserPutResponses[keyof UpdateUserConfigurationsApiV1UserConfigurationsUserPutResponses];
+
+export type GetMemoryMessagesApiV1UserMemoryMessagesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/user/memory-messages';
+};
+
+export type GetMemoryMessagesApiV1UserMemoryMessagesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetMemoryMessagesApiV1UserMemoryMessagesGetError = GetMemoryMessagesApiV1UserMemoryMessagesGetErrors[keyof GetMemoryMessagesApiV1UserMemoryMessagesGetErrors];
+
+export type GetMemoryMessagesApiV1UserMemoryMessagesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: MemoryMessages;
+};
+
+export type GetMemoryMessagesApiV1UserMemoryMessagesGetResponse = GetMemoryMessagesApiV1UserMemoryMessagesGetResponses[keyof GetMemoryMessagesApiV1UserMemoryMessagesGetResponses];
+
+export type UpdateMemoryMessagesApiV1UserMemoryMessagesPutData = {
+    body: MemoryMessages;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/user/memory-messages';
+};
+
+export type UpdateMemoryMessagesApiV1UserMemoryMessagesPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateMemoryMessagesApiV1UserMemoryMessagesPutError = UpdateMemoryMessagesApiV1UserMemoryMessagesPutErrors[keyof UpdateMemoryMessagesApiV1UserMemoryMessagesPutErrors];
+
+export type UpdateMemoryMessagesApiV1UserMemoryMessagesPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: MemoryMessages;
+};
+
+export type UpdateMemoryMessagesApiV1UserMemoryMessagesPutResponse = UpdateMemoryMessagesApiV1UserMemoryMessagesPutResponses[keyof UpdateMemoryMessagesApiV1UserMemoryMessagesPutResponses];
 
 export type GetUserOnboardingStateApiV1UserOnboardingStateGetData = {
     body?: never;

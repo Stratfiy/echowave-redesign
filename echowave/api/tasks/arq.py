@@ -78,6 +78,7 @@ from api.tasks.routines import (
 )
 from api.tasks.run_integrations import run_integrations_post_workflow_run
 from api.tasks.settlement import sweep_uncosted_runs
+from api.tasks.sunday_review import send_sunday_reviews
 from api.tasks.tax_invoices import issue_monthly_tax_invoices
 from api.tasks.webhook_delivery import deliver_webhook, sweep_webhook_deliveries
 from api.tasks.weekly_digest import send_weekly_digests
@@ -118,6 +119,7 @@ class WorkerSettings:
         answer_decibyl_message,
         extract_document_fields,
         remind_due_tasks,
+        send_sunday_reviews,
         run_proposed_action,
         compact_channel_context,
         translate_knowledge_base_document,
@@ -126,6 +128,16 @@ class WorkerSettings:
         # Reminders filed against a document's expiry (A4) go out once a day,
         # 09:00 IST, one message per account, and only when something is due.
         cron(remind_due_tasks, hour={3}, minute={30}, second=0, run_at_startup=False),
+        # Sunday 09:00 IST: the memory review (B3), to the people who turned
+        # it on, under the same one-message-a-day cap as the reminders.
+        cron(
+            send_sunday_reviews,
+            weekday={6},
+            hour={3},
+            minute={30},
+            second=30,
+            run_at_startup=False,
+        ),
         # Every minute, and at startup so a deployment is not indistinguishable
         # from a dead worker for the first minute. This is the only signal that
         # separates "the worker is down" from "nothing needed doing" — see

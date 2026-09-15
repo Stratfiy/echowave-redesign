@@ -126,4 +126,43 @@ async def remember_document(
     return taken
 
 
-__all__ = ["remember_call", "remember_document", "remember_exchange"]
+async def remember_correction(
+    *,
+    organization_id: int,
+    subject: str,
+    key: str,
+    value: str,
+    was: str | None,
+    at: datetime,
+) -> bool:
+    """A correction the person made (B5), as its own dated episode, so the
+    graph closes the edge it contradicts. Stated plainly and marked
+    confirmed, which is how the extractor is told it outranks the rest."""
+    if not graph_is_configured():
+        return False
+    body = f"Correction confirmed by the person: {subject} — {key}: {value}."
+    if was:
+        body += f" Not {was}; that was wrong."
+    try:
+        episode = episodes.Episode(
+            name=f"correction-{organization_id}-{int(at.timestamp())}",
+            body=body,
+            source_description="Correction on the Home thread, confirmed by the person",
+            reference_time=at,
+            group_id=scoping.group_id_for_organization(organization_id),
+            source=episodes.SOURCE_TEXT,
+        )
+        return await ingest.remember(episode)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Could not remember a correction for org {}: {}", organization_id, exc
+        )
+        return False
+
+
+__all__ = [
+    "remember_call",
+    "remember_correction",
+    "remember_document",
+    "remember_exchange",
+]
