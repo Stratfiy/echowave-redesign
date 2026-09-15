@@ -5713,3 +5713,56 @@ class BotTriggerModel(Base):
     __table_args__ = (
         Index("ix_bot_triggers_org_workflow", "organization_id", "workflow_id"),
     )
+
+
+class AgentTaskModel(Base):
+    """A card on the office's task board: who asked, who is on it, what
+    happened (KAN-140 P1).
+
+    The one shared surface people and bots both work from. A bot that needs a
+    colleague's help does not chatter at it; it files a task, the colleague
+    runs it and posts the result, and the board shows who did what. A person
+    files one the same way, and can be the assignee too: a task with no bot on
+    it is the team's, and the team marks it done.
+
+    Status is a literal string like every other status column here, so a
+    fifth column on the board needs no migration.
+    """
+
+    __tablename__ = "agent_tasks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id"), nullable=False, index=True
+    )
+    title = Column(String(200), nullable=False)
+    brief = Column(Text, nullable=False, default="")
+    #: ``todo`` | ``doing`` | ``waiting`` | ``done`` | ``could_not``.
+    status = Column(String(16), nullable=False, default="todo", index=True)
+
+    #: The bot that asked, or NULL when a person did.
+    from_workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="SET NULL"), nullable=True
+    )
+    #: The bot that is on it, or NULL when it is the team's.
+    assignee_workflow_id = Column(
+        Integer,
+        ForeignKey("workflows.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    #: The run that asked (a bot's), and the run that did it (the assignee's).
+    source_run_id = Column(Integer, nullable=True)
+    workflow_run_id = Column(Integer, nullable=True)
+    #: How many hand-offs deep this task is. A task filed by a task run is
+    #: one deeper; past ``MAX_DEPTH`` a bot is told to ask a person instead.
+    depth = Column(Integer, nullable=False, default=0, server_default=text("0"))
+
+    due_at = Column(DateTime(timezone=True), nullable=True)
+    result = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (Index("ix_agent_tasks_org_status", "organization_id", "status"),)

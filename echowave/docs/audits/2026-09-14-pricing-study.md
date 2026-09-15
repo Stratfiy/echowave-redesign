@@ -751,3 +751,13 @@ Seven decisions taken one at a time, each recorded on KAN-47, applied here.
 - **Not a call.** A trigger that should *ring a phone* is the existing
   call trigger on the graph, priced per minute as before. This one is the
   text half of the product.
+
+## 26. Notes from the task board (KAN-140 P1, 15 Sept)
+
+- **A new billable event: Task run, 1 credit.** A task on the board handed
+  to a bot starts one text turn on that bot with the brief as its
+  instruction, the same shape as a trigger run and priced the same. A
+  task for the team is free: nothing ran.
+- **Hand-off depth is capped at two.** A task filed by a task run is one
+  deeper; past two the bot is told to ask a person. Coordination is a
+  small number of visible hand-offs, not a loop of bots billing each other.

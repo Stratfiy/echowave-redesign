@@ -1,0 +1,45 @@
+---
+title: "Tasks"
+description: "One board the team and the bots work from: file a task for a bot or a person, see who did what"
+---
+
+**Tasks** is the office's board. A bot that needs a colleague's help does not chat at it; it files a task. The colleague does it and the result lands on the card. A person files a task the same way, for a bot or for the team.
+
+---
+
+## What a task is
+
+A title, a brief, who it is for, and optionally when. Four columns:
+
+| Column | Meaning |
+|---|---|
+| To do | Filed, not started. A bot's task leaves this column within seconds; the team's stays until someone presses Start. |
+| Doing | A bot is running it, or a person has started it. |
+| Waiting | Could not be started just now, or needs a person. Run again from here. |
+| Done | With the result on the card. "Could not" shows why. |
+
+---
+
+## Filing one
+
+**From the board.** Open Tasks, type a title and a brief, pick a bot's @handle or the team, press File it.
+
+**From Decibyl.** On Home, say what you want and who should do it: *"Have @retention follow up Mrs Lakshmi in 3 days about the Tuesday slot."* Decibyl files it.
+
+**From a bot.** Any bot on a chat or channel can file a task for a colleague or the team when a job is theirs rather than its own. It says it has filed it and carries on.
+
+---
+
+## What happens next
+
+A task for a bot starts one run on that bot with the brief as its instruction, the same runtime as a routine or a trigger. The result is written on the card, and the bot that asked is told in its own chat so it can carry on. Every step is a row: on the board, on Decibyl's thread, and on the threads of the bots involved.
+
+A task for the team sits on the board until a person moves it.
+
+---
+
+## Limits
+
+- A bot cannot file a task to itself.
+- A task filed by a task run is one hand-off deeper. Past two, the bot is told to ask a person instead.
+- One credit per task a bot runs. See [Billing](/account/billing/).

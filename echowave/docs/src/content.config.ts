@@ -43,6 +43,8 @@ export const collections = {
         // Excluded rather than given a title, because a title would make them
         // public pages, which is the outcome to avoid rather than the fix.
         "!audits/**",
+        // Design documents, not pages (KAN-129).
+        "!product/**",
         "!CLAUDE.md",
         "!README.md",
         "!DEPLOY-GITHUB-ACTIONS.md",

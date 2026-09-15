@@ -57,6 +57,7 @@ from api.services.workflow import (
     organisation_memory,
     secrets_request,
     self_edit,
+    tasks_board,
 )
 from api.services.workflow import pipecat_engine_callbacks as engine_callbacks
 from api.services.workflow.mcp_tool_session import McpToolSession
@@ -905,6 +906,7 @@ class PipecatEngine:
                 secrets_request.TOOL_NAME, self._ask_for_secret_handler
             )
             self.llm.register_function(actions.TOOL_NAME, self._propose_action_handler)
+            self.llm.register_function(tasks_board.TOOL_NAME, self._create_task_handler)
 
         # Register custom tool handlers for this node
         if node.tool_uuids and self._custom_tool_manager:
@@ -1660,6 +1662,22 @@ class PipecatEngine:
         except Exception as exc:  # noqa: BLE001 - the turn must finish
             logger.warning("Could not record a proposed action: {}", exc)
             result = {"status": "not_proposed", "reason": "could not be recorded"}
+        await function_call_params.result_callback(result)
+
+    async def _create_task_handler(self, function_call_params) -> None:
+        """The bot filed a task for a colleague or the team (KAN-140 P1).
+        Never raises, as with decisions."""
+        arguments = getattr(function_call_params, "arguments", None) or {}
+        try:
+            result = await tasks_board.create(
+                organization_id=await self._get_organization_id(),
+                from_workflow_id=await self._get_workflow_id(),
+                workflow_run_id=self._workflow_run_id,
+                arguments=arguments if isinstance(arguments, dict) else {},
+            )
+        except Exception as exc:  # noqa: BLE001 - the turn must finish
+            logger.warning("Could not file a task: {}", exc)
+            result = {"status": "not_filed", "reason": "could not be recorded"}
         await function_call_params.result_callback(result)
 
     async def _ask_for_secret_handler(self, function_call_params) -> None:

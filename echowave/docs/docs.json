@@ -41,6 +41,7 @@
             "pages": [
               "core-concepts/how-decibyl-works",
               "core-concepts/workflows-and-agents",
+              "core-concepts/tasks",
               "core-concepts/calls-and-runs",
               "core-concepts/context-and-variables",
               "core-concepts/campaigns"

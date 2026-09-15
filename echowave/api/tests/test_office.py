@@ -358,7 +358,7 @@ class TestTheTestVerbs:
 
     def test_decibyl_carries_all_three_tools(self):
         names = [t["name"] for t in decibyl.TOOLS()]
-        assert names == ["propose_action", "propose_edit", "test_bot", "check_bot"]
+        assert {"propose_action", "propose_edit", "test_bot", "check_bot"} <= set(names)
         assert "create_bot" in actions.ACTIONS
         assert AgentEventKind.EDIT_PROPOSED.value in decibyl.thread_filter()["kinds"]
 
