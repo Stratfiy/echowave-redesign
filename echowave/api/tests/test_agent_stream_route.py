@@ -5,6 +5,10 @@ import pytest
 
 from api.services.call_concurrency import CallConcurrencyLimitError
 
+#: A well-formed workflow UUID. The route now parses the UUID before it
+#: accepts the socket, so the placeholder must be a real one.
+VALID_UUID = "11111111-1111-1111-1111-111111111111"
+
 
 class _FakeWebSocket:
     def __init__(self, query_params: dict[str, str] | None = None):
@@ -56,7 +60,7 @@ async def test_agent_stream_uses_provider_path_param_not_query_param():
         db_client.create_workflow_run = AsyncMock(return_value=workflow_run)
         db_client.update_workflow_run = AsyncMock()
 
-        await agent_stream_websocket(websocket, "cloudonix", "agent-uuid")
+        await agent_stream_websocket(websocket, "cloudonix", VALID_UUID)
 
     registry.get_optional.assert_called_once_with("cloudonix")
     db_client.create_workflow_run.assert_awaited_once()
@@ -112,10 +116,73 @@ async def test_agent_stream_rejects_when_concurrency_limit_reached():
             )
         )
 
-        await agent_stream_websocket(websocket, "cloudonix", "agent-uuid")
+        await agent_stream_websocket(websocket, "cloudonix", VALID_UUID)
 
     websocket.close.assert_awaited_once_with(
         code=1008,
         reason="Concurrent call limit reached",
     )
     db_client.create_workflow_run.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_malformed_uuid_is_rejected_before_the_socket_is_accepted():
+    """A bad UUID is turned away during the handshake -- closed, never
+    accepted, and never taken to the database for a cast that would error."""
+    from api.routes.agent_stream import agent_stream_websocket
+
+    websocket = _FakeWebSocket()
+    spec = SimpleNamespace(provider_cls=lambda _config: object())
+
+    with (
+        patch("api.routes.agent_stream.telephony_registry") as registry,
+        patch("api.routes.agent_stream.db_client") as db_client,
+    ):
+        registry.get_optional.return_value = spec
+        db_client.get_workflow_by_uuid_unscoped = AsyncMock()
+
+        await agent_stream_websocket(websocket, "cloudonix", "not-a-uuid")
+
+    websocket.accept.assert_not_awaited()
+    db_client.get_workflow_by_uuid_unscoped.assert_not_awaited()
+    websocket.close.assert_awaited_once_with(code=1008, reason="Workflow not found")
+
+
+@pytest.mark.asyncio
+async def test_an_unknown_provider_is_rejected_before_the_socket_is_accepted():
+    from api.routes.agent_stream import agent_stream_websocket
+
+    websocket = _FakeWebSocket()
+
+    with (
+        patch("api.routes.agent_stream.telephony_registry") as registry,
+        patch("api.routes.agent_stream.db_client") as db_client,
+    ):
+        registry.get_optional.return_value = None
+        db_client.get_workflow_by_uuid_unscoped = AsyncMock()
+
+        await agent_stream_websocket(websocket, "nope", VALID_UUID)
+
+    websocket.accept.assert_not_awaited()
+    db_client.get_workflow_by_uuid_unscoped.assert_not_awaited()
+    websocket.close.assert_awaited_once_with(code=1008, reason="Unknown provider: nope")
+
+
+@pytest.mark.asyncio
+async def test_a_missing_workflow_is_rejected_before_the_socket_is_accepted():
+    from api.routes.agent_stream import agent_stream_websocket
+
+    websocket = _FakeWebSocket()
+    spec = SimpleNamespace(provider_cls=lambda _config: object())
+
+    with (
+        patch("api.routes.agent_stream.telephony_registry") as registry,
+        patch("api.routes.agent_stream.db_client") as db_client,
+    ):
+        registry.get_optional.return_value = spec
+        db_client.get_workflow_by_uuid_unscoped = AsyncMock(return_value=None)
+
+        await agent_stream_websocket(websocket, "cloudonix", VALID_UUID)
+
+    websocket.accept.assert_not_awaited()
+    websocket.close.assert_awaited_once_with(code=1008, reason="Workflow not found")

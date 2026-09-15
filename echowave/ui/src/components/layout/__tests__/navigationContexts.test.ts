@@ -21,7 +21,7 @@ import {
   STAFF_SECTION,
 } from "../navigation";
 
-const ALL_ROLES = { isStaff: true, isOrganizationAdmin: true };
+const ALL_ROLES = { isStaff: true, isOrganizationAdmin: true, isSuperadmin: true };
 
 describe("the rail's contexts", () => {
   it("reaches every nav item through exactly one panel", () => {

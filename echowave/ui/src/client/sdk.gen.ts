@@ -2806,6 +2806,11 @@ export const downloadWorkflowReportApiV1WorkflowWorkflowIdReportGet = <ThrowOnEr
  *
  * Get all available workflow templates.
  *
+ * Intentionally unauthenticated: this is the global, non-tenant template
+ * catalogue the create-agent screen shows before a user has picked an
+ * organization. It carries no customer data, only the starter agents we
+ * publish, so it is deliberately public rather than a staff or tenant route.
+ *
  * Returns:
  * List of workflow templates
  */
@@ -2889,6 +2894,13 @@ export const rewindTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsRunIdRe
 
 /**
  * Get Default Configurations
+ *
+ * The provider and model schemas the configuration screens are built from.
+ *
+ * Intentionally unauthenticated: these are static provider schemas and the
+ * default provider names, identical for every tenant and carrying no customer
+ * data. The screen that reads them renders before an org context exists, so
+ * it is deliberately public rather than a tenant route.
  */
 export const getDefaultConfigurationsApiV1UserConfigurationsDefaultsGet = <ThrowOnError extends boolean = false>(options?: Options<GetDefaultConfigurationsApiV1UserConfigurationsDefaultsGetData, ThrowOnError>): RequestResult<GetDefaultConfigurationsApiV1UserConfigurationsDefaultsGetResponses, GetDefaultConfigurationsApiV1UserConfigurationsDefaultsGetErrors, ThrowOnError> => (options?.client ?? client).get<GetDefaultConfigurationsApiV1UserConfigurationsDefaultsGetResponses, GetDefaultConfigurationsApiV1UserConfigurationsDefaultsGetErrors, ThrowOnError>({ url: '/api/v1/user/configurations/defaults', ...options });
 

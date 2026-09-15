@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   ShoppingBag,
   SlidersHorizontal,
+  UserCog,
   Wallet,
   Workflow,
 } from "lucide-react";
@@ -43,6 +44,15 @@ export type SidebarNavItem = {
    *  the mandate and the tax profile inside that screen instead, and leave
    *  the door open. */
   requiresOrganizationAdmin?: boolean;
+  /** Hide from support-tier staff; show only to the superadmin tier.
+   *
+   *  For staff destinations whose server routes are `get_superuser`, not
+   *  `get_staff` — the billing console, impersonation, provider keys, the
+   *  partner and privacy screens. Support staff review KYC and nothing else,
+   *  so a link they can only be refused is a link they should not see. The
+   *  KYC review queue itself carries no flag: it is `get_staff` by design and
+   *  is the one staff screen support is meant to use. */
+  requiresSuperadmin?: boolean;
 };
 
 export type SidebarNavSection = {
@@ -60,11 +70,23 @@ export type SidebarNavSection = {
 export const STAFF_SECTION: SidebarNavSection = {
   label: "STAFF",
   items: [
+    // The one staff screen support is meant to use: KYC review, backed by
+    // get_staff. It points at the queue itself (/superadmin/verification), not
+    // the /superadmin console hub, which is superadmin-only below.
     {
       title: "Review queue",
-      url: "/superadmin",
+      url: "/superadmin/verification",
       icon: ShieldCheck,
-      keywords: ["staff", "admin", "approve", "kyc"],
+      keywords: ["staff", "admin", "approve", "kyc", "verification"],
+    },
+    // The console hub, whose headline act is impersonation — superadmin only.
+    // Support renders none of it; showing them the door is showing them a 403.
+    {
+      title: "Staff console",
+      url: "/superadmin",
+      icon: UserCog,
+      requiresSuperadmin: true,
+      keywords: ["impersonate", "superadmin", "console", "support login"],
     },
     // Its own entry rather than a tab under the KYC queue: the two are read by
     // different people for different reasons — one is a compliance check, the
@@ -73,6 +95,7 @@ export const STAFF_SECTION: SidebarNavSection = {
       title: "Partner applications",
       url: "/superadmin/partners",
       icon: Handshake,
+      requiresSuperadmin: true,
       keywords: ["reseller", "agency", "commission", "developer", "partner"],
     },
     // Whether a customer's calls sit on Decibyl's carrier account lives on
@@ -83,6 +106,7 @@ export const STAFF_SECTION: SidebarNavSection = {
       title: "Shared outbound numbers",
       url: "/superadmin/telephony/shared-outbound",
       icon: Phone,
+      requiresSuperadmin: true,
       keywords: ["trial", "caller id", "shared", "outbound", "telephony"],
     },
     // Deployment-wide, like the billing readiness screen it mirrors — not an
@@ -91,6 +115,7 @@ export const STAFF_SECTION: SidebarNavSection = {
       title: "Privacy readiness",
       url: "/superadmin/privacy/readiness",
       icon: Shield,
+      requiresSuperadmin: true,
       keywords: ["dpdp", "gdpr", "compliance", "breach", "grievance officer"],
     },
   ],
@@ -422,9 +447,12 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
 ];
 
 /** Shared by the sidebar and page search so both respect the same roles. */
-export function getVisibleNavSections(roles: { isStaff: boolean; isOrganizationAdmin: boolean }): SidebarNavSection[] {
+export function getVisibleNavSections(roles: { isStaff: boolean; isOrganizationAdmin: boolean; isSuperadmin?: boolean }): SidebarNavSection[] {
   return (roles.isStaff ? [...NAV_SECTIONS, STAFF_SECTION] : NAV_SECTIONS)
-    .map(section => ({ ...section, items: section.items.filter(item => !item.requiresOrganizationAdmin || roles.isOrganizationAdmin) }))
+    .map(section => ({ ...section, items: section.items.filter(item =>
+      (!item.requiresOrganizationAdmin || roles.isOrganizationAdmin) &&
+      (!item.requiresSuperadmin || Boolean(roles.isSuperadmin))
+    ) }))
     .filter(section => section.items.length > 0);
 }
 

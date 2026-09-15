@@ -2308,6 +2308,11 @@ async def get_workflow_templates() -> List[WorkflowTemplateResponse]:
     """
     Get all available workflow templates.
 
+    Intentionally unauthenticated: this is the global, non-tenant template
+    catalogue the create-agent screen shows before a user has picked an
+    organization. It carries no customer data, only the starter agents we
+    publish, so it is deliberately public rather than a staff or tenant route.
+
     Returns:
         List of workflow templates
     """
