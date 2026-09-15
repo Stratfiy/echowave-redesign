@@ -5,7 +5,7 @@ Two guards, for the two ways this regresses.
 The first is structural, in the style of ``test_silent_absence_guard``: every
 module that constructs a ``CreditLedgerModel`` row must take
 ``lock_organization_ledger`` (or, as the reservation path did first, its own
-``FOR UPDATE`` on the organisation row). A new writer that forgets the lock
+``FOR NO KEY UPDATE`` on the organisation row). A new writer that forgets the lock
 is caught here, with no database, before it can write a stale
 ``balance_after_paise`` in production. The rule is a blocklist of
 constructors, not an allowlist of files, so a writer added in a new module
@@ -94,6 +94,37 @@ def _fake_session(*, existing=None, balance=1_000):
 
 
 @pytest.mark.asyncio
+class TestTheLockLetsForeignKeysThrough:
+    """The onboarding grant posts an inbox row through a second session while
+    it holds the lock; that insert takes FOR KEY SHARE on the organisation.
+    FOR UPDATE would block it -- the writer's own second connection waiting
+    on its first, which Postgres cannot detect -- so the lock must be the
+    NO KEY strength. This guards the strength; test_signup_bonus's
+    concurrent case is where it hung."""
+
+    def test_the_lock_is_no_key_update(self):
+        from sqlalchemy import select
+
+        from api.db.models import OrganizationModel
+
+        stmt = (
+            select(OrganizationModel.id)
+            .where(OrganizationModel.id == 1)
+            .with_for_update(key_share=True)
+        )
+        sql = str(stmt.compile(dialect=postgresql.dialect()))
+        assert sql.rstrip().endswith("FOR NO KEY UPDATE")
+
+    async def test_lock_organization_ledger_uses_that_strength(self):
+        from api.services.billing import ledger_lock
+
+        session, log = _fake_session()
+        await ledger_lock.lock_organization_ledger(session, organization_id=7)
+        sql = str(log[0][1].compile(dialect=postgresql.dialect()))
+        assert "FOR NO KEY UPDATE" in sql
+        assert "FOR UPDATE" not in sql.replace("FOR NO KEY UPDATE", "")
+
+
 class TestTheUsageDebit:
     async def test_it_locks_the_organisation_before_reading_the_balance(self):
         from api.services.billing import events
@@ -113,7 +144,7 @@ class TestTheUsageDebit:
         assert kinds == ["scalar", "execute", "scalar", "add"]
         lock_stmt = log[1][1]
         sql = str(lock_stmt.compile(dialect=postgresql.dialect()))
-        assert "FOR UPDATE" in sql and "organizations" in sql
+        assert "FOR NO KEY UPDATE" in sql and "organizations" in sql
         # And the row's running balance came from the locked read.
         row = log[3][1]
         assert row.balance_after_paise == 1_000 - events.paise_for(events.TOOL_CALL)
