@@ -123,6 +123,24 @@ export default function ToolsPage() {
         fetchTools();
     }, [fetchTools]);
 
+    // "?library=" from the Marketplace's Tools shelf: somebody pressed Add
+    // on a ready-made tool and this is where it is made. The picker opens
+    // rather than the tool being created outright -- a GET that writes is a
+    // duplicate tool on every refresh -- and the parameter comes off the
+    // address so it does not reopen behind them.
+    useEffect(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            if (!params.has("library")) return;
+            setIsLibraryOpen(true);
+            params.delete("library");
+            const rest = params.toString();
+            window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}`);
+        } catch {
+            // No URL to read: the picker opens from the button, as always.
+        }
+    }, []);
+
     /** Create a tool from a catalogue entry.
      *
      * The entry is copied, not referenced: the operator lands on the detail

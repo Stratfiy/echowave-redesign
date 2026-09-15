@@ -23,12 +23,13 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
+import { CALLS_TABS } from "@/components/layout/SectionTabs";
 import { cn } from "@/lib/utils";
 
-const TABS = [
-    { href: "/analytics", label: "Calls", exact: true },
-    { href: "/analytics/spend", label: "Spend" },
-];
+/** The same strip every call screen wears -- see SectionTabs. Analytics
+ *  used to carry its own two tabs, which made it look like a section of
+ *  its own rather than two views of the calls. */
+const TABS = CALLS_TABS;
 
 const WINDOWS = [7, 30, 90] as const;
 
@@ -73,9 +74,9 @@ function Tabs() {
     return (
         <nav className="flex gap-1">
             {TABS.map((tab) => {
-                const active = tab.exact
-                    ? pathname === tab.href
-                    : pathname.startsWith(tab.href);
+                const active = tab.prefix
+                    ? pathname.startsWith(tab.href)
+                    : pathname === tab.href;
                 return (
                     <Link
                         key={tab.href}

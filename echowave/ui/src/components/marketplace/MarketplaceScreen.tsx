@@ -14,14 +14,14 @@
  * advertise what the catalogue does not carry.
  */
 
-import { ArrowRight, Search } from "lucide-react";
+import { ArrowRight, Search, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { client } from "@/client/client.gen";
-import { listConnectorsApiV1ConnectorsGet } from "@/client/sdk.gen";
-import type { ConnectorGroupResponse, ConnectorResponse } from "@/client/types.gen";
-import { ConnectorCard } from "@/components/integrations/ConnectorCard";
+import { getToolLibraryApiV1ToolLibraryGet, listConnectorsApiV1ConnectorsGet } from "@/client/sdk.gen";
+import type { ConnectorGroupResponse, ConnectorResponse, LibraryTool } from "@/client/types.gen";
+import { ConnectorLogo, ConnectorRow } from "@/components/integrations/ConnectorRow";
 import { PageBody, PageHeader, type PageTab } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -43,15 +43,32 @@ import {
 } from "@/lib/marketplace";
 import { cn } from "@/lib/utils";
 
-export type ShelfKind = "bots" | "tools";
+export type ShelfKind = "bots" | "tools" | "integrations";
 
+/** The four shelves, in the order somebody shops them: what a bot can do
+ *  (tools), how it should do it (skills), the bot itself, and the apps it
+ *  reaches. Skills is not here yet -- the format is parsed and nothing
+ *  publishes one, so a tab would be an empty room. */
 const TABS: PageTab[] = [
-    { href: "/marketplace", label: "Bots" },
     { href: "/marketplace/tools", label: "Tools", prefix: true },
+    { href: "/marketplace", label: "Bots" },
+    { href: "/marketplace/integrations", label: "Integrations", prefix: true },
 ];
 
-/** How many rows a category shows before "See all". */
-const ROWS_PER_GROUP = 6;
+const HERO: Record<ShelfKind, { title: string; blurb: string }> = {
+    bots: {
+        title: "A bot for every job, ready the day you add it.",
+        blurb: "Pick one for your industry or for the job, hear it on a call, then put it on a number.",
+    },
+    tools: {
+        title: "The things a bot can do, ready to hand it.",
+        blurb: "A tool is one action during a call or a chat: look up an order, book a slot, raise a ticket.",
+    },
+    integrations: {
+        title: "Every system you already run, in your bots' hands.",
+        blurb: "Connect the apps your business lives in and every bot can read from and write to them.",
+    },
+};
 
 function Hero({ kind }: { kind: ShelfKind }) {
     return (
@@ -60,23 +77,9 @@ function Hero({ kind }: { kind: ShelfKind }) {
                 Decibyl Marketplace
             </p>
             <h2 className="mt-2 max-w-xl text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">
-                {kind === "bots"
-                    ? "A bot for every job, ready the day you add it."
-                    : "Every system you already run, in your bots' hands."}
+                {HERO[kind].title}
             </h2>
-            <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-                {kind === "bots"
-                    ? "Pick one for your industry or for the job, hear it on a call, then put it on a number."
-                    : "Connect the apps your business lives in and every bot can read from and write to them."}
-            </p>
-            <div className="mt-5 flex flex-wrap gap-2">
-                <Button asChild variant={kind === "bots" ? "default" : "outline"}>
-                    <Link href="/marketplace">Explore bots</Link>
-                </Button>
-                <Button asChild variant={kind === "tools" ? "default" : "outline"}>
-                    <Link href="/marketplace/tools">Browse tools</Link>
-                </Button>
-            </div>
+            <p className="mt-2 max-w-xl text-sm text-muted-foreground">{HERO[kind].blurb}</p>
         </div>
     );
 }
@@ -317,15 +320,188 @@ function BotsShelf({ query }: { query: string }) {
     );
 }
 
+/** How many rows a category shows on the shelf before "View all". */
+const ROWS_PER_SECTION = 6;
+
+/** A chip on the shelf: an icon, the name, the count. One press narrows. */
+function FilterChip({
+    label,
+    count,
+    icon: Icon,
+    selected,
+    onSelect,
+}: {
+    label: string;
+    count?: number;
+    icon?: React.ComponentType<{ className?: string }>;
+    selected: boolean;
+    onSelect: () => void;
+}) {
+    return (
+        <button
+            type="button"
+            aria-pressed={selected}
+            onClick={onSelect}
+            className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors",
+                selected
+                    ? "border-foreground bg-foreground text-background"
+                    : "border-border bg-card text-foreground hover:bg-muted/40",
+            )}
+        >
+            {Icon ? <Icon className="h-3.5 w-3.5" aria-hidden="true" /> : null}
+            {label}
+            {count !== undefined ? (
+                <span className={cn("text-xs", selected ? "opacity-70" : "text-muted-foreground")}>{count}</span>
+            ) : null}
+        </button>
+    );
+}
+
+/** The ready-made tools, by the app they act on. A tool is one action a
+ *  bot takes mid-call -- look up an order, book a slot -- and this shelf is
+ *  the ones that exist already; the button builds one from the entry so
+ *  nobody writes an HTTP definition by hand. */
 function ToolsShelf({ query }: { query: string }) {
+    const [tools, setTools] = useState<LibraryTool[] | null>(null);
+    const [failed, setFailed] = useState(false);
+    const [vendor, setVendor] = useState<string | null>(null);
+    const { user, loading: authLoading } = useAuth();
+
+    useEffect(() => {
+        if (authLoading || !user) return;
+        let cancelled = false;
+        void (async () => {
+            try {
+                const response = await getToolLibraryApiV1ToolLibraryGet();
+                if (cancelled) return;
+                if (response.error || !response.data) {
+                    setFailed(true);
+                    return;
+                }
+                setTools(response.data.tools ?? []);
+            } catch {
+                if (!cancelled) setFailed(true);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [authLoading, user]);
+
+    if (failed) {
+        return (
+            <Card>
+                <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                    The tool shelf could not be loaded. This is us, not you.
+                </CardContent>
+            </Card>
+        );
+    }
+    if (tools === null) return <p className="text-sm text-muted-foreground">Loading…</p>;
+
+    const needle = query.trim().toLowerCase();
+    const matching = needle
+        ? tools.filter((t) =>
+              [t.display_name, t.summary, t.vendor, t.tool_name].some((f) =>
+                  (f ?? "").toLowerCase().includes(needle),
+              ),
+          )
+        : tools;
+    const shown = vendor && !needle ? matching.filter((t) => t.vendor === vendor) : matching;
+    const vendors = Array.from(new Set(tools.map((t) => t.vendor)));
+
+    return (
+        <>
+            {!needle ? (
+                <div className="flex flex-wrap gap-2" role="group" aria-label="Apps">
+                    <FilterChip label="All" selected={vendor === null} onSelect={() => setVendor(null)} />
+                    {vendors.map((v) => (
+                        <FilterChip
+                            key={v}
+                            label={v}
+                            count={tools.filter((t) => t.vendor === v).length}
+                            selected={vendor === v}
+                            onSelect={() => setVendor((cur) => (cur === v ? null : v))}
+                        />
+                    ))}
+                </div>
+            ) : null}
+
+            {shown.length === 0 ? (
+                <Card>
+                    <CardContent className="space-y-2 py-8 text-center">
+                        <p className="text-sm">Nothing here does that yet.</p>
+                        <p className="text-xs text-muted-foreground">
+                            Build it as a{" "}
+                            <Link href="/tools" className="underline">
+                                custom tool
+                            </Link>
+                            : any HTTP endpoint your business already has.
+                        </p>
+                    </CardContent>
+                </Card>
+            ) : (
+                <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
+                    {shown.map((tool) => (
+                        <div
+                            key={tool.key}
+                            className="flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-muted/40"
+                            data-testid="library-tool"
+                        >
+                            <span
+                                aria-hidden="true"
+                                className={cn(
+                                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sm font-semibold",
+                                    toneFor(tool.vendor),
+                                )}
+                            >
+                                {tool.vendor.slice(0, 1).toUpperCase()}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium">{tool.display_name}</p>
+                                <p className="truncate text-xs text-muted-foreground" title={tool.summary}>
+                                    {tool.summary}
+                                </p>
+                            </div>
+                            <Button asChild size="sm" variant="outline" className="shrink-0 rounded-full">
+                                <Link href={`/tools?library=${encodeURIComponent(tool.key)}`} aria-label={`Add ${tool.display_name}`}>
+                                    Add
+                                </Link>
+                            </Button>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            <Card>
+                <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+                    <div>
+                        <p className="text-sm font-medium">Something your own systems do?</p>
+                        <p className="text-xs text-muted-foreground">
+                            Any HTTP endpoint you already have becomes a tool a bot can call mid-conversation.
+                        </p>
+                    </div>
+                    <Button asChild size="sm" variant="outline">
+                        <Link href="/tools">Build a tool</Link>
+                    </Button>
+                </CardContent>
+            </Card>
+        </>
+    );
+}
+
+function IntegrationsShelf({ query }: { query: string }) {
     const [available, setAvailable] = useState(true);
     const [loading, setLoading] = useState(true);
     const [failed, setFailed] = useState(false);
     const [popular, setPopular] = useState<ConnectorResponse[]>([]);
     const [groups, setGroups] = useState<ConnectorGroupResponse[]>([]);
-    const [otherCount, setOtherCount] = useState(0);
-    const [group, setGroup] = useState<string | null>(null);
-    const [expanded, setExpanded] = useState<string[]>([]);
+    const [other, setOther] = useState<ConnectorResponse[]>([]);
+    const [connectedCount, setConnectedCount] = useState(0);
+    // "all", "featured", a group's name, or "other".
+    const [filter, setFilter] = useState<string>("all");
+    const [reloads, setReloads] = useState(0);
 
     useEffect(() => {
         let cancelled = false;
@@ -345,7 +521,8 @@ function ToolsShelf({ query }: { query: string }) {
                     setAvailable(response.data.available);
                     setPopular(response.data.popular ?? []);
                     setGroups(response.data.groups ?? []);
-                    setOtherCount(response.data.other?.length ?? 0);
+                    setOther(response.data.other ?? []);
+                    setConnectedCount(response.data.connected_count ?? 0);
                 } catch {
                     if (!cancelled) setFailed(true);
                 } finally {
@@ -357,10 +534,23 @@ function ToolsShelf({ query }: { query: string }) {
             cancelled = true;
             clearTimeout(timer);
         };
-    }, [query]);
+    }, [query, reloads]);
 
-    const reload = () => setExpanded((e) => [...e]);
-    const visible = group ? groups.filter((g) => g.group === group) : groups;
+    const reload = () => setReloads((n) => n + 1);
+    const searching = Boolean(query.trim());
+    // The apps already on: the logos in the strip at the top, the way a
+    // plugin shelf shows what you have before what you could have.
+    const installed = useMemo(() => {
+        const seen = new Set<string>();
+        const out: ConnectorResponse[] = [];
+        for (const c of [...groups.flatMap((g) => g.connectors), ...other]) {
+            if (c.connected && !seen.has(c.slug)) {
+                seen.add(c.slug);
+                out.push(c);
+            }
+        }
+        return out;
+    }, [groups, other]);
 
     if (!available) {
         return (
@@ -381,45 +571,84 @@ function ToolsShelf({ query }: { query: string }) {
         );
     }
 
+    // What the shelf shows for the chip pressed. A search shows everything
+    // that matched, whatever the chip.
+    const sections: { key: string; title: string; rows: ConnectorResponse[] }[] = [];
+    if (searching) {
+        for (const g of groups) sections.push({ key: g.group, title: g.group, rows: g.connectors });
+        if (other.length) sections.push({ key: "other", title: "Other", rows: other });
+    } else if (filter === "featured") {
+        sections.push({ key: "featured", title: "Featured", rows: popular });
+    } else if (filter === "installed") {
+        sections.push({ key: "installed", title: "Installed", rows: installed });
+    } else if (filter === "other") {
+        sections.push({ key: "other", title: "Other", rows: other });
+    } else if (filter !== "all") {
+        const g = groups.find((x) => x.group === filter);
+        if (g) sections.push({ key: g.group, title: g.group, rows: g.connectors });
+    } else {
+        if (popular.length) sections.push({ key: "featured", title: "Featured", rows: popular });
+        for (const g of groups) sections.push({ key: g.group, title: g.group, rows: g.connectors });
+        if (other.length) sections.push({ key: "other", title: "Other", rows: other });
+    }
+    const narrowed = searching || filter !== "all";
+
     return (
         <>
-            {!query.trim() ? (
-                <section className="space-y-3">
-                    <SectionTitle>Categories</SectionTitle>
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {groups.map((g) => (
-                            <CategoryCard
-                                key={g.group}
-                                name={g.group}
-                                count={g.connectors.length}
-                                noun="tool"
-                                icon={toolIcon(g.group)}
-                                selected={group === g.group}
-                                onSelect={() => setGroup((cur) => (cur === g.group ? null : g.group))}
-                            />
+            {installed.length > 0 && !searching ? (
+                <button
+                    type="button"
+                    aria-pressed={filter === "installed"}
+                    onClick={() => setFilter((cur) => (cur === "installed" ? "all" : "installed"))}
+                    className={cn(
+                        "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors",
+                        filter === "installed"
+                            ? "border-foreground bg-foreground text-background"
+                            : "border-border bg-card hover:bg-muted/40",
+                    )}
+                >
+                    <span className="flex -space-x-1.5">
+                        {installed.slice(0, 5).map((c) => (
+                            <ConnectorLogo key={c.slug} connector={c} className="h-6 w-6 rounded-md ring-2 ring-card" />
                         ))}
-                    </div>
-                </section>
+                    </span>
+                    <span className={filter === "installed" ? "opacity-80" : "text-muted-foreground"}>
+                        {connectedCount || installed.length} installed
+                    </span>
+                </button>
             ) : null}
 
-            {!query.trim() && !group && popular.length > 0 ? (
-                <section className="space-y-3">
-                    <SectionTitle>Most asked for</SectionTitle>
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {popular.map((connector) => (
-                            <ConnectorCard
-                                key={`popular:${connector.slug}`}
-                                connector={connector}
-                                onConnected={reload}
-                            />
-                        ))}
-                    </div>
-                </section>
+            {!searching ? (
+                <div className="flex flex-wrap gap-2" role="group" aria-label="Categories">
+                    <FilterChip label="All" selected={filter === "all"} onSelect={() => setFilter("all")} />
+                    {popular.length > 0 ? (
+                        <FilterChip label="Featured" icon={Sparkles} selected={filter === "featured"} onSelect={() => setFilter("featured")} />
+                    ) : null}
+                    {groups.map((g) => (
+                        <FilterChip
+                            key={g.group}
+                            label={g.group}
+                            count={g.connectors.length}
+                            icon={toolIcon(g.group)}
+                            selected={filter === g.group}
+                            onSelect={() => setFilter((cur) => (cur === g.group ? "all" : g.group))}
+                        />
+                    ))}
+                    {other.length > 0 ? (
+                        <FilterChip
+                            label="Other"
+                            count={other.length}
+                            icon={toolIcon("Other")}
+                            selected={filter === "other"}
+                            onSelect={() => setFilter("other")}
+                        />
+                    ) : null}
+                </div>
             ) : null}
 
             {loading && groups.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Loading…</p>
-            ) : visible.length === 0 ? (
+            ) : sections.every((s) => s.rows.length === 0) ? (
                 <Card>
                     <CardContent className="space-y-2 py-8 text-center">
                         <p className="text-sm">Nothing matches &ldquo;{query.trim()}&rdquo;.</p>
@@ -433,61 +662,42 @@ function ToolsShelf({ query }: { query: string }) {
                     </CardContent>
                 </Card>
             ) : (
-                visible.map((g) => {
-                    const open = Boolean(group) || Boolean(query.trim()) || expanded.includes(g.group);
-                    const rows = open ? g.connectors : g.connectors.slice(0, ROWS_PER_GROUP);
-                    const hidden = g.connectors.length - rows.length;
-                    return (
-                        <section key={g.group} className="space-y-3">
-                            <SectionTitle
-                                action={
-                                    hidden > 0 ? (
-                                        <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            onClick={() => setExpanded((e) => [...e, g.group])}
-                                        >
-                                            See all {g.connectors.length}
-                                        </Button>
-                                    ) : null
-                                }
-                            >
-                                {g.group}
-                            </SectionTitle>
-                            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                                {rows.map((connector) => (
-                                    <ConnectorCard
-                                        key={connector.slug}
-                                        connector={connector}
-                                        onConnected={reload}
-                                    />
-                                ))}
-                            </div>
-                        </section>
-                    );
-                })
+                sections
+                    .filter((s) => s.rows.length > 0)
+                    .map((s) => {
+                        const rows = narrowed ? s.rows : s.rows.slice(0, ROWS_PER_SECTION);
+                        const hidden = s.rows.length - rows.length;
+                        return (
+                            <section key={s.key} className="space-y-2">
+                                <SectionTitle
+                                    action={
+                                        hidden > 0 ? (
+                                            <Button size="sm" variant="ghost" onClick={() => setFilter(s.key)}>
+                                                View all {s.rows.length}
+                                            </Button>
+                                        ) : null
+                                    }
+                                >
+                                    {s.title}
+                                </SectionTitle>
+                                <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
+                                    {rows.map((connector) => (
+                                        <ConnectorRow key={`${s.key}:${connector.slug}`} connector={connector} onConnected={reload} />
+                                    ))}
+                                </div>
+                            </section>
+                        );
+                    })
             )}
-
-            {otherCount > 0 && !query.trim() && !group ? (
-                <Card>
-                    <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
-                        <div>
-                            <p className="text-sm font-medium">
-                                {otherCount} more tool{otherCount === 1 ? "" : "s"}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                                Everything that did not fit a category above. Searching covers these too.
-                            </p>
-                        </div>
-                        <Button asChild size="sm" variant="outline">
-                            <Link href="/integrations/apps/more">Browse all</Link>
-                        </Button>
-                    </CardContent>
-                </Card>
-            ) : null}
         </>
     );
 }
+
+const SEARCH: Record<ShelfKind, { label: string; placeholder: string }> = {
+    bots: { label: "Find a bot", placeholder: "Find a bot by industry, job or name…" },
+    tools: { label: "Find a tool", placeholder: "Find a tool by what it does or the app it uses…" },
+    integrations: { label: "Find an app", placeholder: "Find an app or a service you already use…" },
+};
 
 export function MarketplaceScreen({ kind }: { kind: ShelfKind }) {
     const [query, setQuery] = useState("");
@@ -496,26 +706,28 @@ export function MarketplaceScreen({ kind }: { kind: ShelfKind }) {
         <>
             <PageHeader
                 title="Marketplace"
-                description="Bots to add and tools to connect. Everything here works with what you already run."
+                description="Tools to hand a bot, bots to put to work, and the apps they reach. Everything here works with what you already run."
                 tabs={TABS}
             />
             <PageBody className="space-y-8">
-                <Hero kind={kind} />
+                {kind === "bots" ? <Hero kind={kind} /> : null}
                 <div className="relative max-w-md">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                         className="pl-8"
-                        aria-label={kind === "bots" ? "Find a bot" : "Find a tool"}
-                        placeholder={
-                            kind === "bots"
-                                ? "Find a bot by industry, job or name…"
-                                : "Find an app or a service you already use…"
-                        }
+                        aria-label={SEARCH[kind].label}
+                        placeholder={SEARCH[kind].placeholder}
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                     />
                 </div>
-                {kind === "bots" ? <BotsShelf query={query} /> : <ToolsShelf query={query} />}
+                {kind === "bots" ? (
+                    <BotsShelf query={query} />
+                ) : kind === "tools" ? (
+                    <ToolsShelf query={query} />
+                ) : (
+                    <IntegrationsShelf query={query} />
+                )}
             </PageBody>
         </>
     );

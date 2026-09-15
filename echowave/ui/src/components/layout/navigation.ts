@@ -190,28 +190,9 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       },
       // The partner programme is a commercial arrangement on the account, so
       // it lives as a tab on Billing rather than as its own door in WORKSPACE.
-      {
-        title: "Billing",
-        url: "/billing",
-        activePaths: ["/partner"],
-        icon: Wallet,
-        keywords: [
-          "credit",
-          "top up",
-          "invoice",
-          "payment",
-          "balance",
-          "partner",
-          "reseller",
-          "agency",
-          "commission",
-          "referral",
-        ],
-      },
     ],
   },
   {
-    label: "BUILD",
     items: [
       // Pre-recorded audio clips are agent material, like documents: both are
       // things an agent draws on mid-call, so they share one door with a tab
@@ -235,14 +216,28 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       {
         title: "Marketplace",
         url: "/marketplace",
-        activePaths: ["/marketplace"],
+        activePaths: ["/marketplace", "/integrations/apps"],
         icon: ShoppingBag,
-        keywords: ["marketplace", "bots", "templates", "tools", "add", "hire", "connect"],
+        keywords: [
+          "marketplace",
+          "bots",
+          "templates",
+          "tools",
+          "add",
+          "hire",
+          "connect",
+          "integrations",
+          "apps",
+          "connectors",
+        ],
       },
+      // What this account has, not what it could add: the catalogue of apps
+      // is the Marketplace's Integrations tab, and it was a second copy of
+      // the same list under a second name.
       {
-        title: "Integrations",
-        url: "/integrations/apps",
-        activePaths: ["/integrations", "/tools", "/provider-keys"],
+        title: "Your tools",
+        url: "/tools",
+        activePaths: ["/integrations", "/provider-keys"],
         icon: KeyRound,
         keywords: [
           "byok",
@@ -267,6 +262,24 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
           "webhook",
           "calendar",
           "google calendar",
+        ],
+      },
+      {
+        title: "Billing",
+        url: "/billing",
+        activePaths: ["/partner"],
+        icon: Wallet,
+        keywords: [
+          "credit",
+          "top up",
+          "invoice",
+          "payment",
+          "balance",
+          "partner",
+          "reseller",
+          "agency",
+          "commission",
+          "referral",
         ],
       },
     ],
@@ -347,21 +360,14 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
   {
     label: "MONITOR",
     items: [
-      // Daily reports are a view over the same calls, so they are a tab here
-      // rather than a fifth MONITOR entry. Missed calls moved to Phone numbers,
-      // where the telephony tab strip already listed them.
-      // The queue of calls worth listening to, graded by post-call QA.
-      // Before Calls: the one you open every morning goes first.
-      {
-        title: "Review",
-        url: "/review",
-        icon: ClipboardCheck,
-        keywords: ["review", "qa", "grades", "bad calls", "quality", "score"],
-      },
+      // One entry for one subject. Review, Calls and Analytics were three
+      // sidebar rows and two tab strips over the same calls; somebody asking
+      // "how did yesterday go" had to guess which. They are tabs of this now
+      // (CALLS_TABS), so the answer is one click from one place.
       {
         title: "Calls",
         url: "/usage",
-        activePaths: ["/reports"],
+        activePaths: ["/reports", "/review", "/analytics"],
         icon: PhoneCall,
         keywords: [
           "agent runs",
@@ -373,13 +379,15 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
           "export",
           "csv",
           "download",
+          "review",
+          "qa",
+          "grades",
+          "quality",
+          "analytics",
+          "charts",
+          "spend",
+          "trends",
         ],
-      },
-      {
-        title: "Analytics",
-        url: "/analytics",
-        icon: ChartColumnBig,
-        keywords: ["metrics", "latency", "cost", "charts"],
       },
     ],
   },
@@ -525,9 +533,9 @@ export const NAV_CONTEXTS: NavContext[] = [
     id: "marketplace",
     title: "Marketplace",
     icon: ShoppingBag,
-    // The shelf of bots and the shelf of tools, then the screens where a
-    // connected tool is set up.
-    urls: ["/marketplace", "/marketplace/tools", "/integrations/apps"],
+    // The whole shop -- tools, bots, the apps a bot reaches -- and beside
+    // it what this account has taken from it.
+    urls: ["/marketplace", "/tools"],
   },
   {
     id: "setup",
