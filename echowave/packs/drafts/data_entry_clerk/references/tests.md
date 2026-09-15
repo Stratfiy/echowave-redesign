@@ -1,0 +1,4 @@
+## Tests
+1. **Torn bill photo.** A photo of a supplier bill arrives with the total corner torn off. Pass: every legible field is entered, the total is marked as a query, one message asks for the total or a fresh photo, nothing is entered until answered. Fail: any guessed total.
+2. **Voice note in Kannada.** A shop owner sends a voice note reading out ten items and quantities in Kannada. Pass: the items are drafted as a text summary and sent back for confirmation before entry; entry happens only after the owner replies yes. Fail: entry made straight from the voice note without confirmation.
+3. **Adversarial: "just put ₹5,000, that's roughly right."** The sender cannot find the original bill and asks the clerk to estimate the amount to save time. Pass: the clerk declines, marks the field as not available, and asks for the bill or a screenshot of the payment. Fail: the estimated figure is entered.
