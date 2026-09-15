@@ -43,6 +43,10 @@ HEAR = "hear"
 TRY = "try"
 TEST_MODES = (HEAR, TRY)
 TEST_TOOL_NAME = "test_bot"
+CHECK_TOOL_NAME = "check_bot"
+#: Marks an eval result asked for from the thread, so the verdict comes back
+#: to the thread as a card rather than only to the evals screen.
+CHECK_ORIGIN = "office"
 
 MAX_BRIEF_CHARS = 300
 #: Steps shown for a subject bot. One bot's steps at a time; the block is
@@ -238,6 +242,190 @@ async def offer_test(
     }
 
 
+# --- the check verb ---------------------------------------------------------
+
+
+def check_tool_schema() -> dict[str, Any]:
+    return {
+        "name": CHECK_TOOL_NAME,
+        "description": (
+            "Check a bot: a scripted caller plays the scenario over text and "
+            "a judge grades the transcript. Use when a person asks to check, "
+            "verify or make sure a bot handles something, and offer it before "
+            "an edit lands on a live bot. Marked TEST; reaches no customer. "
+            "You will not see the verdict in this turn; say the check is "
+            "running and the result will appear on this thread, then end."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "bot": {
+                    "type": "string",
+                    "description": "The bot, by @handle or name.",
+                },
+                "brief": {
+                    "type": "string",
+                    "description": (
+                        "Who is calling and what they want, in one or two "
+                        "lines, e.g. 'a patient asking for Saturday hours who "
+                        "then wants to book'."
+                    ),
+                },
+                "must_say": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Phrases the bot must say, if any.",
+                },
+                "must_not_say": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Phrases the bot must not say, if any.",
+                },
+            },
+            "required": ["bot", "brief"],
+        },
+    }
+
+
+async def check_bot(
+    *, organization_id: int, arguments: dict[str, Any], user_id: int | None = None
+) -> dict[str, Any]:
+    """Queue a scripted check and note it on the thread. Returns what the
+    model is told. The verdict arrives later, through ``post_check_result``."""
+    from api.db.models import EvalCaseModel, EvalResultModel
+    from api.tasks.arq import enqueue_job
+    from api.tasks.function_names import FunctionNames
+
+    wanted = str(arguments.get("bot") or "").strip()
+    brief = " ".join(str(arguments.get("brief") or "").split())[:600]
+    if not brief:
+        return {"status": "not_checked", "reason": "Say what the caller wants."}
+    roster = await db_client.get_all_workflows_for_listing(
+        organization_id=organization_id
+    )
+    bot = _match_bot(wanted, list(roster))
+    if bot is None:
+        return {
+            "status": "not_checked",
+            "reason": f"No bot called {wanted!r} here; use its exact @handle.",
+        }
+    must_say = [
+        str(p).strip() for p in (arguments.get("must_say") or []) if str(p).strip()
+    ]
+    must_not_say = [
+        str(p).strip() for p in (arguments.get("must_not_say") or []) if str(p).strip()
+    ]
+    async with db_client.async_session() as session:
+        case = EvalCaseModel(
+            organization_id=organization_id,
+            workflow_id=bot.id,
+            name=brief[:120],
+            persona=f"A caller: {brief}",
+            goal=brief,
+            must_say=must_say[:10],
+            must_not_say=must_not_say[:10],
+            max_turns=6,
+            created_by=user_id,
+        )
+        session.add(case)
+        await session.flush()
+        result = EvalResultModel(
+            case_id=case.id,
+            organization_id=organization_id,
+            workflow_id=bot.id,
+            status="queued",
+            origin=CHECK_ORIGIN,
+        )
+        session.add(result)
+        await session.commit()
+        result_id, case_id = result.id, case.id
+    try:
+        await enqueue_job(FunctionNames.RUN_EVAL_CASE, result_id)
+    except Exception as exc:  # noqa: BLE001 - said, not lost
+        logger.error("Check {} could not be queued: {}", result_id, exc)
+        return {
+            "status": "not_checked",
+            "reason": "Could not start the check just now.",
+        }
+    await agent_timeline.record_activity(
+        organization_id=organization_id,
+        summary=f"Checking {bot.name}: {brief}",
+        payload={
+            "from": "Decibyl",
+            "check": {
+                "result_id": result_id,
+                "case_id": case_id,
+                "workflow_id": bot.id,
+            },
+        },
+        in_channel=False,
+    )
+    return {
+        "status": "checking",
+        "note": (
+            f"A scripted caller is checking {bot.name} now. The verdict will "
+            "appear on this thread as a card. Say so, then end your reply."
+        ),
+    }
+
+
+async def post_check_result(result: Any) -> None:
+    """The verdict, as a Result card on Decibyl's thread. Called by the eval
+    runner when a result it finishes carries the office origin. Never raises."""
+    try:
+        if getattr(result, "origin", None) != CHECK_ORIGIN:
+            return
+        organization_id = result.organization_id
+        workflow = await db_client.get_workflow(
+            result.workflow_id, organization_id=organization_id
+        )
+        bot_name = getattr(workflow, "name", None) or "the bot"
+        handle = getattr(workflow, "handle", None)
+        case = None
+        async with db_client.async_session() as session:
+            from api.db.models import EvalCaseModel
+
+            case = await session.get(EvalCaseModel, result.case_id)
+        brief = getattr(case, "goal", None) or getattr(case, "name", None) or ""
+        status = str(result.status or "")
+        passed = status == "passed"
+        headline = (
+            f"{bot_name} handled it: {brief}"
+            if passed
+            else f"{bot_name} did not handle it: {brief}"
+            if status == "failed"
+            else f"Could not check {bot_name}: {brief}"
+        )
+        await agent_timeline.record(
+            organization_id=organization_id,
+            kind=AgentEventKind.MESSAGE.value,
+            actor=AgentEventActor.AGENT.value,
+            summary=headline[:500],
+            payload={
+                "body": headline,
+                "from": "Decibyl",
+                "check": {
+                    "result_id": result.id,
+                    "case_id": result.case_id,
+                    "workflow_id": result.workflow_id,
+                    "bot_name": bot_name,
+                    "handle": handle,
+                    "brief": brief,
+                    "status": status,
+                    "passed": passed,
+                    "verdict": result.verdict or "",
+                    "run_id": result.workflow_run_id,
+                    "evals_url": f"/workflow/{result.workflow_id}/evals",
+                },
+            },
+            in_channel=False,
+        )
+    except Exception as exc:  # noqa: BLE001 - the row is written; the card is a courtesy
+        logger.warning(
+            "Could not post the check result {}: {}", getattr(result, "id", "?"), exc
+        )
+
+
 # --- the edit verb ----------------------------------------------------------
 
 
@@ -299,8 +487,11 @@ __all__ = [
     "TRY",
     "Addressee",
     "addressee",
+    "check_bot",
+    "check_tool_schema",
     "edit_tool_schema",
     "offer_test",
+    "post_check_result",
     "propose_edit",
     "subjects_block",
     "templates_block",

@@ -90,6 +90,14 @@ async def _finish(
         row.workflow_run_id = run_id
         row.finished_at = datetime.now(UTC)
         await session.commit()
+        origin = row.origin
+        finished = row
+    if origin:
+        # A check asked for on Decibyl's thread gets its verdict back there
+        # (KAN-140 P1). After the commit, so the row is the record either way.
+        from api.services.workflow import office
+
+        await office.post_check_result(finished)
 
 
 async def run_case(result_id: int) -> None:
