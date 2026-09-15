@@ -41,6 +41,7 @@ from api.services.workflow import (
     connected_tools,
     document_fields,
     documents,
+    filing,
     office,
     reply_draft,
     self_edit,
@@ -704,6 +705,7 @@ def office_tools() -> list[dict[str, Any]]:
         documents.find_tool_schema(),
         documents.send_tool_schema(),
         document_fields.tool_schema(),
+        filing.tool_schema(),
         recall.tool_schema(),
         teach.tool_schema(),
         quiet.tool_schema(),
@@ -840,6 +842,8 @@ async def _tool(
         )
     if call.name == document_fields.TOOL_NAME:
         return await document_fields.confirm_for_thread(organization_id, arguments)
+    if call.name == filing.TOOL_NAME:
+        return await filing.file_for_thread(organization_id, arguments)
     if call.name == recall.TOOL_NAME:
         return await recall.for_thread(
             organization_id,
