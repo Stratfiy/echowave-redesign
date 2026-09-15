@@ -41,6 +41,7 @@ from api.services.integrations.composio.client import (
 from api.services.integrations.composio.client import (
     execute_tool as execute_composio_tool,
 )
+from api.services.sandbox import spill
 from api.services.workflow.tools.custom_tool import tool_to_function_schema
 
 #: Function names the model sees, so a connected app can never shadow one of
@@ -328,6 +329,16 @@ async def execute(
             event=billing_events.tool_call_event(toolkit_of(tool)),
             ref_id=ref_id,
             note=f"{tool.name} via {toolkit_of(tool) or 'connector'} (Decibyl)",
+        )
+    # A large read is stored and previewed rather than truncated (Step 20),
+    # so nothing is lost and a script can work through the whole of it.
+    if spill.is_large(result):
+        return await spill.spill_if_large(
+            result,
+            organization_id=organization_id,
+            run_id=None,
+            name=function_name(tool),
+            call_id=ref_id.rsplit(":", 1)[-1],
         )
     return _bounded(result)
 

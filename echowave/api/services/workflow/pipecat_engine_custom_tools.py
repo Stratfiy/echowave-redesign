@@ -37,6 +37,7 @@ from api.services.integrations.google_calendar.client import (
     google_calendar_function_schema,
 )
 from api.services.pipecat.audio_playback import play_audio, play_audio_loop
+from api.services.sandbox import spill
 from api.services.telephony.call_transfer_manager import get_call_transfer_manager
 from api.services.telephony.escalation import briefing_from_config
 from api.services.telephony.factory import get_telephony_provider_for_run
@@ -868,13 +869,28 @@ class CustomToolManager:
                 return
 
             try:
+                organization_id = await self.get_organization_id()
                 result = await execute_composio_tool(
                     tool_slug=tool_slug,
                     arguments=function_call_params.arguments or {},
-                    organization_id=await self.get_organization_id(),
+                    organization_id=organization_id,
                     connected_account_id=config.get("connected_account_id"),
                     timeout_secs=_composio_timeout_secs(config),
                 )
+                # A response past about 6,000 tokens is stored on the run and
+                # the model gets a preview (Step 20); a script reads the rest.
+                if organization_id:
+                    context = await self._interaction_context()
+                    result = await spill.spill_if_large(
+                        result,
+                        organization_id=int(organization_id),
+                        run_id=context.get("workflow_run_id"),
+                        name=function_name,
+                        call_id=str(
+                            getattr(function_call_params, "tool_call_id", None)
+                            or function_name
+                        ),
+                    )
                 await function_call_params.result_callback(result)
                 # One credit a call, three on a premium connector (KAN-56),
                 # once the tool actually ran. Keyed on the model's own
