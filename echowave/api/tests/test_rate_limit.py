@@ -32,6 +32,15 @@ class TestClassify:
     def test_everything_else_is_default(self):
         assert _classify("/api/v1/workflow/17")[0] == "default"
 
+    def test_who_am_i_is_a_read_not_a_credential_attempt(self):
+        """The app asks /user/auth/user on every screen. Under the auth
+        bucket's twenty a minute, one person browsing was refused within a
+        minute of signing in, and every screen after that failed to load."""
+        assert _classify("/api/v1/user/auth/user")[0] == "default"
+        # The real credential paths under /user keep the tight bucket.
+        assert _classify("/api/v1/user/mfa/verify")[0] == "auth"
+        assert _classify("/api/v1/user/password/reset")[0] == "auth"
+
     def test_health_and_docs_are_never_counted(self):
         for path in (
             "/api/v1/health",

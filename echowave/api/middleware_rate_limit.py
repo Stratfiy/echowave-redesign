@@ -54,10 +54,21 @@ _EMBED_MARKERS = ("/public/", "/embed/", "/talk/")
 _EXEMPT_MARKERS = ("/health", "/openapi.json", "/docs", "/redoc", "/mcp")
 
 
+#: Reads that carry an auth-looking segment but are not a credential
+#: attempt. ``/user/auth/user`` is "who am I": the app asks it on every
+#: screen, from the server and the browser both, and with the auth bucket's
+#: twenty a minute one person clicking through the app was refused within a
+#: minute of signing in. A credential attempt is a POST to the auth router;
+#: this is a GET of the session it already has.
+_WHOAMI_MARKERS = ("/user/auth/user",)
+
+
 def _classify(path: str) -> tuple[str, int] | None:
     """(bucket, per-minute limit) for this path, or None to skip counting."""
     if any(m in path for m in _EXEMPT_MARKERS):
         return None
+    if any(m in path for m in _WHOAMI_MARKERS):
+        return "default", RATE_LIMIT_DEFAULT_PER_MINUTE
     if any(m in path for m in _AUTH_MARKERS):
         return "auth", RATE_LIMIT_AUTH_PER_MINUTE
     if any(m in path for m in _EMBED_MARKERS):
