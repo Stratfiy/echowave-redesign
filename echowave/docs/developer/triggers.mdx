@@ -1,9 +1,11 @@
 ---
 title: "Triggers"
-description: "Ring a bot from an outside system: write a sentence, get a webhook address"
+description: "Ring a bot from an outside system: write a sentence, get a webhook address or an email address"
 ---
 
 A **trigger** lets an outside system start a bot. An order is placed, a payment fails, a form is submitted — the system that saw it posts the event to the trigger's address, and the bot does one job with it and reports in its thread.
+
+A trigger rings the bot one of two ways: a **webhook** a system POSTs to, or an **email address** you forward mail to. Same sentence, same run, same price; pick the one the sending system can reach.
 
 You do not write the webhook. You write a sentence.
 
@@ -11,13 +13,17 @@ You do not write the webhook. You write a sentence.
 
 ## Setting one up
 
-Open the bot, then **Triggers**. Type what should happen and when:
+Open the bot, then **Triggers**. Choose **Webhook** or **Email**, then type what should happen and when:
 
 > When a Shopify order over Rs 5,000 comes in, check stock and message the customer
 
 Press **Work it out**. Decibyl turns the sentence into a plan: a name, the fields the event should carry, the condition under which the bot acts, and what the bot is told each time. If the sentence leaves out something the plan needs — which field holds the amount, what counts as "big" — you are asked, and nothing is saved until you answer. It never fails on the sentence.
 
-Save the plan and the trigger gets a **web address** and a **secret**. Paste the address into the sending system's webhook settings and send the secret with it, either as the `X-Trigger-Secret` header or, for senders that cannot set headers, as `?key=` on the address.
+Save a **webhook** trigger and it gets a **web address** and a **secret**. Paste the address into the sending system's webhook settings and send the secret with it, either as the `X-Trigger-Secret` header or, for senders that cannot set headers, as `?key=` on the address.
+
+Save an **email** trigger and it gets an **email address** instead — see [By email](#by-email) below.
+
+The channel is fixed when you save. To switch, delete the trigger and make a new one.
 
 Every bot can have up to 10 triggers.
 
@@ -55,9 +61,31 @@ Each trigger card has **Try it with a sample event**: paste a sample JSON body a
 
 ---
 
+## By email
+
+An **email** trigger has an address of its own, like `a1b2c3d4-…@in.decibyl.ai`. Mail sent to it fires the bot, with the subject and body as the event. Use it when the system that should ring the bot can send email but not a webhook — a supplier who emails purchase orders, a form tool that only emails responses, an alerting service with an email destination.
+
+Copy the address from the trigger card, or set it as a forwarding address on an inbox you already receive to, so everything that lands there reaches the bot.
+
+The condition is written against the mail's fields: `from`, `subject` and `text` (the plain-text body). For example, *only when the subject contains "invoice"* becomes a condition on `subject`.
+
+The same promises hold as for a webhook:
+
+| Reply | Meaning |
+|---|---|
+| `accepted` | The bot is acting on the message. |
+| `filtered` | The message did not match the condition. Nothing ran, nothing was charged. |
+| `duplicate` | A message with this id already arrived in the last day. Nothing ran again. |
+| `paused` | The trigger is switched off. |
+| `unknown_address` | No email trigger has that address. |
+
+A resent message with the same `Message-Id` does not become a second run, and the body is shown to the bot up to about 6,000 characters. An email trigger has no secret and no `X-Trigger-Secret`: the unguessable address is the credential, and the mail provider handoff is authenticated separately.
+
+---
+
 ## Price
 
-One credit per event the bot acts on. Events the condition ignores are free. See [Billing](/account/billing/).
+One credit per event the bot acts on, whether it arrived by webhook or email. Events the condition ignores are free. See [Billing](/account/billing/).
 
 ---
 

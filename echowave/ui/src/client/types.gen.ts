@@ -11480,6 +11480,10 @@ export type TriggerResponse = {
      */
     secret: string;
     /**
+     * Address
+     */
+    address?: string | null;
+    /**
      * Last Fired At
      */
     last_fired_at?: string | null;
@@ -11557,6 +11561,10 @@ export type TriggerWrite = {
      * Name
      */
     name: string;
+    /**
+     * Source
+     */
+    source?: string;
     /**
      * Sentence
      */
@@ -29893,6 +29901,50 @@ export type ReceiveEventApiV1PublicTriggersTriggerUuidPostResponses = {
 };
 
 export type ReceiveEventApiV1PublicTriggersTriggerUuidPostResponse = ReceiveEventApiV1PublicTriggersTriggerUuidPostResponses[keyof ReceiveEventApiV1PublicTriggersTriggerUuidPostResponses];
+
+export type ReceiveEmailApiV1PublicEmailInboundPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * X-Inbound-Token
+         */
+        'X-Inbound-Token'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Token
+         */
+        token?: string | null;
+    };
+    url: '/api/v1/public/email/inbound';
+};
+
+export type ReceiveEmailApiV1PublicEmailInboundPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReceiveEmailApiV1PublicEmailInboundPostError = ReceiveEmailApiV1PublicEmailInboundPostErrors[keyof ReceiveEmailApiV1PublicEmailInboundPostErrors];
+
+export type ReceiveEmailApiV1PublicEmailInboundPostResponses = {
+    /**
+     * Response Receive Email Api V1 Public Email Inbound Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ReceiveEmailApiV1PublicEmailInboundPostResponse = ReceiveEmailApiV1PublicEmailInboundPostResponses[keyof ReceiveEmailApiV1PublicEmailInboundPostResponses];
 
 export type DownloadWorkflowArtifactApiV1PublicDownloadWorkflowTokenArtifactTypeGetData = {
     body?: never;

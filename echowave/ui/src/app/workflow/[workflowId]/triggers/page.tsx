@@ -15,7 +15,7 @@
 
 "use client";
 
-import { Copy, Loader2, Play, RefreshCw, Trash2, Zap } from "lucide-react";
+import { Copy, Loader2, Mail, Play, RefreshCw, Trash2, Zap } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -71,6 +71,9 @@ export default function AgentTriggersPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    // What rings the bot: a webhook someone POSTs to, or an email address they
+    // forward mail to. Fixed at creation; the sentence is the same either way.
+    const [source, setSource] = useState<"webhook" | "email">("webhook");
     // The sentence, the questions it raised, and the plan once they are answered.
     const [sentence, setSentence] = useState("");
     const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -141,6 +144,7 @@ export default function AgentTriggersPage() {
             path: { workflow_id: workflowId },
             body: {
                 name: plan.name,
+                source,
                 sentence,
                 instruction: plan.instruction,
                 fields: plan.fields ?? [],
@@ -155,8 +159,9 @@ export default function AgentTriggersPage() {
         setPlan(null);
         setSentence("");
         setAnswers({});
+        setSource("webhook");
         await reload();
-    }, [plan, sentence, workflowId, reload]);
+    }, [plan, source, sentence, workflowId, reload]);
 
     const toggle = useCallback(
         async (trigger: TriggerResponse, active: boolean) => {
@@ -270,6 +275,29 @@ export default function AgentTriggersPage() {
                         <Label htmlFor="trigger-sentence" className="text-sm font-medium">
                             New trigger
                         </Label>
+                        <div className="mt-2 inline-flex rounded-md border border-border p-0.5">
+                            {(["webhook", "email"] as const).map((option) => (
+                                <button
+                                    key={option}
+                                    type="button"
+                                    disabled={atCap}
+                                    className={
+                                        "rounded px-3 py-1 text-xs capitalize transition-colors " +
+                                        (source === option
+                                            ? "bg-foreground text-background"
+                                            : "text-muted-foreground hover:text-foreground")
+                                    }
+                                    onClick={() => setSource(option)}
+                                >
+                                    {option === "email" ? "Email" : "Webhook"}
+                                </button>
+                            ))}
+                        </div>
+                        <p className="mt-1.5 text-xs text-muted-foreground">
+                            {source === "email"
+                                ? "You get an email address. Forward mail to it and the bot acts on the message."
+                                : "You get a web address. The system that sees the event POSTs to it."}
+                        </p>
                         <Textarea
                             id="trigger-sentence"
                             className="mt-2"
@@ -416,54 +444,84 @@ export default function AgentTriggersPage() {
                                         “{trigger.sentence || trigger.instruction}”
                                     </p>
 
-                                    <div className="mt-4 grid gap-2 text-xs">
-                                        <div className="flex items-center gap-2">
-                                            <span className="w-16 shrink-0 text-muted-foreground">
-                                                POST to
-                                            </span>
-                                            <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1">
-                                                {trigger.url}
-                                            </code>
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                aria-label="Copy address"
-                                                onClick={() => copy(trigger.url)}
-                                            >
-                                                <Copy className="h-3.5 w-3.5" />
-                                            </Button>
+                                    {trigger.source === "email" ? (
+                                        <div className="mt-4 grid gap-2 text-xs">
+                                            <div className="flex items-center gap-2">
+                                                <span className="flex w-16 shrink-0 items-center gap-1 text-muted-foreground">
+                                                    <Mail className="h-3 w-3" />
+                                                    Forward to
+                                                </span>
+                                                <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1">
+                                                    {trigger.address}
+                                                </code>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    aria-label="Copy address"
+                                                    disabled={!trigger.address}
+                                                    onClick={() =>
+                                                        trigger.address && copy(trigger.address)
+                                                    }
+                                                >
+                                                    <Copy className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </div>
+                                            <p className="text-muted-foreground">
+                                                Forward mail here, or set it as a forwarding
+                                                address on your inbox. The bot reads the
+                                                subject and body of each message.
+                                            </p>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="w-16 shrink-0 text-muted-foreground">
-                                                Secret
-                                            </span>
-                                            <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1">
-                                                {trigger.secret}
-                                            </code>
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                aria-label="Copy secret"
-                                                onClick={() => copy(trigger.secret)}
-                                            >
-                                                <Copy className="h-3.5 w-3.5" />
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                aria-label="New secret"
-                                                onClick={() => rotate(trigger)}
-                                            >
-                                                <RefreshCw className="h-3.5 w-3.5" />
-                                            </Button>
+                                    ) : (
+                                        <div className="mt-4 grid gap-2 text-xs">
+                                            <div className="flex items-center gap-2">
+                                                <span className="w-16 shrink-0 text-muted-foreground">
+                                                    POST to
+                                                </span>
+                                                <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1">
+                                                    {trigger.url}
+                                                </code>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    aria-label="Copy address"
+                                                    onClick={() => copy(trigger.url)}
+                                                >
+                                                    <Copy className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="w-16 shrink-0 text-muted-foreground">
+                                                    Secret
+                                                </span>
+                                                <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1">
+                                                    {trigger.secret}
+                                                </code>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    aria-label="Copy secret"
+                                                    onClick={() => copy(trigger.secret)}
+                                                >
+                                                    <Copy className="h-3.5 w-3.5" />
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    aria-label="New secret"
+                                                    onClick={() => rotate(trigger)}
+                                                >
+                                                    <RefreshCw className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </div>
+                                            <p className="text-muted-foreground">
+                                                Send the secret as the{" "}
+                                                <code>X-Trigger-Secret</code> header, or add{" "}
+                                                <code>?key=…</code> to the address if the
+                                                sender cannot set headers.
+                                            </p>
                                         </div>
-                                        <p className="text-muted-foreground">
-                                            Send the secret as the{" "}
-                                            <code>X-Trigger-Secret</code> header, or add{" "}
-                                            <code>?key=…</code> to the address if the sender
-                                            cannot set headers.
-                                        </p>
-                                    </div>
+                                    )}
 
                                     <details className="mt-4">
                                         <summary className="cursor-pointer text-xs text-muted-foreground">

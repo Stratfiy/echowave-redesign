@@ -70,6 +70,11 @@ def _render(trigger: BotTriggerModel) -> TriggerResponse:
         is_active=bool(trigger.is_active),
         url=bot_triggers.public_url(trigger.uuid),
         secret=trigger.secret,
+        address=(
+            bot_triggers.inbound_address(trigger.uuid)
+            if (trigger.source or "") == bot_triggers.SOURCE_EMAIL
+            else None
+        ),
         last_fired_at=trigger.last_fired_at,
         fired_count=int(trigger.fired_count or 0),
         created_at=trigger.created_at,
@@ -136,15 +141,22 @@ async def create_trigger(
             ),
         )
     _check_rules(body)
-
+    if body.source not in bot_triggers.SOURCES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown source {body.source!r}. Use one of: "
+            + ", ".join(bot_triggers.SOURCES),
+        )
+    fields = body.model_dump(mode="json")
+    source = fields.pop("source")
     trigger = await db_client.create_bot_trigger(
         organization_id=organization_id,
         workflow_id=workflow_id,
         uuid=bot_triggers.new_uuid(),
         secret=bot_triggers.new_secret(),
-        source=bot_triggers.SOURCE_WEBHOOK,
+        source=source,
         created_by=user.id,
-        **body.model_dump(mode="json"),
+        **fields,
     )
     logger.info("Trigger {} created on workflow {}", trigger.id, workflow_id)
     return _render(trigger)
@@ -172,11 +184,13 @@ async def update_trigger(
     organization_id = _organization_id(user)
     await _owned_workflow(workflow_id, organization_id)
     _check_rules(body)
+    fields = body.model_dump(mode="json")
+    fields.pop("source", None)  # source is fixed at creation
     trigger = await db_client.update_bot_trigger(
         trigger_id,
         organization_id=organization_id,
         workflow_id=workflow_id,
-        **body.model_dump(mode="json"),
+        **fields,
     )
     if trigger is None:
         raise HTTPException(status_code=404, detail="No such trigger on this agent.")
