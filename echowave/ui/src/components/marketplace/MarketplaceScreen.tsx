@@ -22,7 +22,8 @@ import { client } from "@/client/client.gen";
 import { getToolLibraryApiV1ToolLibraryGet, listConnectorsApiV1ConnectorsGet } from "@/client/sdk.gen";
 import type { ConnectorGroupResponse, ConnectorResponse, LibraryTool } from "@/client/types.gen";
 import { ConnectorLogo, ConnectorRow } from "@/components/integrations/ConnectorRow";
-import { PageBody, PageHeader, type PageTab } from "@/components/layout/PageHeader";
+import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import { SkillsShelf } from "@/components/marketplace/SkillsShelf";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -43,19 +44,13 @@ import {
 } from "@/lib/marketplace";
 import { cn } from "@/lib/utils";
 
-export type ShelfKind = "bots" | "tools" | "integrations";
-
-/** The four shelves, in the order somebody shops them: what a bot can do
- *  (tools), how it should do it (skills), the bot itself, and the apps it
- *  reaches. Skills is not here yet -- the format is parsed and nothing
- *  publishes one, so a tab would be an empty room. */
-const TABS: PageTab[] = [
-    { href: "/marketplace/tools", label: "Tools", prefix: true },
-    { href: "/marketplace", label: "Bots" },
-    { href: "/marketplace/integrations", label: "Integrations", prefix: true },
-];
+export type ShelfKind = "bots" | "tools" | "integrations" | "skills";
 
 const HERO: Record<ShelfKind, { title: string; blurb: string }> = {
+    skills: {
+        title: "Teach a bot how your business does it.",
+        blurb: "A skill is a procedure, not a button: how to chase an invoice, what to check before promising a date.",
+    },
     bots: {
         title: "A bot for every job, ready the day you add it.",
         blurb: "Pick one for your industry or for the job, hear it on a call, then put it on a number.",
@@ -694,9 +689,17 @@ function IntegrationsShelf({ query }: { query: string }) {
 }
 
 const SEARCH: Record<ShelfKind, { label: string; placeholder: string }> = {
+    skills: { label: "Find a skill", placeholder: "Find a skill by the job it describes…" },
     bots: { label: "Find a bot", placeholder: "Find a bot by industry, job or name…" },
     tools: { label: "Find a tool", placeholder: "Find a tool by what it does or the app it uses…" },
     integrations: { label: "Find an app", placeholder: "Find an app or a service you already use…" },
+};
+
+const TITLE: Record<ShelfKind, string> = {
+    tools: "Tools",
+    bots: "Bots",
+    integrations: "Integrations",
+    skills: "Skills",
 };
 
 export function MarketplaceScreen({ kind }: { kind: ShelfKind }) {
@@ -704,11 +707,9 @@ export function MarketplaceScreen({ kind }: { kind: ShelfKind }) {
 
     return (
         <>
-            <PageHeader
-                title="Marketplace"
-                description="Tools to hand a bot, bots to put to work, and the apps they reach. Everything here works with what you already run."
-                tabs={TABS}
-            />
+            {/* No tab strip: the four shelves are the panel beside this
+                screen, which is where a shop's departments belong. */}
+            <PageHeader title={TITLE[kind]} description={HERO[kind].blurb} />
             <PageBody className="space-y-8">
                 {kind === "bots" ? <Hero kind={kind} /> : null}
                 <div className="relative max-w-md">
@@ -725,6 +726,8 @@ export function MarketplaceScreen({ kind }: { kind: ShelfKind }) {
                     <BotsShelf query={query} />
                 ) : kind === "tools" ? (
                     <ToolsShelf query={query} />
+                ) : kind === "skills" ? (
+                    <SkillsShelf query={query} />
                 ) : (
                     <IntegrationsShelf query={query} />
                 )}
