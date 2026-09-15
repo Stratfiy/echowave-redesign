@@ -56,6 +56,8 @@ class TriggerWrite(BaseModel):
     """Saving a compiled plan. ``is_active`` is its own endpoint."""
 
     name: str = Field(min_length=1, max_length=120)
+    #: ``webhook`` (default) or ``email`` (KAN-138): what rings the bot.
+    source: str = Field(default="webhook", max_length=16)
     sentence: str = Field(default="", max_length=2_000)
     instruction: str = Field(default="", max_length=4_000)
     fields: list[TriggerField] = Field(default_factory=list, max_length=20)
@@ -80,6 +82,8 @@ class TriggerResponse(BaseModel):
     #: card with a copy button; there is no separate reveal endpoint.
     url: str
     secret: str
+    #: For an email trigger: the address to forward mail to. None for a webhook.
+    address: str | None = None
     last_fired_at: datetime | None = None
     fired_count: int = 0
     created_at: datetime | None = None

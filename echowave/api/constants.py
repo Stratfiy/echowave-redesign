@@ -87,6 +87,15 @@ _SUBDOMAIN_API_BASE_URL = _derive_api_base_url()
 # When this is a non-public address (localhost or a private/reserved IP) the host
 # isn't reachable from the internet, so get_backend_endpoints() resolves a running
 # Cloudflare tunnel's URL at runtime instead (see api/utils/common.py).
+# Inbound email (KAN-138). Each bot email-trigger gets an address
+# ``<trigger-uuid>@INBOUND_EMAIL_DOMAIN``; mail to it fires the bot with the
+# message as the payload. The mail provider (SES/Postmark/SendGrid/Mailgun)
+# is configured to POST parsed mail to /api/v1/public/email/inbound. When
+# INBOUND_EMAIL_TOKEN is set it must be presented (X-Inbound-Token or ?token=)
+# so only our provider can reach that endpoint.
+INBOUND_EMAIL_DOMAIN = os.getenv("INBOUND_EMAIL_DOMAIN") or "in.decibyl.ai"
+INBOUND_EMAIL_TOKEN = os.getenv("INBOUND_EMAIL_TOKEN") or None
+
 BACKEND_API_ENDPOINT = (
     os.getenv("BACKEND_API_ENDPOINT")
     or _SUBDOMAIN_API_BASE_URL

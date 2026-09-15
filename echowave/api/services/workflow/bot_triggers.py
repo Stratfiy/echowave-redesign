@@ -37,16 +37,23 @@ import json
 import secrets
 import uuid as uuid_module
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Mapping, Optional
 
 from loguru import logger
 
-from api.constants import BACKEND_API_ENDPOINT
+from api.constants import (
+    BACKEND_API_ENDPOINT,
+    INBOUND_EMAIL_DOMAIN,
+)
 from api.services.agent_builder import client as builder_client
 from api.services.agent_builder.client import Conversation
 from api.services.agent_builder.settings import BuilderUnavailable, resolve_model
 
 SOURCE_WEBHOOK = "webhook"
+#: An address per bot (KAN-138): mail to it fires the bot, the mail is the
+#: payload. Same run, filter, dedupe and price as a webhook event.
+SOURCE_EMAIL = "email"
+SOURCES = (SOURCE_WEBHOOK, SOURCE_EMAIL)
 
 #: A bot with more doorbells than this is not a bot anybody can reason about.
 MAX_PER_WORKFLOW = 10
@@ -71,6 +78,70 @@ COMPILE_TOOL_NAME = "describe_trigger"
 
 def public_url(trigger_uuid: str) -> str:
     return f"{BACKEND_API_ENDPOINT}/api/v1/public/triggers/{trigger_uuid}"
+
+
+def inbound_address(trigger_uuid: str) -> str:
+    """The email address that fires this trigger (KAN-138)."""
+    return f"{trigger_uuid}@{INBOUND_EMAIL_DOMAIN}"
+
+
+def address_uuid(recipient: str) -> Optional[str]:
+    """The trigger uuid inside a recipient address, or None.
+
+    Handles a bare address, a display-name form ("Ops <uuid@dom>"), and
+    plus-addressing ("uuid+tag@dom"). The local part before ``+`` is the
+    uuid; the domain is not checked here because the uuid is already unique.
+    """
+    raw = (recipient or "").strip()
+    if "<" in raw and ">" in raw:
+        raw = raw[raw.rfind("<") + 1 : raw.rfind(">")]
+    raw = raw.strip().strip("\"'")
+    if "@" not in raw:
+        return None
+    local = raw.split("@", 1)[0].split("+", 1)[0].strip().lower()
+    return local or None
+
+
+#: Where each provider keeps the fields we need. First hit wins.
+_EMAIL_KEYS = {
+    "recipient": ("recipient", "to", "To", "OriginalRecipient", "envelope_to"),
+    "from": ("from", "sender", "From", "from_email"),
+    "subject": ("subject", "Subject"),
+    "text": ("text", "body-plain", "TextBody", "stripped-text", "plain"),
+    "html": ("html", "body-html", "HtmlBody"),
+    "message_id": ("message_id", "Message-Id", "MessageID", "message-id", "id"),
+}
+
+
+def normalise_email(data: Mapping[str, Any]) -> dict[str, Any]:
+    """One shape from whatever the mail provider POSTed.
+
+    Providers disagree on every field name (SendGrid, Postmark, Mailgun,
+    SES→SNS, and our own normalised form). Rather than a parser per vendor,
+    pull each field from a prioritised list of keys; the recipient is also
+    read out of an ``envelope`` JSON blob when a provider only puts it there.
+    """
+    out: dict[str, Any] = {}
+    for field_name, keys in _EMAIL_KEYS.items():
+        for key in keys:
+            if key in data and str(data.get(key) or "").strip():
+                out[field_name] = data[key]
+                break
+    if "recipient" not in out:
+        envelope = data.get("envelope")
+        if isinstance(envelope, str):
+            try:
+                envelope = json.loads(envelope)
+            except (TypeError, ValueError):
+                envelope = None
+        if isinstance(envelope, dict):
+            to = envelope.get("to")
+            out["recipient"] = to[0] if isinstance(to, list) and to else to
+    # Keep the body bounded, as the webhook payload is.
+    for key in ("text", "html"):
+        if isinstance(out.get(key), str) and len(out[key]) > MAX_PAYLOAD_CHARS:
+            out[key] = out[key][:MAX_PAYLOAD_CHARS] + "\n… (truncated)"
+    return out
 
 
 def new_uuid() -> str:
@@ -532,7 +603,12 @@ __all__ = [
     "MAX_PER_WORKFLOW",
     "MAX_TRIGGERS_PER_HOUR",
     "OPS",
+    "SOURCE_EMAIL",
     "SOURCE_WEBHOOK",
+    "SOURCES",
+    "address_uuid",
+    "inbound_address",
+    "normalise_email",
     "Compiled",
     "compile",
     "describe",
