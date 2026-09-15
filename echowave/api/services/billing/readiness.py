@@ -36,7 +36,7 @@ carrying no receipt voucher. Any other value is an incident, not a statistic.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -59,6 +59,7 @@ from api.db.models import (
     PaymentModel,
     PaymentTokenModel,
     ProviderRateModel,
+    SandboxJobModel,
     SubscriptionPlanModel,
     TaxDocumentModel,
     TelephonyConfigurationModel,
@@ -1225,6 +1226,113 @@ async def _carrier_enablement_check(session: AsyncSession) -> Check:
     )
 
 
+#: Composio's free allowance, tool calls a month, on the Hobby and Pro plans
+#: (composio.dev/pricing, read 15 September 2026). Past it every call is
+#: $0.0003, about 2.5 paise. A script run is charged 4 credits (Rs 2) with
+#: the calls inside it not counted, so a 200-call script past the allowance
+#: costs Rs 5 against Rs 2. The check below is how anyone finds out.
+COMPOSIO_FREE_CALLS_PER_MONTH = 100_000
+
+#: Past this share of the allowance the check warns before the money turns.
+_ALLOWANCE_WARN_SHARE = 0.8
+
+
+async def _script_runs_check(
+    session: AsyncSession, *, now: datetime | None = None
+) -> Check:
+    """Scripts running in the sandbox, and whether the calls they make are
+    still inside Composio's free allowance.
+
+    Every app call a script makes goes through Composio and is not charged
+    to the customer (Step 20, decided 15 September 2026). That is fine
+    while the month's calls sit inside the free allowance and a loss once
+    they do not, and nothing else on the receipt would show it.
+    """
+    now = now or datetime.now(UTC)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    day_ago = now - timedelta(hours=24)
+
+    running = (
+        await session.execute(
+            select(func.count(SandboxJobModel.id)).where(
+                SandboxJobModel.status == "running"
+            )
+        )
+    ).scalar_one()
+    ever = (await session.execute(select(func.count(SandboxJobModel.id)))).scalar_one()
+    calls_this_month = (
+        await session.execute(
+            select(func.coalesce(func.sum(SandboxJobModel.calls), 0)).where(
+                SandboxJobModel.started_at >= month_start
+            )
+        )
+    ).scalar_one()
+    runs_today, failed_today = (
+        await session.execute(
+            select(
+                func.count(SandboxJobModel.id),
+                func.count(SandboxJobModel.id).filter(
+                    SandboxJobModel.status.in_(("failed", "timed_out", "capped"))
+                ),
+            ).where(SandboxJobModel.started_at >= day_ago)
+        )
+    ).one()
+
+    allowance = COMPOSIO_FREE_CALLS_PER_MONTH
+    detail = (
+        f"{running} running now; {runs_today} in the last 24 hours, "
+        f"{failed_today} of them failed, timed out or hit the call cap; "
+        f"{int(calls_this_month):,} app calls inside scripts this month "
+        f"of {allowance:,} free."
+    )
+    reference = "docs/audits/2026-09-14-pricing-study.md §10 — Composio tool call"
+
+    if ever == 0:
+        return Check(
+            key="script_runs_within_allowance",
+            title="Scripts run, and their app calls are inside the free allowance",
+            status=UNKNOWN,
+            detail="No script has run on this deployment yet. " + detail,
+            reference=reference,
+            remedy=(
+                "Set SANDBOX_SECRET and pull python:3.12-slim on the host, then "
+                "run one script from a bot on Everyday or above."
+            ),
+        )
+    if calls_this_month > allowance:
+        return Check(
+            key="script_runs_within_allowance",
+            title="Scripts run, and their app calls are inside the free allowance",
+            status=ACTION_REQUIRED,
+            detail=detail,
+            reference=reference,
+            remedy=(
+                "Every further app call this month costs about 2.5 paise and is "
+                "not on any receipt. Raise the Composio plan, or count calls "
+                "inside scripts, before the loss grows."
+            ),
+        )
+    if calls_this_month > allowance * _ALLOWANCE_WARN_SHARE:
+        return Check(
+            key="script_runs_within_allowance",
+            title="Scripts run, and their app calls are inside the free allowance",
+            status=NEEDS_A_HUMAN,
+            detail=detail,
+            reference=reference,
+            remedy=(
+                "Past four fifths of the allowance. Decide before it runs out: "
+                "raise the Composio plan or count calls inside scripts."
+            ),
+        )
+    return Check(
+        key="script_runs_within_allowance",
+        title="Scripts run, and their app calls are inside the free allowance",
+        status=READY,
+        detail=detail,
+        reference=reference,
+    )
+
+
 async def assess(
     session: AsyncSession,
     *,
@@ -1250,5 +1358,6 @@ async def assess(
     checks.append(await _carrier_price_check(session))
     checks.append(await _carrier_enablement_check(session))
     checks.append(await _auto_topup_provider_check(session))
+    checks.append(await _script_runs_check(session, now=now))
     checks.append(_round_trip_obligation())
     return Readiness(checks=tuple(checks))
