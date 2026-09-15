@@ -530,6 +530,27 @@ async def process_knowledge_base_document(
             pages=pages,
             filename=filename,
         )
+        # A document that arrived on a channel (WhatsApp, email) is read for
+        # its fields and the person is asked to confirm them (A4). An upload
+        # from the screen is a knowledge-base document and is left alone.
+        try:
+            from api.tasks.arq import enqueue_job
+            from api.tasks.function_names import FunctionNames
+
+            refreshed = await db_client.get_document_by_id(document_id)
+            source = (getattr(refreshed, "custom_metadata", None) or {}).get("source")
+            if (
+                refreshed is not None
+                and int(refreshed.organization_id) == int(organization_id)
+                and source in ("whatsapp", "email")
+            ):
+                await enqueue_job(
+                    FunctionNames.EXTRACT_DOCUMENT_FIELDS, document_id, organization_id
+                )
+        except Exception as exc:  # noqa: BLE001 - filing succeeded; reading is extra
+            logger.warning(
+                "Could not queue field reading for document {}: {}", document_id, exc
+            )
 
         logger.info(
             f"Successfully processed knowledge base document {document_id}. "

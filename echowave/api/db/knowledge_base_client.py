@@ -170,6 +170,26 @@ class KnowledgeBaseClient(BaseDBClient):
             result = await session.execute(query)
             return result.scalar_one_or_none()
 
+    async def find_document_by_uuid_prefix(
+        self, prefix: str, *, organization_id: int
+    ) -> Optional[KnowledgeBaseDocumentModel]:
+        """The one document of this organisation whose uuid starts with
+        ``prefix`` (at least 8 characters), or None when none or several."""
+        prefix = (prefix or "").strip().lower()
+        if len(prefix) < 8:
+            return None
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(KnowledgeBaseDocumentModel)
+                .where(
+                    KnowledgeBaseDocumentModel.organization_id == organization_id,
+                    KnowledgeBaseDocumentModel.document_uuid.like(f"{prefix}%"),
+                )
+                .limit(2)
+            )
+            rows = result.scalars().all()
+            return rows[0] if len(rows) == 1 else None
+
     async def get_document_by_hash(
         self,
         file_hash: str,
@@ -279,6 +299,28 @@ class KnowledgeBaseClient(BaseDBClient):
 
             result = await session.execute(query)
             return list(result.scalars().all())
+
+    async def merge_document_custom_metadata(
+        self, document_id: int, *, organization_id: int, patch: dict
+    ) -> Optional[KnowledgeBaseDocumentModel]:
+        """Add keys to a document's custom_metadata, keeping what is there.
+        Org-scoped: a document id from another tenant updates nothing."""
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(KnowledgeBaseDocumentModel).where(
+                    KnowledgeBaseDocumentModel.id == document_id,
+                    KnowledgeBaseDocumentModel.organization_id == organization_id,
+                )
+            )
+            document = result.scalar_one_or_none()
+            if document is None:
+                return None
+            merged = dict(document.custom_metadata or {})
+            merged.update(patch or {})
+            document.custom_metadata = merged
+            await session.commit()
+            await session.refresh(document)
+            return document
 
     async def update_document_metadata(
         self,

@@ -253,8 +253,15 @@ class OrganisationFactClient(BaseDBClient):
         source_run_id: Optional[int] = None,
         status: str = "confirmed",
         workflow_id: Optional[int] = None,
+        subject_type: str = SUBJECT_ORGANISATION,
+        subject_key: str = "self",
     ) -> int:
         """What the business told us about itself -- or about one of its bots.
+
+        ``subject_type``/``subject_key`` name what the facts are about when it
+        is not the business: a document (``"document"``, its uuid) whose
+        fields the person confirmed (A4). Same table, same gate, same
+        traceability.
 
         Confirmed by default, because the path into here is a person answering
         a question on the onboarding form or typing it into the chat. That is
@@ -274,8 +281,8 @@ class OrganisationFactClient(BaseDBClient):
             {
                 "organization_id": organization_id,
                 "workflow_id": workflow_id,
-                "subject_type": SUBJECT_ORGANISATION,
-                "subject_key": "self",
+                "subject_type": subject_type,
+                "subject_key": subject_key,
                 "key": key,
                 "value": value,
                 "kind": "fact",

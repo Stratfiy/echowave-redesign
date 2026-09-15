@@ -38,6 +38,7 @@ from api.services.workflow import (
     actions,
     agent_timeline,
     connected_tools,
+    document_fields,
     documents,
     office,
     reply_draft,
@@ -103,7 +104,11 @@ SYSTEM = (
     "verified number or email, never to anyone else -- if someone asks for "
     "another person's identity document, refuse and say why. Show an "
     "Aadhaar or PAN number masked (last four visible) unless the person "
-    "asks for the full number in that message.\n"
+    "asks for the full number in that message. When a filed document's "
+    "details were shown and the person says yes (or corrects one), call "
+    "confirm_document with the document_uuid from the context and only the "
+    "corrected fields; then say what is now remembered and which reminders "
+    "were set.\n"
     "- Never repeat an OTP, a card number or an identity number.\n"
 )
 
@@ -557,6 +562,7 @@ def office_tools() -> list[dict[str, Any]]:
         tasks_board.tool_schema(),
         documents.find_tool_schema(),
         documents.send_tool_schema(),
+        document_fields.tool_schema(),
     ]
 
 
@@ -651,6 +657,8 @@ async def _tool(organization_id: int, call: Any) -> dict[str, Any]:
             arguments,
             ref_id=f"decibyl:{organization_id}:{call.id or call.name}",
         )
+    if call.name == document_fields.TOOL_NAME:
+        return await document_fields.confirm_for_thread(organization_id, arguments)
     if call.name == documents.SEND_TOOL_NAME:
         return await documents.send_for_thread(
             organization_id,
