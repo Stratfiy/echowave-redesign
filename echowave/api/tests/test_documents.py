@@ -179,6 +179,12 @@ class TestDelivering:
             patch("api.services.messaging.send.send_message", send),
             patch.object(documents, "_charge_whatsapp", AsyncMock()) as charge,
             patch.object(documents.agent_timeline, "record", record),
+            # The person wrote in within the day: the window is open. CI's
+            # real Redis would otherwise answer "closed" and refuse.
+            patch(
+                "api.services.messaging.whatsapp_inbound.session_open",
+                AsyncMock(return_value=True),
+            ),
         ):
             line = await documents.deliver(
                 ORG,
