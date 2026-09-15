@@ -261,13 +261,21 @@ async def answer_decibyl_message(
     asked: list[int] | None = None,
     preset: str | None = None,
     subjects: list[int] | None = None,
+    reply_to: dict | None = None,
 ) -> None:
-    """Decibyl's turn on its own thread. See services/workflow/decibyl.py."""
+    """Decibyl's turn on its own thread. See services/workflow/decibyl.py.
+    ``reply_to`` sends the answer back on the channel it came from too."""
     from api.services.workflow import decibyl
 
-    await decibyl.answer(
+    body = await decibyl.answer(
         organization_id, text, asked=asked, preset=preset, subjects=subjects
     )
+    if reply_to and reply_to.get("channel") == "whatsapp" and reply_to.get("to"):
+        from api.services.messaging import whatsapp_inbound
+
+        await whatsapp_inbound.reply(
+            organization_id=organization_id, to=str(reply_to["to"]), body=body
+        )
 
 
 async def run_proposed_action(_ctx, event_id: int, organization_id: int) -> None:

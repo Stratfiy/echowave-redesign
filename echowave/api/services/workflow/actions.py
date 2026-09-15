@@ -74,7 +74,11 @@ ACTIONS = (TURN_BOT_ON, TURN_BOT_OFF, RETURN_MISSED_CALL, FORGET_FACT, CREATE_BO
 #: app's own function (see connected_tools), and a write is turned into this
 #: card rather than run. Accepted by resolve/_execute like any other kind.
 RUN_TOOL = "run_tool"
-INTERNAL_ACTIONS = (RUN_TOOL,)
+#: Hand somebody their own identity document (A2). Proposed by Decibyl's
+#: send_document tool, never offered in propose_action's enum: the card is
+#: the "are you sure" the rule requires, and a person confirms it.
+SEND_DOCUMENT = "send_document"
+INTERNAL_ACTIONS = (RUN_TOOL, SEND_DOCUMENT)
 
 #: The states a proposal moves through. Terminal ones are the last four.
 PROPOSED = "proposed"
@@ -219,6 +223,40 @@ async def resolve(
             # An email sent or a record created in somebody else's system
             # has no inverse we can promise; the undo window before it fires
             # is the safety, not a button after.
+            "reversible": False,
+            "state": PROPOSED,
+        }
+
+    if action == SEND_DOCUMENT:
+        from api.services.workflow import documents
+
+        name = str(arguments.get("name") or "").strip()[:200]
+        file_id = str(arguments.get("file_id") or "").strip()
+        if not name or not file_id:
+            raise ActionError("Say which file.")
+        channel = str(arguments.get("channel") or "").strip().lower()
+        try:
+            to = await documents.check_destination(
+                organization_id,
+                channel=channel,
+                to=str(arguments.get("to") or ""),
+                identity=documents.is_identity(name),
+            )
+        except documents.DocumentError as exc:
+            raise ActionError(str(exc)) from exc
+        return {
+            "action": action,
+            "args": {
+                "file_id": file_id,
+                "name": name,
+                "channel": channel,
+                "to": to,
+                "note": str(arguments.get("note") or "")[:300],
+            },
+            "label": f"Send {name} to {documents.mask_destination(to)} on "
+            f"{'WhatsApp' if channel == 'whatsapp' else 'email'}",
+            "why": why,
+            # A file that has left cannot be unsent.
             "reversible": False,
             "state": PROPOSED,
         }
@@ -596,6 +634,22 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
             workflow_run_id=run_id,
         )
         return f"Calling {row.caller} back now."
+    if action == SEND_DOCUMENT:
+        from api.services.workflow import documents
+
+        confirmed_at = str((payload.get("confirmed") or {}).get("at") or "")
+        try:
+            return await documents.deliver(
+                organization_id,
+                file_id=str(args.get("file_id") or ""),
+                name=str(args.get("name") or ""),
+                channel=str(args.get("channel") or ""),
+                to=str(args.get("to") or ""),
+                note=str(args.get("note") or ""),
+                ref_id=f"send_document:{organization_id}:{args.get('file_id')}:{confirmed_at}",
+            )
+        except documents.DocumentError as exc:
+            raise ActionError(str(exc)) from exc
     if action == RUN_TOOL:
         from api.services.workflow import connected_tools
 
