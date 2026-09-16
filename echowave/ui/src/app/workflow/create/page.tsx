@@ -220,6 +220,12 @@ export default function CreateWorkflowPage() {
     const [workflowId, setWorkflowId] = useState<string | null>(null);
 
     // Step 1 — identity
+    //
+    // The channel is asked before the direction, because the direction is
+    // only a question if there is a phone. Asking "inbound or outbound"
+    // first and "on the phone or in writing" second is how somebody ends up
+    // labelling a chat bot outbound.
+    const [channel, setChannel] = useState<"voice" | "chat">("voice");
     const [callType, setCallType] = useState<"inbound" | "outbound">("inbound");
     const [agentName, setAgentName] = useState("");
     const [industry, setIndustry] = useState("");
@@ -350,6 +356,7 @@ export default function CreateWorkflowPage() {
         // accepts rather than the one the stale type describes. Regenerating
         // the client removes the need for it.
         const body: Record<string, unknown> = {
+            channel,
             call_type: callType,
             use_case: objective.trim().slice(0, 80),
             objective: objective.trim(),
@@ -485,26 +492,72 @@ export default function CreateWorkflowPage() {
                             templates available. */}
                         <StartFromTemplate framed />
 
-                        <Field label="Call type" required>
-                            <Select
-                                value={callType}
-                                onValueChange={(value) =>
-                                    setCallType(value as "inbound" | "outbound")
-                                }
-                            >
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="inbound">
-                                        Inbound — people call your agent
-                                    </SelectItem>
-                                    <SelectItem value="outbound">
-                                        Outbound — your agent calls people
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
+                        <Field label="How does it reach people?" required>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                                {(
+                                    [
+                                        {
+                                            value: "voice" as const,
+                                            label: "On the phone",
+                                            hint: "It rings, or it answers.",
+                                        },
+                                        {
+                                            value: "chat" as const,
+                                            label: "In writing",
+                                            hint: "A chat window or a channel. No number needed.",
+                                        },
+                                    ]
+                                ).map((option) => (
+                                    <button
+                                        key={option.value}
+                                        type="button"
+                                        onClick={() => setChannel(option.value)}
+                                        className={cn(
+                                            "rounded-lg border p-3 text-left transition-colors",
+                                            channel === option.value
+                                                ? "border-primary bg-accent"
+                                                : "border-border hover:bg-muted/40",
+                                        )}
+                                    >
+                                        <span className="block text-sm font-medium">
+                                            {option.label}
+                                        </span>
+                                        <span className="block text-xs text-muted-foreground">
+                                            {option.hint}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
                         </Field>
+
+                        {/* Only a question when there is a phone. A chat
+                            conversation is opened by the person typing, so
+                            asking a chat bot whether it is inbound or
+                            outbound is asking about a thing that does not
+                            happen -- and the answer would go on the bot and
+                            be read later as if it meant something. */}
+                        {channel === "voice" && (
+                            <Field label="Call type" required>
+                                <Select
+                                    value={callType}
+                                    onValueChange={(value) =>
+                                        setCallType(value as "inbound" | "outbound")
+                                    }
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="inbound">
+                                            Inbound — people call your agent
+                                        </SelectItem>
+                                        <SelectItem value="outbound">
+                                            Outbound — your agent calls people
+                                        </SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </Field>
+                        )}
 
                         <div className="grid gap-4 sm:grid-cols-2">
                             <Field
@@ -591,25 +644,33 @@ export default function CreateWorkflowPage() {
                             </div>
                         </Field>
 
-                        <Field
-                            label="Voice"
-                            hint="What the caller hears. Changeable later without rebuilding the bot."
-                        >
-                            {!options ? (
-                                <span className="text-sm text-muted-foreground">
-                                    Loading voices…
-                                </span>
-                            ) : (
-                                <VoicePicker
-                                    voices={voiceList}
-                                    selected={voice}
-                                    onSelect={(id, group) => {
-                                        setVoice(id);
-                                        setGender(group);
-                                    }}
-                                />
-                            )}
-                        </Field>
+                        {/* Nothing to choose for a bot that never speaks.
+                            Leaving it on screen would not just waste a
+                            question: whatever was picked would be written
+                            onto the agent, and the settings screen would
+                            later offer to change the voice of a thing that
+                            has none. */}
+                        {channel === "voice" && (
+                            <Field
+                                label="Voice"
+                                hint="What the caller hears. Changeable later without rebuilding the bot."
+                            >
+                                {!options ? (
+                                    <span className="text-sm text-muted-foreground">
+                                        Loading voices…
+                                    </span>
+                                ) : (
+                                    <VoicePicker
+                                        voices={voiceList}
+                                        selected={voice}
+                                        onSelect={(id, group) => {
+                                            setVoice(id);
+                                            setGender(group);
+                                        }}
+                                    />
+                                )}
+                            </Field>
+                        )}
 
                         {presetList.length > 0 && (
                             <Field
