@@ -395,3 +395,62 @@ describe('the thread carries its own next steps', () => {
         expect(screen.queryByTestId('thread-chips')).toBeNull();
     });
 });
+
+describe('the little markdown a model writes', () => {
+    /** The defect: a reply printed `**Wednesday Web Drop**` with the asterisks
+     *  on screen. Nothing rendered markdown and no library is installed. */
+    const withBody = (body: string) =>
+        timeline.mockResolvedValue({
+            data: {
+                events: [event({ payload: { body } })],
+                next_before_at: null,
+                next_before_id: null,
+            },
+        });
+
+    it('renders bold as bold, without the asterisks', async () => {
+        withBody('1. **Wednesday Web Drop** — Mobbin');
+        render(<ChannelStream folderId={5} botNames={{}} />);
+        const strong = await screen.findByText('Wednesday Web Drop');
+        expect(strong.tagName).toBe('STRONG');
+        expect(screen.queryByText(/\*\*/)).toBeNull();
+    });
+
+    it('keeps the words around it', async () => {
+        withBody('1. **Web Drop** — Mobbin');
+        render(<ChannelStream folderId={5} botNames={{}} />);
+        await screen.findByText('Web Drop');
+        expect(screen.getByText(/— Mobbin/)).toBeTruthy();
+    });
+
+    it('renders inline code', async () => {
+        withBody('the tool is `GMAIL_SEND_EMAIL`');
+        render(<ChannelStream folderId={5} botNames={{}} />);
+        const code = await screen.findByText('GMAIL_SEND_EMAIL');
+        expect(code.tagName).toBe('CODE');
+    });
+
+    it('leaves a handle its own colour, not emphasis', async () => {
+        // Emphasis reads inside a tag token's neighbours, never across them.
+        withBody('ask @frontdesk about **the booking**');
+        render(<ChannelStream folderId={5} botNames={{}} />);
+        const handle = await screen.findByText('@frontdesk');
+        expect(handle.tagName).toBe('SPAN');
+        expect((await screen.findByText('the booking')).tagName).toBe('STRONG');
+    });
+
+    it('never turns a relayed subject line into markup', async () => {
+        // These replies carry text written by strangers -- one subject line in
+        // the real case was flagged by the bot itself as probable phishing.
+        withBody('subject: <img src=x onerror=alert(1)>');
+        const { container } = render(<ChannelStream folderId={5} botNames={{}} />);
+        await screen.findByText(/subject:/);
+        expect(container.querySelector('img')).toBeNull();
+    });
+
+    it('leaves arithmetic alone', async () => {
+        withBody('2 * 3 = 6');
+        render(<ChannelStream folderId={5} botNames={{}} />);
+        expect(await screen.findByText(/2 \* 3 = 6/)).toBeTruthy();
+    });
+});
