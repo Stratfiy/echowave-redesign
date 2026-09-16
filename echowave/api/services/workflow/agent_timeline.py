@@ -33,6 +33,8 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind, AgentEventVisibility
+from api.services.notifications import inbox
+from api.services.workflow import bot_notices
 
 #: Kinds a person is *handed* rather than merely shown: they render as a card
 #: in the thread and appear in the Deliverables list.
@@ -123,6 +125,73 @@ async def record(
         )
     except Exception as exc:  # noqa: BLE001 - a timeline must never end a call
         logger.warning("Could not record agent event {}: {}", kind, exc)
+        # The bell is not rung for a row that was not written. A notice
+        # linking to a timeline entry that does not exist is worse than no
+        # notice.
+        return
+
+    await _ring_the_bell(
+        organization_id=organization_id,
+        kind=kind,
+        summary=summary,
+        workflow_id=workflow_id,
+    )
+
+
+async def _ring_the_bell(
+    *,
+    organization_id: int,
+    kind: str,
+    summary: str,
+    workflow_id: Optional[int],
+) -> None:
+    """Put this event in the account's inbox, if the bot is set to say so.
+
+    Separate from the write above and wrapped in its own guard, because the
+    rule this module is built on is that a timeline must never end a call.
+    A notification is a courtesy on top of a row that is already safely
+    stored; it must not be able to undo it.
+
+    Cheap in the common case: the vast majority of events are kinds nobody
+    can subscribe to -- messages, call starts, credit holds -- and those
+    leave before anything is loaded.
+    """
+    if workflow_id is None or kind not in bot_notices.NOTIFIABLE:
+        return
+    try:
+        workflow = await db_client.get_workflow(
+            workflow_id, organization_id=organization_id
+        )
+        if workflow is None:
+            return
+        # The workflow row, deliberately, and not the published definition.
+        #
+        # Configuration lives on versioned definitions, and `save_workflow_draft`
+        # syncs this column on every save -- so the row is the *latest edit*
+        # and the published definition is what the bot currently answers on.
+        # For how a bot behaves, published is right. For this it is not:
+        # "tell me when this bot breaks" is a preference about the reader,
+        # not behaviour to stage and release, and reading the published copy
+        # would mean somebody ticks a box, saves, and is not told until they
+        # publish the bot -- with nothing on screen to explain the silence.
+        #
+        # It also means rolling a bot back to an earlier version does not
+        # quietly un-choose what its owner asked to hear about.
+        if not bot_notices.wants(workflow.workflow_configurations, kind):
+            return
+        await inbox.post(
+            organization_id=organization_id,
+            kind=f"bot:{kind}",
+            # The row is the event, so two different events on the same bot
+            # are two notices and a retry of one is not. Timestamped to the
+            # second: a job that records the same event twice in a minute is
+            # a duplicate, and the inbox should absorb it.
+            dedupe_key=f"{workflow_id}:{kind}:{summary[:60]}",
+            title=f"{workflow.name}: {summary[:200]}",
+            link=f"/workflow/{workflow_id}/runs",
+        )
+    except Exception as exc:  # noqa: BLE001 - the row is already written
+        logger.warning("Could not notify for agent event {}: {}", kind, exc)
 
 
 def call_summary(

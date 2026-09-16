@@ -1398,6 +1398,22 @@ export type BodyUploadNumbersApiV1DoNotCallUploadPost = {
 export type BotChannel = 'voice' | 'chat';
 
 /**
+ * BotNoticesResponse
+ *
+ * What this bot can tell you about, and what it is set to.
+ */
+export type BotNoticesResponse = {
+    /**
+     * Offered
+     */
+    offered: Array<NoticeOption>;
+    /**
+     * Selected
+     */
+    selected: Array<string>;
+};
+
+/**
  * BotOutcomesResponse
  *
  * One bot's results over the window.
@@ -7338,6 +7354,28 @@ export type NoiseSuppressionConfigurationDefaults = {
 };
 
 /**
+ * NoticeOption
+ */
+export type NoticeOption = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * When
+     */
+    when: string;
+    /**
+     * Default
+     */
+    default: boolean;
+};
+
+/**
  * NumberInputOptions
  *
  * Renderer hints for numeric inputs.
@@ -10278,6 +10316,16 @@ export type ServiceKeyResponse = {
      * Created By
      */
     created_by?: string | null;
+};
+
+/**
+ * SetBotNoticesRequest
+ */
+export type SetBotNoticesRequest = {
+    /**
+     * Kinds
+     */
+    kinds: Array<string>;
 };
 
 /**
@@ -23572,6 +23620,94 @@ export type GetOutcomeBoardApiV1WorkflowOutcomesGetResponses = {
 };
 
 export type GetOutcomeBoardApiV1WorkflowOutcomesGetResponse = GetOutcomeBoardApiV1WorkflowOutcomesGetResponses[keyof GetOutcomeBoardApiV1WorkflowOutcomesGetResponses];
+
+export type GetBotNoticesApiV1WorkflowWorkflowIdNoticesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/notices';
+};
+
+export type GetBotNoticesApiV1WorkflowWorkflowIdNoticesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetBotNoticesApiV1WorkflowWorkflowIdNoticesGetError = GetBotNoticesApiV1WorkflowWorkflowIdNoticesGetErrors[keyof GetBotNoticesApiV1WorkflowWorkflowIdNoticesGetErrors];
+
+export type GetBotNoticesApiV1WorkflowWorkflowIdNoticesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: BotNoticesResponse;
+};
+
+export type GetBotNoticesApiV1WorkflowWorkflowIdNoticesGetResponse = GetBotNoticesApiV1WorkflowWorkflowIdNoticesGetResponses[keyof GetBotNoticesApiV1WorkflowWorkflowIdNoticesGetResponses];
+
+export type SetBotNoticesApiV1WorkflowWorkflowIdNoticesPutData = {
+    body: SetBotNoticesRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/notices';
+};
+
+export type SetBotNoticesApiV1WorkflowWorkflowIdNoticesPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetBotNoticesApiV1WorkflowWorkflowIdNoticesPutError = SetBotNoticesApiV1WorkflowWorkflowIdNoticesPutErrors[keyof SetBotNoticesApiV1WorkflowWorkflowIdNoticesPutErrors];
+
+export type SetBotNoticesApiV1WorkflowWorkflowIdNoticesPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: BotNoticesResponse;
+};
+
+export type SetBotNoticesApiV1WorkflowWorkflowIdNoticesPutResponse = SetBotNoticesApiV1WorkflowWorkflowIdNoticesPutResponses[keyof SetBotNoticesApiV1WorkflowWorkflowIdNoticesPutResponses];
 
 export type UpdateWorkflowStatusApiV1WorkflowWorkflowIdStatusPutData = {
     body: UpdateWorkflowStatusRequest;
