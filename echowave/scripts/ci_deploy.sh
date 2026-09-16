@@ -354,10 +354,46 @@ EOF
 }
 trap rollback ERR
 
+#: Where the three application images come from.
+#:
+#:   build     -- build them here (today's behaviour, and the default)
+#:   registry  -- pull them, built by CI and pushed to ECR
+#:
+#: Building on this box is the expensive default. A Next.js production build
+#: saturates all four vCPU, and those are the same cores that carry live
+#: calls: run_pipeline_telephony runs inside the uvicorn workers, so every
+#: deploy during business hours degrades every conversation in progress and
+#: presents to the customer as the model being slow. It is also where the
+#: 143GB of build cache that filled the disk came from.
+#:
+#: Defaults to `build` so that merging this changes nothing. Set
+#: IMAGE_SOURCE=registry in the box's .env once the ECR repositories exist
+#: and CI has pushed at least one tag; one line to switch, one to switch back.
+IMAGE_SOURCE="${IMAGE_SOURCE:-build}"
+
 ensure_room
 
-say "Building"
-docker compose build api ui sandbox
+if [ "$IMAGE_SOURCE" = "registry" ]; then
+    # The exact commit, never `latest`. A deploy that pulled a moving tag
+    # would put whatever CI happened to finish last on the box, which is not
+    # necessarily the commit this run was asked to deploy -- and a rollback
+    # to `latest` would roll forward.
+    export IMAGE_TAG="$NEW_SHA"
+    say "Pulling images for $NEW_SHA (no build on this box)"
+    if ! docker compose pull api ui sandbox; then
+        # Loudly, and without falling back to a build. A silent fallback
+        # would mean nobody ever finds out the registry stopped working, and
+        # the first symptom would be a deploy that mysteriously takes six
+        # minutes and degrades calls again.
+        say "Could not pull the images for $NEW_SHA."
+        say "Check that CI published them and that this box may read the registry."
+        say "To deploy from source instead: IMAGE_SOURCE=build"
+        exit 1
+    fi
+else
+    say "Building"
+    docker compose build api ui sandbox
+fi
 
 say "Starting"
 # --profile remote is not optional, and leaving it off fails silently.
