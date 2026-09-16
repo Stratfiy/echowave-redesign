@@ -279,3 +279,101 @@ class TestAFileIsABrief:
             )
         assert "Spec.docx" in block
         assert bot_from_brief.TOOL_NAME in block
+
+
+class TestABriefThatNamesASchedule:
+    """The gap the live product exposed.
+
+    Asked to build a bot that "reads my Gmail every morning at 8am", the
+    product built a live bot whose triggers list was empty. The routine
+    runtime was complete -- a clock every minute, a runner, four cadences --
+    and nothing created a routine from what the person said. The eight
+    o'clock survived only as prose in the spec, where no clock reads it.
+    """
+
+    BRIEF = (
+        "Reads my Gmail every morning at 8am and posts me a short summary of "
+        "what came in overnight - who wrote, what they want, and anything "
+        "urgent."
+    )
+
+    def _build(self, spec, routine=None):
+        return (
+            patch.object(
+                bot_from_brief,
+                "generate_workflow_definition",
+                AsyncMock(return_value={"workflow_definition": {"nodes": []}}),
+            ),
+            patch.object(
+                bot_from_brief.db_client,
+                "create_workflow",
+                AsyncMock(return_value=_Workflow()),
+            ),
+            patch.object(
+                bot_from_brief.db_client, "assert_trigger_paths_available", AsyncMock()
+            ),
+            patch.object(
+                bot_from_brief.db_client,
+                "create_routine",
+                routine or AsyncMock(),
+            ),
+        )
+
+    async def _run(self, spec, routine=None):
+        gen, create, paths, made = self._build(spec, routine)
+        with gen, create, paths, made:
+            return await bot_from_brief.build(
+                organization_id=7,
+                user_id=9,
+                args={
+                    "name": "Inbox Brief",
+                    "call_type": "inbound",
+                    "use_case": "Daily Gmail summary",
+                    "spec": spec,
+                },
+            )
+
+    @pytest.mark.asyncio
+    async def test_the_bot_gets_the_routine_its_brief_described(self):
+        made = AsyncMock()
+        await self._run(self.BRIEF, made)
+        assert made.await_count == 1
+        kwargs = made.await_args.kwargs
+        assert kwargs["organization_id"] == 7
+        assert kwargs["cadence"] == "daily"
+        assert kwargs["anchor"] == "clock"
+        assert kwargs["at_minute"] == 8 * 60
+
+    @pytest.mark.asyncio
+    async def test_the_card_says_when_it_runs_and_that_it_needs_testing(self):
+        """A routine cannot arm until it has been test-run. Leaving that
+        unsaid leaves somebody wondering why 8am came and went."""
+        done = await self._run(self.BRIEF)
+        assert done["runs"] == "every day at 08:00"
+        assert "every day at 08:00" in done["note"]
+        assert "test" in done["note"].lower()
+
+    @pytest.mark.asyncio
+    async def test_a_brief_with_no_schedule_makes_no_routine(self):
+        """The bot is built exactly as it was before this existed."""
+        made = AsyncMock()
+        done = await self._run(SPEC, made)
+        made.assert_not_awaited()
+        assert done["runs"] is None
+        assert "runs" not in done["note"]
+
+    @pytest.mark.asyncio
+    async def test_a_routine_that_cannot_be_written_does_not_lose_the_bot(self):
+        """The bot is the deliverable; the schedule is not worth it."""
+        made = AsyncMock(side_effect=RuntimeError("db down"))
+        done = await self._run(self.BRIEF, made)
+        assert done["workflow_id"] is not None
+        assert done["runs"] is None
+
+    @pytest.mark.asyncio
+    async def test_the_routine_is_told_what_to_do_each_run(self):
+        """The instruction is the brief, so two routines can share one bot
+        and differ only in what they are told each morning."""
+        made = AsyncMock()
+        await self._run(self.BRIEF, made)
+        assert "summary" in made.await_args.kwargs["instruction"]

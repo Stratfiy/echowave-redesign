@@ -27,12 +27,13 @@ card offering Hear it and Try it on the bot that came out.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 from loguru import logger
 
 from api.db import db_client
 from api.enums import BotChannel, CallType
+from api.services.workflow import schedule_from_words
 from api.services.workflow.agent_brief import (
     AgentBrief,
     apply_brief,
@@ -251,9 +252,67 @@ async def build(
             logger.warning("Could not claim trigger paths for the built bot: {}", exc)
 
     steps = len((definition or {}).get("nodes") or [])
+    note = f"Built {workflow.name} — {steps} step{'' if steps == 1 else 's'}."
+
+    # The schedule the person said, if they said one. Without this a bot asked
+    # for "every morning at 8am" was built live with an empty triggers list:
+    # the eight o'clock survived as prose in the spec, where no clock reads it,
+    # and nothing anywhere said the bot would never run.
+    scheduled = await _schedule_it(
+        organization_id=organization_id,
+        workflow_id=workflow.id,
+        name=workflow.name,
+        spec=str(args.get("spec") or ""),
+    )
+    if scheduled:
+        note = f"{note} It runs {scheduled}, once you test it."
+
     return {
         "workflow_id": workflow.id,
         "handle": getattr(workflow, "handle", None),
         "steps": steps,
-        "note": f"Built {workflow.name} — {steps} step{'' if steps == 1 else 's'}.",
+        "runs": scheduled,
+        "note": note,
     }
+
+
+async def _schedule_it(
+    *, organization_id: int, workflow_id: int, name: str, spec: str
+) -> Optional[str]:
+    """Give the built bot the routine its brief described, if it described one.
+
+    Returns how to say the schedule back, or ``None`` when the brief named no
+    schedule -- in which case the bot is built exactly as it was before this
+    existed.
+
+    Created inactive, which is not a limitation but the existing gate: a
+    routine cannot arm until it has been test-run, so a schedule read out of
+    prose gets the same proving somebody typing it into the form would get.
+    The note says so rather than leaving a person to wonder why 8am came and
+    went.
+
+    Never raises. A routine that could not be written is a bot without a
+    schedule, which is the bot they would have had anyway; losing the bot over
+    it would be a worse trade.
+    """
+    schedule = schedule_from_words.parse(spec)
+    if schedule is None:
+        return None
+    try:
+        await db_client.create_routine(
+            organization_id=organization_id,
+            workflow_id=workflow_id,
+            name=name,
+            instruction=spec,
+            cadence=schedule.cadence.value,
+            anchor=schedule.anchor.value,
+            at_minute=schedule.at_minute,
+            offset_minutes=schedule.offset_minutes,
+            weekday=schedule.weekday,
+        )
+    except Exception as exc:  # noqa: BLE001 - the bot is the deliverable
+        logger.warning(
+            "Built {} but could not give it the schedule it asked for: {}", name, exc
+        )
+        return None
+    return schedule.said
