@@ -1,6 +1,8 @@
-from typing import Literal, Optional
+from typing import Any, Literal, Mapping, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from api.enums import BotChannel
 
 DEFAULT_MAX_CALL_DURATION_SECONDS = 300
 # Hard ceiling on configurable call duration. Must stay <= the concurrency
@@ -256,6 +258,17 @@ class WorkflowConfigurationDefaults(BaseModel):
             return {k: v for k, v in data.items() if v is not None}
         return data
 
+    #: Whether this bot works on the phone or in writing.
+    #:
+    #: Defaults to voice because every bot that existed before this field did
+    #: was a call bot, and a default that changed what an unset value means
+    #: would silently take a hundred working agents off the phone.
+    #:
+    #: Not a direction. Who rings whom stays in ``WorkflowModel.call_type``;
+    #: a chat bot simply has no answer to that question, which is why this is
+    #: a separate field rather than a third call type.
+    channel: BotChannel = BotChannel.VOICE
+
     ambient_noise_configuration: AmbientNoiseConfigurationDefaults = Field(
         default_factory=AmbientNoiseConfigurationDefaults
     )
@@ -412,3 +425,53 @@ def new_agent_workflow_configurations() -> dict:
     than inherited, so an operator turning it off keeps it off.
     """
     return {"follow_caller_language": True}
+
+
+def channel_of(configurations: Any) -> BotChannel:
+    """Which channel a stored configuration block describes.
+
+    The one predicate everything else reads, so that "is this a chat bot"
+    cannot come to mean two different things in two files.
+
+    Tolerant on purpose. This comes out of a JSON column written by several
+    versions of the client, and the answer to "is this bot on the phone"
+    must never be an exception on a page that was only trying to render a
+    heading. Anything unreadable is voice, which is what the bot was before
+    this field existed.
+    """
+    if not isinstance(configurations, Mapping):
+        return BotChannel.VOICE
+    raw = configurations.get("channel")
+    if isinstance(raw, BotChannel):
+        return raw
+    try:
+        return BotChannel(raw)
+    except ValueError:
+        return BotChannel.VOICE
+
+
+def is_chat(configurations: Any) -> bool:
+    """Whether this bot never touches a phone."""
+    return channel_of(configurations) is BotChannel.CHAT
+
+
+def preserve_channel(incoming: dict | None, stored: Any) -> dict | None:
+    """Carry the channel forward across a save that did not mention it.
+
+    A settings save sends a sparse block and *replaces* the stored one, so
+    any screen that saves without knowing about ``channel`` would drop it --
+    and dropping it does not read as an error anywhere, because
+    :func:`channel_of` answers VOICE for an absent value by design. The bot
+    would quietly go back on the phone, and the only symptom would be a chat
+    window being thanked for calling.
+
+    Deliberately one key, not a deep merge of the whole block. A general
+    merge would also resurrect settings somebody meant to clear; this is the
+    one field whose absence means "nobody asked" rather than "unset me".
+    """
+    if incoming is None or "channel" in incoming:
+        return incoming
+    existing = stored.get("channel") if isinstance(stored, Mapping) else None
+    if not existing:
+        return incoming
+    return {**incoming, "channel": existing}

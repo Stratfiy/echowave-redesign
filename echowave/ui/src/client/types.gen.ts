@@ -1374,6 +1374,30 @@ export type BodyUploadNumbersApiV1DoNotCallUploadPost = {
 };
 
 /**
+ * BotChannel
+ *
+ * Where a bot does its work: on the phone, or in writing.
+ *
+ * Deliberately two values, and deliberately *not* the publisher-facing
+ * ``Channel`` in ``services/packs/_base.py``. That one names WhatsApp,
+ * email, Slack and Telegram because a marketplace listing can promise them;
+ * this one is read by the runtime, and the runtime has exactly two -- the
+ * pipecat pipeline and the text-chat runner. A third value here would be a
+ * claim the product cannot keep.
+ *
+ * ``VOICE`` says nothing about direction. Who rings whom is
+ * ``WorkflowModel.call_type``, which is unchanged: a voice bot is inbound or
+ * outbound as it always was, and a chat bot is neither, which is the whole
+ * point of this enum existing rather than a third ``CallType``.
+ *
+ * Stored in ``workflow_configurations``, so no migration and no new column
+ * on a table telephony reads. Absent means VOICE -- every bot that existed
+ * before this did was a call bot, and an unset field has to keep meaning
+ * what it meant.
+ */
+export type BotChannel = 'voice' | 'chat';
+
+/**
  * BotOutcomesResponse
  *
  * One bot's results over the window.
@@ -13075,6 +13099,7 @@ export type WorkerHealthResponse = {
  * WorkflowConfigurationDefaults
  */
 export type WorkflowConfigurationDefaults = {
+    channel?: BotChannel;
     ambient_noise_configuration?: AmbientNoiseConfigurationDefaults;
     noise_suppression_configuration?: NoiseSuppressionConfigurationDefaults;
     recording_configuration?: RecordingConfigurationDefaults;
