@@ -266,8 +266,44 @@ def test_anthropic_puts_the_system_prompt_at_the_top_level():
         model="claude", system="SYS", conversation=conversation, tools=TOOLS
     )
 
-    assert payload["system"] == "SYS"
+    # A block rather than a bare string since it became cacheable, but the
+    # invariant this test is for is unchanged: the system prompt goes at the
+    # top level and never as a message in the list.
+    assert payload["system"] == [
+        {"type": "text", "text": "SYS", "cache_control": {"type": "ephemeral"}}
+    ]
     assert all(m["role"] != "system" for m in payload["messages"])
+
+
+def test_anthropic_marks_the_system_prompt_cacheable():
+    """It is the one block byte-identical on every turn of every thread.
+
+    A cache miss costs exactly what the plain string cost, so this is the
+    block with the most to gain and nothing to lose.
+    """
+    conversation, _ = _conversation_with_a_tool_round_trip()
+    payload = builder_client._anthropic_request(
+        model="claude", system="SYS", conversation=conversation, tools=TOOLS
+    )
+
+    assert payload["system"][0]["cache_control"] == {"type": "ephemeral"}
+
+
+def test_nothing_that_changes_every_turn_is_marked_cacheable():
+    """Marking a changing block buys a cache write and never a read.
+
+    The per-turn context -- team, memory, the knowledge base -- rides in the
+    user message, and none of it carries a marker.
+    """
+    conversation, _ = _conversation_with_a_tool_round_trip()
+    payload = builder_client._anthropic_request(
+        model="claude", system="SYS", conversation=conversation, tools=TOOLS
+    )
+
+    for message in payload["messages"]:
+        content = message["content"]
+        blocks = content if isinstance(content, list) else []
+        assert all("cache_control" not in b for b in blocks if isinstance(b, dict))
 
 
 def test_anthropic_returns_tool_results_as_a_user_turn():

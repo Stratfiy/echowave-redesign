@@ -34,7 +34,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
-from api.services import reporting_window
+from api.services import prompt_budget, reporting_window
 from api.services.knowledge_graph import quiet, recall, teach
 from api.services.organization_preferences import get_organization_preferences
 from api.services.workflow import (
@@ -363,19 +363,48 @@ def documents_block(rows: list[Any], names: dict[int, str]) -> str:
 
 
 def memory_block(rows: list[Any]) -> str:
+    """What the business has confirmed, bounded the way a call bounds it.
+
+    The voice path capped this at forty a long time ago and wrote down why.
+    This reads the same table through a different function and had no cap at
+    all -- two hundred confirmed facts measured 28,089 characters here
+    against 5,842 on the voice side, in every turn of every thread.
+    """
     facts = [
-        f"- {r.key}: {r.value}" for r in rows if getattr(r, "kind", "fact") == "fact"
+        f"- {r.key}: {prompt_budget.clip(str(r.value), prompt_budget.MAX_FACT_CHARS)}"
+        for r in rows
+        if getattr(r, "kind", "fact") == "fact"
     ]
-    return "\n".join(facts) if facts else "Nothing confirmed yet."
+    if not facts:
+        return "Nothing confirmed yet."
+    return "\n".join(
+        prompt_budget.lines(facts, max_items=prompt_budget.MAX_FACTS, noun="fact")
+    )
 
 
 def recent_block(events: list[Any], bot_names: dict[int, str]) -> str:
-    lines = []
+    """The timeline, bounded on both axes.
+
+    The query already limits the rows. That is half a bound: one event whose
+    summary is a pasted transcript passes any row count, so each summary is
+    clipped as well.
+    """
+    entries = []
     for e in events:
         who = bot_names.get(e.workflow_id, "") if e.workflow_id is not None else ""
         stamp = e.at.strftime("%d %b %H:%M") if getattr(e, "at", None) else ""
-        lines.append(f"- {stamp} {who + ': ' if who else ''}{e.summary}")
-    return "\n".join(lines) if lines else "Nothing recorded lately."
+        summary = prompt_budget.clip(str(e.summary), prompt_budget.MAX_EVENT_CHARS)
+        entries.append(f"- {stamp} {who + ': ' if who else ''}{summary}")
+    if not entries:
+        return "Nothing recorded lately."
+    return "\n".join(
+        prompt_budget.lines(
+            entries,
+            max_items=prompt_budget.MAX_EVENTS,
+            noun="entry",
+            plural="entries",
+        )
+    )
 
 
 def knowledge_block(result: dict[str, Any], contacts: list[Any] | None = None) -> str:
