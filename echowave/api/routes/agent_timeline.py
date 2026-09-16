@@ -41,6 +41,7 @@ from api.services.configuration import chat_presets
 from api.services.workflow import (
     actions,
     agent_timeline,
+    blocked,
     chat_memory,
     decibyl,
     decisions,
@@ -53,6 +54,24 @@ from api.tasks.arq import enqueue_job
 from api.tasks.function_names import FunctionNames
 
 router = APIRouter(prefix="/timeline", tags=["agent-timeline"])
+
+
+class BlockedWay(BaseModel):
+    """One lettered choice on a wall card."""
+
+    letter: str
+    label: str
+    #: A route inside this product. Never an external link, and never a
+    #: screen without the control it promises -- see blocked.py.
+    href: str
+
+
+class BlockedWall(BaseModel):
+    """What stopped the bot, and the ways past it."""
+
+    reason: str
+    says: str
+    ways: list[BlockedWay] = []
 
 
 class TimelineEvent(BaseModel):
@@ -73,6 +92,12 @@ class TimelineEvent(BaseModel):
     #: rather than charged (KAN-56). Every kind is one or the other.
     credits: int = 0
     included: bool = True
+    #: For a row where something stopped the bot: what the wall was, and the
+    #: lettered ways past it. Null on every other kind, so a screen can
+    #: branch on its presence rather than on a list of kinds it has to keep
+    #: in step with the server. Computed at read time -- see
+    #: services/workflow/blocked.py.
+    blocked: Optional[BlockedWall] = None
 
 
 class TimelineResponse(BaseModel):
@@ -112,6 +137,15 @@ def _as_event(row: Any) -> TimelineEvent:
         folder_id=row.folder_id,
         credits=price["credits"],
         included=price["included"],
+        blocked=(
+            BlockedWall(**wall.as_dict())
+            if (
+                wall := blocked.classify(
+                    row.kind, row.payload or {}, workflow_id=row.workflow_id
+                )
+            )
+            else None
+        ),
     )
 
 

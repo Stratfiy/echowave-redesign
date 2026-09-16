@@ -455,23 +455,45 @@ def is_chat(configurations: Any) -> bool:
     return channel_of(configurations) is BotChannel.CHAT
 
 
-def preserve_channel(incoming: dict | None, stored: Any) -> dict | None:
-    """Carry the channel forward across a save that did not mention it.
+#: Keys whose absence in a save means "nobody asked", not "clear this".
+#:
+#: A settings save sends a sparse block and *replaces* the stored one, so a
+#: screen that does not know about a key drops it -- and for these two that
+#: loss is silent in both directions. ``channel`` absent reads as voice, so
+#: a chat bot goes back on the phone and starts thanking a chat window for
+#: calling. ``notify_on`` absent reads as the defaults, so a bot somebody
+#: deliberately quietened starts interrupting them again, or one they asked
+#: to be told about goes quiet.
+#:
+#: Deliberately a named few, not a deep merge of the whole block. A general
+#: merge would also resurrect settings somebody meant to clear. Every key
+#: here has to earn its place by having an absent value that *means*
+#: something other than unset.
+CARRIED_KEYS: tuple[str, ...] = ("channel", "notify_on")
 
-    A settings save sends a sparse block and *replaces* the stored one, so
-    any screen that saves without knowing about ``channel`` would drop it --
-    and dropping it does not read as an error anywhere, because
-    :func:`channel_of` answers VOICE for an absent value by design. The bot
-    would quietly go back on the phone, and the only symptom would be a chat
-    window being thanked for calling.
 
-    Deliberately one key, not a deep merge of the whole block. A general
-    merge would also resurrect settings somebody meant to clear; this is the
-    one field whose absence means "nobody asked" rather than "unset me".
+def preserve_carried_keys(incoming: dict | None, stored: Any) -> dict | None:
+    """Carry :data:`CARRIED_KEYS` forward across a save that did not mention them.
+
+    Returns ``incoming`` untouched when the request sent no configuration at
+    all: ``None`` means "this save is not about configuration", and building
+    a dict here would write an empty block over the stored one.
     """
-    if incoming is None or "channel" in incoming:
+    if incoming is None:
         return incoming
-    existing = stored.get("channel") if isinstance(stored, Mapping) else None
-    if not existing:
+    if not isinstance(stored, Mapping):
         return incoming
-    return {**incoming, "channel": existing}
+    carried = {
+        key: stored[key]
+        for key in CARRIED_KEYS
+        # `in` rather than truthiness: an empty `notify_on` list is a
+        # decision ("tell me nothing about this bot") and must survive a
+        # save about something else exactly as a full one does.
+        if key not in incoming and key in stored
+    }
+    return {**incoming, **carried} if carried else incoming
+
+
+def preserve_channel(incoming: dict | None, stored: Any) -> dict | None:
+    """Back-compatible alias. See :func:`preserve_carried_keys`."""
+    return preserve_carried_keys(incoming, stored)

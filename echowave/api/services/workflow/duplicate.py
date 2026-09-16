@@ -9,6 +9,7 @@ from loguru import logger
 from api.db import db_client
 from api.enums import StorageBackend
 from api.services.storage import get_storage_for_backend, storage_fs
+from api.services.workflow import definition_required
 
 
 def _extract_trigger_paths(workflow_definition: dict) -> list[str]:
@@ -66,7 +67,11 @@ async def duplicate_workflow(
 
     # 2. Prefer draft over released definition (duplicate latest state)
     draft = await db_client.get_draft_version(workflow_id)
-    source_def = draft if draft else source.released_definition
+    source_def = definition_required.require(
+        draft if draft else source.released_definition,
+        workflow_id=workflow_id,
+        name=getattr(source, "name", None),
+    )
 
     workflow_definition = copy.deepcopy(source_def.workflow_json)
 

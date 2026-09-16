@@ -25,8 +25,9 @@ from api.enums import (
 from api.schemas.ai_model_configuration import compile_ai_model_configuration_v2
 from api.schemas.workflow import WorkflowRunResponseSchema
 from api.schemas.workflow_configurations import (
+    CARRIED_KEYS,
     WorkflowConfigurationDefaults,
-    preserve_channel,
+    preserve_carried_keys,
 )
 from api.sdk_expose import sdk_expose
 from api.services.auth.depends import get_user
@@ -2179,13 +2180,13 @@ async def update_workflow(
         # general merge would also resurrect keys somebody deliberately
         # cleared. This is the one key whose absence means something other
         # than "unset".
-        if workflow_configurations is not None and "channel" not in (
-            workflow_configurations
+        if workflow_configurations is not None and any(
+            key not in workflow_configurations for key in CARRIED_KEYS
         ):
             stored = await db_client.get_workflow(
                 workflow_id, organization_id=user.selected_organization_id
             )
-            workflow_configurations = preserve_channel(
+            workflow_configurations = preserve_carried_keys(
                 workflow_configurations,
                 stored.workflow_configurations if stored is not None else None,
             )

@@ -98,6 +98,7 @@ from api.services.pipecat.worker_runner import run_pipeline_worker
 from api.services.pipecat.ws_sender_registry import get_ws_sender
 from api.services.posthog_client import capture_event
 from api.services.telephony import registry as telephony_registry
+from api.services.workflow import definition_required
 from api.services.workflow.dto import ReactFlowDTO
 from api.services.workflow.pipecat_engine import PipecatEngine
 from api.services.workflow.speaking_style import wants_code_mixed_speech
@@ -879,7 +880,15 @@ async def _run_pipeline_impl(
         raise HTTPException(status_code=404, detail="Workflow not found")
 
     # Use the run's pinned definition for graph + configs (not the workflow's current)
-    run_definition = workflow_run.definition
+    # A run can be bound to no definition at all -- `create_workflow_run`
+    # falls through draft, released_definition_id and is_current, and binds
+    # None when all three miss. Reaching into it produced an AttributeError
+    # mid-call: a 500 and a stack trace for a fact about the bot.
+    run_definition = definition_required.require(
+        workflow_run.definition,
+        workflow_id=workflow_id,
+        name=getattr(workflow, "name", None),
+    )
     run_workflow_json = run_definition.workflow_json
     run_configs = run_definition.workflow_configurations or {}
 

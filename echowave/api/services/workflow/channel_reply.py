@@ -156,6 +156,11 @@ async def answer_in_channel(
                 workflow_run_id=run_id,
                 folder_id=folder_id,
                 in_channel=folder_id is not None,
+                # The only one of the three "no credit" sites that carried no
+                # payload, so nothing downstream could tell this wall from any
+                # other and the reader got a sentence instead of a top-up
+                # button. See services/workflow/blocked.py.
+                payload={"reason": "no_quota"},
             )
             return None
 
