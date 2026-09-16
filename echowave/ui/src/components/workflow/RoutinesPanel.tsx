@@ -25,11 +25,13 @@
  */
 
 import { AlertTriangle, Clock, Loader2, Pencil, Play, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import {
     createRoutineApiV1WorkflowsWorkflowIdRoutinesPost,
     deleteRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdDelete,
+    listConnectorsApiV1ConnectorsGet,
     listRoutinesApiV1WorkflowsWorkflowIdRoutinesGet,
     setActiveApiV1WorkflowsWorkflowIdRoutinesRoutineIdActivePost,
     testRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdTestPost,
@@ -87,6 +89,45 @@ function minuteToTime(minute: number): string {
     return `${h}:${m}`;
 }
 
+
+/**
+ * One account the routine can be made to depend on.
+ *
+ * ``connected`` is carried rather than filtered out at the source because a
+ * routine can already name an app the account has since disconnected. Hiding
+ * it would edit the routine behind the person's back on the next save -- the
+ * gate would quietly stop firing and nothing on the screen would have said
+ * so. It is shown, and marked.
+ */
+type App = { slug: string; name: string; connected: boolean };
+
+/** Catalogue slugs are lower-case; the gate compares lower-case. Anything
+ *  arriving from a stored routine is folded to match. */
+function slugOf(value: string): string {
+    return value.trim().toLowerCase();
+}
+
+/**
+ * The connected accounts, plus any the routine already names.
+ *
+ * Only connected apps are offered: a routine that waits on an account nobody
+ * ever linked never runs, and a picker that offers a door which is not there
+ * is how that happens.
+ */
+function offerable(catalogue: App[], already: string[]): App[] {
+    const seen = new Map<string, App>();
+    for (const app of catalogue) {
+        if (app.connected) seen.set(app.slug, app);
+    }
+    for (const raw of already) {
+        const slug = slugOf(raw);
+        if (!slug || seen.has(slug)) continue;
+        const known = catalogue.find((app) => app.slug === slug);
+        seen.set(slug, { slug, name: known?.name ?? raw, connected: false });
+    }
+    return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export function RoutinesPanel({ workflowId }: { workflowId: number }) {
     const { user, loading: authLoading } = useAuth();
     const [routines, setRoutines] = useState<RoutineResponse[]>([]);
@@ -114,6 +155,8 @@ export function RoutinesPanel({ workflowId }: { workflowId: number }) {
     const [anchor, setAnchor] = useState<Anchor>("opening");
     const [time, setTime] = useState("09:00");
     const [weekday, setWeekday] = useState(0);
+    const [apps, setApps] = useState<string[]>([]);
+    const [catalogue, setCatalogue] = useState<App[]>([]);
     const [saving, setSaving] = useState(false);
 
     const load = useCallback(async () => {
@@ -128,10 +171,36 @@ export function RoutinesPanel({ workflowId }: { workflowId: number }) {
         setRoutines(result.data?.routines ?? []);
     }, [workflowId]);
 
+    /**
+     * The account's connectors, read once.
+     *
+     * Best-effort on purpose: a catalogue that could not be read leaves the
+     * picker offering only whatever the routine already names, which is worse
+     * than the full list and far better than a panel that refuses to open.
+     */
+    const loadApps = useCallback(async () => {
+        const result = await listConnectorsApiV1ConnectorsGet();
+        if (result.error || !result.data?.available) return;
+        const rows = [
+            ...(result.data.groups ?? []).flatMap((group) => group.connectors),
+            ...(result.data.other ?? []),
+        ];
+        const bySlug = new Map<string, App>();
+        for (const row of rows) {
+            bySlug.set(slugOf(row.slug), {
+                slug: slugOf(row.slug),
+                name: row.name,
+                connected: row.connected,
+            });
+        }
+        setCatalogue([...bySlug.values()]);
+    }, []);
+
     useEffect(() => {
         if (authLoading || !user) return;
+        void loadApps();
         void load().then(() => setLoading(false));
-    }, [authLoading, user, load]);
+    }, [authLoading, user, load, loadApps]);
 
     /** Put the form back to empty, whichever way it was opened. */
     const closeForm = () => {
@@ -141,6 +210,7 @@ export function RoutinesPanel({ workflowId }: { workflowId: number }) {
         setAnchor("opening");
         setTime("09:00");
         setWeekday(0);
+        setApps([]);
         setAdding(false);
         setEditing(null);
     };
@@ -155,6 +225,7 @@ export function RoutinesPanel({ workflowId }: { workflowId: number }) {
         setAnchor(routine.anchor as Anchor);
         setTime(minuteToTime(routine.at_minute));
         setWeekday(routine.weekday);
+        setApps((routine.needs_apps ?? []).map(slugOf).filter(Boolean));
     };
 
     const save = async () => {
@@ -168,13 +239,12 @@ export function RoutinesPanel({ workflowId }: { workflowId: number }) {
             anchor,
             at_minute: timeToMinute(time),
             // Carried from the routine being edited, never from the form:
-            // neither is on it, and the endpoint takes a whole routine. A
-            // zero here would move a run that fires half an hour before
-            // closing, and an empty list would drop the connectors it cannot
-            // work without -- both silently, on a save about the time.
+            // it is not on this form and the endpoint takes a whole routine,
+            // so a zero here would move a run that fires half an hour before
+            // closing -- silently, on a save about the time.
             offset_minutes: editing?.offset_minutes ?? 0,
             weekday,
-            needs_apps: editing?.needs_apps ?? [],
+            needs_apps: apps,
         };
         const result = editing
             ? await updateRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdPut({
@@ -349,6 +419,60 @@ export function RoutinesPanel({ workflowId }: { workflowId: number }) {
                             </div>
                         ) : null}
                     </div>
+                    {/* The accounts it cannot run without. The tick skips a
+                        run whose named app is broken, and until this existed
+                        the field could only be set in SQL -- so every routine
+                        made on this screen needed nothing, and a bot whose
+                        morning sweep reads Sheets would run anyway and write
+                        a summary of nothing. */}
+                    <div>
+                        <Label>Accounts it needs</Label>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                            If one of these is down, it waits rather than running on half
+                            the facts.
+                        </p>
+                        {offerable(catalogue, editing?.needs_apps ?? []).length === 0 ? (
+                            <p className="mt-2 text-xs text-muted-foreground">
+                                No accounts are connected yet.{" "}
+                                <Link className="underline" href="/integrations/apps">
+                                    Connect one
+                                </Link>{" "}
+                                and it can be named here.
+                            </p>
+                        ) : (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                {offerable(catalogue, editing?.needs_apps ?? []).map((app) => {
+                                    const on = apps.includes(app.slug);
+                                    return (
+                                        <button
+                                            key={app.slug}
+                                            type="button"
+                                            aria-pressed={on}
+                                            onClick={() =>
+                                                setApps((current) =>
+                                                    current.includes(app.slug)
+                                                        ? current.filter((s) => s !== app.slug)
+                                                        : [...current, app.slug],
+                                                )
+                                            }
+                                            className={`rounded-full border px-3 py-1 text-xs ${
+                                                on
+                                                    ? "border-primary bg-primary/10 font-medium text-foreground"
+                                                    : "border-border text-muted-foreground"
+                                            }`}
+                                        >
+                                            {app.name}
+                                            {app.connected ? null : (
+                                                <span className="ml-1 text-amber-700 dark:text-amber-400">
+                                                    · not connected
+                                                </span>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
                     <div className="flex items-center gap-2">
                         <Button size="sm" disabled={saving || !name.trim()} onClick={() => void save()}>
                             {saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
@@ -411,6 +535,22 @@ export function RoutinesPanel({ workflowId }: { workflowId: number }) {
                                 {routine.instruction ? (
                                     <p className="mt-1 text-sm text-muted-foreground">
                                         {routine.instruction}
+                                    </p>
+                                ) : null}
+                                {/* Shown on the row, not just in the form: a
+                                    routine that waits on a broken account
+                                    looks exactly like one that is simply not
+                                    due, unless the dependency is visible. */}
+                                {routine.needs_apps?.length ? (
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                        Needs{" "}
+                                        {routine.needs_apps
+                                            .map(
+                                                (slug) =>
+                                                    catalogue.find((app) => app.slug === slugOf(slug))
+                                                        ?.name ?? slug,
+                                            )
+                                            .join(", ")}
                                     </p>
                                 ) : null}
                                 {/* A routine that silently did not run is

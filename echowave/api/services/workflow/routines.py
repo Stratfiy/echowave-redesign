@@ -264,7 +264,14 @@ def decide(
             detail="Not test-run yet, so it has never been armed.",
         )
 
-    broken = sorted({app for app in broken_apps if app in set(spec.needs_apps)})
+    # Case-insensitive, deliberately. The two sides of this comparison come
+    # from different places and disagree: an app interaction stores its slug
+    # lower-cased (`_tool_app_slug`), while Composio's connected-toolkit list
+    # hands back upper-case. A routine whose needs_apps was filled from the
+    # wrong one would never be gated -- the guard silently doing nothing,
+    # which is worse than no guard, because the screen says it is protected.
+    wanted = {app.lower() for app in spec.needs_apps if app}
+    broken = sorted({app for app in broken_apps if app and app.lower() in wanted})
     if broken:
         return Decision(
             False,

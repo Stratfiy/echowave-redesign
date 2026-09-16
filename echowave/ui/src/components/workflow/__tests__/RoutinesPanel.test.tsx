@@ -18,6 +18,7 @@ const testRun = vi.hoisted(() => vi.fn());
 const create = vi.hoisted(() => vi.fn());
 const update = vi.hoisted(() => vi.fn());
 const remove = vi.hoisted(() => vi.fn());
+const connectors = vi.hoisted(() => vi.fn());
 
 vi.mock("@/client/sdk.gen", () => ({
     listRoutinesApiV1WorkflowsWorkflowIdRoutinesGet: list,
@@ -26,6 +27,7 @@ vi.mock("@/client/sdk.gen", () => ({
     createRoutineApiV1WorkflowsWorkflowIdRoutinesPost: create,
     updateRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdPut: update,
     deleteRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdDelete: remove,
+    listConnectorsApiV1ConnectorsGet: connectors,
 }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
 
@@ -58,6 +60,21 @@ beforeEach(() => {
     list.mockResolvedValue({ data: { routines: [routine()] } });
     setActive.mockResolvedValue({ data: routine({ is_active: true }) });
     testRun.mockResolvedValue({ data: { started: true, detail: "Running once now." } });
+    connectors.mockResolvedValue({
+        data: {
+            available: true,
+            connected_count: 1,
+            groups: [
+                {
+                    group: "Email",
+                    connectors: [
+                        { slug: "gmail", name: "Gmail", connected: true },
+                        { slug: "outlook", name: "Outlook", connected: false },
+                    ],
+                },
+            ],
+        },
+    });
 });
 
 describe("RoutinesPanel", () => {
@@ -167,7 +184,9 @@ describe("editing a routine", () => {
         expect(update.mock.calls[0][0].path).toEqual({ workflow_id: 7, routine_id: 4 });
     });
 
-    it("keeps the connectors the routine needs, which the form never asked about", async () => {
+    it("keeps the connectors the routine needs, folded to the case the gate compares", async () => {
+        // The gate lower-cases both sides. A routine stored upper-case must
+        // survive an edit as something the gate still matches.
         list.mockResolvedValue({
             data: { routines: [routine({ needs_apps: ["GOOGLESHEETS", "GMAIL"] })] },
         });
@@ -175,7 +194,45 @@ describe("editing a routine", () => {
         fireEvent.click(await screen.findByRole("button", { name: "Edit Morning summary" }));
         fireEvent.click(screen.getByRole("button", { name: /Save changes/ }));
         await waitFor(() => expect(update).toHaveBeenCalled());
-        expect(update.mock.calls[0][0].body.needs_apps).toEqual(["GOOGLESHEETS", "GMAIL"]);
+        expect(update.mock.calls[0][0].body.needs_apps).toEqual(["googlesheets", "gmail"]);
+    });
+
+    it("offers the connected accounts, and not the ones nobody linked", async () => {
+        render(<RoutinesPanel workflowId={7} />);
+        fireEvent.click(await screen.findByRole("button", { name: /Add a routine/ }));
+        await waitFor(() => expect(screen.getByRole("button", { name: "Gmail" })).toBeTruthy());
+        // Outlook is in the catalogue but unconnected: a routine that waits on
+        // an account nobody linked would never run.
+        expect(screen.queryByRole("button", { name: "Outlook" })).toBeNull();
+    });
+
+    it("sends the apps the person picked", async () => {
+        create.mockResolvedValue({ data: routine() });
+        render(<RoutinesPanel workflowId={7} />);
+        fireEvent.click(await screen.findByRole("button", { name: /Add a routine/ }));
+        fireEvent.change(screen.getByLabelText("Call it"), { target: { value: "Evening sweep" } });
+        fireEvent.click(await screen.findByRole("button", { name: "Gmail" }));
+        fireEvent.click(screen.getByRole("button", { name: /Save it/ }));
+        await waitFor(() => expect(create).toHaveBeenCalled());
+        expect(create.mock.calls[0][0].body.needs_apps).toEqual(["gmail"]);
+    });
+
+    it("still shows an app the routine names after it was disconnected", async () => {
+        // Hiding it would drop it on the next save -- the gate would quietly
+        // stop firing and nothing on the screen would have said so.
+        list.mockResolvedValue({ data: { routines: [routine({ needs_apps: ["outlook"] })] } });
+        render(<RoutinesPanel workflowId={7} />);
+        fireEvent.click(await screen.findByRole("button", { name: "Edit Morning summary" }));
+        const chip = await screen.findByRole("button", { name: /Outlook/ });
+        expect(chip.textContent).toContain("not connected");
+        expect(chip.getAttribute("aria-pressed")).toBe("true");
+    });
+
+    it("says so when nothing is connected, rather than showing an empty row", async () => {
+        connectors.mockResolvedValue({ data: { available: false, connected_count: 0 } });
+        render(<RoutinesPanel workflowId={7} />);
+        fireEvent.click(await screen.findByRole("button", { name: /Add a routine/ }));
+        expect(await screen.findByText(/No accounts are connected yet/)).toBeTruthy();
     });
 
     it("keeps an offset the form never asked about", async () => {
@@ -191,7 +248,7 @@ describe("editing a routine", () => {
         expect(update.mock.calls[0][0].body.offset_minutes).toBe(-30);
     });
 
-    it("creating still sends no offset and no apps", async () => {
+    it("creating still sends no offset, and no apps unless one was picked", async () => {
         create.mockResolvedValue({ data: routine() });
         render(<RoutinesPanel workflowId={7} />);
         fireEvent.click(await screen.findByRole("button", { name: /Add a routine/ }));
