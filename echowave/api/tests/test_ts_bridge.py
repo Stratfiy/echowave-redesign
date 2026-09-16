@@ -6,14 +6,12 @@ that code → JSON and JSON → code round-trip losslessly.
 
 from __future__ import annotations
 
-import shutil
 from types import NoneType
 from typing import Any, get_args
 
 import pytest
 
 from api.mcp_server.ts_bridge import (
-    _VALIDATOR_ENTRY,
     TsBridgeError,
     generate_code,
     parse_code,
@@ -25,32 +23,11 @@ from api.services.workflow.node_specs import (
     PropertyType,
     all_specs,
 )
-
-_NODE_MODULES = _VALIDATOR_ENTRY.parents[1] / "node_modules"
-
-
-def _why_these_cannot_run() -> str | None:
-    """The setup step that has not been done, named.
-
-    These 26 tests shell out to node, so an environment where nobody has run
-    `npm install` fails all 26 with a subprocess error apiece. That reads as a
-    broken workflow bridge rather than a missing setup step, and a suite whose
-    red does not mean broken is a suite people stop reading. CI installs these
-    deps, so skipping here costs no coverage where it counts.
-    """
-    if shutil.which("node") is None:
-        return "node binary not available"
-    if not _NODE_MODULES.is_dir():
-        return (
-            "ts_validator dependencies are not installed — run: "
-            "cd api/mcp_server/ts_validator && npm install"
-        )
-    return None
-
+from api.tests.support.ts_validator_env import why_the_validator_cannot_run
 
 pytestmark = pytest.mark.skipif(
-    _why_these_cannot_run() is not None,
-    reason=_why_these_cannot_run() or "",
+    why_the_validator_cannot_run() is not None,
+    reason=why_the_validator_cannot_run() or "",
 )
 
 
