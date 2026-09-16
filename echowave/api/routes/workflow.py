@@ -58,6 +58,7 @@ from api.services.workflow.disposition import merge_taxonomies
 from api.services.workflow.dto import ReactFlowDTO, sanitize_workflow_definition
 from api.services.workflow.duplicate import duplicate_workflow
 from api.services.workflow.errors import ItemKind, WorkflowError
+from api.services.workflow.outcome_board import WINDOWS, board
 from api.services.workflow.run_usage_response import (
     format_public_cost_info,
     format_public_usage_info,
@@ -1620,6 +1621,73 @@ async def get_call_outcomes(
         if isinstance(workflow.workflow_configurations, dict)
     ]
     return [CallOutcomeResponse(**entry) for entry in merge_taxonomies(configured)]
+
+
+class OutcomeCountResponse(BaseModel):
+    code: str
+    label: str
+    count: int
+
+
+class BotOutcomesResponse(BaseModel):
+    """One bot's results over the window."""
+
+    workflow_id: int
+    name: str
+    #: Every configured outcome, zeros included -- the zero is the finding.
+    outcomes: List[OutcomeCountResponse]
+    runs: int
+    #: Runs carrying at least one outcome, so a failing classifier reads as a
+    #: failing classifier rather than as a bot that achieved nothing.
+    classified: int
+    #: True when the per-bot row cap bit and these counts cover only the most
+    #: recent runs in the window.
+    truncated: bool
+    #: False when these are the default outcomes rather than ones this
+    #: business chose. "Booked: 0" under a heading they picked is a finding;
+    #: the same row under a list they have never seen is an invitation.
+    configured: bool
+
+
+@router.get("/outcomes")
+async def get_outcome_board(
+    days: int = Query(default=30),
+    workflow_id: Optional[int] = Query(default=None),
+    user: UserModel = Depends(get_user),
+) -> List[BotOutcomesResponse]:
+    """What each bot in the account achieved, counted.
+
+    One endpoint for both readers: the bot's own screen passes
+    ``workflow_id`` and the bots list passes nothing, rather than the list
+    making one request per row.
+
+    ``days`` is rejected rather than clamped when it is not a window we
+    offer. Quietly answering 90 to a request for 365 is a number labelled
+    wrong, which is worse than an error.
+    """
+    if days not in WINDOWS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"days must be one of {', '.join(str(w) for w in WINDOWS)}",
+        )
+    entries = await board(
+        user.selected_organization_id, days=days, workflow_id=workflow_id
+    )
+    return [
+        BotOutcomesResponse(
+            workflow_id=entry.workflow_id,
+            name=entry.name,
+            outcomes=[
+                OutcomeCountResponse(code=row.code, label=row.label, count=row.count)
+                for row in entry.outcomes
+            ],
+            runs=entry.runs,
+            classified=entry.classified,
+            truncated=entry.truncated,
+            configured=entry.configured,
+        )
+        for entry in entries
+    ]
 
 
 @router.put("/{workflow_id}/status")

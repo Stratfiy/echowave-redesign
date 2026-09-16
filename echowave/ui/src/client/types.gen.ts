@@ -1374,6 +1374,42 @@ export type BodyUploadNumbersApiV1DoNotCallUploadPost = {
 };
 
 /**
+ * BotOutcomesResponse
+ *
+ * One bot's results over the window.
+ */
+export type BotOutcomesResponse = {
+    /**
+     * Workflow Id
+     */
+    workflow_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Outcomes
+     */
+    outcomes: Array<OutcomeCountResponse>;
+    /**
+     * Runs
+     */
+    runs: number;
+    /**
+     * Classified
+     */
+    classified: number;
+    /**
+     * Truncated
+     */
+    truncated: boolean;
+    /**
+     * Configured
+     */
+    configured: boolean;
+};
+
+/**
  * BotsRequest
  */
 export type BotsRequest = {
@@ -7935,6 +7971,24 @@ export type OutcomeAction = {
      */
     enabled?: boolean;
     [key: string]: unknown;
+};
+
+/**
+ * OutcomeCountResponse
+ */
+export type OutcomeCountResponse = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Count
+     */
+    count: number;
 };
 
 /**
@@ -23442,6 +23496,56 @@ export type GetCallOutcomesApiV1WorkflowCallOutcomesGetResponses = {
 };
 
 export type GetCallOutcomesApiV1WorkflowCallOutcomesGetResponse = GetCallOutcomesApiV1WorkflowCallOutcomesGetResponses[keyof GetCallOutcomesApiV1WorkflowCallOutcomesGetResponses];
+
+export type GetOutcomeBoardApiV1WorkflowOutcomesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+        /**
+         * Workflow Id
+         */
+        workflow_id?: number | null;
+    };
+    url: '/api/v1/workflow/outcomes';
+};
+
+export type GetOutcomeBoardApiV1WorkflowOutcomesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetOutcomeBoardApiV1WorkflowOutcomesGetError = GetOutcomeBoardApiV1WorkflowOutcomesGetErrors[keyof GetOutcomeBoardApiV1WorkflowOutcomesGetErrors];
+
+export type GetOutcomeBoardApiV1WorkflowOutcomesGetResponses = {
+    /**
+     * Response Get Outcome Board Api V1 Workflow Outcomes Get
+     *
+     * Successful Response
+     */
+    200: Array<BotOutcomesResponse>;
+};
+
+export type GetOutcomeBoardApiV1WorkflowOutcomesGetResponse = GetOutcomeBoardApiV1WorkflowOutcomesGetResponses[keyof GetOutcomeBoardApiV1WorkflowOutcomesGetResponses];
 
 export type UpdateWorkflowStatusApiV1WorkflowWorkflowIdStatusPutData = {
     body: UpdateWorkflowStatusRequest;

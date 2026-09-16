@@ -3,6 +3,8 @@
 import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useState } from "react";
 
+import { BotResults } from "@/components/workflow/BotResults";
+
 import { AgentHeader } from "../components/AgentHeader";
 import { AgentTabs } from "../components/AgentTabs";
 import { WorkflowExecutions } from "../components/WorkflowExecutions";
@@ -22,6 +24,12 @@ export default function WorkflowRunsPage() {
                 place an agent stopped looking like one thing. */}
             <AgentHeader workflowId={Number(workflowId)} name={name} />
             <AgentTabs workflowId={Number(workflowId)} />
+            {/* Above the run list, not beside it: the reading order is the
+                order the questions come. What did this bot achieve, then
+                which calls were those. */}
+            <div className="px-6 pt-6">
+                <BotResults workflowId={Number(workflowId)} />
+            </div>
             <WorkflowExecutions
                 workflowId={Number(workflowId)}
                 searchParams={searchParams}

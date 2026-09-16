@@ -16,12 +16,13 @@ import { useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
 import {
+    getOutcomeBoardApiV1WorkflowOutcomesGet,
     moveWorkflowToFolderApiV1WorkflowWorkflowIdFolderPut,
     teamStatusApiV1TeamStatusGet,
     updateWorkflowLiveApiV1WorkflowWorkflowIdLivePut,
     updateWorkflowStatusApiV1WorkflowWorkflowIdStatusPut,
 } from '@/client/sdk.gen';
-import type { FolderResponse, TeamMember } from '@/client/types.gen';
+import type { BotOutcomesResponse, FolderResponse, TeamMember } from '@/client/types.gen';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -91,6 +92,63 @@ function useAgentActivity(enabled: boolean): Record<number, TeamMember> {
     return byWorkflow;
 }
 
+/**
+ * The classified outcome each bot's runs were judged to be, keyed by id.
+ *
+ * Deliberately a *different fact* from the "Last 24 hours" sentence beside
+ * it, and the two are worded apart on purpose. That sentence counts calls
+ * that reached an outside system -- a row written to the clinic's sheet --
+ * so "4 bookings filed" is a promise kept. This counts what the classifier
+ * judged the conversation to be, so "6 judged booked" is what the model
+ * read. They disagree constantly, and the gap is the interesting number:
+ * six calls agreed to book and four rows exist.
+ *
+ * One request for the whole table, the same as the roster. A failure leaves
+ * the column as an em dash rather than blocking the rows, because losing a
+ * secondary count must not lose the agents.
+ */
+function useJudgedOutcomes(enabled: boolean): Record<number, BotOutcomesResponse> {
+    const [byWorkflow, setByWorkflow] = useState<Record<number, BotOutcomesResponse>>({});
+
+    useEffect(() => {
+        if (!enabled) return;
+        let cancelled = false;
+        (async () => {
+            const response = await getOutcomeBoardApiV1WorkflowOutcomesGet({
+                query: { days: OUTCOME_DAYS },
+            });
+            if (cancelled || response.error) return;
+            const next: Record<number, BotOutcomesResponse> = {};
+            for (const entry of response.data ?? []) next[entry.workflow_id] = entry;
+            setByWorkflow(next);
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [enabled]);
+
+    return byWorkflow;
+}
+
+/** The window the column is headed with. Named rather than inline so the
+ *  header and the request cannot drift into labelling 30 days as 7. */
+const OUTCOME_DAYS = 30;
+
+/** Never the headline. `unclear` is the bin the classifier puts a call it
+ *  could not read into, and on a quiet bot it is reliably the largest count
+ *  -- a column that led with it would report "mostly unclear" for every bot
+ *  in the account. */
+const NOT_A_RESULT = "unclear";
+
+/** The outcome this bot did most, or nothing when it has done none. */
+function topOutcome(entry: BotOutcomesResponse | undefined) {
+    if (!entry) return null;
+    const ranked = entry.outcomes
+        .filter((outcome) => outcome.code !== NOT_A_RESULT && outcome.count > 0)
+        .sort((a, b) => b.count - a.count);
+    return ranked[0] ?? null;
+}
+
 interface Workflow {
     id: number;
     name: string;
@@ -132,6 +190,7 @@ export function WorkflowTable({
     currentFolderId = null,
 }: WorkflowTableProps) {
     const router = useRouter();
+    const judged = useJudgedOutcomes(!showArchived);
     const [isPending, startTransition] = useTransition();
     const [loadingWorkflowId, setLoadingWorkflowId] = useState<number | null>(null);
     const [movingWorkflowId, setMovingWorkflowId] = useState<number | null>(null);
@@ -255,6 +314,16 @@ export function WorkflowTable({
                             {!showArchived && (
                                 <TableHead className="font-semibold">Last 24 hours</TableHead>
                             )}
+                            {/* The window is in the heading, not in the cell.
+                              * The column beside this one is 24 hours and this
+                              * one is 30 days, and two numbers over different
+                              * days with neither saying so is how somebody
+                              * concludes the bot got worse. */}
+                            {!showArchived && (
+                                <TableHead className="font-semibold">
+                                    Judged ({OUTCOME_DAYS} days)
+                                </TableHead>
+                            )}
                             {!showArchived && (
                                 <TableHead className="font-semibold text-center">Live</TableHead>
                             )}
@@ -307,6 +376,40 @@ export function WorkflowTable({
                                         ) : (
                                             <span className="text-sm text-muted-foreground">—</span>
                                         )}
+                                    </TableCell>
+                                )}
+                                {!showArchived && (
+                                    <TableCell className="max-w-[14rem]">
+                                        {(() => {
+                                            const entry = judged[workflow.id];
+                                            const top = topOutcome(entry);
+                                            if (!entry || entry.classified === 0) {
+                                                return (
+                                                    <span className="text-sm text-muted-foreground">
+                                                        —
+                                                    </span>
+                                                );
+                                            }
+                                            return (
+                                                <div className="min-w-0">
+                                                    <p className="truncate text-sm">
+                                                        {top
+                                                            ? `${top.count} judged ${top.label.toLowerCase()}`
+                                                            : "Nothing landed"}
+                                                    </p>
+                                                    {/* The denominator, because a
+                                                        count over runs the
+                                                        classifier never reached
+                                                        reads as a bot that did
+                                                        nothing rather than a
+                                                        classifier that failed. */}
+                                                    <p className="truncate text-xs text-muted-foreground">
+                                                        of {entry.classified} sorted
+                                                        {entry.configured ? "" : " · default outcomes"}
+                                                    </p>
+                                                </div>
+                                            );
+                                        })()}
                                     </TableCell>
                                 )}
                                 {/*
