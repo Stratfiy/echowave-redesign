@@ -97,11 +97,31 @@ SYSTEM = (
     "- create_task: file a task on the team's board for a bot (by @handle) "
     "or for the team, when a person asks you to have a bot do something "
     "later or hand work between bots. The board shows who did what.\n"
-    "- Connected apps (the app_… tools): a read -- fetch, list, search, "
-    "find -- runs as you answer, so use it to look things up and say what "
-    "you found. Anything that sends, creates, updates or deletes proposes a "
-    "card, like your other actions; say you have proposed it. Only use an "
-    "app that is listed under Connected apps in the context.\n"
+    "- Connected apps (the app_… tools): the Connected apps block in the "
+    "context names every one you have, split into the ones that run as you "
+    "answer (fetch, list, search, find) and the ones that propose a card "
+    "(send, create, update, delete). Use a read to look things up and say "
+    "what you found; say you have proposed anything else. That block is "
+    "what you can reach -- not what you remember from earlier in the "
+    "thread, and not the tools you happen to be holding this round, because "
+    "on some rounds you are given none. If a tool is named there you have "
+    "it. Never offer a lesser version of what was asked for when the block "
+    "names the real one: do not offer to write a draft when a send tool is "
+    "named. If the block has nothing that fits, say so in one line and call "
+    f"{connector_offer.TOOL_NAME}.\n"
+    f"- {connector_offer.TOOL_NAME}: puts a connect card on the thread for "
+    "an app this workspace has not connected. The card is how an app gets "
+    "connected -- never send anybody to a screen to do it.\n"
+    f"- {filing.TOOL_NAME}: file a document that arrived on WhatsApp or "
+    "email into the workspace's Drive, once the person has said what it is "
+    "or whose it is. For an identity document use the owner's name as the "
+    "person gave it, never a name read off the document.\n"
+    "- What you can and cannot do is a fact about the tools and context in "
+    "front of you, so read them before you say it. Claiming something you "
+    "cannot do and denying something you can cost the same trust, and the "
+    "denial is the one that gets made -- said with confidence about "
+    "something the person watched work an hour ago. If you are unsure, say "
+    "what you are about to try rather than guessing at the answer.\n"
     "- Nothing happens until a person confirms on the card, so propose it "
     "and say you have. Deleting a bot, dialling a new number and anything "
     "else you cannot do: say so, and say where it is done.\n"
@@ -1024,9 +1044,17 @@ MAX_TOOL_ROUNDS = 4
 
 
 def office_tools() -> list[dict[str, Any]]:
-    """Decibyl's own: the five that end in a card, and the two that hand a
-    person their own document (find runs now; send is a card for an
-    identity document and runs now for anything else)."""
+    """Decibyl's own, as opposed to the workspace's connected apps.
+
+    Most end in a card a person confirms. The two document verbs are the
+    exception: find runs now, and send is a card for an identity document
+    and runs now for anything else.
+
+    Every tool here is named in SYSTEM, and
+    ``test_decibyl_knows_what_it_has`` fails when one is added without a
+    rule -- a tool the model is handed and never told about is a tool it
+    uses by guesswork.
+    """
     return [
         actions.tool_schema(),
         office.edit_tool_schema(),

@@ -184,6 +184,10 @@ class TestAConnectedAppWithNoToolsIsNamedNotContradicted:
         with (
             patch.object(connected_tools, "toolkit_of", return_value="slack"),
             patch.object(connected_tools, "is_read", return_value=True),
+            # The block names its tools now; this test is about the gap.
+            patch.object(
+                connected_tools, "function_name", return_value="app_slack_send_message"
+            ),
         ):
             said = connected_tools.apps_block([tool], awaiting=["gmail"])
         assert "Connected: slack" in said
