@@ -12,7 +12,7 @@ from api.db.models import (
     WorkflowModel,
     WorkflowRunModel,
 )
-from api.enums import CARRIER_RUN_MODES
+from api.enums import CARRIER_RUN_MODES, NON_VOICE_RUN_MODES
 from api.services.workflow import answered, test_runs
 
 
@@ -300,16 +300,29 @@ class AppInteractionClient(BaseDBClient):
         call took, which is the classic way to report nine calls as
         twenty-seven.
 
-        Answered is counted only for runs a carrier can report an answer for:
-        a text chat is not a call, and counting one would make every account's
-        first day read as a near-zero answer rate.
+        **Answered is judged over the same population as calls.** It was
+        not, and the two disagreeing is a rate that cannot be right.
 
-        Within those, the rule for "answered" is
-        ``services/workflow/answered.py`` -- shared, because this method had
-        its own copy judging on ``answered_at`` alone. Only outbound calls
-        carry that stamp, so every inbound call here read as unanswered: the
-        founder was told "15 calls today, 0 answered" about a day of answered
-        calls, each of which read as answered on its own timeline.
+        `calls` counted every non-test run, including browser calls and text
+        chats. `answered` counted only ``CARRIER_RUN_MODES``. A browser call
+        is therefore countable as a call and not countable as answered, so a
+        workspace demonstrating over the web widget read as "7 calls, 0
+        answered" forever -- while each of those runs said ``answered: true``
+        on its own timeline, with thirty-five seconds of talk time.
+
+        The allow-list was added for a real reason: under the old rule
+        (``answered_at`` alone, which only a carrier writes) counting browser
+        calls as attempts made a first day of testing look like nobody picked
+        up. The rule now also accepts billable seconds
+        (``services/workflow/answered.py``), so a browser call that ran for
+        half a minute is correctly answered and the allow-list had outlived
+        its reason -- while causing the very thing it was there to prevent,
+        only worse: not a near-zero answer rate but an exactly-zero one.
+
+        So: text chats leave the call count, because a text chat is not a
+        call and there is already ``is_voice_run_mode`` saying so; and
+        everything still counted as a call is eligible to be answered, judged
+        by the shared rule. Numerator inside denominator, by construction.
         """
         # An explicit `since` wins. A caller that has worked out where the
         # operator's midnight falls knows something this method cannot, and
@@ -326,16 +339,9 @@ class AppInteractionClient(BaseDBClient):
                     select(
                         WorkflowRunModel.workflow_id,
                         func.count(WorkflowRunModel.id).label("calls"),
-                        func.sum(
-                            case(
-                                (
-                                    WorkflowRunModel.mode.in_(CARRIER_RUN_MODES)
-                                    & answered.answered_sql(),
-                                    1,
-                                ),
-                                else_=0,
-                            )
-                        ).label("answered"),
+                        func.sum(case((answered.answered_sql(), 1), else_=0)).label(
+                            "answered"
+                        ),
                         func.sum(
                             case(
                                 (
@@ -353,6 +359,12 @@ class AppInteractionClient(BaseDBClient):
                     .where(
                         WorkflowModel.organization_id == organization_id,
                         WorkflowRunModel.created_at >= since,
+                        # A text chat is not a call. It was counted as one
+                        # here while being ineligible to be *answered*, so
+                        # the rate had a numerator and a denominator drawn
+                        # from different populations -- see the comment on
+                        # `answered` below.
+                        WorkflowRunModel.mode.notin_(list(NON_VOICE_RUN_MODES)),
                         # A test is not a call the business took (KAN-140):
                         # a browser call, or any run a test verb stamped.
                         WorkflowRunModel.mode.notin_(list(test_runs.TEST_MODES)),

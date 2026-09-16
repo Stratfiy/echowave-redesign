@@ -54,10 +54,18 @@ class TestSync:
             )
         assert result.created == 2
         assert result.error is None
-        made = [call.args[0] for call in create.await_args_list]
-        assert made[0].name == "Gmail — Send"
-        assert made[0].definition.config.tool_slug == "GMAIL_SEND"
-        assert made[0].description == "GMAIL_SEND does a thing"
+        made = {
+            call.args[0].definition.config.tool_slug: call.args[0]
+            for call in create.await_args_list
+        }
+        assert set(made) == {"GMAIL_SEND", "GMAIL_FETCH"}
+        assert made["GMAIL_SEND"].name == "Gmail — Send"
+        assert made["GMAIL_SEND"].description == "GMAIL_SEND does a thing"
+        # Order is no longer the vendor's. Reads are offered before writes,
+        # because taking the vendor's alphabetical order gave a real account
+        # seven ways to delete mail and no way to send it.
+        first = create.await_args_list[0].args[0]
+        assert first.definition.config.tool_slug == "GMAIL_FETCH"
 
     @pytest.mark.asyncio
     async def test_a_second_sync_adds_only_what_is_missing(self):
@@ -83,19 +91,29 @@ class TestSync:
     @pytest.mark.asyncio
     async def test_it_never_makes_more_than_the_cap(self):
         """Some toolkits expose hundreds; a business wants neither none nor
-        four hundred."""
+        four hundred.
+
+        Asserted on the rows created, not on the vendor's page size. The two
+        used to be the same number, which is what made the choice
+        alphabetical: only twelve were ever fetched, so there was nothing to
+        choose between. A ranking cannot improve on a sample it never sees.
+        """
         with (
             patch.object(tool_sync, "toolkit_actions", AsyncMock()) as actions,
             patch.object(tool_sync, "existing_slugs", AsyncMock(return_value=set())),
-            patch.object(tool_sync, "create_tool_for_user", AsyncMock()),
+            patch.object(tool_sync, "create_tool_for_user", AsyncMock()) as create,
         ):
             actions.return_value = _actions(
-                *[f"A_{i}" for i in range(tool_sync.MAX_PER_APP)]
+                *[f"A_GET_{i}" for i in range(tool_sync.MAX_PER_APP * 4)]
             )
-            await tool_sync.ensure_tools(
+            result = await tool_sync.ensure_tools(
                 organization_id=1, app="gmail", app_name="Gmail", actor=_Actor()
             )
-        assert actions.await_args.kwargs["limit"] == tool_sync.MAX_PER_APP
+        assert create.await_count == tool_sync.MAX_PER_APP
+        assert result.created == tool_sync.MAX_PER_APP
+        # And the whole catalogue is fetched, so the dozen is a choice.
+        assert actions.await_args.kwargs["limit"] == tool_sync.ACTIONS_CONSIDERED
+        assert tool_sync.ACTIONS_CONSIDERED > tool_sync.MAX_PER_APP
 
     @pytest.mark.asyncio
     async def test_one_bad_action_does_not_lose_the_others(self):

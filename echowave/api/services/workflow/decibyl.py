@@ -520,6 +520,14 @@ async def build_context(organization_id: int, question: str) -> str:
     # Which apps are connected, so the model knows what it can reach before
     # it tries. The listing never raises; an empty workspace reads as such.
     apps = await connected_tools.list_for_organization(organization_id)
+    # Apps connected at the vendor whose tool rows have not been made yet.
+    # Reading this here also queues them, so somebody who connects an app and
+    # comes straight back to the chat gets them without opening any screen.
+    try:
+        awaiting = await connected_tools.awaiting_setup(organization_id, apps)
+    except Exception as exc:  # noqa: BLE001 - one reading of several
+        logger.warning("Decibyl could not check for apps awaiting setup: {}", exc)
+        awaiting = []
 
     await agent_timeline.record_activity(
         organization_id=organization_id,
@@ -538,7 +546,7 @@ async def build_context(organization_id: int, question: str) -> str:
         f"## What the business has confirmed\n{memory_block(memory_rows)}\n\n"
         f"## Lately\n{recent_block(recent, bot_names)}\n\n"
         f"## Missed calls not returned\n{missed_block(missed)}\n\n"
-        f"## Connected apps\n{connected_tools.apps_block(apps)}\n\n"
+        f"## Connected apps\n{connected_tools.apps_block(apps, awaiting)}\n\n"
         f"## From Company knowledge\n{knowledge_block(knowledge)}\n\n"
         f"## Files this account has uploaded\n{documents_block(documents, bot_names)}\n"
     )

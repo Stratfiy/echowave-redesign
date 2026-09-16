@@ -45,6 +45,7 @@ from api.services.workflow import (
     chat_memory,
     decibyl,
     decisions,
+    home_openers,
     mentions,
     reply_draft,
     secrets_request,
@@ -592,6 +593,71 @@ async def _post_direct_message(
             in_channel=False,
         )
     return PostMessageResponse(asked=[workflow.id], unknown=[], ambiguous=[])
+
+
+class ThreadChip(BaseModel):
+    """One tap that continues the conversation.
+
+    Pressed, the text is sent to Decibyl as an ordinary message -- the same
+    thing the home screen's opener cards do. Nothing here is a command or a
+    shortcut into a screen: a chip a person cannot also type is a chip that
+    teaches them nothing about how to ask next time.
+    """
+
+    kind: str
+    text: str
+
+
+class ThreadChipsResponse(BaseModel):
+    chips: list[ThreadChip]
+
+
+@router.get("/chips", response_model=ThreadChipsResponse)
+async def thread_chips(
+    user: UserModel = Depends(get_user),
+) -> ThreadChipsResponse:
+    """What to offer under the last reply, so the thread carries its own
+    next steps.
+
+    A person who has just been told something has a next question, and
+    until now they had to compose it. The home screen has had these since
+    it was built (``home_openers``) -- this is the same cards, in the place
+    they matter most, because the moment somebody wants to keep going is
+    the moment they have just read an answer rather than the moment they
+    arrived.
+
+    Built from this account's own life, never invented: what they asked
+    before, the busiest bot by name, callers nobody rang back, a stuck task,
+    the time of day. A brand-new account gets the first jobs for the
+    business it named at the door instead of five generic prompts.
+
+    Never fails the thread. A screen with no chips is a screen exactly as
+    useful as it was yesterday; a screen that will not load because the
+    chips could not be built is worse than the feature not existing.
+    """
+    organization_id = user.selected_organization_id
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    try:
+        from api.routes.team import _members
+
+        members = [m.model_dump() for m in await _members(organization_id, 24)]
+        missed = await db_client.unreturned_missed_call_count(organization_id, hours=48)
+        cards = await home_openers.gather(
+            organization_id, members=members, unreturned_missed_calls=missed
+        )
+    except Exception as exc:  # noqa: BLE001 - the thread still works
+        logger.warning("Could not build thread chips for {}: {}", organization_id, exc)
+        return ThreadChipsResponse(chips=[])
+
+    return ThreadChipsResponse(
+        chips=[
+            ThreadChip(kind=str(c.get("kind") or "suggestion"), text=str(c["text"]))
+            for c in cards
+            if c.get("text")
+        ]
+    )
 
 
 @router.post("/decide", response_model=TimelineEvent)

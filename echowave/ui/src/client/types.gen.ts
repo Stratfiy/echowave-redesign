@@ -11641,6 +11641,37 @@ export type TextArtifactResponse = {
 };
 
 /**
+ * ThreadChip
+ *
+ * One tap that continues the conversation.
+ *
+ * Pressed, the text is sent to Decibyl as an ordinary message -- the same
+ * thing the home screen's opener cards do. Nothing here is a command or a
+ * shortcut into a screen: a chip a person cannot also type is a chip that
+ * teaches them nothing about how to ask next time.
+ */
+export type ThreadChip = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Text
+     */
+    text: string;
+};
+
+/**
+ * ThreadChipsResponse
+ */
+export type ThreadChipsResponse = {
+    /**
+     * Chips
+     */
+    chips: Array<ThreadChip>;
+};
+
+/**
  * TierMappingRequest
  *
  * Point a managed tier at a vendor and model.
@@ -28211,6 +28242,45 @@ export type PostMessageApiV1TimelineMessagePostResponses = {
 };
 
 export type PostMessageApiV1TimelineMessagePostResponse = PostMessageApiV1TimelineMessagePostResponses[keyof PostMessageApiV1TimelineMessagePostResponses];
+
+export type ThreadChipsApiV1TimelineChipsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/timeline/chips';
+};
+
+export type ThreadChipsApiV1TimelineChipsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ThreadChipsApiV1TimelineChipsGetError = ThreadChipsApiV1TimelineChipsGetErrors[keyof ThreadChipsApiV1TimelineChipsGetErrors];
+
+export type ThreadChipsApiV1TimelineChipsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ThreadChipsResponse;
+};
+
+export type ThreadChipsApiV1TimelineChipsGetResponse = ThreadChipsApiV1TimelineChipsGetResponses[keyof ThreadChipsApiV1TimelineChipsGetResponses];
 
 export type DecideApiV1TimelineDecidePostData = {
     body: DecideRequest;

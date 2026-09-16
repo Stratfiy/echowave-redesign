@@ -12,11 +12,30 @@ we see it connected. One row per action, org-scoped, named and described
 from what the vendor says the action does -- which is also what the
 Integrations screen now lists under each app, one line each.
 
-**Bounded.** ``MAX_PER_APP`` rows at most. Some toolkits expose hundreds
-of actions and a business does not want four hundred tools any more than
-it wants none; the cap keeps the useful ones (the catalogue returns them
-in the vendor's own order, most-used first) and the builder can still
-attach anything else by slug.
+**Bounded, and chosen.** ``MAX_PER_APP`` rows at most: some toolkits
+expose hundreds of actions and a business wants four hundred tools no
+more than it wants none.
+
+This used to say the catalogue returned them "in the vendor's own order,
+most-used first", and take the first dozen on that basis. It does not.
+They come back **alphabetically**, and the first twelve of Gmail's sixty
+were:
+
+    ADD_LABEL, BATCH_DELETE, BATCH_MODIFY, CREATE_DRAFT, CREATE_FILTER,
+    CREATE_LABEL, DELETE_DRAFT, DELETE_FILTER, DELETE_LABEL,
+    DELETE_MESSAGE, DELETE_THREAD, FETCH_EMAILS
+
+Seven ways to delete mail, one way to read it -- and that one only
+because ``FETCH`` sorts twelfth. No ``SEND_EMAIL``, no reply, no search.
+A founder who connected Gmail and asked his bot to check his email was
+one alphabetical position away from it not working at all, and could not
+have sent one however he asked.
+
+So the dozen is ranked here rather than taken on faith: reads first,
+because they are what people ask for and they are safe; then the ordinary
+writes; destructive actions last, because a bot that can delete a mailbox
+twelve ways and not send a message has the tools exactly backwards. The
+builder can still attach anything else by slug.
 
 **Never twice.** Existing rows are read first and matched on the action
 slug, so a second sync after a reconnect adds only what is missing. A row
@@ -49,6 +68,69 @@ from api.services.tool_management import create_tool_for_user
 #: first dozen of any toolkit are the administrative ones nobody asks a
 #: bot for. Anything else is still attachable by slug in the builder.
 MAX_PER_APP = 12
+
+#: How many of the vendor's actions to rank before taking ``MAX_PER_APP``.
+#:
+#: The cap used to be passed to the vendor as the page size, so only twelve
+#: were ever fetched and the choice was whatever the first page held. A
+#: ranking cannot improve on a sample it never sees.
+ACTIONS_CONSIDERED = 200
+
+#: Second words that mean the action only reads. Duplicated deliberately
+#: rather than imported from ``services/workflow/connected_tools``: that
+#: module decides whether a tool needs a confirmation card at run time, and
+#: this one decides what to offer at all. Tying them together would mean a
+#: change to the safety rule silently reshaped everybody's tool list.
+_READ_VERBS = frozenset(
+    {"GET", "FETCH", "LIST", "SEARCH", "FIND", "READ", "LOOKUP", "COUNT"}
+)
+
+#: Second words that destroy something. Offered last, never first.
+_DESTRUCTIVE_VERBS = frozenset(
+    {"DELETE", "REMOVE", "TRASH", "PURGE", "DESTROY", "ARCHIVE", "CLEAR"}
+)
+
+#: The ordinary writes a person actually asks a bot for, best first. Ranked
+#: above other writes so "send an email" survives a cap of twelve.
+_WANTED_VERBS: tuple[str, ...] = (
+    "SEND",
+    "REPLY",
+    "CREATE",
+    "ADD",
+    "UPDATE",
+    "MODIFY",
+    "MOVE",
+    "SCHEDULE",
+)
+
+
+def _verb(slug: str) -> str:
+    """The action word of a Composio slug: GMAIL_SEND_EMAIL -> SEND."""
+    parts = [p for p in slug.upper().split("_") if p]
+    return parts[1] if len(parts) > 1 else ""
+
+
+def rank(action: dict[str, Any]) -> tuple[int, int]:
+    """Where an action sits in the dozen. Lower is offered sooner.
+
+    The second element keeps the vendor's order stable inside a band, so
+    the choice is deterministic and a re-sync does not churn the list.
+    """
+    verb = _verb(str(action.get("slug") or ""))
+    if verb in _DESTRUCTIVE_VERBS:
+        return (3, 0)
+    if verb in _READ_VERBS:
+        return (0, 0)
+    if verb in _WANTED_VERBS:
+        return (1, _WANTED_VERBS.index(verb))
+    return (2, 0)
+
+
+def most_useful(actions: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+    """The ``limit`` actions worth offering, best first."""
+    ordered = sorted(enumerate(actions), key=lambda p: (rank(p[1]), p[0]))
+    return [action for _, action in ordered[:limit]]
+
 
 #: How long a generated description may be. The vendor's own sentence,
 #: clipped -- it is read by a person on a card and by a model choosing a
@@ -135,7 +217,7 @@ async def ensure_tools(
         )
 
     try:
-        actions = await toolkit_actions(slug, limit=MAX_PER_APP)
+        actions = await toolkit_actions(slug, limit=ACTIONS_CONSIDERED)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Could not list {} actions to sync tools: {}", slug, exc)
         actions = None
@@ -156,7 +238,7 @@ async def ensure_tools(
         )
 
     created = 0
-    for action in actions:
+    for action in most_useful(actions, MAX_PER_APP):
         action_slug = str(action.get("slug") or "").strip()
         if not action_slug or action_slug in have:
             continue

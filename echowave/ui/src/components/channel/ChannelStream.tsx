@@ -32,10 +32,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     postMessageApiV1TimelineMessagePost,
     replyDraftTextApiV1TimelineDraftGet,
+    threadChipsApiV1TimelineChipsGet,
     timelineApiV1TimelineGet,
     translateTextApiV1TranslatePost,
 } from '@/client/sdk.gen';
-import type { TimelineEvent } from '@/client/types.gen';
+import type { ThreadChip, TimelineEvent } from '@/client/types.gen';
 import { BlockedCard } from '@/components/channel/BlockedCard';
 import { tagTokens } from '@/components/channel/ChannelComposer';
 import { Button } from '@/components/ui/button';
@@ -271,6 +272,34 @@ export function ChannelStream({
         setFixing(null);
         if (!response.error) void loadLatest();
     };
+    // What to ask next. Read from the server rather than composed here: the
+    // cards are built from this account's own life (home_openers), and a
+    // suggestion the account cannot act on is worse than no suggestion.
+    const [chips, setChips] = useState<ThreadChip[]>([]);
+    const [sendingChip, setSendingChip] = useState<string | null>(null);
+    const loadChips = useCallback(async () => {
+        if (!assistant) return;
+        const response = await threadChipsApiV1TimelineChipsGet();
+        if (response.error) return; // A thread with no chips is still a thread.
+        setChips(response.data?.chips ?? []);
+    }, [assistant]);
+    const sendChip = async (text: string) => {
+        setSendingChip(text);
+        // Cleared first: the chips answer the reply that is on screen, and
+        // leaving them under the question they just asked reads as if
+        // nothing happened.
+        setChips([]);
+        const response = await postMessageApiV1TimelineMessagePost({
+            body: { assistant: true, text },
+        });
+        setSendingChip(null);
+        if (response.error) {
+            void loadChips(); // Put them back; nothing was sent.
+            return;
+        }
+        void loadLatest();
+    };
+
     const translateRow = async (event: TimelineEvent, text: string) => {
         setTranslated((all) => ({ ...all, [event.id]: null }));
         const response = await translateTextApiV1TranslatePost({ body: { text } });
@@ -345,7 +374,9 @@ export function ChannelStream({
         started.current = true;
         if (workflowId != null) seenBefore.current = markSeen(workflowId);
         void loadLatest().finally(() => setLoading(false));
-    }, [authLoading, user, loadLatest, workflowId]);
+        void loadChips();
+    }, [authLoading, user, loadLatest, loadChips, workflowId]);
+
 
     useEffect(() => {
         if (authLoading || !user) return;
@@ -396,6 +427,13 @@ export function ChannelStream({
     // spinner's word. Decibyl's thread has no bot; a bot's chat has one.
     const [draft, setDraft] = useState('');
     const waiting = thinking.length > 0;
+    // Refreshed when a reply lands, so the chips answer what was just said
+    // rather than what was said when the screen opened.
+    const wasWaiting = useRef(false);
+    useEffect(() => {
+        if (wasWaiting.current && !waiting) void loadChips();
+        wasWaiting.current = waiting;
+    }, [waiting, loadChips]);
     useEffect(() => {
         if (!waiting || (!assistant && workflowId == null)) {
             setDraft('');
@@ -552,6 +590,31 @@ export function ChannelStream({
                     </li>
                 ))}
             </ol>
+            {/* What to ask next, so the thread carries its own next steps.
+                Hidden while a bot is thinking: offering a follow-up to an
+                answer that has not arrived is asking somebody to interrupt.
+                Hidden on a bot's own chat too -- these are the workspace's
+                questions, and Decibyl is who answers them. */}
+            {assistant && !waiting && chips.length > 0 && (
+                <ul
+                    className="mt-3 flex flex-wrap gap-2"
+                    aria-label="Suggested next steps"
+                    data-testid="thread-chips"
+                >
+                    {chips.map((chip) => (
+                        <li key={`${chip.kind}-${chip.text}`}>
+                            <button
+                                type="button"
+                                disabled={sendingChip !== null}
+                                onClick={() => void sendChip(chip.text)}
+                                className="rounded-full border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-[var(--accent-brand)] hover:text-foreground disabled:opacity-50"
+                            >
+                                {chip.text}
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            )}
             <div ref={bottom} />
         </div>
     );
