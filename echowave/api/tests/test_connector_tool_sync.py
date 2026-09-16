@@ -245,3 +245,86 @@ class TestTheFieldsTheModelFills:
             )
         assert result.created == 1
         assert create.await_args_list[0].args[0].definition.config.parameters == []
+
+
+class TestSlotsAreReservedNotOrdered:
+    """Ranking reads above writes and taking the first twelve is not the
+    same as reserving slots, and the difference cost a real account its
+    send.
+
+    Gmail publishes about fifteen GET actions. Under "reads first, cap at
+    twelve" the reads filled every slot and no write was ever reached: a
+    live account re-synced under that rule got twelve ways to read mail and
+    no way to send one -- the same hole the ranking was written to close,
+    arrived at from the other side.
+    """
+
+    def _slugs(self, actions, limit=None):
+        return [
+            a["slug"]
+            for a in tool_sync.most_useful(actions, limit or tool_sync.MAX_PER_APP)
+        ]
+
+    def _gmail(self):
+        reads = [f"GMAIL_GET_{n}" for n in range(14)] + ["GMAIL_FETCH_EMAILS"]
+        writes = [
+            "GMAIL_SEND_EMAIL",
+            "GMAIL_SEND_DRAFT",
+            "GMAIL_REPLY_TO_THREAD",
+            "GMAIL_CREATE_EMAIL_DRAFT",
+        ]
+        deletes = ["GMAIL_DELETE_MESSAGE", "GMAIL_DELETE_THREAD"]
+        return _actions(*sorted(reads + writes + deletes))
+
+    def test_an_app_with_many_reads_still_gets_its_sends(self):
+        """The regression, stated as the case that produced it."""
+        assert "GMAIL_SEND_EMAIL" in self._slugs(self._gmail())
+
+    def test_the_cap_still_holds(self):
+        assert len(self._slugs(self._gmail())) == tool_sync.MAX_PER_APP
+
+    def test_reads_still_take_most_of_the_dozen(self):
+        """Eight is already more ways to look something up than anybody asks
+        for; this is a reservation, not a reversal."""
+        got = self._slugs(self._gmail())
+        reads = [s for s in got if "_GET_" in s or "_FETCH_" in s]
+        assert len(reads) == tool_sync.MAX_PER_APP - tool_sync.WRITE_SLOTS
+
+    def test_a_delete_never_displaces_a_send(self):
+        """The invariant that matters. Not "deletes are banned" -- an app
+        whose whole surface is destructive would then connect and offer
+        nothing, with nothing on any screen saying why, and banned looks
+        identical to broken. Deletes take only genuinely spare room.
+        """
+        got = self._slugs(self._gmail())
+        assert "GMAIL_SEND_EMAIL" in got
+        assert not any("DELETE" in s for s in got)
+
+    def test_a_delete_still_fills_room_nothing_else_wants(self):
+        short = _actions("GMAIL_DELETE_THREAD", "GMAIL_FETCH_EMAILS")
+        assert set(self._slugs(short)) == {"GMAIL_DELETE_THREAD", "GMAIL_FETCH_EMAILS"}
+
+    def test_an_app_of_only_deletes_is_not_an_empty_app(self):
+        """Connected and offering nothing is the failure this avoids."""
+        assert self._slugs(_actions("A_DELETE_ONE", "A_DELETE_TWO"))
+
+    def test_an_app_with_few_writes_gives_the_room_back_to_reads(self):
+        actions = _actions(*[f"A_GET_{n}" for n in range(20)], "A_SEND_IT")
+        got = self._slugs(actions)
+        assert len(got) == tool_sync.MAX_PER_APP
+        assert "A_SEND_IT" in got
+
+    def test_an_app_with_few_reads_gives_the_room_back_to_writes(self):
+        actions = _actions("A_GET_ONE", *[f"A_CREATE_{n}" for n in range(20)])
+        got = self._slugs(actions)
+        assert len(got) == tool_sync.MAX_PER_APP
+        assert "A_GET_ONE" in got
+
+    def test_an_app_smaller_than_the_cap_is_taken_whole(self):
+        actions = _actions("A_GET_ONE", "A_SEND_IT")
+        assert set(self._slugs(actions)) == {"A_GET_ONE", "A_SEND_IT"}
+
+    def test_the_pick_is_stable_across_a_resync(self):
+        """A list that churns every sync is one nobody can point a bot at."""
+        actions = self._gmail()
+        assert self._slugs(actions) == self._slugs(actions)

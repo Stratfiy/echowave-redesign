@@ -78,6 +78,14 @@ MAX_PER_APP = 12
 #: ranking cannot improve on a sample it never sees.
 ACTIONS_CONSIDERED = 200
 
+#: How many of ``MAX_PER_APP`` are held for writes.
+#:
+#: Four, because the jobs people name -- send, reply, create, update -- are
+#: about that many, and because eight reads is already more ways to look
+#: something up than anybody asks for. Held rather than ranked: see
+#: ``most_useful`` for why ordering alone cannot work under a cap.
+WRITE_SLOTS = 4
+
 #: Second words that mean the action only reads. Duplicated deliberately
 #: rather than imported from ``services/workflow/connected_tools``: that
 #: module decides whether a tool needs a confirmation card at run time, and
@@ -129,9 +137,49 @@ def rank(action: dict[str, Any]) -> tuple[int, int]:
 
 
 def most_useful(actions: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
-    """The ``limit`` actions worth offering, best first."""
+    """The ``limit`` actions worth offering: reads and writes, both.
+
+    **Slots are reserved, not merely ordered.** Ranking reads above writes and
+    taking the first twelve sounds equivalent and is not: Gmail publishes
+    fifteen or so GET actions, so the reads filled every slot and no write was
+    ever reached. A real account re-synced under that rule got twelve ways to
+    read mail and no way to send one -- the same hole the ranking was written
+    to close, arrived at from the other side. "Reads first" plus a hard cap
+    means "writes never", for any app with a generous read surface.
+
+    So ``WRITE_SLOTS`` of the dozen are held for the writes people actually
+    ask for, and the rest go to reads. Either side borrows what the other
+    does not use, so an app with two writes still gets ten reads and an app
+    with no reads is not left half empty.
+
+    Destructive actions stay last and stay unbanned. They never compete for a
+    reserved slot -- a delete must not displace a send -- but they may fill
+    what reads and writes left over, because an app whose whole surface is
+    destructive would otherwise connect and offer nothing, with nothing on
+    any screen saying why. Banned looks identical to broken.
+    """
     ordered = sorted(enumerate(actions), key=lambda p: (rank(p[1]), p[0]))
-    return [action for _, action in ordered[:limit]]
+    reads, writes, destructive = [], [], []
+    for _, action in ordered:
+        band = rank(action)[0]
+        if band == 0:
+            reads.append(action)
+        elif band in (1, 2):
+            writes.append(action)
+        else:
+            destructive.append(action)
+
+    keep_writes = min(len(writes), WRITE_SLOTS)
+    keep_reads = min(len(reads), limit - keep_writes)
+    # Whatever one side left unused, the other may take.
+    keep_writes = min(len(writes), limit - keep_reads)
+
+    chosen = reads[:keep_reads] + writes[:keep_writes]
+    # Only what is genuinely spare, and only after both have had their fill.
+    chosen += destructive[: max(0, limit - len(chosen))]
+    # Back into the vendor's order within the pick, so a re-sync is stable.
+    order = {id(action): index for index, (_, action) in enumerate(ordered)}
+    return sorted(chosen, key=lambda a: order[id(a)])[:limit]
 
 
 #: How long a generated description may be. The vendor's own sentence,
