@@ -209,3 +209,71 @@ class TestAWordBeatsASubstring:
             }
         )
         assert _names(model_fields.chosen(schema, limit=2)) == ["subject", "body"]
+
+
+class TestASchemaWhoseWordsAreNoneOfOurs:
+    """The case that got past both halves of the rule.
+
+    ``CALENDLY_GET_EVENT_TYPE`` publishes exactly one property, ``uuid``,
+    whose own description says "This is a required path parameter" -- and
+    Composio's ``required`` array for it is empty. So there was nothing
+    required to keep, and ``uuid`` is not a word anybody says out loud, so
+    it ranked against nothing in ``_WANTED`` and was not picked either. The
+    tool was created declaring no arguments at all.
+
+    A tool that declares nothing is offered by name and loaded on demand,
+    which is a real path and not a lie -- but on a live account the model
+    called it straight and Calendly answered "Missing required param: uuid".
+    The round trip is a tax the schema did not need to charge: we were
+    holding the field and chose not to mention it.
+
+    Adding "uuid" to the word list would fix this tool and not the next one.
+    The rule is the fix: a schema with fields never yields a tool with none.
+    """
+
+    #: The live schema, as ``load_tool`` returned it from the account.
+    CALENDLY_GET_EVENT_TYPE = {
+        "type": "object",
+        "description": "Retrieves a specific event type by its UUID.",
+        "properties": {
+            "uuid": _field(
+                description=(
+                    "Unique identifier (UUID) for the event type. This is a "
+                    "required path parameter."
+                )
+            )
+        },
+        "required": [],
+    }
+
+    def test_the_only_field_there_is_gets_offered(self):
+        assert _names(model_fields.chosen(self.CALENDLY_GET_EVENT_TYPE)) == ["uuid"]
+
+    def test_it_is_not_claimed_to_be_required(self):
+        """The vendor said it was not. We offer it; we do not overrule them --
+        a field wrongly marked required is a call the model cannot make at
+        all, which is worse than one it can make badly."""
+        assert model_fields.chosen(self.CALENDLY_GET_EVENT_TYPE)[0]["required"] is False
+
+    def test_a_whole_schema_of_unwanted_words_still_offers_something(self):
+        schema = _schema(
+            {
+                "organization_uri": _field(),
+                "invitee_scope": _field(),
+                "min_start_time": _field(),
+            }
+        )
+        # Not nothing, and not more than the cap.
+        got = _names(model_fields.chosen(schema))
+        assert got
+        assert len(got) <= model_fields.MODEL_FILLS
+
+    def test_a_wanted_word_still_wins_over_a_filler(self):
+        """The fallback is a floor, not a re-ranking: it only decides what
+        happens when the ranking chose nobody."""
+        schema = _schema({"zzz_internal_ref": _field(), "subject": _field()})
+        assert _names(model_fields.chosen(schema))[0] == "subject"
+
+    def test_an_empty_schema_still_offers_nothing(self):
+        """The floor is "what the schema has", not "something regardless"."""
+        assert model_fields.chosen({"type": "object", "properties": {}}) == []
