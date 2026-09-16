@@ -57,6 +57,7 @@ from api.services.workflow import (
     organisation_memory,
     secrets_request,
     self_edit,
+    skill_context,
     tasks_board,
 )
 from api.services.workflow import pipecat_engine_callbacks as engine_callbacks
@@ -219,6 +220,8 @@ class PipecatEngine:
         #: distinct from None, which means "not looked yet", so a business with
         #: no confirmed memory is not re-queried on every node transition.
         self._remembered_block: Optional[str] = None
+        #: _get_skills_block. Empty string means "looked, found none".
+        self._skills_block: Optional[str] = None
         #: Documents this run reads without a node naming them -- company
         #: knowledge, the channel's files, the bot's own. Read once per call,
         #: for the same reasons as the memory block. None means not looked.
@@ -407,6 +410,40 @@ class PipecatEngine:
                 )
                 self._remembered_block = ""
         return self._remembered_block
+
+    async def _get_skills_block(self) -> str:
+        """The procedures on this bot, read once and then held.
+
+        Cached for the same two reasons as `_get_remembered_block`: it must
+        not be a database round trip on the path between a caller finishing
+        a sentence and the agent starting one, and a prefix that changes
+        between nodes throws the provider's prompt cache away.
+
+        Every skill on this bot is carried in full, not matched against
+        anything. On the chat side a skill is invoked by a question naming
+        it; here there is no question yet, and the operator attaching a
+        procedure to this bot *is* the referral -- they meant it to be
+        followed, not to be available. `BODY_BUDGET` is what stops four of
+        them becoming the prompt.
+
+        Failure is empty rather than fatal: a bot whose skills could not be
+        read still takes the call, knowing less, which is where every bot
+        was before this was wired up at all.
+        """
+        if self._skills_block is None:
+            try:
+                installed = await skill_context.installed_for(
+                    await self._get_organization_id(),
+                    await self._get_workflow_id(),
+                )
+                self._skills_block = skill_context.block(installed, installed) or ""
+            except Exception as exc:  # noqa: BLE001 - the call must go on
+                logger.warning(
+                    "Could not read this bot's skills; it goes on without them: {}",
+                    exc,
+                )
+                self._skills_block = ""
+        return self._skills_block
 
     def _get_otel_context(self):
         """Extract the OTel Context from the task's TracingContext.
@@ -948,6 +985,7 @@ class PipecatEngine:
             agent_can_end_call=self._agent_can_end_call,
             known_values=self._gathered_context,
             remembered=await self._get_remembered_block(),
+            skills=await self._get_skills_block(),
             steps=self._steps_block() if self._can_edit_self else None,
         )
         functions = await compose_functions_for_node(

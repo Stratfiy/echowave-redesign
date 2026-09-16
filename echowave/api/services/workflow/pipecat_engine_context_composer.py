@@ -111,6 +111,7 @@ def compose_system_prompt_for_node(
     agent_can_end_call: bool = False,
     known_values: dict | None = None,
     remembered: str | None = None,
+    skills: str | None = None,
     steps: str | None = None,
 ) -> str:
     """Compose the full system prompt text for a workflow node.
@@ -143,6 +144,12 @@ def compose_system_prompt_for_node(
             call by the engine so the prompt stays byte-identical across node
             transitions and therefore stays cacheable. Composed here from the
             deployment default when a caller does not supply it.
+        skills: The procedures attached to this bot, already rendered by
+            `skill_context.block`. Read once per call by the engine, for the
+            same caching reason as `today_line` and `remembered`. Every one
+            in full rather than matched: on the chat side a question names
+            the skill, and here the operator attaching it to this bot is
+            what names it.
         remembered: What the business has confirmed — its own memory plus this
             bot's, already rendered by `organisation_memory.remembered_block`.
             Read once per call by the engine, for the same caching reason as
@@ -196,6 +203,12 @@ def compose_system_prompt_for_node(
     # the boundary. Below the caller's own answers it would also read as less
     # current than them, which is backwards -- these are settled facts about the
     # business and that is a caller's guess.
+    # Above `remembered` and below the honesty rules, and stable for the life
+    # of the call like both: a procedure the operator attached to this bot is
+    # an instruction, so it reads as one, but it must never outrank the rules
+    # about not claiming an action that did not happen.
+    if skills:
+        parts.append(skills)
     if remembered:
         parts.append(remembered)
     # The bot's own steps, on staff chats, so "change the booking step" names

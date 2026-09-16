@@ -51,6 +51,7 @@ from api.services.workflow import (
     office,
     reply_draft,
     self_edit,
+    skill_context,
     tasks_board,
     untrusted,
 )
@@ -528,6 +529,15 @@ async def build_context(organization_id: int, question: str) -> str:
     except Exception as exc:  # noqa: BLE001 - one reading of several
         logger.warning("Decibyl could not read the contacts: {}", exc)
         contacts = []
+    # The procedures this account installed. Every one named; the one the
+    # question invokes carried whole. The shelf has shown these as installed
+    # since it shipped and no prompt has ever read them.
+    try:
+        skills = await skill_context.installed_for(organization_id)
+        invoked = skill_context.named(question, skills)
+    except Exception as exc:  # noqa: BLE001 - one reading of several
+        logger.warning("Decibyl could not read the skills: {}", exc)
+        skills, invoked = [], []
     # The files themselves, not just whether a search of them matched: see
     # documents_block.
     try:
@@ -574,8 +584,23 @@ async def build_context(organization_id: int, question: str) -> str:
         f"## Missed calls not returned\n{missed_block(missed)}\n\n"
         f"## Connected apps\n{connected_tools.apps_block(apps, awaiting)}\n\n"
         f"## From the knowledge base\n{knowledge_block(knowledge, contacts)}\n\n"
+        f"{skills_section(skills, invoked)}"
         f"## Files this account has uploaded\n{documents_block(documents, bot_names)}\n"
     )
+
+
+def skills_section(installed: list[Any], invoked: list[Any]) -> str:
+    """The skills heading, or nothing at all.
+
+    An account with no skills installed gets no heading rather than an empty
+    one: a section saying "none" spends prompt to report an absence, and the
+    other blocks here that do say it are ones whose emptiness is itself an
+    answer ("no matching passage" means the search ran).
+    """
+    block = skill_context.block(installed, invoked)
+    if not block:
+        return ""
+    return f"## Skills this account installed\n{block}\n\n"
 
 
 def readings_line(*, bots: int, facts: int, passages: int) -> str:
