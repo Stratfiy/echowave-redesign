@@ -22,6 +22,7 @@ import httpx
 from loguru import logger
 
 from api.constants import DECIBYL_MPS_SECRET_KEY, DEPLOYMENT_MODE
+from api.enums import BotChannel
 from api.services.mps_service_key_client import mps_service_key_client
 from api.services.workflow.qa_node import qa_node
 
@@ -54,6 +55,7 @@ def build_starter_workflow(
     call_type: str,
     use_case: str,
     activity_description: str,
+    channel: BotChannel = BotChannel.VOICE,
 ) -> dict[str, Any]:
     """Build a valid four-node workflow from the template request.
 
@@ -63,17 +65,35 @@ def build_starter_workflow(
     Args:
         call_type: ``INBOUND`` or ``OUTBOUND``. Anything else is treated as
             inbound, because an unrecognised value should still yield a working
-            agent rather than an exception on the create path.
+            agent rather than an exception on the create path. Ignored for a
+            chat bot, which has no direction.
         use_case: Short label for what the agent is for.
         activity_description: The user's own description of the conversation.
+        channel: Voice or chat. A chat bot runs the same graph -- the text
+            runner builds a ``WorkflowGraph`` exactly as the pipeline does --
+            so the difference here is entirely in what the bot is told and
+            what it is told about. "Thank you for calling" in a chat window
+            is the sort of thing a customer notices and we do not, and the
+            voice-only flags below (interruption, spoken greeting) describe
+            physics that writing does not have.
     """
-    is_outbound = (call_type or "").strip().upper() == "OUTBOUND"
-    use_case = _clean(use_case, "Voice Agent")
+    is_chat = channel is BotChannel.CHAT
+    is_outbound = not is_chat and (call_type or "").strip().upper() == "OUTBOUND"
+    use_case = _clean(use_case, "Chat Agent" if is_chat else "Voice Agent")
     activity = _clean(
-        activity_description, "Have a helpful conversation with the caller."
+        activity_description,
+        "Have a helpful conversation."
+        if is_chat
+        else "Have a helpful conversation with the caller.",
     )
 
-    if is_outbound:
+    if is_chat:
+        greeting = "Hi — what can I help you with?"
+        start_prompt = (
+            "Open briefly and find out what they need. Keep it to a line or "
+            "two — they are reading, not listening — then move on."
+        )
+    elif is_outbound:
         greeting = (
             f"Hello, this is an assistant calling about {use_case}. "
             "Is now a good time to talk?"
@@ -103,12 +123,15 @@ def build_starter_workflow(
             "type": "startCall",
             "position": {"x": 0, "y": 0},
             "data": {
-                "name": "Start Call",
+                "name": "Start" if is_chat else "Start Call",
                 "is_start": True,
                 "greeting": greeting,
                 "greeting_type": "text",
                 "prompt": start_prompt,
-                "allow_interrupt": True,
+                # Interruption is a fact about speech. In writing a message is
+                # sent whole, so a bot told it may be cut off mid-sentence is
+                # being told about physics it does not have.
+                "allow_interrupt": not is_chat,
                 "add_global_prompt": True,
             },
         },
@@ -128,11 +151,13 @@ def build_starter_workflow(
             "type": "endCall",
             "position": {"x": 0, "y": 440},
             "data": {
-                "name": "End Call",
+                "name": "End" if is_chat else "End Call",
                 "is_end": True,
                 "prompt": (
-                    "Summarise what was agreed in one sentence, thank them for "
-                    "their time, and say goodbye."
+                    "Summarise what was agreed in one sentence and close politely."
+                    if is_chat
+                    else "Summarise what was agreed in one sentence, thank "
+                    "them for their time, and say goodbye."
                 ),
                 "add_global_prompt": True,
             },
@@ -152,7 +177,9 @@ def build_starter_workflow(
             "data": {
                 "label": "continue",
                 "condition": (
-                    "The caller has responded and it is clear what they want."
+                    "They have replied and it is clear what they want."
+                    if is_chat
+                    else "The caller has responded and it is clear what they want."
                 ),
             },
         },
@@ -163,14 +190,20 @@ def build_starter_workflow(
             "data": {
                 "label": "finished",
                 "condition": (
-                    "The conversation is complete, or the caller wants to hang up."
+                    "The conversation is complete, or they want to stop."
+                    if is_chat
+                    else "The conversation is complete, or the caller wants to hang up."
                 ),
             },
         },
     ]
 
     return {
-        "name": f"{use_case} - {'Outbound' if is_outbound else 'Inbound'}",
+        "name": (
+            f"{use_case} - Chat"
+            if is_chat
+            else f"{use_case} - {'Outbound' if is_outbound else 'Inbound'}"
+        ),
         "workflow_definition": {"nodes": nodes, "edges": edges},
     }
 
@@ -193,6 +226,7 @@ async def generate_workflow_definition(
     activity_description: str,
     organization_id: Optional[int] = None,
     created_by: Optional[str] = None,
+    channel: BotChannel = BotChannel.VOICE,
 ) -> dict[str, Any]:
     """Return a workflow definition, from MPS when it is available.
 
@@ -200,13 +234,28 @@ async def generate_workflow_definition(
     unreachable. Raises :class:`httpx.HTTPStatusError` when a configured MPS
     rejects the request, so a wrong secret key surfaces instead of silently
     degrading every agent anyone creates.
+
+    A chat bot is always built locally. MPS takes a call type and returns a
+    call: asking it for a chat bot and hoping would produce a graph that
+    greets people for ringing, and there is no field in that request to say
+    otherwise. Better a starter graph that is right about the channel than a
+    generated one that is wrong about it -- and this is the local builder MPS
+    itself falls back to, not a lesser path.
     """
+    if channel is BotChannel.CHAT:
+        logger.info("Chat bot requested; MPS returns call graphs, building locally.")
+        return build_starter_workflow(
+            call_type, use_case, activity_description, channel=channel
+        )
+
     if not mps_is_configured():
         logger.info(
             "MPS is not configured (no DECIBYL_MPS_SECRET_KEY); "
             "creating a starter workflow locally."
         )
-        return build_starter_workflow(call_type, use_case, activity_description)
+        return build_starter_workflow(
+            call_type, use_case, activity_description, channel=channel
+        )
 
     try:
         return await mps_service_key_client.call_workflow_api(
@@ -228,4 +277,6 @@ async def generate_workflow_definition(
             raise
         logger.warning(f"MPS returned {status}; creating a starter workflow locally.")
 
-    return build_starter_workflow(call_type, use_case, activity_description)
+    return build_starter_workflow(
+        call_type, use_case, activity_description, channel=channel
+    )

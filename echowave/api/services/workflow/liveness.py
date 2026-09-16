@@ -17,11 +17,19 @@ that was true before this module existed and nothing enforced it, so a number
 still pointed at an archived agent kept being answered by it. Archiving is a
 stronger statement than pausing, and it would be strange for the weaker one to
 be the only one with teeth.
+
+Three now. A **chat** bot has no voice configuration and a graph written for
+somebody reading rather than listening; handed a call it would answer in a
+default voice with prompts about messages. That is not a pause and not an
+archive — the bot is working, on the channel it was built for — so it refuses
+with its own reason rather than borrowing one that would send an operator to
+look for a toggle that is already on.
 """
 
 from __future__ import annotations
 
 from api.enums import WorkflowStatus
+from api.schemas.workflow_configurations import is_chat
 
 
 class AgentNotTakingCalls(Exception):
@@ -54,6 +62,8 @@ def workflow_is_live(workflow) -> bool:
         WorkflowStatus.ACTIVE.value
     ):
         return False
+    if is_chat(getattr(workflow, "workflow_configurations", None)):
+        return False
     return bool(getattr(workflow, "is_live", True))
 
 
@@ -74,6 +84,18 @@ def assert_workflow_may_take_calls(workflow) -> None:
             f"Agent {getattr(workflow, 'id', '?')} is archived and does not "
             "take calls.",
             reason="agent_archived",
+        )
+
+    # Before the pause check, because a chat bot is not paused. Saying it is
+    # would send somebody to the agent list to turn on a toggle that is
+    # already on, and the real answer -- this bot does not do phones -- is
+    # nowhere on that screen.
+    if is_chat(getattr(workflow, "workflow_configurations", None)):
+        raise AgentNotTakingCalls(
+            f"Agent {getattr(workflow, 'id', '?')} answers in writing, not on "
+            "the phone. Point this number at a voice bot, or change this one's "
+            "channel in its settings.",
+            reason="agent_is_chat_only",
         )
 
     if not bool(getattr(workflow, "is_live", True)):

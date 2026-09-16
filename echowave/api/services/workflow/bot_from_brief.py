@@ -32,7 +32,7 @@ from typing import Any
 from loguru import logger
 
 from api.db import db_client
-from api.enums import CallType
+from api.enums import BotChannel, CallType
 from api.services.workflow.agent_brief import (
     AgentBrief,
     apply_brief,
@@ -47,11 +47,18 @@ from api.services.workflow.trigger_paths import (
 
 TOOL_NAME = "build_bot_from_spec"
 
-#: The two the generator understands. A spec for a bot that answers messages
-#: is still written as an inbound conversation -- the channel is set on the
-#: bot afterwards -- so offering four values here would be offering two that
-#: generation cannot act on.
+#: The two directions the generator understands, for a bot on the phone.
 CALL_TYPES = (CallType.INBOUND.value, CallType.OUTBOUND.value)
+
+#: What the model picks between. "chat" is its own value rather than a third
+#: call type because a chat bot has no direction: somebody opens a window and
+#: types, which is neither ringing us nor being rung. Making the model choose
+#: inbound-or-outbound for a bot with no phone is how every bot ends up
+#: greeting people for calling.
+CHANNELS = (
+    BotChannel.VOICE.value,
+    BotChannel.CHAT.value,
+)
 
 #: How much of a spec is handed to generation. The attachment block already
 #: clips a file at 12,000 characters, and a brief longer than this is a
@@ -85,12 +92,21 @@ def tool_schema() -> dict[str, Any]:
                     "type": "string",
                     "description": "What to call the bot, as the team would say it.",
                 },
+                "channel": {
+                    "type": "string",
+                    "enum": list(CHANNELS),
+                    "description": (
+                        "'voice' for a bot on the phone, 'chat' for one that "
+                        "answers in writing. Default 'voice'."
+                    ),
+                },
                 "call_type": {
                     "type": "string",
                     "enum": list(CALL_TYPES),
                     "description": (
-                        "'inbound' when people contact the business, "
-                        "'outbound' when the bot reaches out first."
+                        "Only for a voice bot: 'inbound' when people call the "
+                        "business, 'outbound' when the bot rings them first. "
+                        "Leave it out for a chat bot -- it has no direction."
                     ),
                 },
                 "use_case": {
@@ -106,7 +122,10 @@ def tool_schema() -> dict[str, Any]:
                     ),
                 },
             },
-            "required": ["name", "call_type", "spec"],
+            # `call_type` is not required: it is meaningless for a chat bot,
+            # and a required field the model must invent for half the cases
+            # is a field that gets invented for all of them.
+            "required": ["name", "spec"],
         },
     }
 
@@ -121,11 +140,22 @@ def resolve(arguments: dict[str, Any]) -> dict[str, Any]:
     name = str(arguments.get("name") or "").strip()[:MAX_NAME_CHARS]
     if not name:
         raise BriefError("Say what to call the bot.")
-    call_type = str(arguments.get("call_type") or "").strip().lower()
-    if call_type not in CALL_TYPES:
+    channel = str(arguments.get("channel") or BotChannel.VOICE.value).strip().lower()
+    if channel not in CHANNELS:
         raise BriefError(
-            f"Say whether it is {' or '.join(CALL_TYPES)} -- who starts the conversation."
+            f"Say whether it is {' or '.join(CHANNELS)} -- the phone, or writing."
         )
+    if channel == BotChannel.CHAT.value:
+        # Carried anyway, because the generator's signature takes one and a
+        # chat conversation is opened by the person: inbound is the true
+        # answer to a question nothing will ask.
+        call_type = CallType.INBOUND.value
+    else:
+        call_type = str(arguments.get("call_type") or "").strip().lower()
+        if call_type not in CALL_TYPES:
+            raise BriefError(
+                f"Say whether it is {' or '.join(CALL_TYPES)} -- who rings whom."
+            )
     spec = str(arguments.get("spec") or "").strip()
     if len(spec) < MIN_BRIEF_CHARS:
         raise BriefError(
@@ -138,6 +168,7 @@ def resolve(arguments: dict[str, Any]) -> dict[str, Any]:
         "action": ACTION,
         "args": {
             "name": name,
+            "channel": channel,
             "call_type": call_type,
             "use_case": use_case,
             "spec": spec,
@@ -172,11 +203,15 @@ async def build(
     )
     description = compose_activity_description(brief) or args["spec"]
 
+    # Defaulted rather than required: a card proposed before this field
+    # existed, and confirmed after, still builds the bot it promised.
+    channel = BotChannel(args.get("channel") or BotChannel.VOICE.value)
     generated = await generate_workflow_definition(
         call_type=str(args["call_type"]).upper(),
         use_case=brief.use_case,
         activity_description=description,
         organization_id=organization_id,
+        channel=channel,
     )
     definition = (
         regenerate_trigger_uuids(generated.get("workflow_definition", {})) or {}
@@ -198,6 +233,12 @@ async def build(
         workflow_definition=definition,
         user_id=user_id,
         organization_id=organization_id,
+        # Only for a chat bot. Passing {"channel": "voice"} for the other
+        # case would overwrite the opinionated defaults create_workflow
+        # writes for a new agent with a block containing one key.
+        workflow_configurations=(
+            {"channel": channel.value} if channel is BotChannel.CHAT else None
+        ),
     )
     if paths:
         try:

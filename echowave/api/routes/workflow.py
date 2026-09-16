@@ -18,7 +18,10 @@ from api.db.workflow_template_client import WorkflowTemplateClient
 from api.enums import CallType, PostHogEvent, StorageBackend, WorkflowStatus
 from api.schemas.ai_model_configuration import compile_ai_model_configuration_v2
 from api.schemas.workflow import WorkflowRunResponseSchema
-from api.schemas.workflow_configurations import WorkflowConfigurationDefaults
+from api.schemas.workflow_configurations import (
+    WorkflowConfigurationDefaults,
+    preserve_channel,
+)
 from api.sdk_expose import sdk_expose
 from api.services.auth.depends import get_user
 from api.services.configuration import model_presets
@@ -2050,6 +2053,31 @@ async def update_workflow(
                     raise _trigger_conflict_http_exception(
                         workflow_definition, e.trigger_paths
                     )
+
+        # The channel survives a save that does not mention it.
+        #
+        # `exclude_unset` keeps the incoming block sparse and the save
+        # *replaces* the stored one, so every screen that saves settings
+        # without knowing about this field would drop it -- and dropping it
+        # does not read as an error anywhere: `channel_of` answers VOICE for
+        # an absent value, by design, so a chat bot would quietly go back on
+        # the phone and the only symptom would be a bot greeting a chat
+        # window for calling.
+        #
+        # Carried forward rather than deep-merging the whole block, because a
+        # general merge would also resurrect keys somebody deliberately
+        # cleared. This is the one key whose absence means something other
+        # than "unset".
+        if workflow_configurations is not None and "channel" not in (
+            workflow_configurations
+        ):
+            stored = await db_client.get_workflow(
+                workflow_id, organization_id=user.selected_organization_id
+            )
+            workflow_configurations = preserve_channel(
+                workflow_configurations,
+                stored.workflow_configurations if stored is not None else None,
+            )
 
         workflow = await db_client.update_workflow(
             workflow_id=workflow_id,
