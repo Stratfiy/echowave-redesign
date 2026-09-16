@@ -11,7 +11,6 @@ shape.
 
 from __future__ import annotations
 
-import shutil
 from dataclasses import dataclass
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -19,9 +18,11 @@ import pytest
 from fastapi import HTTPException
 
 from api.mcp_server.tools.save_workflow import save_workflow
+from api.tests.support.ts_validator_env import why_the_validator_cannot_run
 
 pytestmark = pytest.mark.skipif(
-    shutil.which("node") is None, reason="node binary not available"
+    why_the_validator_cannot_run() is not None,
+    reason=why_the_validator_cannot_run() or "",
 )
 
 
