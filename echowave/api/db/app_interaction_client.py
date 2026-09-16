@@ -13,7 +13,7 @@ from api.db.models import (
     WorkflowRunModel,
 )
 from api.enums import CARRIER_RUN_MODES
-from api.services.workflow import test_runs
+from api.services.workflow import answered, test_runs
 
 
 def _empty_activity() -> dict[str, Any]:
@@ -300,10 +300,16 @@ class AppInteractionClient(BaseDBClient):
         call took, which is the classic way to report nine calls as
         twenty-seven.
 
-        Answered is counted only for runs a carrier can report an answer for.
-        A browser test and a text chat never get an ``answered_at`` and
-        including them would make every account's first day read as a near-zero
-        answer rate.
+        Answered is counted only for runs a carrier can report an answer for:
+        a text chat is not a call, and counting one would make every account's
+        first day read as a near-zero answer rate.
+
+        Within those, the rule for "answered" is
+        ``services/workflow/answered.py`` -- shared, because this method had
+        its own copy judging on ``answered_at`` alone. Only outbound calls
+        carry that stamp, so every inbound call here read as unanswered: the
+        founder was told "15 calls today, 0 answered" about a day of answered
+        calls, each of which read as answered on its own timeline.
         """
         # An explicit `since` wins. A caller that has worked out where the
         # operator's midnight falls knows something this method cannot, and
@@ -324,7 +330,7 @@ class AppInteractionClient(BaseDBClient):
                             case(
                                 (
                                     WorkflowRunModel.mode.in_(CARRIER_RUN_MODES)
-                                    & WorkflowRunModel.answered_at.isnot(None),
+                                    & answered.answered_sql(),
                                     1,
                                 ),
                                 else_=0,

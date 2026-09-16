@@ -612,6 +612,7 @@ async def answer(
     subjects: list[int] | None = None,
     author_id: int | None = None,
     attachments: list[dict[str, Any]] | None = None,
+    last_try: bool = False,
 ) -> str:
     """Compose the context, call the model, record the reply. Returns it.
 
@@ -670,7 +671,7 @@ async def answer(
         asked_before = ""
     if asked_before:
         context = f"{context}\n\n{asked_before}"
-    attached = await attached_block(organization_id, attachments)
+    attached = await attached_block(organization_id, attachments, last_try=last_try)
     if attached:
         context = f"{context}\n\n{attached}"
     conversation.add_user(f"{context}\n\n## Question\n{text}{handed}")
@@ -811,13 +812,66 @@ async def unread(
         # treating it as pending would retry until the cap for nothing.
         if document is None:
             continue
+        # Nor is one whose ingestion failed. This is the whole of the second
+        # half of the bug: "pending" meant "has no text", so a document the
+        # pipeline had already given up on was indistinguishable from one
+        # still in the queue. Decibyl said "still being read" about a file
+        # that would never be read, every turn, forever.
+        if str(getattr(document, "processing_status", "") or "") == FAILED:
+            continue
         if not (getattr(document, "full_text", None) or "").strip():
             pending.append(str(attachment.get("filename") or "the file"))
     return pending
 
 
+#: The ingestion status that means the text will never arrive. Named rather
+#: than compared inline because three places have to agree about it, and a
+#: typo in any one of them puts the promise back.
+FAILED = "failed"
+
+
+def _why_there_is_no_text(document: Any, last_try: bool) -> str:
+    """What to say about an attached file whose text is not here.
+
+    Three different situations, and saying the wrong one is how this went
+    wrong: the block always said "still being read ... you will come back",
+    so a failed ingestion produced that promise on every turn and a turn
+    that had used up its retries produced it on the way out. The founder
+    got the sentence twice about the same file and never got the answer.
+    """
+    state = str(getattr(document, "processing_status", "") or "")
+    if document is None:
+        return (
+            "(this file is not in the workspace. Say so; do not say you "
+            "are reading it.)"
+        )
+    if state == FAILED:
+        reason = (getattr(document, "processing_error", None) or "").strip()
+        detail = f" The reason given: {reason[:200]}" if reason else ""
+        return (
+            f"(could not be read.{detail} Say that plainly, and offer to try "
+            "again if they re-upload it. Do NOT say you are still reading it "
+            "and do NOT promise to come back -- nothing will.)"
+        )
+    if last_try:
+        return (
+            "(not read yet, and this turn will not run again. Say the file "
+            "is taking longer than expected and ask them to come back to it, "
+            "or offer to look again. Do NOT promise to come back by "
+            "yourself -- this was the last try.)"
+        )
+    return (
+        "(still being read. Say you are reading it and will come back with "
+        "the answer -- you will: this turn runs again by itself once the "
+        "text has landed. Answer whatever else was asked meanwhile.)"
+    )
+
+
 async def attached_block(
-    organization_id: int, attachments: list[dict[str, Any]] | None
+    organization_id: int,
+    attachments: list[dict[str, Any]] | None,
+    *,
+    last_try: bool = False,
 ) -> str:
     """The text of the files on this line, as a context block, or empty.
 
@@ -854,12 +908,7 @@ async def attached_block(
             await asyncio.sleep(2)
             waited += 2
         if not text:
-            parts.append(
-                f"### {name}\n(still being read. Say you are reading it and "
-                "will come back with the answer -- you will: this turn runs "
-                "again by itself once the text has landed. Answer whatever "
-                "else was asked meanwhile.)"
-            )
+            parts.append(f"### {name}\n{_why_there_is_no_text(document, last_try)}")
             continue
         take = min(ATTACHMENT_CHARS, budget)
         clipped = text[:take] + (" …" if len(text) > take else "")
