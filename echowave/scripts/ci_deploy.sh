@@ -62,6 +62,25 @@ say() { printf '\n=== %s ===\n' "$1"; }
 #: drops the ones that only take up room.
 PRUNE_BUILD_CACHE_UNTIL="${PRUNE_BUILD_CACHE_UNTIL:-168h}"
 
+#: The ceiling on the build cache, which is what actually bounds it.
+#:
+#: The age filter above does not. It was written for a box that deployed a few
+#: times a week; at ten merges in a day, each adding one to two gigabytes, a
+#: seven-day window keeps thirty deploys of cache and the disk reaches 100%
+#: long before anything is old enough to drop. That is exactly what happened:
+#: the cache entries filling a 145G disk were 42 minutes, 4 hours and 3 days
+#: old, so every prune reclaimed nothing.
+#:
+#: A size cap holds whatever the deploy rate is, which an age cap cannot.
+PRUNE_BUILD_CACHE_KEEP="${PRUNE_BUILD_CACHE_KEEP:-20GB}"
+
+#: Free space below which the deploy stops to clear room before building.
+#:
+#: See `ensure_room`. A build needs several gigabytes of headroom; starting one
+#: without it fails the deploy, and on this box a failed deploy never reaches
+#: the prune at the end.
+MIN_FREE_GB="${MIN_FREE_GB:-25}"
+
 # Housekeeping, run only once the deploy is known good.
 #
 # Deliberately after the health check and after `trap - ERR` is cleared, for two
@@ -80,9 +99,44 @@ PRUNE_BUILD_CACHE_UNTIL="${PRUNE_BUILD_CACHE_UNTIL:-168h}"
 # catches.
 prune_disk() {
     say "Reclaiming disk"
-    docker builder prune -f --filter "until=$PRUNE_BUILD_CACHE_UNTIL" || true
+    # Size cap first: it is the one that holds at any deploy rate. Older
+    # daemons do not know `--keep-storage`, so the age filter stays as the
+    # fallback rather than the only line of defence.
+    docker builder prune -f --keep-storage "$PRUNE_BUILD_CACHE_KEEP" 2>/dev/null ||
+        docker builder prune -f --filter "until=$PRUNE_BUILD_CACHE_UNTIL" || true
     docker image prune -f || true
     df -h / || true
+}
+
+#: Free gigabytes on the root filesystem, or 0 if it cannot be read.
+free_gb() {
+    df -BG --output=avail / 2>/dev/null | tail -1 | tr -dc '0-9' || echo 0
+}
+
+# Clear room *before* building, when there is not enough.
+#
+# The housekeeping at the end of this script only runs on a deploy that
+# reached its health check. That is right for pruning images the rollback
+# might need — and it is also how this box wedged itself: once the disk was
+# full every deploy failed, and a failed deploy never reached the prune, so
+# the one thing that would have freed space stopped running. The box could
+# not recover without somebody opening a shell on it.
+#
+# This is the other half. It runs before anything is built, it only prunes
+# the build cache (never an image the rollback needs), and it never fails the
+# deploy: a box that cannot free space still gets to try, and fails on the
+# build with an error that says so rather than on a prune.
+ensure_room() {
+    local free
+    free="$(free_gb)"
+    [ -n "$free" ] || return 0
+    if [ "$free" -ge "$MIN_FREE_GB" ]; then
+        return 0
+    fi
+    say "Only ${free}G free, want ${MIN_FREE_GB}G — clearing build cache before building"
+    docker builder prune -af 2>/dev/null || true
+    docker image prune -f || true
+    say "Now $(free_gb)G free"
 }
 
 restore_ownership() {
@@ -299,6 +353,8 @@ EOF
     say "Rolled back. The stack is on the previous commit."
 }
 trap rollback ERR
+
+ensure_room
 
 say "Building"
 docker compose build api ui sandbox
