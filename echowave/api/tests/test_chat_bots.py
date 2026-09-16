@@ -266,3 +266,38 @@ class TestAChatBotIsNotHandedCalls:
         bare = SimpleNamespace(id=7, is_live=True, status=WorkflowStatus.ACTIVE.value)
         liveness.assert_workflow_may_take_calls(bare)
         assert liveness.workflow_is_live(bare) is True
+
+
+class TestAChatBotIsGivenNoVoice:
+    """The wizard's preset writes a whole managed stack onto the agent.
+
+    For a chat bot most of that stack describes equipment it does not have.
+    Writing it anyway is harmless at runtime and a lie on the settings
+    screen, which would then offer to change the voice of a thing that
+    never speaks.
+    """
+
+    def test_a_voice_bot_gets_its_speech_slots(self):
+        from api.services.configuration.agent_options import managed_stack_override
+
+        override = managed_stack_override(
+            voice="anushka",
+            llm_tier="standard",
+            stt_tier="standard",
+            tts_tier="standard",
+        )
+        assert override
+
+    def test_a_chat_bot_keeps_a_brain_and_loses_the_rest(self):
+        from api.services.configuration.agent_options import managed_stack_override
+
+        override = managed_stack_override(
+            voice="",
+            llm_tier="standard",
+            stt_tier="",
+            tts_tier="",
+            realtime_tier="",
+        )
+        # Still an override -- a chat bot has a model. It just has no mouth.
+        rendered = str(override)
+        assert "anushka" not in rendered

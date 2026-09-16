@@ -15,7 +15,13 @@ from api.db import db_client
 from api.db.agent_trigger_client import TriggerPathConflictError
 from api.db.models import UserModel
 from api.db.workflow_template_client import WorkflowTemplateClient
-from api.enums import CallType, PostHogEvent, StorageBackend, WorkflowStatus
+from api.enums import (
+    BotChannel,
+    CallType,
+    PostHogEvent,
+    StorageBackend,
+    WorkflowStatus,
+)
 from api.schemas.ai_model_configuration import compile_ai_model_configuration_v2
 from api.schemas.workflow import WorkflowRunResponseSchema
 from api.schemas.workflow_configurations import (
@@ -449,7 +455,16 @@ class CreateWorkflowTemplateRequest(BaseModel):
     composed from them instead, so both shapes reach generation as one thing.
     """
 
-    call_type: Literal[CallType.INBOUND.value, CallType.OUTBOUND.value]
+    #: Defaulted rather than required so a chat bot need not answer it. A
+    #: chat conversation is opened by the person, so inbound is the true
+    #: answer to a question the chat path never asks -- but making the
+    #: wizard *choose* a direction for a bot with no phone is how every bot
+    #: ends up labelled inbound whether or not it means anything.
+    call_type: Literal[CallType.INBOUND.value, CallType.OUTBOUND.value] = (
+        CallType.INBOUND.value
+    )
+    #: The phone, or writing. See api.enums.BotChannel.
+    channel: BotChannel = BotChannel.VOICE
     use_case: str
     activity_description: str = ""
 
@@ -752,6 +767,7 @@ async def create_workflow_from_template(
                 use_case=request.use_case,
                 activity_description=description,
                 created_by=str(user.provider_id),
+                channel=request.channel,
             )
         else:
             if not user.selected_organization_id:
@@ -762,6 +778,7 @@ async def create_workflow_from_template(
                 use_case=request.use_case,
                 activity_description=description,
                 organization_id=user.selected_organization_id,
+                channel=request.channel,
             )
 
         # Create the workflow in our database
@@ -779,12 +796,23 @@ async def create_workflow_from_template(
         # records a product choice rather than pinning a vendor model.
         preset = _preset_for_create(request)
         workflow_configurations = managed_stack_override(
-            voice=request.voice,
+            # A chat bot is given no voice. Writing one in would pin a TTS
+            # tier on an agent that never speaks -- harmless at runtime and
+            # a lie on the settings screen, which would then offer to change
+            # the voice of a thing that has none.
+            voice="" if request.channel is BotChannel.CHAT else request.voice,
             llm_tier=preset.llm_tier,
-            stt_tier=preset.stt_tier,
-            tts_tier=preset.tts_tier,
-            realtime_tier=preset.realtime_tier,
+            stt_tier=preset.stt_tier if request.channel is BotChannel.VOICE else "",
+            tts_tier=preset.tts_tier if request.channel is BotChannel.VOICE else "",
+            realtime_tier=(
+                preset.realtime_tier if request.channel is BotChannel.VOICE else ""
+            ),
         )
+        if request.channel is BotChannel.CHAT:
+            workflow_configurations = {
+                **(workflow_configurations or {}),
+                "channel": BotChannel.CHAT.value,
+            }
 
         trigger_paths = extract_trigger_paths(workflow_def) if workflow_def else []
         if trigger_paths:

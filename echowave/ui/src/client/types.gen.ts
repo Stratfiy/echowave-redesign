@@ -3194,7 +3194,8 @@ export type CreateWorkflowTemplateRequest = {
     /**
      * Call Type
      */
-    call_type: 'inbound' | 'outbound';
+    call_type?: 'inbound' | 'outbound';
+    channel?: BotChannel;
     /**
      * Use Case
      */
