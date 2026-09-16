@@ -25,26 +25,56 @@ from api.services.integrations.composio import tool_sync
 from api.services.integrations.composio.client import toolkit_name
 
 
-async def sync_missing_tools(
-    _ctx=None, *, organization_id: int, apps: list[str], user_id: int
-) -> dict[str, int]:
-    """Create the missing rows for each named app, as the given user.
+async def _actor_for(organization_id: int, user_id: int | None):
+    """A real user of this organisation, to create the rows as.
 
-    ``user_id`` rather than a stand-in actor because ``ensure_tools`` reads
-    the organisation off the user it is handed and refuses a mismatch -- the
-    scoping is checked there rather than asserted here.
+    ``ensure_tools`` reads the organisation off the user it is handed and
+    refuses a mismatch, so the scoping is checked there rather than asserted
+    here -- which means a stand-in carrying an id we chose will not do.
+
+    The caller's own user is preferred and confirmed. When there is no
+    caller -- the chat noticing the gap has a workspace, not a person at a
+    keyboard -- any member of the organisation whose selected organisation
+    is this one will do: the rows belong to the account, not to whoever
+    happened to trigger the sync.
+    """
+    if user_id:
+        user = await db_client.get_user_by_id(user_id)
+        if user is not None and user.selected_organization_id == organization_id:
+            return user
+        # Not an error: the person may have switched organisation or left
+        # between the read and this job running. Fall through to a member.
+        logger.info(
+            "Tool sync for org {}: user {} no longer confirms it, using a member",
+            organization_id,
+            user_id,
+        )
+    try:
+        members = await db_client.get_organization_users(organization_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not read members of org {}: {}", organization_id, exc)
+        return None
+    for member in members:
+        if member.selected_organization_id == organization_id:
+            return member
+    return None
+
+
+async def sync_missing_tools(
+    _ctx=None, *, organization_id: int, apps: list[str], user_id: int | None = None
+) -> dict[str, int]:
+    """Create the missing rows for each named app.
+
+    ``user_id`` is the person who triggered it, when there was one. The
+    chat path has no person -- it notices the gap while answering -- so it
+    passes none and a member of the organisation is used instead.
     """
     created = 0
     failed = 0
-    user = await db_client.get_user_by_id(user_id)
-    if user is None or user.selected_organization_id != organization_id:
-        # Not an error worth raising: the person may have switched
-        # organisation or left between the read and this job running. The
-        # next read of the catalogue enqueues it again.
-        logger.info(
-            "Skipping tool sync for org {}: user {} no longer confirms it",
-            organization_id,
-            user_id,
+    user = await _actor_for(organization_id, user_id)
+    if user is None:
+        logger.warning(
+            "Skipping tool sync for org {}: no member confirms it", organization_id
         )
         return {"created": 0, "failed": 0}
 

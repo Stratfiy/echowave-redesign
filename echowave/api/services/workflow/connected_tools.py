@@ -266,10 +266,27 @@ def by_function_name(tools: list[Any]) -> dict[str, Any]:
     return {function_name(t): t for t in tools}
 
 
-def apps_block(tools: list[Any]) -> str:
+def apps_block(tools: list[Any], awaiting: list[str] | None = None) -> str:
     """The context line: which apps are connected, so the model knows what
-    it can reach before it tries."""
+    it can reach before it tries.
+
+    ``awaiting`` are apps the account has connected whose tools are not
+    ready yet (see :func:`awaiting_setup`). Named explicitly because the
+    alternative is what happened: they were invisible here, visible to the
+    connect-card path, and Decibyl reported the two as conflicting signals
+    to the person who had just connected one.
+    """
     apps = sorted({toolkit_of(t) or "connector" for t in tools})
+    pending = ""
+    if awaiting:
+        names = ", ".join(sorted(awaiting))
+        pending = (
+            f" {names} {'is' if len(awaiting) == 1 else 'are'} connected but "
+            "still being set up, so there are no tools for it yet. Say that "
+            "plainly if asked -- it is not a conflict and not a failure, and "
+            "it usually takes under a minute. Do NOT offer a connect card for "
+            "it: it is already connected."
+        )
     # What to do about an app that is not connected is the model's next
     # sentence, so it is said here. It used to read "Connect one from
     # Marketplace -> Tools", and the model dutifully passed that on: the
@@ -281,13 +298,15 @@ def apps_block(tools: list[Any]) -> str:
         "Marketplace."
     )
     if not apps:
+        if pending:
+            return f"No app is usable yet.{pending} {offer}"
         return f"No apps connected. {offer}"
     reads = sum(1 for t in tools if is_read(t))
     return (
         f"Connected: {', '.join(apps)}. {len(tools)} tools ({reads} read-only). "
         "Read tools run as you answer; anything that sends, creates or changes "
         f"something proposes a card first. Tools are listed by name; call "
-        f"{LOAD_TOOL_NAME} for the one you need before using it. {offer}"
+        f"{LOAD_TOOL_NAME} for the one you need before using it.{pending} {offer}"
     )
 
 
@@ -380,3 +399,61 @@ __all__ = [
     "slug_of",
     "toolkit_of",
 ]
+
+
+async def awaiting_setup(organization_id: int, tools: list[Any]) -> list[str]:
+    """Apps this account has connected that still have no tool rows.
+
+    Decibyl told the founder, in one message, that Gmail was "already
+    connected" and that the workspace had "no apps connected", and then
+    picked one of the two to act on. Both sentences were true of their own
+    source: the connect-card path asks the vendor, and ``apps_block`` counts
+    tool rows. Between connecting an app and its rows existing, the two
+    disagree -- and a reader handed a contradiction reports a contradiction.
+
+    So the gap is named rather than left to be inferred, and creating the
+    missing rows is queued from here as well as from the Integrations
+    screen. Hooking that only to the screen was the hole in the first fix:
+    somebody who connects an app and goes straight back to the chat never
+    opens it.
+
+    Best-effort throughout: an account whose connected list cannot be read
+    is reported as having no gap, which is what the old behaviour was.
+    """
+    from api.services.integrations.composio.client import (
+        ComposioNotConfigured,
+        connected_toolkits,
+    )
+
+    try:
+        connected = {slug.lower() for slug in await connected_toolkits(organization_id)}
+    except (ComposioNotConfigured, Exception) as exc:  # noqa: BLE001
+        logger.warning(
+            "Could not read connected apps for org {}: {}", organization_id, exc
+        )
+        return []
+    if not connected:
+        return []
+
+    have = {toolkit_of(t) for t in tools if toolkit_of(t)}
+    missing = sorted(connected - have)
+    if not missing:
+        return []
+
+    # Queue the rows. The answer this turn still says they are not ready --
+    # promising otherwise is what started this -- but the next turn has them.
+    try:
+        from api.tasks.arq import enqueue_job
+        from api.tasks.function_names import FunctionNames
+
+        await enqueue_job(
+            FunctionNames.SYNC_MISSING_TOOLS,
+            organization_id=organization_id,
+            apps=missing,
+            # No person triggered this: the chat noticed the gap while
+            # answering. The task picks a member of the organisation.
+            user_id=None,
+        )
+    except Exception as exc:  # noqa: BLE001 - saying it is still worth doing
+        logger.warning("Could not queue tool rows for org {}: {}", organization_id, exc)
+    return missing
