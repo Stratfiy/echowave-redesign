@@ -360,3 +360,71 @@ class TestNextSlot:
             )
             is None
         )
+
+
+class TestTheConnectorGateIsCaseInsensitive:
+    """The two sides of this comparison disagree about case.
+
+    An app interaction stores its slug lower-cased (``_tool_app_slug``),
+    while Composio's connected-toolkit list hands back upper-case. A routine
+    whose ``needs_apps`` was filled from the wrong one would never be gated
+    -- the guard silently doing nothing, which is worse than no guard,
+    because the screen says the routine is protected.
+    """
+
+    def test_upper_case_needs_matches_a_lower_case_failure(self):
+        spec = armed(needs_apps=("GOOGLESHEETS",))
+        decision = decide(
+            spec,
+            now=at(2026, 9, 14, 9, 30),
+            zone=IST,
+            business_hours=WEEKDAY_HOURS,
+            broken_apps={"googlesheets"},
+        )
+        assert decision.fire is False
+        assert decision.reason is SkipReason.CONNECTOR_BROKEN
+
+    def test_lower_case_needs_matches_an_upper_case_failure(self):
+        spec = armed(needs_apps=("googlesheets",))
+        decision = decide(
+            spec,
+            now=at(2026, 9, 14, 9, 30),
+            zone=IST,
+            business_hours=WEEKDAY_HOURS,
+            broken_apps={"GOOGLESHEETS"},
+        )
+        assert decision.fire is False
+        assert decision.reason is SkipReason.CONNECTOR_BROKEN
+
+    def test_an_unrelated_broken_app_does_not_stop_it(self):
+        spec = armed(needs_apps=("googlesheets",))
+        decision = decide(
+            spec,
+            now=at(2026, 9, 14, 9, 30),
+            zone=IST,
+            business_hours=WEEKDAY_HOURS,
+            broken_apps={"gmail"},
+        )
+        assert decision.reason is not SkipReason.CONNECTOR_BROKEN
+
+    def test_an_empty_slug_does_not_match_everything(self):
+        spec = armed(needs_apps=("", "googlesheets"))
+        decision = decide(
+            spec,
+            now=at(2026, 9, 14, 9, 30),
+            zone=IST,
+            business_hours=WEEKDAY_HOURS,
+            broken_apps={"", "gmail"},
+        )
+        assert decision.reason is not SkipReason.CONNECTOR_BROKEN
+
+    def test_the_named_app_is_still_reported_in_the_detail(self):
+        spec = armed(needs_apps=("GOOGLESHEETS",))
+        decision = decide(
+            spec,
+            now=at(2026, 9, 14, 9, 30),
+            zone=IST,
+            business_hours=WEEKDAY_HOURS,
+            broken_apps={"googlesheets"},
+        )
+        assert "googlesheets" in decision.detail
