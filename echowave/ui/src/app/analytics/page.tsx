@@ -15,6 +15,7 @@
  */
 
 import { AlertTriangle } from "lucide-react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
@@ -445,6 +446,20 @@ export default function CallAnalyticsPage() {
                     )}
                 </CardContent>
             </Card>
+
+            {/* Daily reports came off the tab strip: five tabs for one subject
+                meant the reader had to guess which of them answered their
+                question. It is one day's calls in detail, which is what you
+                want *after* the shape above tells you which day to look at --
+                so it sits here, at the end of that reading, rather than
+                competing with it. */}
+            <p className="text-sm text-muted-foreground">
+                Want one day in detail?{" "}
+                <Link href="/reports" className="font-medium underline underline-offset-4">
+                    Daily reports
+                </Link>{" "}
+                lists every call for a single date, with a CSV.
+            </p>
         </div>
     );
 }

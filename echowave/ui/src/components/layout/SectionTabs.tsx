@@ -28,14 +28,20 @@ export type SectionTab = PageTab;
  *
  *  These were three sidebar entries -- Review, Calls, Analytics -- and two
  *  tab strips, for one subject. Somebody looking for "how did yesterday go"
- *  had to guess which of the three was the one. One entry, five tabs. */
+ *  had to guess which of the three was the one.
+ *
+ *  Now one entry and three tabs, in the order the questions get asked: which
+ *  calls happened, which of them need a human, and what is the shape of all
+ *  of them. Two entries left: Spend went to Billing (a money question), and
+ *  Daily reports is linked from the foot of Analytics, because it is one
+ *  day in detail -- something you want after the shape tells you which day,
+ *  not a peer of it. Five tabs meant guessing again, one level down. */
 export const CALLS_TABS: PageTab[] = [
   { href: "/usage", label: "Calls", prefix: true },
   { href: "/review", label: "Review", prefix: true },
-  // No prefix: /analytics/spend is its own tab and must not light this one.
-  { href: "/analytics", label: "Analytics" },
-  { href: "/analytics/spend", label: "Spend", prefix: true },
-  { href: "/reports", label: "Daily reports", prefix: true },
+  // Prefix now: /analytics/spend has moved to Billing, so nothing under
+  // /analytics belongs to another tab.
+  { href: "/analytics", label: "Analytics", prefix: true },
 ];
 
 /** Working bots and archived ones. Archived used to be a collapsed
@@ -58,6 +64,11 @@ export const COMPLIANCE_TABS: PageTab[] = [
 
 export const BILLING_TABS: PageTab[] = [
   { href: "/billing", label: "Billing", prefix: true },
+  // Spend used to sit in the call strip, beside Calls and Review. But
+  // "what did this cost" is a money question, and the person asking it is
+  // already on Billing looking at the balance -- they were being sent to a
+  // tab filed under the phone.
+  { href: "/analytics/spend", label: "Spend", prefix: true },
   { href: "/partner", label: "Partner programme", prefix: true },
 ];
 

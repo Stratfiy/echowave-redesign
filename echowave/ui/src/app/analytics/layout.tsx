@@ -23,13 +23,20 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
-import { CALLS_TABS } from "@/components/layout/SectionTabs";
+import { BILLING_TABS, CALLS_TABS } from "@/components/layout/SectionTabs";
 import { cn } from "@/lib/utils";
 
-/** The same strip every call screen wears -- see SectionTabs. Analytics
- *  used to carry its own two tabs, which made it look like a section of
- *  its own rather than two views of the calls. */
-const TABS = CALLS_TABS;
+/** Which strip this screen wears, by what it answers.
+ *
+ *  Analytics is a call question and keeps the call strip. Spend is a money
+ *  question -- the person asking it is on Billing looking at the balance --
+ *  so it wears Billing's, even though it lives under /analytics for the
+ *  shared date range. Deciding by path rather than by folder is the point:
+ *  the URL is an implementation detail and the strip is a promise about
+ *  where you are. */
+function tabsFor(pathname: string) {
+    return pathname.startsWith("/analytics/spend") ? BILLING_TABS : CALLS_TABS;
+}
 
 const WINDOWS = [7, 30, 90] as const;
 
@@ -73,7 +80,7 @@ function Tabs() {
 
     return (
         <nav className="flex gap-1">
-            {TABS.map((tab) => {
+            {tabsFor(pathname).map((tab) => {
                 const active = tab.prefix
                     ? pathname.startsWith(tab.href)
                     : pathname === tab.href;
