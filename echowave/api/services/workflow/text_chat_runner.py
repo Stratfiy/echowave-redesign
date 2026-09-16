@@ -46,6 +46,7 @@ from api.services.pipecat.worker_runner import (
     run_pipeline_worker,
     wait_for_pipeline_worker_started,
 )
+from api.services.workflow import definition_required
 from api.services.workflow.dto import ReactFlowDTO
 from api.services.workflow.pipecat_engine import PipecatEngine
 from api.services.workflow.speaking_style import wants_code_mixed_speech
@@ -508,7 +509,12 @@ async def execute_text_chat_pending_turn(
     # one graph by the time anything walks it. Org-scoped inside
     # `assemble_for_run`.
     workflow_json = await assemble_for_run(
-        run_definition.workflow_json, organization_id=workflow.organization_id
+        definition_required.require(
+            run_definition,
+            workflow_id=getattr(workflow, "id", None),
+            name=getattr(workflow, "name", None),
+        ).workflow_json,
+        organization_id=workflow.organization_id,
     )
 
     workflow_graph = WorkflowGraph(

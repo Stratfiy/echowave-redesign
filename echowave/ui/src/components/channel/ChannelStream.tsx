@@ -36,6 +36,7 @@ import {
     translateTextApiV1TranslatePost,
 } from '@/client/sdk.gen';
 import type { TimelineEvent } from '@/client/types.gen';
+import { BlockedCard } from '@/components/channel/BlockedCard';
 import { tagTokens } from '@/components/channel/ChannelComposer';
 import { Button } from '@/components/ui/button';
 import { ActionCard } from '@/components/workflow/ActionCard';
@@ -763,6 +764,35 @@ export function ChannelStream({
                                                 all.map((e) => (e.id === updated.id ? updated : e)),
                                             )
                                         }
+                                    />
+                                </div>
+                            </li>
+                            </React.Fragment>
+                        );
+                    }
+                    // A wall the server could name. Rendered before the
+                    // generic row below, which would otherwise show the
+                    // sentence and drop the ways past it on the floor.
+                    if (event.blocked) {
+                        const tone = TONE[event.kind];
+                        return (
+                            <React.Fragment key={event.id}>
+                            {divider}
+                            <li className="flex gap-3">
+                                <span
+                                    aria-hidden
+                                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-amber-500/10"
+                                >
+                                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                    <p className="mb-1 text-xs text-muted-foreground">
+                                        <time dateTime={event.at}>{when(event.at)}</time>
+                                    </p>
+                                    <BlockedCard
+                                        wall={event.blocked}
+                                        summary={event.summary}
+                                        icon={tone?.icon}
                                     />
                                 </div>
                             </li>

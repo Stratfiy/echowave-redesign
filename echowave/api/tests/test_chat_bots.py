@@ -18,6 +18,7 @@ from api.schemas.workflow_configurations import (
     WorkflowConfigurationDefaults,
     channel_of,
     is_chat,
+    preserve_carried_keys,
     preserve_channel,
 )
 from api.services.workflow import bot_from_brief, liveness
@@ -301,3 +302,54 @@ class TestAChatBotIsGivenNoVoice:
         # Still an override -- a chat bot has a model. It just has no mouth.
         rendered = str(override)
         assert "anushka" not in rendered
+
+
+class TestEveryCarriedKeySurvivesASave:
+    """The channel was not the only key whose absence means something.
+
+    ``notify_on`` absent reads as the defaults, so a save from a screen that
+    does not know about it turns a deliberately-quiet bot noisy again, or
+    silences one somebody asked to hear from. Same silent loss, same fix,
+    and the list is named in one place so the next such key is one line.
+    """
+
+    def test_a_save_about_something_else_keeps_the_channel(self):
+        saved = preserve_carried_keys({"end_call_phrases": []}, {"channel": "chat"})
+        assert saved["channel"] == "chat"
+
+    def test_a_save_about_something_else_keeps_the_notices(self):
+        saved = preserve_carried_keys(
+            {"end_call_phrases": []}, {"notify_on": ["escalated"]}
+        )
+        assert saved["notify_on"] == ["escalated"]
+
+    def test_an_empty_notice_list_survives_exactly_as_a_full_one_does(self):
+        # "Tell me nothing about this bot" is a decision, and it is falsy.
+        saved = preserve_carried_keys({"end_call_phrases": []}, {"notify_on": []})
+        assert saved["notify_on"] == []
+
+    def test_both_are_carried_at_once(self):
+        saved = preserve_carried_keys(
+            {"a": 1}, {"channel": "chat", "notify_on": ["could_not"]}
+        )
+        assert saved["channel"] == "chat"
+        assert saved["notify_on"] == ["could_not"]
+
+    def test_what_the_save_does_say_still_wins(self):
+        saved = preserve_carried_keys(
+            {"channel": "voice", "notify_on": []}, {"channel": "chat"}
+        )
+        assert saved["channel"] == "voice"
+        assert saved["notify_on"] == []
+
+    def test_a_save_with_no_configuration_block_is_left_alone(self):
+        assert preserve_carried_keys(None, {"channel": "chat"}) is None
+
+    def test_the_original_is_not_mutated(self):
+        incoming = {"a": 1}
+        preserve_carried_keys(incoming, {"channel": "chat"})
+        assert "channel" not in incoming
+
+    def test_the_old_name_still_works(self):
+        # Kept so nothing that imported it breaks mid-refactor.
+        assert preserve_channel({"a": 1}, {"channel": "chat"})["channel"] == "chat"

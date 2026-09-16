@@ -1316,6 +1316,46 @@ export type BlankFlowResponse = {
 };
 
 /**
+ * BlockedWall
+ *
+ * What stopped the bot, and the ways past it.
+ */
+export type BlockedWall = {
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Says
+     */
+    says: string;
+    /**
+     * Ways
+     */
+    ways?: Array<BlockedWay>;
+};
+
+/**
+ * BlockedWay
+ *
+ * One lettered choice on a wall card.
+ */
+export type BlockedWay = {
+    /**
+     * Letter
+     */
+    letter: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Href
+     */
+    href: string;
+};
+
+/**
  * Body_import_contacts_api_v1_contact_lists__contact_list_id__import_post
  */
 export type BodyImportContactsApiV1ContactListsContactListIdImportPost = {
@@ -11710,6 +11750,7 @@ export type TimelineEvent = {
      * Included
      */
     included?: boolean;
+    blocked?: BlockedWall | null;
 };
 
 /**
