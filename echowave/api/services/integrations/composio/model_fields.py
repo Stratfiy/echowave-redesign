@@ -39,6 +39,14 @@ first, which is how ``bcc`` beats ``body``. Instead a small list of the words
 that actually appear in what people ask a receptionist to do is matched
 against the field names.
 
+**A schema with fields never yields a tool with none.** The two rules above
+choose; they may both decline. Calendly's ``GET_EVENT_TYPE`` publishes one
+property, ``uuid``, required nowhere in the schema and required by the API on
+every call -- nothing to keep, and no word in it anybody says out loud. The
+tool was created declaring no arguments, which reads as "takes none" rather
+than "we did not choose any", and the model called it bare. So when the
+choosing picks nobody, the schema's own fields are offered in its own order.
+
 Never raises: a schema that cannot be read yields no fields, and the tool is
 created exactly as it was before this module existed.
 """
@@ -200,6 +208,22 @@ def chosen(schema: Any, *, limit: int = MODEL_FILLS) -> list[dict[str, Any]]:
         # the choice does not depend on the order a dict happened to arrive in.
         optional.sort(key=lambda pair: (pair[0], pair[1]))
         picked.extend(name for _, name in optional[:room])
+
+    if not picked:
+        # Nothing was required and nothing answered to a word we know. That
+        # is not the same as a tool that takes no arguments, and it was being
+        # published as one: CALENDLY_GET_EVENT_TYPE declares a single `uuid`,
+        # marks it required nowhere, and fails every call without it. The
+        # tool went out declaring nothing, and a live account got "Missing
+        # required param: uuid" from a model that had never been shown the
+        # field we were holding.
+        #
+        # Adding "uuid" to the word list fixes that tool and not the next
+        # one. So the rule carries a floor instead: a schema with fields
+        # never yields a tool with none. Schema order, because with no word
+        # to rank by there is nothing better, and a vendor's own order beats
+        # a sort we invented.
+        picked = list(properties)[:limit]
 
     return [
         {
