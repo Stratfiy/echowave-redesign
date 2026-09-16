@@ -42,6 +42,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { RoutinesPanel } from "@/components/workflow/RoutinesPanel";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
@@ -577,6 +578,15 @@ export default function AgentTriggersPage() {
                         ))}
                     </div>
                 )}
+
+                {/* The other half of "what makes this bot act": the clock.
+                    Routines shipped with a runtime, a tick and six endpoints
+                    and no screen at all, so the only way to create one was to
+                    write SQL. Here rather than as a ninth tab, because an
+                    outside event and a schedule are the same question. */}
+                <div className="mt-10 border-t border-border pt-8">
+                    <RoutinesPanel workflowId={workflowId} />
+                </div>
             </div>
         </>
     );
