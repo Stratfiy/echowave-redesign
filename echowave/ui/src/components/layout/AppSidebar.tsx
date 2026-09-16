@@ -586,7 +586,7 @@ export function AppSidebar() {
                             aria-hidden="true"
                             className="h-4 w-4 shrink-0"
                           />
-                          <span className="truncate">Company knowledge</span>
+                          <span className="truncate">Knowledge base</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

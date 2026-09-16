@@ -21,7 +21,7 @@ const READS = [
     "What the business has confirmed about itself, below.",
     "What every bot did lately: calls ended, outcomes filed, hand-offs, failures.",
     "Missed calls nobody has returned.",
-    "Company knowledge, the passages that match the question.",
+    "The knowledge base, the passages and contacts that match the question.",
 ];
 
 const PROPOSES = [

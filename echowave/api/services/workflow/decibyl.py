@@ -44,6 +44,7 @@ from api.services.workflow import (
     chat_memory,
     connected_tools,
     connector_offer,
+    contact_lookup,
     document_fields,
     documents,
     filing,
@@ -60,7 +61,7 @@ NAME = "Decibyl"
 #: see _history and services/workflow/chat_memory.py.
 #: Timeline rows folded into "what the bots did lately".
 RECENT_EVENTS = 40
-#: Chunks read from Company knowledge for one question.
+#: Chunks read from the knowledge base for one question.
 KNOWLEDGE_CHUNKS = 4
 
 SYSTEM = (
@@ -325,7 +326,7 @@ def door_block(door: dict[str, str]) -> str:
 
 #: Scope names as somebody would say them, for the documents block.
 _SCOPE_WORDS = {
-    "org": "Company knowledge, read by every bot",
+    "org": "the knowledge base, read by every bot",
     "bot": "one bot's own",
     "channel": "a channel's",
     "library": "the library, read only by a step that names it",
@@ -335,7 +336,7 @@ _SCOPE_WORDS = {
 def documents_block(rows: list[Any], names: dict[int, str]) -> str:
     """What the account has uploaded, and who reads it.
 
-    Without this the model knew only whether a *search* of Company knowledge
+    Without this the model knew only whether a *search* of the knowledge base
     matched, so an account with three documents filed against bots was told
     its knowledge base was empty -- true of the search, false of the files,
     and the person is looking at them on the Knowledge base screen while
@@ -376,21 +377,33 @@ def recent_block(events: list[Any], bot_names: dict[int, str]) -> str:
     return "\n".join(lines) if lines else "Nothing recorded lately."
 
 
-def knowledge_block(result: dict[str, Any]) -> str:
-    chunks = result.get("chunks") or []
-    if not chunks:
-        return "No matching passage in Company knowledge."
+def knowledge_block(result: dict[str, Any], contacts: list[Any] | None = None) -> str:
+    """What the account knows that bears on this question.
+
+    Two sources, one heading, because they are one idea to the person
+    asking: passages from the files they uploaded, and the people in their
+    contact book that the question names. Contacts come first -- a question
+    naming somebody is usually about them, and a passage that merely reads
+    like them is the weaker answer.
+
+    The document half needs embeddings configured; the contact half does
+    not, so an account on the free tier with no embeddings still gets an
+    answer about its own customers rather than silence.
+    """
     out = []
+    for contact in contacts or []:
+        out.append(contact_lookup.block([contact]))
+    chunks = result.get("chunks") or []
     for c in chunks[:KNOWLEDGE_CHUNKS]:
         text = str(c.get("text") or c.get("content") or "").strip()
         name = c.get("document_name") or c.get("filename") or "document"
         if text:
             out.append(f"- ({name}) {text[:600]}")
-    return "\n".join(out) if out else "No matching passage in Company knowledge."
+    return "\n".join(out) if out else "Nothing in the knowledge base matches that."
 
 
 async def _knowledge(organization_id: int, question: str) -> dict[str, Any]:
-    """Company knowledge, on the account's own embeddings key. Unavailable
+    """The knowledge base, on the account's own embeddings key. Unavailable
     is an answer, not an error: a workspace with no embeddings set up gets
     "no passage" rather than a broken assistant."""
     try:
@@ -423,7 +436,7 @@ async def _knowledge(organization_id: int, question: str) -> dict[str, Any]:
             embeddings_api_version=getattr(embeddings, "api_version", None),
         )
     except Exception as exc:  # noqa: BLE001 - knowledge is one reading of four
-        logger.warning("Decibyl could not read Company knowledge: {}", exc)
+        logger.warning("Decibyl could not read the knowledge base: {}", exc)
         return {"status": "unavailable", "chunks": []}
 
 
@@ -502,6 +515,19 @@ async def build_context(organization_id: int, question: str) -> str:
         missed = []
 
     knowledge = await _knowledge(organization_id, question)
+    # Contacts are part of what the account knows, and were reachable only
+    # from a ringing phone. Matched against the question, never dumped.
+    #
+    # Guarded here as well as inside `matching`, like every other reading in
+    # this function: the module's own guard is about a contact book that
+    # cannot be read, and this one is about the reading itself failing. The
+    # contract is that each reading fails alone, and a reading that can take
+    # the other seven with it does not honour it.
+    try:
+        contacts = await contact_lookup.matching(organization_id, question)
+    except Exception as exc:  # noqa: BLE001 - one reading of several
+        logger.warning("Decibyl could not read the contacts: {}", exc)
+        contacts = []
     # The files themselves, not just whether a search of them matched: see
     # documents_block.
     try:
@@ -547,7 +573,7 @@ async def build_context(organization_id: int, question: str) -> str:
         f"## Lately\n{recent_block(recent, bot_names)}\n\n"
         f"## Missed calls not returned\n{missed_block(missed)}\n\n"
         f"## Connected apps\n{connected_tools.apps_block(apps, awaiting)}\n\n"
-        f"## From Company knowledge\n{knowledge_block(knowledge)}\n\n"
+        f"## From the knowledge base\n{knowledge_block(knowledge, contacts)}\n\n"
         f"## Files this account has uploaded\n{documents_block(documents, bot_names)}\n"
     )
 

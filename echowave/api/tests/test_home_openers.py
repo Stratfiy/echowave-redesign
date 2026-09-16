@@ -230,7 +230,7 @@ class TestDecibylKnowsTheFiles:
         ]
         block = decibyl.documents_block(rows, {3: "Front desk"})
         assert "rates.pdf: Front desk's own" in block
-        assert "policy.docx: Company knowledge, read by every bot" in block
+        assert "policy.docx: the knowledge base, read by every bot" in block
         assert "huge.pdf: the library" in block
         assert "(still being read)" in block
 

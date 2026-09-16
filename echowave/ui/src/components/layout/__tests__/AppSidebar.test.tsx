@@ -124,8 +124,8 @@ describe("sidebar interactions", () => {
     // The two sections' doors are there even before anything has loaded.
     expect(screen.getByLabelText("New chat")).toBeTruthy();
     expect(screen.getByLabelText("Add a bot")).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Company knowledge/ }).getAttribute("href")).toBe("/files");
-    // The panel opens on Decibyl, the assistant, above Company knowledge --
+    expect(screen.getByRole("link", { name: /Knowledge base/ }).getAttribute("href")).toBe("/files");
+    // The panel opens on Decibyl, the assistant, above the knowledge base --
     // Slack's Slackbot and Directories. The rail's logo is also named
     // Decibyl, so the row is found inside the panel, not the rail.
     const decibyl = screen

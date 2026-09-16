@@ -168,7 +168,7 @@ class TestTheContext:
         assert decibyl.memory_block([]) == "Nothing confirmed yet."
         assert (
             decibyl.knowledge_block({"chunks": []})
-            == "No matching passage in Company knowledge."
+            == "Nothing in the knowledge base matches that."
         )
         assert "(price list) A 5 kg parcel" in decibyl.knowledge_block(
             {
@@ -296,4 +296,39 @@ class TestAnswering:
             context = await decibyl.build_context(7, "when do we open?")
         assert "Team today: 0 bots" in context
         assert "- Opening hours: 9 to 6" in context
-        assert "No matching passage" in context
+        assert "Nothing in the knowledge base matches that." in context
+
+    @pytest.mark.asyncio
+    async def test_a_contact_book_that_cannot_be_read_fails_alone_too(self):
+        """The contact reading joined build_context and must not be the one
+        that takes it down: every other reading still has to arrive."""
+        with (
+            patch(
+                "api.routes.team._members",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch(
+                "api.services.workflow.decibyl.db_client.organisation_memory",
+                new=AsyncMock(
+                    return_value=[
+                        SimpleNamespace(
+                            key="Opening hours", value="9 to 6", kind="fact"
+                        )
+                    ]
+                ),
+            ),
+            patch(
+                "api.services.workflow.decibyl.db_client.agent_events",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch(
+                "api.services.workflow.decibyl._knowledge",
+                new=AsyncMock(return_value={"chunks": []}),
+            ),
+            patch(
+                "api.services.workflow.decibyl.contact_lookup.matching",
+                new=AsyncMock(side_effect=RuntimeError("contacts down")),
+            ),
+        ):
+            context = await decibyl.build_context(7, "who is Ravi?")
+        assert "- Opening hours: 9 to 6" in context

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import delete, func
+from sqlalchemy import delete, func, or_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.future import select
 
@@ -142,6 +142,49 @@ class ContactClient(BaseDBClient):
                 .offset(offset)
             )
             return list(result.scalars().all()), int(total.scalar() or 0)
+
+    async def search_contacts_for_organization(
+        self,
+        organization_id: int,
+        terms: list[str],
+        *,
+        limit: int = 5,
+    ) -> List[ContactModel]:
+        """Contacts anywhere in this account matching any of these terms.
+
+        The counterpart to :meth:`get_contacts`, which searches inside one
+        list. A person asking "what do we know about Ravi" has not named a
+        list and should not have to: the account's contacts are one book to
+        them however they were uploaded.
+
+        Each term is matched against the name and against both spellings of
+        the number, so ``9876543210`` finds a contact stored as
+        ``+91 98765 43210``. An empty term list returns nothing rather than
+        everything -- a question naming nobody must not drag the whole book
+        into a prompt.
+        """
+        cleaned = [t.strip() for t in terms if t and t.strip()]
+        if not cleaned:
+            return []
+        async with self.async_session() as session:
+            matches = or_(
+                *[
+                    ContactModel.name.ilike(f"%{term}%")
+                    | ContactModel.phone_normalized.ilike(f"%{term}%")
+                    | ContactModel.phone_raw.ilike(f"%{term}%")
+                    for term in cleaned
+                ]
+            )
+            result = await session.execute(
+                select(ContactModel)
+                .where(
+                    ContactModel.organization_id == organization_id,
+                    matches,
+                )
+                .order_by(ContactModel.updated_at.desc(), ContactModel.id.desc())
+                .limit(limit)
+            )
+            return list(result.scalars().all())
 
     async def find_contact_by_phone(
         self, contact_list_id: int, phone_normalized: str

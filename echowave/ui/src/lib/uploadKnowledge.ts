@@ -1,6 +1,6 @@
 /**
  * One upload, start to finish: mint the presigned URL, put the bytes, tell
- * the API to read the document. Used by the Company knowledge page and by
+ * the API to read the document. Used by the Knowledge base page and by
  * the composer's paperclip, so a file dropped into a chat goes through
  * exactly the door a file uploaded on the knowledge page does -- the same
  * key check, the same quota, the same scope check.
