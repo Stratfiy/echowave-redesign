@@ -42,6 +42,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { BotNotices } from "@/components/workflow/BotNotices";
 import { RoutinesPanel } from "@/components/workflow/RoutinesPanel";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
@@ -586,6 +587,13 @@ export default function AgentTriggersPage() {
                     outside event and a schedule are the same question. */}
                 <div className="mt-10 border-t border-border pt-8">
                     <RoutinesPanel workflowId={workflowId} />
+            </div>
+
+            {/* Beside the routines rather than on its own screen: this page
+                already answers "what makes this bot act", and "what it tells
+                me when it does" is the other half of the same question. */}
+            <div className="mt-10 border-t pt-8">
+                <BotNotices workflowId={Number(workflowId)} />
                 </div>
             </div>
         </>

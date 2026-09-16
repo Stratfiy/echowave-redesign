@@ -56,7 +56,7 @@ from api.services.configuration.resolve import (
 from api.services.posthog_client import capture_event
 from api.services.reports import generate_workflow_report_csv
 from api.services.storage import storage_fs
-from api.services.workflow import setup_progress
+from api.services.workflow import bot_notices, setup_progress
 from api.services.workflow.agent_brief import (
     AgentBrief,
     apply_brief,
@@ -1719,6 +1719,89 @@ async def get_outcome_board(
         )
         for entry in entries
     ]
+
+
+class NoticeOption(BaseModel):
+    kind: str
+    label: str
+    when: str
+    default: bool
+
+
+class BotNoticesResponse(BaseModel):
+    """What this bot can tell you about, and what it is set to."""
+
+    offered: List[NoticeOption]
+    selected: List[str]
+
+
+class SetBotNoticesRequest(BaseModel):
+    #: An empty list is a decision -- "tell me nothing about this bot" --
+    #: and is stored as one. It is not the same as never having chosen,
+    #: which falls back to the defaults.
+    kinds: List[str]
+
+
+@router.get("/{workflow_id}/notices", response_model=BotNoticesResponse)
+async def get_bot_notices(
+    workflow_id: int,
+    user: UserModel = Depends(get_user),
+) -> BotNoticesResponse:
+    """Which of this bot's events ring the bell."""
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=user.selected_organization_id
+    )
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    # The workflow row: the latest edit, which is what the notifier reads.
+    # Showing the published copy would have the screen disagree with the
+    # thing that decides whether the bell rings.
+    return BotNoticesResponse(
+        offered=[NoticeOption(**entry) for entry in bot_notices.catalogue()],
+        selected=bot_notices.store(
+            bot_notices.selected_for(workflow.workflow_configurations)
+        ),
+    )
+
+
+@router.put("/{workflow_id}/notices", response_model=BotNoticesResponse)
+async def set_bot_notices(
+    workflow_id: int,
+    request: SetBotNoticesRequest,
+    user: UserModel = Depends(get_user),
+) -> BotNoticesResponse:
+    """Choose which of this bot's events ring the bell.
+
+    Writes only its own key. The configuration block holds the voice stack,
+    the channel and the outcome taxonomy; replacing it wholesale from a
+    screen about notifications is how a save about the bell silently takes
+    a bot off the phone.
+    """
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=user.selected_organization_id
+    )
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    unknown = [k for k in request.kinds if k not in bot_notices.NOTIFIABLE]
+    if unknown:
+        # Refused rather than dropped. A screen that asked to be told about
+        # something and was quietly not is the failure this whole feature
+        # is about.
+        raise HTTPException(
+            status_code=400,
+            detail=f"This bot cannot notify on: {', '.join(sorted(set(unknown)))}",
+        )
+
+    draft = await db_client.get_draft_version(workflow_id)
+    source = draft or workflow.released_definition
+    existing = dict((source.workflow_configurations if source else None) or {})
+    existing[bot_notices.CONFIG_KEY] = bot_notices.store(request.kinds)
+    await db_client.save_workflow_draft(workflow_id, workflow_configurations=existing)
+    return BotNoticesResponse(
+        offered=[NoticeOption(**entry) for entry in bot_notices.catalogue()],
+        selected=bot_notices.store(request.kinds),
+    )
 
 
 @router.put("/{workflow_id}/status")
