@@ -104,7 +104,7 @@ describe('a file is a message', () => {
         const picker = screen.getByLabelText('Attach a file', { selector: 'input' });
         const file = new File(['x'], 'rates.pdf', { type: 'application/pdf' });
         fireEvent.change(picker, { target: { files: [file] } });
-        // Scoped to this bot, not to company knowledge.
+        // Scoped to this bot, not to the knowledge base.
         await waitFor(() => expect(upload).toHaveBeenCalled());
         expect(upload.mock.calls[0][1]).toEqual({ scope: 'bot', workflowId: 3 });
         expect(await screen.findByText('rates.pdf')).toBeTruthy();

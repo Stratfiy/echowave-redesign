@@ -259,7 +259,7 @@ export function ChannelComposer({
 
     // Where a dropped file is knowledge for: this chat, and nowhere else.
     // Decibyl is the exception on purpose: it is the workspace's own
-    // assistant and answers from Company knowledge, so a PDF handed to it
+    // assistant and answers from the knowledge base, so a PDF handed to it
     // lands there -- the one place every bot can read it from.
     const target: KnowledgeTarget | null =
         workflowId != null
@@ -525,7 +525,7 @@ export function ChannelComposer({
                 <div className="flex items-end gap-2">
                     {/* A file is a message. It is uploaded as knowledge for
                         this chat alone -- the channel's bots, or this one bot
-                        -- and never lands in company knowledge by accident. */}
+                        -- and never lands in the knowledge base by accident. */}
                     {target && (
                         <>
                             <input

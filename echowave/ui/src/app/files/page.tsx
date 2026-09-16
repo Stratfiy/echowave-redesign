@@ -53,7 +53,7 @@ export default function FilesPage() {
                 tabs={KNOWLEDGE_TABS}
                 title={
                     <span className="flex flex-wrap items-center gap-2">
-                        Company knowledge
+                        Knowledge base
                         {/* Retrieval during a call is a real, measured cost, but
                             it is not billed as a separate line today — see
                             PRICING-DECISIONS.md. An absorbed feature nobody is
@@ -87,7 +87,7 @@ export default function FilesPage() {
                 <CardHeader>
                     <CardTitle>Documents</CardTitle>
                     <CardDescription>
-                        Company knowledge is read by every bot. A file given to a channel or a bot is read there only. Library files are read by the steps that name them.
+                        The knowledge base is read by every bot. A file given to a channel or a bot is read there only. Library files are read by the steps that name them.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -98,7 +98,7 @@ export default function FilesPage() {
             <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Add company knowledge</DialogTitle>
+                        <DialogTitle>Add to the knowledge base</DialogTitle>
                         <DialogDescription>
                             Every bot in this workspace will be able to answer from it.
                         </DialogDescription>

@@ -20,7 +20,7 @@ import {
 
 interface DocumentUploadProps {
   onUploadSuccess: () => void;
-  /** Who the document is knowledge for. The page uploads company knowledge,
+  /** Who the document is knowledge for. The page uploads to the knowledge base,
    *  which every bot reads; the library is what a node has to name. */
   target?: KnowledgeTarget;
 }
