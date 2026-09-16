@@ -135,11 +135,16 @@ SYSTEM = (
     "asked memory about that this line touches: mention it in a clause "
     "only when it helps the line, never as a separate announcement.\n"
     "- A file attached to the line (under 'Attached to this line') is the "
-    "material for the request. Read it before answering. 'Build a bot for "
-    "this' with a document attached is a brief: pick the closest template "
-    "yourself from what the document describes, name the bot from it, fill "
-    "the template's answers from the document, and call create_bot; do not "
-    "ask which template. Ask only for an answer the document does not give.\n"
+    "material for the request. Read it before answering. A document that "
+    "says what a bot should do -- a written flow, a process, a job "
+    "description, a vendor spec -- is a brief, and a brief is built, not "
+    "discussed: call build_bot_from_spec with the document's own text as "
+    "`spec`, naming the bot from the document. Do not ask which template, "
+    "and do not condense the document into a sentence first -- the steps "
+    "are what the bot is built from. Use create_bot instead only when what "
+    "they want plainly IS one of the templates in your context and the "
+    "document is just the answers for it. Ask only for something neither "
+    "the document nor the conversation gives you.\n"
     "- Never repeat an OTP, a card number or an identity number.\n"
     f"- {untrusted.RULE}\n"
 )
@@ -717,8 +722,13 @@ async def answer(
 
 
 #: How much of an attached file the model is shown, per file and in all.
-ATTACHMENT_CHARS = 12_000
-ATTACHMENTS_CHARS = 30_000
+#:
+#: A real vendor spec runs past twelve thousand characters -- the Elock
+#: workflow a customer sent is 12,134 -- and clipping the tail of a spec
+#: silently drops the closing steps, which is where escalation and
+#: disposition live. A brief is built from, not skimmed, so it gets room.
+ATTACHMENT_CHARS = 24_000
+ATTACHMENTS_CHARS = 48_000
 #: How long to wait for a file that arrived a moment ago to be read.
 #:
 #: Short on purpose. A real document takes longer than any wait worth
@@ -820,7 +830,18 @@ async def attached_block(
         parts.append(f"### {name}\n{clipped}")
         if budget <= 0:
             break
-    return "## Attached to this line\n" + "\n\n".join(parts) if parts else ""
+    if not parts:
+        return ""
+    # Said here as well as in the rules, because this is the block the
+    # model is reading when it decides what to do with the file, and a
+    # capability named three thousand tokens earlier is a capability that
+    # gets forgotten.
+    return (
+        "## Attached to this line\n"
+        + "\n\n".join(parts)
+        + "\n\n(If this says what a bot should do, build it: "
+        f"{bot_from_brief.TOOL_NAME} with the text above as the spec.)"
+    )
 
 
 #: Tool rounds a single reply may take. Four covers "look it up, then do

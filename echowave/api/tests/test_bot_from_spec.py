@@ -243,3 +243,34 @@ class TestBuilding:
             with pytest.raises(actions.ActionError):
                 await actions._execute(1, payload)
         gen.assert_not_awaited()
+
+
+class TestAFileIsABrief:
+    """Upload a spec, get a bot. The rule used to say the opposite."""
+
+    def test_the_rules_send_an_attached_spec_to_the_builder(self):
+        from api.services.workflow import decibyl
+
+        source = open("api/services/workflow/decibyl.py").read()
+        assert bot_from_brief.TOOL_NAME in source
+        # And not back to the template path it used to hardcode.
+        assert "and call create_bot; do not" not in source
+        assert decibyl.ATTACHMENT_CHARS >= 24_000
+
+    @pytest.mark.asyncio
+    async def test_the_attached_block_says_it_can_be_built(self):
+        from unittest.mock import AsyncMock, patch
+
+        from api.services.workflow import decibyl
+
+        class _Doc:
+            full_text = "Step 1: greet. Step 2: take the invoice number."
+
+        with patch.object(
+            decibyl.db_client, "get_document_by_uuid", AsyncMock(return_value=_Doc())
+        ):
+            block = await decibyl.attached_block(
+                1, [{"document_uuid": "u", "filename": "Spec.docx"}]
+            )
+        assert "Spec.docx" in block
+        assert bot_from_brief.TOOL_NAME in block
