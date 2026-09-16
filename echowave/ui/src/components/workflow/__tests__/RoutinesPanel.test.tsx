@@ -16,6 +16,7 @@ const list = vi.hoisted(() => vi.fn());
 const setActive = vi.hoisted(() => vi.fn());
 const testRun = vi.hoisted(() => vi.fn());
 const create = vi.hoisted(() => vi.fn());
+const update = vi.hoisted(() => vi.fn());
 const remove = vi.hoisted(() => vi.fn());
 
 vi.mock("@/client/sdk.gen", () => ({
@@ -23,6 +24,7 @@ vi.mock("@/client/sdk.gen", () => ({
     setActiveApiV1WorkflowsWorkflowIdRoutinesRoutineIdActivePost: setActive,
     testRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdTestPost: testRun,
     createRoutineApiV1WorkflowsWorkflowIdRoutinesPost: create,
+    updateRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdPut: update,
     deleteRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdDelete: remove,
 }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
@@ -123,5 +125,99 @@ describe("RoutinesPanel", () => {
         render(<RoutinesPanel workflowId={7} />);
         expect(await screen.findByText(/could not be read/)).toBeTruthy();
         expect(screen.queryByText(/Nothing scheduled/)).toBeNull();
+    });
+});
+
+describe("editing a routine", () => {
+    /**
+     * The endpoint takes a whole routine, and two of its fields are not on
+     * this form. A save about the time would otherwise clear both, and
+     * neither loss shows up anywhere: the routine keeps running, just at a
+     * different minute and without the connectors it cannot work without.
+     */
+    beforeEach(() => {
+        update.mockResolvedValue({ data: routine() });
+    });
+
+    it("fills the form from the routine rather than opening it empty", async () => {
+        render(<RoutinesPanel workflowId={7} />);
+        fireEvent.click(await screen.findByRole("button", { name: "Edit Morning summary" }));
+        expect((screen.getByLabelText("Call it") as HTMLInputElement).value).toBe(
+            "Morning summary",
+        );
+        expect((screen.getByLabelText("What it should do") as HTMLTextAreaElement).value).toBe(
+            "Read yesterday's calls and message me.",
+        );
+    });
+
+    it("puts the stored minute back into the time field", async () => {
+        list.mockResolvedValue({ data: { routines: [routine({ anchor: "clock", at_minute: 545 })] } });
+        render(<RoutinesPanel workflowId={7} />);
+        fireEvent.click(await screen.findByRole("button", { name: "Edit Morning summary" }));
+        // 545 minutes past midnight is 09:05, not "545".
+        expect((screen.getByLabelText("Time") as HTMLInputElement).value).toBe("09:05");
+    });
+
+    it("updates rather than creating a second routine", async () => {
+        render(<RoutinesPanel workflowId={7} />);
+        fireEvent.click(await screen.findByRole("button", { name: "Edit Morning summary" }));
+        fireEvent.click(screen.getByRole("button", { name: /Save changes/ }));
+        await waitFor(() => expect(update).toHaveBeenCalled());
+        expect(create).not.toHaveBeenCalled();
+        expect(update.mock.calls[0][0].path).toEqual({ workflow_id: 7, routine_id: 4 });
+    });
+
+    it("keeps the connectors the routine needs, which the form never asked about", async () => {
+        list.mockResolvedValue({
+            data: { routines: [routine({ needs_apps: ["GOOGLESHEETS", "GMAIL"] })] },
+        });
+        render(<RoutinesPanel workflowId={7} />);
+        fireEvent.click(await screen.findByRole("button", { name: "Edit Morning summary" }));
+        fireEvent.click(screen.getByRole("button", { name: /Save changes/ }));
+        await waitFor(() => expect(update).toHaveBeenCalled());
+        expect(update.mock.calls[0][0].body.needs_apps).toEqual(["GOOGLESHEETS", "GMAIL"]);
+    });
+
+    it("keeps an offset the form never asked about", async () => {
+        // -30 with a closing anchor is "half an hour before you shut". A zero
+        // here moves the run and says nothing.
+        list.mockResolvedValue({
+            data: { routines: [routine({ anchor: "closing", offset_minutes: -30 })] },
+        });
+        render(<RoutinesPanel workflowId={7} />);
+        fireEvent.click(await screen.findByRole("button", { name: "Edit Morning summary" }));
+        fireEvent.click(screen.getByRole("button", { name: /Save changes/ }));
+        await waitFor(() => expect(update).toHaveBeenCalled());
+        expect(update.mock.calls[0][0].body.offset_minutes).toBe(-30);
+    });
+
+    it("creating still sends no offset and no apps", async () => {
+        create.mockResolvedValue({ data: routine() });
+        render(<RoutinesPanel workflowId={7} />);
+        fireEvent.click(await screen.findByRole("button", { name: /Add a routine/ }));
+        fireEvent.change(screen.getByLabelText("Call it"), { target: { value: "Evening sweep" } });
+        fireEvent.click(screen.getByRole("button", { name: /Save it/ }));
+        await waitFor(() => expect(create).toHaveBeenCalled());
+        expect(create.mock.calls[0][0].body.offset_minutes).toBe(0);
+        expect(create.mock.calls[0][0].body.needs_apps).toEqual([]);
+    });
+
+    it("cancelling an edit leaves the form empty for the next one", async () => {
+        render(<RoutinesPanel workflowId={7} />);
+        fireEvent.click(await screen.findByRole("button", { name: "Edit Morning summary" }));
+        fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        fireEvent.click(screen.getByRole("button", { name: /Add a routine/ }));
+        expect((screen.getByLabelText("Call it") as HTMLInputElement).value).toBe("");
+    });
+
+    it("surfaces a refusal instead of closing the form on it", async () => {
+        update.mockResolvedValue({ data: undefined, error: { detail: "Not allowed" } });
+        render(<RoutinesPanel workflowId={7} />);
+        fireEvent.click(await screen.findByRole("button", { name: "Edit Morning summary" }));
+        fireEvent.click(screen.getByRole("button", { name: /Save changes/ }));
+        expect(await screen.findByText("Not allowed")).toBeTruthy();
+        expect((screen.getByLabelText("Call it") as HTMLInputElement).value).toBe(
+            "Morning summary",
+        );
     });
 });
