@@ -158,6 +158,9 @@ TIMELINE_PRICES: dict[str, str] = {
     AgentEventKind.NEEDS_SECRET.value: INCLUDED,
     AgentEventKind.ACTION_PROPOSED.value: INCLUDED,
     AgentEventKind.EDIT_PROPOSED.value: INCLUDED,
+    # A card offering to connect an app. Included: putting the offer on the
+    # thread costs nothing, and the sign-in it leads to is the vendor's.
+    AgentEventKind.CONNECTOR_OFFERED.value: INCLUDED,
     AgentEventKind.ACTIVITY.value: INCLUDED,
     AgentEventKind.MEMORY_LEARNED.value: INCLUDED,
     AgentEventKind.ROUTINE_FIRED.value: INCLUDED,

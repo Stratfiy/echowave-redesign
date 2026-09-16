@@ -28,7 +28,7 @@ import { useNodeHandlers } from "./common/useNodeHandlers";
 
 type NodeStyleVariant =
     | "start"
-    | "agent"
+    | "bot"
     | "end"
     | "global"
     | "trigger"
@@ -40,7 +40,7 @@ type NodeStyleVariant =
 
 const STYLE_VARIANT_BY_SPEC: Record<string, NodeStyleVariant> = {
     startCall: "start",
-    agentNode: "agent",
+    agentNode: "bot",
     endCall: "end",
     globalNode: "global",
     trigger: "trigger",
@@ -162,8 +162,8 @@ function getBadgeForSpec(
     switch (variant) {
         case "start":
             return { label: "Start Node", className: "bg-emerald-500 text-white" };
-        case "agent":
-            return { label: "Agent Node", className: "bg-blue-500 text-white" };
+        case "bot":
+            return { label: "Bot Node", className: "bg-blue-500 text-white" };
         case "end":
             return { label: "End Node", className: "bg-rose-500 text-white" };
         case "global":
@@ -464,13 +464,13 @@ function TriggerWebhookUrls({ endpoints }: { endpoints: TriggerEndpoints }) {
                 <TabsContent value="test">
                     <UrlPanel
                         endpoint={endpoints.test}
-                        helperText="Runs the latest draft, falling back to the published agent when no draft exists."
+                        helperText="Runs the latest draft, falling back to the published bot when no draft exists."
                     />
                 </TabsContent>
                 <TabsContent value="production">
                     <UrlPanel
                         endpoint={endpoints.production}
-                        helperText="Runs the published agent."
+                        helperText="Runs the published bot."
                     />
                 </TabsContent>
             </Tabs>
@@ -612,7 +612,7 @@ export const GenericNode = memo(({ data, selected, id, type }: GenericNodeProps)
     // ── Render ──────────────────────────────────────────────────────────
     const styleVariant =
         STYLE_VARIANT_BY_SPEC[type] ??
-        (spec?.category === "integration" ? "integration" : "agent");
+        (spec?.category === "integration" ? "integration" : "bot");
     const handles =
         HANDLES_BY_SPEC[type] ??
         (spec?.category === "integration"

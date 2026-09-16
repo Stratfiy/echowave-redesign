@@ -86,7 +86,7 @@ export function CreateWorkflowButton() {
             <DropdownMenuTrigger asChild>
                 <Button disabled={isCreating}>
                     <PlusIcon className="w-4 h-4" />
-                    {isCreating ? 'Creating...' : 'Create Agent'}
+                    {isCreating ? 'Creating...' : 'Create Bot'}
                     <ChevronDown className="w-4 h-4" />
                 </Button>
             </DropdownMenuTrigger>

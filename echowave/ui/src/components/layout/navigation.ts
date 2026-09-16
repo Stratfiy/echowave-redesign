@@ -34,7 +34,7 @@ export type SidebarNavItem = {
   /** Related routes belonging to this destination. */
   activePaths?: string[];
   /** Extra words the top-bar search should match on. The visible title is what
-   *  someone reads; it is rarely what they type. "Agent Runs" is where calls
+   *  someone reads; it is rarely what they type. "Bot Runs" is where calls
    *  are listed, and nobody searching for a call types "runs". */
   keywords?: string[];
   /** Hide from members below organization admin.
@@ -163,7 +163,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         // Channels are the groups inside this list. A bot belongs to at most
         // one, which is what `WorkflowModel.folder_id` has always modelled.
         //
-        // "agents" and "team" both stay as search keywords: a rename that
+        // "bots" and "team" both stay as search keywords: a rename that
         // makes a destination unsearchable is a rename that loses it.
         title: "Your bots",
         url: "/workflow",
@@ -171,15 +171,15 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         activePaths: ["/model-configurations"],
         icon: Bot,
         keywords: [
-          // "agents" first: it is what the rail used to say and what most
+          // "bots" first: it is what the rail used to say and what most
           // people still type. A rename that makes a destination unsearchable
           // is a rename that loses it.
-          "agents",
-          "agent",
+          "bots",
+          "bot",
           "team",
           "bots",
           "workflow",
-          "voice agent",
+          "voice bot",
           "builder",
           "canvas",
           "flow",
@@ -393,7 +393,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         activePaths: ["/reports", "/review", "/analytics"],
         icon: PhoneCall,
         keywords: [
-          "agent runs",
+          "bot runs",
           "call logs",
           "history",
           "logs",
@@ -507,7 +507,7 @@ export function getActiveNavUrl(pathname: string, sections: SidebarNavSection[])
  * Seventeen destinations in one scrolling list is a control panel. Every
  * workspace tool the market has settled on uses the same shape instead: a
  * narrow rail of a few contexts, and one wide panel that swaps entirely. Slack
- * has five — Home, DMs, Activity, More, Admin — and "Agents & tools" gets a
+ * has five — Home, DMs, Activity, More, Admin — and "Bots & tools" gets a
  * panel of its own rather than three entries in a list.
  *
  * `NAV_SECTIONS` stays the single source of truth for the items themselves, so

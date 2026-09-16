@@ -170,7 +170,7 @@ export function conversationItemsFromTextChatTurns(turns: TextChatTurnLike[]) {
                 turnId: turn.id,
                 timestamp: turn.created_at,
                 role: "assistant",
-                text: "Agent turn failed",
+                text: "Bot turn failed",
                 tone: "muted",
             });
         }

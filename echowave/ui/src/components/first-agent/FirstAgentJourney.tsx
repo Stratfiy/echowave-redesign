@@ -356,7 +356,7 @@ export function FirstAgentJourney() {
         });
         setBusy(false);
         if (response.error) {
-            const message = detailFromResult(response, "Could not create the agent.");
+            const message = detailFromResult(response, "Could not create the bot.");
             logger.error(`First agent create failed: ${message}`);
             posthog.capture(PostHogEvent.FIRST_AGENT_CREATE_FAILED, {
                 template_id: template.id,
@@ -367,7 +367,7 @@ export function FirstAgentJourney() {
         }
         const created = response.data as { id?: number } | undefined;
         if (created?.id == null) {
-            setError("The agent was created but could not be opened. It is in your list.");
+            setError("The bot was created but could not be opened. It is in your list.");
             return;
         }
         setWorkflowId(created.id);
@@ -382,7 +382,7 @@ export function FirstAgentJourney() {
         setStep("hear");
     };
 
-    const finish = (next: "number" | "agent" | "recording") => {
+    const finish = (next: "number" | "bot" | "recording") => {
         posthog.capture(PostHogEvent.FIRST_AGENT_FINISHED, {
             workflow_id: workflowId,
             next,
@@ -390,7 +390,7 @@ export function FirstAgentJourney() {
         writeSaved(null);
     };
 
-    const displayName = agentName.trim() || template?.name || "Your agent";
+    const displayName = agentName.trim() || template?.name || "Your bot";
 
     return (
         <div className="min-h-screen px-4 py-6 sm:px-8">
@@ -763,7 +763,7 @@ function PickStep({
                     {voiceId
                         ? "Your bot will answer in the voice you just heard."
                         : voice
-                          ? "Change it on the agent whenever you like."
+                          ? "Change it on the bot whenever you like."
                           : "Press a voice on a card to hear it and choose it."}
                 </span>
             </div>
@@ -843,9 +843,9 @@ function NameStep({
 
             <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                    <Label htmlFor="first-agent-name">Agent name</Label>
+                    <Label htmlFor="first-bot-name">Bot name</Label>
                     <Input
-                        id="first-agent-name"
+                        id="first-bot-name"
                         value={agentName}
                         onChange={(e) => onName(e.target.value)}
                         placeholder={template.name}
@@ -885,9 +885,9 @@ function NameStep({
             )}
 
             <div className="space-y-2">
-                <Label htmlFor="first-agent-greeting">Opening line</Label>
+                <Label htmlFor="first-bot-greeting">Opening line</Label>
                 <Textarea
-                    id="first-agent-greeting"
+                    id="first-bot-greeting"
                     value={greeting}
                     onChange={(e) => onGreeting(e.target.value)}
                     rows={3}
@@ -1181,9 +1181,9 @@ function HearStep({
                     ) : (
                         <div className="flex flex-wrap items-end gap-3">
                             <div className="min-w-[220px] flex-1 space-y-2">
-                                <Label htmlFor="first-agent-phone">Which number</Label>
+                                <Label htmlFor="first-bot-phone">Which number</Label>
                                 <select
-                                    id="first-agent-phone"
+                                    id="first-bot-phone"
                                     value={phone ?? ""}
                                     onChange={(e) => setPhone(e.target.value)}
                                     className="h-9 w-full rounded-[var(--radius-control)] border border-input bg-card px-3 text-sm"
@@ -1285,7 +1285,7 @@ function ReadyStep({
     voice: boolean;
     runId: number | null;
     displayName: string;
-    onFinish: (next: "number" | "agent" | "recording") => void;
+    onFinish: (next: "number" | "bot" | "recording") => void;
 }) {
     return (
         <div className="space-y-6">
@@ -1324,7 +1324,7 @@ function ReadyStep({
                     </p>
                     <div className="mt-4 flex flex-wrap gap-2">
                         <Button asChild variant="outline">
-                            <Link href={`/workflow/${workflowId}`} onClick={() => onFinish("agent")}>
+                            <Link href={`/workflow/${workflowId}`} onClick={() => onFinish("bot")}>
                                 Open {displayName}
                             </Link>
                         </Button>

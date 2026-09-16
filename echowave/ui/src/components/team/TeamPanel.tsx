@@ -133,7 +133,7 @@ export function TeamPanel({ members: supplied }: { members?: TeamMember[] } = {}
     }
 
     // No agents at all is the empty state the rest of this screen already
-    // handles — a second "hire your first agent" card under it would be two
+    // handles — a second "hire your first bot" card under it would be two
     // doors into the same room.
     if (members.length === 0) return null;
 
@@ -142,7 +142,7 @@ export function TeamPanel({ members: supplied }: { members?: TeamMember[] } = {}
             <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 pb-2">
                 <div>
                     <CardTitle className="text-base">Your team</CardTitle>
-                    <CardDescription>What each agent has done in the last 24 hours.</CardDescription>
+                    <CardDescription>What each bot has done in the last 24 hours.</CardDescription>
                 </div>
                 <Button asChild size="sm" variant="outline">
                     <Link href="/start">

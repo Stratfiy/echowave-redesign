@@ -272,7 +272,7 @@ export default function VerificationPage() {
             <PageHeader
                 tabs={TELEPHONY_TABS}
                 title="Telephony verification"
-                description="Indian regulation requires the licensed telecom operator to verify every business using a phone number. Testing your agent in the browser needs none of this."
+                description="Indian regulation requires the licensed telecom operator to verify every business using a phone number. Testing your bot in the browser needs none of this."
             />
             <div className="mx-auto w-full max-w-3xl px-6 pb-12 pt-6">
                 {loading ? (

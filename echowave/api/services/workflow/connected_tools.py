@@ -42,6 +42,7 @@ from api.services.integrations.composio.client import (
     execute_tool as execute_composio_tool,
 )
 from api.services.sandbox import spill
+from api.services.workflow import connector_offer
 from api.services.workflow.tools.custom_tool import tool_to_function_schema
 
 #: Function names the model sees, so a connected app can never shadow one of
@@ -58,6 +59,12 @@ PREFIX = "app_"
 #: with it. Two hops for the first use of a tool in a thread; one line per
 #: tool on every other turn.
 LOAD_TOOL_NAME = "load_tool"
+
+#: Decibyl's own verb for an app that is *not* connected, named here so the
+#: context block can point at it. Imported by name rather than spelled
+#: twice: a tool the prompt names and the schema does not is a tool the
+#: model calls and never reaches.
+OFFER_TOOL_NAME = connector_offer.TOOL_NAME
 
 #: The verb in a Composio slug that marks a tool as changing nothing. Slugs
 #: are ``TOOLKIT_VERB_OBJECT``; the verb is the second token.
@@ -263,14 +270,24 @@ def apps_block(tools: list[Any]) -> str:
     """The context line: which apps are connected, so the model knows what
     it can reach before it tries."""
     apps = sorted({toolkit_of(t) or "connector" for t in tools})
+    # What to do about an app that is not connected is the model's next
+    # sentence, so it is said here. It used to read "Connect one from
+    # Marketplace -> Tools", and the model dutifully passed that on: the
+    # person was sent out of the conversation to find a screen. There is a
+    # card for this now (see connector_offer), and the card is the answer.
+    offer = (
+        f"To reach an app that is not connected, call {OFFER_TOOL_NAME} and a "
+        "connect card goes on the thread. Never tell anybody to go to the "
+        "Marketplace."
+    )
     if not apps:
-        return "No apps connected. Connect one from Marketplace → Tools."
+        return f"No apps connected. {offer}"
     reads = sum(1 for t in tools if is_read(t))
     return (
         f"Connected: {', '.join(apps)}. {len(tools)} tools ({reads} read-only). "
         "Read tools run as you answer; anything that sends, creates or changes "
         f"something proposes a card first. Tools are listed by name; call "
-        f"{LOAD_TOOL_NAME} for the one you need before using it."
+        f"{LOAD_TOOL_NAME} for the one you need before using it. {offer}"
     )
 
 

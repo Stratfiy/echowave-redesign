@@ -87,12 +87,12 @@ const buildAgentFilterAttributes = (
 
         return {
             ...attribute,
-            label: 'Agent',
+            label: 'Bot',
             type: 'numberSelect',
             config: {
                 ...attribute.config,
-                placeholder: 'Select an agent',
-                numberSelectLabel: 'Agent',
+                placeholder: 'Select an bot',
+                numberSelectLabel: 'Bot',
                 ...(agentOptions || isLoadingAgentOptions
                     ? {
                         numberSelectOptions: agentOptions ?? [],
@@ -245,7 +245,7 @@ export default function UsagePage() {
                 },
             });
             if (response.error) {
-                throw new Error(detailFromResult(response, 'Failed to load agents'));
+                throw new Error(detailFromResult(response, 'Failed to load bots'));
             }
 
             const options = [...(response.data ?? [])]
@@ -253,12 +253,12 @@ export default function UsagePage() {
                     a.name.localeCompare(b.name) || a.id - b.id
                 ))
                 .map((workflow: WorkflowSummaryResponse) => ({
-                    label: `${workflow.name || 'Untitled Agent'} (#${workflow.id})`,
+                    label: `${workflow.name || 'Untitled Bot'} (#${workflow.id})`,
                     value: workflow.id,
                 }));
             setAgentFilterOptions(options);
         } catch (error) {
-            console.error('Failed to fetch agent filter options:', error);
+            console.error('Failed to fetch bot filter options:', error);
             setAgentFilterOptions(null);
         } finally {
             setIsLoadingAgentFilterOptions(false);
@@ -470,7 +470,7 @@ export default function UsagePage() {
         <PageHeader
             tabs={CALLS_TABS}
             title="Calls"
-            description="See all your Agent Runs across all Voice Agents. You can use filters to filter out required Agent Runs."
+            description="See all your Bot Runs across all Voice Bots. You can use filters to filter out required Bot Runs."
             actions={
                         <div className="flex items-center gap-2">
                             <Globe className="h-4 w-4 text-muted-foreground" />
@@ -757,7 +757,7 @@ export default function UsagePage() {
                                 <EmptyState
                                     icon={PhoneCall}
                                     title="No calls yet"
-                                    description="Every call an agent takes or makes lands here, with its recording, transcript and outcome. Make one to see it."
+                                    description="Every call an bot takes or makes lands here, with its recording, transcript and outcome. Make one to see it."
                                     action={
                                         <Button asChild size="sm">
                                             <Link href="/workflow">Go to your agents</Link>

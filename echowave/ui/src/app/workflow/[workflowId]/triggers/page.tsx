@@ -109,7 +109,7 @@ export default function AgentTriggersPage() {
                 path: { workflow_id: workflowId },
             });
             if (workflowResult.error) {
-                setError(detailFromResult(workflowResult, "Could not load this agent"));
+                setError(detailFromResult(workflowResult, "Could not load this bot"));
                 setLoading(false);
                 return;
             }

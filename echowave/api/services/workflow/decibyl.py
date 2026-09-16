@@ -38,8 +38,10 @@ from api.services.knowledge_graph import quiet, recall, teach
 from api.services.workflow import (
     actions,
     agent_timeline,
+    bot_from_brief,
     chat_memory,
     connected_tools,
+    connector_offer,
     document_fields,
     documents,
     filing,
@@ -133,24 +135,37 @@ SYSTEM = (
     "asked memory about that this line touches: mention it in a clause "
     "only when it helps the line, never as a separate announcement.\n"
     "- A file attached to the line (under 'Attached to this line') is the "
-    "material for the request. Read it before answering. 'Build a bot for "
-    "this' with a document attached is a brief: pick the closest template "
-    "yourself from what the document describes, name the bot from it, fill "
-    "the template's answers from the document, and call create_bot; do not "
-    "ask which template. Ask only for an answer the document does not give.\n"
+    "material for the request. Read it before answering. A document that "
+    "says what a bot should do -- a written flow, a process, a job "
+    "description, a vendor spec -- is a brief, and a brief is built, not "
+    "discussed: call build_bot_from_spec with the document's own text as "
+    "`spec`, naming the bot from the document. Do not ask which template, "
+    "and do not condense the document into a sentence first -- the steps "
+    "are what the bot is built from. Use create_bot instead only when what "
+    "they want plainly IS one of the templates in your context and the "
+    "document is just the answers for it. Ask only for something neither "
+    "the document nor the conversation gives you.\n"
     "- Never repeat an OTP, a card number or an identity number.\n"
     f"- {untrusted.RULE}\n"
 )
 
 
 def thread_filter() -> dict[str, Any]:
-    """The timeline filter that is Decibyl's thread."""
+    """The timeline filter that is Decibyl's thread.
+
+    An allowlist, and therefore the shape AGENTS.md warns about: a card
+    written with a kind missing from this list is written correctly, read
+    by nobody, and fails nowhere. Anything Decibyl's tools can put on the
+    thread belongs here, and ``test_decibyl_thread_shows_what_it_writes``
+    fails when one is added without it.
+    """
     return {
         "assistant_thread": True,
         "kinds": [
             AgentEventKind.MESSAGE.value,
             AgentEventKind.ACTION_PROPOSED.value,
             AgentEventKind.EDIT_PROPOSED.value,
+            AgentEventKind.CONNECTOR_OFFERED.value,
             AgentEventKind.ACTIVITY.value,
         ],
     }
@@ -707,10 +722,61 @@ async def answer(
 
 
 #: How much of an attached file the model is shown, per file and in all.
-ATTACHMENT_CHARS = 12_000
-ATTACHMENTS_CHARS = 30_000
+#:
+#: A real vendor spec runs past twelve thousand characters -- the Elock
+#: workflow a customer sent is 12,134 -- and clipping the tail of a spec
+#: silently drops the closing steps, which is where escalation and
+#: disposition live. A brief is built from, not skimmed, so it gets room.
+ATTACHMENT_CHARS = 24_000
+ATTACHMENTS_CHARS = 48_000
 #: How long to wait for a file that arrived a moment ago to be read.
-ATTACHMENT_WAIT_SECONDS = 20
+#:
+#: Short on purpose. A real document takes longer than any wait worth
+#: holding a reply for, so the wait covers only the small-file case and
+#: everything else is handled by coming back (see ``unread`` and
+#: ``answer_decibyl_message``) rather than by waiting longer.
+ATTACHMENT_WAIT_SECONDS = 8
+
+
+#: How many times Decibyl comes back for a file that was still being read,
+#: and how long it leaves between tries. Three tries about a minute apart
+#: covers the ordinary document; a file still unread after that is a
+#: failed ingestion, and repeating past it would spend an account's credits
+#: on the same unanswerable question.
+UNREAD_RETRIES = 3
+UNREAD_RETRY_SECONDS = 45
+
+
+async def unread(
+    organization_id: int, attachments: list[dict[str, Any]] | None
+) -> list[str]:
+    """The filenames on this line whose text is not readable yet.
+
+    Decibyl used to answer "it is still being read, I'll let you know as
+    soon as it's ready" and then never come back: nothing re-read the
+    document and nothing re-ran the turn, so a person who attached a file
+    and asked a question about it got a promise and silence. This is what
+    makes that sentence true -- the caller asks again in a minute.
+    """
+    pending: list[str] = []
+    for attachment in (attachments or [])[:10]:
+        uuid = str(attachment.get("document_uuid") or "")
+        if not uuid:
+            continue
+        try:
+            document = await db_client.get_document_by_uuid(
+                uuid, organization_id=organization_id
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not check attachment {}: {}", uuid, exc)
+            continue
+        # A document that is gone is not pending: it will never arrive, and
+        # treating it as pending would retry until the cap for nothing.
+        if document is None:
+            continue
+        if not (getattr(document, "full_text", None) or "").strip():
+            pending.append(str(attachment.get("filename") or "the file"))
+    return pending
 
 
 async def attached_block(
@@ -752,7 +818,10 @@ async def attached_block(
             waited += 2
         if not text:
             parts.append(
-                f"### {name}\n(still being read; say so and offer to continue once it is)"
+                f"### {name}\n(still being read. Say you are reading it and "
+                "will come back with the answer -- you will: this turn runs "
+                "again by itself once the text has landed. Answer whatever "
+                "else was asked meanwhile.)"
             )
             continue
         take = min(ATTACHMENT_CHARS, budget)
@@ -761,7 +830,18 @@ async def attached_block(
         parts.append(f"### {name}\n{clipped}")
         if budget <= 0:
             break
-    return "## Attached to this line\n" + "\n\n".join(parts) if parts else ""
+    if not parts:
+        return ""
+    # Said here as well as in the rules, because this is the block the
+    # model is reading when it decides what to do with the file, and a
+    # capability named three thousand tokens earlier is a capability that
+    # gets forgotten.
+    return (
+        "## Attached to this line\n"
+        + "\n\n".join(parts)
+        + "\n\n(If this says what a bot should do, build it: "
+        f"{bot_from_brief.TOOL_NAME} with the text above as the spec.)"
+    )
 
 
 #: Tool rounds a single reply may take. Four covers "look it up, then do
@@ -779,6 +859,8 @@ def office_tools() -> list[dict[str, Any]]:
         office.test_tool_schema(),
         office.check_tool_schema(),
         tasks_board.tool_schema(),
+        connector_offer.tool_schema(),
+        bot_from_brief.tool_schema(),
         documents.find_tool_schema(),
         documents.send_tool_schema(),
         document_fields.tool_schema(),
@@ -906,6 +988,21 @@ async def _tool(
             from_workflow_id=None,
             workflow_run_id=None,
             arguments=arguments,
+        )
+    if call.name == bot_from_brief.TOOL_NAME:
+        # Routed through propose_action so the card, the undo window and the
+        # one row that records who confirmed are the same as every other
+        # thing Decibyl does to the account.
+        return await actions.propose(
+            organization_id=organization_id,
+            workflow_id=None,
+            workflow_run_id=None,
+            arguments={**arguments, "action": actions.BUILD_FROM_SPEC},
+            in_channel=False,
+        )
+    if call.name == connector_offer.TOOL_NAME:
+        return await connector_offer.offer(
+            organization_id=organization_id, arguments=arguments
         )
     if call.name == office.CHECK_TOOL_NAME:
         return await office.check_bot(

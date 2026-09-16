@@ -128,7 +128,7 @@ export function AgentTabs({
 
     return (
         <nav
-            aria-label="Agent"
+            aria-label="Bot"
             className="w-full overflow-x-auto border-b border-border px-6"
         >
             <ul className="flex min-w-max gap-1">

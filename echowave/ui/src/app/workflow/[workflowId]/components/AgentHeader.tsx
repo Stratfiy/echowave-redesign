@@ -48,7 +48,7 @@ export function AgentHeader({
             <Button
                 variant="ghost"
                 size="icon"
-                aria-label="Back to agent"
+                aria-label="Back to bot"
                 onClick={() => (onBack ? onBack(go) : go())}
             >
                 <ArrowLeft className="h-4 w-4" />

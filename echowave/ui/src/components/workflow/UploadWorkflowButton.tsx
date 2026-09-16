@@ -96,7 +96,7 @@ export function UploadWorkflowButton() {
             <Dialog open={isOpen} onOpenChange={setIsOpen}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Upload Agent Definition</DialogTitle>
+                        <DialogTitle>Upload Bot Definition</DialogTitle>
                     </DialogHeader>
                     <div
                         className={`mt-4 border-2 border-dashed rounded-lg p-8 text-center ${isDragging ? 'border-primary bg-primary/5' : 'border-gray-300'

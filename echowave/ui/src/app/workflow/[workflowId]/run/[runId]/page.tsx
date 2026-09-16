@@ -89,8 +89,8 @@ type RunOutcome = "completed" | "degraded" | "silent" | "failed";
 /**
  * What actually happened on this call, rather than what we hoped happened.
  *
- * This screen used to say "Agent Run Completed" with a green tick and the
- * sentence "Your voice agent run has been completed successfully" for every
+ * This screen used to say "Bot Run Completed" with a green tick and the
+ * sentence "Your voice bot run has been completed successfully" for every
  * finished run, including one whose transcript was empty and whose pipeline had
  * recorded an error. The error banner sat directly underneath the tick. Someone
  * opening the page to find out why nothing was said was told, in the largest
@@ -122,25 +122,25 @@ function getRunOutcome(run: WorkflowRunResponse | null): RunOutcome {
 
 const RUN_OUTCOME_COPY: Record<RunOutcome, { title: string; description: string; badgeClass: string }> = {
     completed: {
-        title: "Agent Run Completed",
+        title: "Bot Run Completed",
         description:
             "This run finished. You can preview or download the transcript and recording.",
         badgeClass: "bg-emerald-500/20",
     },
     degraded: {
-        title: "Agent Run Completed With Errors",
+        title: "Bot Run Completed With Errors",
         description:
             "The conversation happened, but a service reported an error during the call. The provider's own message is below, along with the transcript and recording.",
         badgeClass: "bg-amber-500/20",
     },
     silent: {
-        title: "Agent Run Ended Without a Conversation",
+        title: "Bot Run Ended Without a Conversation",
         description:
             "This run finished, but neither side said anything — there are no turns to show. Check the error below, if there is one, and the metrics for where it stopped.",
         badgeClass: "bg-amber-500/20",
     },
     failed: {
-        title: "Agent Run Failed",
+        title: "Bot Run Failed",
         description:
             "This run ended on a pipeline error before it could finish. The cause is below, in the provider's own words.",
         badgeClass: "bg-destructive/20",
@@ -819,7 +819,7 @@ export default function WorkflowRunPage() {
                                     </div>
                                 )}
                                 <div className="flex flex-wrap gap-2 pt-1">
-                                    <CopyDebugIdButton label="Agent ID" value={workflowId} />
+                                    <CopyDebugIdButton label="Bot ID" value={workflowId} />
                                     <CopyDebugIdButton label="Run ID" value={runId} />
                                 </div>
                                 <div className="flex min-w-0 items-center gap-4 pt-1">

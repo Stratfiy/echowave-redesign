@@ -240,7 +240,7 @@ export function AgentBuilderPanel({
                     </CardTitle>
                     <CardDescription>
                         {config.unavailable_reason ??
-                            "The agent builder is not switched on for this deployment."}
+                            "The bot builder is not switched on for this deployment."}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -378,7 +378,7 @@ export function AgentBuilderPanel({
                         }}
                         disabled={sending || outOfMessages}
                         rows={2}
-                        aria-label="Describe the agent you want"
+                        aria-label="Describe the bot you want"
                         placeholder={
                             pastAllowance
                                 ? `Past this month's included messages — ${config.usage.per_message_credits ?? 5} credits each from here`

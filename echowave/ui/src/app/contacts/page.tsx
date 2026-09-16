@@ -174,7 +174,7 @@ export default function ContactsPage() {
         <>
             <PageHeader
                 title="Contacts"
-                description="Lists an inbound number matches its callers against. When a caller is recognised, everything you know about them is loaded before the agent speaks — attach a list on the number, under Telephony."
+                description="Lists an inbound number matches its callers against. When a caller is recognised, everything you know about them is loaded before the bot speaks — attach a list on the number, under Telephony."
             />
             <PageBody className="mx-auto max-w-6xl space-y-6">
             <div className="grid gap-6 md:grid-cols-[16rem_1fr]">

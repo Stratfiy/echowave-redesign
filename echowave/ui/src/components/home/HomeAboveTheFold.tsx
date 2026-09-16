@@ -70,7 +70,7 @@ function partOfDay(now: Date): string {
 
 /** What the team did, as a sentence rather than a row of tiles. */
 function summarise(headline: Headline): string {
-  if (headline.agents === 0) return "Let's put your first agent to work.";
+  if (headline.agents === 0) return "Let's put your first bot to work.";
   const parts: string[] = [];
   if (headline.calls > 0) {
     parts.push(
@@ -81,13 +81,13 @@ function summarise(headline: Headline): string {
   }
   if (parts.length === 0) {
     return headline.live === 0
-      ? "No agent is taking calls right now."
+      ? "No bot is taking calls right now."
       : "Nothing has come in yet today.";
   }
   const sentence = `${parts.join(", ")}.`;
   if (headline.needs_attention > 0) {
     return `${sentence} ${headline.needs_attention} ${
-      headline.needs_attention === 1 ? "agent needs" : "agents need"
+      headline.needs_attention === 1 ? "bot needs" : "bots need"
     } you.`;
   }
   return sentence;

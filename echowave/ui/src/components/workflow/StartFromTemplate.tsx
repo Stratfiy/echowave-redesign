@@ -93,7 +93,7 @@ function VoiceChoice({
             </div>
             <span className="text-xs text-muted-foreground">
                 {value
-                    ? "You can change this on the agent afterwards."
+                    ? "You can change this on the bot afterwards."
                     : "Leave unset to use your workspace default."}
             </span>
         </div>
@@ -166,7 +166,7 @@ export function StartFromTemplate({
         const created = response.data as { id?: number } | undefined;
         if (created?.id == null) {
             setCreating(null);
-            setError("The agent was created but we could not open it. It is in your list.");
+            setError("The bot was created but we could not open it. It is in your list.");
             return;
         }
         router.push(`/workflow/${created.id}`);

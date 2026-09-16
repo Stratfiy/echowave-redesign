@@ -7,13 +7,18 @@
  * is the shelf's own shape, and the connect flow is the same call.
  */
 
-import { Check, ExternalLink } from "lucide-react";
+import { Check, ChevronDown, ExternalLink, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
-import { startConnectingApiV1ConnectorsSlugConnectPost } from "@/client/sdk.gen";
-import type { ConnectorResponse } from "@/client/types.gen";
+import {
+    listAppToolsApiV1ConnectorsSlugToolsGet,
+    startConnectingApiV1ConnectorsSlugConnectPost,
+    syncAppToolsApiV1ConnectorsSlugToolsSyncPost,
+} from "@/client/sdk.gen";
+import type { AppTool, ConnectorResponse } from "@/client/types.gen";
 import { Button } from "@/components/ui/button";
+import { detailFromResult } from "@/lib/apiError";
 import { toneFor } from "@/lib/marketplace";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +62,110 @@ export function ConnectorLogo({ connector, className }: { connector: Pick<Connec
     );
 }
 
+/**
+ * What an app can be asked to do, one line each.
+ *
+ * A number in the corner ("9 tools") tells somebody nothing about whether
+ * connecting Gmail will let a bot send mail or only read it. The list is
+ * the vendor's own, fetched when the row is opened rather than with the
+ * screen: a catalogue of nine hundred apps that fetched every app's
+ * actions would be nine hundred requests for a list nobody opened.
+ *
+ * For an app that is already connected, opening the list is also when the
+ * tool rows get made (see services/integrations/composio/tool_sync.py) --
+ * connecting an app and being able to point a bot at it should not be two
+ * jobs a person has to know about.
+ */
+function AppTools({ connector }: { connector: ConnectorResponse }) {
+    const [open, setOpen] = useState(false);
+    const [tools, setTools] = useState<AppTool[] | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [note, setNote] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
+
+    const load = async () => {
+        if (open) {
+            setOpen(false);
+            return;
+        }
+        setOpen(true);
+        if (tools !== null) return;
+        setLoading(true);
+        setError(null);
+        if (connector.connected) {
+            // Safe to call twice: it creates only what is missing. An
+            // account without permission to write them still gets the list.
+            const synced = await syncAppToolsApiV1ConnectorsSlugToolsSyncPost({
+                path: { slug: connector.slug },
+            });
+            const created = synced.data?.created ?? 0;
+            if (created > 0) {
+                setNote(`${created} ${created === 1 ? "tool" : "tools"} added to Your tools`);
+            }
+        }
+        const result = await listAppToolsApiV1ConnectorsSlugToolsGet({
+            path: { slug: connector.slug },
+        });
+        setLoading(false);
+        if (result.error) {
+            setError(detailFromResult(result, `Could not read what ${connector.name} can do`));
+            return;
+        }
+        if (result.data?.error) {
+            setError(result.data.error);
+            return;
+        }
+        setTools(result.data?.tools ?? []);
+    };
+
+    return (
+        <div className="pl-[52px]">
+            <button
+                type="button"
+                onClick={() => void load()}
+                aria-expanded={open}
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                data-testid="connector-tools-toggle"
+            >
+                <ChevronDown
+                    aria-hidden="true"
+                    className={cn("h-3 w-3 transition-transform", open && "rotate-180")}
+                />
+                {connector.tools_count > 0
+                    ? `${connector.tools_count} ${connector.tools_count === 1 ? "tool" : "tools"}`
+                    : "What it can do"}
+            </button>
+            {open && (
+                <div className="mt-1 pb-1">
+                    {loading && (
+                        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Loader2 aria-hidden="true" className="h-3 w-3 animate-spin" />
+                            Reading…
+                        </p>
+                    )}
+                    {error && <p className="text-xs text-destructive">{error}</p>}
+                    {note && <p className="text-xs text-emerald-700">{note}</p>}
+                    {tools !== null && tools.length === 0 && !error && (
+                        <p className="text-xs text-muted-foreground">
+                            This app brings no tools a bot can be given.
+                        </p>
+                    )}
+                    <ul className="space-y-0.5" data-testid="connector-tool-list">
+                        {(tools ?? []).map((tool) => (
+                            <li key={tool.slug} className="text-xs">
+                                <span className="font-medium">{tool.name}</span>
+                                {tool.does && (
+                                    <span className="text-muted-foreground"> — {tool.does}</span>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+        </div>
+    );
+}
+
 export function ConnectorRow({
     connector,
     onConnected,
@@ -74,6 +183,13 @@ export function ConnectorRow({
             const response = await startConnectingApiV1ConnectorsSlugConnectPost({
                 path: { slug: connector.slug },
             });
+            // The generated client resolves on a 4xx rather than throwing, so
+            // the catch below never saw a refusal: an admin-only connect read
+            // as "could not start connecting just now" for every member.
+            if (response.error) {
+                setError(detailFromResult(response, "Could not start connecting just now."));
+                return;
+            }
             const url = response.data?.connect_url;
             if (!url) {
                 setError("Could not start connecting just now.");
@@ -91,7 +207,8 @@ export function ConnectorRow({
     const canAdd = !connector.connected && (connector.setup === "one_click" || connector.also_connectable);
 
     return (
-        <div className="flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-muted/40" data-testid="connector-row">
+        <div className="rounded-xl px-2 py-2 hover:bg-muted/40" data-testid="connector-row">
+        <div className="flex items-center gap-3">
             <ConnectorLogo connector={connector} />
             <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{connector.name}</p>
@@ -126,6 +243,9 @@ export function ConnectorRow({
                     {SETUP_WORD[connector.setup] ?? connector.setup}
                 </span>
             )}
+        </div>
+        {/* A vendor we set up ourselves has no Composio actions to list. */}
+        {connector.setup_url ? null : <AppTools connector={connector} />}
         </div>
     );
 }

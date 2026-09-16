@@ -138,14 +138,14 @@ export const WorkflowEditorHeader = ({
 
     const handleCopyAgentUuid = async () => {
         if (!workflowUuid) {
-            toast.error("Agent UUID not available");
+            toast.error("Bot UUID not available");
             return;
         }
         try {
             await navigator.clipboard.writeText(workflowUuid);
-            toast.success("Agent UUID copied");
+            toast.success("Bot UUID copied");
         } catch {
-            toast.error("Failed to copy Agent UUID");
+            toast.error("Failed to copy Bot UUID");
         }
     };
 

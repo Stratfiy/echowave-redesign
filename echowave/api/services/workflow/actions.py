@@ -90,7 +90,13 @@ RUN_TOOL = "run_tool"
 #: send_document tool, never offered in propose_action's enum: the card is
 #: the "are you sure" the rule requires, and a person confirms it.
 SEND_DOCUMENT = "send_document"
-INTERNAL_ACTIONS = (RUN_TOOL, SEND_DOCUMENT)
+#: Build a bot from a written specification rather than from a template
+#: (see services/workflow/bot_from_brief.py). Internal for the same reason
+#: as the two above: Decibyl reaches it through its own tool, which
+#: validates the spec, and propose_action's enum stays the short list of
+#: things a bot may propose about the account.
+BUILD_FROM_SPEC = "build_from_spec"
+INTERNAL_ACTIONS = (RUN_TOOL, SEND_DOCUMENT, BUILD_FROM_SPEC)
 
 #: The states a proposal moves through. Terminal ones are the last four.
 PROPOSED = "proposed"
@@ -241,6 +247,14 @@ async def resolve(
             "reversible": False,
             "state": PROPOSED,
         }
+
+    if action == BUILD_FROM_SPEC:
+        from api.services.workflow import bot_from_brief
+
+        try:
+            return bot_from_brief.resolve(arguments)
+        except bot_from_brief.BriefError as exc:
+            raise ActionError(str(exc)) from exc
 
     if action == SEND_DOCUMENT:
         from api.services.workflow import documents
@@ -670,6 +684,30 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
             workflow_run_id=run_id,
         )
         return f"Calling {row.caller} back now."
+    if action == BUILD_FROM_SPEC:
+        from api.services.workflow import bot_from_brief
+
+        user_id = int(((payload.get("confirmed") or {}).get("by")) or 0)
+        if not user_id:
+            raise ActionError("Nobody confirmed this, so nobody owns the bot.")
+        try:
+            built = await bot_from_brief.build(
+                organization_id=organization_id, user_id=user_id, args=args
+            )
+        except ActionError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            # Generation reaches an outside service. A failure is said on the
+            # card rather than raised at somebody waiting on a reply.
+            logger.warning("Could not build a bot from the spec: {}", exc)
+            raise ActionError(
+                "The bot could not be built from that spec just now."
+            ) from exc
+        payload.setdefault("result", {}).update(
+            {"workflow_id": built["workflow_id"], "handle": built.get("handle")}
+        )
+        return str(built["note"])
+
     if action == SEND_DOCUMENT:
         from api.services.workflow import documents
 

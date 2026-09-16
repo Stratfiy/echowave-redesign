@@ -808,6 +808,12 @@ class AgentEventKind(str, Enum):
     #: The bot proposed a change to itself; the card shows the diff and the
     #: person publishes or discards the draft. See services/workflow/self_edit.
     EDIT_PROPOSED = "edit_proposed"
+    #: Decibyl offered to connect an outside app: the card carries the app,
+    #: what it brings and a Sign in button. Nothing is connected by the row
+    #: existing -- the link is minted when a person presses, and the consent
+    #: is the vendor's own sign-in screen. See
+    #: services/workflow/connector_offer.py.
+    CONNECTOR_OFFERED = "connector_offered"
     #: What a bot read or checked on the way to an answer: passages from
     #: Company knowledge, the team's numbers, a bot it handed a question to.
     #: A muted one-line row, folded when several run together, so the thread

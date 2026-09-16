@@ -111,20 +111,26 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
   };
 
   return (
+    // There is a way out, and there has to be. This modal is rendered by
+    // LeadFormsContext for the whole app, so it opens over whatever screen
+    // the person is on -- including the Marketplace -- and it used to hide
+    // its close button and swallow Escape and every click outside. On a new
+    // account that is not an onboarding step, it is an app that does not
+    // respond: every button they press does nothing and no reason is given.
+    // Skipping is already a first-class, server-backed state
+    // (`onboardingSkipped`); it simply had no button.
     <LeadModalShell
       open={open}
-      onOpenChange={() => {}}
-      contentProps={{
-        className: "[&>button]:hidden",
-        onEscapeKeyDown: (e) => e.preventDefault(),
-        onPointerDownOutside: (e) => e.preventDefault(),
-        onInteractOutside: (e) => e.preventDefault(),
+      onOpenChange={(next) => {
+        if (!next) onComplete(true);
       }}
+      contentProps={{}}
       icon={Rocket}
       eyebrow="Welcome"
       title="Welcome to Decibyl"
       description="Three quick answers, then say hi to Decibyl."
       primary={{ label: "Get started", onClick: handleSubmit, disabled: !canSubmit, loading: submitting }}
+      secondary={{ label: "Not now", onClick: () => onComplete(true) }}
     >
       <div className="grid gap-4">
         {QUESTIONS.map((q) => (

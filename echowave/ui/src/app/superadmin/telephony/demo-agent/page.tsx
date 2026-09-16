@@ -60,7 +60,7 @@ export default function DemoAgentPage() {
         setLoading(true);
         const result = await readDemoAgentApiV1AdminTelephonyDemoAgentGet({});
         if (result.error) {
-            setError(detailFromResult(result, "Failed to read the demo agent"));
+            setError(detailFromResult(result, "Failed to read the demo bot"));
         } else {
             setError(null);
             setContact((result.data as DemoContact) ?? {});
@@ -86,7 +86,7 @@ export default function DemoAgentPage() {
         // 409s this route raises — a paused or archived agent — only surface if
         // the error is checked explicitly.
         if (result.error) {
-            setSaveError(detailFromResult(result, "Could not change the demo agent"));
+            setSaveError(detailFromResult(result, "Could not change the demo bot"));
         } else {
             setAgentId("");
             await load();
@@ -133,7 +133,7 @@ export default function DemoAgentPage() {
                                     Unreachable
                                 </Badge>
                             )}
-                            {/* The name leads. "Agent #3" identifies the demo
+                            {/* The name leads. "Bot #3" identifies the demo
                                 to nobody -- whoever opens this page has to see
                                 which agent a prospect will hear without going
                                 and looking the id up. The id stays, quietly,
@@ -210,10 +210,10 @@ export default function DemoAgentPage() {
             </div>
 
             <div className="space-y-2 rounded-lg border border-border bg-card p-4">
-                <Label htmlFor="agent-id">Agent id</Label>
+                <Label htmlFor="bot-id">Bot id</Label>
                 <div className="flex flex-wrap items-center gap-2">
                     <Input
-                        id="agent-id"
+                        id="bot-id"
                         value={agentId}
                         inputMode="numeric"
                         placeholder="e.g. 42"

@@ -13,12 +13,14 @@
  * of ticked bots is the whole answer, so unticking removes it from that bot.
  */
 
-import { Check, Plus, X } from "lucide-react";
+import { BookOpen, Check, Loader2, Plus, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
     getWorkflowsApiV1WorkflowFetchGet,
+    installSkillApiV1SkillsInstallPost,
     listSkillsApiV1SkillsGet,
+    readSkillApiV1SkillsSlugGet,
     setSkillBotsApiV1SkillsBotsPost,
     uninstallSkillApiV1SkillsUninstallPost,
 } from "@/client/sdk.gen";
@@ -43,11 +45,17 @@ type Bot = { id: number; name: string };
 function SkillRow({
     skill,
     onAdd,
+    onRead,
+    onKeep,
     onRemove,
     busy,
 }: {
     skill: SkillCardType;
     onAdd: () => void;
+    onRead: () => void;
+    /** Keep it on the shelf without deciding which bot yet. Absent for one
+     *  already installed. */
+    onKeep?: () => void;
     onRemove?: () => void;
     busy: boolean;
 }) {
@@ -73,6 +81,31 @@ function SkillRow({
                 ) : null}
             </div>
             <div className="flex shrink-0 items-center gap-1">
+                {/* A skill is a written procedure. Adding one to a bot
+                    without being able to read it first is asking somebody
+                    to sign something face down. */}
+                <Button
+                    size="sm"
+                    variant="ghost"
+                    className="rounded-full text-muted-foreground"
+                    onClick={onRead}
+                    aria-label={`Read ${skill.title}`}
+                >
+                    <BookOpen className="mr-1 h-3 w-3" aria-hidden="true" />
+                    Read
+                </Button>
+                {onKeep ? (
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className="rounded-full text-muted-foreground"
+                        disabled={busy}
+                        onClick={onKeep}
+                        aria-label={`Keep ${skill.title}`}
+                    >
+                        Keep
+                    </Button>
+                ) : null}
                 <Button
                     size="sm"
                     variant="outline"
@@ -115,6 +148,9 @@ export function SkillsShelf({ query }: { query: string }) {
     const [busy, setBusy] = useState(false);
     // The skill whose bots are being picked, and the ticks so far.
     const [picking, setPicking] = useState<SkillCardType | null>(null);
+    // The skill being read: title first, body when it arrives, so the
+    // dialog opens at once rather than after a round trip.
+    const [reading, setReading] = useState<{ title: string; body: string | null } | null>(null);
     const [ticked, setTicked] = useState<number[]>([]);
 
     const load = useCallback(async () => {
@@ -165,6 +201,36 @@ export function SkillsShelf({ query }: { query: string }) {
         }
         setPicking(null);
         await load();
+    };
+
+    // Keeping is not attaching. Somebody browsing wants to put one aside
+    // without deciding which bot gets it -- which is the whole reason the
+    // install endpoint is separate, and it had no button until now.
+    const keep = async (skill: SkillCardType) => {
+        setBusy(true);
+        setError(null);
+        const response = await installSkillApiV1SkillsInstallPost({
+            body: { slug: skill.slug },
+        });
+        setBusy(false);
+        if (response.error) {
+            setError(detailFromResult(response, "Could not keep that."));
+            return;
+        }
+        await load();
+    };
+
+    const read = async (skill: SkillCardType) => {
+        setReading({ title: skill.title, body: null });
+        const response = await readSkillApiV1SkillsSlugGet({ path: { slug: skill.slug } });
+        if (response.error || !response.data) {
+            setReading({
+                title: skill.title,
+                body: "This one could not be read just now.",
+            });
+            return;
+        }
+        setReading({ title: skill.title, body: response.data.body ?? "" });
     };
 
     const remove = async (skill: SkillCardType) => {
@@ -244,6 +310,7 @@ export function SkillsShelf({ query }: { query: string }) {
                                 skill={skill}
                                 busy={busy}
                                 onAdd={() => openPicker(skill)}
+                                onRead={() => void read(skill)}
                                 onRemove={() => void remove(skill)}
                             />
                         ))}
@@ -265,6 +332,8 @@ export function SkillsShelf({ query }: { query: string }) {
                                 skill={skill}
                                 busy={busy}
                                 onAdd={() => openPicker(skill)}
+                                onRead={() => void read(skill)}
+                                onKeep={() => void keep(skill)}
                             />
                         ))}
                     </div>
@@ -350,6 +419,33 @@ export function SkillsShelf({ query }: { query: string }) {
                             {busy ? "Saving…" : "Save"}
                         </Button>
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* What the skill actually says. A skill is a markdown
+                procedure, so it is shown as the text it is rather than
+                summarised into a sentence that is not what the bot reads. */}
+            <Dialog open={reading !== null} onOpenChange={(open) => !open && setReading(null)}>
+                <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>{reading?.title}</DialogTitle>
+                        <DialogDescription>
+                            What a bot taught this skill reads, word for word.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {reading?.body === null ? (
+                        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                            Reading…
+                        </p>
+                    ) : (
+                        <pre
+                            className="whitespace-pre-wrap break-words font-sans text-sm text-muted-foreground"
+                            data-testid="skill-body"
+                        >
+                            {reading?.body}
+                        </pre>
+                    )}
                 </DialogContent>
             </Dialog>
         </>

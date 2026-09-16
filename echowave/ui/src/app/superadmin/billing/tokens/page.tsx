@@ -200,7 +200,7 @@ export default function TokensPage() {
                             ? "—"
                             : formatNumber(overallPerMinute)
                     }
-                    sub="The number that moves when the agent changes, not when volume does"
+                    sub="The number that moves when the bot changes, not when volume does"
                 />
                 <StatTile label="LLM spend" value={formatPaise(totalCost)} />
                 <StatTile
@@ -251,7 +251,7 @@ export default function TokensPage() {
 
             <ChartCard
                 title="Tokens per minute"
-                description="Flat when volume grows; moves when the agent design does"
+                description="Flat when volume grows; moves when the bot design does"
                 isEmpty={series.every((r) => r.tokens_per_minute === null)}
                 height={260}
             >

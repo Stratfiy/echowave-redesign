@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { FirstAgentJourney } from "@/components/first-agent/FirstAgentJourney";
 
 export const metadata: Metadata = {
-    title: "Your first agent — Decibyl",
+    title: "Your first bot — Decibyl",
 };
 
 /**

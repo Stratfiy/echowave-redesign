@@ -142,6 +142,11 @@ async def set_skill_bots(
 
 class WorkflowSkillsResponse(BaseModel):
     slugs: list[str]
+    #: The same skills as cards, so a bot's own screen can name what it has
+    #: been taught. Slugs alone made the endpoint unrenderable: a screen
+    #: would have to fetch the whole catalogue to turn six slugs into six
+    #: titles, which is why nothing called it.
+    skills: list[SkillCard] = []
 
 
 @router.get("/on/{workflow_id}", response_model=WorkflowSkillsResponse)
@@ -154,6 +159,16 @@ async def skills_on_workflow(
     )
     if workflow is None:
         raise HTTPException(status_code=404, detail="No such bot here")
+    slugs = await shelf.for_workflow(organization_id, workflow_id)
     return WorkflowSkillsResponse(
-        slugs=await shelf.for_workflow(organization_id, workflow_id)
+        slugs=slugs,
+        # A slug with no catalogue entry is a skill we shipped and later
+        # withdrew. It is dropped from the cards rather than rendered as a
+        # blank row, and it stays in ``slugs`` so nothing pretends the bot
+        # was never taught it.
+        skills=[
+            SkillCard(**entry.as_card())
+            for slug in slugs
+            if (entry := catalogue.get(slug)) is not None
+        ],
     )

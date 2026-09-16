@@ -107,7 +107,7 @@ export default function EvalsPage() {
       toast.error(detailFromResult(result, "Could not start the run."));
       return;
     }
-    toast.success("Running. Each case is a text session on the agent.");
+    toast.success("Running. Each case is a text session on the bot.");
     await load();
   };
 
@@ -188,11 +188,11 @@ export default function EvalsPage() {
                 <Textarea id="eval-goal" rows={3} value={draft.goal} onChange={(e) => setDraft({ ...draft, goal: e.target.value })} placeholder="Open the lock; they have the invoice number but no OTP yet." />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="eval-must">Agent must say (one per line)</Label>
+                <Label htmlFor="eval-must">Bot must say (one per line)</Label>
                 <Textarea id="eval-must" rows={2} value={draft.must_say} onChange={(e) => setDraft({ ...draft, must_say: e.target.value })} placeholder="press 3#" />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="eval-mustnot">Agent must not say (one per line)</Label>
+                <Label htmlFor="eval-mustnot">Bot must not say (one per line)</Label>
                 <Textarea id="eval-mustnot" rows={2} value={draft.must_not_say} onChange={(e) => setDraft({ ...draft, must_not_say: e.target.value })} placeholder="master password" />
               </div>
               <div className="space-y-1.5">

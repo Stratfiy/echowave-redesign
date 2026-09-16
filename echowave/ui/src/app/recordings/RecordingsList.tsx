@@ -222,7 +222,7 @@ export default function RecordingsList({ refreshKey }: { refreshKey?: number }) 
                     <EmptyState
                         icon={AudioLines}
                         title="No recordings yet"
-                        description="Upload audio the agent plays instead of speaking — a greeting in a real voice, a disclosure that has to be word for word."
+                        description="Upload audio the bot plays instead of speaking — a greeting in a real voice, a disclosure that has to be word for word."
                     />
                 )
             ) : (

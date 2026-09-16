@@ -78,13 +78,13 @@ export default function TalkPage() {
               ? "This link is not valid."
               : typeof detail === "string" && detail.includes("minutes for today")
                 ? detail
-                : "This agent is not available on this link right now.",
+                : "This bot is not available on this link right now.",
           );
           return;
         }
         setConfig((await response.json()) as Config);
       } catch {
-        setError("Could not reach the agent. Try again in a moment.");
+        setError("Could not reach the bot. Try again in a moment.");
       }
     })();
   }, [token]);

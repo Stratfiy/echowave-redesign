@@ -378,7 +378,7 @@ function GeneralSection({
                         id="workflow_name"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        placeholder="Enter Agent name"
+                        placeholder="Enter Bot name"
                     />
                 </div>
 
@@ -412,7 +412,7 @@ function GeneralSection({
                     <FallbackChain
                         label="Transcriber"
                         kind="stt"
-                        description="A transcriber that fails leaves the agent unable to hear, so it waits through a caller who is already talking."
+                        description="A transcriber that fails leaves the bot unable to hear, so it waits through a caller who is already talking."
                         schemas={modelConfigurationDefaults?.byok?.pipeline?.stt}
                         value={fallbackStt}
                         onChange={setFallbackStt}
@@ -539,7 +539,7 @@ function GeneralSection({
                     <p className="text-xs text-muted-foreground">
                         {recordingConfig.enabled
                             ? "On. Recordings follow the retention period set on the Privacy page."
-                            : "Off. No audio is written for this agent's calls, so call review has the transcript only."}
+                            : "Off. No audio is written for this bot's calls, so call review has the transcript only."}
                     </p>
                 </div>
 
@@ -833,7 +833,7 @@ function ArgumentsEditor({
                                               collects,
                                           ) as string,
                                       )
-                                    : "Leave blank, or pick from what this agent collects"
+                                    : "Leave blank, or pick from what this bot collects"
                             }
                             value={values[parameter.name] ?? ""}
                             onChange={(e) => set(parameter.name, e.target.value)}
@@ -848,7 +848,7 @@ function ArgumentsEditor({
                                     set(parameter.name, variableToken(e.target.value))
                                 }
                             >
-                                <option value="">Use a value this agent collects…</option>
+                                <option value="">Use a value this bot collects…</option>
                                 {collects.map((name) => (
                                     <option key={name} value={name}>
                                         {name}
@@ -1422,9 +1422,9 @@ function AgentUuidSection({ workflowUuid }: { workflowUuid: string }) {
     const handleCopy = async () => {
         try {
             await navigator.clipboard.writeText(workflowUuid);
-            toast.success("Agent UUID copied");
+            toast.success("Bot UUID copied");
         } catch {
-            toast.error("Failed to copy Agent UUID");
+            toast.error("Failed to copy Bot UUID");
         }
     };
 
