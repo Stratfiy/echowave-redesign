@@ -24,7 +24,7 @@
  * would eventually disagree with the tick that actually fires.
  */
 
-import { AlertTriangle, Clock, Loader2, Play, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, Clock, Loader2, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import {
@@ -33,6 +33,7 @@ import {
     listRoutinesApiV1WorkflowsWorkflowIdRoutinesGet,
     setActiveApiV1WorkflowsWorkflowIdRoutinesRoutineIdActivePost,
     testRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdTestPost,
+    updateRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdPut,
 } from "@/client/sdk.gen";
 import type { Anchor, Cadence, RoutineResponse } from "@/client/types.gen";
 import { Button } from "@/components/ui/button";
@@ -76,6 +77,16 @@ function timeToMinute(value: string): number {
     return Math.min(24 * 60 - 1, Math.max(0, h * 60 + m));
 }
 
+/** The inverse, for filling the form from a routine being edited. Clamped
+ *  the same way, so a stored minute outside the day cannot render "25:00"
+ *  into a time input that would then refuse to submit. */
+function minuteToTime(minute: number): string {
+    const safe = Math.min(24 * 60 - 1, Math.max(0, Math.trunc(minute) || 0));
+    const h = String(Math.floor(safe / 60)).padStart(2, "0");
+    const m = String(safe % 60).padStart(2, "0");
+    return `${h}:${m}`;
+}
+
 export function RoutinesPanel({ workflowId }: { workflowId: number }) {
     const { user, loading: authLoading } = useAuth();
     const [routines, setRoutines] = useState<RoutineResponse[]>([]);
@@ -86,6 +97,17 @@ export function RoutinesPanel({ workflowId }: { workflowId: number }) {
     const [note, setNote] = useState<string | null>(null);
 
     const [adding, setAdding] = useState(false);
+    /**
+     * The routine the form is editing, or null when it is creating one.
+     *
+     * The whole routine, not its id, because two of its fields are not on
+     * this form -- ``needs_apps`` and ``offset_minutes`` -- and the endpoint
+     * takes the same complete body as create. Sending the form's values
+     * alone would clear both, so a routine that ran half an hour before
+     * closing and required Sheets would quietly become one that runs at the
+     * anchor and requires nothing.
+     */
+    const [editing, setEditing] = useState<RoutineResponse | null>(null);
     const [name, setName] = useState("");
     const [instruction, setInstruction] = useState("");
     const [cadence, setCadence] = useState<Cadence>("daily");
@@ -111,31 +133,64 @@ export function RoutinesPanel({ workflowId }: { workflowId: number }) {
         void load().then(() => setLoading(false));
     }, [authLoading, user, load]);
 
-    const create = async () => {
+    /** Put the form back to empty, whichever way it was opened. */
+    const closeForm = () => {
+        setName("");
+        setInstruction("");
+        setCadence("daily");
+        setAnchor("opening");
+        setTime("09:00");
+        setWeekday(0);
+        setAdding(false);
+        setEditing(null);
+    };
+
+    const beginEdit = (routine: RoutineResponse) => {
+        setEditing(routine);
+        setAdding(true);
+        setError(null);
+        setName(routine.name);
+        setInstruction(routine.instruction ?? "");
+        setCadence(routine.cadence as Cadence);
+        setAnchor(routine.anchor as Anchor);
+        setTime(minuteToTime(routine.at_minute));
+        setWeekday(routine.weekday);
+    };
+
+    const save = async () => {
         if (!name.trim()) return;
         setSaving(true);
         setError(null);
-        const result = await createRoutineApiV1WorkflowsWorkflowIdRoutinesPost({
-            path: { workflow_id: workflowId },
-            body: {
-                name: name.trim(),
-                instruction: instruction.trim(),
-                cadence,
-                anchor,
-                at_minute: timeToMinute(time),
-                offset_minutes: 0,
-                weekday,
-                needs_apps: [],
-            },
-        });
+        const body = {
+            name: name.trim(),
+            instruction: instruction.trim(),
+            cadence,
+            anchor,
+            at_minute: timeToMinute(time),
+            // Carried from the routine being edited, never from the form:
+            // neither is on it, and the endpoint takes a whole routine. A
+            // zero here would move a run that fires half an hour before
+            // closing, and an empty list would drop the connectors it cannot
+            // work without -- both silently, on a save about the time.
+            offset_minutes: editing?.offset_minutes ?? 0,
+            weekday,
+            needs_apps: editing?.needs_apps ?? [],
+        };
+        const result = editing
+            ? await updateRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdPut({
+                  path: { workflow_id: workflowId, routine_id: editing.id },
+                  body,
+              })
+            : await createRoutineApiV1WorkflowsWorkflowIdRoutinesPost({
+                  path: { workflow_id: workflowId },
+                  body,
+              });
         setSaving(false);
         if (result.error) {
             setError(detailFromResult(result, "Could not save that routine"));
             return;
         }
-        setName("");
-        setInstruction("");
-        setAdding(false);
+        closeForm();
         await load();
     };
 
@@ -295,15 +350,17 @@ export function RoutinesPanel({ workflowId }: { workflowId: number }) {
                         ) : null}
                     </div>
                     <div className="flex items-center gap-2">
-                        <Button size="sm" disabled={saving || !name.trim()} onClick={() => void create()}>
+                        <Button size="sm" disabled={saving || !name.trim()} onClick={() => void save()}>
                             {saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
-                            Save it
+                            {editing ? "Save changes" : "Save it"}
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setAdding(false)}>
+                        <Button size="sm" variant="ghost" onClick={closeForm}>
                             Cancel
                         </Button>
                         <span className="text-xs text-muted-foreground">
-                            It stays off until you have run it once.
+                            {editing
+                                ? "Changing the schedule does not un-run the test."
+                                : "It stays off until you have run it once."}
                         </span>
                     </div>
                 </div>
@@ -391,6 +448,15 @@ export function RoutinesPanel({ workflowId }: { workflowId: number }) {
                                     onClick={() => void arm(routine, !routine.is_active)}
                                 >
                                     {routine.is_active ? "Switch off" : "Switch on"}
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    aria-label={`Edit ${routine.name}`}
+                                    disabled={busy === routine.id}
+                                    onClick={() => beginEdit(routine)}
+                                >
+                                    <Pencil className="h-3.5 w-3.5" aria-hidden />
                                 </Button>
                                 <Button
                                     size="sm"
