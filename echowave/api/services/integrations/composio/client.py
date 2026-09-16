@@ -205,8 +205,34 @@ async def connected_toolkits(
     "connect Gmail first" while building the agent rather than by an agent
     apologising to a caller.
     """
-    user_id = tenant_user_id(organization_id)
-    headers = _headers()
+    try:
+        user_id = tenant_user_id(organization_id)
+        headers = _headers()
+    except ComposioNotConfigured as exc:
+        # A deployment with no Composio key has nothing connected, which is
+        # the same answer as a Composio we cannot reach -- and every other
+        # failure below already returns it.
+        #
+        # This one raised instead, because it fires before the request rather
+        # than during it, and that asymmetry took down whole screens: the
+        # readiness card on every bot's settings tab answered 500, and the
+        # card exists precisely to say when a connector is broken. A key
+        # being absent is a fact about the deployment, not an error in the
+        # request that asked.
+        #
+        # Both raise sites are covered: an absent key, and an absent
+        # organization id. Neither is a reason for the caller to blow up --
+        # an account with no organization has no connections either.
+        #
+        # Execution still raises. "Run this Gmail tool" cannot be answered
+        # with an empty list, and the two call sites that catch it are both
+        # on that path.
+        logger.warning(
+            "Composio is not configured; reporting no connections for org {}: {}",
+            organization_id,
+            exc,
+        )
+        return []
 
     url = f"{COMPOSIO_BASE_URL}/api/v3.1/connected_accounts"
     params = {"user_ids": user_id, "statuses": "ACTIVE"}
