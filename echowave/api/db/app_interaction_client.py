@@ -285,7 +285,11 @@ class AppInteractionClient(BaseDBClient):
         return out
 
     async def agent_activity(
-        self, *, organization_id: int, hours: int = 24
+        self,
+        *,
+        organization_id: int,
+        hours: int = 24,
+        since: datetime | None = None,
     ) -> dict[int, dict[str, Any]]:
         """Recent work per agent, for the one-line status beside its name.
 
@@ -301,7 +305,13 @@ class AppInteractionClient(BaseDBClient):
         including them would make every account's first day read as a near-zero
         answer rate.
         """
-        since = datetime.now(UTC) - timedelta(hours=hours)
+        # An explicit `since` wins. A caller that has worked out where the
+        # operator's midnight falls knows something this method cannot, and
+        # `hours` here is what made "today" mean "the last 24 hours" -- two
+        # answers minutes apart disagreeing because yesterday afternoon was
+        # sliding out of the window.
+        if since is None:
+            since = datetime.now(UTC) - timedelta(hours=hours)
         activity: dict[int, dict[str, Any]] = {}
 
         async with self.async_session() as session:

@@ -34,7 +34,9 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
+from api.services import reporting_window
 from api.services.knowledge_graph import quiet, recall, teach
+from api.services.organization_preferences import get_organization_preferences
 from api.services.workflow import (
     actions,
     agent_timeline,
@@ -273,22 +275,37 @@ async def ask(
 
 
 def team_block(
-    headline: dict[str, Any], members: list[dict[str, Any]], hours: int
+    headline: dict[str, Any], members: list[dict[str, Any]], span: str
 ) -> str:
-    """The team's numbers as lines the model can quote."""
-    span = "today" if hours <= 24 else f"in the last {hours // 24} days"
+    """The team's numbers as lines the model can quote.
+
+    Two facts of different ages sit on every member line: whether the bot is
+    live, which is true *now*, and what it did, which is true *over the span*.
+    Printed side by side with nothing to separate them they read as one fact,
+    and Decibyl told the founder a paused bot had taken "2 calls ... anyway"
+    -- inventing a broken pause out of a bot that was answering earlier in the
+    day and has since been switched off. So the line says which is which, and
+    the note below says it once more in words, because the model is the reader
+    that got it wrong.
+    """
     lines = [
-        f"Team {span}: {headline.get('agents', 0)} bots, {headline.get('live', 0)} live, "
+        f"Team {span}: {headline.get('agents', 0)} bots, {headline.get('live', 0)} live now, "
         f"{headline.get('calls', 0)} calls, {headline.get('answered', 0)} answered, "
         f"{headline.get('outcomes', 0)} outcomes, {headline.get('needs_attention', 0)} need attention."
     ]
     for m in sorted(members, key=lambda m: -(m.get("calls") or 0)):
-        state = "live" if m.get("is_live") else "paused"
+        state = "live now" if m.get("is_live") else "paused now"
         lines.append(
-            f"- {m.get('name')}: {state}; {m.get('calls', 0)} calls, "
+            f"- {m.get('name')}: {state}; {span}: {m.get('calls', 0)} calls, "
             f"{m.get('answered', 0)} answered, {m.get('outcomes', 0)} outcomes, "
             f"{m.get('failures', 0)} failures. {m.get('status') or ''}".rstrip()
         )
+    lines.append(
+        "Live/paused is as of now; the counts cover the whole span. A bot "
+        "that is paused now and has calls in the span was answering earlier "
+        "in it -- that is not a pause failing to hold, and must not be "
+        "reported as one."
+    )
     return "\n".join(lines)
 
 
@@ -414,9 +431,29 @@ async def build_context(organization_id: int, question: str) -> str:
     """One text block from the four readings. Each reading fails alone."""
     from api.routes.team import _members
 
+    # "Today" is the operator's calendar day, not the last 24 hours. The two
+    # are different spans and reporting the second under the name of the first
+    # is what had this function answer "7 calls today" and, minutes later,
+    # "15 calls today" -- the window had slid, nothing else had happened.
+    if "week" in question.lower():
+        window = reporting_window.last_days(7)
+    else:
+        try:
+            preferences = await get_organization_preferences(organization_id)
+            zone = preferences.timezone
+        except Exception as exc:  # noqa: BLE001 - one reading of several
+            logger.warning("Decibyl could not read the account's timezone: {}", exc)
+            zone = None
+        window = reporting_window.day_so_far(zone)
+
+    # Kept for the callers below that still think in hours; the window is what
+    # the counts are actually taken over.
     hours = 168 if "week" in question.lower() else 24
     try:
-        members = [m.model_dump() for m in await _members(organization_id, hours)]
+        members = [
+            m.model_dump()
+            for m in await _members(organization_id, hours, since=window.since)
+        ]
     except Exception as exc:  # noqa: BLE001
         logger.warning("Decibyl could not read the team: {}", exc)
         members = []
@@ -496,7 +533,7 @@ async def build_context(organization_id: int, question: str) -> str:
     )
 
     return (
-        f"## Team\n{team_block(headline, members, hours)}\n\n"
+        f"## Team\n{team_block(headline, members, window.label)}\n\n"
         f"## Who you are talking to\n{door_block(door)}\n\n"
         f"## What the business has confirmed\n{memory_block(memory_rows)}\n\n"
         f"## Lately\n{recent_block(recent, bot_names)}\n\n"

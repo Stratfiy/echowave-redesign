@@ -73,18 +73,26 @@ _TONE_ORDER = {
 }
 
 
-async def _members(organization_id: int, hours: int) -> list[TeamMember]:
+async def _members(
+    organization_id: int, hours: int, *, since: datetime | None = None
+) -> list[TeamMember]:
     """The team, sorted worst-first.
 
-    Shared by the team list and the home screen so the two can never disagree
-    about what an agent has been doing, and so the home screen costs one
-    request rather than two.
+    Shared by the team list, the home screen and Decibyl's context so the
+    three can never disagree about what an agent has been doing, and so the
+    home screen costs one request rather than two.
+
+    ``since`` overrides ``hours`` for callers that have worked out where the
+    operator's midnight falls. It exists because "today" and "the last 24
+    hours" are different spans, and reporting the second under the name of the
+    first is what had Decibyl give the same operator two different totals
+    minutes apart.
     """
     workflows = await db_client.get_all_workflows_for_listing(
         organization_id=organization_id, status=WorkflowStatus.ACTIVE.value
     )
     activity = await db_client.agent_activity(
-        organization_id=organization_id, hours=hours
+        organization_id=organization_id, hours=hours, since=since
     )
     # Built for the rail and never read until now: the helper existed, the
     # rail showed a status dot, and the line a chat list lives on was in

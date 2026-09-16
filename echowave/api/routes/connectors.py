@@ -10,6 +10,7 @@ idea which one their agent uses.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from loguru import logger
 from pydantic import BaseModel
 
 from api.db.models import UserModel
@@ -24,6 +25,8 @@ from api.services.integrations.composio.client import (
     toolkit_actions,
     toolkit_name,
 )
+from api.tasks.arq import enqueue_job
+from api.tasks.function_names import FunctionNames
 
 router = APIRouter(prefix="/connectors", tags=["connectors"])
 
@@ -159,6 +162,19 @@ async def list_connectors(
             if slug in by_slug
         ]
 
+    # Connecting an app is supposed to be the whole job. It was not: the tool
+    # rows the engine and Decibyl read were created only when somebody
+    # expanded an app's "N tools" disclosure on this screen. An operator who
+    # connected Gmail and went straight to a bot found the app connected, the
+    # catalogue advertising nine tools, and nothing the bot could call --
+    # with no screen saying why.
+    #
+    # Enqueued rather than awaited: the rows are for the next time somebody
+    # asks a bot to do something, not for this response, and a vendor being
+    # slow must not make the Integrations screen slow. Idempotent, so a
+    # second read while the first job runs costs a no-op.
+    await _make_any_missing_tool_rows(organization_id, connected, user.id)
+
     return ConnectorCatalogueResponse(
         available=True,
         popular=popular,
@@ -167,6 +183,39 @@ async def list_connectors(
         connected_count=len(connected),
         total=len(rows),
     )
+
+
+async def _make_any_missing_tool_rows(
+    organization_id: int, connected: set[str], user_id: int
+) -> None:
+    """Queue the rows for every connected app that has none.
+
+    Best-effort throughout. Every failure here leaves the screen exactly as
+    it was before this existed -- correct about what is connected, and the
+    disclosure still makes the rows on demand -- so none of it is worth
+    failing the request over.
+
+    Not role-gated, unlike the endpoint that does this on request. The
+    decision that binds the account is the Connect, and an admin has already
+    made it; creating the rows that make that grant usable is mechanical
+    follow-through. Gating it would put the account back in the state this
+    fixes whenever the person who next opens the screen is a member.
+    """
+    if not connected:
+        return
+    try:
+        have = await tool_sync.toolkits_with_rows(organization_id)
+        missing = sorted({slug.lower() for slug in connected} - have)
+        if not missing:
+            return
+        await enqueue_job(
+            FunctionNames.SYNC_MISSING_TOOLS,
+            organization_id=organization_id,
+            apps=missing,
+            user_id=user_id,
+        )
+    except Exception as exc:  # noqa: BLE001 - the screen is still correct
+        logger.warning("Could not queue tool rows for org {}: {}", organization_id, exc)
 
 
 class ConnectLinkResponse(BaseModel):

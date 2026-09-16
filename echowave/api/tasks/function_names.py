@@ -2,6 +2,7 @@ class FunctionNames:
     RUN_INTEGRATIONS_POST_WORKFLOW_RUN = "run_integrations_post_workflow_run"
     PROCESS_WORKFLOW_COMPLETION = "process_workflow_completion"
     SYNC_CAMPAIGN_SOURCE = "sync_campaign_source"
+    SYNC_MISSING_TOOLS = "sync_missing_tools"
     PROCESS_CAMPAIGN_BATCH = "process_campaign_batch"
     PROCESS_KNOWLEDGE_BASE_DOCUMENT = "process_knowledge_base_document"
     TRANSLATE_KNOWLEDGE_BASE_DOCUMENT = "translate_knowledge_base_document"
