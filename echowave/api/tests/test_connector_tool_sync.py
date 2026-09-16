@@ -172,3 +172,76 @@ class TestSync:
             )
         assert result.error
         create.assert_not_awaited()
+
+
+class TestTheFieldsTheModelFills:
+    """A tool row carries the arguments the model is asked to fill.
+
+    Chosen here, at sync time, rather than shown to the model as the vendor's
+    whole list. n8n does the same thing in create-node-as-tool.ts, except an
+    operator marks the fields by hand with $fromAI(); we have nobody to do
+    that, so the choice is made from the published schema.
+    """
+
+    @pytest.mark.asyncio
+    async def test_the_row_carries_the_chosen_fields(self):
+        published = {
+            "type": "object",
+            "properties": {
+                "recipient_email": {"type": "string", "description": "Who"},
+                "subject": {"type": "string"},
+                "body": {"type": "string"},
+                "is_html": {"type": "boolean"},
+                "thread_id": {"type": "string"},
+            },
+            "required": ["recipient_email"],
+        }
+        with (
+            patch.object(
+                tool_sync,
+                "toolkit_actions",
+                AsyncMock(return_value=_actions("GMAIL_SEND_EMAIL")),
+            ),
+            patch.object(tool_sync, "existing_slugs", AsyncMock(return_value=set())),
+            patch.object(
+                tool_sync.tool_schema,
+                "input_schema",
+                AsyncMock(return_value=published),
+            ),
+            patch.object(tool_sync, "create_tool_for_user", AsyncMock()) as create,
+        ):
+            await tool_sync.ensure_tools(
+                organization_id=1, app="gmail", app_name="Gmail", actor=_Actor()
+            )
+        config = create.await_args_list[0].args[0].definition.config
+        offered = {p.name for p in config.parameters}
+        assert "recipient_email" in offered
+        assert "subject" in offered
+        assert "is_html" not in offered, "an option nobody dictates is not offered"
+        assert "thread_id" not in offered
+
+    @pytest.mark.asyncio
+    async def test_a_vendor_that_will_not_answer_still_makes_the_row(self):
+        """The old behaviour, exactly: offered by description, loaded later.
+
+        A schema we could not read must not cost the account its tool.
+        """
+        with (
+            patch.object(
+                tool_sync,
+                "toolkit_actions",
+                AsyncMock(return_value=_actions("GMAIL_SEND_EMAIL")),
+            ),
+            patch.object(tool_sync, "existing_slugs", AsyncMock(return_value=set())),
+            patch.object(
+                tool_sync.tool_schema,
+                "input_schema",
+                AsyncMock(side_effect=RuntimeError("down")),
+            ),
+            patch.object(tool_sync, "create_tool_for_user", AsyncMock()) as create,
+        ):
+            result = await tool_sync.ensure_tools(
+                organization_id=1, app="gmail", app_name="Gmail", actor=_Actor()
+            )
+        assert result.created == 1
+        assert create.await_args_list[0].args[0].definition.config.parameters == []

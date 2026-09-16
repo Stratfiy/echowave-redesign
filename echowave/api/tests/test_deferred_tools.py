@@ -77,13 +77,58 @@ class TestTheIndex:
         assert connected_tools.schemas([]) == []
 
     def test_declared_parameters_still_win(self):
+        """A row that names its own fields is never described by the vendor's.
+
+        The vendor's schema is offered here as `loaded` and must lose: the
+        fields on the row are the ones somebody chose.
+        """
         tool = _tool("GMAIL_SEND_EMAIL")
         tool.definition["config"]["parameters"] = [
             {"name": "to", "type": "string", "description": "Address", "required": True}
         ]
         fn = connected_tools.function_name(tool)
-        entry = connected_tools.schemas([tool], {fn: SEND})[1]
+        entry = connected_tools.schemas([tool], {fn: SEND})[0]
         assert set(entry["parameters"]["properties"]) == {"to"}
+
+    def test_a_tool_that_declares_its_fields_is_not_deferred(self):
+        """The round trip this removes.
+
+        A row carrying its own parameters is already the whole answer, so it
+        goes out in full on the first turn and no loader is offered at all --
+        the loader existing told the model something was still hidden.
+        """
+        tool = _tool("GMAIL_SEND_EMAIL")
+        tool.definition["config"]["parameters"] = [
+            {"name": "to", "type": "string", "description": "Address", "required": True}
+        ]
+        entries = connected_tools.schemas([tool])
+        assert len(entries) == 1
+        assert connected_tools.LOAD_TOOL_NAME not in {e["name"] for e in entries}
+        assert entries[0]["parameters"]["properties"]
+
+    def test_a_row_with_no_declared_fields_is_still_deferred(self):
+        """Everything made before the fields were chosen keeps working."""
+        tool = _tool("GMAIL_SEND_EMAIL")
+        entries = connected_tools.schemas([tool])
+        assert entries[0]["name"] == connected_tools.LOAD_TOOL_NAME
+        assert entries[1]["parameters"]["properties"] == {}
+
+    def test_a_mixed_workspace_still_offers_the_loader(self):
+        """One old row is enough to need the loader; the new one still
+        arrives whole rather than being held back to match it."""
+        declared = _tool("GMAIL_SEND_EMAIL", name="Gmail send")
+        declared.definition["config"]["parameters"] = [
+            {"name": "to", "type": "string", "description": "Address", "required": True}
+        ]
+        bare = _tool("GMAIL_FETCH_EMAILS", name="Gmail fetch")
+        names = [e["name"] for e in connected_tools.schemas([declared, bare])]
+        assert connected_tools.LOAD_TOOL_NAME in names
+        whole = next(
+            e
+            for e in connected_tools.schemas([declared, bare])
+            if e["name"] == connected_tools.function_name(declared)
+        )
+        assert set(whole["parameters"]["properties"]) == {"to"}
 
     def test_the_index_is_smaller_than_the_schemas(self):
         import json
