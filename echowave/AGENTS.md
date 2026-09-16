@@ -78,3 +78,35 @@ source venv/bin/activate && set -a && source api/.env.test && set +a && python -
 # Backend scripts
 source venv/bin/activate && set -a && source api/.env && set +a && python -m scripts.dump_docs_openapi
 ```
+
+## Product decisions that are already settled
+
+Written down because they keep being re-litigated after a context reset, and
+because re-deciding a settled thing wastes the founder's time twice: once
+explaining it again, once undoing whatever was built instead.
+
+**Never send anybody to another screen to finish something.** If a person is
+in the chat and an app is not connected, the answer is a connect chip *in the
+thread* — not "go to Marketplace → Tools". `connector_offer` exists for this
+and `connected_tools.apps_block` tells the model so explicitly. The same rule
+applies to every other dead end: name the wall, offer the way past it where
+the person already is (`services/workflow/blocked.py`).
+
+**The chat carries its own next steps.** Follow-up chips under a reply, the
+way Grok does it — a person should be able to keep going by tapping, not by
+composing. The home screen has them (`home_openers.py`, rendered by
+`HomeAboveTheFold`); the thread is where they matter most.
+
+**Every feature must work on Free/Everyday with no phone number.** A feature
+that only exists once somebody has bought a number is a feature most trials
+never see.
+
+**No new plan, price or positioning string without asking.** Pricing, the
+public site copy and the bot shelf are the founder's to decide.
+
+**Verify against a running instance before saying something works.** Three
+bugs in one afternoon were invisible from the source and obvious from one
+API call against the real account: tools chosen alphabetically, a rate whose
+numerator and denominator came from different populations, and a sync that
+only fired from one screen. Comments asserting behaviour are not evidence —
+two of those three contradicted a comment that said the opposite.

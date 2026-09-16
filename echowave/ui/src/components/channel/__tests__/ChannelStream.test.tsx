@@ -5,13 +5,15 @@
  * to the call, and that on a bot's own chat the rows newer than the previous
  * visit sit under a NEW line.
  */
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const timeline = vi.hoisted(() => vi.fn());
 const translate = vi.hoisted(() => vi.fn());
 const draft = vi.hoisted(() => vi.fn());
+const chips = vi.hoisted(() => vi.fn());
+const post = vi.hoisted(() => vi.fn());
 vi.mock('@/client/sdk.gen', () => ({
     timelineApiV1TimelineGet: timeline,
     replyDraftTextApiV1TimelineDraftGet: draft,
@@ -19,6 +21,8 @@ vi.mock('@/client/sdk.gen', () => ({
     settleActionApiV1TimelineActionsSettlePost: vi.fn(),
     settleEditApiV1TimelineEditsSettlePost: vi.fn(),
     translateTextApiV1TranslatePost: translate,
+    threadChipsApiV1TimelineChipsGet: chips,
+    postMessageApiV1TimelineMessagePost: post,
 }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
 
@@ -42,6 +46,10 @@ beforeEach(() => {
     timeline.mockReset();
     draft.mockReset();
     draft.mockResolvedValue({ data: { text: '' } });
+    chips.mockReset();
+    chips.mockResolvedValue({ data: { chips: [] } });
+    post.mockReset();
+    post.mockResolvedValue({ data: { asked: [] } });
     localStorage.clear();
     Element.prototype.scrollIntoView = vi.fn();
 });
@@ -323,5 +331,67 @@ describe('the reply forming', () => {
         expect(screen.queryByText('Thinking…')).toBeNull();
         // Decibyl's thread asks for the assistant's draft, no bot.
         expect(draft.mock.calls[0][0].query).toBeUndefined();
+    });
+});
+
+
+describe('the thread carries its own next steps', () => {
+    const reply = () =>
+        timeline.mockResolvedValue({
+            data: { events: [event({ workflow_id: null })], next_before_at: null, next_before_id: null },
+        });
+
+    it('offers the account\'s own questions under the reply', async () => {
+        reply();
+        chips.mockResolvedValue({
+            data: { chips: [{ kind: 'asked_before', text: 'check my email' }] },
+        });
+        render(<ChannelStream assistant botNames={{}} />);
+        expect(await screen.findByRole('button', { name: 'check my email' })).toBeTruthy();
+    });
+
+    it('sends the chip as an ordinary message', async () => {
+        reply();
+        chips.mockResolvedValue({
+            data: { chips: [{ kind: 'asked_before', text: 'check my email' }] },
+        });
+        render(<ChannelStream assistant botNames={{}} />);
+        fireEvent.click(await screen.findByRole('button', { name: 'check my email' }));
+        await waitFor(() => expect(post).toHaveBeenCalled());
+        // A chip a person could not also have typed teaches them nothing.
+        expect(post.mock.calls[0][0].body).toEqual({ assistant: true, text: 'check my email' });
+    });
+
+    it('clears them once one is pressed', async () => {
+        // Leaving them under the question they just asked reads as if
+        // nothing happened.
+        reply();
+        chips.mockResolvedValue({
+            data: { chips: [{ kind: 'asked_before', text: 'check my email' }] },
+        });
+        render(<ChannelStream assistant botNames={{}} />);
+        fireEvent.click(await screen.findByRole('button', { name: 'check my email' }));
+        await waitFor(() =>
+            expect(screen.queryByRole('button', { name: 'check my email' })).toBeNull(),
+        );
+    });
+
+    it('shows none on a bot\'s own chat', async () => {
+        // These are the workspace's questions, and Decibyl is who answers.
+        reply();
+        chips.mockResolvedValue({
+            data: { chips: [{ kind: 'asked_before', text: 'check my email' }] },
+        });
+        render(<ChannelStream workflowId={3} botNames={{}} />);
+        await waitFor(() => expect(timeline).toHaveBeenCalled());
+        expect(chips).not.toHaveBeenCalled();
+    });
+
+    it('a thread whose chips fail to load is still a thread', async () => {
+        reply();
+        chips.mockResolvedValue({ error: { detail: 'nope' } });
+        render(<ChannelStream assistant botNames={{}} />);
+        expect(await screen.findByText('Booked Meera for 4pm.')).toBeTruthy();
+        expect(screen.queryByTestId('thread-chips')).toBeNull();
     });
 });
