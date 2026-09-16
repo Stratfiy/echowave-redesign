@@ -226,40 +226,49 @@ GROUPS: list[tuple[str, set[str]]] = [
 #: a claim about what a receptionist agent reaches for, and a hundred entries
 #: would be a claim about nothing.
 POPULAR: tuple[str, ...] = (
-    "whatsapp",
+    # --- The shelf. These twelve are what the Integrations screen features,
+    # so this is the claim Decibyl makes about what it is for. -----------
+    "whatsapp",  # the channel this market lives on
+    "googlecalendar",  # booking: the single biggest front-desk job
     "gmail",
-    "googlesheets",
-    "googlecalendar",
-    "googledrive",
-    "googledocs",
-    "slack",
-    "razorpay",
-    "stripe",
-    "shopify",
+    "googlesheets",  # the universal small-business database
+    "calendly",  # booking without handing over calendar write access
+    "razorpay",  # payments, in India
+    "zoho_bigin",  # CRM built and priced for Indian SMBs
+    "freshdesk",  # Freshworks: Indian, strong in SMB support
     "zoho_books",
-    "zoho_invoice",
-    "zoho_bigin",
-    "zoho_mail",
+    "hubspot",  # where inbound leads already are
     "zoho_desk",
-    "hubspot",
-    "salesforce",
+    "shopify",
+    # --- Real, and not front-of-shelf. ----------------------------------
+    "typeform",  # a form submission the bot then rings about
+    "googledrive",
     "outlook",
-    "calendly",
-    "cal",
+    "excel",
+    "microsoft_teams",
+    "zoho_mail",
+    "cal",  # Calendly covers this job for most
     "airtable",
     "notion",
-    "typeform",
     "square",
     "quickbooks",
-    "freshdesk",
     "zendesk",
     "intercom",
-    "shippo",
     "mailchimp",
-    "microsoft_teams",
     "zoom",
     "googlemeet",
-    "excel",
+    "shippo",  # US shipping
+    "googledocs",
+    # --- Kept, ranked last, and deliberately not deleted. ----------------
+    #
+    # Removing them would say "no opinion", and there is one: these are
+    # further from what a receptionist reaches for, not absent. They stay
+    # findable among the 1,500, and a business that wants Jira still gets
+    # Jira -- it just does not outrank Razorpay on the way in.
+    "stripe",  # Razorpay is what this market uses; Stripe outranked it
+    "salesforce",  # nobody at this price point runs Salesforce
+    "zoho_invoice",  # Zoho Books already covers it
+    "slack",  # this market is on WhatsApp
     "trello",
     "asana",
     "clickup",
