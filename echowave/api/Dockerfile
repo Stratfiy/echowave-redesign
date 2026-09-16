@@ -221,6 +221,7 @@ COPY --chown=decibyl:decibyl \
      ./scripts/grant_superuser.py \
      ./scripts/seed_provider_rates.py \
      ./scripts/recost_uncosted_calls.py \
+     ./scripts/resync_connector_tools.py \
      ./scripts/verify_payment_round_trip.py \
      ./scripts/verify_managed_database.py \
      ./scripts/fetch_latest_backup.py \
