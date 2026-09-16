@@ -318,12 +318,22 @@ async def list_app_tools(
     whether to connect Gmail can see that it means reading, searching and
     sending mail rather than a number in a corner. A member may read it:
     it is the vendor's public catalogue, not this account's anything.
+
+    **The same dozen connecting creates.** This used to ask the vendor for
+    twelve and show what came back, which is the mistake ``tool_sync`` was
+    rewritten around: they arrive alphabetically, so the screen's twelve
+    for Facebook began ASSIGN_PAGE_TASK and Gmail's were seven ways to
+    delete mail. Meanwhile connecting the app ranked a whole sample and
+    created a different, better twelve. Two dozens under one heading, and
+    the screen showed the one nobody would connect an app for. So the
+    sample and the choice are ``tool_sync``'s, both of them, and what is
+    promised here is what arrives.
     """
     wanted = slug.strip().lower()
     display_name = await toolkit_name(wanted) if is_configured() else None
     if not display_name:
         raise HTTPException(status_code=404, detail=f"No app called '{wanted}'.")
-    actions = await toolkit_actions(wanted, limit=tool_sync.MAX_PER_APP)
+    actions = await toolkit_actions(wanted, limit=tool_sync.ACTIONS_CONSIDERED)
     if actions is None:
         return AppToolsResponse(
             app=wanted,
@@ -339,7 +349,7 @@ async def list_app_tools(
                 name=tool_sync.action_words(a["slug"]),
                 does=a.get("does"),
             )
-            for a in actions
+            for a in tool_sync.most_useful(actions, tool_sync.MAX_PER_APP)
         ],
     )
 
