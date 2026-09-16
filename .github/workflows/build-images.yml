@@ -75,8 +75,13 @@ jobs:
         include:
           - name: api
             dockerfile: echowave/api/Dockerfile
+            # The application root, not the service directory: the API
+            # Dockerfile needs pipecat/ beside api/.
+            context: echowave
           - name: ui
             dockerfile: echowave/ui/Dockerfile
+            # Same: the UI Dockerfile copies from ui/ by path.
+            context: echowave
           # The third image, and the one that would have been missed. The box
           # builds api, ui *and* sandbox; publishing only the first two means
           # that the day the box stops building, `docker compose pull` finds
@@ -84,6 +89,10 @@ jobs:
           # thinking about.
           - name: sandbox
             dockerfile: echowave/sandbox/Dockerfile
+            # Its own directory, unlike the other two: the sandbox Dockerfile
+            # copies requirements.txt and server.py from the context root,
+            # which is what compose gives it (`context: ./sandbox`). Building
+            # it from echowave/ would fail on the first COPY.
             context: echowave/sandbox
 
     steps:
@@ -145,7 +154,7 @@ jobs:
           # from ui/ by path. Not the repository root either -- the Dockerfiles
           # were written when echowave/ was the root and address api/ and ui/
           # from there.
-          context: ${{ matrix.context || 'echowave' }}
+          context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: true
           # The box is x86. Building arm64 as well would roughly double the

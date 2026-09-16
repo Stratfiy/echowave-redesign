@@ -119,21 +119,64 @@ class TestTheBuildCanActuallySucceed:
         looks like a registry problem and is not."""
         assert _workflow()["permissions"]["packages"] == "write"
 
-    def test_the_build_context_is_the_application_root(self):
-        """The API Dockerfile needs pipecat/ beside api/, and the UI Dockerfile
-        copies from ui/ by path. A service-directory context breaks both, and
-        so does the repository root now that the application lives a
-        directory down: the Dockerfiles address api/ and ui/ from echowave/."""
+    def test_each_image_is_built_from_the_context_its_dockerfile_expects(self):
+        """A wrong context breaks the build on the first COPY.
+
+        The API Dockerfile needs pipecat/ beside api/ and the UI Dockerfile
+        copies from ui/ by path, so both take the application root -- not the
+        service directory, and not the repository root now that the
+        application lives a directory down.
+
+        The sandbox is the exception, and the reason this is asserted per
+        image rather than once: its Dockerfile copies requirements.txt and
+        server.py from the context root, which is what compose gives it
+        (`context: ./sandbox`). One shared context cannot be right for all
+        three.
+        """
         steps = _workflow()["jobs"]["build"]["steps"]
         build = next(
             s
             for s in steps
             if str(s.get("uses", "")).startswith("docker/build-push-action")
         )
-        assert build["with"]["context"] == ROOT.name
+        # Taken from the matrix, so the assertions below are what actually
+        # decides each build rather than a literal that is right for two of
+        # three.
+        assert build["with"]["context"] == "${{ matrix.context }}"
+
         for entry in _workflow()["jobs"]["build"]["strategy"]["matrix"]["include"]:
             dockerfile = REPO / entry["dockerfile"]
             assert dockerfile.is_file(), entry["dockerfile"]
+
+            context = REPO / entry["context"]
+            assert context.is_dir(), entry["context"]
+
+            # Every path the Dockerfile copies has to exist under its own
+            # context. This is the check that would have caught building the
+            # sandbox from echowave/.
+            for line in dockerfile.read_text().splitlines():
+                if not line.strip().startswith("COPY "):
+                    continue
+                parts = line.split()[1:]
+                # --from=stage reads from an earlier build stage, not from
+                # the context, so there is nothing on disk to check.
+                if any(p.startswith("--from") for p in parts):
+                    continue
+                # Flags (--chown, --chmod, --link) are not paths, and a
+                # trailing backslash means the sources are on the next line.
+                # Deliberately under-checks rather than guesses: a COPY this
+                # cannot read is skipped, never failed. Anything more is a
+                # Dockerfile parser, which is not what this test is for.
+                parts = [p for p in parts if p != "\\" and not p.startswith("--")]
+                if not parts:
+                    continue
+                source = parts[0]
+                if "*" in source or "$" in source:
+                    continue
+                assert (context / source).exists(), (
+                    f"{entry['name']}: {dockerfile.name} copies {source}, "
+                    f"which is not in its context {entry['context']}"
+                )
 
     def test_the_workflow_is_where_github_reads_it(self):
         """A workflow under echowave/.github/ has never run once. Both copies
