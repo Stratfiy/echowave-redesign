@@ -5619,6 +5619,10 @@ export type HomeResponse = {
      * Hours
      */
     hours: number;
+    /**
+     * Span
+     */
+    span?: string;
     headline: Headline;
     /**
      * Suggestions
