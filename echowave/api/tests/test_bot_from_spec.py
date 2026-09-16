@@ -249,9 +249,14 @@ class TestAFileIsABrief:
     """Upload a spec, get a bot. The rule used to say the opposite."""
 
     def test_the_rules_send_an_attached_spec_to_the_builder(self):
+        # Read through the module rather than by a relative path: the tests
+        # run from api/ in CI and from the repo root locally, and a test
+        # that fails on the difference tests the working directory.
+        import inspect
+
         from api.services.workflow import decibyl
 
-        source = open("api/services/workflow/decibyl.py").read()
+        source = inspect.getsource(decibyl)
         assert bot_from_brief.TOOL_NAME in source
         # And not back to the template path it used to hardcode.
         assert "and call create_bot; do not" not in source
