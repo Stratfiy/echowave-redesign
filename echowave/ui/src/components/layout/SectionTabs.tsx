@@ -30,14 +30,23 @@ export type SectionTab = PageTab;
  *  tab strips, for one subject. Somebody looking for "how did yesterday go"
  *  had to guess which of the three was the one.
  *
- *  Now one entry and three tabs, in the order the questions get asked: which
- *  calls happened, which of them need a human, and what is the shape of all
- *  of them. Two entries left: Spend went to Billing (a money question), and
+ *  Now one entry and four tabs, in the order the questions get asked: which
+ *  calls happened, which never did, which need a human, and what is the
+ *  shape of all of them. Missed calls arrived here from Phone numbers,
+ *  where it was filed with the screens for buying one; it is the only
+ *  record of a caller we refused, so it belongs beside the calls we took.
+ *  Two entries left: Spend went to Billing (a money question), and
  *  Daily reports is linked from the foot of Analytics, because it is one
  *  day in detail -- something you want after the shape tells you which day,
  *  not a peer of it. Five tabs meant guessing again, one level down. */
 export const CALLS_TABS: PageTab[] = [
   { href: "/usage", label: "Calls", prefix: true },
+  // The calls that are missing from the list beside it. A callback we
+  // declined -- cooldown, daily cap, closed window -- produces no call at
+  // all, so a quiet Calls tab and a tab silently refusing every caller look
+  // identical. It was filed under Phone numbers, which is where you go to
+  // buy one, not to find out why nobody is getting through.
+  { href: "/missed-calls", label: "Missed calls", prefix: true },
   { href: "/review", label: "Review", prefix: true },
   // Prefix now: /analytics/spend has moved to Billing, so nothing under
   // /analytics belongs to another tab.
@@ -84,11 +93,15 @@ export const BILLING_TABS: PageTab[] = [
  *
  * Ordered the way the work happens, not alphabetically. A customer arriving
  * for the first time reads this left to right and gets the sequence.
+ *
+ * Missed calls used to end this strip and has moved to Calls. It is not a
+ * step in getting set up -- it is the record of callers a working number
+ * refused -- and reading it as the fifth thing to do before you can take
+ * calls was exactly backwards.
  */
 export const TELEPHONY_TABS: PageTab[] = [
   { href: "/verification", label: "Verification", prefix: true },
   { href: "/numbers", label: "Get a number", prefix: true },
   { href: "/telephony-configurations", label: "Carriers & numbers", prefix: true },
   { href: "/verified-numbers", label: "Test numbers", prefix: true },
-  { href: "/missed-calls", label: "Missed calls", prefix: true },
 ];

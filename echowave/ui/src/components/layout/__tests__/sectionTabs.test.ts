@@ -15,6 +15,7 @@ import {
   CALLS_TABS,
   COMPLIANCE_TABS,
   KNOWLEDGE_TABS,
+  TELEPHONY_TABS,
 } from "../SectionTabs";
 
 const STRIPS = {
@@ -23,6 +24,7 @@ const STRIPS = {
   KNOWLEDGE_TABS,
   COMPLIANCE_TABS,
   BILLING_TABS,
+  TELEPHONY_TABS,
 };
 
 describe("section tabs", () => {
@@ -42,6 +44,7 @@ describe("section tabs", () => {
   it("asks the call questions in the order they get asked, and no more", () => {
     expect(CALLS_TABS.map((tab) => tab.href)).toEqual([
       "/usage",
+      "/missed-calls",
       "/review",
       "/analytics",
     ]);
@@ -50,6 +53,23 @@ describe("section tabs", () => {
   it("files Spend under Billing, where the balance is", () => {
     expect(BILLING_TABS.map((tab) => tab.href)).toContain("/analytics/spend");
     expect(CALLS_TABS.map((tab) => tab.href)).not.toContain("/analytics/spend");
+  });
+
+  it("files Missed calls with the calls, not with buying a number", () => {
+    // It is the only record of a caller a working number refused, not a step
+    // in getting set up. Reading it as the fifth thing to do before you can
+    // take calls was exactly backwards.
+    expect(CALLS_TABS.map((tab) => tab.href)).toContain("/missed-calls");
+    expect(TELEPHONY_TABS.map((tab) => tab.href)).not.toContain("/missed-calls");
+  });
+
+  it("keeps the phone strip in the order the work happens", () => {
+    expect(TELEPHONY_TABS.map((tab) => tab.href)).toEqual([
+      "/verification",
+      "/numbers",
+      "/telephony-configurations",
+      "/verified-numbers",
+    ]);
   });
 
   it("lets /analytics light its tab from a detail page without stealing /analytics/spend", () => {
