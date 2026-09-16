@@ -290,7 +290,11 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       {
         title: "Billing",
         url: "/billing",
-        activePaths: ["/partner"],
+        // /analytics/spend lives under /analytics for the shared date range,
+        // but it answers a money question and wears the Billing tab strip.
+        // The match is most-specific-first, so it lights Billing here while
+        // /analytics itself still lights Calls.
+        activePaths: ["/partner", "/analytics/spend"],
         icon: Wallet,
         keywords: [
           "credit",
@@ -298,6 +302,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
           "invoice",
           "payment",
           "balance",
+          "spend",
           "partner",
           "reseller",
           "agency",
@@ -408,7 +413,6 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
           "quality",
           "analytics",
           "charts",
-          "spend",
           "trends",
         ],
       },
