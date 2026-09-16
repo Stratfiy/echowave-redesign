@@ -107,8 +107,8 @@ export function ManualChatEmptyState({
     return (
         <EmptyState
             icon={<MessageSquareText className="h-7 w-7" />}
-            title="Chat with this agent"
-            description="Test the agent over a text conversation. Send messages and see how it responds, with tool calls, transitions, and rewind support."
+            title="Chat with this bot"
+            description="Test the bot over a text conversation. Send messages and see how it responds, with tool calls, transitions, and rewind support."
             action={
                 <Button onClick={onStart} disabled={disabled || !ready}>
                     <MessageSquareText className="h-4 w-4" />

@@ -99,7 +99,7 @@ export const TOOL_CATEGORIES: ToolCategoryConfig[] = [
     {
         value: "mcp",
         label: "MCP Server",
-        description: "Connect a customer MCP server; its tools become available to the agent",
+        description: "Connect a customer MCP server; its tools become available to the bot",
         icon: Puzzle,
         iconName: "puzzle",
         iconColor: "#8B5CF6",

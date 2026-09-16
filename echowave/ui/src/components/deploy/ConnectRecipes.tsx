@@ -33,13 +33,13 @@ const RECIPES: Recipe[] = [
         id: "meta",
         label: "Meta lead ads",
         blurb:
-            "Somebody fills your Facebook or Instagram lead form and the agent rings them while they still remember doing it.",
+            "Somebody fills your Facebook or Instagram lead form and the bot rings them while they still remember doing it.",
         steps: [
             "In n8n (or Make), add a Facebook Lead Ads trigger and connect the page and form.",
             "Add an HTTP Request node after it.",
             "Method POST, URL as below, and add the header X-API-Key with a key from Developers.",
             "In the body, map phone_number to the phone field from the lead form.",
-            "Put anything else you want the agent to know — name, the ad they came from — under initial_context.",
+            "Put anything else you want the bot to know — name, the ad they came from — under initial_context.",
             "Turn the workflow on and submit a test lead.",
         ],
         note:
@@ -68,7 +68,7 @@ const RECIPES: Recipe[] = [
             "Use your CRM's own webhook or automation to fire on a new lead — Zoho calls it a Workflow Rule, HubSpot a Workflow.",
             "Point it at n8n, Make or Zapier, or straight at the URL below if it can send custom headers.",
             "POST with X-API-Key and map phone_number.",
-            "To get the outcome back into the CRM, add a Webhook step at the end of the agent on the canvas — it posts the transcript and extracted fields to any URL, with retries.",
+            "To get the outcome back into the CRM, add a Webhook step at the end of the bot on the canvas — it posts the transcript and extracted fields to any URL, with retries.",
         ],
     },
     {
@@ -79,7 +79,7 @@ const RECIPES: Recipe[] = [
             "Create a key under Developers.",
             "POST to the URL below with the X-API-Key header and a JSON body.",
             "phone_number is the only required field.",
-            "initial_context is a free-form object; whatever you put there is available to the agent as variables during the call.",
+            "initial_context is a free-form object; whatever you put there is available to the bot as variables during the call.",
         ],
     },
 ];

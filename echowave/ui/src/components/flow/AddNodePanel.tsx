@@ -19,7 +19,7 @@ type AddNodePanelProps = {
 // mapping and the rendering order.
 const SECTION_ORDER: Array<{ category: NodeSpec['category']; title: string }> = [
     { category: 'trigger', title: 'Triggers' },
-    { category: 'call_node', title: 'Agent Nodes' },
+    { category: 'call_node', title: 'Bot Nodes' },
     { category: 'global_node', title: 'Global Nodes' },
     { category: 'integration', title: 'Integrations' },
 ];

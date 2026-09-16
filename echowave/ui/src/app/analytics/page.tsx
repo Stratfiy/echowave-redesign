@@ -408,7 +408,7 @@ export default function CallAnalyticsPage() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Busiest agents</CardTitle>
+                    <CardTitle>Busiest bots</CardTitle>
                 </CardHeader>
                 <CardContent>
                     {byAgent.length === 0 ? (
@@ -419,7 +419,7 @@ export default function CallAnalyticsPage() {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Agent</TableHead>
+                                    <TableHead>Bot</TableHead>
                                     <TableHead className="text-right">Calls</TableHead>
                                     <TableHead className="text-right">Talk time</TableHead>
                                     <TableHead className="text-right">Spend</TableHead>

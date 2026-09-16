@@ -29,7 +29,7 @@ export type FlowNodeData = {
     // Who opens the call (StartCall only). "caller" keeps the agent quiet
     // until the person speaks, with the greeting as a fallback after
     // speaks_first_wait_secs of silence.
-    speaks_first?: 'agent' | 'caller';
+    speaks_first?: 'bot' | 'caller';
     speaks_first_wait_secs?: number;
     delayed_start?: boolean;
     delayed_start_duration?: number;

@@ -66,7 +66,7 @@ interface Estimate {
  * agent using the knowledge base or post-call QA.
  */
 const GROUPS = [
-    { key: "agent", label: "Agent cost", colour: "#1baf7a" },
+    { key: "bot", label: "Bot cost", colour: "#1baf7a" },
     { key: "telephony", label: "Telephony", colour: "#eb6834" },
     { key: "platform", label: "Platform", colour: "#2a78d6" },
     { key: "addon", label: "Features", colour: "#8b5cf6" },
@@ -128,7 +128,7 @@ export function CostPerMinuteBar({
     // already are the combined figure — this toggle is only for the
     // per-provider, per-model itemisation underneath it. Competitors show a
     // handful of combined categories, not a full line list, and a customer
-    // reacts differently to "Agent cost ₹0.06" than to five rows naming every
+    // reacts differently to "Bot cost ₹0.06" than to five rows naming every
     // vendor. The detail is not removed, only tucked behind one click for
     // whoever wants to audit it — internal trust in the number does not
     // require it to be the first thing on screen.

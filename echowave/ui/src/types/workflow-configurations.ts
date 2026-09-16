@@ -191,7 +191,7 @@ export const TURN_START_STRATEGY_OPTIONS: Array<{
     {
         value: 'vad',
         label: 'Voice activity only',
-        description: 'Interrupt on any sound loud enough to read as speech. Fastest to react and the least discriminating — a cough or background talk will stop the agent. Use only if your transcriber emits no interim results.',
+        description: 'Interrupt on any sound loud enough to read as speech. Fastest to react and the least discriminating — a cough or background talk will stop the bot. Use only if your transcriber emits no interim results.',
     },
 ];
 

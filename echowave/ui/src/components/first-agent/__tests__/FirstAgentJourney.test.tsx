@@ -101,7 +101,7 @@ describe("first-agent journey", () => {
         // Name step asks the template's own question and shows its greeting.
         const clinic = await screen.findByLabelText("Name of the clinic");
         fireEvent.change(clinic, { target: { value: "City Clinic" } });
-        fireEvent.change(screen.getByLabelText("Agent name"), { target: { value: "Asha" } });
+        fireEvent.change(screen.getByLabelText("Bot name"), { target: { value: "Asha" } });
         expect((screen.getByLabelText("Opening line") as HTMLTextAreaElement).value).toBe(
             "Namaste, {{clinic_name}}.",
         );
@@ -195,7 +195,7 @@ describe("first-agent journey", () => {
         fireEvent.click(await screen.findByRole("button", { name: /continue/i }));
         expect(await screen.findByRole("alert")).toBeTruthy();
         expect(events()).toContain("first_agent_create_failed");
-        expect(screen.getByLabelText("Agent name")).toBeTruthy();
+        expect(screen.getByLabelText("Bot name")).toBeTruthy();
     });
 
     it("shows five bots and the rest are a link away", async () => {

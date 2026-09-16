@@ -337,7 +337,7 @@ export default function CreateWorkflowPage() {
 
     const create = async () => {
         if (!user) {
-            setError("You must be signed in to create an agent.");
+            setError("You must be signed in to create an bot.");
             return;
         }
         setIsLoading(true);
@@ -388,7 +388,7 @@ export default function CreateWorkflowPage() {
         });
 
         if (response.error) {
-            setError(detailFromResult(response, "Could not create the agent."));
+            setError(detailFromResult(response, "Could not create the bot."));
             setIsLoading(false);
             return;
         }
@@ -472,7 +472,7 @@ export default function CreateWorkflowPage() {
                             only on an empty account.
 
                             They were already built and already mounted -- on
-                            the agents list, behind "no agents yet". So they
+                            the agents list, behind "no bots yet". So they
                             were shown to somebody who had never made one and
                             hidden from everybody who had, which is backwards:
                             the person who has built an agent knows what a
@@ -508,7 +508,7 @@ export default function CreateWorkflowPage() {
 
                         <div className="grid gap-4 sm:grid-cols-2">
                             <Field
-                                label="Agent name"
+                                label="Bot name"
                                 hint="What it calls itself on the call."
                             >
                                 <Input
@@ -531,7 +531,7 @@ export default function CreateWorkflowPage() {
                                     </SelectContent>
                                 </Select>
                             </Field>
-                            <Field label="Agent designation">
+                            <Field label="Bot designation">
                                 <Input
                                     value={designation}
                                     onChange={(e) => setDesignation(e.target.value)}
@@ -549,7 +549,7 @@ export default function CreateWorkflowPage() {
 
                         <Field
                             label="Company description"
-                            hint="One line. It is what the agent says when a caller asks who you are."
+                            hint="One line. It is what the bot says when a caller asks who you are."
                         >
                             <Textarea
                                 value={companyDescription}
@@ -562,7 +562,7 @@ export default function CreateWorkflowPage() {
                         <Field
                             label="Languages"
                             required
-                            hint="The first is the primary. The agent follows whichever the caller uses."
+                            hint="The first is the primary. The bot follows whichever the caller uses."
                         >
                             <div className="flex flex-wrap gap-2">
                                 {LANGUAGES.map((language) => {
@@ -593,7 +593,7 @@ export default function CreateWorkflowPage() {
 
                         <Field
                             label="Voice"
-                            hint="What the caller hears. Changeable later without rebuilding the agent."
+                            hint="What the caller hears. Changeable later without rebuilding the bot."
                         >
                             {!options ? (
                                 <span className="text-sm text-muted-foreground">
@@ -735,7 +735,7 @@ export default function CreateWorkflowPage() {
 
                         <Field
                             label="Welcome message"
-                            hint="Spoken word for word, so write it as it should sound. Use {{variable_name}} for anything that changes per call. Leave it empty and the agent opens in its own words."
+                            hint="Spoken word for word, so write it as it should sound. Use {{variable_name}} for anything that changes per call. Leave it empty and the bot opens in its own words."
                         >
                             <Textarea
                                 value={welcome}
@@ -771,7 +771,7 @@ export default function CreateWorkflowPage() {
 
                         <Field
                             label="Conversation flow"
-                            hint="Numbered steps. The generated agent gets one node per step, which is what makes a call you can read afterwards."
+                            hint="Numbered steps. The generated bot gets one node per step, which is what makes a call you can read afterwards."
                         >
                             <Textarea
                                 value={flow}
@@ -798,7 +798,7 @@ export default function CreateWorkflowPage() {
 
                         <Field
                             label="Closing line"
-                            hint="Spoken word for word before the agent hangs up."
+                            hint="Spoken word for word before the bot hangs up."
                         >
                             <Textarea
                                 value={closingLine}

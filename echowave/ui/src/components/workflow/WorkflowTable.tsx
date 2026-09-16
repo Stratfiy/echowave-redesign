@@ -194,7 +194,7 @@ export function WorkflowTable({
 
             if (response.data) {
                 toast.success(
-                    nextLive ? 'Agent is taking calls' : 'Agent paused — it will not answer',
+                    nextLive ? 'Bot is taking calls' : 'Bot paused — it will not answer',
                 );
                 startTransition(() => {
                     router.refresh();
@@ -203,11 +203,11 @@ export function WorkflowTable({
                 throw new Error('No data in response');
             }
         } catch (error) {
-            console.error('Error changing whether the agent takes calls:', error);
+            console.error('Error changing whether the bot takes calls:', error);
             toast.error(
                 nextLive
-                    ? 'Could not start the agent'
-                    : 'Could not pause the agent — it is still taking calls',
+                    ? 'Could not start the bot'
+                    : 'Could not pause the bot — it is still taking calls',
             );
             setPendingLive((current) => {
                 const next = { ...current };
@@ -225,17 +225,17 @@ export function WorkflowTable({
                 body: { folder_id: folderId },
             });
             if (response.error) {
-                throw new Error('Failed to move agent');
+                throw new Error('Failed to move bot');
             }
             toast.success(
-                folderId === null ? 'Moved to Uncategorized' : 'Agent moved',
+                folderId === null ? 'Moved to Uncategorized' : 'Bot moved',
             );
             startTransition(() => {
                 router.refresh();
             });
         } catch (error) {
             console.error('Error moving workflow:', error);
-            toast.error('Failed to move agent');
+            toast.error('Failed to move bot');
         } finally {
             setMovingWorkflowId(null);
         }

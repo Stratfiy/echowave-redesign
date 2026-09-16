@@ -4,7 +4,7 @@
  * Tools were org-level objects with no per-agent view: you created one on
  * `/tools`, then attached it by opening the canvas, clicking the agent node,
  * and finding a picker inside it. For a one-prompt agent that is three steps to
- * answer "can this agent book an appointment", and the canvas is the screen we
+ * answer "can this bot book an appointment", and the canvas is the screen we
  * spent yesterday arguing that a simple agent should not have to open.
  *
  * So the same list, on the agent, as a tab.
@@ -79,7 +79,7 @@ export default function AgentToolsPage() {
             ]);
 
             if (workflowResult.error) {
-                setError(detailFromResult(workflowResult, "Could not load this agent"));
+                setError(detailFromResult(workflowResult, "Could not load this bot"));
                 setLoading(false);
                 return;
             }

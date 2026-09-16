@@ -50,7 +50,7 @@ const CASES: ForwardCase[] = [
     {
         key: "busy",
         label: "When the line is busy",
-        when: "Somebody is already on a call — the second caller reaches the agent instead of an engaged tone.",
+        when: "Somebody is already on a call — the second caller reaches the bot instead of an engaged tone.",
         on: "**67*",
         off: "##67#",
         recommended: true,
@@ -58,7 +58,7 @@ const CASES: ForwardCase[] = [
     {
         key: "no-reply",
         label: "When nobody picks up",
-        when: "It rings out. The agent answers rather than the call being lost.",
+        when: "It rings out. The bot answers rather than the call being lost.",
         on: "**61*",
         off: "##61#",
         recommended: true,

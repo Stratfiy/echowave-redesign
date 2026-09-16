@@ -201,7 +201,7 @@ export function CampaignSummaryCard({ campaignId }: { campaignId: number }) {
                                 label="Completion rate"
                                 value={formatRate(totals.completion_rate)}
                                 sub={`${formatNumber(totals.completed)} completed`}
-                                help="Over connected calls, not attempts. A call nobody answered never got the chance to complete a conversation, so counting it here would report the agent as failing at something it never attempted."
+                                help="Over connected calls, not attempts. A call nobody answered never got the chance to complete a conversation, so counting it here would report the bot as failing at something it never attempted."
                             />
                             <Figure
                                 label="Reach"

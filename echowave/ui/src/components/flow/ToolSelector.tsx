@@ -71,7 +71,7 @@ export function ToolSelector({
     tools,
     disabled = false,
     label = "Tools",
-    description = "Select tools that the agent can use during the conversation.",
+    description = "Select tools that the bot can use during the conversation.",
     showLabel = true,
     mcpToolFilters = {},
     onMcpToolFiltersChange = () => {},

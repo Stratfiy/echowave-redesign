@@ -11,7 +11,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 
-/** The "which agent" row, identical on every DEPLOY screen. */
+/** The "which bot" row, identical on every DEPLOY screen. */
 export function DeployAgentPicker({
     agents,
     selected,
@@ -35,7 +35,7 @@ export function DeployAgentPicker({
                         onValueChange={(value) => onSelect(Number(value))}
                     >
                         <SelectTrigger id="deploy-agent" className="max-w-md">
-                            <SelectValue placeholder="Choose an agent" />
+                            <SelectValue placeholder="Choose an bot" />
                         </SelectTrigger>
                         <SelectContent>
                             {agents.map((agent) => (

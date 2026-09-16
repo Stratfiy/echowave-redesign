@@ -107,7 +107,7 @@ export function ConnectorCard({
 
                 {/* The native screen, and it shows even when this vendor is
                     already connected here as a tool. A connected Plivo saying
-                    only "ready to use in an agent's tools" is how somebody
+                    only "ready to use in an bot's tools" is how somebody
                     concludes their phone line is live: it is a true sentence
                     about the wrong thing. */}
                 {connector.setup_url ? (

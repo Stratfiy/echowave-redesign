@@ -208,7 +208,7 @@ export function ModelRow({
             });
             if (result.error) {
                 setError(
-                    detailFromResult(result, "Could not load what this agent runs on"),
+                    detailFromResult(result, "Could not load what this bot runs on"),
                 );
                 return;
             }
@@ -219,7 +219,7 @@ export function ModelRow({
             // Basic voice sees Rumik's speakers and not Sarvam's.
             setVoices(body?.voices ?? []);
         } catch {
-            setError("Could not load what this agent runs on");
+            setError("Could not load what this bot runs on");
         } finally {
             setLoading(false);
         }
@@ -357,7 +357,7 @@ export function ModelRow({
                     <p className="mt-2 max-w-xs text-[11px] text-muted-foreground">
                         {latency
                             ? `Median across ${latency.turns.toLocaleString("en-IN")} turns on real calls, last ${latency.window_days} days. Excludes the opening turn.`
-                            : "Not enough calls yet to measure. This fills in once the agent has run."}
+                            : "Not enough calls yet to measure. This fills in once the bot has run."}
                     </p>
                 </div>
             </div>

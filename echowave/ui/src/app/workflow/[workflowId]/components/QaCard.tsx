@@ -61,7 +61,7 @@ export function QaCard({ workflowId }: { workflowId: number }) {
             path: { workflow_id: workflowId },
         });
         if (result.error) {
-            setError(detailFromResult(result, "Could not load this agent"));
+            setError(detailFromResult(result, "Could not load this bot"));
             setLoading(false);
             return;
         }
@@ -152,7 +152,7 @@ export function QaCard({ workflowId }: { workflowId: number }) {
                     checked={enabled}
                     disabled={saving}
                     onCheckedChange={toggle}
-                    aria-label="Review calls for this agent"
+                    aria-label="Review calls for this bot"
                 />
             </CardHeader>
             <CardContent className="space-y-3">

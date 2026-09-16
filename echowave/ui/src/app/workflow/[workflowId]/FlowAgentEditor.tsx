@@ -61,7 +61,7 @@ export function FlowAgentEditor({
             <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h2 className="text-lg font-semibold">
-                        {handoffs > 0 ? "This squad" : "This agent"}
+                        {handoffs > 0 ? "This squad" : "This bot"}
                     </h2>
                     <p className="text-sm text-muted-foreground">
                         {fields.steps.length} steps
@@ -139,7 +139,7 @@ export function FlowAgentEditor({
                                             {!expanded && (
                                                 <span className="block truncate text-xs text-muted-foreground">
                                                     {step.type === "handoff"
-                                                        ? "Hands the call to another agent"
+                                                        ? "Hands the call to another bot"
                                                         : step.prompt.split("\n")[0] || "No instruction yet"}
                                                 </span>
                                             )}

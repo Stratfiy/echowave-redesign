@@ -284,7 +284,7 @@ export default function ToolsPage() {
         const ok = await confirm({
             title: "Archive this tool?",
             description:
-                "Workflows that call it will stop being able to. You can still see it in your history; it just will not be offered to an agent again.",
+                "Workflows that call it will stop being able to. You can still see it in your history; it just will not be offered to an bot again.",
             confirmLabel: "Archive tool",
             destructive: true,
         });

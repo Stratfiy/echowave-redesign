@@ -26,7 +26,7 @@ export const DocumentSelector = ({
     documents,
     disabled = false,
     label = "Knowledge Base Documents",
-    description = "Select documents that the agent can reference during conversations.",
+    description = "Select documents that the bot can reference during conversations.",
     showLabel = true,
 }: DocumentSelectorProps) => {
     // Only show completed documents

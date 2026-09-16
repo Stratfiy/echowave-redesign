@@ -34,7 +34,7 @@ function ConnectScreen() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { agents, selected, setSelectedId, loadError, load } = useDeployAgents(
-        searchParams.get("agent"),
+        searchParams.get("bot"),
     );
 
     useEffect(() => {
@@ -78,7 +78,7 @@ function ConnectScreen() {
                                 <p className="font-medium">No agents yet</p>
                                 <p className="mt-1 text-sm text-muted-foreground">
                                     {loadError ??
-                                        "There needs to be an agent before anything can trigger one."}
+                                        "There needs to be an bot before anything can trigger one."}
                                 </p>
                             </div>
                             {!loadError && (
@@ -93,7 +93,7 @@ function ConnectScreen() {
                         <DeployAgentPicker
                             agents={agents}
                             selected={selected}
-                            label="Which agent should the trigger call"
+                            label="Which bot should the trigger call"
                             onSelect={(id) => {
                                 setSelectedId(id);
                                 router.replace(`/deploy/connect?agent=${id}`, {

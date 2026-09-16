@@ -205,7 +205,7 @@ export function WorkflowTesterPanel({
                                 {effectiveDisabledReason ? <DisabledNotice reason={effectiveDisabledReason} /> : null}
                                 <EmptyState
                                     icon={<Phone className="h-7 w-7" />}
-                                    title="Call this agent in the browser"
+                                    title="Call this bot in the browser"
                                     description={
                                         <>
                                             Test the agent over a voice call. The call is recorded and transcribed, and paid
@@ -279,7 +279,7 @@ export function WorkflowTesterPanel({
                 tooltipKey="web_call"
                 targetRef={runTestButtonRef}
                 title="Try Your First Web Call"
-                message="Start a browser call here to hear the agent, inspect the transcript, and validate the workflow before you customize it further."
+                message="Start a browser call here to hear the bot, inspect the transcript, and validate the workflow before you customize it further."
                 showNext={false}
                 enabled={runTestTooltipEnabled}
             />
