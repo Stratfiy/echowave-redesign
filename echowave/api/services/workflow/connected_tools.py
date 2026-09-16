@@ -87,6 +87,12 @@ READ_VERBS = frozenset(
     }
 )
 
+#: How many connected tools are named in the context block. Sixty names is
+#: about 1,500 characters -- worth it, because the alternative is the model
+#: guessing at its own drawer. An account past that is told the list is
+#: partial rather than sold a complete one.
+MAX_NAMED = 60
+
 #: How far a tool result travels into the model's context. A CRM search can
 #: return a lot; the model needs enough to answer, not the whole export.
 MAX_RESULT_CHARS = 6_000
@@ -289,9 +295,57 @@ def by_function_name(tools: list[Any]) -> dict[str, Any]:
     return {function_name(t): t for t in tools}
 
 
+def _names_cleanly(tool: Any) -> bool:
+    try:
+        function_name(tool)
+        return True
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Connected tool row cannot be named: {}", exc)
+        return False
+
+
+def _named_lines(tools: list[Any]) -> tuple[list[str], int]:
+    """The tools by name, grouped by app, writes before reads.
+
+    Writes come first because a write is what a person asks for by name
+    ("send it", "book it") and a write is what Decibyl denied having. If
+    the cap bites, it bites the fetches.
+
+    Returns the lines and how many tools did not fit.
+    """
+    writes = [t for t in tools if not is_read(t)]
+    reads = [t for t in tools if is_read(t)]
+    chosen = writes[:MAX_NAMED]
+    chosen += reads[: max(0, MAX_NAMED - len(chosen))]
+    keep = {id(t) for t in chosen}
+
+    lines: list[str] = []
+    for app in sorted({toolkit_of(t) or "connector" for t in chosen}):
+        here = [t for t in chosen if (toolkit_of(t) or "connector") == app]
+        for label, group in (
+            ("proposes a card", [t for t in here if not is_read(t)]),
+            ("runs now", [t for t in here if is_read(t)]),
+        ):
+            if group:
+                names = ", ".join(function_name(t) for t in group)
+                lines.append(f"- {app}, {label}: {names}")
+    return lines, len(tools) - len(keep)
+
+
 def apps_block(tools: list[Any], awaiting: list[str] | None = None) -> str:
-    """The context line: which apps are connected, so the model knows what
-    it can reach before it tries.
+    """The context line: which apps are connected and, by name, every tool
+    they put in Decibyl's hands.
+
+    **The names are the point.** This block used to say only how many tools
+    there were, and that they were "listed by name" somewhere the model
+    should call ``load_tool`` to open. Both were wrong by the time they were
+    read: a tool that carries its own parameters is sent in full and needs
+    no loader, and on the round after a card the model is given no tools at
+    all (see MAX_TOOL_ROUNDS) -- so its only account of what it can reach is
+    this block. Told there was a list elsewhere, it described one from
+    memory, and told a person it had no way to send an email an hour after
+    sending one. A model that is confidently wrong about its own drawer is
+    worse than one with an empty drawer.
 
     ``awaiting`` are apps the account has connected whose tools are not
     ready yet (see :func:`awaiting_setup`). Named explicitly because the
@@ -299,6 +353,15 @@ def apps_block(tools: list[Any], awaiting: list[str] | None = None) -> str:
     connect-card path, and Decibyl reported the two as conflicting signals
     to the person who had just connected one.
     """
+    # A row whose name cannot be turned into a function name is a row the
+    # model was never going to be offered either (see :func:`schemas`), and
+    # it must not take the whole context block down with it: this block is
+    # read on every turn, and a workspace that cannot say what it has is
+    # worse off than one with a tool missing from the list. Dropped here,
+    # before anything is counted, so the totals and the names agree -- a
+    # count that includes a tool the list does not name is the same lie in
+    # smaller print.
+    tools = [t for t in tools if _names_cleanly(t)]
     apps = sorted({toolkit_of(t) or "connector" for t in tools})
     pending = ""
     if awaiting:
@@ -325,11 +388,24 @@ def apps_block(tools: list[Any], awaiting: list[str] | None = None) -> str:
             return f"No app is usable yet.{pending} {offer}"
         return f"No apps connected. {offer}"
     reads = sum(1 for t in tools if is_read(t))
+    lines, unnamed = _named_lines(tools)
+    # The claim is only made when it is true. A block that says "this is
+    # everything" while holding back forty names is how this bug gets built
+    # a second time, with the model's trust behind it.
+    scope = (
+        f"{unnamed} more are on your tool list but not named here; read it "
+        "before you say you cannot do something."
+        if unnamed
+        else "This is every tool you have: if one is named here you have it, "
+        "and if it is not named here you do not."
+    )
     return (
         f"Connected: {', '.join(apps)}. {len(tools)} tools ({reads} read-only). "
         "Read tools run as you answer; anything that sends, creates or changes "
-        f"something proposes a card first. Tools are listed by name; call "
-        f"{LOAD_TOOL_NAME} for the one you need before using it.{pending} {offer}"
+        f"something proposes a card first. {scope}\n"
+        + "\n".join(lines)
+        + "\n"
+        + " ".join(part for part in (pending.strip(), offer) if part)
     )
 
 
@@ -404,6 +480,7 @@ async def execute(
 
 __all__ = [
     "LOAD_TOOL_NAME",
+    "MAX_NAMED",
     "MAX_RESULT_CHARS",
     "PREFIX",
     "READ_VERBS",
