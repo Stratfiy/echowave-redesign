@@ -58,6 +58,8 @@ from loguru import logger
 from api.db import db_client
 from api.enums import ToolCategory, ToolStatus
 from api.schemas.tool import CreateToolRequest
+from api.services.integrations.composio import model_fields
+from api.services.integrations.composio import schema as tool_schema
 from api.services.integrations.composio.client import toolkit_actions
 from api.services.tool_management import create_tool_for_user
 
@@ -192,6 +194,25 @@ async def existing_slugs(organization_id: int, app: str) -> set[str]:
     }
 
 
+async def _model_fills(action_slug: str) -> list[dict[str, Any]]:
+    """The arguments the model is asked to fill for one action.
+
+    Read here, at sync time, rather than in front of somebody: the schema is
+    fetched once per slug and cached, and a tool row that carries its own
+    parameters needs no round trip to discover them later.
+
+    Never raises, and an empty list is a real answer. A vendor that will not
+    answer right now yields a tool created exactly as it was before this
+    existed -- offered by description, with its arguments loaded on demand.
+    """
+    try:
+        schema = await tool_schema.input_schema(action_slug)
+    except Exception as exc:  # noqa: BLE001 - one tool, not the sync
+        logger.warning("Could not read the schema for {}: {}", action_slug, exc)
+        return []
+    return model_fields.chosen(schema)
+
+
 async def ensure_tools(
     *, organization_id: int, app: str, app_name: str, actor: Any
 ) -> Synced:
@@ -242,16 +263,17 @@ async def ensure_tools(
         action_slug = str(action.get("slug") or "").strip()
         if not action_slug or action_slug in have:
             continue
+        config: dict[str, Any] = {"toolkit": slug, "tool_slug": action_slug}
+        fills = await _model_fills(action_slug)
+        if fills:
+            config["parameters"] = fills
         try:
             await create_tool_for_user(
                 CreateToolRequest(
                     name=_name(app_name, action),
                     description=(action.get("does") or "")[:MAX_DESCRIPTION] or None,
                     category=ToolCategory.COMPOSIO.value,
-                    definition={
-                        "type": "composio",
-                        "config": {"toolkit": slug, "tool_slug": action_slug},
-                    },
+                    definition={"type": "composio", "config": config},
                 ),
                 actor,
                 source="connector_sync",

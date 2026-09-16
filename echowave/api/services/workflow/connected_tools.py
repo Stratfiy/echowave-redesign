@@ -160,6 +160,22 @@ def _description(tool: Any, generated: dict[str, Any]) -> str:
     return f"{generated['description']} ({verb} the connected app{where}.)"
 
 
+def declares_its_own(tool: Any) -> bool:
+    """Whether this tool already knows what it takes.
+
+    A row created since the fields were chosen at sync time carries them, so
+    its schema is small and already known -- there is nothing to defer and
+    nothing to discover, and offering it by name alone would buy a round trip
+    for an answer we are holding.
+
+    A row from before that, or one somebody made by hand with no parameters,
+    answers False and keeps the old behaviour exactly.
+    """
+    config = ((tool.definition or {}).get("config") or {}) if tool else {}
+    declared = config.get("parameters")
+    return isinstance(declared, list) and len(declared) > 0
+
+
 def schema_for(tool: Any, full: Optional[dict[str, Any]] = None) -> dict[str, Any]:
     """One tool in the shape the workspace assistant's model client takes.
 
@@ -227,8 +243,15 @@ def schemas(
     if not tools:
         return []
     loaded = loaded or {}
-    out = [load_tool_schema()]
-    for tool in tools:
+    ready = [t for t in tools if declares_its_own(t)]
+    deferred = [t for t in tools if not declares_its_own(t)]
+    out = [schema_for(tool) for tool in ready]
+    if not deferred:
+        # Nothing left to load, so nothing is offered a way to load it. The
+        # loader existing at all told the model some tool was still hidden.
+        return out
+    out.insert(0, load_tool_schema())
+    for tool in deferred:
         name = function_name(tool)
         if name in loaded:
             out.append(schema_for(tool, loaded[name]))
@@ -388,6 +411,7 @@ __all__ = [
     "by_function_name",
     "execute",
     "function_name",
+    "declares_its_own",
     "index_entry",
     "is_connected",
     "is_read",
