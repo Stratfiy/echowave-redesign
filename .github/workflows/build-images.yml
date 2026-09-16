@@ -59,6 +59,10 @@ concurrency:
 permissions:
   contents: read
   packages: write
+  # For the OIDC exchange that gets a short-lived AWS credential. Deploy.yml
+  # already assumes a role this way; pushing to ECR uses the same mechanism,
+  # so no registry password exists anywhere in this repository or on the box.
+  id-token: write
 
 jobs:
   build:
@@ -73,6 +77,14 @@ jobs:
             dockerfile: echowave/api/Dockerfile
           - name: ui
             dockerfile: echowave/ui/Dockerfile
+          # The third image, and the one that would have been missed. The box
+          # builds api, ui *and* sandbox; publishing only the first two means
+          # that the day the box stops building, `docker compose pull` finds
+          # no sandbox image and the deploy fails on a service nobody was
+          # thinking about.
+          - name: sandbox
+            dockerfile: echowave/sandbox/Dockerfile
+            context: echowave/sandbox
 
     steps:
       - name: Check out, with pipecat
@@ -96,6 +108,33 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # ECR is where the box pulls from. GHCR stays as well: it costs
+      # nothing, it is where a developer without AWS can pull from, and a
+      # second copy of a release is not a bad thing to have.
+      #
+      # OIDC, not a stored key. The box authenticates to ECR with its own
+      # instance role and this workflow with a role it assumes per run, so at
+      # no point does a registry password exist to be leaked or rotated --
+      # which is the whole reason for choosing ECR over a GHCR token on the
+      # box.
+      - name: Authenticate to AWS
+        id: aws
+        continue-on-error: true
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-south-1' }}
+
+      - name: Log in to ECR
+        id: ecr
+        # Best-effort, like the step above: until the repositories and the
+        # IAM permission exist, this workflow must keep publishing to GHCR
+        # rather than turning red on every merge. Once ECR is in place the
+        # `push-ecr` step below starts pushing and nothing here changes.
+        if: steps.aws.outcome == 'success'
+        continue-on-error: true
+        uses: aws-actions/amazon-ecr-login@v2
+
       - uses: docker/setup-buildx-action@v3
 
       - name: Build and push
@@ -106,15 +145,19 @@ jobs:
           # from ui/ by path. Not the repository root either -- the Dockerfiles
           # were written when echowave/ was the root and address api/ and ui/
           # from there.
-          context: echowave
+          context: ${{ matrix.context || 'echowave' }}
           file: ${{ matrix.dockerfile }}
           push: true
           # The box is x86. Building arm64 as well would roughly double the
           # build for an architecture nothing runs.
           platforms: linux/amd64
+          # Both registries in one build, so the two can never hold
+          # different code under the same SHA.
           tags: |
             ghcr.io/${{ steps.ns.outputs.owner }}/decibyl-${{ matrix.name }}:latest
             ghcr.io/${{ steps.ns.outputs.owner }}/decibyl-${{ matrix.name }}:${{ github.sha }}
+            ${{ steps.ecr.outcome == 'success' && format('{0}/decibyl-{1}:latest', steps.ecr.outputs.registry, matrix.name) || '' }}
+            ${{ steps.ecr.outcome == 'success' && format('{0}/decibyl-{1}:{2}', steps.ecr.outputs.registry, matrix.name, github.sha) || '' }}
           # Cache lives with the Actions runner, not on the production disk,
           # which is the entire point of moving the build here.
           cache-from: type=gha,scope=${{ matrix.name }}

@@ -112,3 +112,63 @@ class TestTheFunctionsActuallyRun:
     def test_ensure_room_is_quiet_when_there_is_room(self):
         out = self._run("MIN_FREE_GB=0; ensure_room")
         assert "clearing build cache" not in out
+
+
+class TestTheBoxCanDeployWithoutBuilding:
+    """Building on the box is what degrades live calls and fills the disk.
+
+    A Next.js production build saturates all four vCPU, and those are the
+    same cores that carry calls -- `run_pipeline_telephony` runs inside the
+    uvicorn workers. So a deploy during business hours degrades every
+    conversation in progress, and presents to the customer as the model
+    being slow.
+    """
+
+    def test_building_is_still_the_default(self):
+        # Merging this must change nothing until the ECR repositories exist
+        # and CI has pushed a tag.
+        assert re.search(r'IMAGE_SOURCE="\$\{IMAGE_SOURCE:-build\}"', _source())
+
+    def test_registry_mode_pulls_and_does_not_build(self):
+        source = _source()
+        block = source.split('if [ "$IMAGE_SOURCE" = "registry" ]', 1)[1].split(
+            "\nelse\n", 1
+        )[0]
+        assert "docker compose pull" in block
+        assert "docker compose build" not in block
+
+    def test_it_pulls_the_commit_it_was_asked_to_deploy(self):
+        # A moving tag would put whatever CI finished last on the box, and a
+        # rollback to `latest` would roll forward.
+        block = (
+            _source()
+            .split('if [ "$IMAGE_SOURCE" = "registry" ]', 1)[1]
+            .split("\nelse\n", 1)[0]
+        )
+        assert 'IMAGE_TAG="$NEW_SHA"' in block
+        assert "latest" not in block.replace("`latest`", "")
+
+    def test_the_sha_is_known_before_it_is_used(self):
+        source = _source()
+        assert source.index('NEW_SHA="$(git') < source.index(
+            'IMAGE_SOURCE" = "registry"'
+        )
+
+    def test_a_failed_pull_does_not_silently_fall_back_to_building(self):
+        # A silent fallback means nobody finds out the registry broke; the
+        # first symptom would be a deploy that mysteriously takes six minutes
+        # and degrades calls again.
+        block = (
+            _source()
+            .split('if [ "$IMAGE_SOURCE" = "registry" ]', 1)[1]
+            .split("\nelse\n", 1)[0]
+        )
+        assert "exit 1" in block
+
+    def test_the_failure_says_how_to_get_unstuck(self):
+        block = (
+            _source()
+            .split('if [ "$IMAGE_SOURCE" = "registry" ]', 1)[1]
+            .split("\nelse\n", 1)[0]
+        )
+        assert "IMAGE_SOURCE=build" in block
