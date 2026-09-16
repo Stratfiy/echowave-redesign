@@ -13,10 +13,12 @@ import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const teamStatus = vi.hoisted(() => vi.fn());
+const outcomeBoard = vi.hoisted(() => vi.fn());
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 vi.mock("@/client/sdk.gen", () => ({
     teamStatusApiV1TeamStatusGet: teamStatus,
+    getOutcomeBoardApiV1WorkflowOutcomesGet: outcomeBoard,
     moveWorkflowToFolderApiV1WorkflowWorkflowIdFolderPut: vi.fn(),
     updateWorkflowLiveApiV1WorkflowWorkflowIdLivePut: vi.fn(),
     updateWorkflowStatusApiV1WorkflowWorkflowIdStatusPut: vi.fn(),
@@ -31,6 +33,28 @@ const WORKFLOWS = [
 
 beforeEach(() => {
     teamStatus.mockReset();
+    outcomeBoard.mockReset();
+    outcomeBoard.mockResolvedValue({
+        data: [
+            {
+                workflow_id: 18,
+                name: "Narayani Dental front desk",
+                outcomes: [
+                    { code: "booked", label: "Booked", count: 6 },
+                    { code: "callback", label: "Call back", count: 2 },
+                    // Reliably the biggest bin on a quiet bot, and never the
+                    // headline: a column led by it reports "mostly unclear"
+                    // for every bot in the account.
+                    { code: "unclear", label: "Unclear", count: 9 },
+                ],
+                runs: 12,
+                classified: 11,
+                truncated: false,
+                configured: true,
+            },
+        ],
+        error: undefined,
+    });
     teamStatus.mockResolvedValue({
         data: {
             hours: 24,
@@ -64,8 +88,81 @@ describe("the bot list", () => {
     it("shows a dash for a bot the roster has nothing on, rather than an empty cell", async () => {
         render(<WorkflowTable workflows={WORKFLOWS} showArchived={false} />);
         await screen.findByText("9 calls, 6 answered, 4 bookings");
-        // Workflow-4597 is in the list but not in the roster response.
-        expect(screen.getByText("—")).toBeTruthy();
+        // Workflow-4597 is in the list but in neither response, so it gets a
+        // dash in both the activity column and the judged one.
+        expect(screen.getAllByText("—")).toHaveLength(2);
+    });
+
+    it("says what the classifier judged, worded apart from what was filed", async () => {
+        // "4 bookings" is a row written to an outside system; "6 judged
+        // booked" is what the model read the conversation to be. They
+        // disagree constantly, and two numbers both called bookings would
+        // read as one of them being wrong.
+        render(<WorkflowTable workflows={WORKFLOWS} showArchived={false} />);
+        expect(await screen.findByText("6 judged booked")).toBeTruthy();
+        expect(screen.getByText("9 calls, 6 answered, 4 bookings")).toBeTruthy();
+    });
+
+    it("never leads with unclear, however big that bin is", async () => {
+        render(<WorkflowTable workflows={WORKFLOWS} showArchived={false} />);
+        await screen.findByText("6 judged booked");
+        expect(screen.queryByText(/judged unclear/)).toBeNull();
+    });
+
+    it("puts the window in the heading, because the column beside it is a different one", async () => {
+        render(<WorkflowTable workflows={WORKFLOWS} showArchived={false} />);
+        expect(await screen.findByText("Judged (30 days)")).toBeTruthy();
+        expect(screen.getByText("Last 24 hours")).toBeTruthy();
+    });
+
+    it("shows the denominator, so a failing classifier does not read as an idle bot", async () => {
+        render(<WorkflowTable workflows={WORKFLOWS} showArchived={false} />);
+        expect(await screen.findByText(/of 11 sorted/)).toBeTruthy();
+    });
+
+    it("marks a bot still on the default outcomes", async () => {
+        outcomeBoard.mockResolvedValue({
+            data: [
+                {
+                    workflow_id: 18,
+                    name: "Narayani Dental front desk",
+                    outcomes: [{ code: "booked", label: "Booked", count: 1 }],
+                    runs: 3,
+                    classified: 3,
+                    truncated: false,
+                    configured: false,
+                },
+            ],
+            error: undefined,
+        });
+        render(<WorkflowTable workflows={WORKFLOWS} showArchived={false} />);
+        expect(await screen.findByText(/default outcomes/)).toBeTruthy();
+    });
+
+    it("says nothing landed when every sorted run went to unclear", async () => {
+        outcomeBoard.mockResolvedValue({
+            data: [
+                {
+                    workflow_id: 18,
+                    name: "Narayani Dental front desk",
+                    outcomes: [{ code: "unclear", label: "Unclear", count: 5 }],
+                    runs: 5,
+                    classified: 5,
+                    truncated: false,
+                    configured: true,
+                },
+            ],
+            error: undefined,
+        });
+        render(<WorkflowTable workflows={WORKFLOWS} showArchived={false} />);
+        expect(await screen.findByText("Nothing landed")).toBeTruthy();
+    });
+
+    it("keeps the rows when the board request fails", async () => {
+        // Losing a secondary count must not lose the agents.
+        outcomeBoard.mockResolvedValue({ data: undefined, error: { detail: "nope" } });
+        render(<WorkflowTable workflows={WORKFLOWS} showArchived={false} />);
+        expect(await screen.findByText("Narayani Dental front desk")).toBeTruthy();
     });
 
     it("keeps every bot on screen when the roster request fails", async () => {
