@@ -318,7 +318,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       {
         title: "Phone numbers",
         url: "/telephony-configurations",
-        activePaths: ["/numbers", "/verified-numbers", "/verification", "/missed-calls"],
+        activePaths: ["/numbers", "/verified-numbers", "/verification"],
         icon: Phone,
         showsTelephonyWarning: true,
         keywords: [
@@ -395,7 +395,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       {
         title: "Calls",
         url: "/usage",
-        activePaths: ["/reports", "/review", "/analytics"],
+        activePaths: ["/reports", "/review", "/analytics", "/missed-calls"],
         icon: PhoneCall,
         keywords: [
           "bot runs",

@@ -17,7 +17,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { listMissedCallsApiV1MissedCallsGet } from "@/client/sdk.gen";
 import type { MissedCallOut } from "@/client/types.gen";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
-import { TELEPHONY_TABS } from "@/components/layout/SectionTabs";
+import { CALLS_TABS } from "@/components/layout/SectionTabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -92,7 +92,7 @@ export default function MissedCallsPage() {
   return (
     <>
       <PageHeader
-        tabs={TELEPHONY_TABS}
+        tabs={CALLS_TABS}
         title="Missed calls"
         description="Someone rang a callback number and hung up. Here is what happened next."
         actions={
