@@ -68,13 +68,21 @@ function partOfDay(now: Date): string {
   return "Good evening";
 }
 
-/** What the team did, as a sentence rather than a row of tiles. */
-function summarise(headline: Headline): string {
+/**
+ * What the team did, as a sentence rather than a row of tiles.
+ *
+ * ``span`` comes from the server rather than being written here. This
+ * sentence used to say "today" over a window that was really the last 24
+ * hours, so it disagreed with the operator's own idea of today and with
+ * Decibyl, which had the same bug -- the same person was given two
+ * different totals for "today" minutes apart.
+ */
+function summarise(headline: Headline, span: string): string {
   if (headline.agents === 0) return "Let's put your first bot to work.";
   const parts: string[] = [];
   if (headline.calls > 0) {
     parts.push(
-      `${headline.calls} ${headline.calls === 1 ? "call" : "calls"} today`,
+      `${headline.calls} ${headline.calls === 1 ? "call" : "calls"} ${span}`,
     );
     if (headline.answered > 0) parts.push(`${headline.answered} answered`);
     if (headline.outcomes > 0) parts.push(`${headline.outcomes} finished`);
@@ -82,7 +90,7 @@ function summarise(headline: Headline): string {
   if (parts.length === 0) {
     return headline.live === 0
       ? "No bot is taking calls right now."
-      : "Nothing has come in yet today.";
+      : `Nothing has come in ${span === "today" ? "yet today" : span}.`;
   }
   const sentence = `${parts.join(", ")}.`;
   if (headline.needs_attention > 0) {
@@ -116,6 +124,9 @@ function Chip({ chip }: { chip: Suggestion }) {
 export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   const { user, loading: authLoading } = useAuth();
   const [headline, setHeadline] = useState<Headline | null>(null);
+  // What the headline's counts are over, in the server's words. Not written
+  // here: this sentence said "today" over a rolling 24-hour window.
+  const [span, setSpan] = useState("today");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   // The server's question cards, built from this account's own history.
   const [openers, setOpeners] = useState<Opener[]>([]);
@@ -170,6 +181,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         });
         if (cancelled || response.error || !response.data) return;
         setHeadline(response.data.headline ?? null);
+        setSpan(response.data.span ?? "today");
         setSuggestions(response.data.suggestions ?? []);
         setOpeners(response.data.openers ?? []);
       } catch {
@@ -228,7 +240,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
           {firstName ? `, ${firstName}` : ""}.{" "}
           {brandNew
             ? "Say hi, or tell me one thing you'd love off your plate this week. I'll set up a bot for it and you can hear it in a minute."
-            : `${headline ? summarise(headline) : ""} I know your bots, your numbers and your company's documents.`}
+            : `${headline ? summarise(headline, span) : ""} I know your bots, your numbers and your company's documents.`}
         </p>
         <div
           className="mt-4 flex w-full max-w-lg flex-col gap-2"
@@ -285,7 +297,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
             d
           </span>
           <span className="font-medium text-foreground">Decibyl</span>
-          <span>· {greeting}{firstName ? `, ${firstName}` : ""}.{" "}{headline ? summarise(headline) : ""}</span>
+          <span>· {greeting}{firstName ? `, ${firstName}` : ""}.{" "}{headline ? summarise(headline, span) : ""}</span>
         </div>
       )}
 

@@ -13,12 +13,15 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from loguru import logger
 from pydantic import BaseModel
 
 from api.db import db_client
 from api.db.models import UserModel
 from api.enums import WorkflowStatus
+from api.services import reporting_window
 from api.services.auth.depends import get_user
+from api.services.organization_preferences import get_organization_preferences
 from api.services.workflow import home_openers, home_suggestions, status_lines
 
 router = APIRouter(prefix="/team", tags=["team"])
@@ -73,18 +76,26 @@ _TONE_ORDER = {
 }
 
 
-async def _members(organization_id: int, hours: int) -> list[TeamMember]:
+async def _members(
+    organization_id: int, hours: int, *, since: datetime | None = None
+) -> list[TeamMember]:
     """The team, sorted worst-first.
 
-    Shared by the team list and the home screen so the two can never disagree
-    about what an agent has been doing, and so the home screen costs one
-    request rather than two.
+    Shared by the team list, the home screen and Decibyl's context so the
+    three can never disagree about what an agent has been doing, and so the
+    home screen costs one request rather than two.
+
+    ``since`` overrides ``hours`` for callers that have worked out where the
+    operator's midnight falls. It exists because "today" and "the last 24
+    hours" are different spans, and reporting the second under the name of the
+    first is what had Decibyl give the same operator two different totals
+    minutes apart.
     """
     workflows = await db_client.get_all_workflows_for_listing(
         organization_id=organization_id, status=WorkflowStatus.ACTIVE.value
     )
     activity = await db_client.agent_activity(
-        organization_id=organization_id, hours=hours
+        organization_id=organization_id, hours=hours, since=since
     )
     # Built for the rail and never read until now: the helper existed, the
     # rail showed a status dot, and the line a chat list lives on was in
@@ -183,6 +194,12 @@ class Opener(BaseModel):
 
 class HomeResponse(BaseModel):
     hours: int
+    #: What the headline's counts are actually over, in the words a sentence
+    #: about them may use: "today" (midnight where the account is) or "in the
+    #: last N days". The screen used to write "today" over a rolling 24-hour
+    #: window and so did Decibyl, which is how the same operator was given
+    #: two different totals minutes apart.
+    span: str = "today"
     headline: Headline
     suggestions: list[Suggestion]
     #: Built from this account's own life -- see home_openers.
@@ -204,7 +221,21 @@ async def team_home(
     if not organization_id:
         raise HTTPException(status_code=400, detail="No organization selected")
 
-    members = await _members(organization_id, hours)
+    # The default view is "today", which means midnight where the operator
+    # is -- not this time yesterday. An explicit `hours` other than 24 is a
+    # caller asking for a rolling span, and gets one, named as one.
+    if hours == 24:
+        try:
+            preferences = await get_organization_preferences(organization_id)
+            zone = preferences.timezone
+        except Exception as exc:  # noqa: BLE001 - the screen still renders
+            logger.warning("Could not read the account's timezone: {}", exc)
+            zone = None
+        window = reporting_window.day_so_far(zone)
+    else:
+        window = reporting_window.last_days(max(1, hours // 24))
+
+    members = await _members(organization_id, hours, since=window.since)
 
     summary = await db_client.app_interaction_summary(
         organization_id=organization_id, days=7
@@ -228,6 +259,7 @@ async def team_home(
 
     return HomeResponse(
         hours=hours,
+        span=window.label,
         headline=Headline(
             agents=len(members),
             live=sum(1 for m in members if m.is_live),

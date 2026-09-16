@@ -47,6 +47,7 @@ from api.tasks.campaign_tasks import (
     process_campaign_batch,
     sync_campaign_source,
 )
+from api.tasks.connector_tools import sync_missing_tools
 from api.tasks.credential_health import check_platform_credentials
 from api.tasks.credit_reservations import sweep_credit_reservations
 from api.tasks.data_retention import purge_expired_call_data
@@ -124,6 +125,7 @@ class WorkerSettings:
         remind_due_tasks,
         send_sunday_reviews,
         notice_connections,
+        sync_missing_tools,
         resurface_asked,
         run_proposed_action,
         compact_channel_context,

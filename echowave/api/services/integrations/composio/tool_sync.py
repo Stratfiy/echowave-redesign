@@ -182,3 +182,23 @@ async def ensure_tools(
         created += 1
         have.add(action_slug)
     return Synced(app=slug, created=created, existing=len(have) - created)
+
+
+async def toolkits_with_rows(organization_id: int) -> set[str]:
+    """The apps this organisation already has at least one tool row for.
+
+    The counterpart to :func:`existing_slugs`, which answers the same
+    question for one app. Used to spot a connected app whose rows were never
+    made -- the app works, the bot cannot see it, and nothing on any screen
+    says so.
+    """
+    from api.services.workflow import connected_tools
+
+    rows = await db_client.get_tools_for_organization(
+        organization_id, status=ToolStatus.ACTIVE.value
+    )
+    return {
+        toolkit
+        for row in rows
+        if (toolkit := connected_tools.toolkit_of(row)) is not None
+    }

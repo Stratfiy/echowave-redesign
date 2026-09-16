@@ -110,12 +110,59 @@ class TestTheContext:
                     "status": "2 failed",
                 },
             ],
-            24,
+            "today",
         )
-        assert block.startswith("Team today: 2 bots, 1 live, 9 calls, 7 answered")
+        assert block.startswith("Team today: 2 bots, 1 live now, 9 calls, 7 answered")
         # Busiest first, paused said plainly.
         assert block.index("Front desk") < block.index("Quiet")
-        assert "- Quiet: paused; 1 calls" in block
+        assert "- Quiet: paused now; today: 1 calls" in block
+
+    def test_the_line_says_which_fact_is_now_and_which_is_the_span(self):
+        """Decibyl read "paused" next to "2 calls" as a pause that had failed,
+        and told the founder so. The two facts have different ages and the
+        line must say which is which."""
+        block = decibyl.team_block(
+            {
+                "agents": 1,
+                "live": 0,
+                "calls": 2,
+                "answered": 0,
+                "outcomes": 0,
+                "needs_attention": 0,
+            },
+            [
+                {
+                    "name": "Meera",
+                    "is_live": False,
+                    "calls": 2,
+                    "answered": 0,
+                    "outcomes": 0,
+                    "failures": 0,
+                    "status": "",
+                }
+            ],
+            "today",
+        )
+        assert "- Meera: paused now; today: 2 calls" in block
+        # And said once more in words, because the model is the reader that
+        # got it wrong.
+        assert "not a pause failing to hold" in block
+
+    def test_a_rolling_span_is_never_called_today(self):
+        block = decibyl.team_block(
+            {
+                "agents": 0,
+                "live": 0,
+                "calls": 0,
+                "answered": 0,
+                "outcomes": 0,
+                "needs_attention": 0,
+            },
+            [],
+            "in the last 7 days",
+        )
+        assert block.startswith("Team in the last 7 days:")
+        assert "today" not in block
 
     def test_memory_and_knowledge_say_when_they_are_empty(self):
         assert decibyl.memory_block([]) == "Nothing confirmed yet."

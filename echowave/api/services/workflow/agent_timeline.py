@@ -34,6 +34,7 @@ from loguru import logger
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind, AgentEventVisibility
 from api.services.notifications import inbox
+from api.services.workflow import answered as answered_rule
 from api.services.workflow import bot_notices
 
 #: Kinds a person is *handed* rather than merely shown: they render as a card
@@ -226,15 +227,12 @@ async def record_call_ended(workflow_run_id: int) -> None:
         disposition = context.get("mapped_call_disposition") or context.get(
             "call_disposition"
         )
-        # answered_at is stamped by the carrier's status webhook, which only
-        # outbound calls have. An inbound call and a web test call are
-        # answered by definition -- somebody was on the line -- and the
-        # billable seconds say so. Judged on both, or a clinic's whole day of
-        # inbound calls reads as missed.
+        # The rule lives in services/workflow/answered.py, because this was
+        # one of three copies of it and one of the other two was wrong.
         duration = run.billable_seconds
         if duration is None and run.answered_at and run.ended_at:
             duration = int((run.ended_at - run.answered_at).total_seconds())
-        answered = run.answered_at is not None or (duration or 0) > 0
+        answered = answered_rule.was_answered(run)
         from api.services.workflow import test_runs
 
         is_test = test_runs.is_test(run)

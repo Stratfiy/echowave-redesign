@@ -319,6 +319,10 @@ async def answer_decibyl_message(
         subjects=subjects,
         author_id=author_id,
         attachments=attachments,
+        # Nothing re-runs this turn after the cap, so the block must stop
+        # telling the model to promise a follow-up. A promise made on the
+        # way out is the one nobody keeps.
+        last_try=bool(pending) and attempt >= decibyl.UNREAD_RETRIES,
     )
     if reply_to and reply_to.get("channel") == "whatsapp" and reply_to.get("to"):
         from api.services.messaging import whatsapp_inbound
