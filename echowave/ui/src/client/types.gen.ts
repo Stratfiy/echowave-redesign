@@ -13664,6 +13664,10 @@ export type WorkflowSkillsResponse = {
      * Slugs
      */
     slugs: Array<string>;
+    /**
+     * Skills
+     */
+    skills?: Array<SkillCard>;
 };
 
 /**

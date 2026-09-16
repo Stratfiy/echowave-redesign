@@ -8,6 +8,7 @@ import type { FlowNode } from "@/components/flow/types";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { BotSkills } from "@/components/workflow/BotSkills";
 
 /**
  * A one-prompt agent, as one screen.
@@ -35,6 +36,7 @@ export function SimpleAgentEditor({
     onOpenCanvas,
     readOnly = false,
     header,
+    workflowId,
 }: {
     nodes: FlowNode[];
     onNodesChange: (next: FlowNode[]) => void;
@@ -43,6 +45,9 @@ export function SimpleAgentEditor({
     /** Rendered above the form, inside its column so the two align. What goes
      *  there is the page's decision, not the form's. */
     header?: React.ReactNode;
+    /** The bot this form is editing, so its taught skills can be listed
+     *  under the instructions they modify. */
+    workflowId?: number;
 }) {
     const fields = useMemo(() => readSimpleAgent(nodes), [nodes]);
 
@@ -153,6 +158,12 @@ export function SimpleAgentEditor({
                     </p>
                 )}
             </div>
+
+            {workflowId ? (
+                <div className="mt-8 border-t border-border pt-6">
+                    <BotSkills workflowId={workflowId} />
+                </div>
+            ) : null}
         </div>
     );
 }

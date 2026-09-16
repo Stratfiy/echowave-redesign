@@ -591,6 +591,7 @@ function RenderWorkflow({
                         <div className="relative min-w-0 flex-1 overflow-auto">
                         {useFormView && !useSimpleView ? (
                             <FlowAgentEditor
+                                workflowId={workflowId}
                                 nodes={nodes as FlowNode[]}
                                 edges={edges as FlowEdge[]}
                                 onNodesChange={handleSimpleNodesChange}
@@ -599,6 +600,7 @@ function RenderWorkflow({
                             />
                         ) : useSimpleView ? (
                             <SimpleAgentEditor
+                                workflowId={workflowId}
                                 nodes={nodes as FlowNode[]}
                                 onNodesChange={handleSimpleNodesChange}
                                 onOpenCanvas={() => setShowCanvas(true)}

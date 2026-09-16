@@ -8,6 +8,7 @@ import type { FlowEdge, FlowNode } from "@/components/flow/types";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { BotSkills } from "@/components/workflow/BotSkills";
 import { cn } from "@/lib/utils";
 
 /**
@@ -31,6 +32,7 @@ export function FlowAgentEditor({
     onOpenCanvas,
     readOnly = false,
     header,
+    workflowId,
 }: {
     nodes: FlowNode[];
     edges: FlowEdge[];
@@ -38,6 +40,9 @@ export function FlowAgentEditor({
     onOpenCanvas: () => void;
     readOnly?: boolean;
     header?: React.ReactNode;
+    /** The bot this form is editing, so its taught skills can be listed
+     *  under the instructions they modify. */
+    workflowId?: number;
 }) {
     const fields = useMemo(() => readFlowAgent(nodes, edges), [nodes, edges]);
     const [open, setOpen] = useState<string | null>(fields.steps[0]?.id ?? null);
@@ -190,8 +195,12 @@ export function FlowAgentEditor({
                     </span>
                 </p>
             </div>
+
+            {workflowId ? (
+                <div className="mt-8 border-t border-border pt-6">
+                    <BotSkills workflowId={workflowId} />
+                </div>
+            ) : null}
         </div>
     );
 }
-
-export default FlowAgentEditor;

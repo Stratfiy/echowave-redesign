@@ -11,6 +11,7 @@ import { FlowEdge, FlowNode } from '@/components/flow/types';
 import SpinLoader from '@/components/SpinLoader';
 import { SetupRail } from '@/components/workflow/SetupRail';
 import { PostHogEvent } from '@/constants/posthog-events';
+import { detailFromResult } from '@/lib/apiError';
 import { useAuth } from '@/lib/auth';
 import logger from '@/lib/logger';
 import { WorkflowConfigurations } from '@/types/workflow-configurations';
@@ -40,6 +41,16 @@ export default function WorkflowDetailPage() {
                         workflow_id: Number(params.workflowId)
                     },
                 });
+                // The generated client resolves on a 4xx rather than
+                // throwing (ui/AGENTS.md), so an unauthorised or failed
+                // read fell through to `workflow === undefined` and the
+                // screen said "Workflow not found" -- telling somebody
+                // their bot had been deleted when the request had simply
+                // failed. A refusal now says what it was.
+                if (response.error) {
+                    setError(detailFromResult(response, 'This bot could not be loaded'));
+                    return;
+                }
                 const workflow = response.data;
                 setWorkflow(workflow);
                 posthog.capture(PostHogEvent.WORKFLOW_EDITOR_OPENED, {
