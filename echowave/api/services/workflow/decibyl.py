@@ -38,6 +38,7 @@ from api.services.knowledge_graph import quiet, recall, teach
 from api.services.workflow import (
     actions,
     agent_timeline,
+    bot_from_brief,
     chat_memory,
     connected_tools,
     connector_offer,
@@ -838,6 +839,7 @@ def office_tools() -> list[dict[str, Any]]:
         office.check_tool_schema(),
         tasks_board.tool_schema(),
         connector_offer.tool_schema(),
+        bot_from_brief.tool_schema(),
         documents.find_tool_schema(),
         documents.send_tool_schema(),
         document_fields.tool_schema(),
@@ -965,6 +967,17 @@ async def _tool(
             from_workflow_id=None,
             workflow_run_id=None,
             arguments=arguments,
+        )
+    if call.name == bot_from_brief.TOOL_NAME:
+        # Routed through propose_action so the card, the undo window and the
+        # one row that records who confirmed are the same as every other
+        # thing Decibyl does to the account.
+        return await actions.propose(
+            organization_id=organization_id,
+            workflow_id=None,
+            workflow_run_id=None,
+            arguments={**arguments, "action": actions.BUILD_FROM_SPEC},
+            in_channel=False,
         )
     if call.name == connector_offer.TOOL_NAME:
         return await connector_offer.offer(
