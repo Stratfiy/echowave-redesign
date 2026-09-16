@@ -39,6 +39,7 @@ import {
 import type { ThreadChip, TimelineEvent } from '@/client/types.gen';
 import { BlockedCard } from '@/components/channel/BlockedCard';
 import { tagTokens } from '@/components/channel/ChannelComposer';
+import { emphasisTokens } from '@/components/channel/emphasis';
 import { Button } from '@/components/ui/button';
 import { ActionCard } from '@/components/workflow/ActionCard';
 import { ConnectorCard } from '@/components/workflow/ConnectorCard';
@@ -82,6 +83,38 @@ function when(at: string): string {
 }
 
 /** A message with its `@bot` and `#channel` tags painted blue. */
+/** One run of ordinary text, with the little markdown a model writes.
+ *
+ *  Emphasis is read inside a tag token's neighbours rather than across them,
+ *  so a `@handle` keeps its colour and an asterisk beside one cannot swallow
+ *  it. Every branch renders text into a React element, so a subject line
+ *  relayed from somebody's inbox stays escaped however it is written. */
+function Emphasised({ text }: { text: string }) {
+    return (
+        <>
+            {emphasisTokens(text).map((token, index) => {
+                if (token.emphasis === 'bold')
+                    return (
+                        <strong key={index} className="font-semibold">
+                            {token.text}
+                        </strong>
+                    );
+                if (token.emphasis === 'italic') return <em key={index}>{token.text}</em>;
+                if (token.emphasis === 'code')
+                    return (
+                        <code
+                            key={index}
+                            className="rounded bg-muted px-1 py-0.5 font-mono text-[0.9em]"
+                        >
+                            {token.text}
+                        </code>
+                    );
+                return <span key={index}>{token.text}</span>;
+            })}
+        </>
+    );
+}
+
 function Tagged({ text }: { text: string }) {
     return (
         <>
@@ -91,7 +124,7 @@ function Tagged({ text }: { text: string }) {
                         {token.text}
                     </span>
                 ) : (
-                    <span key={index}>{token.text}</span>
+                    <Emphasised key={index} text={token.text} />
                 ),
             )}
         </>
@@ -577,7 +610,12 @@ export function ChannelStream({
                             </p>
                             {draft ? (
                                 <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed" data-testid="forming">
-                                    {draft}
+                                    {/* Emphasised here too, so the reply does
+                                        not visibly re-set when it finalises. A
+                                        half-streamed `**Wedn` has no closing
+                                        marker and reads as the text it is
+                                        until the rest arrives. */}
+                                    <Emphasised text={draft} />
                                     <span className="ml-0.5 inline-block h-3.5 w-1.5 animate-pulse bg-[var(--accent-brand)] align-middle" aria-hidden />
                                 </p>
                             ) : (
