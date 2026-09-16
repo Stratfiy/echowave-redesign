@@ -377,3 +377,66 @@ class TestABriefThatNamesASchedule:
         made = AsyncMock()
         await self._run(self.BRIEF, made)
         assert "summary" in made.await_args.kwargs["instruction"]
+
+
+class TestTheCardSaysWhyItIsThere:
+    """Every other card carries a reason. This one carried an empty string.
+
+    ``propose_action`` requires ``why`` of the model and puts it on the
+    card; ``create_bot`` falls back to "From the {template} template" when
+    it is blank. This card hardcoded ``"why": ""`` and its tool never asked
+    the model for one -- so a person was shown an irreversible build, of a
+    bot they had described in prose, with the reason line empty.
+
+    Seen live on a real card: `{"action": "build_from_spec", "label":
+    "Build Morning Inbox Brief from the spec", "why": "", "reversible":
+    false}`. The label says what will happen. Nothing said why, and this
+    is the one card that cannot be switched back off.
+    """
+
+    def test_the_model_is_asked_for_a_reason(self):
+        schema = bot_from_brief.tool_schema()
+        assert "why" in schema["parameters"]["properties"]
+
+    def test_a_given_reason_reaches_the_card(self):
+        payload = bot_from_brief.resolve(
+            {
+                "name": "Elock support",
+                "call_type": "inbound",
+                "spec": SPEC,
+                "why": "You described the whole flow in the vendor doc.",
+            }
+        )
+        assert payload["why"] == "You described the whole flow in the vendor doc."
+
+    def test_a_missing_reason_does_not_leave_the_card_blank(self):
+        """A model that omits it must not produce the card this test exists
+        for. The fallback names what the bot is for, which is the honest
+        answer: it is being built because somebody described it."""
+        payload = bot_from_brief.resolve(
+            {
+                "name": "Morning Inbox Brief",
+                "channel": "chat",
+                "use_case": "Daily Gmail summary",
+                "spec": SPEC,
+            }
+        )
+        assert payload["why"].strip()
+        assert "Daily Gmail summary" in payload["why"]
+
+    def test_the_fallback_works_without_a_use_case_either(self):
+        payload = bot_from_brief.resolve(
+            {"name": "Morning Inbox Brief", "channel": "chat", "spec": SPEC}
+        )
+        assert payload["why"].strip()
+
+    def test_a_reason_cannot_run_away_with_the_card(self):
+        payload = bot_from_brief.resolve(
+            {
+                "name": "Elock support",
+                "call_type": "inbound",
+                "spec": SPEC,
+                "why": "x" * 5_000,
+            }
+        )
+        assert len(payload["why"]) <= actions.MAX_WHY_CHARS

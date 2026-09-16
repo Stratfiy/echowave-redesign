@@ -122,6 +122,15 @@ def tool_schema() -> dict[str, Any]:
                         "from the document rather than condensing it."
                     ),
                 },
+                "why": {
+                    "type": "string",
+                    "description": (
+                        "One line on why this bot, for the person confirming "
+                        "it: what they said or sent that this is built from. "
+                        "They are approving something that cannot be switched "
+                        "back off, so say what it is for."
+                    ),
+                },
             },
             # `call_type` is not required: it is meaningless for a chat bot,
             # and a required field the model must invent for half the cases
@@ -165,6 +174,11 @@ def resolve(arguments: dict[str, Any]) -> dict[str, Any]:
         )
     spec = spec[:MAX_BRIEF_CHARS]
     use_case = str(arguments.get("use_case") or "").strip()[:120] or name
+    # Imported here, not at module scope: actions reaches into this module
+    # the same way, and a pair of top-level imports would not resolve.
+    from api.services.workflow import actions
+
+    why = str(arguments.get("why") or "").strip()[: actions.MAX_WHY_CHARS]
     return {
         "action": ACTION,
         "args": {
@@ -175,7 +189,13 @@ def resolve(arguments: dict[str, Any]) -> dict[str, Any]:
             "spec": spec,
         },
         "label": f"Build {name} from the spec",
-        "why": "",
+        # Every other card carries a reason and this one carried an empty
+        # string, because its tool never asked for one. A person was shown
+        # an irreversible build with a blank reason line -- of the cards we
+        # put in front of people, the one that most needs to say why. The
+        # fallback is the honest answer when the model omits it: this is
+        # being built because somebody described it.
+        "why": why or f"Built from what you described: {use_case}.",
         # A bot that has been built is not un-built by a switch; the card
         # offers Hear it and Try it instead, as create_bot's does.
         "reversible": False,
