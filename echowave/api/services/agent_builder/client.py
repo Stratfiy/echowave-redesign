@@ -212,7 +212,22 @@ def _anthropic_request(
     payload: dict[str, Any] = {
         "model": model,
         "max_tokens": _MAX_OUTPUT_TOKENS,
-        "system": system,
+        # Marked cacheable rather than sent as a bare string. The system
+        # prompt is the one part of this request that is byte-identical on
+        # every turn of every thread in every account, so it is the block
+        # with the most to gain and nothing to lose: a cache miss costs the
+        # same as the string did.
+        #
+        # Only this block. The per-turn context -- the team, the memory, the
+        # knowledge base -- rides in the user message and changes every turn,
+        # and marking something that changes buys a write and never a read.
+        "system": [
+            {
+                "type": "text",
+                "text": system,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ],
         "messages": messages,
     }
     if tools:
