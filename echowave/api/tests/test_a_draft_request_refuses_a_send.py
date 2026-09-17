@@ -245,3 +245,36 @@ class TestItIsActuallyWiredIn:
             out = await decibyl._app_tool(1, self._call_for("GMAIL_SEND_EMAIL"))
         assert out == {"state": "proposed"}
         proposed.assert_awaited()
+
+
+class TestARefusalLeavesTheModelAbleToFix:
+    """The refusal tells the model which tool to use instead. That advice is
+    worth nothing if the refusal also takes its tools away.
+
+    ``reads_only`` decides whether the next round is offered tools at all. A
+    round that wrote a card ends the turn's tool access, which is right: the
+    card is the outcome. A refusal wrote nothing -- no card, no effect, and
+    the model has been handed a correction it is expected to act on. Counting
+    it as a write meant the model was told to use GMAIL_CREATE_EMAIL_DRAFT
+    and then offered no tools to do it with, and the turn ended on the canned
+    "I have nothing to add on that." Observed live after #366 shipped.
+    """
+
+    def test_a_refusal_keeps_the_tools(self):
+        from api.services.workflow import connected_tools, decibyl
+
+        call = SimpleNamespace(name=f"{connected_tools.PREFIX}gmail_reply_to_thread")
+        assert decibyl._was_a_read(call, {"status": "refused", "reason": "..."})
+
+    def test_a_card_still_ends_them(self):
+        """Unchanged: a round that proposed something is the turn's outcome."""
+        from api.services.workflow import connected_tools, decibyl
+
+        call = SimpleNamespace(name=f"{connected_tools.PREFIX}gmail_send_email")
+        assert not decibyl._was_a_read(call, {"state": "proposed"})
+
+    def test_a_read_is_still_a_read(self):
+        from api.services.workflow import connected_tools, decibyl
+
+        call = SimpleNamespace(name=f"{connected_tools.PREFIX}gmail_fetch_emails")
+        assert decibyl._was_a_read(call, {"status": "success", "data": {}})

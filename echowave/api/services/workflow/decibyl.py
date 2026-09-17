@@ -1111,7 +1111,16 @@ async def tools_for(
 def _was_a_read(call: Any, result: Any) -> bool:
     """Whether this call was a read that actually ran (or failed running),
     as opposed to anything that wrote a card: a connected-app read, or
-    find_document, after which the model may still need to send."""
+    find_document, after which the model may still need to send.
+
+    A refusal counts too, and that is the point of it. ``draft_requests``
+    turns a send the person did not ask for into a correction naming the
+    draft tool to use instead -- advice worth nothing if the refusal also
+    ends the turn's tool access. It wrote no card and had no effect, so the
+    model keeps its tools and can act on what it was just told. Without
+    this, asked for a draft, the model was refused, offered nothing to
+    retry with, and the turn ended on "I have nothing to add on that."
+    """
     name = str(getattr(call, "name", "") or "")
     return (
         (
@@ -1124,7 +1133,7 @@ def _was_a_read(call: Any, result: Any) -> bool:
             )
         )
         and isinstance(result, dict)
-        and result.get("status") in ("success", "error")
+        and result.get("status") in ("success", "error", "refused")
     )
 
 
