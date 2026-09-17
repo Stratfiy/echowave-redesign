@@ -153,6 +153,28 @@ async def populate_discovered_tools(
     return definition
 
 
+def start_read_only(definition: dict[str, Any]) -> dict[str, Any]:
+    """A new MCP server's filter, when nobody set one: its reads only.
+
+    Only when the filter is empty and only on create -- this is not called
+    from the update path -- so a filter somebody typed is never touched. See
+    services/workflow/mcp_read_only for why the default is this way round.
+    """
+    if not isinstance(definition, dict) or definition.get("type") != "mcp":
+        return definition
+    config = definition.get("config")
+    if not isinstance(config, dict):
+        return definition
+    if config.get("tools_filter"):
+        return definition
+    from api.services.workflow import mcp_read_only
+
+    narrowed = mcp_read_only.default_filter(config.get("discovered_tools") or [])
+    if narrowed:
+        config["tools_filter"] = narrowed
+    return definition
+
+
 async def create_tool_for_user(
     request: CreateToolRequest,
     user: UserModel,
@@ -175,6 +197,7 @@ async def create_tool_for_user(
         definition,
         organization_id=user.selected_organization_id,
     )
+    definition = start_read_only(definition)
 
     tool = await db_client.create_tool(
         organization_id=user.selected_organization_id,

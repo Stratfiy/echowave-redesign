@@ -321,7 +321,10 @@ class McpToolConfig(BaseModel):
     )
     tools_filter: list[str] = Field(
         default_factory=list,
-        description="Allowlist of MCP tool names to expose. Empty exposes all tools.",
+        description=(
+            "Allowlist of MCP tool names to expose. On create, empty is filled "
+            "with the server's read-only tools; on update, empty exposes all."
+        ),
         json_schema_extra=_llm_hint(
             "Use exact MCP tool names from the remote server catalog when you need "
             "to restrict the exposed tools."
