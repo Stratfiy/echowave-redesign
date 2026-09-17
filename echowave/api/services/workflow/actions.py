@@ -203,6 +203,30 @@ def _match_bot(wanted: str, roster: list[Any]) -> Any | None:
     return hits[0] if len(hits) == 1 else None
 
 
+def effect_of(tool: Any) -> str:
+    """One line saying what running this tool does, in the operator's terms.
+
+    Derived, never written by the model, and carried on the card so it sits
+    beside ``why`` at the moment somebody decides. The model may still say
+    whatever it likes in the chat; what it cannot do is make that the only
+    account of the act. Asked for a draft, Decibyl proposed
+    GMAIL_REPLY_TO_THREAD and wrote "it'll sit as a draft, nothing sends
+    automatically" -- of a send, on a card already marked irreversible.
+
+    Three cases, because there are three:a read changes nothing, a staged
+    write leaves something for a person to send, and everything else reaches
+    somebody the moment it fires.
+    """
+    from api.services.workflow import connected_tools, unattended
+
+    app = connected_tools.toolkit_of(tool) or "the connected app"
+    if connected_tools.is_read(tool):
+        return f"Reads from {app}. Nothing is changed."
+    if unattended.is_staged(tool):
+        return f"Writes a draft in {app}. Nothing is sent until you send it."
+    return f"Runs in {app} and reaches people there. It cannot be undone."
+
+
 async def resolve(
     *,
     organization_id: int,
@@ -241,6 +265,10 @@ async def resolve(
             },
             "label": f"{tool.name} via {app}" if app else str(tool.name),
             "why": why,
+            # What pressing Confirm does, in one derived line. Taken from the
+            # tool, not from ``arguments``: an effect the model could supply
+            # would be the same sentence that called a send a draft.
+            "effect": effect_of(tool),
             # An email sent or a record created in somebody else's system
             # has no inverse we can promise; the undo window before it fires
             # is the safety, not a button after.

@@ -53,6 +53,21 @@ describe("a proposal", () => {
         await waitFor(() => expect(onSettled).toHaveBeenCalled());
     });
 
+    it("says what confirming does, where the buttons are", () => {
+        // The card knew it could not be undone and said so nowhere: the
+        // operator saw a label and `why`, which the model writes. Asked for
+        // a draft, it proposed a send and called it a draft in the chat.
+        render(<ActionCard event={event({ effect: "Runs in gmail and reaches people there. It cannot be undone." })} />);
+        expect(screen.getByText(/cannot be undone/i)).toBeTruthy();
+    });
+
+    it("is gone once the decision has been made", () => {
+        // It answers "what happens if I press this", so it belongs to the
+        // moment the buttons are there and nowhere after.
+        render(<ActionCard event={event({ state: "done", effect: "Runs in gmail and reaches people there. It cannot be undone." })} />);
+        expect(screen.queryByText(/cannot be undone/i)).toBeNull();
+    });
+
     it("shows a refusal on the card", async () => {
         settle.mockResolvedValue({ error: { detail: "Already settled." } });
         render(<ActionCard event={event({})} />);

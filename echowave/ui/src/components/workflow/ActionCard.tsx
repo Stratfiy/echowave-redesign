@@ -37,6 +37,7 @@ export type ActionPayload = {
     action?: string;
     label?: string;
     why?: string;
+    effect?: string;
     reversible?: boolean;
     state?: ActionState;
     fires_at?: string;
@@ -115,6 +116,13 @@ export function ActionCard({
                 <span>{label}</span>
             </p>
             {action.why && <p className="mt-1 pl-6 text-sm text-muted-foreground">{action.why}</p>}
+            {/* What Confirm actually does. Derived from the tool, not written
+                by the model, and shown while the buttons are still there --
+                `reversible` used to be read only after the thing had run, to
+                decide whether to offer "Put it back". */}
+            {action.effect && state === 'proposed' && (
+                <p className="mt-2 pl-6 text-sm font-medium text-foreground">{action.effect}</p>
+            )}
 
             {state === 'proposed' && (
                 <div className="mt-3 flex items-center gap-2 pl-6">
