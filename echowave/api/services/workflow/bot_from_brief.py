@@ -33,7 +33,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import BotChannel, CallType
-from api.services.workflow import schedule_from_words
+from api.services.workflow import brief_apps, connected_tools, schedule_from_words
 from api.services.workflow.agent_brief import (
     AgentBrief,
     apply_brief,
@@ -239,6 +239,15 @@ async def build(
     )
     definition = apply_brief(definition, brief)
 
+    # The apps the brief named, so a bot whose job is reading Gmail is built
+    # holding Gmail. Without this the generator produced a bot with no tools
+    # on any node: the founder's inbox-summary bot fired on schedule and
+    # asked him to paste his emails in. Reads only -- see brief_apps for why
+    # prose is not a warrant for a send.
+    definition = await _attach_named_apps(
+        definition, organization_id=organization_id, spec=str(args.get("spec") or "")
+    )
+
     paths = extract_trigger_paths(definition)
     if paths:
         try:
@@ -294,6 +303,26 @@ async def build(
         "runs": scheduled,
         "note": note,
     }
+
+
+async def _attach_named_apps(
+    definition: dict[str, Any], *, organization_id: int, spec: str
+) -> dict[str, Any]:
+    """Give the bot the read tools of every connected app its brief names.
+
+    Never raises. An account whose tools cannot be read is an account whose
+    bot is built without them -- which is the bot it would have had anyway,
+    and losing the bot over a tool list would be the worse trade.
+    """
+    try:
+        tools = await connected_tools.list_for_organization(organization_id)
+        uuids = brief_apps.read_tool_uuids(spec, tools)
+        if uuids:
+            logger.info("Built bot gets {} tool(s) from its brief", len(uuids))
+        return brief_apps.attach(definition, uuids)
+    except Exception as exc:  # noqa: BLE001 - the bot is the deliverable
+        logger.warning("Could not give the built bot the apps its brief named: {}", exc)
+        return definition
 
 
 async def _schedule_it(
