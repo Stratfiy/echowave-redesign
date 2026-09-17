@@ -43,6 +43,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { BotNotices } from "@/components/workflow/BotNotices";
+import { EventWebhookPanel } from "@/components/workflow/EventWebhookPanel";
 import { RoutinesPanel } from "@/components/workflow/RoutinesPanel";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
@@ -595,6 +596,15 @@ export default function AgentTriggersPage() {
             <div className="mt-10 border-t pt-8">
                 <BotNotices workflowId={Number(workflowId)} />
                 </div>
+
+            {/* The bell tells a person; this tells a system. Same page,
+                because a trigger above is a URL pasted into Shopify so an
+                order rings this bot, and this is a URL pasted from n8n so
+                the bot's outcomes reach whatever the business already
+                runs -- one question, both directions. */}
+            <div className="mt-10 border-t pt-8">
+                <EventWebhookPanel workflowId={Number(workflowId)} />
+            </div>
             </div>
         </>
     );
