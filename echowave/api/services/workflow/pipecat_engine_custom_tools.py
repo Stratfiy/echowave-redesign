@@ -253,10 +253,15 @@ class CustomToolManager:
         and reads, to the model, like a failure it should retry.
         ``_create_composio_handler`` refuses one anyway -- a context carried
         across a node transition can hold a schema this list no longer has.
+
+        A staged write stays. Drafting is the thing an overnight bot is for,
+        and a draft reaches nobody until a person opens it and sends it --
+        see ``unattended.STAGED_WRITES``.
         """
         if not any(
             tool.category == ToolCategory.COMPOSIO.value
             and not connected_tools.is_read(tool)
+            and not unattended.is_staged(tool)
             for tool in tools
         ):
             return tools
@@ -267,6 +272,7 @@ class CustomToolManager:
             for tool in tools
             if tool.category != ToolCategory.COMPOSIO.value
             or connected_tools.is_read(tool)
+            or unattended.is_staged(tool)
         ]
         withheld = len(tools) - len(kept)
         if withheld:
@@ -928,7 +934,11 @@ class CustomToolManager:
             # a context carried across a node transition can still hold one it
             # no longer has, and that must not be the path by which a routine
             # sends mail at 8am.
-            if not connected_tools.is_read(tool) and await self._writes_are_gated():
+            if (
+                not connected_tools.is_read(tool)
+                and not unattended.is_staged(tool)
+                and await self._writes_are_gated()
+            ):
                 logger.warning(
                     "Refused {} on an unattended run: writes are off for this bot",
                     function_name,
@@ -937,9 +947,9 @@ class CustomToolManager:
                     {
                         "status": "error",
                         "error": (
-                            "This runs on a schedule with nobody watching, so it "
-                            "cannot send, create or change anything. Report what "
-                            "you found instead."
+                            "This runs on a schedule with nobody watching, so "
+                            "it cannot send anything or change a connected app. "
+                            "Write a draft instead, or report what you found."
                         ),
                     }
                 )

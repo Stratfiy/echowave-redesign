@@ -30,7 +30,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from api.services.workflow import connected_tools
+from api.services.workflow import connected_tools, unattended
 
 #: How many tools one brief may attach. A bot handed thirty tools chooses
 #: badly among them, and no brief names enough apps to need more.
@@ -151,6 +151,36 @@ def write_tool_uuids(spec: str, tools: list[Any]) -> list[str]:
     return [t.tool_uuid for t in wanted]
 
 
+def _with_a_draft(kept: list[str], writes: list[str], tools: list[Any]) -> list[str]:
+    """Guarantee one staged write survives the cap, without reordering.
+
+    Gmail's writes rank SEND_EMAIL, SEND_DRAFT, REPLY_TO_THREAD,
+    CREATE_EMAIL_DRAFT, and ``WRITE_SLOTS`` cuts exactly above the draft. So
+    every bot built from a brief got three ways to send mail and no way to
+    draft one -- and on a schedule, where sending is gated and drafting is
+    the only write allowed, that is a bot with no usable write at all.
+
+    Held, not ranked -- the distinction this module already had to learn for
+    writes as a class. Reordering instead would put CREATE above SEND and
+    undo #344, which is why the ranking above is left exactly as it was: the
+    swap happens here, at the cap, and costs the lowest-ranked write that
+    made it rather than the highest.
+
+    One is enough. An app publishes one way to draft, and a second staged
+    write would cost a second send.
+    """
+    if not kept or any(uuid in kept for uuid in _staged_uuids(tools)):
+        return kept
+    staged = [uuid for uuid in writes if uuid in set(_staged_uuids(tools))]
+    if not staged:
+        return kept
+    return kept[:-1] + [staged[0]]
+
+
+def _staged_uuids(tools: list[Any]) -> list[str]:
+    return [t.tool_uuid for t in tools if unattended.is_staged(t)]
+
+
 def tool_uuids(spec: str, tools: list[Any]) -> list[str]:
     """Everything a brief's named apps offer, reads first and writes kept.
 
@@ -172,7 +202,7 @@ def tool_uuids(spec: str, tools: list[Any]) -> list[str]:
     # Whatever one side left unused, the other may take.
     keep_writes = min(len(writes), MAX_TOOLS - keep_reads)
 
-    return reads[:keep_reads] + writes[:keep_writes]
+    return reads[:keep_reads] + _with_a_draft(writes[:keep_writes], writes, tools)
 
 
 def attach(definition: dict[str, Any], tool_uuids: list[str]) -> dict[str, Any]:
