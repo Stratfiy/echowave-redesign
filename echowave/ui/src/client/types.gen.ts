@@ -9946,6 +9946,10 @@ export type RoutineListResponse = {
  */
 export type RoutineResponse = {
     /**
+     * Workflow Name
+     */
+    workflow_name?: string | null;
+    /**
      * Id
      */
     id: number;
@@ -26480,6 +26484,45 @@ export type TestRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdTestPostResponse
 };
 
 export type TestRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdTestPostResponse = TestRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdTestPostResponses[keyof TestRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdTestPostResponses];
+
+export type ListAllRoutinesApiV1RoutinesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/routines';
+};
+
+export type ListAllRoutinesApiV1RoutinesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListAllRoutinesApiV1RoutinesGetError = ListAllRoutinesApiV1RoutinesGetErrors[keyof ListAllRoutinesApiV1RoutinesGetErrors];
+
+export type ListAllRoutinesApiV1RoutinesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: RoutineListResponse;
+};
+
+export type ListAllRoutinesApiV1RoutinesGetResponse = ListAllRoutinesApiV1RoutinesGetResponses[keyof ListAllRoutinesApiV1RoutinesGetResponses];
 
 export type ListTriggersApiV1WorkflowsWorkflowIdTriggersGetData = {
     body?: never;

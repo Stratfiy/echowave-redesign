@@ -47,6 +47,10 @@ from api.tasks.function_names import FunctionNames
 
 router = APIRouter(prefix="/workflows/{workflow_id}/routines", tags=["routines"])
 
+#: The account's whole schedule, which is not any one bot's business and so
+#: cannot hang off a workflow prefix.
+all_router = APIRouter(prefix="/routines", tags=["routines"])
+
 #: How many a single bot may have. A bot with thirty routines is not a bot
 #: anybody can reason about, and the tick reads every armed one every minute.
 MAX_PER_WORKFLOW = 10
@@ -305,3 +309,34 @@ async def test_routine(
             "say plainly that it could not."
         ),
     )
+
+
+@all_router.get("", response_model=RoutineListResponse)
+async def list_all_routines(
+    user: Annotated[UserModel, Depends(get_user)],
+) -> RoutineListResponse:
+    """Every scheduled task in the account, whichever bot runs it.
+
+    The per-bot listing answers "what does this bot do". This answers "what
+    runs tomorrow morning", which is the question somebody actually has and
+    the one they could not ask without already knowing which bots to open.
+
+    Each row carries its bot's name, and carries None when the bot is gone
+    rather than raising: a routine outlives its bot for as long as it takes
+    somebody to notice, and one orphan must not take the screen down with
+    it.
+    """
+    organization_id = _organization_id(user)
+    rows = await db_client.routines_for_organization(organization_id=organization_id)
+
+    names: dict[int, str | None] = {}
+    rendered = []
+    for row in rows:
+        workflow_id = int(row.workflow_id)
+        if workflow_id not in names:
+            workflow = await db_client.get_workflow_by_id(workflow_id)
+            names[workflow_id] = getattr(workflow, "name", None) if workflow else None
+        shown = await _render(row, organization_id=organization_id)
+        shown.workflow_name = names[workflow_id]
+        rendered.append(shown)
+    return RoutineListResponse(routines=rendered)
