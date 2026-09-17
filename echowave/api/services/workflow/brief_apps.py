@@ -15,13 +15,14 @@ sentence "probably means" is a way to attach an app nobody mentioned, and it
 would be wrong invisibly. Naming an app that is not connected attaches
 nothing, because there is nothing to attach.
 
-**Reads only, deliberately.** A routine runs unsupervised. Prose is a bad
-warrant for a send: a brief reading "and reply to them" must not end with a
-bot emailing a customer at eight in the morning with nobody in the loop. So
-this attaches the reads -- fetch, get, list, search -- and never a write.
-Writes belong behind a per-bot switch, which is its own change; until it
-exists a person attaches them in the builder, deliberately, as they always
-have.
+**Writes come too, and are gated where it matters.** The first version of
+this attached reads only, reasoning that a routine runs unsupervised. That
+was true of routines and wrong about everything else: a bot that books an
+appointment while the customer is on the phone is supervised by the person
+who just asked for it, and a bot that can only read is half of what anybody
+builds one for. The line is not which tool but whether a given run has a
+person in it, so the writes are attached here and refused at run time on an
+unattended run -- see ``unattended``.
 """
 
 from __future__ import annotations
@@ -80,6 +81,38 @@ def read_tool_uuids(spec: str, tools: list[Any]) -> list[str]:
     return [t.tool_uuid for t in wanted][:MAX_TOOLS]
 
 
+def write_tool_uuids(spec: str, tools: list[Any]) -> list[str]:
+    """The write tools of every app the brief names.
+
+    Same choosing as the reads, and the same cap over the pair: a brief
+    naming one app should not hand a bot sixteen tools because half of them
+    change something.
+    """
+    apps = named(spec, tools)
+    if not apps:
+        return []
+    wanted = [
+        tool
+        for tool in tools
+        if connected_tools.toolkit_of(tool) in apps
+        and not connected_tools.is_read(tool)
+    ]
+    wanted.sort(key=lambda t: str(connected_tools.slug_of(t) or ""))
+    return [t.tool_uuid for t in wanted]
+
+
+def tool_uuids(spec: str, tools: list[Any]) -> list[str]:
+    """Everything a brief's named apps offer: the reads, then the writes.
+
+    Reads first so that under the cap a bot keeps the ability to look things
+    up, which every brief needs, over the ability to change them, which only
+    some do.
+    """
+    reads = read_tool_uuids(spec, tools)
+    room = max(0, MAX_TOOLS - len(reads))
+    return reads + write_tool_uuids(spec, tools)[:room]
+
+
 def attach(definition: dict[str, Any], tool_uuids: list[str]) -> dict[str, Any]:
     """Put the tools on the nodes that can call them.
 
@@ -102,4 +135,12 @@ def attach(definition: dict[str, Any], tool_uuids: list[str]) -> dict[str, Any]:
     return definition
 
 
-__all__ = ["CALLING_NODES", "MAX_TOOLS", "attach", "named", "read_tool_uuids"]
+__all__ = [
+    "CALLING_NODES",
+    "MAX_TOOLS",
+    "attach",
+    "named",
+    "read_tool_uuids",
+    "tool_uuids",
+    "write_tool_uuids",
+]

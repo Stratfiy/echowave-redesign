@@ -242,8 +242,8 @@ async def build(
     # The apps the brief named, so a bot whose job is reading Gmail is built
     # holding Gmail. Without this the generator produced a bot with no tools
     # on any node: the founder's inbox-summary bot fired on schedule and
-    # asked him to paste his emails in. Reads only -- see brief_apps for why
-    # prose is not a warrant for a send.
+    # asked him to paste his emails in. Writes come too; whether one may run
+    # is decided per run, not per bot -- see unattended.
     definition = await _attach_named_apps(
         definition, organization_id=organization_id, spec=str(args.get("spec") or "")
     )
@@ -308,7 +308,7 @@ async def build(
 async def _attach_named_apps(
     definition: dict[str, Any], *, organization_id: int, spec: str
 ) -> dict[str, Any]:
-    """Give the bot the read tools of every connected app its brief names.
+    """Give the bot the tools of every connected app its brief names.
 
     Never raises. An account whose tools cannot be read is an account whose
     bot is built without them -- which is the bot it would have had anyway,
@@ -316,7 +316,7 @@ async def _attach_named_apps(
     """
     try:
         tools = await connected_tools.list_for_organization(organization_id)
-        uuids = brief_apps.read_tool_uuids(spec, tools)
+        uuids = brief_apps.tool_uuids(spec, tools)
         if uuids:
             logger.info("Built bot gets {} tool(s) from its brief", len(uuids))
         return brief_apps.attach(definition, uuids)
