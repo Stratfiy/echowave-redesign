@@ -130,3 +130,54 @@ class TestWhatTheModelIsOffered:
         with patch.object(unattended, "run_is_unattended", AsyncMock()) as asked:
             await manager._minus_ungated_writes([READ, NOT_COMPOSIO])
         asked.assert_not_awaited()
+
+
+class TestTellingTheBotNobodyIsThere:
+    """Bot 30 was built holding Gmail, its routine fired, and it answered:
+
+        I can help set up this workflow. To start, should I fetch the last
+        24h of Gmail now to show a sample summary?
+
+    Which is a reasonable thing to say to a person, and there was no person.
+    The runner hands the instruction over as a plain user message, so the
+    bot answers it the way it answers anybody -- by offering, and waiting.
+    At eight in the morning nothing answers, the turn ends, and the
+    deliverable is a question.
+
+    The runtime already knows: ``is_unattended`` is how the write gate
+    decides. It simply never told the bot.
+    """
+
+    def test_the_instruction_survives(self):
+        framed = unattended.briefing("Summarise my inbox", writes_allowed=False)
+        assert "Summarise my inbox" in framed
+
+    def test_it_says_nobody_can_answer(self):
+        framed = unattended.briefing("Summarise my inbox", writes_allowed=False)
+        lowered = framed.lower()
+        assert "nobody" in lowered
+        assert "question" in lowered
+
+    def test_it_asks_for_the_work_not_an_offer(self):
+        framed = unattended.briefing("Summarise my inbox", writes_allowed=False).lower()
+        assert "now" in framed
+        assert "report" in framed
+
+    def test_it_says_what_to_do_when_it_cannot(self):
+        """A run that produced nothing and a run that never happened look
+        identical from outside. Saying what stopped it is the difference."""
+        framed = unattended.briefing("Summarise my inbox", writes_allowed=False).lower()
+        assert "stopped" in framed or "could not" in framed
+
+    def test_a_gated_run_is_told_it_cannot_send(self):
+        """Better than discovering it mid-turn: the model plans a report
+        rather than planning a send and being refused."""
+        framed = unattended.briefing("Chase them", writes_allowed=False).lower()
+        assert "cannot send" in framed
+
+    def test_an_allowed_run_is_not_told_that(self):
+        framed = unattended.briefing("Chase them", writes_allowed=True).lower()
+        assert "cannot send" not in framed
+
+    def test_an_empty_instruction_still_frames(self):
+        assert unattended.briefing("", writes_allowed=False).strip()

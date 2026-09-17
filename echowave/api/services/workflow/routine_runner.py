@@ -30,7 +30,7 @@ from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind, WorkflowRunMode
 from api.services.billing import events as billing_events
 from api.services.quota_service import authorize_workflow_run_start
-from api.services.workflow import agent_timeline
+from api.services.workflow import agent_timeline, unattended
 from api.services.workflow.text_chat_runner import default_text_chat_checkpoint
 from api.services.workflow.text_chat_session_service import (
     append_text_chat_user_message,
@@ -136,10 +136,21 @@ async def run_routine(routine_id: int) -> Optional[int]:
             workflow_id=workflow_id, run_id=run_id, text_session=text_session
         )
 
+        # Framed, not handed over bare. The instruction used to arrive as a
+        # plain user message, so the bot answered it the way it answers
+        # anybody: one built to summarise an inbox asked "should I fetch the
+        # last 24h now?" -- at eight in the morning, to nobody. The turn
+        # ended and the deliverable was a question.
+        workflow = await db_client.get_workflow_by_id(workflow_id)
         text_session = await append_text_chat_user_message(
             run_id=run_id,
             text_session=text_session,
-            user_text=routine["instruction"] or routine["name"],
+            user_text=unattended.briefing(
+                routine["instruction"] or routine["name"],
+                writes_allowed=unattended.writes_allowed(
+                    getattr(workflow, "workflow_configurations", None)
+                ),
+            ),
             expected_revision=text_session.revision,
         )
         text_session = await execute_pending_text_chat_turn(
