@@ -1168,6 +1168,14 @@ DEFAULT_CAMPAIGN_RETRY_CONFIG = {
 # Delivery is persisted (see WebhookDeliveryModel) and retried by an ARQ task so a
 # transient network error can't permanently drop a final webhook. After
 # ``max_attempts`` transient failures the delivery is parked as ``dead_letter``.
+#: How many outbound event webhooks one organisation may queue in an hour.
+#: A chatty bot -- a routine that files an outcome per row of a sheet --
+#: would otherwise POST to a customer's server as fast as it can think,
+#: and the retries on a receiver that buckles under that make it worse.
+#: Ten a minute is far above anything a person would wire up on purpose
+#: and far below anything that takes a receiver down.
+EVENT_WEBHOOK_HOURLY_CAP = int(os.getenv("EVENT_WEBHOOK_HOURLY_CAP", 600))
+
 DEFAULT_WEBHOOK_DELIVERY_CONFIG = {
     "max_attempts": int(os.getenv("WEBHOOK_DELIVERY_MAX_ATTEMPTS", 5)),
     "base_delay_seconds": int(os.getenv("WEBHOOK_DELIVERY_BASE_DELAY_SECONDS", 30)),

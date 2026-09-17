@@ -138,6 +138,29 @@ class BotEventWebhookClient(BaseDBClient):
             await session.commit()
             return bool(result.rowcount)
 
+    async def count_bot_event_deliveries_since(
+        self, *, organization_id: int, since: datetime
+    ) -> int:
+        """How many event deliveries this organisation has queued since.
+
+        Runless rows only -- the event webhooks -- so a busy call day does
+        not count against a quiet webhook, and the partial index the
+        migration adds covers exactly this predicate.
+        """
+        from sqlalchemy import func
+
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(func.count())
+                .select_from(WebhookDeliveryModel)
+                .where(
+                    WebhookDeliveryModel.organization_id == organization_id,
+                    WebhookDeliveryModel.workflow_run_id.is_(None),
+                    WebhookDeliveryModel.created_at >= since,
+                )
+            )
+            return int(result.scalar_one() or 0)
+
     async def create_bot_event_delivery(
         self,
         *,
