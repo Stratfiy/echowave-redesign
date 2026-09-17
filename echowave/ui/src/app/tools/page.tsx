@@ -721,7 +721,9 @@ export default function ToolsPage() {
                                         placeholder="e.g., tool_one, tool_two"
                                     />
                                     <p className="text-xs text-muted-foreground">
-                                        Comma-separated list of tool names to allow. Leave empty to expose all tools from the server.
+                                        Comma-separated list of tool names to allow. Leave empty and the
+                                        server starts with its read-only tools; add names here to allow
+                                        more, including ones that change things.
                                     </p>
                                 </div>
                             </>

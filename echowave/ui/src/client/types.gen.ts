@@ -6673,7 +6673,7 @@ export type McpToolConfig = {
     /**
      * Tools Filter
      *
-     * Allowlist of MCP tool names to expose. Empty exposes all tools.
+     * Allowlist of MCP tool names to expose. On create, empty is filled with the server's read-only tools; on update, empty exposes all.
      */
     tools_filter?: Array<string>;
     /**
