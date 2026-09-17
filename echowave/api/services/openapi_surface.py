@@ -77,6 +77,8 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "public-download",
             "triggers",
             "public-triggers",
+            # The outbound half of a trigger: where a bot's own events go.
+            "event-webhooks",
             "public-email",
             "public-whatsapp",
             "routines",

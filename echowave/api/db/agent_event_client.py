@@ -32,33 +32,36 @@ class AgentEventClient(BaseDBClient):
         visibility: str = AgentEventVisibility.ALWAYS.value,
         at: Optional[datetime] = None,
         thread_id: Optional[str] = None,
-    ) -> None:
-        """Append one event.
+    ) -> Optional[int]:
+        """Append one event. Returns its id.
 
-        Returns nothing, the same choice ``create_app_interaction`` makes and
-        for the same reason: the caller is usually a live call that has already
-        said its sentence to the caller, there is no id it could use, and
-        returning a model would invite somebody to await this mid-conversation.
+        The id, and deliberately not the model -- that was the original
+        choice, made because returning a row invites somebody to await this
+        mid-conversation and use its relationships. An integer invites
+        nothing, and something outside this system now needs to name the
+        event it was told about: a webhook receiver has to be able to dedupe
+        a retried delivery, and "the event this is about" is the only key
+        that survives a retry.
         """
         async with self.async_session() as session:
-            session.add(
-                AgentEventModel(
-                    organization_id=organization_id,
-                    workflow_id=workflow_id,
-                    definition_id=definition_id,
-                    workflow_run_id=workflow_run_id,
-                    folder_id=folder_id,
-                    at=at or datetime.now(UTC),
-                    kind=kind,
-                    actor=actor,
-                    summary=(summary or "")[:MAX_SUMMARY],
-                    payload=payload or {},
-                    is_deliverable=is_deliverable,
-                    visibility=visibility,
-                    thread_id=thread_id,
-                )
+            row = AgentEventModel(
+                organization_id=organization_id,
+                workflow_id=workflow_id,
+                definition_id=definition_id,
+                workflow_run_id=workflow_run_id,
+                folder_id=folder_id,
+                at=at or datetime.now(UTC),
+                kind=kind,
+                actor=actor,
+                summary=(summary or "")[:MAX_SUMMARY],
+                payload=payload or {},
+                is_deliverable=is_deliverable,
+                visibility=visibility,
+                thread_id=thread_id,
             )
+            session.add(row)
             await session.commit()
+            return int(row.id) if row.id is not None else None
 
     async def get_agent_event(
         self, event_id: int, *, organization_id: int

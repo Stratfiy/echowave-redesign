@@ -4635,6 +4635,72 @@ export type EvalCaseRequest = {
 };
 
 /**
+ * EventWebhookResponse
+ */
+export type EventWebhookResponse = {
+    /**
+     * Url
+     */
+    url: string;
+    /**
+     * Kinds
+     */
+    kinds: Array<string>;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Sending
+     */
+    sending: Array<string>;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+    /**
+     * Secret
+     */
+    secret?: string | null;
+};
+
+/**
+ * EventWebhookTestResponse
+ */
+export type EventWebhookTestResponse = {
+    /**
+     * Sent
+     */
+    sent: boolean;
+    /**
+     * Detail
+     */
+    detail?: string;
+};
+
+/**
+ * EventWebhookWrite
+ */
+export type EventWebhookWrite = {
+    /**
+     * Url
+     */
+    url: string;
+    /**
+     * Kinds
+     */
+    kinds?: Array<string>;
+    /**
+     * Is Active
+     */
+    is_active?: boolean;
+    /**
+     * Rotate Secret
+     */
+    rotate_secret?: boolean;
+};
+
+/**
  * ExchangeRateRequest
  */
 export type ExchangeRateRequest = {
@@ -26559,6 +26625,184 @@ export type ListAllRoutinesApiV1RoutinesGetResponses = {
 };
 
 export type ListAllRoutinesApiV1RoutinesGetResponse = ListAllRoutinesApiV1RoutinesGetResponses[keyof ListAllRoutinesApiV1RoutinesGetResponses];
+
+export type DeleteEventWebhookApiV1WorkflowsWorkflowIdEventWebhookDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflows/{workflow_id}/event-webhook';
+};
+
+export type DeleteEventWebhookApiV1WorkflowsWorkflowIdEventWebhookDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteEventWebhookApiV1WorkflowsWorkflowIdEventWebhookDeleteError = DeleteEventWebhookApiV1WorkflowsWorkflowIdEventWebhookDeleteErrors[keyof DeleteEventWebhookApiV1WorkflowsWorkflowIdEventWebhookDeleteErrors];
+
+export type DeleteEventWebhookApiV1WorkflowsWorkflowIdEventWebhookDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteEventWebhookApiV1WorkflowsWorkflowIdEventWebhookDeleteResponse = DeleteEventWebhookApiV1WorkflowsWorkflowIdEventWebhookDeleteResponses[keyof DeleteEventWebhookApiV1WorkflowsWorkflowIdEventWebhookDeleteResponses];
+
+export type GetEventWebhookApiV1WorkflowsWorkflowIdEventWebhookGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflows/{workflow_id}/event-webhook';
+};
+
+export type GetEventWebhookApiV1WorkflowsWorkflowIdEventWebhookGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetEventWebhookApiV1WorkflowsWorkflowIdEventWebhookGetError = GetEventWebhookApiV1WorkflowsWorkflowIdEventWebhookGetErrors[keyof GetEventWebhookApiV1WorkflowsWorkflowIdEventWebhookGetErrors];
+
+export type GetEventWebhookApiV1WorkflowsWorkflowIdEventWebhookGetResponses = {
+    /**
+     * Response Get Event Webhook Api V1 Workflows  Workflow Id  Event Webhook Get
+     *
+     * Successful Response
+     */
+    200: EventWebhookResponse | null;
+};
+
+export type GetEventWebhookApiV1WorkflowsWorkflowIdEventWebhookGetResponse = GetEventWebhookApiV1WorkflowsWorkflowIdEventWebhookGetResponses[keyof GetEventWebhookApiV1WorkflowsWorkflowIdEventWebhookGetResponses];
+
+export type SaveEventWebhookApiV1WorkflowsWorkflowIdEventWebhookPutData = {
+    body: EventWebhookWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflows/{workflow_id}/event-webhook';
+};
+
+export type SaveEventWebhookApiV1WorkflowsWorkflowIdEventWebhookPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveEventWebhookApiV1WorkflowsWorkflowIdEventWebhookPutError = SaveEventWebhookApiV1WorkflowsWorkflowIdEventWebhookPutErrors[keyof SaveEventWebhookApiV1WorkflowsWorkflowIdEventWebhookPutErrors];
+
+export type SaveEventWebhookApiV1WorkflowsWorkflowIdEventWebhookPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: EventWebhookResponse;
+};
+
+export type SaveEventWebhookApiV1WorkflowsWorkflowIdEventWebhookPutResponse = SaveEventWebhookApiV1WorkflowsWorkflowIdEventWebhookPutResponses[keyof SaveEventWebhookApiV1WorkflowsWorkflowIdEventWebhookPutResponses];
+
+export type TestEventWebhookApiV1WorkflowsWorkflowIdEventWebhookTestPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflows/{workflow_id}/event-webhook/test';
+};
+
+export type TestEventWebhookApiV1WorkflowsWorkflowIdEventWebhookTestPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TestEventWebhookApiV1WorkflowsWorkflowIdEventWebhookTestPostError = TestEventWebhookApiV1WorkflowsWorkflowIdEventWebhookTestPostErrors[keyof TestEventWebhookApiV1WorkflowsWorkflowIdEventWebhookTestPostErrors];
+
+export type TestEventWebhookApiV1WorkflowsWorkflowIdEventWebhookTestPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: EventWebhookTestResponse;
+};
+
+export type TestEventWebhookApiV1WorkflowsWorkflowIdEventWebhookTestPostResponse = TestEventWebhookApiV1WorkflowsWorkflowIdEventWebhookTestPostResponses[keyof TestEventWebhookApiV1WorkflowsWorkflowIdEventWebhookTestPostResponses];
 
 export type ListTriggersApiV1WorkflowsWorkflowIdTriggersGetData = {
     body?: never;

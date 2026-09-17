@@ -1606,10 +1606,19 @@ class WebhookDeliveryModel(Base):
         default=lambda: str(uuid.uuid4()),
     )
 
+    # Optional since a bot's own events are delivered through this table too,
+    # and an event has no run. Set for every call-flow delivery, which is what
+    # the per-run/per-node constraint below still governs.
     workflow_run_id = Column(
         Integer,
         ForeignKey("workflow_runs.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
+    )
+    # The bot, for a delivery that has no run. Carries the tenancy question a
+    # run would otherwise answer, and pairs with webhook_node_id for the
+    # runless dedupe.
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="CASCADE"), nullable=True
     )
     organization_id = Column(
         Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
@@ -1671,6 +1680,66 @@ class WebhookDeliveryModel(Base):
             "webhook_node_id",
             name="uq_webhook_deliveries_run_node",
         ),
+        # The same promise for a delivery with no run: one per bot per event.
+        # A partial index rather than a widened constraint, because a NULL is
+        # distinct under a unique constraint and would defeat the dedupe --
+        # which is the reason the constraint above is documented as needing
+        # both columns non-null.
+        Index(
+            "uq_webhook_deliveries_bot_event",
+            "workflow_id",
+            "webhook_node_id",
+            unique=True,
+            postgresql_where=text("workflow_run_id IS NULL"),
+        ),
+    )
+
+
+class BotEventWebhookModel(Base):
+    """Where one bot posts its events, for the URL somebody pasted in.
+
+    The inbound half of this has existed for a while: every bot has a trigger
+    URL and an address, so n8n can start a bot. Nothing could go the other
+    way -- a bot that filed an outcome had no way to tell anything outside
+    this product about it, which makes it the end of a chain rather than a
+    link in one.
+
+    One row per bot. The field on the screen is singular, and a second
+    destination is a change that can be made later without taking anything
+    away from somebody who already relies on the first.
+
+    The secret is shown once, when it is created. A receiver that cannot
+    check a signature has to trust anybody who learns the URL.
+    """
+
+    __tablename__ = "bot_event_webhooks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="CASCADE"), nullable=False
+    )
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    url = Column(String(2048), nullable=False)
+    secret = Column(String(64), nullable=False)
+    #: The kinds to send. Empty is not "none" but "the ones a person can
+    #: subscribe to", resolved when an event happens rather than frozen here,
+    #: so a kind added later reaches a webhook set up today.
+    kinds = Column(JSON, nullable=False, default=list, server_default="[]")
+    is_active = Column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    __table_args__ = (
+        UniqueConstraint("workflow_id", name="uq_bot_event_webhooks_workflow"),
+        Index("ix_bot_event_webhooks_organization_id", "organization_id"),
     )
 
 

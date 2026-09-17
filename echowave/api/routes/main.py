@@ -13,6 +13,7 @@ from api.routes.agent_templates import router as agent_templates_router
 from api.routes.agent_timeline import router as agent_timeline_router
 from api.routes.auth import router as auth_router
 from api.routes.billing_dashboard import router as billing_dashboard_router
+from api.routes.bot_event_webhooks import router as bot_event_webhooks_router
 from api.routes.bot_triggers import router as bot_triggers_router
 from api.routes.campaign import router as campaign_router
 from api.routes.connectors import router as connectors_router
@@ -120,6 +121,7 @@ router.include_router(credentials_router)
 router.include_router(connectors_router)
 router.include_router(routines_router)
 router.include_router(all_routines_router)
+router.include_router(bot_event_webhooks_router)
 router.include_router(bot_triggers_router)
 router.include_router(skills_router)
 router.include_router(tasks_router)
