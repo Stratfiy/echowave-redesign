@@ -896,13 +896,25 @@ async def _answer(
             if asked_for_schema:
                 # The tool it asked about is now offered with its arguments.
                 tools = await tools_for(organization_id, loaded)
+            capped = reads_only and rounds >= MAX_TOOL_ROUNDS
+            if capped:
+                # Tools are being taken away because of the cap, not because
+                # a card ended the phase. Say so, or the model is handed
+                # nothing mid-plan and returns nothing.
+                conversation.add_user(LAST_STEP_NOTICE)
             reply = await _speak(
                 model,
                 conversation,
                 organization_id,
-                tools=tools if (reads_only and rounds < MAX_TOOL_ROUNDS) else None,
+                tools=tools if (reads_only and not capped) else None,
             )
-        body = (reply.text or "").strip() or "I have nothing to add on that."
+        body = (reply.text or "").strip()
+        if not body:
+            body = (
+                RAN_OUT_OF_STEPS
+                if rounds >= MAX_TOOL_ROUNDS
+                else "I have nothing to add on that."
+            )
     except Exception as exc:  # noqa: BLE001 - the thread must say something
         logger.error("Decibyl could not answer: {}", exc)
         body = (
@@ -1114,7 +1126,31 @@ async def attached_block(
 
 #: Tool rounds a single reply may take. Four covers "look it up, then do
 #: it" with room for a retry; more is a model going in circles on credit.
-MAX_TOOL_ROUNDS = 4
+#: Six, not four. "Find the newest mail from a real person, skip the
+#: automated ones, draft a reply" is a fetch, a look at one or two messages,
+#: the draft, and the answer -- five rounds on a good day. At four the turn
+#: hit the cap mid-plan and ended on the fallback sentence below, with the
+#: inbox read and nothing drafted. Still a cap: a loop of reads cannot spend
+#: credit all afternoon.
+MAX_TOOL_ROUNDS = 6
+
+#: Said to the model when the cap withdraws its tools. Without it the model
+#: is handed nothing mid-plan and, as often as not, says nothing back.
+LAST_STEP_NOTICE = (
+    "That was your last tool call for this turn. Answer now with what you "
+    "have. If you did not finish, say plainly what you read and what is "
+    "still left to do, so the person can ask again from there."
+)
+
+#: What the person reads when the turn ran out of steps and the model still
+#: said nothing. "I have nothing to add on that" was the sentence before,
+#: and it was untrue: the model had read the inbox and stopped short of the
+#: draft. A gap the person was told about is one they can act on.
+RAN_OUT_OF_STEPS = (
+    "I ran out of steps before I could finish that. I read what I needed "
+    "but did not get to the last part -- ask again and I will start from "
+    "there."
+)
 
 
 def office_tools() -> list[dict[str, Any]]:
