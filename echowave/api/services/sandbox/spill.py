@@ -57,16 +57,51 @@ def _rows(data: Any) -> tuple[list[Any], int] | None:
     return None
 
 
-def preview(data: Any, *, stored_as: str) -> dict[str, Any]:
+#: What any caller can do about a spill, script or no script. Named because
+#: nothing named it: the bot that hit this was holding
+#: GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID and the message_id it needed, and gave
+#: up instead of asking for that one message.
+_NARROW = (
+    "To get what you need: ask for fewer items (a smaller limit, a tighter "
+    "query), or fetch one item on its own by the id shown above."
+)
+
+
+def _note(*, stored_as: str, can_run_scripts: bool) -> str:
+    """The advice, true for this caller.
+
+    ``can_run_scripts`` defaults to False at every entry point, because the
+    caller that has not been taught to pass it must not be the caller that
+    advertises a tool it cannot reach. Unknown means no, the direction
+    ``is_read`` and ``writes_allowed`` both take.
+    """
+    if not stored_as:
+        # The store failed, so there is no copy to go back for. That makes
+        # naming the reachable path more important, not less: without it the
+        # model is told only that something went wrong and nothing it can do.
+        return (
+            "This response was too large to show in full and could not be "
+            "stored. " + _NARROW
+        )
+    head = "This response was too large to show in full. It is stored on the run; "
+    if can_run_scripts:
+        return (
+            head
+            + "to work through all of it, run a script and read it with "
+            + "tools.spilled(stored_as) or call the tool again from inside. "
+            + _NARROW
+        )
+    return head + "you cannot read the stored copy directly. " + _NARROW
+
+
+def preview(
+    data: Any, *, stored_as: str, can_run_scripts: bool = False
+) -> dict[str, Any]:
     rows = _rows(data)
     out: dict[str, Any] = {
         "spilled": True,
         "stored_as": stored_as,
-        "note": (
-            "This response was too large to show in full. It is stored on the "
-            "run; to work through all of it, run a script and read it with "
-            "tools.spilled(stored_as) or call the tool again from inside."
-        ),
+        "note": _note(stored_as=stored_as, can_run_scripts=can_run_scripts),
     }
     if rows is not None:
         items, count = rows
@@ -101,6 +136,7 @@ async def spill_if_large(
     run_id: int | None,
     name: str,
     call_id: str,
+    can_run_scripts: bool = False,
 ) -> Any:
     """The result as the model should see it: itself, or a preview with
     the whole thing stored. Never raises; a store that fails hands the
@@ -120,11 +156,8 @@ async def spill_if_large(
     except Exception as exc:  # noqa: BLE001
         logger.warning("Could not store a large tool response ({}): {}", key, exc)
         key = ""
-    shown = preview(data, stored_as=key)
+    shown = preview(data, stored_as=key, can_run_scripts=can_run_scripts)
     if not key:
-        shown["note"] = (
-            "This response was too large to show in full and could not be stored."
-        )
         shown.pop("stored_as", None)
     if isinstance(result, dict):
         return {**result, "data": shown}
