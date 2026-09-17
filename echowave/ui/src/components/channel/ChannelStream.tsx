@@ -253,6 +253,7 @@ export function ChannelStream({
     workflowId,
     assistant = false,
     assistantName = 'Decibyl',
+    threadId = null,
     botNames,
     onRegisterRefresh,
     onCountChange,
@@ -266,6 +267,10 @@ export function ChannelStream({
      *  the assistant's, and are named for it rather than for "A bot". */
     assistant?: boolean;
     assistantName?: string;
+    /** Which of Decibyl's conversations, with `assistant`. Null is the one
+     *  the account has always had, so a caller that says nothing reads what
+     *  it always read. */
+    threadId?: string | null;
     /** Bot id → display name, so an event can be attributed to a teammate
      *  rather than to an id. Missing names degrade to "A bot", never to a
      *  blank line. */
@@ -301,7 +306,9 @@ export function ChannelStream({
         const who = check.handle ? `@${check.handle}` : check.bot_name ?? 'the bot';
         const text = `Fix ${who} after the check: ${check.verdict || check.brief || 'it did not handle the caller'}`;
         setFixing(event.id);
-        const response = await postMessageApiV1TimelineMessagePost({ body: { assistant: true, text } });
+        const response = await postMessageApiV1TimelineMessagePost({
+            body: { assistant: true, thread_id: threadId, text },
+        });
         setFixing(null);
         if (!response.error) void loadLatest();
     };
@@ -323,7 +330,7 @@ export function ChannelStream({
         // nothing happened.
         setChips([]);
         const response = await postMessageApiV1TimelineMessagePost({
-            body: { assistant: true, text },
+            body: { assistant: true, thread_id: threadId, text },
         });
         setSendingChip(null);
         if (response.error) {
@@ -348,7 +355,7 @@ export function ChannelStream({
     // NEW line. Channels have no mark yet; nothing is drawn for them.
     const seenBefore = useRef<string | null>(null);
     const target = assistant
-        ? { assistant: true }
+        ? { assistant: true, thread_id: threadId ?? undefined }
         : workflowId != null
           ? { workflow_id: workflowId }
           : { folder_id: folderId };
@@ -373,7 +380,10 @@ export function ChannelStream({
         const at = response.data?.next_before_at ?? null;
         const id = response.data?.next_before_id ?? null;
         setCursor(at && id ? { at, id } : null);
-    }, [folderId]);
+        // Everything `target` is built from: a thread switch must re-read,
+        // or the new chat shows the old one's rows until the next poll.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [folderId, workflowId, assistant, threadId]);
 
     /** An older page, appended. Both cursor halves or neither — the rows are
      *  ordered by (at, id) and a cursor narrower than the sort drops rows off
@@ -397,7 +407,7 @@ export function ChannelStream({
         const id = response.data?.next_before_id ?? null;
         setCursor(at && id ? { at, id } : null);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [cursor, folderId, workflowId]);
+    }, [cursor, folderId, workflowId, assistant, threadId]);
 
     useEffect(() => {
         // The auth interceptor is registered only once auth has loaded, so
