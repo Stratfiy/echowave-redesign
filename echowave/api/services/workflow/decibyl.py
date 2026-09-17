@@ -47,6 +47,7 @@ from api.services.workflow import (
     contact_lookup,
     document_fields,
     documents,
+    draft_requests,
     filing,
     office,
     reply_draft,
@@ -832,7 +833,7 @@ async def answer(
                     result = await _load_tool(organization_id, call, loaded)
                     asked_for_schema = True
                 else:
-                    result = await _tool(organization_id, call, author_id)
+                    result = await _tool(organization_id, call, author_id, request=text)
                 conversation.add_tool_result(call, result)
                 if not _was_a_read(call, result):
                     reads_only = False
@@ -1148,7 +1149,9 @@ async def _load_tool(
     return result
 
 
-async def _app_tool(organization_id: int, call: Any) -> dict[str, Any]:
+async def _app_tool(
+    organization_id: int, call: Any, request: str = ""
+) -> dict[str, Any]:
     """A connected app was called: a read runs now, a write becomes a card."""
     available = connected_tools.by_function_name(
         await connected_tools.list_for_organization(organization_id)
@@ -1165,6 +1168,17 @@ async def _app_tool(organization_id: int, call: Any) -> dict[str, Any]:
             # Keyed on the model's own call id so a retried turn charges once.
             ref_id=f"decibyl:{organization_id}:{call.id or call.name}",
         )
+    # Asked for a draft, or asked not to send: a send never reaches a card.
+    # The card's own effect line (#365) tells the truth about what Confirm
+    # does, and the SYSTEM rule beside it asks the model to choose the draft
+    # tool -- tried against the live account, and it went on proposing the
+    # send and calling it a draft. So this is a refusal rather than advice,
+    # handed back as a tool result the model can act on in the same turn.
+    refused = draft_requests.refusal(
+        text=request, tool=tool, tools=list(available.values())
+    )
+    if refused is not None:
+        return refused
     return await actions.propose(
         organization_id=organization_id,
         workflow_id=None,
@@ -1180,10 +1194,13 @@ async def _app_tool(organization_id: int, call: Any) -> dict[str, Any]:
 
 
 async def _tool(
-    organization_id: int, call: Any, author_id: int | None = None
+    organization_id: int,
+    call: Any,
+    author_id: int | None = None,
+    request: str = "",
 ) -> dict[str, Any]:
     if str(call.name or "").startswith(connected_tools.PREFIX):
-        return await _app_tool(organization_id, call)
+        return await _app_tool(organization_id, call, request=request)
     arguments = dict(call.arguments or {})
     if call.name == actions.TOOL_NAME:
         return await actions.propose(
