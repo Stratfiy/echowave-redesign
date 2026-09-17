@@ -25,6 +25,10 @@ SPILL_TOKENS = 6_000
 PREVIEW_CHARS = 2_000
 #: How many items of a list the preview shows.
 PREVIEW_ITEMS = 5
+#: How much of one field's text the preview keeps. Long enough to recognise
+#: a subject or the opening of a body, short enough that a row full of prose
+#: still leaves room for the fields beside it.
+FIELD_CHARS = 160
 
 
 def _tokens(text: str) -> int:
@@ -94,6 +98,33 @@ def _note(*, stored_as: str, can_run_scripts: bool) -> str:
     return head + "you cannot read the stored copy directly. " + _NARROW
 
 
+def _slim(value: Any, *, depth: int = 0) -> Any:
+    """One row with its prose cut and its identifiers intact.
+
+    Truncating a row as raw JSON -- the first N characters of the serialised
+    thing -- keeps whatever happens to come first and loses the rest, which
+    makes key order decide what the model can do next. For a Gmail message
+    the body comes first and the sender does not survive, so the tool that
+    needs an address becomes uncallable and the one that needs only a thread
+    id does not. That is how a send got chosen over a draft.
+
+    So every key stays and only long text is shortened. Identifiers are
+    short by nature; it is prose that makes a response too big for a prompt,
+    and prose is what a preview is for cutting.
+    """
+    if isinstance(value, str):
+        return value if len(value) <= FIELD_CHARS else value[:FIELD_CHARS] + " …"
+    if isinstance(value, dict):
+        if depth >= 2:
+            return {"…": f"{len(value)} more fields"}
+        return {k: _slim(v, depth=depth + 1) for k, v in value.items()}
+    if isinstance(value, list):
+        if depth >= 2:
+            return [f"{len(value)} items"]
+        return [_slim(v, depth=depth + 1) for v in value[:PREVIEW_ITEMS]]
+    return value
+
+
 def preview(
     data: Any, *, stored_as: str, can_run_scripts: bool = False
 ) -> dict[str, Any]:
@@ -106,21 +137,16 @@ def preview(
     if rows is not None:
         items, count = rows
         out["rows"] = count
-        first: list[Any] = []
-        spent = 0
-        for item in items[:PREVIEW_ITEMS]:
-            text = json.dumps(item, default=str)
-            if spent + len(text) > PREVIEW_CHARS:
-                # A single row can be a document. The preview stays small
-                # whatever the rows are; the store has them whole.
-                first.append(text[: max(0, PREVIEW_CHARS - spent)] + " …")
-                break
-            first.append(json.loads(text))
-            spent += len(text)
-        out["first"] = first
+        # Slimmed, not truncated: every row keeps its keys and loses only
+        # the length of its text, so the fields a later call needs are still
+        # there whatever order they were serialised in.
+        out["first"] = [_slim(item) for item in items[:PREVIEW_ITEMS]]
     else:
-        text = json.dumps(data, default=str)
-        out["head"] = text[:PREVIEW_CHARS] + (" …" if len(text) > PREVIEW_CHARS else "")
+        slimmed = _slim(data)
+        text = json.dumps(slimmed, default=str)
+        out["head"] = (
+            slimmed if len(text) <= PREVIEW_CHARS else text[:PREVIEW_CHARS] + " …"
+        )
     return out
 
 
