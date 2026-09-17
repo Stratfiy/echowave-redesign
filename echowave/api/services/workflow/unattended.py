@@ -40,6 +40,37 @@ CONFIG_KEY = "routine_writes"
 RUN_ANNOTATION = "routine"
 
 
+def briefing(instruction: str, *, writes_allowed: bool) -> str:
+    """The routine's instruction, with the room described around it.
+
+    A routine's instruction reaches the bot as a plain user message, so the
+    bot answers it the way it answers anybody. Built holding Gmail and asked
+    to summarise an inbox, one replied "should I fetch the last 24h now to
+    show a sample summary?" -- a reasonable thing to say to a person, at
+    eight in the morning, to nobody. Nothing answered, the turn ended, and
+    the deliverable was a question.
+
+    So the room is described: nobody is reading, nothing can answer, do the
+    work and report it. And when writes are gated, say so here rather than
+    let the model plan a send and meet a refusal mid-turn -- a tool that
+    fails reads, to a model, like something worth trying again.
+    """
+    lines = [
+        "This is a scheduled run. Nobody is reading this and nobody can "
+        "answer a question, so do not ask one.",
+        "Do the work now with the tools you have and report what you found. "
+        "If you could not, say plainly what stopped you.",
+    ]
+    if not writes_allowed:
+        lines.append(
+            "You cannot send, create or change anything on this run. Report only."
+        )
+    task = (instruction or "").strip()
+    if task:
+        lines.append(f"The task:\n{task}")
+    return "\n\n".join(lines)
+
+
 def writes_allowed(configurations: Optional[Mapping[str, Any]]) -> bool:
     """Whether this bot may use a write tool on an unattended run.
 
@@ -84,6 +115,7 @@ async def run_is_unattended(run_id: Optional[int]) -> bool:
 __all__ = [
     "CONFIG_KEY",
     "RUN_ANNOTATION",
+    "briefing",
     "is_unattended",
     "run_is_unattended",
     "writes_allowed",
