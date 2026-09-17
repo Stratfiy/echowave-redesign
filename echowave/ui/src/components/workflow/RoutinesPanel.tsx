@@ -42,53 +42,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { ScheduleFields } from "@/components/workflow/ScheduleFields";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
-
-/** The four cadences, in the words the person setting one would use. Not
- *  cron: the difference between two cron lines is a support ticket. */
-const CADENCES: { value: Cadence; label: string }[] = [
-    { value: "hourly", label: "Every hour it is open" },
-    { value: "daily", label: "Every day" },
-    { value: "weekdays", label: "Monday to Friday" },
-    { value: "weekly", label: "Once a week" },
-];
-
-const ANCHORS: { value: Anchor; label: string }[] = [
-    { value: "opening", label: "when it opens" },
-    { value: "closing", label: "when it closes" },
-    { value: "clock", label: "at a set time" },
-];
-
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-
-function when(iso: string | null | undefined): string {
-    if (!iso) return "";
-    return new Date(iso).toLocaleString(undefined, {
-        weekday: "short",
-        day: "numeric",
-        month: "short",
-        hour: "2-digit",
-        minute: "2-digit",
-    });
-}
-
-function timeToMinute(value: string): number {
-    const [h, m] = value.split(":").map((n) => Number.parseInt(n, 10));
-    if (!Number.isFinite(h) || !Number.isFinite(m)) return 0;
-    return Math.min(24 * 60 - 1, Math.max(0, h * 60 + m));
-}
-
-/** The inverse, for filling the form from a routine being edited. Clamped
- *  the same way, so a stored minute outside the day cannot render "25:00"
- *  into a time input that would then refuse to submit. */
-function minuteToTime(minute: number): string {
-    const safe = Math.min(24 * 60 - 1, Math.max(0, Math.trunc(minute) || 0));
-    const h = String(Math.floor(safe / 60)).padStart(2, "0");
-    const m = String(safe % 60).padStart(2, "0");
-    return `${h}:${m}`;
-}
-
+import { minuteToTime, timeToMinute, when } from "@/lib/schedule";
 
 /**
  * One account the routine can be made to depend on.
@@ -358,67 +315,16 @@ export function RoutinesPanel({ workflowId }: { workflowId: number }) {
                             onChange={(e) => setInstruction(e.target.value)}
                         />
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-3">
-                        <div>
-                            <Label htmlFor="routine-cadence">How often</Label>
-                            <select
-                                id="routine-cadence"
-                                className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                                value={cadence}
-                                onChange={(e) => setCadence(e.target.value as Cadence)}
-                            >
-                                {CADENCES.map((c) => (
-                                    <option key={c.value} value={c.value}>
-                                        {c.label}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <Label htmlFor="routine-anchor">When</Label>
-                            <select
-                                id="routine-anchor"
-                                className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                                value={anchor}
-                                onChange={(e) => setAnchor(e.target.value as Anchor)}
-                            >
-                                {ANCHORS.map((a) => (
-                                    <option key={a.value} value={a.value}>
-                                        {a.label}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        {anchor === "clock" ? (
-                            <div>
-                                <Label htmlFor="routine-time">Time</Label>
-                                <Input
-                                    id="routine-time"
-                                    type="time"
-                                    className="mt-1"
-                                    value={time}
-                                    onChange={(e) => setTime(e.target.value)}
-                                />
-                            </div>
-                        ) : null}
-                        {cadence === "weekly" ? (
-                            <div>
-                                <Label htmlFor="routine-weekday">Day</Label>
-                                <select
-                                    id="routine-weekday"
-                                    className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                                    value={weekday}
-                                    onChange={(e) => setWeekday(Number.parseInt(e.target.value, 10))}
-                                >
-                                    {DAYS.map((d, i) => (
-                                        <option key={d} value={i}>
-                                            {d}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        ) : null}
-                    </div>
+                    <ScheduleFields
+                        idPrefix="routine"
+                        value={{ cadence, anchor, time, weekday }}
+                        onChange={(next) => {
+                            setCadence(next.cadence);
+                            setAnchor(next.anchor);
+                            setTime(next.time);
+                            setWeekday(next.weekday);
+                        }}
+                    />
                     {/* The accounts it cannot run without. The tick skips a
                         run whose named app is broken, and until this existed
                         the field could only be set in SQL -- so every routine
