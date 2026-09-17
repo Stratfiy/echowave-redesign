@@ -33,7 +33,12 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import BotChannel, CallType
-from api.services.workflow import brief_apps, connected_tools, schedule_from_words
+from api.services.workflow import (
+    brief_apps,
+    connected_tools,
+    schedule_from_words,
+    task_graph,
+)
 from api.services.workflow.agent_brief import (
     AgentBrief,
     apply_brief,
@@ -227,17 +232,28 @@ async def build(
     # Defaulted rather than required: a card proposed before this field
     # existed, and confirmed after, still builds the bot it promised.
     channel = BotChannel(args.get("channel") or BotChannel.VOICE.value)
-    generated = await generate_workflow_definition(
-        call_type=str(args["call_type"]).upper(),
-        use_case=brief.use_case,
-        activity_description=description,
-        organization_id=organization_id,
-        channel=channel,
-    )
-    definition = (
-        regenerate_trigger_uuids(generated.get("workflow_definition", {})) or {}
-    )
-    definition = apply_brief(definition, brief)
+    spec = str(args.get("spec") or "")
+
+    if task_graph.wanted(spec):
+        # A brief that names when it runs is a task, and a task bot built as
+        # a call bot spends its run saying hello. One was: greeting, "find
+        # out what they need", "this is an inbound call: they rang you", and
+        # a persona telling it to ask one question per turn -- fired by a
+        # cron tick, with nobody to answer. Written rather than generated;
+        # see task_graph for why, and why the clock is what decides.
+        definition = task_graph.build(name=args["name"], spec=spec)
+    else:
+        generated = await generate_workflow_definition(
+            call_type=str(args["call_type"]).upper(),
+            use_case=brief.use_case,
+            activity_description=description,
+            organization_id=organization_id,
+            channel=channel,
+        )
+        definition = (
+            regenerate_trigger_uuids(generated.get("workflow_definition", {})) or {}
+        )
+        definition = apply_brief(definition, brief)
 
     # The apps the brief named, so a bot whose job is reading Gmail is built
     # holding Gmail. Without this the generator produced a bot with no tools
