@@ -36,12 +36,12 @@ import hashlib
 import hmac
 import json
 import secrets
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, Optional
 
 from loguru import logger
 
-from api.constants import DEFAULT_WEBHOOK_DELIVERY_CONFIG
+from api.constants import DEFAULT_WEBHOOK_DELIVERY_CONFIG, EVENT_WEBHOOK_HOURLY_CAP
 
 #: Header names. Prefixed like the delivery id the engine already sends, so a
 #: receiver reads one family of headers from us.
@@ -149,6 +149,27 @@ async def post_event(
             workflow_id, organization_id=organization_id
         )
         if hook is None or not hook.is_active or not wanted(hook.kinds, kind):
+            return
+
+        # A receiver is somebody else's server. A bot that files an outcome
+        # per row of a sheet would otherwise POST to it as fast as it can
+        # think, and the retries on a receiver that buckles make it worse.
+        # Over the cap the event is still on the timeline and still rang
+        # the bell; only the POST is withheld, and the log says so.
+        since = datetime.now(UTC) - timedelta(hours=1)
+        sent = await db_client.count_bot_event_deliveries_since(
+            organization_id=organization_id, since=since
+        )
+        if sent >= EVENT_WEBHOOK_HOURLY_CAP:
+            logger.warning(
+                "Event webhook for org {} withheld: {} sent in the last hour "
+                "(cap {}); {} on bot {} not posted",
+                organization_id,
+                sent,
+                EVENT_WEBHOOK_HOURLY_CAP,
+                kind,
+                workflow_id,
+            )
             return
 
         workflow = await db_client.get_workflow(

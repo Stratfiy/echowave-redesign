@@ -1692,6 +1692,16 @@ class WebhookDeliveryModel(Base):
             unique=True,
             postgresql_where=text("workflow_run_id IS NULL"),
         ),
+        # "How many has this account sent in the last hour" -- asked on every
+        # event a webhook wants, so it must not be a scan of every delivery
+        # ever made. Runless rows only: a call-flow webhook is capped by
+        # the call it belongs to.
+        Index(
+            "ix_webhook_deliveries_org_recent_events",
+            "organization_id",
+            "created_at",
+            postgresql_where=text("workflow_run_id IS NULL"),
+        ),
     )
 
 
