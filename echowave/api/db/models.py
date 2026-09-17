@@ -5481,6 +5481,20 @@ class AgentEventModel(Base):
         Integer, ForeignKey("folders.id", ondelete="SET NULL"), nullable=True
     )
 
+    #: Which conversation with Decibyl this row belongs to.
+    #:
+    #: NULL is the thread the account has always had. The assistant's thread
+    #: used to be defined by absence -- neither a workflow nor a folder --
+    #: which gave every organisation exactly one conversation for ever and
+    #: nowhere to put a second. A new chat gets an id; the original keeps its
+    #: absence, so nothing needed backfilling and a reader that has not been
+    #: taught about threads still sees what it always saw.
+    #:
+    #: A string rather than a foreign key: a thread is not a row anywhere. It
+    #: is the name a set of events share, and giving it a table would mean a
+    #: write and a join for something with no fields of its own.
+    thread_id = Column(String(36), nullable=True)
+
     at = Column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
@@ -5532,6 +5546,8 @@ class AgentEventModel(Base):
         Index("ix_agent_events_workflow_at", "workflow_id", "at"),
         Index("ix_agent_events_run_at", "workflow_run_id", "at"),
         Index("ix_agent_events_folder_at", "folder_id", "at"),
+        # One conversation with Decibyl, newest first.
+        Index("ix_agent_events_org_thread_at", "organization_id", "thread_id", "at"),
         # The deliverables list is "this organisation's cards, newest first",
         # which without this walks every event ever recorded to find the few
         # that are cards.

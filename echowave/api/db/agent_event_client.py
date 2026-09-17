@@ -105,6 +105,7 @@ class AgentEventClient(BaseDBClient):
         before_id: Optional[int] = None,
         after_id: Optional[int] = None,
         assistant_thread: bool = False,
+        thread_id: Optional[str] = None,
     ) -> list[AgentEventModel]:
         """The timeline, newest first.
 
@@ -150,6 +151,15 @@ class AgentEventClient(BaseDBClient):
             query = query.where(
                 AgentEventModel.workflow_id.is_(None),
                 AgentEventModel.folder_id.is_(None),
+            )
+            # Which conversation. NULL is the one the account has always had,
+            # so a caller that names no thread reads exactly what it read
+            # before threads existed -- and a caller that names one gets that
+            # one and nothing else.
+            query = query.where(
+                AgentEventModel.thread_id.is_(None)
+                if thread_id is None
+                else AgentEventModel.thread_id == thread_id
             )
         if kinds:
             query = query.where(AgentEventModel.kind.in_(list(kinds)))
