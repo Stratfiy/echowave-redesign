@@ -25,6 +25,15 @@ vi.mock("@/components/channel/ChannelStream", () => ({
         return <div data-testid="stream" />;
     },
 }));
+vi.mock("@/components/home/ThreadList", () => ({
+    ThreadList: (props: { current: string | null; onNew: () => void; onPick: (id: string | null) => void }) => (
+        <div data-testid="threads" data-current={props.current ?? ""}>
+            <button type="button" onClick={props.onNew}>New chat</button>
+            <button type="button" onClick={() => props.onPick("older-1")}>older-1</button>
+            <button type="button" onClick={() => props.onPick(null)}>The first chat</button>
+        </div>
+    ),
+}));
 vi.mock("@/components/channel/ChannelComposer", () => ({
     ChannelComposer: (props: Record<string, unknown>) => {
         seen.composer.push(props);
@@ -73,7 +82,7 @@ describe("home is Decibyl's thread", () => {
         render(<HomeAboveTheFold />);
         fireEvent.click(screen.getByRole("button", { name: "What happened this week?" }));
         await waitFor(() => expect(api.post).toHaveBeenCalled());
-        expect(api.post.mock.calls[0][0].body).toEqual({ assistant: true, text: "What happened this week?" });
+        expect(api.post.mock.calls[0][0].body).toEqual({ assistant: true, thread_id: null, text: "What happened this week?" });
         await waitFor(() => {
             const last = seen.stream[seen.stream.length - 1] as { waitingFor: { bots: number[] } | null };
             expect(last.waitingFor?.bots).toEqual([0]);
@@ -103,7 +112,7 @@ describe("home is Decibyl's thread", () => {
         expect(screen.queryByRole("button", { name: "What happened this week?" })).toBeNull();
         fireEvent.click(screen.getByRole("button", { name: "Which bots took calls today?" }));
         await waitFor(() => expect(api.post).toHaveBeenCalled());
-        expect(api.post.mock.calls[0][0].body).toEqual({ assistant: true, text: "Which bots took calls today?" });
+        expect(api.post.mock.calls[0][0].body).toEqual({ assistant: true, thread_id: null, text: "Which bots took calls today?" });
     });
 
     it("a brand-new account gets the first jobs for its business from the server", async () => {
@@ -143,5 +152,46 @@ describe("home is Decibyl's thread", () => {
         render(<HomeAboveTheFold />);
         expect(screen.getByText(/Hi, I'm Decibyl/)).toBeTruthy();
         expect(screen.getByTestId("composer")).toBeTruthy();
+    });
+});
+
+describe("more than one chat", () => {
+    const last = <T,>(rows: unknown[]) => rows[rows.length - 1] as T;
+
+    it("opens on the original conversation when the URL names none", async () => {
+        api.home.mockResolvedValue({ data: { hours: 24, headline, suggestions: [], members: [] } });
+        render(<HomeAboveTheFold />);
+        await screen.findByTestId("stream");
+        expect(last<{ threadId: string | null }>(seen.stream).threadId).toBeNull();
+        expect(last<{ threadId: string | null }>(seen.composer).threadId).toBeNull();
+    });
+
+    it("New chat mints an id, and the stream, the composer and the openers all follow it", async () => {
+        api.home.mockResolvedValue({ data: { hours: 24, headline, suggestions: [], members: [] } });
+        api.post.mockResolvedValue({ data: { asked: [], unknown: [], ambiguous: [] } });
+        render(<HomeAboveTheFold />);
+        await screen.findByTestId("stream");
+        fireEvent.click(screen.getByRole("button", { name: "New chat" }));
+        await waitFor(() => expect(last<{ threadId: string | null }>(seen.stream).threadId).toBeTruthy());
+        const minted = last<{ threadId: string }>(seen.stream).threadId;
+        expect(minted).toMatch(/^[0-9a-f-]{36}$/);
+        expect(last<{ threadId: string }>(seen.composer).threadId).toBe(minted);
+        // The address remembers it, so a refresh reopens the same chat.
+        expect(new URLSearchParams(window.location.search).get("thread")).toBe(minted);
+        // An opener pressed in the new chat is a line in the new chat.
+        fireEvent.click(screen.getByRole("button", { name: "What happened this week?" }));
+        await waitFor(() => expect(api.post).toHaveBeenCalled());
+        expect(api.post.mock.calls[0][0].body.thread_id).toBe(minted);
+    });
+
+    it("picking an older chat switches to it, and the first chat is null again", async () => {
+        api.home.mockResolvedValue({ data: { hours: 24, headline, suggestions: [], members: [] } });
+        render(<HomeAboveTheFold />);
+        await screen.findByTestId("stream");
+        fireEvent.click(screen.getByRole("button", { name: "older-1" }));
+        await waitFor(() => expect(last<{ threadId: string | null }>(seen.stream).threadId).toBe("older-1"));
+        fireEvent.click(screen.getByRole("button", { name: "The first chat" }));
+        await waitFor(() => expect(last<{ threadId: string | null }>(seen.stream).threadId).toBeNull());
+        expect(new URLSearchParams(window.location.search).get("thread")).toBeNull();
     });
 });

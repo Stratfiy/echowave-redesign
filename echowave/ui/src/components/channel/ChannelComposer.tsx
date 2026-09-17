@@ -133,6 +133,7 @@ export function ChannelComposer({
     folderId,
     workflowId,
     assistant = false,
+    threadId = null,
     bots,
     channels,
     channelName,
@@ -145,6 +146,8 @@ export function ChannelComposer({
     workflowId?: number;
     /** Decibyl's own thread: neither a channel nor a bot. */
     assistant?: boolean;
+    /** Which of Decibyl's conversations. Null is the original one. */
+    threadId?: string | null;
     bots: ChannelBot[];
     /** The channels `#` offers. Fetched here when not given. */
     channels?: ChannelRef[];
@@ -235,7 +238,12 @@ export function ChannelComposer({
     const readMemory = async () => {
         try {
             const response = await memoryApiV1TimelineMemoryGet({
-                query: { workflow_id: workflowId, folder_id: folderId, assistant },
+                query: {
+                    workflow_id: workflowId,
+                    folder_id: folderId,
+                    assistant,
+                    thread_id: assistant ? (threadId ?? undefined) : undefined,
+                },
             });
             if (response.error || !response.data) return;
             setMemory({
@@ -377,7 +385,7 @@ export function ChannelComposer({
         const where = routeTo
             ? { folder_id: routeTo.id }
             : assistant
-              ? { assistant: true }
+              ? { assistant: true, thread_id: threadId }
               : workflowId != null
                 ? { workflow_id: workflowId }
                 : { folder_id: folderId };

@@ -438,3 +438,28 @@ describe('words already in the box', () => {
         expect(document.activeElement).toBe(box);
     });
 });
+
+describe("which of Decibyl's chats it writes to", () => {
+    it('a named thread goes on the line and on the meter', async () => {
+        brains.mockResolvedValue({ data: { vendors: [], presets: [] } });
+        memory.mockResolvedValue({ data: { used_tokens: 1, budget_tokens: 8000, messages_kept: 1, messages_total: 1, plan_code: 'free', raise_to: null } });
+        render(<ChannelComposer assistant threadId="t-2" bots={[]} channelName="Decibyl" />);
+        await waitFor(() => expect(memory).toHaveBeenCalled());
+        expect(memory.mock.calls[0][0].query.thread_id).toBe('t-2');
+        fireEvent.change(screen.getByRole('textbox'), { target: { value: 'hello there' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+        await waitFor(() => expect(post).toHaveBeenCalled());
+        expect(post.mock.calls[0][0].body.assistant).toBe(true);
+        expect(post.mock.calls[0][0].body.thread_id).toBe('t-2');
+    });
+
+    it('no thread named writes where it always did', async () => {
+        brains.mockResolvedValue({ data: { vendors: [], presets: [] } });
+        memory.mockResolvedValue({ data: { used_tokens: 1, budget_tokens: 8000, messages_kept: 1, messages_total: 1, plan_code: 'free', raise_to: null } });
+        render(<ChannelComposer assistant bots={[]} channelName="Decibyl" />);
+        fireEvent.change(screen.getByRole('textbox'), { target: { value: 'hello' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+        await waitFor(() => expect(post).toHaveBeenCalled());
+        expect(post.mock.calls[0][0].body.thread_id).toBeNull();
+    });
+});

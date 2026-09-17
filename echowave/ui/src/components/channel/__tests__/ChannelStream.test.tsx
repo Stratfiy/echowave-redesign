@@ -72,6 +72,29 @@ describe('what it asks for', () => {
     });
 });
 
+describe("which of Decibyl's chats", () => {
+    it('no thread named reads the original conversation', async () => {
+        timeline.mockResolvedValue({ data: { events: [], next_before_at: null, next_before_id: null } });
+        render(<ChannelStream assistant botNames={{}} />);
+        await waitFor(() => expect(timeline).toHaveBeenCalled());
+        expect(timeline.mock.calls[0][0].query.assistant).toBe(true);
+        expect(timeline.mock.calls[0][0].query.thread_id).toBeUndefined();
+    });
+
+    it('a named thread is asked for by name, and written to by name', async () => {
+        timeline.mockResolvedValue({ data: { events: [], next_before_at: null, next_before_id: null } });
+        chips.mockResolvedValue({ data: { chips: [{ text: 'What ran today?', kind: 'time' }] } });
+        render(<ChannelStream assistant threadId="t-2" botNames={{}} />);
+        await waitFor(() => expect(timeline).toHaveBeenCalled());
+        expect(timeline.mock.calls[0][0].query.thread_id).toBe('t-2');
+        // A chip pressed in this chat is a line in this chat, or the reply
+        // lands in the original one and this screen never shows it.
+        fireEvent.click(await screen.findByRole('button', { name: 'What ran today?' }));
+        await waitFor(() => expect(post).toHaveBeenCalled());
+        expect(post.mock.calls[0][0].body.thread_id).toBe('t-2');
+    });
+});
+
 describe('a call is a row with a door', () => {
     it('links the call line to the run', async () => {
         timeline.mockResolvedValue({
@@ -359,7 +382,7 @@ describe('the thread carries its own next steps', () => {
         fireEvent.click(await screen.findByRole('button', { name: 'check my email' }));
         await waitFor(() => expect(post).toHaveBeenCalled());
         // A chip a person could not also have typed teaches them nothing.
-        expect(post.mock.calls[0][0].body).toEqual({ assistant: true, text: 'check my email' });
+        expect(post.mock.calls[0][0].body).toEqual({ assistant: true, thread_id: null, text: 'check my email' });
     });
 
     it('clears them once one is pressed', async () => {

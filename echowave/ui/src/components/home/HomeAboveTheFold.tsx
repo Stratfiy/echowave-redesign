@@ -27,6 +27,7 @@ import {
 import type { Headline, Opener, Suggestion } from "@/client/types.gen";
 import { type ChannelBot, ChannelComposer } from "@/components/channel/ChannelComposer";
 import { ChannelStream } from "@/components/channel/ChannelStream";
+import { ThreadList } from "@/components/home/ThreadList";
 import { useAuth } from "@/lib/auth";
 
 /** The fallback when the server sends no cards of its own: the two
@@ -160,6 +161,36 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
       // No URL to read: the box opens empty, as it always did.
     }
   }, []);
+  // Which of Decibyl's conversations. Null is the one the account has
+  // always had. Read from "?thread=" so a refresh or a shared link opens
+  // the same chat, and written back on every switch for the same reason.
+  const [threadId, setThreadId] = useState<string | null>(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("thread");
+    } catch {
+      return null;
+    }
+  });
+  // Bumped after every send: a new chat is not in the list until its first
+  // line exists, and the list is how the person finds their way back.
+  const [threadsVersion, setThreadsVersion] = useState(0);
+  const switchThread = useCallback((next: string | null) => {
+    setThreadId(next);
+    // The count belongs to the chat that was on screen. Until the new one
+    // reports, nothing is drawn above it -- the same rule as first load.
+    setRows(null);
+    setWaitingFor(null);
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (next) params.set("thread", next);
+      else params.delete("thread");
+      const rest = params.toString();
+      window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}`);
+    } catch {
+      // No URL to write: the switch still happens on screen.
+    }
+  }, []);
+  const newThread = useCallback(() => switchThread(crypto.randomUUID()), [switchThread]);
   const onCountChange = useCallback((count: number) => setRows(count), []);
   const refreshStream = useRef<() => void>(() => {});
   const registerRefresh = useCallback((refresh: () => void) => {
@@ -209,11 +240,12 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   const sendOpener = async (text: string) => {
     setSendingOpener(text);
     const response = await postMessageApiV1TimelineMessagePost({
-      body: { assistant: true, text },
+      body: { assistant: true, thread_id: threadId, text },
     });
     setSendingOpener(null);
     if (response.error) return;
     asked();
+    setThreadsVersion((v) => v + 1);
     refreshStream.current();
   };
 
@@ -302,9 +334,14 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
       )}
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
+        {/* Keyed on the chat, so switching remounts the stream clean:
+            no rows from the last chat showing until the poll catches up,
+            no cursor pointing into a different conversation. */}
         <ChannelStream
+          key={threadId ?? "original"}
           assistant
           assistantName="Decibyl"
+          threadId={threadId}
           botNames={{}}
           onRegisterRefresh={registerRefresh}
           onCountChange={onCountChange}
@@ -312,15 +349,23 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         />
         <ChannelComposer
           assistant
+          threadId={threadId}
           bots={bots}
           initialText={prefill || undefined}
           channelName="Decibyl"
           onSent={() => {
             asked();
+            setThreadsVersion((v) => v + 1);
             refreshStream.current();
           }}
         />
       </div>
+      <ThreadList
+        current={threadId}
+        onPick={switchThread}
+        onNew={newThread}
+        refreshKey={threadsVersion}
+      />
     </div>
   );
 }
