@@ -28,6 +28,8 @@ from typing import Any, Mapping, Optional
 
 from loguru import logger
 
+from api.enums import ToolCategory
+
 #: The key inside ``workflow_configurations``, alongside ``notify_on`` and
 #: ``channel``. Stored there for the same reason they are: no migration, and
 #: nothing about telephony has to learn a new field.
@@ -38,6 +40,49 @@ CONFIG_KEY = "routine_writes"
 #: run rather than inferred from the bot, because the bot is the same bot
 #: either way.
 RUN_ANNOTATION = "routine"
+
+
+#: Writes that do not leave the account.
+#:
+#: A draft goes into the operator's own drafts folder. Nobody receives it,
+#: nothing is announced, and the only way it reaches another person is that
+#: the operator opens it and presses send. That is not a write the gate needs
+#: to stop -- it *is* the human review the gate exists to require, expressed
+#: as a tool. Withholding it made the gate's own purpose unreachable: a bot
+#: built to draft replies overnight got the tool taken away at 8am and
+#: delivered an apology instead of a draft.
+#:
+#: An explicit list of slugs, not a verb rule, and that is the whole design.
+#: The verb here is ``CREATE`` -- so is the verb on creating a calendar event
+#: that mails every guest, and on publishing a LinkedIn post. A verb rule
+#: would let both through. Twice already in this codebase a rule about slug
+#: shape did something nobody intended (#343, #344); the cost of listing
+#: slugs by hand is that a new app's draft tool is missed until somebody adds
+#: it, and a missed one is merely withheld, which is the safe direction.
+STAGED_WRITES = frozenset(
+    {
+        "GMAIL_CREATE_EMAIL_DRAFT",
+        "ZOHO_MAIL_MESSAGES_CREATE_DRAFT",
+    }
+)
+
+
+def is_staged(tool: Any) -> bool:
+    """Whether this write only stages something for a person to act on.
+
+    False for everything that is not a connected-app write, reads included:
+    a read is already allowed by being a read, and a tool that answered yes
+    to both questions would be counted twice by anything that partitions the
+    list.
+    """
+    from api.services.workflow import connected_tools
+
+    if getattr(tool, "category", None) != ToolCategory.COMPOSIO.value:
+        return False
+    if connected_tools.is_read(tool):
+        return False
+    slug = connected_tools.slug_of(tool) or ""
+    return slug.strip().upper() in STAGED_WRITES
 
 
 def briefing(instruction: str, *, writes_allowed: bool) -> str:
@@ -63,7 +108,9 @@ def briefing(instruction: str, *, writes_allowed: bool) -> str:
     ]
     if not writes_allowed:
         lines.append(
-            "You cannot send, create or change anything on this run. Report only."
+            "You cannot send anything or change anything in a connected app on "
+            "this run. You can write a draft, which nobody receives until a "
+            "person opens it and sends it themselves. Otherwise, report only."
         )
     task = (instruction or "").strip()
     if task:
@@ -115,7 +162,9 @@ async def run_is_unattended(run_id: Optional[int]) -> bool:
 __all__ = [
     "CONFIG_KEY",
     "RUN_ANNOTATION",
+    "STAGED_WRITES",
     "briefing",
+    "is_staged",
     "is_unattended",
     "run_is_unattended",
     "writes_allowed",

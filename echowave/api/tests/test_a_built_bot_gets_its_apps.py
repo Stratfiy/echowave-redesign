@@ -352,10 +352,14 @@ class TestTheCapDoesNotEatTheWrites:
         # pretend it does.
         assert got.index("u-send") < got.index("u-draft")
         assert got.index("u-reply") < got.index("u-draft")
-        # And under the held slots, the draft is the one that falls off.
+        # Under the held slots the draft used to be the one that fell off.
+        # It is now held deliberately: on a schedule, sending is gated and
+        # drafting is the only write a bot may use, so a bot with no draft
+        # tool is a bot with no usable write. The ranking above is unchanged
+        # -- the swap happens at the cap and costs the lowest-ranked write.
         kept = brief_apps.tool_uuids("Read Gmail and reply", self.GMAIL_FULL)
         assert "u-send" in kept
-        assert "u-draft" not in kept
+        assert "u-draft" in kept
 
     def test_an_unlisted_verb_is_last_not_lost(self):
         """An app whose writes are all unusual words still gives the bot
