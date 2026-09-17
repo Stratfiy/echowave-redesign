@@ -42,7 +42,7 @@ from api.services.telephony.call_transfer_manager import get_call_transfer_manag
 from api.services.telephony.escalation import briefing_from_config
 from api.services.telephony.factory import get_telephony_provider_for_run
 from api.services.telephony.transfer_event_protocol import TransferContext
-from api.services.workflow import app_interactions
+from api.services.workflow import app_interactions, connected_tools, unattended
 from api.services.workflow.tools.calculator import get_calculator_tools, safe_calculator
 from api.services.workflow.tools.custom_tool import (
     execute_http_tool,
@@ -183,6 +183,11 @@ class CustomToolManager:
         # means asked and unanswerable, which must not be retried on every
         # tool call.
         self._attribution: Optional[Dict[str, Optional[int]]] = None
+        # Whether a connected-app write must be withheld on this run, asked
+        # once. Neither half of the answer can change mid-run: a run is
+        # either a routine firing or it is not, and the bot's setting is
+        # pinned with its definition.
+        self._writes_gated: Optional[bool] = None
 
     async def _load_tools(self, tool_uuids: list[str], organization_id: int) -> list:
         """Return tool rows for these uuids, fetching only the ones not yet seen.
@@ -208,6 +213,67 @@ class CustomToolManager:
             for key in requested
             if self._tool_cache.get(key) is not None
         ]
+
+    async def _writes_are_gated(self) -> bool:
+        """Whether a connected-app write must be withheld on this run.
+
+        True only for an unattended run -- a routine firing on a schedule --
+        on a bot whose operator has not turned ``routine_writes`` on. A call
+        or a chat has a person in it who just asked for the thing, and that
+        is the supervision; a routine at 8am has nobody.
+
+        Cached for the run: it cannot change mid-conversation, and every
+        node transition would otherwise ask the same two questions again
+        while a caller waits.
+        """
+        if self._writes_gated is None:
+            run_id = getattr(self._engine, "_workflow_run_id", None)
+            if not await unattended.run_is_unattended(run_id):
+                self._writes_gated = False
+            else:
+                allowed = False
+                try:
+                    context = await self._interaction_context()
+                    workflow_id = context.get("workflow_id")
+                    if workflow_id:
+                        workflow = await db_client.get_workflow_by_id(workflow_id)
+                        allowed = unattended.writes_allowed(
+                            getattr(workflow, "workflow_configurations", None)
+                        )
+                except Exception as exc:  # noqa: BLE001 - withheld, not fatal
+                    logger.warning("Could not read the write setting: {}", exc)
+                self._writes_gated = not allowed
+        return self._writes_gated
+
+    async def _minus_ungated_writes(self, tools: list) -> list:
+        """The tools this run may actually use.
+
+        Withheld rather than refused at call time, so the model never sees a
+        send it cannot make: a tool offered and then rejected spends a round
+        and reads, to the model, like a failure it should retry.
+        ``_create_composio_handler`` refuses one anyway -- a context carried
+        across a node transition can hold a schema this list no longer has.
+        """
+        if not any(
+            tool.category == ToolCategory.COMPOSIO.value
+            and not connected_tools.is_read(tool)
+            for tool in tools
+        ):
+            return tools
+        if not await self._writes_are_gated():
+            return tools
+        kept = [
+            tool
+            for tool in tools
+            if tool.category != ToolCategory.COMPOSIO.value
+            or connected_tools.is_read(tool)
+        ]
+        withheld = len(tools) - len(kept)
+        if withheld:
+            logger.info(
+                "Unattended run: withholding {} write tool(s) from the model", withheld
+            )
+        return kept
 
     async def _play_config_message(
         self, config: dict, *, append_to_context: bool = False
@@ -343,6 +409,7 @@ class CustomToolManager:
 
         try:
             tools = await self._load_tools(tool_uuids, organization_id)
+            tools = await self._minus_ungated_writes(tools)
 
             schemas: list[FunctionSchema] = []
             for tool in tools:
@@ -855,6 +922,28 @@ class CustomToolManager:
         ) -> None:
             logger.info(f"Composio Tool EXECUTED: {function_name}")
             logger.info(f"Arguments: {function_call_params.arguments}")
+
+            # The second half of the gate. `_minus_ungated_writes` keeps the
+            # write out of the schema list, so the model normally never asks;
+            # a context carried across a node transition can still hold one it
+            # no longer has, and that must not be the path by which a routine
+            # sends mail at 8am.
+            if not connected_tools.is_read(tool) and await self._writes_are_gated():
+                logger.warning(
+                    "Refused {} on an unattended run: writes are off for this bot",
+                    function_name,
+                )
+                await function_call_params.result_callback(
+                    {
+                        "status": "error",
+                        "error": (
+                            "This runs on a schedule with nobody watching, so it "
+                            "cannot send, create or change anything. Report what "
+                            "you found instead."
+                        ),
+                    }
+                )
+                return
 
             config = (tool.definition or {}).get("config", {}) or {}
             tool_slug = config.get("tool_slug")

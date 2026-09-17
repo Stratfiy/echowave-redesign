@@ -15,11 +15,13 @@ So the generator wrote a bot whose whole job was reading Gmail and did not
 give it Gmail. Nothing failed, nothing warned -- it ran on schedule and
 asked the person to paste their inbox in.
 
-**Reads only.** A brief is prose, and prose is a bad warrant for a send. A
-routine runs unsupervised, so a sentence implying "reply to them" must not
-end with a bot emailing a customer at 8am with nobody in the loop. Writes
-are attached behind a per-bot switch, which is its own change; this module
-attaches what is safe to attach and says so.
+**Reads and writes.** The first cut attached reads only, on the grounds that
+a routine runs unsupervised. That was true of routines and wrong about
+everything else: a bot booking an appointment while the customer is on the
+phone is supervised by the person who just asked, and a bot that can only
+read is half of what anybody builds one for. So both are attached here, and
+whether a write may actually run is decided per run -- see
+``test_writes_wait_for_a_person``.
 """
 
 from __future__ import annotations
@@ -88,12 +90,34 @@ class TestWhichToolsGetAttached:
         got = brief_apps.read_tool_uuids("Read Gmail every morning", GMAIL)
         assert set(got) == {"u-gmail_fetch_emails", "u-gmail_get_contacts"}
 
-    def test_no_write_is_attached(self):
-        """The rule this module exists to hold. A routine runs with nobody
-        watching; prose is not consent to send."""
+    def test_read_tool_uuids_is_reads_only(self):
+        """It is the reads half by name, and stays that way: ``tool_uuids``
+        is what callers wanting both should use."""
         got = brief_apps.read_tool_uuids("Read Gmail and reply to everyone", GMAIL)
         assert "u-gmail_send_email" not in got
         assert "u-gmail_create_email_draft" not in got
+
+    def test_the_writes_of_a_named_app_are_attached_too(self):
+        got = brief_apps.write_tool_uuids("Read Gmail and reply to everyone", GMAIL)
+        assert set(got) == {"u-gmail_send_email", "u-gmail_create_email_draft"}
+
+    def test_together_they_are_reads_first(self):
+        """Under the cap a bot keeps the ability to look things up, which
+        every brief needs, over the ability to change them, which only some
+        do."""
+        got = brief_apps.tool_uuids("Read Gmail", GMAIL)
+        assert got[:2] == ["u-gmail_fetch_emails", "u-gmail_get_contacts"]
+        assert set(got) == {t.tool_uuid for t in GMAIL}
+
+    def test_the_pair_shares_one_cap(self):
+        many = [
+            _tool(f"GMAIL_GET_THING_{n}", toolkit="gmail", uuid=f"u-r{n}")
+            for n in range(6)
+        ] + [
+            _tool(f"GMAIL_SEND_THING_{n}", toolkit="gmail", uuid=f"u-w{n}")
+            for n in range(6)
+        ]
+        assert len(brief_apps.tool_uuids("Read Gmail", many)) == brief_apps.MAX_TOOLS
 
     def test_an_unnamed_app_contributes_nothing(self):
         got = brief_apps.read_tool_uuids("Read Gmail every morning", GMAIL + CALENDLY)
@@ -222,7 +246,9 @@ class TestTheBuiltBotComesOutHoldingThem:
         attached = {n["id"]: (n["data"].get("tool_uuids") or []) for n in nodes}
         assert attached["agent-1"], "the agent node was saved with no tools"
         assert "u-gmail_fetch_emails" in attached["agent-1"]
-        assert "u-gmail_send_email" not in attached["agent-1"]
+        # The write is attached as well now. What stops a routine using it is
+        # the run-time gate, not its absence from the graph.
+        assert "u-gmail_send_email" in attached["agent-1"]
 
     @pytest.mark.asyncio
     async def test_a_tool_list_that_cannot_be_read_still_builds_the_bot(self):
