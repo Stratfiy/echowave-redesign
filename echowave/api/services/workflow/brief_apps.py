@@ -36,6 +36,39 @@ from api.services.workflow import connected_tools
 #: badly among them, and no brief names enough apps to need more.
 MAX_TOOLS = 8
 
+#: How many of ``MAX_TOOLS`` are held for writes.
+#:
+#: Held, not ranked -- the distinction ``tool_sync.most_useful`` was rewritten
+#: to make, and this module got wrong in the same way a day later. Reads first
+#: plus a hard cap means writes never, for any app with a generous read
+#: surface: Gmail publishes exactly eight reads, so a bot built from "read
+#: Gmail and reply to them" came out with eight ways to read and no way to
+#: reply. Either side borrows what the other does not use.
+WRITE_SLOTS = 3
+
+#: The writes a person actually asks a bot for, best first.
+#:
+#: Spelled here rather than imported from ``tool_sync``: that list decides
+#: what the *account* is given when an app is connected, and this one decides
+#: what *one bot* is given by one sentence. Same words today, different
+#: questions -- and tying them together would mean a change to one silently
+#: reshaped the other, which is the hazard ``connected_tools`` names where it
+#: duplicates the read verbs.
+#:
+#: Ordered at all because alphabetical is not an order: sorted by slug,
+#: Gmail's CREATE_EMAIL_DRAFT beats SEND_EMAIL, and a bot told to reply gets
+#: three ways to make a draft. That is #344's bug, one module over.
+WANTED_WRITE_VERBS: tuple[str, ...] = (
+    "SEND",
+    "REPLY",
+    "CREATE",
+    "ADD",
+    "UPDATE",
+    "MODIFY",
+    "MOVE",
+    "SCHEDULE",
+)
+
 #: Node types that can call a tool. ``startCall`` is included because a
 #: one-node bot does its work there, and the routine runner's first turn is
 #: that node -- miss it and a simple bot has its tools nowhere it can reach.
@@ -62,6 +95,22 @@ def named(spec: str, tools: list[Any]) -> set[str]:
     return found
 
 
+def _verb_rank(tool: Any) -> int:
+    """Where a write sits among the writes. Lower is offered sooner.
+
+    A verb nobody listed sorts after every verb somebody did, rather than
+    being dropped: an app whose whole write surface is unusual words should
+    still give a bot something.
+    """
+    slug = str(connected_tools.slug_of(tool) or "").upper()
+    parts = [p for p in slug.split("_") if p]
+    verb = parts[1] if len(parts) > 1 else ""
+    try:
+        return WANTED_WRITE_VERBS.index(verb)
+    except ValueError:
+        return len(WANTED_WRITE_VERBS)
+
+
 def read_tool_uuids(spec: str, tools: list[Any]) -> list[str]:
     """The uuids to attach: the read tools of every app the brief names.
 
@@ -82,11 +131,12 @@ def read_tool_uuids(spec: str, tools: list[Any]) -> list[str]:
 
 
 def write_tool_uuids(spec: str, tools: list[Any]) -> list[str]:
-    """The write tools of every app the brief names.
+    """The write tools of every app the brief names, best first.
 
-    Same choosing as the reads, and the same cap over the pair: a brief
-    naming one app should not hand a bot sixteen tools because half of them
-    change something.
+    Ordered by what people ask for -- send, reply, create -- and only then
+    by slug. Sorting by slug alone put Gmail's CREATE_EMAIL_DRAFT ahead of
+    SEND_EMAIL, so a bot told to reply to people got three ways to write a
+    draft and no way to send one.
     """
     apps = named(spec, tools)
     if not apps:
@@ -97,20 +147,32 @@ def write_tool_uuids(spec: str, tools: list[Any]) -> list[str]:
         if connected_tools.toolkit_of(tool) in apps
         and not connected_tools.is_read(tool)
     ]
-    wanted.sort(key=lambda t: str(connected_tools.slug_of(t) or ""))
+    wanted.sort(key=lambda t: (_verb_rank(t), str(connected_tools.slug_of(t) or "")))
     return [t.tool_uuid for t in wanted]
 
 
 def tool_uuids(spec: str, tools: list[Any]) -> list[str]:
-    """Everything a brief's named apps offer: the reads, then the writes.
+    """Everything a brief's named apps offer, reads first and writes kept.
 
-    Reads first so that under the cap a bot keeps the ability to look things
-    up, which every brief needs, over the ability to change them, which only
-    some do.
+    ``WRITE_SLOTS`` are held rather than merely ranked below the reads. The
+    two sound equivalent and are not: Gmail publishes exactly ``MAX_TOOLS``
+    reads, so ordering alone gave a bot eight ways to read mail and no way
+    to send one. Either side borrows what the other leaves, so an app with
+    one write still fills the cap with reads, and an app with two reads
+    still gets five writes.
+
+    Reads lead the list because every brief needs to look something up and
+    only some need to change anything.
     """
     reads = read_tool_uuids(spec, tools)
-    room = max(0, MAX_TOOLS - len(reads))
-    return reads + write_tool_uuids(spec, tools)[:room]
+    writes = write_tool_uuids(spec, tools)
+
+    keep_writes = min(len(writes), WRITE_SLOTS)
+    keep_reads = min(len(reads), MAX_TOOLS - keep_writes)
+    # Whatever one side left unused, the other may take.
+    keep_writes = min(len(writes), MAX_TOOLS - keep_reads)
+
+    return reads[:keep_reads] + writes[:keep_writes]
 
 
 def attach(definition: dict[str, Any], tool_uuids: list[str]) -> dict[str, Any]:
@@ -138,6 +200,7 @@ def attach(definition: dict[str, Any], tool_uuids: list[str]) -> dict[str, Any]:
 __all__ = [
     "CALLING_NODES",
     "MAX_TOOLS",
+    "WRITE_SLOTS",
     "attach",
     "named",
     "read_tool_uuids",

@@ -267,3 +267,96 @@ class TestTheBuiltBotComesOutHoldingThem:
                 spec="read Gmail",
             )
         assert out["nodes"][0]["data"].get("tool_uuids") is None
+
+
+class TestTheCapDoesNotEatTheWrites:
+    """The mistake this codebase had already made once, made again here.
+
+    #343 shipped a tool list that ranked reads first and took the first
+    twelve. Gmail publishes enough GET actions to fill twelve, so a real
+    account re-synced under that rule got twelve ways to read mail and no
+    way to send one -- the hole the ranking was written to close, arrived at
+    from the other side. #352 fixed it by *reserving* slots rather than
+    ordering: ``WRITE_SLOTS`` of the dozen are held for writes.
+
+    ``brief_apps`` was then written with reads first and a hard cap of
+    eight, and Gmail has exactly eight reads. A bot built from "read Gmail
+    and reply to them" came out with eight reads and not one write -- with
+    the sibling module's docstring explaining, at length, why that happens.
+
+    So the same remedy: slots are held, and either side borrows what the
+    other does not use.
+    """
+
+    GMAIL_FULL = [
+        _tool(f"GMAIL_GET_{n}", toolkit="gmail", uuid=f"u-r{n}") for n in range(8)
+    ] + [
+        _tool("GMAIL_SEND_EMAIL", toolkit="gmail", uuid="u-send"),
+        _tool("GMAIL_REPLY_TO_THREAD", toolkit="gmail", uuid="u-reply"),
+        _tool("GMAIL_CREATE_EMAIL_DRAFT", toolkit="gmail", uuid="u-draft"),
+        _tool("GMAIL_SEND_DRAFT", toolkit="gmail", uuid="u-senddraft"),
+    ]
+
+    def test_an_app_with_a_capful_of_reads_still_gets_writes(self):
+        """The regression, in one line: eight reads must not mean no send."""
+        got = brief_apps.tool_uuids("Read Gmail and reply to them", self.GMAIL_FULL)
+        assert "u-send" in got
+
+    def test_the_held_slots_are_honoured(self):
+        got = brief_apps.tool_uuids("Read Gmail and reply", self.GMAIL_FULL)
+        writes = [
+            u for u in got if u in {"u-send", "u-reply", "u-draft", "u-senddraft"}
+        ]
+        assert len(writes) == brief_apps.WRITE_SLOTS
+
+    def test_reads_still_take_what_the_writes_do_not(self):
+        """An app with one write gives the rest of the cap back to the
+        reads, rather than leaving the bot half-equipped."""
+        one_write = [
+            _tool(f"GMAIL_GET_{n}", toolkit="gmail", uuid=f"u-r{n}") for n in range(8)
+        ] + [_tool("GMAIL_SEND_EMAIL", toolkit="gmail", uuid="u-send")]
+        got = brief_apps.tool_uuids("Read Gmail and send", one_write)
+        assert len(got) == brief_apps.MAX_TOOLS
+        assert "u-send" in got
+        assert len([u for u in got if u.startswith("u-r")]) == 7
+
+    def test_writes_borrow_what_the_reads_do_not(self):
+        """And the other way: an app with two reads and five writes fills
+        the cap rather than stopping at the reserved four."""
+        lopsided = [
+            _tool(f"GMAIL_GET_{n}", toolkit="gmail", uuid=f"u-r{n}") for n in range(2)
+        ] + [
+            _tool(f"GMAIL_SEND_{n}", toolkit="gmail", uuid=f"u-w{n}") for n in range(5)
+        ]
+        got = brief_apps.tool_uuids("Read Gmail and send", lopsided)
+        assert len(got) == 7
+
+    def test_the_cap_still_holds(self):
+        got = brief_apps.tool_uuids("Read Gmail and reply", self.GMAIL_FULL)
+        assert len(got) == brief_apps.MAX_TOOLS
+
+    def test_the_send_beats_the_draft(self):
+        """Alphabetical is not an order. Sorted by slug alone Gmail's
+        CREATE_EMAIL_DRAFT comes before SEND_EMAIL, so a bot told to reply
+        got three ways to write a draft and no way to send one -- #344's
+        bug, one module over."""
+        got = brief_apps.write_tool_uuids("Read Gmail and reply", self.GMAIL_FULL)
+        # Sends and the reply come before the draft. Which of the two sends
+        # leads is not something the verb list decides, and the test does not
+        # pretend it does.
+        assert got.index("u-send") < got.index("u-draft")
+        assert got.index("u-reply") < got.index("u-draft")
+        # And under the held slots, the draft is the one that falls off.
+        kept = brief_apps.tool_uuids("Read Gmail and reply", self.GMAIL_FULL)
+        assert "u-send" in kept
+        assert "u-draft" not in kept
+
+    def test_an_unlisted_verb_is_last_not_lost(self):
+        """An app whose writes are all unusual words still gives the bot
+        something."""
+        odd = [
+            _tool("NOTION_APPEND_BLOCK", toolkit="gmail", uuid="u-odd"),
+            _tool("GMAIL_SEND_EMAIL", toolkit="gmail", uuid="u-send"),
+        ]
+        got = brief_apps.write_tool_uuids("Gmail", odd)
+        assert got == ["u-send", "u-odd"]
