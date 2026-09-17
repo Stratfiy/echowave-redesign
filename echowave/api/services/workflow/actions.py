@@ -34,7 +34,7 @@ Same two halves as ``decisions``: ``propose`` is what the model calls,
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Optional
 
 from loguru import logger
 
@@ -62,6 +62,10 @@ TURN_BOT_OFF = "turn_bot_off"
 RETURN_MISSED_CALL = "return_missed_call"
 FORGET_FACT = "forget_fact"
 #: Everything: the graph partition, every remembered fact and gap. A delete,
+#: How far back a duplicate is looked for. Recent rows only: a proposal from
+#: last week that nobody settled must not silently swallow today's ask.
+DUPLICATE_WINDOW = 20
+
 #: not a status, and not reversible -- the one action here whose card says
 #: so in as many words. A business asking to be forgotten is not asking to
 #: be hidden (B8).
@@ -459,6 +463,48 @@ async def resolve(
 # --- the model's half -------------------------------------------------------
 
 
+def _is_same_proposal(row: Any, payload: dict[str, Any]) -> bool:
+    """Whether this row is the same act, still waiting.
+
+    The same action with the same arguments. Not the label or the reason --
+    the model writes those and they can differ word for word for one act,
+    which would let a second card through on nothing but phrasing.
+
+    Settled cards never match. Confirmed or declined, the thing is finished,
+    and asking again is a new request; otherwise one decline would bar the
+    act for good.
+    """
+    existing = getattr(row, "payload", None)
+    if not isinstance(existing, dict):
+        return False
+    if existing.get("state") != PROPOSED:
+        return False
+    if existing.get("action") != payload.get("action"):
+        return False
+    return (existing.get("args") or {}) == (payload.get("args") or {})
+
+
+async def _already_proposed(
+    *, organization_id: int, workflow_id: int | None, payload: dict[str, Any]
+) -> Optional[Any]:
+    """The card already waiting for this exact act, if there is one.
+
+    Scoped to the recent end of the thread rather than all of history: a
+    proposal from last week that nobody ever settled should not silently
+    swallow today's ask.
+    """
+    rows = await db_client.agent_events(
+        organization_id=organization_id,
+        workflow_id=workflow_id,
+        kinds=[AgentEventKind.ACTION_PROPOSED.value],
+        limit=DUPLICATE_WINDOW,
+    )
+    for row in rows or []:
+        if _is_same_proposal(row, payload):
+            return row
+    return None
+
+
 async def propose(
     *,
     organization_id: int | None,
@@ -482,6 +528,32 @@ async def propose(
         )
     except ActionError as exc:
         return {"status": "not_proposed", "reason": str(exc)}
+
+    # One ask, one card. The dispatch loop proposes for every tool call the
+    # model emits, and a model that emits the same call twice in a round put
+    # two identical cards on the thread -- two confirmations for one act,
+    # which on a send is two emails. Never raises: a card lost because this
+    # lookup broke is somebody who asked for something and got nothing, and
+    # the duplicate is the smaller harm.
+    try:
+        waiting = await _already_proposed(
+            organization_id=organization_id,
+            workflow_id=workflow_id,
+            payload=payload,
+        )
+    except Exception as exc:  # noqa: BLE001 - see above
+        logger.warning("Could not check for a duplicate proposal: {}", exc)
+        waiting = None
+    if waiting is not None:
+        return {
+            "status": "already_proposed",
+            "note": (
+                f"{payload['label']} is already proposed and waiting on the "
+                "thread. Do not propose it again. Say you have already "
+                "proposed it, then end your reply."
+            ),
+        }
+
     await agent_timeline.record(
         organization_id=organization_id,
         kind=AgentEventKind.ACTION_PROPOSED.value,
