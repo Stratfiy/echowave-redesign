@@ -243,12 +243,18 @@ class TestTheBuiltBotComesOutHoldingThem:
             )
 
         nodes = saved["workflow_definition"]["nodes"]
-        attached = {n["id"]: (n["data"].get("tool_uuids") or []) for n in nodes}
-        assert attached["agent-1"], "the agent node was saved with no tools"
-        assert "u-gmail_fetch_emails" in attached["agent-1"]
+        # By node type, not node id: a brief that names a schedule is built
+        # as a task graph, whose work sits on the start node rather than an
+        # agent node. What matters is that the tools reached a node that can
+        # call them.
+        callers = [n for n in nodes if n["type"] in brief_apps.CALLING_NODES]
+        assert callers, "nothing in the saved graph can call a tool"
+        attached = {u for n in callers for u in (n["data"].get("tool_uuids") or [])}
+        assert attached, "every calling node was saved with no tools"
+        assert "u-gmail_fetch_emails" in attached
         # The write is attached as well now. What stops a routine using it is
         # the run-time gate, not its absence from the graph.
-        assert "u-gmail_send_email" in attached["agent-1"]
+        assert "u-gmail_send_email" in attached
 
     @pytest.mark.asyncio
     async def test_a_tool_list_that_cannot_be_read_still_builds_the_bot(self):
