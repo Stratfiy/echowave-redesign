@@ -35,6 +35,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind, AgentEventVisibility
+from api.services.integrations import bot_event_webhook
 from api.services.notifications import inbox
 from api.services.workflow import answered as answered_rule
 from api.services.workflow import bot_notices
@@ -150,7 +151,7 @@ async def record(
         if workflow_id is not None or folder_id is not None:
             thread = None
 
-        await db_client.record_agent_event(
+        event_id = await db_client.record_agent_event(
             organization_id=organization_id,
             kind=kind,
             actor=actor,
@@ -178,6 +179,18 @@ async def record(
         kind=kind,
         summary=summary,
         workflow_id=workflow_id,
+    )
+
+    # And out to whatever the operator wired this bot to. After the row and
+    # after the bell, in its own guard, for the same reason the bell is: a
+    # receiver that is down must not be able to undo something that happened.
+    await bot_event_webhook.post_event(
+        organization_id=organization_id,
+        workflow_id=workflow_id,
+        kind=kind,
+        summary=summary,
+        event_id=event_id,
+        payload=payload or {},
     )
 
 

@@ -26,6 +26,7 @@ from api.db import db_client
 from api.db.models import WebhookDeliveryModel
 from api.tasks.function_names import FunctionNames
 from api.utils.credential_auth import resolve_auth_header
+from api.utils.url_security import validate_user_configured_service_url
 
 # HTTP statuses that are worth retrying even though the server answered.
 _RETRYABLE_STATUS_CODES = {408, 425, 429, 500, 502, 503, 504}
@@ -73,6 +74,39 @@ async def _enqueue_delivery(
     )
 
 
+async def _event_signature_headers(delivery: WebhookDeliveryModel) -> dict:
+    """The signature headers for a bot's own event delivery.
+
+    Signed here, at send time, rather than frozen onto the row: the secret
+    stays out of the delivery record, the same rule the credential auth
+    header above follows, and rotating it takes effect on the next attempt
+    instead of on the next event.
+
+    A delivery for a call-flow node gets nothing from this -- those carry a
+    configured credential instead, and there is no per-bot secret to sign
+    with.
+    """
+    if delivery.workflow_run_id is not None or delivery.workflow_id is None:
+        return {}
+    hook = await db_client.get_bot_event_webhook(
+        delivery.workflow_id, organization_id=delivery.organization_id
+    )
+    if hook is None or not hook.secret:
+        return {}
+
+    from api.services.integrations import bot_event_webhook
+
+    body = bot_event_webhook.body_of(delivery.payload or {})
+    timestamp = str(int(datetime.now(UTC).timestamp()))
+    return {
+        bot_event_webhook.TIMESTAMP_HEADER: timestamp,
+        bot_event_webhook.SIGNATURE_HEADER: bot_event_webhook.sign(
+            hook.secret, timestamp, body
+        ),
+        bot_event_webhook.EVENT_HEADER: str((delivery.payload or {}).get("event", "")),
+    }
+
+
 async def _build_headers(delivery: WebhookDeliveryModel, attempt: int) -> dict:
     """Assemble request headers, re-resolving credential auth at send time so
     secrets are never persisted on the delivery row and rotation is honoured."""
@@ -101,8 +135,10 @@ async def _build_headers(delivery: WebhookDeliveryModel, attempt: int) -> dict:
 
     # Stable idempotency signal so the receiver can dedupe retried deliveries.
     headers["X-Decibyl-Delivery-Id"] = delivery.delivery_uuid
-    headers["X-Decibyl-Workflow-Run-Id"] = str(delivery.workflow_run_id)
+    if delivery.workflow_run_id is not None:
+        headers["X-Decibyl-Workflow-Run-Id"] = str(delivery.workflow_run_id)
     headers["X-Decibyl-Delivery-Attempt"] = str(attempt)
+    headers.update(await _event_signature_headers(delivery))
     return headers
 
 
@@ -156,10 +192,34 @@ async def deliver_webhook(_ctx, delivery_id: int) -> None:
         )
         return
 
-    set_current_run_id(str(delivery.workflow_run_id))
+    if delivery.workflow_run_id is not None:
+        set_current_run_id(str(delivery.workflow_run_id))
     attempt = delivery.attempt_count + 1
     method = (delivery.http_method or "POST").upper()
     timeout = DEFAULT_WEBHOOK_DELIVERY_CONFIG["timeout_seconds"]
+
+    try:
+        # Where this is allowed to point, checked on every attempt.
+        #
+        # The URL is typed by a customer, and nothing checked it before: a
+        # webhook node aimed at 169.254.169.254 or 10.0.0.x made our own
+        # servers fetch our own network and reported the status code back on
+        # the delivery row. Checked here rather than only when it is saved
+        # because a name that resolved to a public address at save time can
+        # be re-pointed afterwards, and the attempt is the moment that
+        # matters. A rejection is permanent, not retried: the answer will not
+        # be different in thirty seconds.
+        validate_user_configured_service_url(
+            delivery.endpoint_url, field_name="Webhook URL"
+        )
+    except ValueError as e:
+        logger.warning(
+            f"Webhook '{delivery.webhook_name}' delivery {delivery.id} refused: {e}"
+        )
+        await db_client.mark_webhook_delivery_dead_letter(
+            delivery.id, attempt, str(e), None
+        )
+        return
 
     try:
         headers = await _build_headers(delivery, attempt)

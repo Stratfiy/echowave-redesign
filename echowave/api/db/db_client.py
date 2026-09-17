@@ -4,6 +4,7 @@ from api.db.agent_task_client import AgentTaskClient
 from api.db.agent_trigger_client import AgentTriggerClient
 from api.db.api_key_client import APIKeyClient
 from api.db.app_interaction_client import AppInteractionClient
+from api.db.bot_event_webhook_client import BotEventWebhookClient
 from api.db.bot_trigger_client import BotTriggerClient
 from api.db.campaign_client import CampaignClient
 from api.db.contact_client import ContactClient
@@ -71,6 +72,7 @@ class DBClient(
     AgentTriggerClient,
     WebhookCredentialClient,
     WebhookDeliveryClient,
+    BotEventWebhookClient,
     ToolClient,
     KnowledgeBaseClient,
     WorkflowRecordingClient,
@@ -97,6 +99,7 @@ class DBClient(
     - AgentTriggerClient: handles agent trigger operations for API-based call triggering
     - WebhookCredentialClient: handles webhook credential operations
     - WebhookDeliveryClient: handles durable outbound webhook delivery records
+    - BotEventWebhookClient: handles where a bot posts its own events
     - ToolClient: handles tool operations for reusable HTTP API tools
     - KnowledgeBaseClient: handles knowledge base document and vector search operations
     - FolderClient: handles folder operations for grouping workflows (agents)
