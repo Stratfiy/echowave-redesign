@@ -628,9 +628,18 @@ async def build_context(organization_id: int, question: str) -> str:
     # comes straight back to the chat gets them without opening any screen.
     try:
         awaiting = await connected_tools.awaiting_setup(organization_id, apps)
+        # Apps connected through their own server. Decibyl cannot call them
+        # and a bot can, so they are named rather than offered -- they were
+        # invisible here, and it denied that a connected app was connected.
+        mcp_servers = [
+            str(t.name)
+            for t in await connected_tools.mcp_for_organization(organization_id)
+            if getattr(t, "name", None)
+        ]
     except Exception as exc:  # noqa: BLE001 - one reading of several
         logger.warning("Decibyl could not check for apps awaiting setup: {}", exc)
         awaiting = []
+        mcp_servers = []
 
     await agent_timeline.record_activity(
         organization_id=organization_id,
@@ -649,7 +658,8 @@ async def build_context(organization_id: int, question: str) -> str:
         f"## What the business has confirmed\n{memory_block(memory_rows)}\n\n"
         f"## Lately\n{recent_block(recent, bot_names)}\n\n"
         f"## Missed calls not returned\n{missed_block(missed)}\n\n"
-        f"## Connected apps\n{connected_tools.apps_block(apps, awaiting)}\n\n"
+        f"## Connected apps\n"
+        f"{connected_tools.apps_block(apps, awaiting, mcp_servers)}\n\n"
         f"## From the knowledge base\n{knowledge_block(knowledge, contacts)}\n\n"
         f"{skills_section(skills, invoked)}"
         f"## Files this account has uploaded\n{documents_block(documents, bot_names)}\n"

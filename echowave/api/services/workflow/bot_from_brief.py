@@ -331,7 +331,12 @@ async def _attach_named_apps(
     and losing the bot over a tool list would be the worse trade.
     """
     try:
-        tools = await connected_tools.list_for_organization(organization_id)
+        # Both kinds: Composio, and the apps connected through their own MCP
+        # server. Only the first was passed here, so a brief naming Zerodha
+        # -- which is not in Composio's catalogue at all -- attached nothing
+        # and the tool had to be put on the node by hand.
+        tools = list(await connected_tools.list_for_organization(organization_id))
+        tools += await connected_tools.mcp_for_organization(organization_id)
         uuids = brief_apps.tool_uuids(spec, tools)
         if uuids:
             logger.info("Built bot gets {} tool(s) from its brief", len(uuids))

@@ -159,6 +159,30 @@ async def list_for_organization(organization_id: int) -> list[Any]:
     return [t for t in rows if is_connected(t)]
 
 
+async def mcp_for_organization(organization_id: int) -> list[Any]:
+    """The organisation's MCP tools: apps connected through their own server.
+
+    A sibling of :func:`list_for_organization` rather than part of it,
+    because the two answer different questions. That one is "what can
+    Decibyl run", and an MCP row is not that -- its execute path is
+    Composio's. This one is "what has the account connected", which is what
+    the bot builder and the context block need, and they need it precisely
+    because leaving MCP out of both is how Decibyl came to deny that a
+    connected app was connected.
+
+    Never raises, for the same reason as its sibling: a workspace whose
+    tools cannot be read is a workspace with no MCP servers this turn.
+    """
+    try:
+        rows = await db_client.get_tools_for_organization(
+            organization_id, status=ToolStatus.ACTIVE.value
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not read MCP tools for org {}: {}", organization_id, exc)
+        return []
+    return [t for t in rows if getattr(t, "category", None) == ToolCategory.MCP.value]
+
+
 def _description(tool: Any, generated: dict[str, Any]) -> str:
     verb = "reads" if is_read(tool) else "proposes a card for"
     app = toolkit_of(tool)
@@ -332,7 +356,11 @@ def _named_lines(tools: list[Any]) -> tuple[list[str], int]:
     return lines, len(tools) - len(keep)
 
 
-def apps_block(tools: list[Any], awaiting: list[str] | None = None) -> str:
+def apps_block(
+    tools: list[Any],
+    awaiting: list[str] | None = None,
+    mcp_servers: list[str] | None = None,
+) -> str:
     """The context line: which apps are connected and, by name, every tool
     they put in Decibyl's hands.
 
@@ -352,6 +380,18 @@ def apps_block(tools: list[Any], awaiting: list[str] | None = None) -> str:
     alternative is what happened: they were invisible here, visible to the
     connect-card path, and Decibyl reported the two as conflicting signals
     to the person who had just connected one.
+
+    ``mcp_servers`` are connected another way entirely: an MCP tool pointing
+    at somebody's server, which is how an app outside Composio's catalogue
+    gets in at all. Zerodha is one, and it was invisible here because
+    :func:`list_for_organization` keeps only what :func:`is_connected`
+    admits, and that is Composio. So Decibyl told a person Zerodha "isn't an
+    app I can connect from here" with a working Kite tool on the account.
+
+    Named, but never as one of Decibyl's own tools: Decibyl's execute path
+    is Composio's and it cannot call an MCP server. A bot can. Saying so is
+    the honest version -- offering it would be this same bug pointed the
+    other way, which is the one thing this block exists to stop.
     """
     # A row whose name cannot be turned into a function name is a row the
     # model was never going to be offered either (see :func:`schemas`), and
@@ -383,7 +423,22 @@ def apps_block(tools: list[Any], awaiting: list[str] | None = None) -> str:
         "connect card goes on the thread. Never tell anybody to go to the "
         "Marketplace."
     )
+    # Connected, not runnable from here. Its own sentence, because the model
+    # must be able to say the app is connected without ever reaching for it.
+    by_a_bot = ""
+    if mcp_servers:
+        names = ", ".join(sorted(mcp_servers))
+        by_a_bot = (
+            f" {names} {'is' if len(mcp_servers) == 1 else 'are'} connected "
+            "through its own server. You cannot call it yourself, and a bot "
+            "built with it can. Say it is connected and offer to build or "
+            "change a bot that uses it; never say it is not connected here, "
+            "and never offer a connect card for it."
+        )
+
     if not apps:
+        if by_a_bot:
+            return f"No Composio app is connected.{by_a_bot} {offer}"
         if pending:
             return f"No app is usable yet.{pending} {offer}"
         return f"No apps connected. {offer}"
@@ -405,7 +460,7 @@ def apps_block(tools: list[Any], awaiting: list[str] | None = None) -> str:
         f"something proposes a card first. {scope}\n"
         + "\n".join(lines)
         + "\n"
-        + " ".join(part for part in (pending.strip(), offer) if part)
+        + " ".join(part for part in (by_a_bot.strip(), pending.strip(), offer) if part)
     )
 
 
