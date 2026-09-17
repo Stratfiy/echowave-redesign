@@ -7,7 +7,7 @@ from sqlalchemy import select, tuple_, update
 
 from api.db.base_client import BaseDBClient
 from api.db.models import AgentEventModel
-from api.enums import AgentEventVisibility
+from api.enums import AgentEventKind, AgentEventVisibility
 
 #: The summary column's width. Truncated rather than refused: a sentence a
 #: little too long is a row that still reads, and a rejected insert is a hole
@@ -31,6 +31,7 @@ class AgentEventClient(BaseDBClient):
         is_deliverable: bool = False,
         visibility: str = AgentEventVisibility.ALWAYS.value,
         at: Optional[datetime] = None,
+        thread_id: Optional[str] = None,
     ) -> None:
         """Append one event.
 
@@ -54,6 +55,7 @@ class AgentEventClient(BaseDBClient):
                     payload=payload or {},
                     is_deliverable=is_deliverable,
                     visibility=visibility,
+                    thread_id=thread_id,
                 )
             )
             await session.commit()
@@ -211,6 +213,76 @@ class AgentEventClient(BaseDBClient):
         async with self.async_session() as session:
             result = await session.execute(query.limit(max(1, min(limit, 500))))
             return list(result.scalars().all())
+
+    async def assistant_threads(
+        self, *, organization_id: int, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        """Decibyl's conversations, most recently spoken in first.
+
+        A thread is not a row anywhere -- it is the id a set of events share
+        -- so the list is derived from the events themselves. That is the
+        whole reason there is no create-thread call: a new chat exists the
+        moment its first message is written, and an id nobody ever wrote to
+        is not a conversation anybody would want listed.
+
+        The NULL group is the thread every account has always had. It is a
+        row in this list like any other, because "older chats" that cannot
+        show the only chat that existed before threads would be a list that
+        hides the one conversation everybody has.
+
+        Messages only. An activity line and a proposed card belong to a turn
+        that began with somebody speaking, so counting them would make
+        "4 messages" mean something nobody said, and taking a title from one
+        would head a chat with "Read 3 passages". The first message is the
+        title because it is what the person came in asking for.
+
+        Two queries, not a window function. The aggregate gives the group and
+        the id of its first message; the second reads those rows for a title.
+        A window over the whole table to carry one summary through would scan
+        rows this cannot use.
+        """
+        from sqlalchemy import func
+
+        grouped = (
+            select(
+                AgentEventModel.thread_id.label("thread_id"),
+                func.max(AgentEventModel.at).label("last_at"),
+                func.count().label("messages"),
+                func.min(AgentEventModel.id).label("first_id"),
+            )
+            .where(
+                AgentEventModel.organization_id == organization_id,
+                AgentEventModel.workflow_id.is_(None),
+                AgentEventModel.folder_id.is_(None),
+                AgentEventModel.kind == AgentEventKind.MESSAGE.value,
+                AgentEventModel.visibility == AgentEventVisibility.ALWAYS.value,
+            )
+            .group_by(AgentEventModel.thread_id)
+            .order_by(func.max(AgentEventModel.at).desc())
+            .limit(max(1, min(limit, 200)))
+        )
+
+        async with self.async_session() as session:
+            rows = list((await session.execute(grouped)).all())
+            first_ids = [r.first_id for r in rows if r.first_id is not None]
+            titles: dict[int, str] = {}
+            if first_ids:
+                opening = await session.execute(
+                    select(AgentEventModel.id, AgentEventModel.summary).where(
+                        AgentEventModel.id.in_(first_ids)
+                    )
+                )
+                titles = {i: (t or "") for i, t in opening.all()}
+
+        return [
+            {
+                "thread_id": r.thread_id,
+                "last_at": r.last_at,
+                "messages": int(r.messages or 0),
+                "title": titles.get(r.first_id, ""),
+            }
+            for r in rows
+        ]
 
     async def latest_event_per_workflow(
         self, *, organization_id: int, workflow_ids: Sequence[int]

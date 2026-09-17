@@ -265,6 +265,7 @@ async def answer_decibyl_message(
     author_id: int | None = None,
     attachments: list[dict] | None = None,
     attempt: int = 0,
+    thread_id: str | None = None,
 ) -> None:
     """Decibyl's turn on its own thread. See services/workflow/decibyl.py.
     ``reply_to`` sends the answer back on the channel it came from too.
@@ -297,6 +298,7 @@ async def answer_decibyl_message(
                 author_id=author_id,
                 attachments=attachments,
                 attempt=attempt + 1,
+                thread_id=thread_id,
                 _defer_by=timedelta(seconds=decibyl.UNREAD_RETRY_SECONDS),
             )
         except Exception as exc:  # noqa: BLE001
@@ -323,6 +325,7 @@ async def answer_decibyl_message(
         # telling the model to promise a follow-up. A promise made on the
         # way out is the one nobody keeps.
         last_try=bool(pending) and attempt >= decibyl.UNREAD_RETRIES,
+        thread_id=thread_id,
     )
     if reply_to and reply_to.get("channel") == "whatsapp" and reply_to.get("to"):
         from api.services.messaging import whatsapp_inbound

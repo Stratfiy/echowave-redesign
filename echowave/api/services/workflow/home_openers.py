@@ -187,11 +187,20 @@ def build(
 
 
 async def recent_questions(organization_id: int) -> list[str]:
-    """The person's own lines to Decibyl, newest first, distinct."""
+    """The person's own lines to Decibyl, newest first, distinct.
+
+    From the conversation being spoken in, when there is one: inside a turn
+    the thread is set and these are the questions asked in that chat, and
+    outside one -- the home screen -- it is the original thread, exactly as
+    before threads existed.
+    """
+    from api.services.workflow import agent_timeline
+
     try:
         rows = await db_client.agent_events(
             organization_id=organization_id,
             assistant_thread=True,
+            thread_id=agent_timeline.current_thread(),
             kinds=[AgentEventKind.MESSAGE.value],
             limit=QUESTIONS_READ,
         )

@@ -485,19 +485,30 @@ def _is_same_proposal(row: Any, payload: dict[str, Any]) -> bool:
 
 
 async def _already_proposed(
-    *, organization_id: int, workflow_id: int | None, payload: dict[str, Any]
+    *,
+    organization_id: int,
+    workflow_id: int | None,
+    payload: dict[str, Any],
+    in_channel: bool = True,
 ) -> Optional[Any]:
     """The card already waiting for this exact act, if there is one.
 
     Scoped to the recent end of the thread rather than all of history: a
     proposal from last week that nobody ever settled should not silently
     swallow today's ask.
+
+    And to the thread it would be written on. "One ask, one card" is about
+    one conversation: a card waiting in another chat must not swallow the
+    ask made here, which is a card somebody asked for and never got.
     """
+    assistant = workflow_id is None and not in_channel
     rows = await db_client.agent_events(
         organization_id=organization_id,
         workflow_id=workflow_id,
         kinds=[AgentEventKind.ACTION_PROPOSED.value],
         limit=DUPLICATE_WINDOW,
+        assistant_thread=assistant,
+        thread_id=agent_timeline.current_thread() if assistant else None,
     )
     for row in rows or []:
         if _is_same_proposal(row, payload):
@@ -540,6 +551,7 @@ async def propose(
             organization_id=organization_id,
             workflow_id=workflow_id,
             payload=payload,
+            in_channel=in_channel,
         )
     except Exception as exc:  # noqa: BLE001 - see above
         logger.warning("Could not check for a duplicate proposal: {}", exc)

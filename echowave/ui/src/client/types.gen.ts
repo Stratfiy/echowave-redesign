@@ -8769,6 +8769,10 @@ export type PostMessageRequest = {
      * Preset
      */
     preset?: string | null;
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
 };
 
 /**
@@ -11673,6 +11677,38 @@ export type ThreadChipsResponse = {
      * Chips
      */
     chips: Array<ThreadChip>;
+};
+
+/**
+ * ThreadSummary
+ */
+export type ThreadSummary = {
+    /**
+     * Thread Id
+     */
+    thread_id: string | null;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Last At
+     */
+    last_at: string;
+    /**
+     * Messages
+     */
+    messages: number;
+};
+
+/**
+ * ThreadsResponse
+ */
+export type ThreadsResponse = {
+    /**
+     * Threads
+     */
+    threads: Array<ThreadSummary>;
 };
 
 /**
@@ -28102,6 +28138,10 @@ export type TimelineApiV1TimelineGetData = {
          */
         assistant?: boolean;
         /**
+         * Thread Id
+         */
+        thread_id?: string | null;
+        /**
          * Kinds
          */
         kinds?: Array<string> | null;
@@ -28221,6 +28261,10 @@ export type MemoryApiV1TimelineMemoryGetData = {
          * Assistant
          */
         assistant?: boolean;
+        /**
+         * Thread Id
+         */
+        thread_id?: string | null;
     };
     url: '/api/v1/timeline/memory';
 };
@@ -28246,6 +28290,50 @@ export type MemoryApiV1TimelineMemoryGetResponses = {
 };
 
 export type MemoryApiV1TimelineMemoryGetResponse = MemoryApiV1TimelineMemoryGetResponses[keyof MemoryApiV1TimelineMemoryGetResponses];
+
+export type ThreadsApiV1TimelineThreadsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/timeline/threads';
+};
+
+export type ThreadsApiV1TimelineThreadsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ThreadsApiV1TimelineThreadsGetError = ThreadsApiV1TimelineThreadsGetErrors[keyof ThreadsApiV1TimelineThreadsGetErrors];
+
+export type ThreadsApiV1TimelineThreadsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ThreadsResponse;
+};
+
+export type ThreadsApiV1TimelineThreadsGetResponse = ThreadsApiV1TimelineThreadsGetResponses[keyof ThreadsApiV1TimelineThreadsGetResponses];
 
 export type PostMessageApiV1TimelineMessagePostData = {
     body: PostMessageRequest;

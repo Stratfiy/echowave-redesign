@@ -138,6 +138,7 @@ async def usage(
     workflow_id: Optional[int] = None,
     folder_id: Optional[int] = None,
     assistant: bool = False,
+    thread_id: Optional[str] = None,
 ) -> Usage:
     """What the meter shows for one chat: kept, out of the budget.
 
@@ -149,7 +150,11 @@ async def usage(
     plan = await budget(organization_id)
     filters: dict[str, Any] = {"kinds": [AgentEventKind.MESSAGE.value]}
     if assistant:
+        # The meter is for the chat on screen, so one conversation's rows and
+        # not every conversation's: a second chat must not make the first one
+        # look full.
         filters["assistant_thread"] = True
+        filters["thread_id"] = thread_id
     elif workflow_id is not None:
         filters["workflow_id"] = workflow_id
     elif folder_id is not None:

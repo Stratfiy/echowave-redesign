@@ -27,7 +27,9 @@ is the same lie in a new place.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Any, Iterator, Optional
 
 from loguru import logger
 
@@ -59,6 +61,36 @@ DELIVERABLE_KINDS = frozenset(
 ON_REQUEST_KINDS = frozenset({AgentEventKind.CALLER_WANTED.value})
 
 
+#: Which of Decibyl's conversations the current turn is speaking in.
+#:
+#: A turn writes to the timeline from a dozen places -- the line itself, an
+#: activity line per tool, a proposed card, a failure -- and threading an id
+#: through all of them by hand means the next writer somebody adds lands in
+#: the wrong conversation, silently and only for the person who started a
+#: second chat. A context variable is set once at the entry point and every
+#: writer inside that turn is right by default, including the ones not
+#: written yet.
+#:
+#: Set per turn, never globally: each arq job and each request runs in its own
+#: task, which copies the context, so one turn cannot see another's thread.
+_THREAD: ContextVar[Optional[str]] = ContextVar("decibyl_thread", default=None)
+
+
+@contextmanager
+def in_thread(thread_id: Optional[str]) -> Iterator[None]:
+    """Everything recorded inside this block belongs to ``thread_id``."""
+    token = _THREAD.set(thread_id)
+    try:
+        yield
+    finally:
+        _THREAD.reset(token)
+
+
+def current_thread() -> Optional[str]:
+    """The thread of the turn being served, or None for the original one."""
+    return _THREAD.get()
+
+
 def default_visibility(kind: str) -> str:
     """Where a kind sits by default, before an organisation's own settings."""
     if kind in ON_REQUEST_KINDS:
@@ -80,6 +112,7 @@ async def record(
     visibility: Optional[str] = None,
     is_deliverable: Optional[bool] = None,
     in_channel: bool = True,
+    thread_id: Optional[str] = None,
 ) -> None:
     """Write one line. Silent on failure, by design -- see the module docstring.
 
@@ -109,6 +142,14 @@ async def record(
         if in_channel and folder_id is None and workflow_id is not None:
             folder_id = await _folder_for(workflow_id, organization_id)
 
+        # A thread only means anything on Decibyl's own timeline, which is
+        # the rows with neither a bot nor a channel. A bot's own history is
+        # not a chat somebody starts a second of, so stamping one there would
+        # put an id on a row nothing ever reads it from.
+        thread = thread_id if thread_id is not None else current_thread()
+        if workflow_id is not None or folder_id is not None:
+            thread = None
+
         await db_client.record_agent_event(
             organization_id=organization_id,
             kind=kind,
@@ -123,6 +164,7 @@ async def record(
                 kind in DELIVERABLE_KINDS if is_deliverable is None else is_deliverable
             ),
             visibility=visibility or default_visibility(kind),
+            thread_id=thread,
         )
     except Exception as exc:  # noqa: BLE001 - a timeline must never end a call
         logger.warning("Could not record agent event {}: {}", kind, exc)
@@ -351,6 +393,7 @@ async def record_activity(
     workflow_run_id: Optional[int] = None,
     payload: Optional[dict[str, Any]] = None,
     in_channel: bool = True,
+    thread_id: Optional[str] = None,
 ) -> None:
     """One muted line for something a bot read or checked.
 
@@ -366,6 +409,7 @@ async def record_activity(
         workflow_run_id=workflow_run_id,
         payload=payload or {},
         in_channel=in_channel,
+        thread_id=thread_id,
     )
 
 
