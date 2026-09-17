@@ -22,9 +22,17 @@ from api.services.workflow import agent_timeline
 
 
 class TestTheShape:
-    def test_four_read_paths_are_each_indexed(self):
+    def test_every_read_path_is_indexed(self):
         """A screen per filter, and every one orders by time descending. An
-        unindexed path re-sorts a clinic's whole history to show twenty rows."""
+        unindexed path re-sorts a clinic's whole history to show twenty rows.
+
+        The exact set is asserted rather than a subset, which is why adding a
+        read path fails here first: an index nobody meant to add is a write
+        cost on every event, and a read path added without one is the bug
+        this test exists to catch. The thread index is the newest --
+        Decibyl's conversation can be more than one now, and "this account's
+        rows in this thread, newest first" is its own read.
+        """
         names = {index.name for index in AgentEventModel.__table__.indexes}
         assert names == {
             "ix_agent_events_org_at",
@@ -32,6 +40,7 @@ class TestTheShape:
             "ix_agent_events_run_at",
             "ix_agent_events_folder_at",
             "ix_agent_events_org_deliverables",
+            "ix_agent_events_org_thread_at",
         }
 
     def test_the_tenant_column_is_not_nullable(self):
