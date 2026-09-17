@@ -222,12 +222,17 @@ async def ask(
     line: str,
     preset: str | None,
     reply_to: dict[str, Any] | None = None,
+    thread_id: str | None = None,
 ) -> list[int]:
     """Record the person's line, hand off any mentions, queue the reply.
 
     Returns the bots the line was handed to. ``reply_to`` names a channel
     the answer should also go back on -- a person who wrote on WhatsApp
     reads the answer there, as well as on the thread.
+
+    ``thread_id`` is which conversation this was said in. None is the one
+    the account has always had, so a client that knows nothing about threads
+    keeps writing where it always wrote.
     """
     workflows = await db_client.get_all_workflows_for_listing(
         organization_id=organization_id
@@ -259,6 +264,7 @@ async def ask(
             "via": (reply_to or {}).get("channel"),
         },
         in_channel=False,
+        thread_id=thread_id,
     )
 
     from api.tasks.arq import enqueue_job
@@ -281,6 +287,7 @@ async def ask(
                 summary=f"Asked {names.get(mention.workflow_id, 'a bot')}",
                 payload={"from": NAME, "asked": mention.workflow_id},
                 in_channel=False,
+                thread_id=thread_id,
             )
         except Exception as exc:  # noqa: BLE001 - one bot failing is not all
             logger.error(
@@ -299,6 +306,9 @@ async def ask(
             reply_to,
             user_id,
             attachments,
+            # By name, so the reply cannot land in the wrong chat if an
+            # argument is ever added ahead of it.
+            thread_id=thread_id,
         )
     except Exception as exc:  # noqa: BLE001 - said out loud below
         logger.error("Decibyl could not be asked to answer: {}", exc)
@@ -307,6 +317,7 @@ async def ask(
             kind=AgentEventKind.COULD_NOT.value,
             summary=f"{NAME} could not be reached to answer that",
             in_channel=False,
+            thread_id=thread_id,
         )
     return asked
 
@@ -705,7 +716,9 @@ def missed_block(rows: list[Any]) -> str:
     return "\n".join(lines)
 
 
-async def _history(organization_id: int) -> list[dict[str, str]]:
+async def _history(
+    organization_id: int, thread_id: str | None = None
+) -> list[dict[str, str]]:
     """The last turns of the thread, oldest first, as chat messages.
 
     As many as the account's memory holds (chat_memory): the window is
@@ -716,6 +729,7 @@ async def _history(organization_id: int) -> list[dict[str, str]]:
     rows = await db_client.agent_events(
         organization_id=organization_id,
         limit=chat_memory.MAX_ROWS,
+        thread_id=thread_id,
         **thread_filter(),
     )
     newest_first: list[tuple[str, str]] = []
@@ -749,6 +763,7 @@ async def answer(
     author_id: int | None = None,
     attachments: list[dict[str, Any]] | None = None,
     last_try: bool = False,
+    thread_id: str | None = None,
 ) -> str:
     """Compose the context, call the model, record the reply. Returns it.
 
@@ -764,6 +779,37 @@ async def answer(
     their steps join the context so an edit can name a real step, and the
     templates join it so a build can name a real template.
     """
+    # Every row this turn writes -- the activity lines from the context, a
+    # card a tool proposes, the reply itself -- belongs to the conversation
+    # it was asked in. Set once here rather than passed down through each
+    # writer; see agent_timeline.in_thread for why.
+    with agent_timeline.in_thread(thread_id):
+        return await _answer(
+            organization_id,
+            text,
+            asked=asked,
+            preset=preset,
+            subjects=subjects,
+            author_id=author_id,
+            attachments=attachments,
+            last_try=last_try,
+            thread_id=thread_id,
+        )
+
+
+async def _answer(
+    organization_id: int,
+    text: str,
+    *,
+    asked: list[int] | None,
+    preset: str | None,
+    subjects: list[int] | None,
+    author_id: int | None,
+    attachments: list[dict[str, Any]] | None,
+    last_try: bool,
+    thread_id: str | None,
+) -> str:
+    """The turn itself, inside the thread its caller set."""
     from api.services.agent_builder import client, settings
 
     context = await build_context(organization_id, text)
@@ -784,7 +830,7 @@ async def answer(
             )
 
     conversation = client.Conversation()
-    history = await _history(organization_id)
+    history = await _history(organization_id, thread_id)
     # The line just recorded is the last user turn in history; drop it so it
     # is not sent twice, and add it once with the context in front.
     if history and history[-1]["role"] == "user":

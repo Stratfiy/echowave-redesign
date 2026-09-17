@@ -156,6 +156,10 @@ async def timeline(
     workflow_run_id: Annotated[Optional[int], Query()] = None,
     folder_id: Annotated[Optional[int], Query()] = None,
     assistant: Annotated[bool, Query()] = False,
+    #: Which of Decibyl's conversations, with ``assistant``. Omitted is the
+    #: thread the account has always had, so a client that knows nothing
+    #: about threads reads what it always read.
+    thread_id: Annotated[Optional[str], Query(max_length=36)] = None,
     kinds: Annotated[Optional[list[str]], Query()] = None,
     deliverables_only: Annotated[bool, Query()] = False,
     include_transcripts: Annotated[bool, Query()] = False,
@@ -206,6 +210,7 @@ async def timeline(
         folder_id=folder_id,
         kinds=(kinds or None) if not assistant else decibyl.thread_filter()["kinds"],
         assistant_thread=assistant,
+        thread_id=thread_id if assistant else None,
         deliverables_only=deliverables_only,
         include_on_request=include_transcripts,
         limit=limit,
@@ -267,6 +272,10 @@ class PostMessageRequest(BaseModel):
     #: or a catalogue model (``model:openai/gpt-5``), or nothing for the
     #: bot's own. See chat_presets.
     preset: Optional[str] = Field(default=None, max_length=96)
+    #: With ``assistant``: which of Decibyl's conversations this is said in.
+    #: Any id the client mints; the thread exists from its first message.
+    #: Null is the original thread.
+    thread_id: Optional[str] = Field(default=None, max_length=36)
 
 
 class PostMessageResponse(BaseModel):
@@ -345,6 +354,7 @@ async def memory(
     workflow_id: Annotated[Optional[int], Query()] = None,
     folder_id: Annotated[Optional[int], Query()] = None,
     assistant: Annotated[bool, Query()] = False,
+    thread_id: Annotated[Optional[str], Query(max_length=36)] = None,
     user: UserModel = Depends(get_user),
 ) -> ChatMemoryResponse:
     """The meter beside the composer: what this chat keeps in mind, out of
@@ -365,8 +375,47 @@ async def memory(
         workflow_id=workflow_id,
         folder_id=folder_id,
         assistant=assistant,
+        thread_id=thread_id if assistant else None,
     )
     return ChatMemoryResponse(**usage.as_dict())
+
+
+class ThreadSummary(BaseModel):
+    #: Null for the conversation the account has always had -- the rows
+    #: written before threads existed. It is a thread like any other here.
+    thread_id: Optional[str]
+    #: The first thing said in it, which is what somebody recognises a chat
+    #: by. Empty only for a thread whose opening line was somehow blank.
+    title: str
+    last_at: datetime
+    messages: int
+
+
+class ThreadsResponse(BaseModel):
+    threads: list[ThreadSummary]
+
+
+@router.get("/threads", response_model=ThreadsResponse)
+async def threads(
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    user: UserModel = Depends(get_user),
+) -> ThreadsResponse:
+    """Decibyl's conversations, for the list under the composer.
+
+    There is no matching create call, and that is the design rather than a
+    gap: a thread is the id its events share, so a new chat is a new id the
+    client mints and starts writing to. An endpoint that recorded one before
+    anything was said would leave empty chats in this list every time
+    somebody pressed New and changed their mind.
+    """
+    organization_id = user.selected_organization_id
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    rows = await db_client.assistant_threads(
+        organization_id=organization_id, limit=limit
+    )
+    return ThreadsResponse(threads=[ThreadSummary(**row) for row in rows])
 
 
 @router.post("/message", response_model=PostMessageResponse)
@@ -410,6 +459,7 @@ async def post_message(
             attachments=attachments,
             line=line,
             preset=preset,
+            thread_id=body.thread_id,
         )
         return PostMessageResponse(asked=asked, unknown=[], ambiguous=[])
 
