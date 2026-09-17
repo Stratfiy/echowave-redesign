@@ -1,5 +1,6 @@
 import {
   Bot,
+  CalendarClock,
   ChartColumnBig,
   ClipboardCheck,
   ContactRound,
@@ -144,12 +145,22 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       // properties of an agent, chosen on its Models tab. The workspace
       // default is a setting, under Settings → Model defaults.
       {
-        // The office's board: what the bots and the team have been handed and
-        // what came of it. One list for people and bots alike (KAN-140 P1).
+        // What runs on its own: the schedules, across every bot. "Tasks"
+        // means the scheduled ones now, so the word has one meaning.
         title: "Tasks",
         url: "/tasks",
+        icon: CalendarClock,
+        keywords: ["tasks", "scheduled", "routine", "schedule", "every morning", "daily"],
+      },
+      {
+        // The office's board: what the bots and the team have been handed and
+        // what came of it. One list for people and bots alike (KAN-140 P1).
+        // Was "Tasks"; renamed so it does not share a word with the
+        // schedules, which are a different thing entirely.
+        title: "Requests",
+        url: "/requests",
         icon: ClipboardCheck,
-        keywords: ["tasks", "board", "kanban", "delegate", "hand-off", "todo"],
+        keywords: ["requests", "board", "kanban", "delegate", "hand-off", "todo", "tasks"],
       },
       {
         // "Bots", not "Team", and not because "Team" was unfriendly.
@@ -547,7 +558,7 @@ export const NAV_CONTEXTS: NavContext[] = [
     icon: Home,
     // The bots are listed under Home by SidebarBots, which reads the roster
     // rather than this list — this is the door to all of them.
-    urls: ["/overview", "/workflow", "/tasks"],
+    urls: ["/overview", "/workflow", "/tasks", "/requests"],
   },
   {
     id: "activity",

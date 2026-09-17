@@ -58,6 +58,12 @@ class RoutineResponse(BaseModel):
     disagree with the tick.
     """
 
+    #: The bot this runs, for the account-wide listing where the rows come
+    #: from many bots. None when the bot is gone: a routine outlives its bot
+    #: for as long as it takes somebody to notice, and one orphan must not
+    #: take the whole screen down with it.
+    workflow_name: Optional[str] = None
+
     id: int
     workflow_id: int
     name: str

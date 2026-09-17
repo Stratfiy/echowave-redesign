@@ -52,6 +52,7 @@ from api.routes.public_triggers import router as public_triggers_router
 from api.routes.public_whatsapp import router as public_whatsapp_router
 from api.routes.referrals import router as referrals_router
 from api.routes.reports import router as reports_router
+from api.routes.routines import all_router as all_routines_router
 from api.routes.routines import router as routines_router
 from api.routes.s3_signed_url import router as s3_router
 from api.routes.service_keys import router as service_keys_router
@@ -118,6 +119,7 @@ router.include_router(campaign_router)
 router.include_router(credentials_router)
 router.include_router(connectors_router)
 router.include_router(routines_router)
+router.include_router(all_routines_router)
 router.include_router(bot_triggers_router)
 router.include_router(skills_router)
 router.include_router(tasks_router)

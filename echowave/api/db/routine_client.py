@@ -52,6 +52,28 @@ class RoutineClient(BaseDBClient):
             )
             return result.scalars().all()
 
+    async def routines_for_organization(
+        self, *, organization_id: int
+    ) -> Sequence[AgentRoutineModel]:
+        """Every routine this account has, across every bot.
+
+        Routines are otherwise only reachable one bot at a time, which
+        answers "what does this bot do" and never "what runs tomorrow
+        morning" -- the question somebody actually has, and the one that
+        needs no knowledge of which bots to look inside.
+
+        Org-scoped in the query rather than filtered after, for the reason
+        ``get_routine`` is: the caller's organisation is what decides the
+        rows, not something checked once they are already in hand.
+        """
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(AgentRoutineModel)
+                .where(AgentRoutineModel.organization_id == organization_id)
+                .order_by(AgentRoutineModel.id)
+            )
+            return result.scalars().all()
+
     async def get_routine(
         self, routine_id: int, *, organization_id: int
     ) -> Optional[AgentRoutineModel]:
