@@ -977,8 +977,14 @@ class CustomToolManager:
                     timeout_secs=_composio_timeout_secs(config),
                 )
                 # A response past about 6,000 tokens is stored on the run and
-                # the model gets a preview (Step 20); a script reads the rest.
+                # the model gets a preview (Step 20). What the preview may
+                # advise depends on the plan: only some accounts are offered
+                # the script tool that reads the stored copy, and a preview
+                # naming it to an account that is not is the context lying
+                # about the drawer again.
                 if organization_id:
+                    from api.services.sandbox import code_mode
+
                     context = await self._interaction_context()
                     result = await spill.spill_if_large(
                         result,
@@ -989,6 +995,7 @@ class CustomToolManager:
                             getattr(function_call_params, "tool_call_id", None)
                             or function_name
                         ),
+                        can_run_scripts=await code_mode.allowed(int(organization_id)),
                     )
                 await function_call_params.result_callback(result)
                 # One credit a call, three on a premium connector (KAN-56),

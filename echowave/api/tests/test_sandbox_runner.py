@@ -344,7 +344,15 @@ class TestLargeResponses:
         ]
         result = {"status": "success", "data": {"rows": rows}}
         assert spill.is_large(result)
-        shown = spill.preview(result["data"], stored_as="sandbox/7/1/app_x-c1.json")
+        # can_run_scripts is explicit now: the preview only names
+        # tools.spilled to a caller that is actually offered the script tool,
+        # and inside the sandbox it is. The default is False, so an account
+        # on a plan without scripts is not told to use one.
+        shown = spill.preview(
+            result["data"],
+            stored_as="sandbox/7/1/app_x-c1.json",
+            can_run_scripts=True,
+        )
         assert shown["rows"] == 400 and len(shown["first"]) == spill.PREVIEW_ITEMS
         assert shown["spilled"] is True and "tools.spilled" in shown["note"]
 

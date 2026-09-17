@@ -468,12 +468,15 @@ async def execute(
     # A large read is stored and previewed rather than truncated (Step 20),
     # so nothing is lost and a script can work through the whole of it.
     if spill.is_large(result):
+        from api.services.sandbox import code_mode
+
         return await spill.spill_if_large(
             result,
             organization_id=organization_id,
             run_id=None,
             name=function_name(tool),
             call_id=ref_id.rsplit(":", 1)[-1],
+            can_run_scripts=await code_mode.allowed(organization_id),
         )
     return _bounded(result)
 
