@@ -30,6 +30,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from api.enums import ToolCategory
 from api.services.workflow import connected_tools, unattended
 
 #: How many tools one brief may attach. A bot handed thirty tools chooses
@@ -73,6 +74,36 @@ WANTED_WRITE_VERBS: tuple[str, ...] = (
 #: one-node bot does its work there, and the routine runner's first turn is
 #: that node -- miss it and a simple bot has its tools nowhere it can reach.
 CALLING_NODES = frozenset({"startCall", "agentNode"})
+
+
+def mcp_tool_uuids(spec: str, tools: list[Any]) -> list[str]:
+    """MCP servers this brief names, matched on the tool's own name.
+
+    Composio is not the only way an app reaches a bot. Zerodha is not in
+    Composio's catalogue at all, so Kite arrives as an MCP tool pointing at
+    its hosted server -- and this module, which matches toolkit slugs, could
+    not see it. A brief saying "Zerodha" attached nothing, and the tool had
+    to be put on the node by hand.
+
+    Matched on the tool's name because an MCP row has no toolkit slug: what
+    the operator called it is the only word the brief and the tool share.
+    Each word of the name is tried, so "Zerodha Kite" is found by either
+    half, and whole words only -- a bot for kiteboarding lessons is not a
+    brokerage.
+    """
+    text = (spec or "").lower()
+    if not text:
+        return []
+    found: list[str] = []
+    for tool in tools:
+        if getattr(tool, "category", None) != ToolCategory.MCP.value:
+            continue
+        words = [w for w in re.split(r"[^a-z0-9]+", str(tool.name or "").lower()) if w]
+        if any(
+            re.search(rf"(?<![a-z0-9]){re.escape(w)}(?![a-z0-9])", text) for w in words
+        ):
+            found.append(tool.tool_uuid)
+    return found
 
 
 def named(spec: str, tools: list[Any]) -> set[str]:
@@ -202,7 +233,14 @@ def tool_uuids(spec: str, tools: list[Any]) -> list[str]:
     # Whatever one side left unused, the other may take.
     keep_writes = min(len(writes), MAX_TOOLS - keep_reads)
 
-    return reads[:keep_reads] + _with_a_draft(writes[:keep_writes], writes, tools)
+    # An MCP server the brief names comes too, and is not counted against
+    # the read/write slots: those divide up one app's Composio surface, and
+    # an MCP row is a whole server the operator connected on purpose.
+    return (
+        mcp_tool_uuids(spec, tools)
+        + reads[:keep_reads]
+        + _with_a_draft(writes[:keep_writes], writes, tools)
+    )
 
 
 def attach(definition: dict[str, Any], tool_uuids: list[str]) -> dict[str, Any]:
@@ -229,6 +267,7 @@ def attach(definition: dict[str, Any], tool_uuids: list[str]) -> dict[str, Any]:
 
 __all__ = [
     "CALLING_NODES",
+    "mcp_tool_uuids",
     "MAX_TOOLS",
     "WRITE_SLOTS",
     "attach",
