@@ -48,7 +48,7 @@ async def _reword(arguments, *, workflow=_DEFAULT):
         patch.object(
             tools.db_client,
             "get_workflow",
-            AsyncMock(return_value=workflow if workflow is not None else _workflow()),
+            AsyncMock(return_value=_workflow() if workflow is _DEFAULT else workflow),
         ) as get,
         patch.object(tools.db_client, "update_workflow", AsyncMock()) as update,
         patch.object(
