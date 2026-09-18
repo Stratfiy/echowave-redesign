@@ -40,6 +40,9 @@ class TestTheWallsItNames:
         found = wall(payload={"reason": "no_quota"})
         assert found.reason == "no_quota"
         assert "credit" in found.says
+        # Every writer of this reason refuses the run before it starts.
+        assert "part-way" not in found.says
+        assert "did not start" in found.says
         assert any("/billing" == w.href for w in found.ways)
 
     def test_out_of_credit_does_not_read_as_broken(self):
