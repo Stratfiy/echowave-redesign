@@ -84,3 +84,24 @@ describe("chat, then the definition", () => {
         expect(AGENT_TABS.map((tab) => tab.label as string)).not.toContain("Graph");
     });
 });
+
+
+describe("reporting and configuring are different tabs", () => {
+    it("offers Analytics, and does not call anything else Analysis", () => {
+        // Two words one letter apart, a centimetre apart, for a screen that
+        // reports what happened and a screen that configures how calls are
+        // judged. The second is Quality.
+        const labels = AGENT_TABS.map((tab) => tab.label as string);
+        expect(labels).toContain("Analytics");
+        expect(labels).not.toContain("Analysis");
+    });
+
+    it("keeps the settings tab's id so existing links still land", () => {
+        // ?tab=analysis is in links and bookmarks. Renaming the label is a
+        // rename; renaming the id would be a broken link.
+        const quality = AGENT_TABS.find((tab) => tab.label === "Quality");
+        expect(quality && "settingsTab" in quality && quality.settingsTab).toBe(
+            "analysis",
+        );
+    });
+});

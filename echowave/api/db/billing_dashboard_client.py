@@ -1847,6 +1847,7 @@ async def call_analytics(
     start: date,
     end: date,
     organization_id: int | None = None,
+    workflow_id: int | None = None,
 ) -> dict:
     """The shape of an account's calls: outcome, direction, length, hour, agent.
 
@@ -1868,6 +1869,11 @@ async def call_analytics(
     ]
     if organization_id is not None:
         conditions.append(WorkflowModel.organization_id == organization_id)
+    # One bot's own numbers, for its own screen. The organisation condition
+    # stays on regardless: this id arrives from a URL, and scoping by it alone
+    # would answer for somebody else's bot.
+    if workflow_id is not None:
+        conditions.append(WorkflowRunModel.workflow_id == workflow_id)
 
     def _scoped(*columns):
         return (
@@ -2019,6 +2025,132 @@ async def call_analytics(
         "by_duration": by_duration,
         "by_hour": by_hour,
         "by_agent": by_agent,
+    }
+
+
+async def bot_daily(
+    session: AsyncSession,
+    *,
+    start: date,
+    end: date,
+    organization_id: int,
+    workflow_id: int,
+) -> list[dict]:
+    """One bot's runs per day, zero-filled across the range.
+
+    Deliberately *not* served from ``daily_organization_rollup`` the way
+    :func:`daily_series` is. That rollup stores per-day totals for an account
+    and has no bot dimension at all, so a bot's own chart cannot come off it;
+    this groups the runs themselves, over a range the caller has already
+    bounded.
+
+    Days are IST days, matching every other figure a customer reads here. A
+    UTC day would put the last five and a half hours of an Indian evening on
+    tomorrow's bar.
+    """
+    start_utc, _ = ist_day_bounds_utc(start)
+    _, end_utc = ist_day_bounds_utc(end)
+
+    day = func.date(func.timezone("Asia/Kolkata", WorkflowRunModel.created_at))
+    rows = (
+        await session.execute(
+            select(
+                day.label("day"),
+                func.count(WorkflowRunModel.id).label("runs"),
+                func.count(WorkflowRunModel.answered_at).label("answered"),
+                _sum(WorkflowRunModel.billable_seconds).label("billable_seconds"),
+                _sum(WorkflowRunModel.total_charged_paise).label("charged_paise"),
+            )
+            .select_from(WorkflowRunModel)
+            .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+            .where(
+                WorkflowRunModel.created_at >= start_utc,
+                WorkflowRunModel.created_at < end_utc,
+                WorkflowModel.organization_id == organization_id,
+                WorkflowRunModel.workflow_id == workflow_id,
+            )
+            .group_by(day)
+            .order_by(day)
+        )
+    ).all()
+
+    by_day = {r.day: r for r in rows}
+    series: list[dict] = []
+    cursor = start
+    while cursor <= end:
+        row = by_day.get(cursor)
+        runs = int(row.runs or 0) if row else 0
+        series.append(
+            {
+                "day": cursor.isoformat(),
+                "runs": runs,
+                "answered": int(row.answered or 0) if row else 0,
+                "billable_seconds": int(row.billable_seconds or 0) if row else 0,
+                "charged_paise": int(row.charged_paise or 0) if row else 0,
+            }
+        )
+        cursor += timedelta(days=1)
+    return series
+
+
+async def bot_tokens(
+    session: AsyncSession,
+    *,
+    start: date,
+    end: date,
+    organization_id: int,
+    workflow_id: int,
+) -> dict:
+    """What one bot's brains actually consumed, by model.
+
+    Tokens are not a column. They are written per run into ``usage_info`` as
+    a map of model to its own counts, because a single call can cross two
+    models, and nothing until now needed them added up. So this reads that
+    one column for the bot's runs in the range and sums in Python.
+
+    That is honest at the volumes a bot sees today and will not stay honest
+    forever: the day a single bot takes tens of thousands of calls a month,
+    these belong in columns written when the run is settled, and this
+    function becomes the migration's test.
+    """
+    start_utc, _ = ist_day_bounds_utc(start)
+    _, end_utc = ist_day_bounds_utc(end)
+
+    rows = (
+        await session.execute(
+            select(WorkflowRunModel.usage_info)
+            .select_from(WorkflowRunModel)
+            .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+            .where(
+                WorkflowRunModel.created_at >= start_utc,
+                WorkflowRunModel.created_at < end_utc,
+                WorkflowModel.organization_id == organization_id,
+                WorkflowRunModel.workflow_id == workflow_id,
+            )
+        )
+    ).all()
+
+    by_model: dict[str, dict[str, int]] = {}
+    for (usage_info,) in rows:
+        for model, counts in ((usage_info or {}).get("llm") or {}).items():
+            if not isinstance(counts, dict):
+                continue
+            into = by_model.setdefault(
+                model, {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+            )
+            for field in into:
+                into[field] += int(counts.get(field) or 0)
+
+    return {
+        "total_tokens": sum(m["total_tokens"] for m in by_model.values()),
+        "prompt_tokens": sum(m["prompt_tokens"] for m in by_model.values()),
+        "completion_tokens": sum(m["completion_tokens"] for m in by_model.values()),
+        "by_model": [
+            {"model": model, **counts}
+            for model, counts in sorted(
+                by_model.items(), key=lambda kv: -kv[1]["total_tokens"]
+            )
+        ],
     }
 
 
