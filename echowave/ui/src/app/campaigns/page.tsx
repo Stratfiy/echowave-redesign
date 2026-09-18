@@ -99,7 +99,7 @@ export default function CampaignsPage() {
         <>
             <PageHeader
                 title="Campaigns"
-                description="Manage your bulk workflow execution campaigns"
+                description="Point a bot at a contact list and it works through the calls."
                 actions={
                     <Button onClick={handleCreateCampaign}>
                         <Plus className="h-4 w-4 mr-2" />
@@ -176,7 +176,7 @@ export default function CampaignsPage() {
                             <EmptyState
                                 icon={Megaphone}
                                 title="No campaigns yet"
-                                description="Point an bot at a list and it works through it — pacing the dials, retrying no-answers and skipping anyone on do-not-call."
+                                description="Point a bot at a list and it works through it — pacing the dials, retrying no-answers and skipping anyone on do-not-call."
                                 action={
                                     <Button onClick={handleCreateCampaign}>
                                         <Plus className="h-4 w-4 mr-2" />

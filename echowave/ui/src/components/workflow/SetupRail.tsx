@@ -45,7 +45,7 @@ export function SetupRail({ workflowId }: { workflowId: string | number }) {
             url: `/api/v1/workflow/${workflowId}/setup-progress`,
         });
         if (response.error) {
-            // Silent. This is an aid, not the page — a agent that cannot be
+            // Silent. This is an aid, not the page — a bot that cannot be
             // set up is a problem the editor below will report far better than
             // a broken strip at the top of it.
             setProgress(null);

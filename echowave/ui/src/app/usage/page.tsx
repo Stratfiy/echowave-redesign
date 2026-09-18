@@ -91,7 +91,7 @@ const buildAgentFilterAttributes = (
             type: 'numberSelect',
             config: {
                 ...attribute.config,
-                placeholder: 'Select an bot',
+                placeholder: 'Select a bot',
                 numberSelectLabel: 'Bot',
                 ...(agentOptions || isLoadingAgentOptions
                     ? {
@@ -757,7 +757,7 @@ export default function UsagePage() {
                                 <EmptyState
                                     icon={PhoneCall}
                                     title="No calls yet"
-                                    description="Every call an bot takes or makes lands here, with its recording, transcript and outcome. Make one to see it."
+                                    description="Every call a bot takes or makes lands here, with its recording, transcript and outcome. Make one to see it."
                                     action={
                                         <Button asChild size="sm">
                                             <Link href="/workflow">Go to your agents</Link>

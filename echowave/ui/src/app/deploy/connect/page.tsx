@@ -78,7 +78,7 @@ function ConnectScreen() {
                                 <p className="font-medium">No agents yet</p>
                                 <p className="mt-1 text-sm text-muted-foreground">
                                     {loadError ??
-                                        "There needs to be an bot before anything can trigger one."}
+                                        "There needs to be a bot before anything can trigger one."}
                                 </p>
                             </div>
                             {!loadError && (

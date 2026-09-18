@@ -343,7 +343,7 @@ export default function CreateWorkflowPage() {
 
     const create = async () => {
         if (!user) {
-            setError("You must be signed in to create an bot.");
+            setError("You must be signed in to create a bot.");
             return;
         }
         setIsLoading(true);
