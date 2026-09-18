@@ -470,7 +470,7 @@ export default function UsagePage() {
         <PageHeader
             tabs={CALLS_TABS}
             title="Calls"
-            description="See all your Bot Runs across all Voice Bots. You can use filters to filter out required Bot Runs."
+            description="Every call your bots have taken or made, with its recording, transcript and outcome."
             actions={
                         <div className="flex items-center gap-2">
                             <Globe className="h-4 w-4 text-muted-foreground" />
@@ -593,7 +593,7 @@ export default function UsagePage() {
                             <div className="space-y-1.5">
                                 <CardTitle>All Runs</CardTitle>
                                 <CardDescription>
-                                    Every agent run across your organization, with usage details
+                                    Every call across your account, with what it cost
                                 </CardDescription>
                             </div>
                         </div>
@@ -760,7 +760,7 @@ export default function UsagePage() {
                                     description="Every call a bot takes or makes lands here, with its recording, transcript and outcome. Make one to see it."
                                     action={
                                         <Button asChild size="sm">
-                                            <Link href="/workflow">Go to your agents</Link>
+                                            <Link href="/workflow">Go to your bots</Link>
                                         </Button>
                                     }
                                 />

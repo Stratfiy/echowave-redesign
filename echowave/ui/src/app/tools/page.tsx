@@ -395,7 +395,7 @@ export default function ToolsPage() {
             title="Tools"
             description={
                 <>
-                    Manage reusable tools that can be used across your workflows.{" "}
+                    Things a bot can do on a call: look something up, book, send. Made once, given to any bot.{" "}
                     <a href="https://docs.decibyl.ai/voice-agent/tools/introduction" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline">
                         Learn more <ExternalLink className="h-3 w-3" />
                     </a>

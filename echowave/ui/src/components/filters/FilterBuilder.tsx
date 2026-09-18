@@ -320,9 +320,9 @@ export const FilterBuilder: React.FC<FilterBuilderProps> = ({
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Filter Workflow Runs</CardTitle>
+            <CardTitle>Filter calls</CardTitle>
             <CardDescription>
-              Build custom filters to find specific workflow runs
+              Narrow the list to the calls you are after
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
