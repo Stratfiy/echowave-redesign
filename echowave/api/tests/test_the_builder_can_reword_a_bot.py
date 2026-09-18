@@ -33,6 +33,15 @@ def _definition():
     }
 
 
+def _flow():
+    """The same bot with a second step, which is what most real ones are."""
+    definition = _definition()
+    definition["nodes"].append(
+        {"id": "b", "type": "agentNode", "data": {"prompt": "Then confirm."}}
+    )
+    return _workflow(definition)
+
+
 def _workflow(definition=None):
     return SimpleNamespace(
         id=1, name="Clinic front desk", workflow_definition=definition or _definition()
@@ -115,17 +124,42 @@ class TestItWritesADraftAndSaysSo:
 
 
 class TestWhatItRefuses:
-    async def test_it_will_not_reword_one_step_of_a_flow(self):
-        """Rewording one of several steps from a chat that cannot show the
+    async def test_it_will_not_reword_the_briefing_of_a_flow(self):
+        """Rewording one of several briefings from a chat that cannot show the
         others is how somebody breaks a branch they never saw."""
-        definition = _definition()
-        definition["nodes"].append({"id": "b", "type": "agentNode", "data": {}})
         result, _, update = await _reword(
-            {"workflow_id": 1, "system_prompt": "New."},
-            workflow=_workflow(definition),
+            {"workflow_id": 1, "system_prompt": "New."}, workflow=_flow()
         )
         assert "more than one step" in result["error"]
         update.assert_not_awaited()
+
+    async def test_a_flows_greeting_and_persona_are_still_one_thing_each(self):
+        """Refusing the whole bot made this tool invisible to most bots
+        somebody actually owns, which is the same as not having built it. A
+        flow has many briefings and exactly one greeting and one persona."""
+        result, _, update = await _reword(
+            {
+                "workflow_id": 1,
+                "first_message": "Sunrise Clinic, how can I help?",
+                "persona": "Brisk.",
+            },
+            workflow=_flow(),
+        )
+        assert result["revised"] is True
+        nodes = {
+            node["type"]: node["data"]
+            for node in update.await_args.kwargs["workflow_definition"]["nodes"]
+            if node["type"] != "agentNode"
+        }
+        assert nodes["startCall"]["greeting"] == "Sunrise Clinic, how can I help?"
+        assert nodes["globalNode"]["prompt"] == "Brisk."
+
+    async def test_a_flow_is_told_what_it_can_still_change(self):
+        """A refusal that does not name the way through is a dead end."""
+        result, _, _ = await _reword(
+            {"workflow_id": 1, "system_prompt": "New."}, workflow=_flow()
+        )
+        assert "first message and persona" in result["error"]
 
     async def test_it_will_not_invent_a_node_to_hold_the_wording(self):
         definition = {

@@ -593,6 +593,7 @@ function RenderWorkflow({
                         {useFormView && !useSimpleView ? (
                             <FlowAgentEditor
                                 workflowId={workflowId}
+                                name={workflowName}
                                 nodes={nodes as FlowNode[]}
                                 edges={edges as FlowEdge[]}
                                 onNodesChange={handleSimpleNodesChange}
