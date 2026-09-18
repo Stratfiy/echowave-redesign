@@ -27,6 +27,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { teamStatusApiV1TeamStatusGet } from "@/client/sdk.gen";
 import type { TeamMember } from "@/client/types.gen";
+import { BotAvatar } from "@/components/bot/BotAvatar";
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -45,16 +46,6 @@ const TONE_DOT: Record<string, string> = {
   idle: "bg-sidebar-foreground/30",
   paused: "bg-amber-500",
 };
-
-/** Two letters from a name, for the tile beside it. The same tile the Home
- *  screen already draws ("KL", "ND"), so a bot looks like one thing on two
- *  screens rather than a dot here and a monogram there. */
-export function initials(name: string): string {
-  const words = (name || "").trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return "?";
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return (words[0][0] + words[1][0]).toUpperCase();
-}
 
 /**
  * How many bots the rail will hold before it stops.
@@ -143,12 +134,7 @@ export function SidebarBots({ collapsed }: { collapsed: boolean }) {
                     full, and the tooltip slot is already spent on what the bot
                     is doing. The browser's own is free and does not fight it. */}
                 <Link href={href} title={bot.name}>
-                  <span
-                    aria-hidden="true"
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-sidebar-foreground/15 text-[10px] font-semibold text-sidebar-foreground"
-                  >
-                    {initials(bot.name)}
-                  </span>
+                  <BotAvatar id={bot.workflow_id} name={bot.name} />
                   {/* The name, and nothing else. A second line of the last
                       thing said doubled the height of every row and read as
                       noise in a list somebody scans to find a bot; the dot

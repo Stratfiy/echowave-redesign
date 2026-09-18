@@ -16,8 +16,8 @@ import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { listToolsApiV1ToolsGet } from '@/client/sdk.gen';
+import { BotAvatar } from '@/components/bot/BotAvatar';
 import type { FlowNode } from '@/components/flow/types';
-import { initials } from '@/components/layout/SidebarBots';
 import { MemoryList } from '@/components/memory/MemoryList';
 import { useAuth } from '@/lib/auth';
 
@@ -197,12 +197,7 @@ export function AgentProfilePanel({
     return (
         <div className="flex flex-col gap-6 p-5" data-testid="agent-profile">
             <div className="flex items-center gap-3">
-                <span
-                    aria-hidden
-                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-brand-soft)] text-base font-semibold text-[var(--accent-brand)]"
-                >
-                    {initials(name || 'Bot')}
-                </span>
+                <BotAvatar id={workflowId} name={name || 'Bot'} size="lg" />
                 <div className="min-w-0">
                     <p className="truncate text-base font-semibold">{name || 'Bot'}</p>
                     <p className="text-xs text-muted-foreground">
