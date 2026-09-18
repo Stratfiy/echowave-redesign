@@ -13,6 +13,7 @@ import {
 } from "@/client/sdk.gen";
 import type { ContactListResponse, ContactResponse } from "@/client/types.gen";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import { DESK_TABS } from "@/components/layout/SectionTabs";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -174,6 +175,7 @@ export default function ContactsPage() {
         <>
             <PageHeader
                 title="Contacts"
+                tabs={DESK_TABS}
                 description="Lists an inbound number matches its callers against. When a caller is recognised, everything you know about them is loaded before the bot speaks — attach a list on the number, under Telephony."
             />
             <PageBody className="mx-auto max-w-6xl space-y-6">

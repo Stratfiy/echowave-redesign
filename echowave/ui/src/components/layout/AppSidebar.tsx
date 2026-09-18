@@ -13,7 +13,6 @@ import {
   LifeBuoy,
   LogOut,
   Settings,
-  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -83,8 +82,8 @@ function sentenceCase(label: string): string {
  *  channel sections; this is the same shape read for a product whose
  *  members are bots. A context row opens that context's sections beneath
  *  it (Activity, Marketplace, Setup, Account); Home does that and goes
- *  home; Tasks is a plain door, since all the schedules live on one
- *  screen. */
+ *  home; Desk is a plain door onto the diary, the in-tray and the contact
+ *  book, which are three tabs of one screen. */
 type PinnedRow =
   | { kind: "context"; title: string; icon: LucideIcon; context: NavContext }
   | { kind: "link"; title: string; icon: LucideIcon; url: string };
@@ -97,7 +96,7 @@ function contextRow(id: NavContextId): PinnedRow {
 const PINNED_ROWS: PinnedRow[] = [
   contextRow("home"),
   contextRow("activity"),
-  { kind: "link", title: "Tasks", icon: CalendarClock, url: "/tasks" },
+  { kind: "link", title: "Desk", icon: CalendarClock, url: "/tasks" },
 ];
 
 /** The same door, for the one state that cannot show the roster.
@@ -472,7 +471,7 @@ export function AppSidebar() {
         )}
 
         {/* The pinned rows, Buzz's Inbox / Pulse / Projects / Agents /
-            Workflows read for this product: Home, Activity and Tasks, with
+            Workflows read for this product: Home, Activity and Desk, with
             the bots as the roster below. A context row opens its
             sections below; a plain row is a door. The five contexts were a
             vertical strip of icons down the edge; as rows they read like
@@ -587,20 +586,17 @@ export function AppSidebar() {
               </SidebarGroup>
             </React.Fragment>
           ))}
-          {/* Home is the workspace: the assistant, the knowledge base, then
-              the channels and the bots, Buzz's Channels and Direct messages. */}
+          {/* Home is the workspace: the knowledge base, then the channels and
+              the bots, Buzz's Channels and Direct messages.
+
+              No Decibyl row. Home *is* Decibyl -- the pinned row above goes to
+              /overview and this one went to /overview, so the assistant was
+              announced twice on a panel we had just finished thinning out. The
+              pinned row wins: it is the one that is there on every screen. */}
           {activeContext === "home" && (
             <>
               <SidebarGroup className="py-1">
                 <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname === "/overview"}>
-                      <Link href="/overview">
-                        <Sparkles aria-hidden="true" className="h-4 w-4 shrink-0" />
-                        <span className="truncate">Decibyl</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={pathname === "/files"}>
                       <Link href="/files">

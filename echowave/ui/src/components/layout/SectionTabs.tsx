@@ -115,19 +115,25 @@ export const DEVELOPER_TABS: PageTab[] = [
   { href: "/deploy/connect", label: "API & webhooks", prefix: true },
 ];
 
-/** What runs on its own, and what was handed over.
+/** The desk: the diary, the in-tray and the contact book.
  *
- *  These were two tabs of Decibyl, beside its thread. But the assistant is a
- *  colleague you talk to, not a container for the workspace's screens, and
- *  Tasks was a third way to reach a door the sidebar already pins. They are
- *  one job -- work that is not a conversation -- so they are one entry with
- *  two tabs, the way Calls and Billing are.
+ *  Tasks and Requests were two tabs of Decibyl, beside its thread. But the
+ *  assistant is a colleague you talk to, not a container for the workspace's
+ *  screens, and Tasks was a third way to reach a door the sidebar already
+ *  pins.
  *
- *  Schedules first: a routine fires whether or not anybody is watching, and a
- *  request waits for somebody. */
-export const WORK_TABS: PageTab[] = [
+ *  Contacts joins them, from Setup. It sat there beside Campaigns because a
+ *  campaign dials a list -- but that is delivery, and a contact is a person
+ *  you deal with, which is desk work. The page's own words already said so:
+ *  "everything you know about them is loaded before the bot speaks".
+ *
+ *  Schedules first: a routine fires whether or not anybody is watching, a
+ *  request waits for somebody, and the contact book is looked up rather than
+ *  worked through. */
+export const DESK_TABS: PageTab[] = [
   { href: "/tasks", label: "Tasks", prefix: true },
   { href: "/requests", label: "Requests", prefix: true },
+  { href: "/contacts", label: "Contacts", prefix: true },
 ];
 
 /** The shop, as one screen with departments across the top.

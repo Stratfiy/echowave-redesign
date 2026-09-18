@@ -138,13 +138,13 @@ describe("sidebar interactions", () => {
     expect(screen.getByLabelText("New chat")).toBeTruthy();
     expect(screen.getByLabelText("Add a bot")).toBeTruthy();
     expect(screen.getByRole("link", { name: /Knowledge base/ }).getAttribute("href")).toBe("/files");
-    // The panel opens on Decibyl, the assistant, above the knowledge base --
-    // Slack's Slackbot and Directories. The rail's logo is also named
-    // Decibyl, so the row is found inside the panel, not the rail.
+    // No Decibyl row in the panel: Home is Decibyl. The pinned row above
+    // goes to /overview and this one did too, so the assistant was announced
+    // twice. The only Decibyl left on the panel is the rail's own logo.
     const decibyl = screen
-      .getAllByRole("link", { name: "Decibyl" })
-      .find((link) => !link.closest("[data-rail]"));
-    expect(decibyl?.getAttribute("href")).toBe("/overview");
+      .queryAllByRole("link", { name: "Decibyl" })
+      .filter((link) => !link.closest("[data-rail]"));
+    expect(decibyl).toEqual([]);
     // The foot is the person, as Buzz's profile card: the setup call and the
     // account menu sit there, below the list, and stay put when it scrolls.
     const setup = screen.getByRole("link", {
@@ -162,7 +162,7 @@ describe("sidebar interactions", () => {
     // Three, and only three. The shop, the setup and the account are behind
     // the person; the bots are the roster below, under a label that is
     // already the door to the full list.
-    expect(rows).toEqual(["Home", "Activity", "Tasks"]);
+    expect(rows).toEqual(["Home", "Activity", "Desk"]);
   });
 
   it("gives the collapsed rail the door the roster is hiding", () => {
@@ -174,7 +174,7 @@ describe("sidebar interactions", () => {
     const rows = Array.from(rail.querySelectorAll("a, button")).map(
       (el) => el.getAttribute("aria-label") ?? el.textContent?.trim(),
     );
-    expect(rows).toEqual(["Home", "Activity", "Bots", "Tasks"]);
+    expect(rows).toEqual(["Home", "Activity", "Bots", "Desk"]);
     expect(screen.getByRole("link", { name: "Bots" }).getAttribute("href")).toBe("/workflow");
     expect(screen.queryByRole("link", { name: "Your bots" })).toBeNull();
   });
