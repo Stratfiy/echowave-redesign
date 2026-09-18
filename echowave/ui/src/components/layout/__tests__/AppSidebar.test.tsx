@@ -126,18 +126,19 @@ describe("sidebar interactions", () => {
   it("the Home panel is channels and bots, not a menu", () => {
     route.pathname = "/overview";
     render(<SidebarProvider><AppSidebar /></SidebarProvider>);
-    // No nav rows in the Home panel, and no Bots row either: the roster is
-    // right there under its own label, and that label is the door to the full
-    // list. A pinned Bots row would be the same href printed twice.
+    // No nav rows in the Home panel. The lists below name themselves --
+    // Channels and Direct messages, as Buzz does -- and neither heading is a
+    // link: Agents is pinned above and is the one door to the roster.
     expect(screen.queryByRole("link", { name: "Home" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Bots" })).toBeNull();
-    const roster = screen.getByRole("link", { name: "Your bots" });
-    expect(roster.getAttribute("href")).toBe("/workflow");
-    expect(roster.closest("[data-rail]")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Your bots" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Channels" })).toBeNull();
+    const agents = screen.getByRole("link", { name: "Agents" });
+    expect(agents.getAttribute("href")).toBe("/workflow");
+    expect(agents.closest("[data-rail]")).toBeTruthy();
     // The two sections' doors are there even before anything has loaded.
     expect(screen.getByLabelText("New chat")).toBeTruthy();
     expect(screen.getByLabelText("Add a bot")).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Knowledge base/ }).getAttribute("href")).toBe("/files");
+    expect(screen.getByRole("link", { name: /Files/ }).getAttribute("href")).toBe("/files");
     // No Decibyl row in the panel: Home is Decibyl. The pinned row above
     // goes to /overview and this one did too, so the assistant was announced
     // twice. The only Decibyl left on the panel is the rail's own logo.
@@ -162,21 +163,20 @@ describe("sidebar interactions", () => {
     // Three, and only three. The shop, the setup and the account are behind
     // the person; the bots are the roster below, under a label that is
     // already the door to the full list.
-    expect(rows).toEqual(["Home", "Activity", "Desk"]);
+    expect(rows).toEqual(["Home", "Activity", "Desk", "Agents"]);
   });
 
-  it("gives the collapsed rail the door the roster is hiding", () => {
-    // Folded to icons there is no roster -- a column of bare avatars is a
-    // puzzle -- so the one door to the bots comes back as a row. Open, it is
-    // the label; folded, it is this. Never both at once.
+  it("keeps the same four rows folded to icons", () => {
+    // Agents is pinned now, the way Buzz pins it, so the roster has a door
+    // whether or not the panel is showing the list -- and the rows do not
+    // change between the two states, which they used to.
     render(<SidebarProvider defaultOpen={false}><AppSidebar /></SidebarProvider>);
     const rail = document.querySelector('[role="tablist"][data-rail]')!;
     const rows = Array.from(rail.querySelectorAll("a, button")).map(
       (el) => el.getAttribute("aria-label") ?? el.textContent?.trim(),
     );
-    expect(rows).toEqual(["Home", "Activity", "Bots", "Desk"]);
-    expect(screen.getByRole("link", { name: "Bots" }).getAttribute("href")).toBe("/workflow");
-    expect(screen.queryByRole("link", { name: "Your bots" })).toBeNull();
+    expect(rows).toEqual(["Home", "Activity", "Desk", "Agents"]);
+    expect(screen.getByRole("link", { name: "Agents" }).getAttribute("href")).toBe("/workflow");
   });
 
   it("does not offer staff contexts to a customer", () => {

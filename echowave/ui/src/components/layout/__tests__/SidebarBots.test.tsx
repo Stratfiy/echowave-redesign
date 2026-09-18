@@ -133,7 +133,10 @@ describe("it waits for auth", () => {
 });
 
 describe("the last line and the unread dot", () => {
-    it("shows the last thing said under the name, and who said it", async () => {
+    it("shows the name and nothing else", async () => {
+        // A second line of the last thing said doubled the height of every
+        // row and read as noise in a list somebody scans to find a bot. The
+        // dot beside the name already says there is something new.
         teamStatus.mockResolvedValue({
             data: {
                 hours: 24,
@@ -144,8 +147,21 @@ describe("the last line and the unread dot", () => {
             },
         });
         render(<SidebarBots collapsed={false} />);
-        await waitFor(() => expect(screen.getByText("Booked Meera for 4pm.")).toBeTruthy());
-        expect(screen.getByText(/You: Can you quote Chennai\?/)).toBeTruthy();
+        await waitFor(() => expect(screen.getByText("Front desk")).toBeTruthy());
+        expect(screen.queryByText("Booked Meera for 4pm.")).toBeNull();
+        expect(screen.queryByText(/You: Can you quote Chennai\?/)).toBeNull();
+    });
+
+    it("names the list without making the heading a second door", async () => {
+        // Agents is pinned above and goes to the roster; this heading said
+        // the same thing on the same panel. Buzz's Direct messages is a
+        // label, not a link.
+        teamStatus.mockResolvedValue({ data: { hours: 24, members: [member(1, "Front desk")] } });
+        render(<SidebarBots collapsed={false} />);
+        await waitFor(() => expect(screen.getByText("Direct messages")).toBeTruthy());
+        expect(screen.queryByRole("link", { name: "Direct messages" })).toBeNull();
+        // The plus stays: it is the door a fresh account needs.
+        expect(screen.getByLabelText("Add a bot")).toBeTruthy();
     });
 
     it("lights the dot for a bot with news since it was last opened here", async () => {

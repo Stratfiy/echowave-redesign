@@ -206,7 +206,10 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       // things an agent draws on mid-call, so they share one door with a tab
       // between them.
       {
-        title: "Knowledge base",
+        // "Files", not "Knowledge base". The row names what is in it -- the
+        // documents and clips a bot reads -- rather than the category the
+        // industry files them under.
+        title: "Files",
         url: "/files",
         activePaths: ["/recordings"],
         icon: Database,
