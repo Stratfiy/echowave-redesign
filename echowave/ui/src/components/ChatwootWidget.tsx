@@ -39,10 +39,9 @@ export default function ChatwootWidget() {
   // Load the Chatwoot SDK exactly once for the lifetime of the app.
   useEffect(() => {
     // Don't initialize if environment variables are not set
-    if (!CHATWOOT_BASE_URL || !CHATWOOT_WEBSITE_TOKEN) {
-      console.warn("Chatwoot not configured: Missing NEXT_PUBLIC_CHATWOOT_URL or NEXT_PUBLIC_CHATWOOT_TOKEN");
-      return;
-    }
+    // Not configured means no support widget on this deployment. Quietly:
+    // a warning on every page for a thing nobody set up is noise.
+    if (!CHATWOOT_BASE_URL || !CHATWOOT_WEBSITE_TOKEN) return;
 
     // Prevent duplicate initialization
     if (window.chatwootSettings) {
