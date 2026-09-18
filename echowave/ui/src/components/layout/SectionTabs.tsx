@@ -129,3 +129,21 @@ export const WORK_TABS: PageTab[] = [
   { href: "/tasks", label: "Tasks", prefix: true },
   { href: "/requests", label: "Requests", prefix: true },
 ];
+
+/** The shop, as one screen with departments across the top.
+ *
+ *  These were four sidebar rows -- Tools, Skills, Bots, Integrations -- for
+ *  one shop, with nothing tying them together, so they read as four unrelated
+ *  features and one of them shared a word with a Setup row that means
+ *  something else entirely (the shop's Tools, against the account's own Your
+ *  tools). Buzz's own directory is one surface with its tabs across the top.
+ *
+ *  Bots first: it is what somebody comes to a shop of bots for, and it is the
+ *  screen the one remaining row lands on. Then what a bot can do, how it can
+ *  be taught to do it, and the systems it reaches. */
+export const MARKETPLACE_TABS: PageTab[] = [
+  { href: "/marketplace", label: "Bots" },
+  { href: "/marketplace/tools", label: "Tools" },
+  { href: "/marketplace/skills", label: "Skills" },
+  { href: "/marketplace/integrations", label: "Integrations" },
+];

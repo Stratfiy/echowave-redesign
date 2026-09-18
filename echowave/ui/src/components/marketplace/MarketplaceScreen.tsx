@@ -23,6 +23,7 @@ import { getToolLibraryApiV1ToolLibraryGet, listConnectorsApiV1ConnectorsGet } f
 import type { ConnectorGroupResponse, ConnectorResponse, LibraryTool } from "@/client/types.gen";
 import { ConnectorLogo, ConnectorRow } from "@/components/integrations/ConnectorRow";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import { MARKETPLACE_TABS } from "@/components/layout/SectionTabs";
 import { SkillsShelf } from "@/components/marketplace/SkillsShelf";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -709,7 +710,7 @@ export function MarketplaceScreen({ kind }: { kind: ShelfKind }) {
         <>
             {/* No tab strip: the four shelves are the panel beside this
                 screen, which is where a shop's departments belong. */}
-            <PageHeader title={TITLE[kind]} description={HERO[kind].blurb} />
+            <PageHeader title={TITLE[kind]} description={HERO[kind].blurb} tabs={MARKETPLACE_TABS} />
             <PageBody className="space-y-8">
                 {kind === "bots" ? <Hero kind={kind} /> : null}
                 <div className="relative max-w-md">
