@@ -1,7 +1,7 @@
 import "./globals.css";
 
 import type { Metadata } from "next";
-import { Geist_Mono, Lato } from "next/font/google";
+import { Geist_Mono, Inter } from "next/font/google";
 import { Suspense } from "react";
 
 import ChatwootWidget from "@/components/ChatwootWidget";
@@ -36,10 +36,9 @@ import { AuthProvider } from "@/lib/auth";
 // custom property, so `--default-font-family` fell through to its own fallback
 // and every element kept rendering in the system font. globals.css now sets
 // font-family on html explicitly. Verify with getComputedStyle, not by reading.
-const appSans = Lato({
+const appSans = Inter({
   variable: "--font-app-sans",
   subsets: ["latin"],
-  weight: ["400", "700", "900"],
   display: "swap",
 });
 

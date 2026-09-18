@@ -41,7 +41,8 @@ describe("the accent palette", () => {
 
   it("starts on the colour the app already ships, so settings match the screen", () => {
     expect(ACCENTS[0].id).toBe(DEFAULT_ACCENT_ID);
-    expect(ACCENTS[0].bright).toBe("#e15b53");
+    // Catppuccin mauve, the hue Buzz leads with in both its modes.
+    expect(ACCENTS[0].bright).toBe("#8839ef");
   });
 
   it("has no duplicate ids", () => {
@@ -131,7 +132,8 @@ describe("accentVariables", () => {
 
 describe("the anti-flash boot script", () => {
   it("applies stored variables to the document", () => {
-    const stored = { id: "indigo", vars: accentVariables(ACCENTS[2]) };
+    const indigo = ACCENTS.find((accent) => accent.id === "indigo")!;
+    const stored = { id: "indigo", vars: accentVariables(indigo) };
     window.localStorage.setItem("decibyl.accent", JSON.stringify(stored));
 
     eval(ACCENT_BOOT_SCRIPT);

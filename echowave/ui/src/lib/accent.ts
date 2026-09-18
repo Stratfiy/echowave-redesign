@@ -48,6 +48,7 @@ export interface Accent {
  * whose default is not the current appearance reads as broken.
  */
 export const ACCENTS: readonly Accent[] = [
+  { id: "mauve", label: "Mauve", bright: "#8839ef", deep: "#7a2fd8" },
   { id: "coral", label: "Coral", bright: "#e15b53", deep: "#ab3f38" },
   { id: "aubergine", label: "Aubergine", bright: "#8b2fa8", deep: "#6b2280" },
   { id: "indigo", label: "Indigo", bright: "#4f46e5", deep: "#4338ca" },
@@ -58,7 +59,7 @@ export const ACCENTS: readonly Accent[] = [
   { id: "slate", label: "Slate", bright: "#475569", deep: "#334155" },
 ] as const;
 
-export const DEFAULT_ACCENT_ID = "coral";
+export const DEFAULT_ACCENT_ID = "mauve";
 
 /** The minimum a bright accent may score on white: WCAG 1.4.11, non-text UI. */
 export const MIN_BRIGHT_CONTRAST = 3;

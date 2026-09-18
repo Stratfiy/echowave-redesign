@@ -153,64 +153,64 @@
      under it should get out of the way.
      Not pure white, because cards are, and the floor has to be the darker of
      the two or every panel edge disappears. */
-  --background: #f8f9fa;
-  --foreground: #171717;
+  --background: #eff1f5;
+  --foreground: #4c4f69;
   /* Cards are solid white with a real edge. They were translucent, which is
      what made every panel read hazy — a card you can faintly see through has
      no boundary, and a screen of them has no structure. Opaque plus a hairline
      border plus the faintest lift is the whole effect. */
-  --card: #ffffff;
-  --card-foreground: #171717;
-  --popover: #ffffff;
-  --popover-foreground: #171717;
+  --card: #eff1f5;
+  --card-foreground: #4c4f69;
+  --popover: #eff1f5;
+  --popover-foreground: #4c4f69;
 
   /* The committed action. Deep coral, white text, 5.55:1 — this is the button
      you press, and the colour that emphasised text on white is allowed to be.
      Used sparingly: one per surface, or it stops earning attention. */
-  --primary: #171717;
-  --primary-foreground: #ffffff;
-  --primary-pressed: #0a0a0a;
+  --primary: #8839ef;
+  --primary-foreground: #eff1f5;
+  --primary-pressed: #7a2fd8;
 
   /* The brand accent. Bright coral, for fills, active states, icon accents and
      the focus ring. Never body text — see the ratios above. */
-  --accent-brand: #e15b53;
-  --accent-brand-soft: rgba(225, 91, 83, 0.10);
-  --accent-brand-tint: #fbebea;
+  --accent-brand: #8839ef;
+  --accent-brand-soft: rgba(136, 57, 239, 0.10);
+  --accent-brand-tint: #ece0fb;
   /* The one gradient, coral into tangerine. It sits on top of the floor
      as a wash behind a screen or a hero panel; it never sits behind text
      smaller than a display size. */
-  --brand-gradient: linear-gradient(135deg, #e15b53 0%, #f08a4b 100%);
+  --brand-gradient: linear-gradient(135deg, #8839ef 0%, #ea76cb 100%);
   /* Gradient end only — see the note above. Never a fill behind text. */
-  --brand-pink: #ED2287;
+  --brand-pink: #ea76cb;
 
-  --secondary: #f1f3f5;
-  --secondary-foreground: #171717;
-  --muted: #f1f3f5;
+  --secondary: #ccd0da;
+  --secondary-foreground: #4c4f69;
+  --muted: #ccd0da;
   /* Fog is 4.74:1 on white but only 4.35:1 on the paper surface. Muted text
      sitting on #f5f5f5 uses steel instead — see --muted-foreground-on-paper. */
-  --muted-foreground: #737373;
-  --muted-foreground-on-paper: #525252;
+  --muted-foreground: #5c5f77;
+  --muted-foreground-on-paper: #4c4f69;
   /* Hover and selected rows. Neutral, not coral: something you merely hovered
      must not look like the thing you chose. */
-  --accent: #eef1f4;
-  --accent-foreground: #171717;
+  --accent: #ccd0da;
+  --accent-foreground: #4c4f69;
 
   /* Destructive stays a true red, well clear of the coral in both lightness
      and saturation. The two are neighbours on the wheel, so the separation has
      to come from value — a delete button reads darker and hotter than a save
      button rather than merely differently hued. */
-  --destructive: #B91C1C;
-  --destructive-foreground: #ffffff;
-  --warning: #ea580c;
-  --success: #16a34a;
+  --destructive: #d20f39;
+  --destructive-foreground: #eff1f5;
+  --warning: #df8e1d;
+  --success: #40a02b;
 
   /* The structural line. Used more than any other value in the system. */
-  --border: #e4e7eb;
+  --border: #bcc0cc;
   /* Inputs carry a stronger edge than cards do — the reference makes this a
      signature: a field should look like something you are meant to fill in,
      not like a container that happens to be empty. */
-  --input: #d3d8de;
-  --ring: #e15b53;
+  --input: #bcc0cc;
+  --ring: #8839ef;
 
   /* --brand-* are consumed by call sites written when the brand was blue. They
      are aliases onto the correct tokens, NOT a second palette.
@@ -223,40 +223,40 @@
      only read very slightly deeper for the change. The bright coral is still
      available as --accent-brand, for the fills and active states where nothing
      has to be read off it. */
-  --brand-blue: #ab3f38;
-  --brand-blue-hover: #8d342e;
+  --brand-blue: #7a2fd8;
+  --brand-blue-hover: #6b26c0;
   /* Button fills no longer read this alias — every pressable fill is
      --primary (ink). What remains on it is link text and tints. */
-  --brand-blue-soft: rgba(225, 91, 83, 0.10);
-  --brand-blue-glow: rgba(225, 91, 83, 0.14);
-  --brand-panel: #ffffff;
-  --brand-heading: #171717;
-  --brand-body: #737373;
-  --brand-chip: #f1f3f5;
-  --brand-chip-border: #e5e5e5;
-  --brand-chip-fg: #171717;
-  --brand-card: #ffffff;
-  --brand-amber: #ea580c;
+  --brand-blue-soft: rgba(136, 57, 239, 0.10);
+  --brand-blue-glow: rgba(136, 57, 239, 0.14);
+  --brand-panel: #eff1f5;
+  --brand-heading: #4c4f69;
+  --brand-body: #5c5f77;
+  --brand-chip: #ccd0da;
+  --brand-chip-border: #bcc0cc;
+  --brand-chip-fg: #4c4f69;
+  --brand-card: #eff1f5;
+  --brand-amber: #df8e1d;
 
   /* Supporting accents, for pill tags and small feature marks. One accent per
      component — a pill gets a single colour, never two. */
-  --color-tangerine: #ea580c;
-  --color-lavender: #7c3aed;
-  --color-vivid-green: #16a34a;
-  --color-soft-mint: #dcfce7;
+  --color-tangerine: #fe640b;
+  --color-lavender: #7287fd;
+  --color-vivid-green: #40a02b;
+  --color-soft-mint: #dcf3d6;
 
   /* Tint washes. Small badge backgrounds and feature highlights only — never
      a large surface. */
-  --tint-flame: #FFEDED;
-  --tint-amber: #FFF1DC;
-  --tint-sand: #f5f5f5;
-  --tint-slate: #f5f5f5;
+  --tint-flame: #f7e0e5;
+  --tint-amber: #f7ecd9;
+  --tint-sand: #e6e9ef;
+  --tint-slate: #e6e9ef;
 
-  --chart-1: #e15b53;
-  --chart-2: #ea580c;
-  --chart-3: #16a34a;
-  --chart-4: #2563eb;
-  --chart-5: #7c3aed;
+  --chart-1: #8839ef;
+  --chart-2: #04a5e5;
+  --chart-3: #40a02b;
+  --chart-4: #df8e1d;
+  --chart-5: #ea76cb;
 
   /* Sidebar is white like the canvas; the hairline is what separates them.
      That is the border-first philosophy applied to the shell itself. */
@@ -275,7 +275,7 @@
    * accent survives on the brand mark, the active row and the unread dot. */
   --shell-gradient-top: #e6e6b6;
   --shell-gradient-bottom: #c4d0da;
-  --shell-ink: #2e2a33;
+  --shell-ink: #4c4f69;
   --rail: transparent;
   --rail-foreground: var(--shell-ink);
   --rail-accent: rgba(46, 42, 51, 0.12);
@@ -299,7 +299,7 @@
    * grey mixed for white and vanishes here. */
   --sidebar: transparent;
   --sidebar-foreground: var(--shell-ink);
-  --sidebar-primary: #e15b53;
+  --sidebar-primary: #8839ef;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: rgba(46, 42, 51, 0.08);
   --sidebar-accent-foreground: var(--shell-ink);
@@ -373,6 +373,59 @@
   --glass-amber-fill: var(--tint-amber);
   --glass-amber-edge: #F2E3CB;
   --glass-amber-fg: #7A4A05;
+}
+
+/* Dark is Catppuccin Macchiato, the mode Buzz ships beside Latte. Only the
+   tokens are restated; every component reads them, so nothing else changes. */
+.dark {
+  --background: #24273a;
+  --foreground: #cad3f5;
+  --card: #24273a;
+  --card-foreground: #cad3f5;
+  --popover: #24273a;
+  --popover-foreground: #cad3f5;
+  --primary: #c6a0f6;
+  --primary-foreground: #24273a;
+  --primary-pressed: #b48ae8;
+  --secondary: #363a4f;
+  --secondary-foreground: #cad3f5;
+  --muted: #363a4f;
+  --muted-foreground: #b8c0e0;
+  --muted-foreground-on-paper: #b8c0e0;
+  --accent: #363a4f;
+  --accent-foreground: #cad3f5;
+  --destructive: #ed8796;
+  --destructive-foreground: #24273a;
+  --warning: #eed49f;
+  --success: #a6da95;
+  --border: #494d64;
+  --input: #494d64;
+  --ring: #c6a0f6;
+  --accent-brand: #c6a0f6;
+  --accent-brand-soft: rgba(198, 160, 246, 0.14);
+  --accent-brand-tint: #35304a;
+  --brand-blue: #c6a0f6;
+  --brand-blue-hover: #d3b5f8;
+  --brand-panel: #24273a;
+  --brand-heading: #cad3f5;
+  --brand-body: #b8c0e0;
+  --brand-chip: #363a4f;
+  --brand-chip-border: #494d64;
+  --brand-chip-fg: #cad3f5;
+  --brand-card: #24273a;
+  --shell-gradient-top: #4a4616;
+  --shell-gradient-bottom: #0a1423;
+  --shell-ink: #cad3f5;
+  --rail-foreground: #cad3f5;
+  --rail-accent: rgba(202, 211, 245, 0.14);
+  --rail-accent-foreground: #cad3f5;
+  --rail-border: rgba(202, 211, 245, 0.14);
+  --sidebar-foreground: #cad3f5;
+  --sidebar-primary: #c6a0f6;
+  --sidebar-primary-foreground: #24273a;
+  --sidebar-accent: rgba(202, 211, 245, 0.10);
+  --sidebar-accent-foreground: #cad3f5;
+  --sidebar-border: rgba(202, 211, 245, 0.14);
 }
 
 /* The .dark block that stood here is gone: the app is light-only by request.
@@ -686,7 +739,7 @@
    screens key off it. */
 .card-weave {
   background-image: none;
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   box-shadow: var(--shadow-card);
 }
 
