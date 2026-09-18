@@ -62,7 +62,19 @@ describe("the agent's tabs", () => {
 describe("chat, then the definition", () => {
     it("opens on chat, with the definition beside it", () => {
         const labels = AGENT_TABS.map((tab) => tab.label);
-        expect(labels.slice(0, 2)).toEqual(["Chat", "Instructions"]);
+        expect(labels.slice(0, 2)).toEqual(["Messages", "Instructions"]);
+    });
+
+    it("names the thread and the record the way Home does", () => {
+        // One word per thing across the product: Home's strip opens on
+        // Messages and a bot's does too, and what a bot has been doing is
+        // History on both. "Chat" and "Logs" were a second vocabulary for
+        // the same two ideas.
+        const labels = AGENT_TABS.map((tab) => tab.label);
+        expect(labels).toContain("Messages");
+        expect(labels).toContain("History");
+        expect(labels).not.toContain("Chat");
+        expect(labels).not.toContain("Logs");
     });
 
     it("does not offer the graph as a tab of its own", () => {

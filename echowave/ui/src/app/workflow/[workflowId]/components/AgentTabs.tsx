@@ -62,14 +62,17 @@ export const AGENT_TABS = [
     // sells a teammate, and what you want from a teammate is what they have
     // been doing. Configuration is a thing you set once; the thread is the
     // thing you come back for.
-    { key: "thread", label: "Chat", icon: MessagesSquare },
+    { key: "thread", label: "Messages", icon: MessagesSquare },
     // Instructions carries "Open canvas", and the canvas is still its own
     // linkable place (?view=graph). It is not a tab: two tabs on one route
     // for two views of one definition made the strip say the bot had a
     // "Graph" the way it has Logs and Tools, which it does not -- the graph
     // is how the instructions are drawn.
     { key: "assistant", label: "Instructions", icon: Bot },
-    { key: "logs", label: "Logs", icon: ScrollText },
+    // "History", not "Logs": it is what this bot has been doing -- the calls
+    // it took, the runs it made -- and Home's strip already calls the same
+    // kind of record by a plain word. "Logs" reads as developer output.
+    { key: "logs", label: "History", icon: ScrollText },
     { key: "tools", label: "Tools", icon: Wrench },
     // What rings this bot from outside: a webhook today (KAN-137), an inbox
     // and app events next. Beside Tools because both answer "what can it
