@@ -27,6 +27,7 @@ from api.services.pipecat.gemini_json_schema_adapter import (
 from api.services.pipecat.minimax_tts import MiniMaxOwnedSessionTTSService
 from api.services.pipecat.sarvam_llm import DecibylSarvamLLMService
 from api.services.pipecat.sarvam_tts import DecibylSarvamTTSService
+from api.services.pipecat.stage_direction_filter import StageDirectionFilter
 from api.utils.url_security import validate_user_configured_service_url
 from pipecat.pipeline.service_switcher import (
     ServiceSwitcher,
@@ -117,8 +118,6 @@ from pipecat.services.tts_service import TextAggregationMode
 from pipecat.services.xai.tts import XAITTSService, XAIWebsocketTTSSettings
 from pipecat.transcriptions.language import Language
 from pipecat.utils.text.xml_function_tag_filter import XMLFunctionTagFilter
-
-from api.services.pipecat.stage_direction_filter import StageDirectionFilter
 
 if TYPE_CHECKING:
     from api.services.pipecat.audio_config import AudioConfig
