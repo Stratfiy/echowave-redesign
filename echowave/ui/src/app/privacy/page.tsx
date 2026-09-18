@@ -416,13 +416,12 @@ export default function PrivacyPage() {
 
                 <Card>
                     <CardHeader>
-                        <CardTitle>Are the controls actually working</CardTitle>
+                        <CardTitle>Is all of this being honoured</CardTitle>
                         <CardDescription>
-                            Every control on this page reports success by not raising,
-                            which is the wrong kind of quiet — a retention sweep that
-                            silently stopped running looks exactly like one with
-                            nothing to do. The headline below is designed to be
-                            zero; any other value is an incident, not a statistic.
+                            Three numbers, checked live. The first and the last should
+                            stay at zero: a recording kept past its window, or an
+                            erasure past its deadline, is a problem to act on, not a
+                            statistic. The middle one is who has been reading recordings.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
