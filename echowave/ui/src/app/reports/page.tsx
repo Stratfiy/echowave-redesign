@@ -52,6 +52,17 @@ interface DailyReport {
   }>;
 }
 
+/** The browser's zone, and India when the browser will not say: this
+ *  product's customers are here, and a report in New York time is a report
+ *  for a different day. */
+function browserTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata';
+  } catch {
+    return 'Asia/Kolkata';
+  }
+}
+
 export default function ReportsPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedWorkflow, setSelectedWorkflow] = useState<string>('all');
@@ -59,7 +70,11 @@ export default function ReportsPage() {
   const [report, setReport] = useState<DailyReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [timezone, setTimezone] = useState('America/New_York');
+  // The account's own timezone, else the browser's. Until one is known no
+  // report is asked for: a day's report in the wrong zone is a different day,
+  // and a first fetch in a placeholder zone flashes the wrong numbers before
+  // the right ones arrive.
+  const [timezone, setTimezone] = useState<string | null>(null);
   const auth = useAuth();
 
   // Fetch workflows on mount
@@ -86,11 +101,10 @@ export default function ReportsPage() {
 
       try {
         const response = await getPreferencesApiV1OrganizationsPreferencesGet();
-        if (response.data?.timezone) {
-          setTimezone(response.data.timezone);
-        }
+        setTimezone(response.data?.timezone || browserTimezone());
       } catch (err) {
         console.error('Failed to fetch organization preferences:', err);
+        setTimezone(browserTimezone());
       }
     };
     fetchPreferences();
@@ -99,7 +113,7 @@ export default function ReportsPage() {
   // Fetch report data when date or workflow changes
   useEffect(() => {
     const fetchReport = async () => {
-      if (!auth.isAuthenticated) return;
+      if (!auth.isAuthenticated || !timezone) return;
 
       setLoading(true);
       setError(null);
@@ -149,7 +163,7 @@ export default function ReportsPage() {
       const response = await getDailyRunsDetailApiV1OrganizationsReportsDailyRunsGet({
         query: {
           date: dateStr,
-          timezone,
+          timezone: timezone ?? browserTimezone(),
           ...(workflowId && { workflow_id: workflowId })
         },
       });
@@ -212,7 +226,7 @@ export default function ReportsPage() {
               <SelectValue placeholder="Select workflow" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Workflows</SelectItem>
+              <SelectItem value="all">All bots</SelectItem>
               {workflows.map((workflow) => (
                 <SelectItem key={workflow.id} value={workflow.id.toString()}>
                   {workflow.name}
@@ -265,7 +279,7 @@ export default function ReportsPage() {
       {/* Timezone Display and Download Button */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
         <div className="text-sm text-muted-foreground">
-          Showing data for {timezone} timezone
+          {timezone ? `Showing data for ${timezone} timezone` : 'Working out your timezone…'}
           {selectedWorkflow !== 'all' && (
             <span> • Filtered by: {workflows.find(w => w.id.toString() === selectedWorkflow)?.name}</span>
           )}
