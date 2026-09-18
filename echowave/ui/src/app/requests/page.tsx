@@ -19,8 +19,8 @@ import {
     listTasksApiV1TasksGet,
     setTaskStatusApiV1TasksTaskIdStatusPost,
 } from "@/client/sdk.gen";
-import { HOME_TABS } from "@/components/home/tabs";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { WORK_TABS } from "@/components/layout/SectionTabs";
 import SpinLoader from "@/components/SpinLoader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -175,12 +175,12 @@ export default function TasksPage() {
 
     return (
         <>
-        {/* The board is a tab of Home, beside the conversation: what the bots
-            and the team were handed is the other half of what happened. */}
+        {/* The board sits beside the schedules: both are work that is not a
+            conversation, and neither belongs inside the assistant's thread. */}
         <PageHeader
-            title="Decibyl"
+            title="Requests"
             description="What the bots and the team have been handed, and what came of it. A bot files a task for a colleague or for you; you file one for a bot or for the team."
-            tabs={HOME_TABS}
+            tabs={WORK_TABS}
         />
         <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
 

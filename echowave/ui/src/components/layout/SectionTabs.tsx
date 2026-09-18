@@ -114,3 +114,18 @@ export const DEVELOPER_TABS: PageTab[] = [
   { href: "/api-keys", label: "API keys & SDKs", prefix: true },
   { href: "/deploy/connect", label: "API & webhooks", prefix: true },
 ];
+
+/** What runs on its own, and what was handed over.
+ *
+ *  These were two tabs of Decibyl, beside its thread. But the assistant is a
+ *  colleague you talk to, not a container for the workspace's screens, and
+ *  Tasks was a third way to reach a door the sidebar already pins. They are
+ *  one job -- work that is not a conversation -- so they are one entry with
+ *  two tabs, the way Calls and Billing are.
+ *
+ *  Schedules first: a routine fires whether or not anybody is watching, and a
+ *  request waits for somebody. */
+export const WORK_TABS: PageTab[] = [
+  { href: "/tasks", label: "Tasks", prefix: true },
+  { href: "/requests", label: "Requests", prefix: true },
+];

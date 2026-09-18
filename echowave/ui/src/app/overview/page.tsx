@@ -1,58 +1,76 @@
 "use client";
 
 /**
- * The first screen after signing in, and the only one whose job is to get
- * somebody to a working agent rather than to show them something.
+ * Decibyl: the thread, and nothing above it but its own name.
  *
- * It used to open with "Open source alternative to Vapi — help us support the
- * project by giving us a star on GitHub", gated on `provider !== 'stack'`.
- * That condition is true for every local-auth deployment, which is what
- * production runs — so a paying customer's first impression was a request for
- * a GitHub star on a repository they have no relationship with, above a
- * comparison to a competitor. Both are gone. A customer is not a contributor.
+ * It used to carry a five-tab strip -- Messages, Tasks, Requests, Memory,
+ * About -- and four separate screens were titled "Decibyl" beneath it. Two of
+ * those tabs were doors the sidebar already holds, and the strip on About was
+ * a second, differently-written copy that offered History where this one
+ * offered Tasks. Which strip a reader saw depended on which tab they had
+ * clicked, which is the kind of thing somebody feels without being able to
+ * name it.
  *
- * What replaced them is the order the work actually happens in: describe the
- * business, hear it on a call, put it on a number. The chat panel stays at the
- * top because it is the shortest path to a working agent, and the cards below
- * it are the next two steps rather than a directory of subsystems.
+ * Buzz heads a room with its name and gives the rest to the messages; what the
+ * room is sits in the panel beside it. So: Tasks and Requests are one section
+ * in the sidebar, About opens on the right the way a bot's does, and the
+ * memory graph is a link inside About rather than a tab of its own.
  */
 
+import { Info } from "lucide-react";
+import { useState } from "react";
+
+import { DecibylAbout } from "@/components/home/DecibylAbout";
 import { HomeAboveTheFold } from "@/components/home/HomeAboveTheFold";
-import { HOME_TABS } from "@/components/home/tabs";
+import { AuxiliaryPanel } from "@/components/layout/AuxiliaryPanel";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 
 export default function OverviewPage() {
   const { user } = useAuth();
   const firstName = user?.displayName?.split(" ")[0];
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   return (
-    <>
+    <div className="flex h-full min-h-0 flex-col">
       <PageHeader
         title="Decibyl"
         // The greeting moved into the body, where it can say what
         // actually happened rather than what the page contains.
         description="Your team's assistant. Ask what happened, or build a new bot."
-        tabs={HOME_TABS}
+        actions={
+          // The same control a bot's thread carries, in the same place: who
+          // this one is, beside the conversation rather than a tab away.
+          <Button
+            size="sm"
+            variant={aboutOpen ? "secondary" : "outline"}
+            aria-pressed={aboutOpen}
+            onClick={() => setAboutOpen((open) => !open)}
+          >
+            <Info className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+            About
+          </Button>
+        }
       />
-      {/* The one screen that keeps a reading-width column inside the body.
-                Everything below is a chat composer and two prose cards; run
-                full-bleed at 1440 the input alone would be over a metre of
-                line, which is worse than the gutter the shell exists to remove. */}
-      <PageBody className="space-y-6">
-        {/* What happened, in sentences: the greeting, the composer,
-                    chips built from this account's own state, and the team. */}
-        <HomeAboveTheFold firstName={firstName} />
-        {/* The free-credit steps and the referral link moved to the gift
-            menu beside the credits chip: they are about the account, not
-            the conversation, and here they pushed the composer up the
-            screen and sat under it as two cards of chores. */}
-        {/* No charts here. Home is the conversation: a greeting, the
-            thread, the composer. How it is trending is the Analytics and
-            Spend tabs of Calls, which is where somebody goes to read a
-            chart -- and this screen no longer pays for a charting library
-            to put two of them under a chat nobody scrolls past. */}
-      </PageBody>
-    </>
+      <div className="flex min-h-0 flex-1">
+        {/* The one screen that keeps a reading-width column inside the body.
+            Everything below is a chat composer and two prose cards; run
+            full-bleed at 1440 the input alone would be over a metre of
+            line, which is worse than the gutter the shell exists to remove. */}
+        <div className="min-w-0 flex-1 overflow-y-auto">
+          <PageBody className="space-y-6">
+            {/* What happened, in sentences: the greeting, the composer,
+                chips built from this account's own state, and the team. */}
+            <HomeAboveTheFold firstName={firstName} />
+          </PageBody>
+        </div>
+        {aboutOpen && (
+          <AuxiliaryPanel label="About Decibyl" onClose={() => setAboutOpen(false)}>
+            <DecibylAbout />
+          </AuxiliaryPanel>
+        )}
+      </div>
+    </div>
   );
 }
