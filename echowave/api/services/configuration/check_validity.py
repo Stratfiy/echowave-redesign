@@ -404,8 +404,10 @@ class UserConfigurationValidator:
         against the customer.
 
         ``service_config`` is absent on the platform credential sweep, which
-        has a key but no agent. There, only question one is asked -- which is
-        still strictly more than this function used to do.
+        has a key but no agent. Question three needs a voice and is skipped
+        there; question two is not, because the caller can say which model it
+        means -- and a managed tier is precisely a model we are selling on a
+        key whose entitlement nobody has checked.
         """
         if not (api_key and api_key.strip()):
             raise ValueError(
@@ -446,7 +448,11 @@ class UserConfigurationValidator:
         except Exception:
             return True
 
-        configured_model = getattr(service_config, "model", None)
+        # The model argument, when there is no agent configuration to read one
+        # from. The platform credential sweep is exactly that case: a key and a
+        # managed tier, no agent -- and it is the case where getting this wrong
+        # breaks every managed customer at once rather than one of them.
+        configured_model = getattr(service_config, "model", None) or model
         if configured_model and available and configured_model not in available:
             raise ValueError(
                 f"Your ElevenLabs plan cannot use the model "

@@ -467,6 +467,22 @@ def resolve(component: CostComponent | str, tier: str | None) -> ManagedUpstream
     return fallback
 
 
+def every_tier() -> set[tuple[str, str]]:
+    """Every ``(component, tier)`` on sale.
+
+    The sibling of ``upstream_providers``, for the readiness question one level
+    down: not "do we hold a key for this vendor" but "may that key use the
+    model this tier resolves to". Built from ``_TIERS_BY_COMPONENT`` for the
+    reason that mapping exists -- a caller assembling it from the four tuples
+    is how one of them came to be missed.
+    """
+    return {
+        (component, tier)
+        for component, tiers in _TIERS_BY_COMPONENT.items()
+        for tier in tiers
+    }
+
+
 def upstream_providers() -> set[tuple[str, str]]:
     """Every ``(component, provider)`` the managed offering depends on.
 

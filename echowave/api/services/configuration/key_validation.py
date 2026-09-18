@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Literal
 
 from loguru import logger
@@ -70,8 +71,17 @@ def can_validate(provider: str) -> bool:
         return False
 
 
-async def validate_key(provider: str, api_key: str) -> ValidationResult:
-    """Ask the vendor whether this key works.
+async def validate_key(
+    provider: str, api_key: str, *, model: str | None = None
+) -> ValidationResult:
+    """Ask the vendor whether this key works, and optionally whether it may
+    use ``model``.
+
+    ``model`` exists for the platform's own keys. A customer's key is checked
+    against the agent configuration that names its model; the platform's is
+    checked against nothing, because there is no agent -- so a managed tier
+    could name a model our key has no entitlement to and the only symptom
+    would be every managed call on that tier failing at dial time.
 
     Never raises. Every failure mode this can hit is a thing to report to the
     customer as an outcome, and a save path that can be broken by a vendor's
@@ -94,10 +104,16 @@ async def validate_key(provider: str, api_key: str) -> ValidationResult:
             "automatically, so place a test call to confirm it works.",
         )
 
+    # The probes read the model off a service configuration, so a bare model
+    # is handed over as one. Everything they touch is read with getattr, and
+    # the voice check returns early when there is no voice, so a
+    # configuration carrying only a model asks exactly the model question.
+    config = SimpleNamespace(model=model, base_url=None, voice=None) if model else None
+
     def _run() -> bool:
         # The probes are blocking HTTP against a vendor, so they go to a thread
         # rather than stalling the event loop for the length of a round trip.
-        return bool(validator._check_api_key(provider, api_key))
+        return bool(validator._check_api_key(provider, api_key, config))
 
     try:
         ok = await asyncio.wait_for(asyncio.to_thread(_run), timeout=TIMEOUT_SECONDS)
