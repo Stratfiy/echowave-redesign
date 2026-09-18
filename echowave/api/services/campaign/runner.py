@@ -8,6 +8,7 @@ from api.services.campaign.campaign_event_publisher import (
     get_campaign_event_publisher,
 )
 from api.services.campaign.circuit_breaker import circuit_breaker
+from api.services.compliance import agreements
 from api.tasks.arq import enqueue_job
 from api.tasks.function_names import FunctionNames
 
@@ -25,6 +26,23 @@ class CampaignRunnerService:
         if campaign.state != "created":
             raise ValueError(
                 f"Campaign must be in 'created' state to start, current state: {campaign.state}"
+            )
+
+        # The terms and the DPA, before anyone's phone rings.
+        #
+        # `Agreement.required` is documented as "whether a customer must accept
+        # it before running a campaign", and nothing checked it here: the gate
+        # existed only on number purchase, so an account that bought its number
+        # before the gate, or brings its own Twilio or SIP trunk, could dial a
+        # list having accepted nothing. That is the exact case the acceptable
+        # use policy and the "consent is yours to hold" clause exist to cover,
+        # and an unaccepted policy gives no basis to suspend anyone.
+        #
+        # In the service rather than the route, beside the same check in
+        # `telephony/provisioning`, so a second caller cannot skip it.
+        async with db_client.async_session() as session:
+            await agreements.require_accepted(
+                session, organization_id=campaign.organization_id
             )
 
         # Redial campaigns have queued_runs pre-seeded from the parent campaign,

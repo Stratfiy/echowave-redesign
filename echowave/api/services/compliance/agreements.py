@@ -77,6 +77,16 @@ AGREEMENTS: tuple[Agreement, ...] = (
         # drafted but never published, including medical advice, emergency
         # reliance, and advice needing SEBI/IRDAI registration. That changes
         # what a customer is agreeing to, so every account is asked again.
+        #
+        # This string is our acceptance epoch, not the document's own date --
+        # the published page reads "Last updated 12 August 2026". They should
+        # agree: the whole claim of this module is that a stored row says
+        # which document was accepted, and a version nobody can find on the
+        # page is one step of that argument missing. Putting a matching
+        # version on the page is a site change, so it is noted here rather
+        # than guessed at; do not renumber this downwards to close the gap,
+        # because every account that has already accepted 2026-09 would be
+        # asked again for a document that did not change.
         version="2026-09",
         url="https://decibyl.ai/legal/terms",
         required=True,

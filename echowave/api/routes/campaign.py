@@ -24,6 +24,7 @@ from api.services.campaign import consent
 from api.services.campaign.runner import campaign_runner_service
 from api.services.campaign.source_sync import CampaignSourceSyncService
 from api.services.campaign.source_sync_factory import get_sync_service
+from api.services.compliance import agreements
 from api.services.kyc import service as kyc_service
 from api.services.posthog_client import capture_event
 from api.services.quota_service import authorize_workflow_run_start
@@ -620,6 +621,27 @@ async def start_campaign(
     # Start the campaign using the runner service
     try:
         await campaign_runner_service.start_campaign(campaign_id)
+    except agreements.AgreementsOutstanding as exc:
+        # 403 with the documents named, not a bare refusal: the fix is one
+        # click and the screen can put the document in front of the customer
+        # rather than telling them to contact support.
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": str(exc),
+                "agreements": [
+                    {
+                        "key": key,
+                        "title": agreements.CURRENT_TITLES.get(key, key),
+                        "url": next(
+                            (a.url for a in agreements.AGREEMENTS if a.key == key),
+                            None,
+                        ),
+                    }
+                    for key in exc.keys
+                ],
+            },
+        ) from exc
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
