@@ -126,13 +126,14 @@ describe("sidebar interactions", () => {
   it("the Home panel is channels and bots, not a menu", () => {
     route.pathname = "/overview";
     render(<SidebarProvider><AppSidebar /></SidebarProvider>);
-    // No nav rows in the Home panel: the pinned rows say Home and Bots, the
-    // YOUR BOTS section lists them. Bots is a pinned door to the roster, the
-    // way Buzz pins Agents above its channels.
+    // No nav rows in the Home panel, and no Bots row either: the roster is
+    // right there under its own label, and that label is the door to the full
+    // list. A pinned Bots row would be the same href printed twice.
     expect(screen.queryByRole("link", { name: "Home" })).toBeNull();
-    const bots = screen.getByRole("link", { name: "Bots" });
-    expect(bots.getAttribute("href")).toBe("/workflow");
-    expect(bots.closest("[data-rail]")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Bots" })).toBeNull();
+    const roster = screen.getByRole("link", { name: "Your bots" });
+    expect(roster.getAttribute("href")).toBe("/workflow");
+    expect(roster.closest("[data-rail]")).toBeNull();
     // The two sections' doors are there even before anything has loaded.
     expect(screen.getByLabelText("New chat")).toBeTruthy();
     expect(screen.getByLabelText("Add a bot")).toBeTruthy();
@@ -158,10 +159,24 @@ describe("sidebar interactions", () => {
     const rows = Array.from(rail.querySelectorAll("a, button")).map(
       (el) => el.getAttribute("aria-label") ?? el.textContent?.trim(),
     );
-    // Four, and only four. The shop, the setup and the account are behind the
-    // person: a day needs the thread, what the bots did, the bots, and what
-    // runs on its own.
+    // Three, and only three. The shop, the setup and the account are behind
+    // the person; the bots are the roster below, under a label that is
+    // already the door to the full list.
+    expect(rows).toEqual(["Home", "Activity", "Tasks"]);
+  });
+
+  it("gives the collapsed rail the door the roster is hiding", () => {
+    // Folded to icons there is no roster -- a column of bare avatars is a
+    // puzzle -- so the one door to the bots comes back as a row. Open, it is
+    // the label; folded, it is this. Never both at once.
+    render(<SidebarProvider defaultOpen={false}><AppSidebar /></SidebarProvider>);
+    const rail = document.querySelector('[role="tablist"][data-rail]')!;
+    const rows = Array.from(rail.querySelectorAll("a, button")).map(
+      (el) => el.getAttribute("aria-label") ?? el.textContent?.trim(),
+    );
     expect(rows).toEqual(["Home", "Activity", "Bots", "Tasks"]);
+    expect(screen.getByRole("link", { name: "Bots" }).getAttribute("href")).toBe("/workflow");
+    expect(screen.queryByRole("link", { name: "Your bots" })).toBeNull();
   });
 
   it("does not offer staff contexts to a customer", () => {
