@@ -116,6 +116,11 @@ async def compile_trigger(
             + ", ".join(bot_triggers.SOURCES),
         )
     async with db_client.async_session() as session:
+        # A builder message by another name: metered against the same
+        # allowance and priced the same past it. It was free at zero credit.
+        from api.routes.agent_builder import meter_builder_message
+
+        await meter_builder_message(session, organization_id)
         compiled = await bot_triggers.compile(
             body.sentence, answers=body.answers, session=session, source=body.source
         )

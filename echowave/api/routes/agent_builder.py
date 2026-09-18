@@ -90,6 +90,58 @@ async def _allowance(session, organization_id: int) -> int | None:
     return limit.value
 
 
+async def meter_builder_message(
+    session, organization_id: int
+) -> tuple[limits.LimitState, int]:
+    """Count one builder message and charge it past the allowance.
+
+    Consumed before the model is called -- see the module docstring. Returns
+    the month's state and the credits charged (0 within the allowance). Raises 503 when the counter
+    is unreachable and 402 when the balance cannot cover a message past the
+    allowance, with the way out named. The trigger compiler meters through
+    the same door, because "work it out" is a builder message by another
+    name and was free at zero credit.
+    """
+    allowance = await _allowance(session, organization_id)
+    state = await limits.check_and_consume(organization_id, allowance=allowance)
+    if state.unavailable:
+        raise HTTPException(
+            status_code=503,
+            detail="The builder is briefly unavailable. Try again in a minute.",
+            headers={"Retry-After": "60"},
+        )
+    if not state.past_allowance:
+        return state, 0
+    # Past the plan's allowance a message is five credits (KAN-56), taken
+    # before the model runs. Refused, with the way out named, when the
+    # balance cannot cover it.
+    from api.services.billing import credits as credit_units
+    from api.services.billing import events as billing_events
+    from api.services.billing.payments import current_balance_paise
+
+    balance = await current_balance_paise(session, organization_id=organization_id)
+    price = billing_events.paise_for(billing_events.BUILDER_MESSAGE)
+    if balance < price:
+        raise HTTPException(
+            status_code=402,
+            detail=(
+                f"You have used this month's {allowance} included builder "
+                f"messages. Each further message is "
+                f"{limits.PAST_ALLOWANCE_CREDITS} credits; you have "
+                f"{credit_units.credits_of_balance(balance)}. Add credit, "
+                "or upgrade for a larger allowance."
+            ),
+        )
+    await billing_events.charge(
+        session,
+        organization_id=organization_id,
+        event=billing_events.BUILDER_MESSAGE,
+        ref_id=f"{organization_id}:{limits.ist_month()}:{state.used}",
+    )
+    await session.commit()
+    return state, limits.PAST_ALLOWANCE_CREDITS
+
+
 def _usage(state: limits.LimitState, *, charged_credits: int) -> dict[str, Any]:
     return {
         "used": state.used,
@@ -125,47 +177,7 @@ async def chat(
             # configured, and the message says what to configure.
             raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-        # Consumed before the model is called — see the module docstring.
-        allowance = await _allowance(session, organization_id)
-        state = await limits.check_and_consume(organization_id, allowance=allowance)
-        if state.unavailable:
-            raise HTTPException(
-                status_code=503,
-                detail="The builder is briefly unavailable. Try again in a minute.",
-                headers={"Retry-After": "60"},
-            )
-        charged_credits = 0
-        if state.past_allowance:
-            # Past the plan's allowance a message is five credits (KAN-56),
-            # taken before the model runs. Refused, with the way out named,
-            # when the balance cannot cover it.
-            from api.services.billing import credits as credit_units
-            from api.services.billing import events as billing_events
-            from api.services.billing.payments import current_balance_paise
-
-            balance = await current_balance_paise(
-                session, organization_id=organization_id
-            )
-            price = billing_events.paise_for(billing_events.BUILDER_MESSAGE)
-            if balance < price:
-                raise HTTPException(
-                    status_code=402,
-                    detail=(
-                        f"You have used this month's {allowance} included builder "
-                        f"messages. Each further message is "
-                        f"{limits.PAST_ALLOWANCE_CREDITS} credits; you have "
-                        f"{credit_units.credits_of_balance(balance)}. Add credit, "
-                        "or upgrade for a larger allowance."
-                    ),
-                )
-            await billing_events.charge(
-                session,
-                organization_id=organization_id,
-                event=billing_events.BUILDER_MESSAGE,
-                ref_id=f"{organization_id}:{limits.ist_month()}:{state.used}",
-            )
-            await session.commit()
-            charged_credits = limits.PAST_ALLOWANCE_CREDITS
+        state, charged_credits = await meter_builder_message(session, organization_id)
 
         try:
             result = await run_turn(
