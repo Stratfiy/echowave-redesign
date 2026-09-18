@@ -246,6 +246,29 @@ async def _share_token(workflow_id: int, user: UserModel) -> Optional[EmbedToken
     return existing[0] if existing else None
 
 
+async def _unfilled_setup(workflow) -> list[str]:
+    """Labels of the required setup fields this bot still has blank.
+
+    A bot shared before its clinic name and hours are filled greets the
+    prospect "Namaste, ." and invents opening hours -- seen live. The setup
+    screen already knows what is still needed; the share link asks the same
+    question before handing out a door to strangers.
+    """
+    from api.services.workflow.setup_fields import (
+        missing_required,
+        setup_fields_for,
+    )
+
+    draft = await db_client.get_draft_version(workflow.id)
+    source = draft or getattr(workflow, "released_definition", None)
+    if source is None:
+        return []
+    definition = source.workflow_json or {}
+    values = source.template_context_variables or {}
+    missing = set(missing_required(definition, values))
+    return [f.label for f in setup_fields_for(definition) if f.name in missing]
+
+
 @router.post("/{workflow_id}/share-link")
 async def create_share_link(
     workflow_id: int,
@@ -265,6 +288,17 @@ async def create_share_link(
     the owner's credits, and the link goes to strangers — the cap is what
     keeps one forwarded message from being a balance gone overnight.
     """
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=user.selected_organization_id
+    )
+    if not workflow:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    unfilled = await _unfilled_setup(workflow)
+    if unfilled:
+        raise HTTPException(
+            status_code=409,
+            detail="Finish setting up first: " + ", ".join(unfilled) + ".",
+        )
     token = await _share_token(workflow_id, user)
     fresh_expiry = datetime.now(UTC) + timedelta(days=share_links.DEFAULT_EXPIRY_DAYS)
     if token is not None:
