@@ -17,7 +17,7 @@ beforeEach(() => {
 describe("the accent picker", () => {
     it("opens on the accent the app is already wearing", () => {
         render(<AccentSection />);
-        expect(screen.getByRole("radio", { name: "Coral" }).getAttribute("aria-checked")).toBe("true");
+        expect(screen.getByRole("radio", { name: "Mauve" }).getAttribute("aria-checked")).toBe("true");
     });
 
     it("applies a chosen accent to the document and remembers it", () => {
@@ -35,7 +35,7 @@ describe("the accent picker", () => {
 
     it("offers the presets and no custom picker", () => {
         render(<AccentSection />);
-        expect(screen.getAllByRole("radio")).toHaveLength(8);
+        expect(screen.getAllByRole("radio")).toHaveLength(9);
         expect(screen.queryByLabelText(/pick your own/i)).toBeNull();
     });
 

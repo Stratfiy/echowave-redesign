@@ -4,7 +4,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
-    "inline-flex items-center rounded-[var(--radius-pill)] border px-2.5 py-0.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+    "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase leading-none tracking-[0.12em] transition-colors focus:outline-none focus:ring-1 focus:ring-ring",
     {
         variants: {
             variant: {
@@ -14,7 +14,7 @@ const badgeVariants = cva(
                     "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
                 destructive:
                     "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
-                outline: "text-foreground",
+                outline: "border-border/70 bg-background/80 text-muted-foreground",
                 success:
                     "border-transparent bg-[var(--color-soft-mint)] text-[#14532d]",
                 // Tinted washes for row-level state. Small surfaces only — the
