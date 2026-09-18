@@ -118,9 +118,13 @@ describe("sidebar interactions", () => {
   it("the Home panel is channels and bots, not a menu", () => {
     route.pathname = "/overview";
     render(<SidebarProvider><AppSidebar /></SidebarProvider>);
-    // No nav rows in the Home panel: the rail says Home, YOUR BOTS says bots.
+    // No nav rows in the Home panel: the pinned rows say Home and Bots, the
+    // YOUR BOTS section lists them. Bots is a pinned door to the roster, the
+    // way Buzz pins Agents above its channels.
     expect(screen.queryByRole("link", { name: "Home" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Bots" })).toBeNull();
+    const bots = screen.getByRole("link", { name: "Bots" });
+    expect(bots.getAttribute("href")).toBe("/workflow");
+    expect(bots.closest("[data-rail]")).toBeTruthy();
     // The two sections' doors are there even before anything has loaded.
     expect(screen.getByLabelText("New chat")).toBeTruthy();
     expect(screen.getByLabelText("Add a bot")).toBeTruthy();
@@ -132,14 +136,23 @@ describe("sidebar interactions", () => {
       .getAllByRole("link", { name: "Decibyl" })
       .find((link) => !link.closest("[data-rail]"));
     expect(decibyl?.getAttribute("href")).toBe("/overview");
-    // The setup call sits on the rail, under Account, not in a foot of the
-    // panel: the panel ends where its list ends.
+    // The foot is the person, as Buzz's profile card: the setup call and the
+    // account menu sit there, below the list, and stay put when it scrolls.
     const setup = screen.getByRole("link", {
       name: new RegExp(SETUP_CALL_LABEL),
     });
-    expect(setup.closest("[data-rail]")).toBeTruthy();
-    expect(document.querySelector('[data-slot="sidebar-footer"]')).toBeNull();
+    expect(setup.closest('[data-slot="sidebar-footer"]')).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Account menu" }).closest('[data-slot="sidebar-footer"]')).toBeTruthy();
   });
+  it("pins the rows in Buzz's order: the places first, then the shop, then the settings", () => {
+    render(<SidebarProvider><AppSidebar /></SidebarProvider>);
+    const rail = document.querySelector('[role="tablist"][data-rail]')!;
+    const rows = Array.from(rail.querySelectorAll("a, button")).map(
+      (el) => el.getAttribute("aria-label") ?? el.textContent?.trim(),
+    );
+    expect(rows).toEqual(["Home", "Activity", "Bots", "Tasks", "Marketplace", "Setup", "Account"]);
+  });
+
   it("does not offer staff contexts to a customer", () => {
     render(<SidebarProvider defaultOpen={false}><AppSidebar /></SidebarProvider>);
     fireEvent.click(screen.getByRole("tab", { name: "Account" }));

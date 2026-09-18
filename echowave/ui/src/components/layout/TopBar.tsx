@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleHelp, ExternalLink, LogOut, Menu, Search, Settings } from "lucide-react";
+import { CircleHelp, ExternalLink, Menu, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
@@ -18,8 +18,6 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { HELP_LINKS } from "@/constants/community";
 import { type AccessRoles, useAccessRoles } from "@/hooks/useAccessRoles";
-import type { LocalUser } from "@/lib/auth";
-import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 import { BalanceChip } from "./BalanceChip";
@@ -176,22 +174,6 @@ function GlobalSearch() {
  */
 export function TopBar() {
   const { toggleSidebar } = useSidebar();
-  const { user, logout, provider } = useAuth();
-  const router = useRouter();
-
-  const displayIdentity =
-    user?.displayName ||
-    (user as { primaryEmail?: string } | undefined)?.primaryEmail ||
-    (user as LocalUser | undefined)?.email ||
-    "";
-  const initials =
-    displayIdentity
-      .split(/[\s@]/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((s: string) => s[0]?.toUpperCase())
-      .join("") || "U";
-
   return (
     <header className="sticky top-0 z-40 flex h-11 shrink-0 items-center gap-2 px-3 text-rail-foreground">
       <Button
@@ -276,48 +258,8 @@ export function TopBar() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Account"
-              className="h-8 w-8 rounded-full border border-border bg-muted text-xs font-medium hover:bg-accent"
-            >
-              {initials}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col space-y-1">
-                {user?.displayName && (
-                  <p className="text-sm font-medium">{user.displayName}</p>
-                )}
-                {displayIdentity && (
-                  <p className="truncate text-xs text-muted-foreground">{displayIdentity}</p>
-                )}
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {provider === "stack" && (
-              <DropdownMenuItem
-                onClick={() => router.push("/handler/account-settings")}
-                className="cursor-pointer"
-              >
-                <Settings className="mr-2 h-4 w-4" />
-                Account settings
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onClick={() => router.push("/settings")} className="cursor-pointer">
-              <Settings className="mr-2 h-4 w-4" />
-              Platform Settings
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => logout()} className="cursor-pointer">
-              <LogOut className="mr-2 h-4 w-4" />
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* No account avatar here: the person sits in the sidebar's foot,
+            as Buzz's profile card, with the same menu behind it. */}
       </div>
     </header>
   );

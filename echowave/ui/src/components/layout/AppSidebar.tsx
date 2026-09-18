@@ -1,13 +1,18 @@
 "use client";
 
+import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
   ArrowUpCircle,
+  Bot,
+  CalendarClock,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   Database,
   LifeBuoy,
+  LogOut,
+  Settings,
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
@@ -20,8 +25,15 @@ import { SidebarBots } from "@/components/layout/SidebarBots";
 import { SidebarChannels } from "@/components/layout/SidebarChannels";
 import { SidebarTeamSwitcher } from "@/components/layout/SidebarTeamSwitcher";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
@@ -51,6 +63,7 @@ import {
   getContextSections,
   getVisibleNavSections,
   NAV_CONTEXTS,
+  type NavContext,
   type NavContextId,
   type SidebarNavItem,
 } from "./navigation";
@@ -64,11 +77,51 @@ function sentenceCase(label: string): string {
   return label.charAt(0) + label.slice(1).toLowerCase();
 }
 
+/** The rows pinned to the top of the panel, in reading order.
+ *
+ *  Buzz pins Inbox, Pulse, Projects, Agents and Workflows above its
+ *  channel sections; this is the same shape read for a product whose
+ *  members are bots. A context row opens that context's sections beneath
+ *  it (Activity, Marketplace, Setup, Account); Home does that and goes
+ *  home; Bots and Tasks are plain doors, since the whole roster lives on
+ *  one screen and so do the schedules. */
+type PinnedRow =
+  | { kind: "context"; title: string; icon: LucideIcon; context: NavContext }
+  | { kind: "link"; title: string; icon: LucideIcon; url: string };
+
+function contextRow(id: NavContextId): PinnedRow {
+  const context = NAV_CONTEXTS.find((c) => c.id === id)!;
+  return { kind: "context", title: context.title, icon: context.icon, context };
+}
+
+const PINNED_ROWS: PinnedRow[] = [
+  contextRow("home"),
+  contextRow("activity"),
+  { kind: "link", title: "Bots", icon: Bot, url: "/workflow" },
+  { kind: "link", title: "Tasks", icon: CalendarClock, url: "/tasks" },
+  contextRow("marketplace"),
+  contextRow("setup"),
+  contextRow("account"),
+];
+
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { state, isMobile, setOpenMobile, setOpen } = useSidebar();
-  const { provider } = useAuth();
+  const { user, logout, provider } = useAuth();
+  const displayIdentity =
+    user?.displayName ||
+    (user as { primaryEmail?: string } | undefined)?.primaryEmail ||
+    (user as { email?: string } | undefined)?.email ||
+    "";
+  const initials = displayIdentity
+    ? displayIdentity
+        .split(/[\s@._-]+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase() ?? "")
+        .join("")
+    : "?";
   const { config } = useAppConfig();
   const {
     telnyxMissingWebhookPublicKeyCount,
@@ -243,7 +296,7 @@ export function AppSidebar() {
         className={cn(
           "rounded-md text-sidebar-foreground/85 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
           isItemActive &&
-            "bg-sidebar-primary font-semibold text-sidebar-primary-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground",
+            "bg-sidebar-accent font-semibold text-sidebar-accent-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
         )}
       >
         <Link
@@ -258,7 +311,7 @@ export function AppSidebar() {
             className={cn(
               "h-4 w-4 shrink-0",
               isItemActive
-                ? "text-sidebar-primary-foreground"
+                ? "text-sidebar-accent-foreground"
                 : "text-sidebar-foreground/70",
             )}
           />
@@ -304,13 +357,12 @@ export function AppSidebar() {
               source: "sidebar",
             })
           }
-          className="flex w-11 flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-rail-foreground/70 transition-colors hover:bg-black/5 hover:text-rail-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-accent"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-rail-foreground/70 transition-colors hover:bg-black/5 hover:text-rail-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
         >
-          <LifeBuoy className="h-5 w-5" />
-          <span className="text-[10px] leading-none">Get help</span>
+          <LifeBuoy className="h-4 w-4" />
         </a>
       </TooltipTrigger>
-      <TooltipContent side="right">
+      <TooltipContent side="top">
         <p>{SETUP_CALL_LABEL}</p>
       </TooltipContent>
     </Tooltip>
@@ -333,124 +385,28 @@ export function AppSidebar() {
           panel without offering a way back to the others is how a destination
           silently stops being reachable. */}
       <SidebarContent
-        className="notranslate h-full flex-row gap-0 p-0"
+        className="notranslate h-full flex-col gap-0 p-0"
         translate="no"
       >
-        {
-          <div
-            role="tablist"
-            aria-label="Workspace"
-            data-rail=""
-            /* Dark, because this is chrome rather than content.
-             *
-             * The five contexts were a light strip inside the panel, which made
-             * them read as the panel's first group rather than as the frame
-             * around it — and a frame the same colour as what it frames is not
-             * doing the one job a frame has. Slack's rail is aubergine in light
-             * mode for the same reason.
-             *
-             * It also puts the mark at the top of the rail rather than above
-             * the panel, so the brand sits on the chrome and the workspace name
-             * gets the panel to itself. */
-            className={cn(
-              "flex w-16 shrink-0 flex-col items-center gap-1 self-stretch bg-rail py-2 text-rail-foreground",
-              // Collapsed it is the whole sidebar, so it rounds on both sides
-              // rather than butting up against a panel that is not there.
-              isCollapsed ? "w-full rounded-[inherit]" : "rounded-l-[inherit]",
-            )}
-          >
-            <Link
-              href="/"
-              aria-label="Decibyl"
-              className="mb-1 flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--accent-brand)] text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-brand)]"
-            >
-              <span className="text-sm font-semibold leading-none">d</span>
-            </Link>
-            {NAV_CONTEXTS.map((context) => {
-              const Icon = context.icon;
-              const selected = context.id === activeContext;
-              return (
-                <button
-                  key={context.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={selected}
-                  aria-label={context.title}
-                  title={context.title}
-                  onClick={() => {
-                    setPickedContext(context.id);
-                    // Collapsed, the panel this names is not on screen. Picking
-                    // a context you cannot then see is a click that does
-                    // nothing, so opening is part of the same gesture.
-                    if (isCollapsed) setOpen(true);
-                    // Home is the one context whose panel has no link to its
-                    // own landing -- the row was removed so the panel could
-                    // be the workspace rather than a menu -- so the button
-                    // itself goes there. The others stay browse-only: picking
-                    // Setup to look at what is in it, without leaving the
-                    // page you are reading, is a thing people do.
-                    if (context.id === "home" && pathname !== "/overview") {
-                      router.push("/overview");
-                    }
-                  }}
-                  className={cn(
-                    "flex w-14 flex-col items-center gap-0.5 rounded-md px-1 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-accent",
-                    selected
-                      ? "bg-rail-accent text-rail-accent-foreground"
-                      : // 80% rather than a muted token: muted-foreground is read
-                        // against the light panel and disappears on the rail.
-                        "text-rail-foreground/70 hover:bg-black/5 hover:text-rail-foreground",
-                  )}
-                >
-                  <Icon aria-hidden="true" className="h-[18px] w-[18px]" />
-                  {/* The label, not just the icon. Slack ships icons+text by
-                      default and offers icons-only as a setting; five unlabelled
-                      glyphs is a memory test on a product somebody uses once a
-                      week. */}
-                  <span className="text-[11px] font-bold leading-none">
-                    {context.title}
-                  </span>
-                </button>
-              );
-            })}
-            {/* The rail's foot: the setup call, right under Account, and the
-                fold. This is the frame's bottom, not the panel's, so it stays
-                put when the panel scrolls. */}
-            <div className="mt-auto flex flex-col items-center gap-1 pt-2">
-              {setupCallButton}
-              <SidebarTrigger
-                className="h-9 w-9 rounded-md text-rail-foreground/70 hover:bg-black/5 hover:text-rail-foreground"
-                aria-label={
-                  isCollapsed ? "Open the panel" : "Fold the panel away"
-                }
-              >
-                {isCollapsed ? (
-                  <ChevronRight className="h-4 w-4" />
-                ) : (
-                  <ChevronLeft className="h-4 w-4" />
-                )}
-              </SidebarTrigger>
-            </div>
-          </div>
-        }
-
+        {/* The head: the brand mark and the workspace name on one row, the
+            way Buzz heads its panel. `data-rail` marks it as chrome so the
+            panel's own Decibyl row is found apart from the mark. */}
         <div
+          data-rail=""
           className={cn(
-            "flex min-w-0 flex-1 flex-col",
-            isCollapsed && "hidden",
+            "flex min-h-11 items-center gap-2 px-2 text-rail-foreground [&_button]:text-rail-foreground [&_button:hover]:bg-black/5 [&_button_svg]:text-rail-foreground/70",
+            isCollapsed && "justify-center px-0",
           )}
         >
-          {/* The workspace name heads the panel, the way Slack heads its
-            sidebar with the workspace: it names everything below it, and the
-            menu behind it is where you switch to another account or rename
-            this one. */}
-          {/* The head is the rail's colour, so the dark band runs across the
-            top of the frame -- rail, workspace name, top bar -- as one
-            piece, the way Slack's does. The switcher's own styling is for
-            a light panel; it is recoloured here rather than taught about
-            the rail. */}
-          <div className="flex min-h-11 items-center bg-rail px-2 text-rail-foreground [&_button]:text-rail-foreground [&_button:hover]:bg-black/5 [&_button_svg]:text-rail-foreground/70">
-            <div className="flex w-full items-center gap-2">
+          <Link
+            href="/"
+            aria-label="Decibyl"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-brand)] text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-brand)]"
+          >
+            <span className="text-sm font-semibold leading-none">d</span>
+          </Link>
+          {!isCollapsed && (
+            <>
               <div className="min-w-0 flex-1">
                 <OrganizationSwitcher collapsed={isCollapsed} />
               </div>
@@ -461,7 +417,7 @@ export function AppSidebar() {
                       href="https://docs.decibyl.ai/deployment/update"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex shrink-0 items-center gap-1 rounded-md border bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium leading-none text-amber-900 transition-opacity hover:opacity-80 dark:bg-amber-950 dark:text-amber-200"
+                      className="inline-flex shrink-0 items-center gap-1 rounded-md border bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium leading-none text-amber-900 transition-opacity hover:opacity-80"
                     >
                       <ArrowUpCircle className="h-3 w-3" />
                       Update
@@ -477,7 +433,7 @@ export function AppSidebar() {
               {isLatest && (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span className="inline-flex shrink-0 items-center rounded-md border bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium leading-none text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
+                    <span className="inline-flex shrink-0 items-center rounded-md border bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium leading-none text-emerald-900">
                       Latest
                     </span>
                   </TooltipTrigger>
@@ -486,119 +442,214 @@ export function AppSidebar() {
                   </TooltipContent>
                 </Tooltip>
               )}
-            </div>
-            {provider === "stack" && (
-              <div className="mt-2 notranslate" translate="no">
-                <SidebarTeamSwitcher />
-              </div>
-            )}
+            </>
+          )}
+        </div>
+        {provider === "stack" && !isCollapsed && (
+          <div className="notranslate px-2 pb-1" translate="no">
+            <SidebarTeamSwitcher />
           </div>
-          <div className="min-w-0 flex-1 overflow-y-auto px-1 py-1">
-            {contextSections.map((section) => (
-              <React.Fragment key={section.label ?? "overview"}>
-                <SidebarGroup className="py-1">
-                  {section.label && (
-                    <SidebarGroupLabel
+        )}
+
+        {/* The pinned rows, Buzz's Inbox / Pulse / Projects / Agents /
+            Workflows read for this product: Home, Activity, Bots, Tasks,
+            Marketplace, then Setup and Account. A context row opens its
+            sections below; a plain row is a door. The five contexts were a
+            vertical strip of icons down the edge; as rows they read like
+            the rest of the panel and take the same tint when selected. */}
+        <div role="tablist" aria-label="Workspace" data-rail="" className="px-1 pt-1">
+          <SidebarMenu>
+            {PINNED_ROWS.map((row) => {
+              const Icon = row.icon;
+              if (row.kind === "link") {
+                const selected = activeUrl === row.url;
+                return (
+                  <SidebarMenuItem key={row.title}>
+                    <SidebarMenuButton
                       asChild
-                      className={cn(
-                        "notranslate h-8 text-[15px] font-normal text-sidebar-foreground/70",
-                        isCollapsed && "hidden",
-                      )}
-                      translate="no"
+                      tooltip={row.title}
+                      isActive={selected}
+                      className="rounded-md text-sidebar-foreground/85"
                     >
-                      <button
-                        type="button"
-                        aria-expanded={!closedSections.includes(section.label)}
-                        aria-controls={`nav-${section.label}`}
-                        onClick={() => toggleSection(section.label!)}
-                        className="w-full justify-between hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                      <Link
+                        href={row.url}
+                        aria-current={selected ? "page" : undefined}
+                        onClick={handleMobileNavClick}
+                        className={cn(isCollapsed && "justify-center")}
                       >
-                        {sentenceCase(section.label)}
-                        <ChevronDown
-                          aria-hidden="true"
-                          className={cn(
-                            "h-3.5 w-3.5 transition-transform",
-                            closedSections.includes(section.label) &&
-                              "-rotate-90",
-                          )}
-                        />
-                      </button>
-                    </SidebarGroupLabel>
-                  )}
-                  <SidebarMenu
-                    id={section.label ? `nav-${section.label}` : undefined}
-                    hidden={
-                      !isCollapsed &&
-                      !!section.label &&
-                      closedSections.includes(section.label)
-                    }
-                    className={cn(
-                      !isCollapsed &&
-                        !!section.label &&
-                        closedSections.includes(section.label) &&
-                        "hidden",
-                    )}
+                        <Icon aria-hidden="true" className="h-4 w-4 shrink-0 text-sidebar-foreground/70" />
+                        <span className={cn("truncate", isCollapsed && "sr-only")}>{row.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              }
+              const context = row.context;
+              const selected = context.id === activeContext;
+              return (
+                <SidebarMenuItem key={context.id}>
+                  <SidebarMenuButton
+                    type="button"
+                    role="tab"
+                    aria-selected={selected}
+                    aria-label={context.title}
+                    tooltip={context.title}
+                    isActive={selected}
+                    onClick={() => {
+                      setPickedContext(context.id);
+                      if (isCollapsed) setOpen(true);
+                      if (context.id === "home" && pathname !== "/overview") {
+                        router.push("/overview");
+                      }
+                    }}
+                    className={cn("rounded-md text-sidebar-foreground/85", isCollapsed && "justify-center")}
                   >
-                    {section.items.map((item) => (
-                      <SidebarMenuItem key={item.title}>
-                        <SidebarLink item={item} />
-                      </SidebarMenuItem>
-                    ))}
-                  </SidebarMenu>
-                </SidebarGroup>
-              </React.Fragment>
-            ))}
-            {/* The Home panel. Channels first, then the bots: a channel is a
-            place you work, a bot on its own is a thing you configure, and
-            every workspace product leads with the places. Rendered outside
-            the section loop because Home has no sections any more -- see
-            contextSections. */}
-            {!isCollapsed && activeContext === "home" && (
-              <>
-                {/* The two rows every workspace panel opens with, and Slack's
-                Slackbot and Directories are the model: the assistant you
-                talk to, and the place the company's documents live. No
-                heading -- they are not a section, they are the top of the
-                panel. */}
-                <SidebarGroup className="py-1">
-                  <SidebarMenu>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        asChild
-                        isActive={pathname === "/overview"}
-                      >
-                        <Link href="/overview">
-                          <Sparkles
-                            aria-hidden="true"
-                            className="h-4 w-4 shrink-0"
-                          />
-                          <span className="truncate">Decibyl</span>
-                        </Link>
-                      </SidebarMenuButton>
+                    <Icon aria-hidden="true" className="h-4 w-4 shrink-0 text-sidebar-foreground/70" />
+                    <span className={cn("truncate", isCollapsed && "sr-only")}>{context.title}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
+          </SidebarMenu>
+        </div>
+
+        {/* What the selected row opens. Hidden when folded: a 64px column
+            cannot hold a destination list, and the rows above are the doors. */}
+        <div
+          className={cn(
+            "min-w-0 flex-1 overflow-y-auto px-1 py-1",
+            isCollapsed && "hidden",
+          )}
+        >
+          {contextSections.map((section) => (
+            <React.Fragment key={section.label ?? "overview"}>
+              <SidebarGroup className="py-1">
+                {section.label && (
+                  <SidebarGroupLabel
+                    asChild
+                    className="notranslate h-8 text-[15px] font-normal text-sidebar-foreground/70"
+                    translate="no"
+                  >
+                    <button
+                      type="button"
+                      aria-expanded={!closedSections.includes(section.label)}
+                      aria-controls={`nav-${section.label}`}
+                      onClick={() => toggleSection(section.label!)}
+                      className="w-full justify-between hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                    >
+                      {sentenceCase(section.label)}
+                      <ChevronDown
+                        aria-hidden="true"
+                        className={cn(
+                          "h-3.5 w-3.5 transition-transform",
+                          closedSections.includes(section.label) && "-rotate-90",
+                        )}
+                      />
+                    </button>
+                  </SidebarGroupLabel>
+                )}
+                <SidebarMenu
+                  id={section.label ? `nav-${section.label}` : undefined}
+                  hidden={!!section.label && closedSections.includes(section.label)}
+                  className={cn(
+                    !!section.label && closedSections.includes(section.label) && "hidden",
+                  )}
+                >
+                  {section.items.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarLink item={item} />
                     </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        asChild
-                        isActive={pathname === "/files"}
-                      >
-                        <Link href="/files">
-                          <Database
-                            aria-hidden="true"
-                            className="h-4 w-4 shrink-0"
-                          />
-                          <span className="truncate">Knowledge base</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </SidebarMenu>
-                </SidebarGroup>
-                <SidebarChannels collapsed={isCollapsed} />
-                <SidebarBots collapsed={isCollapsed} />
-              </>
-            )}
-          </div>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroup>
+            </React.Fragment>
+          ))}
+          {/* Home is the workspace: the assistant, the knowledge base, then
+              the channels and the bots, Buzz's Channels and Direct messages. */}
+          {activeContext === "home" && (
+            <>
+              <SidebarGroup className="py-1">
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname === "/overview"}>
+                      <Link href="/overview">
+                        <Sparkles aria-hidden="true" className="h-4 w-4 shrink-0" />
+                        <span className="truncate">Decibyl</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname === "/files"}>
+                      <Link href="/files">
+                        <Database aria-hidden="true" className="h-4 w-4 shrink-0" />
+                        <span className="truncate">Knowledge base</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroup>
+              <SidebarChannels collapsed={isCollapsed} />
+              <SidebarBots collapsed={isCollapsed} />
+            </>
+          )}
         </div>
       </SidebarContent>
+
+      {/* The foot is the person, as Buzz's profile card: who is signed in,
+          the setup call, the fold. It stays put when the panel scrolls. */}
+      <SidebarFooter className="gap-1 px-1 pb-2 pt-1">
+        <div className={cn("flex items-center gap-1", isCollapsed && "flex-col")}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label="Account menu"
+                className={cn(
+                  "flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+                  isCollapsed && "flex-none justify-center px-0",
+                )}
+              >
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-sidebar-border bg-white/60 text-xs font-medium text-sidebar-foreground">
+                  {initials}
+                </span>
+                {!isCollapsed && (
+                  <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                    <span className="truncate text-sm font-medium text-sidebar-foreground">
+                      {user?.displayName || displayIdentity || "You"}
+                    </span>
+                    {displayIdentity && user?.displayName && (
+                      <span className="truncate text-[11px] text-sidebar-foreground/60">{displayIdentity}</span>
+                    )}
+                  </span>
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" side="top" className="w-56">
+              {provider === "stack" && (
+                <DropdownMenuItem onClick={() => router.push("/handler/account-settings")} className="cursor-pointer">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Account settings
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => router.push("/settings")} className="cursor-pointer">
+                <Settings className="mr-2 h-4 w-4" />
+                Settings
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => logout()} className="cursor-pointer">
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {setupCallButton}
+          <SidebarTrigger
+            className="h-8 w-8 shrink-0 rounded-md text-rail-foreground/70 hover:bg-black/5 hover:text-rail-foreground"
+            aria-label={isCollapsed ? "Open the panel" : "Fold the panel away"}
+          >
+            {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </SidebarTrigger>
+        </div>
+      </SidebarFooter>
 
       <SidebarRail />
     </Sidebar>
