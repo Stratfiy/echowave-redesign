@@ -76,7 +76,7 @@ export function ThreadList({
     const fresh = current !== null && !threads.some((t) => t.thread_id === current);
 
     return (
-        <div className="flex flex-wrap items-center gap-2 px-1" data-testid="thread-list">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 px-4 pb-2 sm:px-6" data-testid="thread-list">
             <button
                 type="button"
                 onClick={onNew}

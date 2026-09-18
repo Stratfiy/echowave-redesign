@@ -250,14 +250,16 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   };
 
   return (
-    <div className="flex h-[calc(100vh-9rem)] min-h-[32rem] flex-col gap-4">
+    // Fills what the shell gives it, rather than guessing the header's
+    // height in `vh` -- the guess was wrong the moment the header changed.
+    <div className="flex h-full min-h-0 flex-col gap-3">
       {/* The way Slackbot opens: the mark, a hello, one line on what
                 happened, and the two questions as cards you press. Centred,
                 because this is a greeting and not a form. Only while the
                 thread is empty: once you are talking, the thread is the
                 screen. */}
       {rows === 0 && (
-      <div className="flex flex-col items-center px-2 pt-2 text-center">
+      <div className="flex shrink-0 flex-col items-center overflow-y-auto px-2 pt-2 text-center">
         <div
           aria-hidden="true"
           className="flex h-16 w-16 items-center justify-center rounded-2xl bg-rail text-3xl font-semibold text-rail-foreground"
@@ -333,7 +335,10 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         </div>
       )}
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
+      {/* No card around the room. Buzz gives the whole pane to the
+          messages; a bordered, tinted box inside a bordered, tinted page was
+          three surfaces deep before a word of the conversation. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {/* Keyed on the chat, so switching remounts the stream clean:
             no rows from the last chat showing until the poll catches up,
             no cursor pointing into a different conversation. */}
@@ -360,6 +365,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
           }}
         />
       </div>
+      {/* Under the composer, out of the thread's way. */}
       <ThreadList
         current={threadId}
         onPick={switchThread}

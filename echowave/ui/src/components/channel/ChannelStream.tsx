@@ -581,7 +581,11 @@ export function ChannelStream({
     return (
         <div
             ref={scroller}
-            className="brand-wash min-h-0 flex-1 overflow-y-auto px-6 py-4"
+            // Plain paper. The thread used to sit on a drifting violet wash;
+            // a room you read all day is the one surface in the product that
+            // must not have atmosphere of its own, and the messages have
+            // colour enough in their faces.
+            className="min-h-0 flex-1 overflow-y-auto bg-background px-4 py-4 sm:px-6"
             onScroll={(scroll) => {
                 const element = scroll.currentTarget;
                 pinned.current =

@@ -23,7 +23,6 @@ import { useState } from "react";
 import { DecibylAbout } from "@/components/home/DecibylAbout";
 import { HomeAboveTheFold } from "@/components/home/HomeAboveTheFold";
 import { AuxiliaryPanel } from "@/components/layout/AuxiliaryPanel";
-import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 
@@ -34,36 +33,33 @@ export default function OverviewPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <PageHeader
-        title="Decibyl"
-        // The greeting moved into the body, where it can say what
-        // actually happened rather than what the page contains.
-        description="Your team's assistant. Ask what happened, or build a new bot."
-        actions={
-          // The same control a bot's thread carries, in the same place: who
-          // this one is, beside the conversation rather than a tab away.
-          <Button
-            size="sm"
-            variant={aboutOpen ? "secondary" : "outline"}
-            aria-pressed={aboutOpen}
-            onClick={() => setAboutOpen((open) => !open)}
-          >
-            <Info className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-            About
-          </Button>
-        }
-      />
+      {/* One slim line, the way Buzz heads a channel: the name, and the
+          door to what this one is. The full title band cost a quarter of the
+          screen above a conversation, and said what the reader could already
+          see -- the greeting inside the thread says what actually happened,
+          which is the sentence worth the space. */}
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/70 px-4 py-2 sm:px-6">
+        <h1 className="truncate text-[15px] font-semibold text-foreground">Decibyl</h1>
+        <Button
+          size="sm"
+          variant={aboutOpen ? "secondary" : "ghost"}
+          aria-pressed={aboutOpen}
+          onClick={() => setAboutOpen((open) => !open)}
+        >
+          <Info className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+          About
+        </Button>
+      </div>
       <div className="flex min-h-0 flex-1">
-        {/* The one screen that keeps a reading-width column inside the body.
-            Everything below is a chat composer and two prose cards; run
-            full-bleed at 1440 the input alone would be over a metre of
-            line, which is worse than the gutter the shell exists to remove. */}
-        <div className="min-w-0 flex-1 overflow-y-auto">
-          <PageBody className="space-y-6">
-            {/* What happened, in sentences: the greeting, the composer,
-                chips built from this account's own state, and the team. */}
-            <HomeAboveTheFold firstName={firstName} />
-          </PageBody>
+        {/* Edge to edge, and no scroll of its own: the thread inside does
+            the scrolling, and the composer stays on the bottom edge where
+            somebody's hands already are. The rows keep their own gutter, so
+            a wide screen gives the conversation the width rather than a
+            column of grey either side of it. */}
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          {/* What happened, in sentences: the greeting, the composer,
+              chips built from this account's own state, and the team. */}
+          <HomeAboveTheFold firstName={firstName} />
         </div>
         {aboutOpen && (
           <AuxiliaryPanel label="About Decibyl" onClose={() => setAboutOpen(false)}>
