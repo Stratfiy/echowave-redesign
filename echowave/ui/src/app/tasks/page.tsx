@@ -191,9 +191,9 @@ export default function TasksPage() {
                     // one and an empty list that only says "none" is a dead end.
                     <Card>
                         <CardContent className="p-6 text-sm text-muted-foreground">
-                            Nothing is scheduled yet. Open a bot and add a task on its
-                            own screen — it runs on that bot&apos;s prompt and tools, so
-                            that is where it is set up.
+                            Nothing is scheduled yet. Open a bot, go to its Triggers
+                            tab and add one under On a schedule — it runs on that
+                            bot&apos;s prompt and tools, so that is where it is set up.
                         </CardContent>
                     </Card>
                 ) : (
