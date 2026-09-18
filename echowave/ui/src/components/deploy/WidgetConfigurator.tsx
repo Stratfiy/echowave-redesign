@@ -322,9 +322,9 @@ export function WidgetConfigurator({
                         {/* Enable/Disable Toggle */}
                         <div className="flex items-center justify-between">
                             <div className="space-y-0.5">
-                                <Label htmlFor="embed-enabled">Enable Embedding</Label>
+                                <Label htmlFor="embed-enabled">Widget switched on</Label>
                                 <p className="text-sm text-muted-foreground">
-                                    Allow this workflow to be embedded on external websites
+                                    Lets this bot be added to a website you own
                                 </p>
                             </div>
                             <Switch

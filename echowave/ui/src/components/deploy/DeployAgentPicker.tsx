@@ -48,7 +48,7 @@ export function DeployAgentPicker({
                 </div>
                 {selected && (
                     <Button variant="outline" asChild>
-                        <Link href={`/workflow/${selected.id}`}>Edit this agent</Link>
+                        <Link href={`/workflow/${selected.id}`}>Edit this bot</Link>
                     </Button>
                 )}
             </CardContent>
