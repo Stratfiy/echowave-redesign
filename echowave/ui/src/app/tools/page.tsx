@@ -414,7 +414,7 @@ export default function ToolsPage() {
 
                     <Card className="mb-6">
                         <CardHeader>
-                            <div className="flex justify-between items-center">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
                                 <div>
                                     <CardTitle>Your Tools</CardTitle>
                                     <CardDescription>

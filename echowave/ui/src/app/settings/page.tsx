@@ -33,7 +33,7 @@ export default function SettingsPage() {
       {/* Two columns from lg up. As a single max-w-2xl column this page put a
           670px stack of cards in the middle of a 1190px content area and left
           the rest empty; the cards are short and independent, so they tile. */}
-      <PageBody className="grid items-start gap-6 lg:grid-cols-2">
+      <PageBody className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Preferences</CardTitle>
