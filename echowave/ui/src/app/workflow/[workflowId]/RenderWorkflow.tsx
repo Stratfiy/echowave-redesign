@@ -602,6 +602,7 @@ function RenderWorkflow({
                         ) : useSimpleView ? (
                             <SimpleAgentEditor
                                 workflowId={workflowId}
+                                name={workflowName}
                                 nodes={nodes as FlowNode[]}
                                 onNodesChange={handleSimpleNodesChange}
                                 onOpenCanvas={() => setShowCanvas(true)}
