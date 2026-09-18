@@ -83,8 +83,8 @@ function sentenceCase(label: string): string {
  *  channel sections; this is the same shape read for a product whose
  *  members are bots. A context row opens that context's sections beneath
  *  it (Activity, Marketplace, Setup, Account); Home does that and goes
- *  home; Bots and Tasks are plain doors, since the whole roster lives on
- *  one screen and so do the schedules. */
+ *  home; Tasks is a plain door, since all the schedules live on one
+ *  screen. */
 type PinnedRow =
   | { kind: "context"; title: string; icon: LucideIcon; context: NavContext }
   | { kind: "link"; title: string; icon: LucideIcon; url: string };
@@ -97,9 +97,20 @@ function contextRow(id: NavContextId): PinnedRow {
 const PINNED_ROWS: PinnedRow[] = [
   contextRow("home"),
   contextRow("activity"),
-  { kind: "link", title: "Bots", icon: Bot, url: "/workflow" },
   { kind: "link", title: "Tasks", icon: CalendarClock, url: "/tasks" },
 ];
+
+/** The same door, for the one state that cannot show the roster.
+ *
+ *  A pinned Bots row and the YOUR BOTS label were both /workflow: one idea
+ *  written twice on a screen that already has too much. The label wins,
+ *  because the roster under it is what somebody came for and the label is
+ *  the way past it to the full list.
+ *
+ *  Folded to icons there is no roster -- a column of bare avatars is a
+ *  puzzle -- so the door comes back as a row. Open or folded, it is on the
+ *  screen exactly once. */
+const BOTS_ROW: PinnedRow = { kind: "link", title: "Bots", icon: Bot, url: "/workflow" };
 
 /** The contexts behind the person, rather than above the bots.
  *
@@ -461,14 +472,17 @@ export function AppSidebar() {
         )}
 
         {/* The pinned rows, Buzz's Inbox / Pulse / Projects / Agents /
-            Workflows read for this product: Home, Activity, Bots, Tasks,
-            Marketplace, then Setup and Account. A context row opens its
+            Workflows read for this product: Home, Activity and Tasks, with
+            the bots as the roster below. A context row opens its
             sections below; a plain row is a door. The five contexts were a
             vertical strip of icons down the edge; as rows they read like
             the rest of the panel and take the same tint when selected. */}
         <div role="tablist" aria-label="Workspace" data-rail="" className="px-1 pt-1">
           <SidebarMenu>
-            {PINNED_ROWS.map((row) => {
+            {(isCollapsed
+              ? [PINNED_ROWS[0], PINNED_ROWS[1], BOTS_ROW, PINNED_ROWS[2]]
+              : PINNED_ROWS
+            ).map((row) => {
               const Icon = row.icon;
               if (row.kind === "link") {
                 const selected = activeUrl === row.url;
