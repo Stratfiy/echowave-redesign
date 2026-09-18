@@ -19,7 +19,12 @@ import { FileDown, Share2, Variable } from "lucide-react";
 export const TABS = [
     {
         id: "analysis",
-        label: "Analysis",
+        // Renamed, id kept: links out there carry ?tab=analysis, and this is
+        // the same screen it always was. "Analysis" sat one tab along from
+        // the bot's "Analytics", which is two words for two unrelated things
+        // that nobody can tell apart at a glance. This one sets how calls are
+        // judged and what is kept; Analytics reports what happened.
+        label: "Quality",
         icon: FileDown,
         // "outcomes" beside "qa": one says how the call was handled,
         // the other what it achieved, and they come apart constantly.

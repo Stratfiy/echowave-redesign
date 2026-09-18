@@ -31385,6 +31385,12 @@ export type GetCallAnalyticsApiV1OrganizationsUsageCallsGetData = {
          * Days
          */
         days?: number;
+        /**
+         * Workflow Id
+         *
+         * Limit every figure to one bot, for that bot's own Analytics tab. Adds `daily_runs` and `tokens`, which are only meaningful per bot.
+         */
+        workflow_id?: number | null;
     };
     url: '/api/v1/organizations/usage/calls';
 };

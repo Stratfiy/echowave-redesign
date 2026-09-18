@@ -57,6 +57,7 @@ async def _call(
     direction="outbound",
     disposition=None,
     charged_paise=0,
+    usage_info=None,
 ):
     when = when or datetime.now(UTC) - timedelta(days=1)
     run = WorkflowRunModel(
@@ -72,6 +73,7 @@ async def _call(
         gathered_context=(
             {"mapped_call_disposition": disposition} if disposition else {}
         ),
+        usage_info=usage_info or {},
     )
     session.add(run)
     await session.flush()
@@ -351,3 +353,129 @@ class TestRange:
 
         assert len(body["daily"]) == 7
         assert all(row["calls"] == 0 for row in body["daily"])
+
+
+class TestOneBotsOwnNumbers:
+    """The same route, narrowed to a single bot for its Analytics tab.
+
+    A bot's owner asks "is this one working and what is it costing me", and
+    until now the only answer was the account's total, which says nothing
+    about the bot they are looking at.
+    """
+
+    async def test_every_figure_narrows_to_the_bot_asked_for(
+        self, db_session, async_session
+    ):
+        org, user = await _account(async_session, "calls-one-bot")
+        mine = await _agent(async_session, org, user, name="mine")
+        other = await _agent(async_session, org, user, name="other")
+        await _call(async_session, mine)
+        await _call(async_session, other)
+        await _call(async_session, other)
+
+        assert (await _fetch(user))["totals"]["calls"] == 3
+        assert (await _fetch(user, workflow_id=mine.id))["totals"]["calls"] == 1
+
+    async def test_another_orgs_bot_id_answers_with_nothing(
+        self, db_session, async_session
+    ):
+        """The id arrives in a URL. Scoping by it alone would answer for
+        somebody else's bot, so the account condition stays on regardless."""
+        _mine, my_user = await _account(async_session, "calls-bot-mine")
+        theirs, their_user = await _account(async_session, "calls-bot-theirs")
+        hidden = await _agent(async_session, theirs, their_user)
+        await _call(async_session, hidden)
+
+        body = await _fetch(my_user, workflow_id=hidden.id)
+
+        assert body["totals"]["calls"] == 0
+        assert body["tokens"]["total_tokens"] == 0
+
+    async def test_the_daily_runs_series_spans_the_window_and_counts_this_bot(
+        self, db_session, async_session
+    ):
+        """Its own series, off the runs. The account rollup that feeds
+        `daily` has no bot dimension at all."""
+        org, user = await _account(async_session, "calls-bot-daily")
+        mine = await _agent(async_session, org, user, name="mine")
+        other = await _agent(async_session, org, user, name="other")
+        await _call(async_session, mine, when=datetime.now(UTC) - timedelta(days=1))
+        await _call(async_session, other, when=datetime.now(UTC) - timedelta(days=1))
+
+        body = await _fetch(user, days=7, workflow_id=mine.id)
+
+        assert len(body["daily_runs"]) == 7
+        assert sum(row["runs"] for row in body["daily_runs"]) == 1
+
+    async def test_tokens_are_added_up_per_model(self, db_session, async_session):
+        org, user = await _account(async_session, "calls-bot-tokens")
+        mine = await _agent(async_session, org, user)
+        await _call(
+            async_session,
+            mine,
+            usage_info={
+                "llm": {
+                    "gpt-x": {
+                        "prompt_tokens": 100,
+                        "completion_tokens": 20,
+                        "total_tokens": 120,
+                    }
+                }
+            },
+        )
+        await _call(
+            async_session,
+            mine,
+            usage_info={
+                "llm": {
+                    "gpt-x": {
+                        "prompt_tokens": 50,
+                        "completion_tokens": 10,
+                        "total_tokens": 60,
+                    },
+                    "gpt-y": {
+                        "prompt_tokens": 5,
+                        "completion_tokens": 1,
+                        "total_tokens": 6,
+                    },
+                }
+            },
+        )
+
+        tokens = (await _fetch(user, workflow_id=mine.id))["tokens"]
+
+        assert tokens["total_tokens"] == 186
+        assert tokens["prompt_tokens"] == 155
+        # Biggest consumer first: the question this answers is which model is
+        # eating the budget, and a list in map order does not answer it.
+        assert [row["model"] for row in tokens["by_model"]] == ["gpt-x", "gpt-y"]
+        assert tokens["by_model"][0]["total_tokens"] == 180
+
+    async def test_a_run_with_no_usage_recorded_is_not_an_error(
+        self, db_session, async_session
+    ):
+        """Calls that finished before usage was written, and calls that never
+        reached a model, both have nothing to add up."""
+        org, user = await _account(async_session, "calls-bot-no-usage")
+        mine = await _agent(async_session, org, user)
+        await _call(async_session, mine)
+        await _call(async_session, mine, usage_info={"llm": None})
+
+        tokens = (await _fetch(user, workflow_id=mine.id))["tokens"]
+
+        assert tokens["total_tokens"] == 0
+        assert tokens["by_model"] == []
+
+    async def test_the_account_wide_answer_carries_no_per_bot_blocks(
+        self, db_session, async_session
+    ):
+        """Summing tokens account-wide would read every run the account has
+        ever made, so the unscoped answer does not offer them at all rather
+        than offering a figure that is quietly wrong or quietly expensive."""
+        org, user = await _account(async_session, "calls-no-bot-blocks")
+        await _call(async_session, await _agent(async_session, org, user))
+
+        body = await _fetch(user)
+
+        assert "tokens" not in body
+        assert "daily_runs" not in body

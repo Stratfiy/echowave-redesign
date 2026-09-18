@@ -28,6 +28,7 @@
 import {
     BarChart3,
     Bot,
+    ClipboardCheck,
     MessagesSquare,
     ScrollText,
     Share2,
@@ -78,7 +79,15 @@ export const AGENT_TABS = [
     // and app events next. Beside Tools because both answer "what can it
     // do", one for what it reaches for and one for what reaches it.
     { key: "triggers", label: "Triggers", icon: Zap },
-    { key: "analysis", label: "Analysis", icon: BarChart3, settingsTab: "analysis" },
+    // What this bot has actually been doing: runs a day, answer rate, time on
+    // calls, what it spent, and the tokens its brains used. Beside Triggers
+    // because both are about the bot in use rather than the bot as built.
+    { key: "analytics", label: "Analytics", icon: BarChart3 },
+    // "Quality", not "Analysis". It sets how calls are judged and what is
+    // kept -- reviewing, outcomes, recordings, evals -- and a tab called
+    // Analysis one place along from a tab called Analytics is two words
+    // nobody can tell apart at a glance.
+    { key: "analysis", label: "Quality", icon: ClipboardCheck, settingsTab: "analysis" },
     { key: "advanced", label: "Advanced", icon: Variable, settingsTab: "advanced" },
     { key: "share", label: "Share", icon: Share2, settingsTab: "share" },
 ] as const;
@@ -97,6 +106,8 @@ function hrefFor(tab: Tab, workflowId: number): string {
             return `${base}/tools`;
         case "triggers":
             return `${base}/triggers`;
+        case "analytics":
+            return `${base}/analytics`;
         default:
             return base;
     }
@@ -122,6 +133,7 @@ export function AgentTabs({
         if (tab.key === "logs") return pathname.startsWith(`${base}/runs`);
         if (tab.key === "tools") return pathname.startsWith(`${base}/tools`);
         if (tab.key === "triggers") return pathname.startsWith(`${base}/triggers`);
+        if (tab.key === "analytics") return pathname.startsWith(`${base}/analytics`);
         // The editor, and only the editor. `startsWith` would light it on
         // every tab, since every one of these lives under the same base.
         // The editor, whichever of its two views is showing: the canvas is

@@ -590,6 +590,13 @@ async def get_spend_breakdown(
 @router.get("/usage/calls")
 async def get_call_analytics(
     days: int = Query(30, ge=1, le=365),
+    workflow_id: Optional[int] = Query(
+        None,
+        description=(
+            "Limit every figure to one bot, for that bot's own Analytics tab. "
+            "Adds `daily_runs` and `tokens`, which are only meaningful per bot."
+        ),
+    ),
     user: UserModel = Depends(get_user),
 ) -> Dict[str, Any]:
     """The shape of this account's call traffic, not just its total.
@@ -614,6 +621,7 @@ async def get_call_analytics(
             start=start,
             end=end,
             organization_id=user.selected_organization_id,
+            workflow_id=workflow_id,
         )
         daily = await dash.daily_series(
             session,
@@ -621,9 +629,33 @@ async def get_call_analytics(
             end=end,
             organization_id=user.selected_organization_id,
         )
+        # Two figures only a bot's own screen can use. `daily` above comes off
+        # the account rollup, which has no bot dimension, so a bot asking for
+        # its own days gets them from the runs instead; tokens are summed out
+        # of each run's usage_info and are left off the account-wide answer
+        # because that would read every run the account has ever made.
+        per_bot: Dict[str, Any] = {}
+        if workflow_id is not None:
+            per_bot = {
+                "daily_runs": await dash.bot_daily(
+                    session,
+                    start=start,
+                    end=end,
+                    organization_id=user.selected_organization_id,
+                    workflow_id=workflow_id,
+                ),
+                "tokens": await dash.bot_tokens(
+                    session,
+                    start=start,
+                    end=end,
+                    organization_id=user.selected_organization_id,
+                    workflow_id=workflow_id,
+                ),
+            }
 
     return {
         "range": {"start": start.isoformat(), "end": end.isoformat()},
+        **per_bot,
         # Re-projected, not passed through. `daily_series` is a staff query and
         # carries `provider_cost_paise` and `margin_paise` — what the vendors
         # charged us and what we kept. Handing a customer those two columns
