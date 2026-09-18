@@ -28,7 +28,7 @@ import ipaddress
 import socket
 from urllib.parse import urlparse
 
-from api.constants import DEPLOYMENT_MODE
+from api.constants import URL_POLICY
 
 _CGNAT_NETWORK = ipaddress.ip_network("100.64.0.0/10")
 
@@ -43,7 +43,7 @@ def validate_user_configured_service_url(
     Raises ``ValueError`` with a sentence naming the field, so the caller can
     put it in front of the person who typed the URL.
     """
-    saas = DEPLOYMENT_MODE != "oss"
+    saas = URL_POLICY != "oss"
     parsed = urlparse(url)
     if parsed.scheme not in {"http", "https", "ws", "wss"} or not parsed.hostname:
         if saas:

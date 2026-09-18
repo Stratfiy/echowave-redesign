@@ -154,6 +154,16 @@ KNOWLEDGE_GRAPH_EMBEDDING_MODEL = os.getenv(
 
 DEPLOYMENT_MODE = os.getenv("DEPLOYMENT_MODE", "oss")
 
+#: How strictly a URL somebody typed (a webhook, an HTTP tool, a pre-call
+#: fetch, a self-hosted model server) is checked before the server fetches
+#: it. "saas" refuses anything inward -- private ranges, loopback, CGNAT;
+#: "oss" allows those for a self-hoster with a LAN model server. Its own
+#: switch, separate from DEPLOYMENT_MODE, because flipping the whole
+#: deployment to saas also routes bot creation through the managed model
+#: service, which a box without one cannot do. This one line can be turned
+#: on alone.
+URL_POLICY = os.getenv("URL_POLICY", DEPLOYMENT_MODE)
+
 # Coarse HTTP request gate (see services/rate_limit.py). Per-client, per-minute
 # ceilings by route class. On by default; a self-hoster who fronts the app with
 # their own gateway can set RATE_LIMIT_ENABLED=false. Limits are generous — this
