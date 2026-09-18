@@ -20,14 +20,13 @@ import {
     getWorkflowsApiV1WorkflowFetchGet,
     moveWorkflowToFolderApiV1WorkflowWorkflowIdFolderPut,
 } from '@/client/sdk.gen';
+import { BotAvatar } from '@/components/bot/BotAvatar';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { detailFromResult } from '@/lib/apiError';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
-
-import { initials } from './SidebarBots';
 
 type Bot = { id: number; name: string };
 
@@ -136,9 +135,7 @@ export function NewChatDialog({ open, onOpenChange }: { open: boolean; onOpenCha
                                     onClick={() => toggle(bot)}
                                     className={cn('flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-accent', on && 'bg-accent/60')}
                                 >
-                                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--accent-brand-soft)] text-xs font-semibold text-[var(--accent-brand)]">
-                                        {initials(bot.name)}
-                                    </span>
+                                    <BotAvatar id={bot.id} name={bot.name} />
                                     <span className="min-w-0 flex-1 truncate">{bot.name}</span>
                                     {on && <Check className="h-4 w-4 text-[var(--accent-brand)]" aria-hidden />}
                                 </button>

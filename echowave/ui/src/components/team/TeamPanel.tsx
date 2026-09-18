@@ -22,6 +22,7 @@ import { useEffect, useState } from "react";
 
 import { teamStatusApiV1TeamStatusGet } from "@/client/sdk.gen";
 import type { TeamMember } from "@/client/types.gen";
+import { BotAvatar } from "@/components/bot/BotAvatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -42,14 +43,6 @@ const TONE_TEXT: Record<string, string> = {
     paused: "text-amber-600",
 };
 
-/** Initials for the avatar. Two letters at most: "Front Desk" -> FD. */
-function initials(name: string): string {
-    const words = name.trim().split(/\s+/).filter(Boolean);
-    if (words.length === 0) return "?";
-    if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-    return (words[0][0] + words[1][0]).toUpperCase();
-}
-
 function ago(at: string | null | undefined): string | null {
     if (!at) return null;
     const date = new Date(at);
@@ -64,9 +57,7 @@ function MemberRow({ member }: { member: TeamMember }) {
             href={`/workflow/${member.workflow_id}`}
             className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-muted/60"
         >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
-                {initials(member.name)}
-            </div>
+            <BotAvatar id={member.workflow_id} name={member.name} size="md" />
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                     <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", TONE_DOT[member.tone] ?? TONE_DOT.idle)} />
