@@ -139,7 +139,7 @@ export const VoicemailDetectionDialog = ({
                                         checked={useWorkflowLlm}
                                         onCheckedChange={setUseWorkflowLlm}
                                     />
-                                    <Label htmlFor="voicemail-use-workflow-llm">Use Workflow LLM</Label>
+                                    <Label htmlFor="voicemail-use-workflow-llm">Use the bot&apos;s model</Label>
                                     <Label className="text-xs text-muted-foreground ml-2">
                                         Use the LLM configured in your account settings.
                                     </Label>

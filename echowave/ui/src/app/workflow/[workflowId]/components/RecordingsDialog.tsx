@@ -372,7 +372,7 @@ export const RecordingsDialog = ({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Workflow Recordings</DialogTitle>
+                    <DialogTitle>Recordings</DialogTitle>
                     <DialogDescription>
                         Upload or record audio for hybrid prompts. Recordings are
                         scoped to your current TTS configuration. Use{" "}

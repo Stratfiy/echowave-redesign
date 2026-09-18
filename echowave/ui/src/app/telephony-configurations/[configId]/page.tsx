@@ -355,7 +355,7 @@ export default function TelephonyConfigurationDetailPage() {
                   <TableHead>Type</TableHead>
                   <TableHead>Label</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Inbound workflow</TableHead>
+                  <TableHead>Answering bot</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>

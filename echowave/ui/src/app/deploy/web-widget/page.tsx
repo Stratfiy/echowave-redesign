@@ -87,7 +87,7 @@ function WebWidgetScreen() {
                         <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
                             <Rocket className="h-8 w-8 text-muted-foreground" />
                             <div>
-                                <p className="font-medium">No agents yet</p>
+                                <p className="font-medium">No bots yet</p>
                                 <p className="mt-1 text-sm text-muted-foreground">
                                     {loadError ??
                                         "A widget puts one of your bots on your website, so there needs to be one first. It takes a couple of minutes."}
@@ -95,7 +95,7 @@ function WebWidgetScreen() {
                             </div>
                             {!loadError && (
                                 <Button asChild className="mt-1">
-                                    <Link href="/start">Create an agent</Link>
+                                    <Link href="/start">Create a bot</Link>
                                 </Button>
                             )}
                         </CardContent>

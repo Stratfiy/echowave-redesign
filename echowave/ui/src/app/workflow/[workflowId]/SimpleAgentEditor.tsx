@@ -67,7 +67,7 @@ export function SimpleAgentEditor({
 
             <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h2 className="text-lg font-semibold">This agent</h2>
+                    <h2 className="text-lg font-semibold">This bot</h2>
                     <p className="text-sm text-muted-foreground">
                         One agent, one job. It answers, it does the thing, it hangs up.
                     </p>

@@ -170,7 +170,7 @@ export default function ReportsPage() {
 
       if (response.data && response.data.length > 0) {
         // Prepare CSV content
-        const headers = ['Phone Number', 'Disposition', 'Duration (seconds)', 'Workflow Run URL'];
+        const headers = ['Phone Number', 'Disposition', 'Duration (seconds)', 'Call URL'];
         const rows = response.data.map((run: WorkflowRunDetail) => {
           const url = `${window.location.origin}/workflow/${run.workflow_id}/run/${run.run_id}`;
           return [
@@ -336,7 +336,7 @@ export default function ReportsPage() {
           {report.metrics.total_runs === 0 && (
             <Card className="p-6">
               <p className="text-center text-muted-foreground">
-                No workflow runs found for {format(selectedDate, 'MMMM dd, yyyy')}
+                No calls found for {format(selectedDate, 'MMMM dd, yyyy')}
                 {selectedWorkflow !== 'all' && ' for the selected workflow'}
               </p>
             </Card>

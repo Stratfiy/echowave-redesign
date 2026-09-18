@@ -130,7 +130,7 @@ export function WorkflowRunsTable({
             {/* Loading State */}
             {loading ? (
                 <div className="flex justify-center">
-                    <div className="animate-pulse">Loading workflow runs...</div>
+                    <div className="animate-pulse">Loading calls...</div>
                 </div>
             ) : error ? (
                 <div className="bg-destructive/10 border border-destructive/30 text-destructive px-4 py-3 rounded">
@@ -145,7 +145,7 @@ export function WorkflowRunsTable({
                     <CardHeader>
                         <div className="flex items-center justify-between">
                             <div>
-                                <CardTitle>Workflow Runs</CardTitle>
+                                <CardTitle>Calls</CardTitle>
                                 <CardDescription>
                                     {subtitle || `Showing ${runs.length} of ${totalCount} total runs`}
                                 </CardDescription>

@@ -75,7 +75,7 @@ function ConnectScreen() {
                         <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
                             <Workflow className="h-8 w-8 text-muted-foreground" />
                             <div>
-                                <p className="font-medium">No agents yet</p>
+                                <p className="font-medium">No bots yet</p>
                                 <p className="mt-1 text-sm text-muted-foreground">
                                     {loadError ??
                                         "There needs to be a bot before anything can trigger one."}
@@ -83,7 +83,7 @@ function ConnectScreen() {
                             </div>
                             {!loadError && (
                                 <Button asChild className="mt-1">
-                                    <Link href="/start">Create an agent</Link>
+                                    <Link href="/start">Create a bot</Link>
                                 </Button>
                             )}
                         </CardContent>

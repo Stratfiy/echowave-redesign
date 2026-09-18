@@ -689,7 +689,7 @@ function RenderWorkflow({
                                                         </Button>
                                                     </TooltipTrigger>
                                                     <TooltipContent side="left">
-                                                        <p>Workflow settings</p>
+                                                        <p>Bot settings</p>
                                                     </TooltipContent>
                                                 </Tooltip>
                                             </div>

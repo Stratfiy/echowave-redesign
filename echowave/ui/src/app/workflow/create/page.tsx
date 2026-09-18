@@ -945,7 +945,7 @@ export default function CreateWorkflowPage() {
                     <div className="flex flex-col items-center gap-4">
                         <Loader2 className="h-10 w-10 animate-spin text-primary" />
                         <div className="text-center">
-                            <p className="font-medium">Building your agent</p>
+                            <p className="font-medium">Building your bot</p>
                             <p className="mt-1 text-sm text-muted-foreground">
                                 Turning the brief into a conversation flow. A few seconds.
                             </p>
