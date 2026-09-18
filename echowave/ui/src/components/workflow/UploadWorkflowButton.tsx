@@ -90,7 +90,7 @@ export function UploadWorkflowButton() {
                 variant="outline"
             >
                 <Upload className="w-4 h-4 mr-2" />
-                Upload Agent Definition
+                Import a bot
             </Button>
 
             <Dialog open={isOpen} onOpenChange={setIsOpen}>
