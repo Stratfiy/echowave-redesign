@@ -129,7 +129,7 @@ export default function CampaignsPage() {
                                         <TableRow>
                                             <TableHead>ID</TableHead>
                                             <TableHead>Name</TableHead>
-                                            <TableHead>Workflow</TableHead>
+                                            <TableHead>Bot</TableHead>
                                             <TableHead>State</TableHead>
                                             <TableHead>Progress</TableHead>
                                             <TableHead>Created</TableHead>
