@@ -118,6 +118,8 @@ from pipecat.services.xai.tts import XAITTSService, XAIWebsocketTTSSettings
 from pipecat.transcriptions.language import Language
 from pipecat.utils.text.xml_function_tag_filter import XMLFunctionTagFilter
 
+from api.services.pipecat.stage_direction_filter import StageDirectionFilter
+
 if TYPE_CHECKING:
     from api.services.pipecat.audio_config import AudioConfig
 from api.services.pipecat.reasoning_effort import (
@@ -839,7 +841,11 @@ def _create_tts_service_instance(provider, service, /, **kwargs):
         kwargs.setdefault("text_aggregation_mode", TextAggregationMode.TOKEN)
     if policy.silence_time_s is not None:
         kwargs.setdefault("silence_time_s", policy.silence_time_s)
-    kwargs.setdefault("text_filters", [XMLFunctionTagFilter()])
+    # Two filters, for the two things a model emits that are not speech:
+    # function-call markup, and stage directions. A TTS engine reads both out
+    # loud -- "asterisk pauses warmly asterisk" -- and the second is the one a
+    # customer hears on a first call.
+    kwargs.setdefault("text_filters", [XMLFunctionTagFilter(), StageDirectionFilter()])
     kwargs.setdefault("skip_aggregator_types", ["recording_router", "recording"])
 
     transforms = _SPEECH_TEXT_TRANSFORMS.get()
