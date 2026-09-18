@@ -1,6 +1,7 @@
 "use client";
 
 import { ExternalLink, Plus, RotateCcw, Search, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
@@ -108,7 +109,9 @@ export default function ToolsPage() {
                 },
             });
 
-            if (response.data) {
+            // A shape that is not a list would take the whole screen down
+            // in the filter below, and an empty list is the honest reading.
+            if (Array.isArray(response.data)) {
                 setTools(response.data);
             }
         } catch (err) {
@@ -377,7 +380,7 @@ export default function ToolsPage() {
     if (loading || !user) {
         return (
             <>
-                <PageHeader tabs={integrationsTabs} title="Tools" />
+                <PageHeader tabs={integrationsTabs} title="Your tools" />
                 <div className="min-h-screen flex items-center justify-center">
                     <div className="space-y-4">
                         <Skeleton className="h-12 w-64" />
@@ -392,10 +395,16 @@ export default function ToolsPage() {
         <>
         <PageHeader
             tabs={integrationsTabs}
-            title="Tools"
+            title="Your tools"
             description={
                 <>
-                    Things a bot can do on a call: look something up, book, send. Made once, given to any bot.{" "}
+                    Tools you have built or added: one action a bot can take
+                    mid-call — look something up, book, send. Made once, given
+                    to any bot. For ready-made ones, see{" "}
+                    <Link href="/marketplace/tools" className="underline">
+                        the Marketplace
+                    </Link>
+                    .{" "}
                     <a href="https://docs.decibyl.ai/voice-agent/tools/introduction" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline">
                         Learn more <ExternalLink className="h-3 w-3" />
                     </a>
@@ -416,9 +425,11 @@ export default function ToolsPage() {
                         <CardHeader>
                             <div className="flex flex-wrap items-center justify-between gap-3">
                                 <div>
-                                    <CardTitle>Your Tools</CardTitle>
+                                    <CardTitle>
+                                        {activeTools.length === 1 ? "1 tool" : `${activeTools.length} tools`}
+                                    </CardTitle>
                                     <CardDescription>
-                                        Create and manage tools for your organization
+                                        Built here, and on any bot you hand them to.
                                     </CardDescription>
                                 </div>
                                 <div className="flex gap-2">
@@ -430,7 +441,7 @@ export default function ToolsPage() {
                                     </Button>
                                     <Button onClick={() => setIsCreateDialogOpen(true)}>
                                         <Plus className="w-4 h-4 mr-2" />
-                                        Create Tool
+                                        Build a tool
                                     </Button>
                                 </div>
                             </div>
@@ -440,7 +451,7 @@ export default function ToolsPage() {
                             <div className="relative mb-4">
                                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
-                                    placeholder="Search tools..."
+                                    placeholder="Search your tools…"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     className="pl-10"
@@ -467,13 +478,18 @@ export default function ToolsPage() {
                                     {renderToolIcon("http_api", "w-12 h-12 text-muted-foreground mx-auto mb-4")}
                                     <p className="text-muted-foreground mb-4">
                                         {searchQuery
-                                            ? "No tools match your search"
-                                            : "No tools found"}
+                                            ? "No tools match your search."
+                                            : "Nothing here yet. Build one, or take a ready-made one from the Marketplace."}
                                     </p>
                                     {!searchQuery && (
-                                        <Button onClick={() => setIsCreateDialogOpen(true)}>
-                                            Create Your First Tool
-                                        </Button>
+                                        <div className="flex flex-wrap justify-center gap-2">
+                                            <Button onClick={() => setIsCreateDialogOpen(true)}>
+                                                Build a tool
+                                            </Button>
+                                            <Button variant="outline" asChild>
+                                                <Link href="/marketplace/tools">Browse ready-made</Link>
+                                            </Button>
+                                        </div>
                                     )}
                                 </div>
                             ) : (
