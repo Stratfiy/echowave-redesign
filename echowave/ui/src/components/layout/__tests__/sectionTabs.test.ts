@@ -17,6 +17,7 @@ import {
   DEVELOPER_TABS,
   KNOWLEDGE_TABS,
   TELEPHONY_TABS,
+  WORK_TABS,
 } from "../SectionTabs";
 
 const STRIPS = {
@@ -26,6 +27,7 @@ const STRIPS = {
   COMPLIANCE_TABS,
   BILLING_TABS,
   TELEPHONY_TABS,
+  WORK_TABS,
 };
 
 describe("section tabs", () => {
@@ -77,6 +79,13 @@ describe("section tabs", () => {
       "/telephony-configurations",
       "/verified-numbers",
     ]);
+  });
+
+  it("gives the schedules and the board one entry, out of the assistant", () => {
+    // Both were tabs of Decibyl, and Tasks was a third way to reach a door
+    // the sidebar already pins. The assistant is a colleague you talk to,
+    // not a container for the workspace's screens.
+    expect(WORK_TABS.map((tab) => tab.href)).toEqual(["/tasks", "/requests"]);
   });
 
   it("lets /analytics light its tab from a detail page without stealing /analytics/spend", () => {

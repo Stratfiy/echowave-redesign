@@ -40,8 +40,8 @@ import {
     updateRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdPut,
 } from "@/client/sdk.gen";
 import type { Anchor, Cadence } from "@/client/types.gen";
-import { HOME_TABS } from "@/components/home/tabs";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import { WORK_TABS } from "@/components/layout/SectionTabs";
 import SpinLoader from "@/components/SpinLoader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -173,9 +173,9 @@ export default function TasksPage() {
     return (
         <>
             <PageHeader
-                title="Decibyl"
+                title="Tasks"
                 description="What runs on its own, and when."
-                tabs={HOME_TABS}
+                tabs={WORK_TABS}
             />
             <PageBody className="space-y-6">
                 {error && (
