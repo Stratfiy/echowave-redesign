@@ -21,6 +21,7 @@ import {
     Trash2,
     Upload,
 } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
@@ -271,8 +272,18 @@ export default function VerificationPage() {
         <div className="glass-canvas min-h-full">
             <PageHeader
                 tabs={TELEPHONY_TABS}
-                title="Telephony verification"
-                description="Indian regulation requires the licensed telecom operator to verify every business using a phone number. Testing your bot in the browser needs none of this."
+                title="Verify your business"
+                description={
+                    <>
+                        Step 1 of{" "}
+                        <Link href="/numbers" className="underline underline-offset-4">
+                            getting a number
+                        </Link>
+                        . Indian regulation requires the licensed telecom
+                        operator to verify every business using a phone number.
+                        Testing your bot in the browser needs none of this.
+                    </>
+                }
             />
             <div className="mx-auto w-full max-w-3xl px-6 pb-12 pt-6">
                 {loading ? (

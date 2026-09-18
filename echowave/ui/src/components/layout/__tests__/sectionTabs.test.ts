@@ -76,11 +76,19 @@ describe("section tabs", () => {
 
   it("keeps the phone strip in the order the work happens", () => {
     expect(TELEPHONY_TABS.map((tab) => tab.href)).toEqual([
-      "/verification",
       "/numbers",
       "/telephony-configurations",
       "/verified-numbers",
     ]);
+  });
+
+  it("treats verification as a step inside Get a number, not a peer of it", () => {
+    // It is drawn as step 1 of Get a number, with its live status. A tab of
+    // its own put the same step in two places and let somebody start with
+    // the paperwork without seeing what it was for.
+    expect(TELEPHONY_TABS.map((tab) => tab.href)).not.toContain("/verification");
+    const getting = TELEPHONY_TABS.find((tab) => tab.href === "/numbers");
+    expect(getting?.also).toContain("/verification");
   });
 
   it("puts the diary, the in-tray and the contact book on one desk", () => {

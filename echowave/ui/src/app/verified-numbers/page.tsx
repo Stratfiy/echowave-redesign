@@ -202,8 +202,8 @@ export default function VerifiedNumbersPage() {
       {dialog}
       <PageHeader
         tabs={TELEPHONY_TABS}
-        title="Verified numbers"
-        description="Numbers you have proved you can answer. A test call only goes to a number on this list."
+        title="Test numbers"
+        description="Your own phones, proved you can answer them. A test call only goes to a number on this list — no carrier verification needed."
         actions={
           <Button onClick={() => setStep("enter-number")}>
             <Plus className="h-4 w-4" />
