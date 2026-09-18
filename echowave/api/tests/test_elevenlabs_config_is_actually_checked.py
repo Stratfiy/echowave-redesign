@@ -139,6 +139,32 @@ class TestThePlatformSweep:
         with patch("httpx.get", side_effect=_get(_response(200, MODELS_OK))):
             assert validator._validate_elevenlabs_api_key("elevenlabs", "k", None)
 
+    def test_the_first_argument_is_the_provider_and_is_never_read_as_a_model(self):
+        # It is named `model` -- every probe in the class is -- but
+        # _check_api_key passes the provider into it. Reading it as a model
+        # checks the key against the string "elevenlabs" and fails every
+        # account on earth, which is what happened the first time the managed
+        # tier check tried to reuse it.
+        validator = UserConfigurationValidator()
+        with patch("httpx.get", side_effect=_get(_response(200, MODELS_OK))):
+            assert validator._validate_elevenlabs_api_key("elevenlabs", "k", None)
+
+    def test_a_configuration_carrying_only_a_model_asks_the_model_question(self):
+        # How the managed-tier check reaches question two: no agent, but a
+        # model it means. The voice question stays unasked, because there is
+        # no voice on it.
+        validator = UserConfigurationValidator()
+        config = _config(model="not_on_this_plan", voice=None)
+        with patch("httpx.get", side_effect=_get(_response(200, MODELS_OK))):
+            with pytest.raises(ValueError, match="cannot use the model"):
+                validator._validate_elevenlabs_api_key("elevenlabs", "k", config)
+
+    def test_and_passes_when_the_model_is_one_the_key_may_use(self):
+        validator = UserConfigurationValidator()
+        config = _config(model="eleven_flash_v2_5", voice=None)
+        with patch("httpx.get", side_effect=_get(_response(200, MODELS_OK))):
+            assert validator._validate_elevenlabs_api_key("elevenlabs", "k", config)
+
 
 class TestItIsWiredIn:
     def test_the_dispatcher_hands_elevenlabs_the_configuration(self):

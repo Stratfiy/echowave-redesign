@@ -404,10 +404,11 @@ class UserConfigurationValidator:
         against the customer.
 
         ``service_config`` is absent on the platform credential sweep, which
-        has a key but no agent. Question three needs a voice and is skipped
-        there; question two is not, because the caller can say which model it
-        means -- and a managed tier is precisely a model we are selling on a
-        key whose entitlement nobody has checked.
+        has a key but no agent -- so questions two and three are skipped and
+        only the key itself is checked. A caller that *does* know which model
+        it means, as the managed-tier check does, says so by passing a
+        configuration carrying that model: question two then applies and
+        question three still does not, because there is no voice on it.
         """
         if not (api_key and api_key.strip()):
             raise ValueError(
@@ -448,11 +449,14 @@ class UserConfigurationValidator:
         except Exception:
             return True
 
-        # The model argument, when there is no agent configuration to read one
-        # from. The platform credential sweep is exactly that case: a key and a
-        # managed tier, no agent -- and it is the case where getting this wrong
-        # breaks every managed customer at once rather than one of them.
-        configured_model = getattr(service_config, "model", None) or model
+        # Off the configuration only. The first parameter is named ``model``
+        # but ``_check_api_key`` passes the PROVIDER into it -- every probe in
+        # this class has the same misnamed argument -- so reading it here
+        # checks the key against the string "elevenlabs" and fails every
+        # account. The platform sweep reaches this check by handing over a
+        # configuration that carries a model and nothing else, which is what
+        # ``key_validation.validate_key`` builds.
+        configured_model = getattr(service_config, "model", None)
         if configured_model and available and configured_model not in available:
             raise ValueError(
                 f"Your ElevenLabs plan cannot use the model "
