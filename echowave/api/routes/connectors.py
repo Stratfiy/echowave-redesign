@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from loguru import logger
 from pydantic import BaseModel
 
+from api.db import db_client
 from api.db.models import UserModel
 from api.enums import OrganizationRole
 from api.services.auth.depends import get_user, require_organization_role

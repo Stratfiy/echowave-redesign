@@ -1,15 +1,20 @@
 """Reads and writes for what an organization's agents have learned."""
 
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, Optional
 
-from sqlalchemy import or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy import update as sa_update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from api.db.base_client import BaseDBClient
-from api.db.models import OrganisationFactModel
+from api.db.models import (
+    AppInteractionModel,
+    OrganisationFactModel,
+    WorkflowModel,
+    WorkflowRunModel,
+)
 
 #: The subject facts about the business itself hang off, as opposed to facts
 #: about one of its customers.
