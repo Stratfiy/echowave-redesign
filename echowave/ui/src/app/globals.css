@@ -685,10 +685,24 @@
     box-shadow: 0 1px 2px rgba(46, 42, 51, 0.06), 0 0 0 1px rgba(46, 42, 51, 0.06);
   }
   /* A sticky page header content scrolls under, not behind. */
+  /* A sticky header content scrolls under.
+   *
+   * Opaque by default, and translucent only where the browser will actually
+   * blur what passes behind it. Shipped the other way round, the header was
+   * 78% opaque on a device whose computed `backdrop-filter` came back
+   * `none`, so on a phone the messages slid under it and stayed legible
+   * through it -- two lines of text occupying one line of screen. A header
+   * that does not blur has to be solid. */
   .app-glass {
-    background-color: color-mix(in srgb, var(--card) 78%, transparent);
-    backdrop-filter: blur(12px) saturate(160%);
-    -webkit-backdrop-filter: blur(12px) saturate(160%);
+    background-color: var(--card);
+  }
+
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .app-glass {
+      background-color: color-mix(in srgb, var(--card) 78%, transparent);
+      backdrop-filter: blur(12px) saturate(160%);
+      -webkit-backdrop-filter: blur(12px) saturate(160%);
+    }
   }
 
   .auth-imprint {

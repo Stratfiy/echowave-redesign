@@ -137,8 +137,14 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
               {/* The white card inside the gradient frame, the way Buzz sets
                   its channel pane: rounded, a hairline, a breath of margin on
                   the open sides. Pages scroll inside it, so a sticky header
-                  stays pinned to the card's top edge. */}
-              <main className="app-surface app-card mb-2 mr-2 min-h-0 flex-1 overflow-y-auto rounded-2xl">
+                  stays pinned to the card's top edge.
+
+                  The inset is desktop-only. On a phone the frame is not on
+                  screen -- the panel is a sheet -- so a rounded card with a
+                  margin down one side was 8px of gradient beside the content
+                  and nothing else: the cost of a frame with none of the
+                  point of one. */}
+              <main className="app-surface app-card min-h-0 flex-1 overflow-y-auto md:mb-2 md:mr-2 md:rounded-2xl">
                 {children}
               </main>
             </SidebarInset>
