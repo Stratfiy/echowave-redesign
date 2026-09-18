@@ -177,31 +177,19 @@ export function resolveAccent(stored: string | null | undefined): Accent {
  */
 export function accentVariables(accent: Accent): Record<string, string> {
   // The frame follows the accent, the way a Slack theme colours the rail,
-  // the column and the top bar together: dark rail, a panel one step up
-  // from it in the same family, the bright half on active states. Content
-  // stays white whatever is chosen.
+  // the accent, and only the accent.
   //
-  // The panel is dark, not tinted (globals.css, option B of 15 Sept). This
-  // map used to write a light tint here while the panel's text stayed the
-  // rail's off-white, and because a stored theme is re-applied on every
-  // load, every account with a theme saved had a panel of near-invisible
-  // rows: the one selected row read, the rest were off-white on cream.
-  // The panel's own text tokens are written alongside so the two can never
-  // again come from different builds.
-  const railForeground = tint(accent.bright, 0.93);
+  // The frame used to be painted from here: a dark rail shaded from the
+  // chosen colour, a panel one step up from it, and the panel's own text
+  // tokens alongside. The frame is now one gradient with dark ink on it
+  // (globals.css), so those eleven variables had nothing left to say --
+  // and because they were written as inline styles on :root they beat the
+  // stylesheet, which is why the sidebar stayed dark after the gradient
+  // landed. What an accent still owns is what it always meant: the ring,
+  // the brand fills, and the tint on the row you are standing on.
   return {
-    "--rail": shade(accent.bright, 0.15),
-    "--rail-foreground": railForeground,
-    "--rail-accent": accent.deep,
-    "--rail-accent-foreground": "#ffffff",
-    "--rail-border": withAlpha(railForeground, 0.12),
-    "--sidebar": shade(accent.bright, 0.28),
-    "--sidebar-foreground": railForeground,
     "--sidebar-primary": accent.deep,
     "--sidebar-primary-foreground": "#ffffff",
-    "--sidebar-accent": withAlpha(railForeground, 0.1),
-    "--sidebar-accent-foreground": "#ffffff",
-    "--sidebar-border": withAlpha(railForeground, 0.12),
     "--accent-brand": accent.bright,
     "--accent-brand-soft": withAlpha(accent.bright, 0.1),
     "--accent-brand-tint": tint(accent.bright, 0.88),
@@ -214,10 +202,32 @@ export function accentVariables(accent: Accent): Record<string, string> {
   };
 }
 
+/**
+ * Variables an older build wrote and this one no longer sets.
+ *
+ * A stored accent is replayed verbatim on every load, so dropping a name
+ * from `accentVariables` is not enough on its own: the copy already in
+ * somebody's localStorage would go on painting a dark frame for ever.
+ * Both the boot script and `applyAccent` clear these first.
+ */
+export const RETIRED_ACCENT_VARIABLES = [
+  "--rail",
+  "--rail-foreground",
+  "--rail-accent",
+  "--rail-accent-foreground",
+  "--rail-border",
+  "--sidebar",
+  "--sidebar-foreground",
+  "--sidebar-accent",
+  "--sidebar-accent-foreground",
+  "--sidebar-border",
+] as const;
+
 /** Write the accent onto the document. No-op outside a browser. */
 export function applyAccent(accent: Accent): void {
   if (typeof document === "undefined") return;
   const style = document.documentElement.style;
+  for (const name of RETIRED_ACCENT_VARIABLES) style.removeProperty(name);
   for (const [name, value] of Object.entries(accentVariables(accent))) {
     style.setProperty(name, value);
   }
@@ -277,5 +287,7 @@ if(!raw||raw[0]!=="{")return;
 var vars=(JSON.parse(raw)||{}).vars;
 if(!vars)return;
 var s=document.documentElement.style;
-for(var k in vars){if(k.indexOf("--")===0)s.setProperty(k,vars[k]);}
+var dead=${JSON.stringify(RETIRED_ACCENT_VARIABLES)};
+for(var i=0;i<dead.length;i++)s.removeProperty(dead[i]);
+for(var k in vars){if(k.indexOf("--")===0&&dead.indexOf(k)<0)s.setProperty(k,vars[k]);}
 }catch(e){}})();`;
