@@ -788,3 +788,13 @@
     animation: none;
   }
 }
+
+/* PostHog surveys mount a "Need help?" tab in their own shadow root, and at
+   phone width it sits over the form fields a person is trying to fill. The
+   survey targeting lives in PostHog; this keeps the tab off phones whatever
+   that targeting says. The host element is the only part in the light DOM. */
+@media (max-width: 767px) {
+  div[class^="PostHogSurvey-"] {
+    display: none !important;
+  }
+}
