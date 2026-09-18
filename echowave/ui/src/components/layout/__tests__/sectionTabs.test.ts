@@ -14,11 +14,11 @@ import {
   BOTS_TABS,
   CALLS_TABS,
   COMPLIANCE_TABS,
+  DESK_TABS,
   DEVELOPER_TABS,
   KNOWLEDGE_TABS,
   MARKETPLACE_TABS,
   TELEPHONY_TABS,
-  WORK_TABS,
 } from "../SectionTabs";
 
 const STRIPS = {
@@ -29,7 +29,7 @@ const STRIPS = {
   BILLING_TABS,
   MARKETPLACE_TABS,
   TELEPHONY_TABS,
-  WORK_TABS,
+  DESK_TABS,
 };
 
 describe("section tabs", () => {
@@ -83,11 +83,12 @@ describe("section tabs", () => {
     ]);
   });
 
-  it("gives the schedules and the board one entry, out of the assistant", () => {
-    // Both were tabs of Decibyl, and Tasks was a third way to reach a door
-    // the sidebar already pins. The assistant is a colleague you talk to,
-    // not a container for the workspace's screens.
-    expect(WORK_TABS.map((tab) => tab.href)).toEqual(["/tasks", "/requests"]);
+  it("puts the diary, the in-tray and the contact book on one desk", () => {
+    // Tasks and Requests were tabs of Decibyl, and Tasks was a third way to
+    // reach a door the sidebar already pins. Contacts came from Setup, where
+    // it sat beside Campaigns -- but a campaign dialling a list is delivery,
+    // and a person you deal with is desk work.
+    expect(DESK_TABS.map((tab) => tab.href)).toEqual(["/tasks", "/requests", "/contacts"]);
   });
 
   it("gives the shop one screen with departments, not four rows", () => {

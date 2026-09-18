@@ -2,8 +2,6 @@ import {
   Bot,
   CalendarClock,
   ChartColumnBig,
-  ClipboardCheck,
-  ContactRound,
   Database,
   Globe,
   Handshake,
@@ -142,22 +140,21 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       // properties of an agent, chosen on its Models tab. The workspace
       // default is a setting, under Settings → Model defaults.
       {
-        // What runs on its own: the schedules, across every bot. "Tasks"
-        // means the scheduled ones now, so the word has one meaning.
-        title: "Tasks",
+        // The desk: the diary, the in-tray and the contact book, three tabs
+        // of one screen. Tasks means the scheduled ones, Requests is the
+        // board people and bots file work on, and Contacts came from Setup --
+        // it sat beside Campaigns because a campaign dials a list, but that
+        // is delivery, and a person you deal with is desk work.
+        title: "Desk",
         url: "/tasks",
+        activePaths: ["/requests", "/contacts"],
         icon: CalendarClock,
-        keywords: ["tasks", "scheduled", "routine", "schedule", "every morning", "daily"],
-      },
-      {
-        // The office's board: what the bots and the team have been handed and
-        // what came of it. One list for people and bots alike (KAN-140 P1).
-        // Was "Tasks"; renamed so it does not share a word with the
-        // schedules, which are a different thing entirely.
-        title: "Requests",
-        url: "/requests",
-        icon: ClipboardCheck,
-        keywords: ["requests", "board", "kanban", "delegate", "hand-off", "todo", "tasks"],
+        keywords: [
+          "tasks", "scheduled", "routine", "schedule", "every morning", "daily",
+          "requests", "board", "kanban", "delegate", "hand-off", "todo",
+          "contacts", "contact list", "caller", "customers", "phone book",
+          "email", "address",
+        ],
       },
       {
         // "Bots", not "Team", and not because "Team" was unfriendly.
@@ -356,20 +353,6 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         url: "/campaigns",
         icon: Megaphone,
         keywords: ["outbound", "dial", "csv", "bulk"],
-      },
-      {
-        title: "Contacts",
-        url: "/contacts",
-        icon: ContactRound,
-        keywords: [
-          "contact list",
-          "caller",
-          "inbound",
-          "csv",
-          "customers",
-          "database",
-          "import",
-        ],
       },
       {
         title: "Web widget",

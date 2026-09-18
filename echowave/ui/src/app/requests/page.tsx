@@ -20,7 +20,7 @@ import {
     setTaskStatusApiV1TasksTaskIdStatusPost,
 } from "@/client/sdk.gen";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { WORK_TABS } from "@/components/layout/SectionTabs";
+import { DESK_TABS } from "@/components/layout/SectionTabs";
 import SpinLoader from "@/components/SpinLoader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -180,7 +180,7 @@ export default function TasksPage() {
         <PageHeader
             title="Requests"
             description="What the bots and the team have been handed, and what came of it. A bot files a task for a colleague or for you; you file one for a bot or for the team."
-            tabs={WORK_TABS}
+            tabs={DESK_TABS}
         />
         <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
 

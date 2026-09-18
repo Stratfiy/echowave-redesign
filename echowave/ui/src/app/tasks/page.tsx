@@ -41,7 +41,7 @@ import {
 } from "@/client/sdk.gen";
 import type { Anchor, Cadence } from "@/client/types.gen";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
-import { WORK_TABS } from "@/components/layout/SectionTabs";
+import { DESK_TABS } from "@/components/layout/SectionTabs";
 import SpinLoader from "@/components/SpinLoader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -175,7 +175,7 @@ export default function TasksPage() {
             <PageHeader
                 title="Tasks"
                 description="What runs on its own, and when."
-                tabs={WORK_TABS}
+                tabs={DESK_TABS}
             />
             <PageBody className="space-y-6">
                 {error && (
