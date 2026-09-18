@@ -214,7 +214,7 @@ export default function TalkPage() {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center bg-background px-6 pt-16 pb-40 text-foreground">
         <div className="w-full max-w-md text-center">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Voice agent</p>
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Voice bot</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight" data-testid="talk-title">
             Not available
           </h1>
@@ -228,7 +228,7 @@ export default function TalkPage() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-background px-6 pt-16 pb-40 text-foreground">
       <div className="w-full max-w-md text-center">
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Voice agent</p>
+        <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Voice bot</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight" data-testid="talk-title">
           Talk to {name}
         </h1>

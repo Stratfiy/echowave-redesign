@@ -120,7 +120,7 @@ export function WorkflowExecutions({ workflowId, searchParams, onWorkflowName }:
             });
 
             if (response.error) {
-                throw new Error("Failed to fetch workflow runs");
+                throw new Error("Could not load calls");
             }
 
             if (response.data) {
@@ -131,8 +131,8 @@ export function WorkflowExecutions({ workflowId, searchParams, onWorkflowName }:
             }
             setError(null);
         } catch (err) {
-            console.error("Error fetching workflow runs:", err);
-            setError("Failed to load workflow runs");
+            console.error("Error loading calls:", err);
+            setError("Could not load calls");
         } finally {
             setLoading(false);
         }

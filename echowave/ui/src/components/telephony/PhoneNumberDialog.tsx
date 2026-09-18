@@ -301,7 +301,7 @@ export function PhoneNumberDialog({
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="pn-workflow">Inbound workflow</Label>
+            <Label htmlFor="pn-workflow">Answering bot</Label>
             <Select value={inboundWorkflowId} onValueChange={setInboundWorkflowId}>
               <SelectTrigger id="pn-workflow">
                 <SelectValue placeholder="(none)" />

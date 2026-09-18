@@ -612,7 +612,7 @@ export default function UsagePage() {
                                         <TableHeader>
                                             <TableRow className="bg-muted/50">
                                                 <TableHead className="font-semibold">Run ID</TableHead>
-                                                <TableHead className="font-semibold">Agent Name</TableHead>
+                                                <TableHead className="font-semibold">Bot</TableHead>
                                                 <TableHead className="font-semibold">Call Type</TableHead>
                                                 <TableHead className="font-semibold">Phone Number</TableHead>
                                                 <TableHead className="font-semibold">Disposition</TableHead>

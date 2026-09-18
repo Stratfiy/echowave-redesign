@@ -1352,7 +1352,7 @@ function VoicemailSection({
                                     checked={useWorkflowLlm}
                                     onCheckedChange={setUseWorkflowLlm}
                                 />
-                                <Label htmlFor="voicemail-use-workflow-llm">Use Workflow LLM</Label>
+                                <Label htmlFor="voicemail-use-workflow-llm">Use the bot&apos;s model</Label>
                                 <Label className="ml-2 text-xs text-muted-foreground">
                                     Use the LLM configured in your account settings.
                                 </Label>

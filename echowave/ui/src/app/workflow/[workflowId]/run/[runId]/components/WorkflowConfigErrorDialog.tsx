@@ -18,7 +18,7 @@ export const WorkflowConfigErrorDialog = ({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Workflow Error</DialogTitle>
+                    <DialogTitle>This bot cannot run</DialogTitle>
                     <DialogDescription className="text-red-500 whitespace-pre-line">
                         {error}
                     </DialogDescription>

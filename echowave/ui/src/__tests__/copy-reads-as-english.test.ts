@@ -8,6 +8,17 @@ import { describe, expect, it } from "vitest";
 const ROOT = join(__dirname, "..");
 const SLIPS = [/\ban bot\b/i, /\ba agent\b/i, /\ba assistant\b/i, /\ban workflow\b/i];
 
+// The same rename left the old words in visible text: a heading that says
+// "Workflow Runs" over a list of calls, "No agents yet" on a screen whose
+// sidebar says Bots. These are JSX text nodes, so the `>` and `<` are literal.
+const OLD_NAMES = [
+    />[^<\n]*\bworkflow runs?\b[^<\n]*</i,
+    />[^<\n]*\bno agents yet\b[^<\n]*</i,
+    />[^<\n]*\bcreate an agent\b[^<\n]*</i,
+    />[^<\n]*\bvoice agent\b[^<\n]*</i,
+    />[^<\n]*\binbound workflow\b[^<\n]*</i,
+];
+
 function walk(dir: string, out: string[] = []): string[] {
     for (const name of readdirSync(dir)) {
         const p = join(dir, name);
@@ -24,6 +35,16 @@ describe("the copy reads as English", () => {
         for (const file of walk(ROOT)) {
             const text = readFileSync(file, "utf8");
             for (const slip of SLIPS) if (slip.test(text)) offenders.push(file.replace(ROOT, "") + ": " + slip);
+        }
+        expect(offenders).toEqual([]);
+    });
+
+    it("never calls a bot an agent or a workflow where a person can read it", () => {
+        const offenders: string[] = [];
+        for (const file of walk(ROOT)) {
+            if (file.includes("/superadmin/")) continue;
+            const text = readFileSync(file, "utf8");
+            for (const slip of OLD_NAMES) if (slip.test(text)) offenders.push(file.replace(ROOT, "") + ": " + slip);
         }
         expect(offenders).toEqual([]);
     });
