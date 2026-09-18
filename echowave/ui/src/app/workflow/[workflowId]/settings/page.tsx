@@ -373,7 +373,7 @@ function GeneralSection({
             <CardContent className="space-y-6">
                 {/* Agent Name */}
                 <div className="space-y-2">
-                    <Label htmlFor="workflow_name" className="text-sm font-medium">Agent Name</Label>
+                    <Label htmlFor="workflow_name" className="text-sm font-medium">Bot name</Label>
                     <Input
                         id="workflow_name"
                         value={name}

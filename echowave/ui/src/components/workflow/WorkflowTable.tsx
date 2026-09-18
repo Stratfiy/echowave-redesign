@@ -306,7 +306,7 @@ export function WorkflowTable({
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead className="font-semibold">Agent Name</TableHead>
+                            <TableHead className="font-semibold">Bot</TableHead>
                             {/* What it has been doing, not when it was made. A
                               * creation date and a database id tell an owner
                               * nothing; this column is the reason to open the

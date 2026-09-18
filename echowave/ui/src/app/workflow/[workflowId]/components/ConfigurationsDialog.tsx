@@ -127,7 +127,7 @@ export const ConfigurationsDialog = ({
                     {/* Workflow Name Section */}
                     <div className="space-y-4">
                         <div>
-                            <h3 className="text-sm font-semibold mb-1">Agent Name</h3>
+                            <h3 className="text-sm font-semibold mb-1">Bot name</h3>
                             <p className="text-xs text-muted-foreground">
                                 The name of your agent
                             </p>
