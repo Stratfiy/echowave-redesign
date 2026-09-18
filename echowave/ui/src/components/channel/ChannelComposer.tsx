@@ -17,7 +17,7 @@
  * channel has no record of.
  */
 
-import { AtSign, Brain, Check, ChevronDown, FileText, Hash, Loader2, Mic, Paperclip, SendHorizontal, Square, X } from 'lucide-react';
+import { ArrowUp, AtSign, Brain, Check, ChevronDown, FileText, Hash, Loader2, Mic, Paperclip, Square, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
@@ -401,6 +401,7 @@ export function ChannelComposer({
             return;
         }
         setText('');
+        if (input.current) input.current.style.height = 'auto';
         setAttachments([]);
         setTag(null);
         setRouteTo(null);
@@ -429,7 +430,7 @@ export function ChannelComposer({
     };
 
     return (
-        <div className="border-t border-border bg-card px-6 py-3">
+        <div className="bg-transparent px-4 pb-3 pt-2">
             {(error || dictation.error) && (
                 <p className="mb-2 text-sm text-destructive" role="alert">
                     {error || dictation.error}
@@ -530,10 +531,121 @@ export function ChannelComposer({
                     </ul>
                 )}
 
-                <div className="flex items-end gap-2">
-                    {/* A file is a message. It is uploaded as knowledge for
-                        this chat alone -- the channel's bots, or this one bot
-                        -- and never lands in the knowledge base by accident. */}
+                {/* The box the way Buzz draws it: one rounded card, the words
+                    on top, the tools in a row beneath, the send arrow at the
+                    right. The old row put the tools beside a bordered input,
+                    which read as a form; this reads as a place to write. */}
+                <div className="rounded-2xl border border-border/60 bg-card px-3 pb-2 pt-3 shadow-none transition-colors focus-within:border-ring/60 sm:px-4">
+                    {dictation.listening && (
+                        <div className="flex min-h-[38px] items-center gap-3 rounded-lg border border-[var(--accent-brand)]/50 bg-background px-3 text-sm text-muted-foreground">
+                            <Waveform levels={dictation.levels} />
+                            <span className="hidden sm:inline">Listening… press stop when done</span>
+                        </div>
+                    )}
+                    <div className={cn('relative min-w-0', dictation.listening && 'hidden')}>
+                    {routeTo && (
+                        <span
+                            className="absolute -top-7 left-0 inline-flex items-center gap-1 rounded-full bg-[var(--brand-blue-soft)] px-2 py-0.5 text-xs font-medium text-[var(--brand-blue)]"
+                            data-testid="route-chip"
+                        >
+                            to #{channelSlug(routeTo)}
+                            <button
+                                type="button"
+                                aria-label="Send here instead"
+                                className="ml-0.5 rounded-full px-1 hover:bg-[var(--brand-blue-glow)]"
+                                onClick={() => setRouteTo(null)}
+                            >
+                                ×
+                            </button>
+                        </span>
+                    )}
+                    {/* The same words as the box, painted: a tag in blue, the
+                        rest in ink. The textarea over it writes in transparent
+                        so this shows through, and scrolls with it. */}
+                    <div
+                        ref={mirror}
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words px-1 py-1 text-sm"
+                    >
+                        {tagTokens(text).map((token, index) =>
+                            token.tag ? (
+                                <span key={index} className="font-medium text-[var(--brand-blue)]">
+                                    {token.text}
+                                </span>
+                            ) : (
+                                <span key={index} className="text-foreground">{token.text}</span>
+                            ),
+                        )}
+                        {'\u200b'}
+                    </div>
+                    <textarea
+                        ref={input}
+                        rows={1}
+                        value={text}
+                        onScroll={(event) => {
+                            if (mirror.current) mirror.current.scrollTop = event.currentTarget.scrollTop;
+                        }}
+                        aria-label={`Message ${channelName}`}
+                        placeholder={
+                            workflowId != null
+                                ? `Message ${channelName}`
+                                : `Message #${channelName} — @ a bot to ask it for something`
+                        }
+                        className="relative max-h-40 min-h-[28px] w-full resize-none border-0 bg-transparent px-1 py-1 text-sm text-transparent caret-foreground outline-none"
+                        onChange={(event) => {
+                            event.target.style.height = 'auto';
+                            event.target.style.height = `${Math.min(event.target.scrollHeight, 160)}px`;
+                            setText(event.target.value);
+                            syncFragment(
+                                event.target.value,
+                                event.target.selectionStart ?? 0,
+                            );
+                        }}
+                        onClick={(event) =>
+                            syncFragment(
+                                text,
+                                event.currentTarget.selectionStart ?? 0,
+                            )
+                        }
+                        onKeyDown={(event) => {
+                            if (suggestions.length > 0) {
+                                if (event.key === 'ArrowDown') {
+                                    event.preventDefault();
+                                    setHighlighted((i) => (i + 1) % suggestions.length);
+                                    return;
+                                }
+                                if (event.key === 'ArrowUp') {
+                                    event.preventDefault();
+                                    setHighlighted(
+                                        (i) =>
+                                            (i - 1 + suggestions.length) %
+                                            suggestions.length,
+                                    );
+                                    return;
+                                }
+                                if (event.key === 'Tab' || event.key === 'Enter') {
+                                    event.preventDefault();
+                                    complete(suggestions[highlighted]);
+                                    return;
+                                }
+                                if (event.key === 'Escape') {
+                                    setTag(null);
+                                    return;
+                                }
+                            }
+                            // Shift+Enter for a newline, the convention every
+                            // chat product shares. A message that sends on the
+                            // key somebody uses to start a second line is a
+                            // message sent half-written.
+                            if (event.key === 'Enter' && !event.shiftKey) {
+                                event.preventDefault();
+                                void send();
+                            }
+                        }}
+                    />
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                        <div className="-ml-2 flex min-w-0 flex-1 items-center gap-1">
                     {target && (
                         <>
                             <input
@@ -617,115 +729,6 @@ export function ChannelComposer({
                             <Mic className="h-4 w-4" />
                         )}
                     </Button>
-                    {dictation.listening && (
-                        <div className="flex min-h-[38px] flex-1 items-center gap-3 rounded-md border border-[var(--accent-brand)]/50 bg-background px-3 text-sm text-muted-foreground">
-                            <Waveform levels={dictation.levels} />
-                            <span className="hidden sm:inline">Listening… press stop when done</span>
-                        </div>
-                    )}
-                    <div className={cn('relative min-w-0 flex-1', dictation.listening && 'hidden')}>
-                    {routeTo && (
-                        <span
-                            className="absolute -top-7 left-0 inline-flex items-center gap-1 rounded-full bg-[var(--brand-blue-soft)] px-2 py-0.5 text-xs font-medium text-[var(--brand-blue)]"
-                            data-testid="route-chip"
-                        >
-                            to #{channelSlug(routeTo)}
-                            <button
-                                type="button"
-                                aria-label="Send here instead"
-                                className="ml-0.5 rounded-full px-1 hover:bg-[var(--brand-blue-glow)]"
-                                onClick={() => setRouteTo(null)}
-                            >
-                                ×
-                            </button>
-                        </span>
-                    )}
-                    {/* The same words as the box, painted: a tag in blue, the
-                        rest in ink. The textarea over it writes in transparent
-                        so this shows through, and scrolls with it. */}
-                    <div
-                        ref={mirror}
-                        aria-hidden="true"
-                        className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-md px-3 py-2 text-sm"
-                    >
-                        {tagTokens(text).map((token, index) =>
-                            token.tag ? (
-                                <span key={index} className="font-medium text-[var(--brand-blue)]">
-                                    {token.text}
-                                </span>
-                            ) : (
-                                <span key={index} className="text-foreground">{token.text}</span>
-                            ),
-                        )}
-                        {'\u200b'}
-                    </div>
-                    <textarea
-                        ref={input}
-                        rows={1}
-                        value={text}
-                        onScroll={(event) => {
-                            if (mirror.current) mirror.current.scrollTop = event.currentTarget.scrollTop;
-                        }}
-                        aria-label={`Message ${channelName}`}
-                        placeholder={
-                            workflowId != null
-                                ? `Message ${channelName}`
-                                : `Message #${channelName} — @ a bot to ask it for something`
-                        }
-                        className="relative max-h-40 min-h-[38px] w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 text-sm text-transparent caret-foreground outline-none focus-visible:border-ring"
-                        onChange={(event) => {
-                            setText(event.target.value);
-                            syncFragment(
-                                event.target.value,
-                                event.target.selectionStart ?? 0,
-                            );
-                        }}
-                        onClick={(event) =>
-                            syncFragment(
-                                text,
-                                event.currentTarget.selectionStart ?? 0,
-                            )
-                        }
-                        onKeyDown={(event) => {
-                            if (suggestions.length > 0) {
-                                if (event.key === 'ArrowDown') {
-                                    event.preventDefault();
-                                    setHighlighted((i) => (i + 1) % suggestions.length);
-                                    return;
-                                }
-                                if (event.key === 'ArrowUp') {
-                                    event.preventDefault();
-                                    setHighlighted(
-                                        (i) =>
-                                            (i - 1 + suggestions.length) %
-                                            suggestions.length,
-                                    );
-                                    return;
-                                }
-                                if (event.key === 'Tab' || event.key === 'Enter') {
-                                    event.preventDefault();
-                                    complete(suggestions[highlighted]);
-                                    return;
-                                }
-                                if (event.key === 'Escape') {
-                                    setTag(null);
-                                    return;
-                                }
-                            }
-                            // Shift+Enter for a newline, the convention every
-                            // chat product shares. A message that sends on the
-                            // key somebody uses to start a second line is a
-                            // message sent half-written.
-                            if (event.key === 'Enter' && !event.shiftKey) {
-                                event.preventDefault();
-                                void send();
-                            }
-                        }}
-                    />
-                    </div>
-                    {/* What this chat keeps in mind, out of what the plan
-                        allows. A ring and two numbers, the way Claude's
-                        composer shows its context. */}
                     {memory && (
                         <span
                             role="img"
@@ -826,7 +829,11 @@ export function ChannelComposer({
                             )}
                         </DropdownMenuContent>
                     </DropdownMenu>
+                        </div>
+                        <div className="flex items-center gap-2">
                     <Button
+                        size="icon"
+                        className="h-8 w-8 shrink-0 rounded-full bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
                         onClick={() => void send()}
                         disabled={(!text.trim() && attachments.length === 0) || sending || !!uploadingFile}
                         aria-label="Send"
@@ -834,9 +841,11 @@ export function ChannelComposer({
                         {sending ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
-                            <SendHorizontal className="h-4 w-4" />
+                            <ArrowUp className="h-4 w-4" />
                         )}
                     </Button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
