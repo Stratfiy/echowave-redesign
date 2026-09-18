@@ -19,7 +19,7 @@ from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind, WorkflowRunMode
 from api.services.billing import events as billing_events
 from api.services.quota_service import authorize_workflow_run_start
-from api.services.workflow import agent_timeline, bot_triggers
+from api.services.workflow import agent_timeline, bot_triggers, one_shot_run
 from api.services.workflow.routine_runner import MAX_DELIVERABLE
 from api.services.workflow.text_chat_runner import default_text_chat_checkpoint
 from api.services.workflow.text_chat_session_service import (
@@ -180,6 +180,8 @@ async def run_trigger(
             payload={"trigger_id": trigger_id, "error": str(exc)[:500]},
         )
         return run_id
+    finally:
+        await one_shot_run.close(run_id)
 
 
 async def _load(trigger_id: int) -> dict[str, Any] | None:

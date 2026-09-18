@@ -30,7 +30,7 @@ from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind, WorkflowRunMode
 from api.services.billing import events as billing_events
 from api.services.quota_service import authorize_workflow_run_start
-from api.services.workflow import agent_timeline, channel_context
+from api.services.workflow import agent_timeline, channel_context, one_shot_run
 from api.services.workflow.text_chat_runner import default_text_chat_checkpoint
 from api.services.workflow.text_chat_session_service import (
     append_text_chat_user_message,
@@ -118,6 +118,7 @@ async def answer_in_channel(
 
     organization_id = workflow.organization_id
     name = workflow.name or f"workflow {workflow_id}"
+    run_id: Optional[int] = None
 
     try:
         workflow_run = await db_client.create_workflow_run(
@@ -331,6 +332,8 @@ async def answer_in_channel(
             payload={"error": str(exc)[:500]},
         )
         return None
+    finally:
+        await one_shot_run.close(run_id)
 
 
 __all__ = ["MAX_HOPS", "MAX_REPLY", "answer_in_channel", "teammates_line"]

@@ -59,6 +59,20 @@ export interface WorkflowRunsTableProps {
     emptyMessage?: string;
 }
 
+/**
+ * What a run's status badge says.
+ *
+ * A text chat has no hangup. The engine marks it complete only when the
+ * conversation reached an end node, and a person who simply stopped typing
+ * never gets there, so "In Progress" on a chat from last week was a lie the
+ * Logs screen told about every abandoned session. A chat that is not
+ * finished is open; only a call is in progress.
+ */
+export function runStatusLabel(run: Pick<WorkflowRunResponseSchema, "is_completed" | "mode">): string {
+    if (run.is_completed) return "Completed";
+    return run.mode === "textchat" ? "Open" : "In Progress";
+}
+
 export function WorkflowRunsTable({
     runs,
     loading,
@@ -185,7 +199,7 @@ export function WorkflowRunsTable({
                                             <TableCell className="font-mono text-sm">#{run.id}</TableCell>
                                             <TableCell>
                                                 <Badge variant={run.is_completed ? "default" : "secondary"}>
-                                                    {run.is_completed ? "Completed" : "In Progress"}
+                                                    {runStatusLabel(run)}
                                                 </Badge>
                                             </TableCell>
                                             <TableCell className="text-sm">{formatDate(run.created_at)}</TableCell>

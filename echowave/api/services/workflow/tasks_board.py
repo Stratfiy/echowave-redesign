@@ -36,7 +36,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
-from api.services.workflow import agent_timeline
+from api.services.workflow import agent_timeline, one_shot_run
 
 TOOL_NAME = "create_task"
 DESCRIPTION = (
@@ -555,6 +555,8 @@ async def run_task(task_id: int) -> int | None:
             title=task["title"],
         )
         return run_id
+    finally:
+        await one_shot_run.close(run_id)
 
 
 async def _finish(
