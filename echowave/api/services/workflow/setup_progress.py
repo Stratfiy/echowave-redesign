@@ -32,6 +32,7 @@ from api.db.models import (
     WorkflowModel,
     WorkflowRunModel,
 )
+from api.services.workflow.answered import answered_sql
 
 
 @dataclass(frozen=True)
@@ -93,11 +94,15 @@ async def for_workflow(*, workflow_id: int, organization_id: int) -> SetupProgre
             )
 
         # One row is the whole question — "has this ever run" needs no count,
-        # and a count over a busy agent's runs is work nobody asked for.
+        # and a count over a busy agent's runs is work nobody asked for. But
+        # the row has to be a run somebody was on: a chat refused for want of
+        # credit leaves a run row too, and a rail that ticks "Hear it on a
+        # call" off the back of a refusal congratulates work that did not
+        # happen. The rule for "somebody was on the line" lives in one place.
         tested = (
             await session.scalars(
                 select(WorkflowRunModel.id)
-                .where(WorkflowRunModel.workflow_id == workflow_id)
+                .where(WorkflowRunModel.workflow_id == workflow_id, answered_sql())
                 .limit(1)
             )
         ).first() is not None
