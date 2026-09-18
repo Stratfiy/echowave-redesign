@@ -141,6 +141,16 @@ def preview(
         # the length of its text, so the fields a later call needs are still
         # there whatever order they were serialised in.
         out["first"] = [_slim(item) for item in items[:PREVIEW_ITEMS]]
+        # A record that carries a list is not only its list. Seen live: one
+        # Gmail message, spilled, previewed as its five header rows and
+        # nothing else, so the thread id and sender beside them were gone
+        # and the bot said it could not reply. The record's own fields ride
+        # along, with its lists summarised rather than repeated.
+        if isinstance(data, dict):
+            out["fields"] = {
+                k: (f"{len(v)} items" if isinstance(v, list) else _slim(v))
+                for k, v in data.items()
+            }
     else:
         slimmed = _slim(data)
         text = json.dumps(slimmed, default=str)
