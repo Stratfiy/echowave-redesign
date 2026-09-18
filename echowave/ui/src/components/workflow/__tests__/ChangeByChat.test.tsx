@@ -39,12 +39,17 @@ describe("ChangeByChat", () => {
         expect(screen.getByText(/live bot keeps answering/)).toBeTruthy();
     });
 
-    it("names the bot rather than asking which one", () => {
+    it("does not offer to build a second bot while changing this one", () => {
         open();
-        const props = panel.mock.calls.at(-1)?.[0] as { showSuggestions?: boolean };
-        // The openers are for somebody building their first bot. This person
-        // has one open in front of them.
+        const props = panel.mock.calls.at(-1)?.[0] as {
+            showSuggestions?: boolean;
+            heading?: boolean;
+        };
+        // The openers are for somebody building their first bot, and the
+        // panel's own title says "Build an agent by chatting" -- under a
+        // sheet headed "Change <bot>" that reads as a second bot.
         expect(props.showSuggestions).toBe(false);
+        expect(props.heading).toBe(false);
     });
 
     it("reports a turn that rewrote the draft, and ignores one that did not", () => {

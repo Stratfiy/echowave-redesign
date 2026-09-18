@@ -67,6 +67,7 @@ export function ChangeByChat({
                 </SheetHeader>
                 <div className="min-h-0 flex-1 overflow-y-auto">
                     <AgentBuilderPanel
+                        heading={false}
                         showSuggestions={false}
                         prefill={{ text: `I want to change my bot "${name}". `, nonce: 1 }}
                         onActions={(actions) => {

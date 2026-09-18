@@ -84,10 +84,16 @@ export interface Prefill {
 export function AgentBuilderPanel({
     prefill,
     showSuggestions = true,
+    heading = true,
     onActions,
 }: {
     prefill?: Prefill;
     showSuggestions?: boolean;
+    /** The panel's own title and blurb. Off where the screen around it has
+     *  already said what this chat is for -- "Build an agent by chatting"
+     *  under a sheet titled "Change QA Front Desk" tells somebody changing a
+     *  bot that they are about to make a second one. */
+    heading?: boolean;
     /** The tools each turn ran. A screen showing the thing this chat just
      *  changed reloads on it: the chat writes a draft straight to the
      *  database, and a form still holding the old draft would save it back
@@ -269,19 +275,25 @@ export function AgentBuilderPanel({
     const started = turns.length > 0;
 
     return (
-        <Card className="mb-8">
-            <CardHeader>
+        <Card className={heading ? "mb-8" : "border-0 bg-transparent shadow-none"}>
+            <CardHeader className={heading ? undefined : "px-0 pt-0"}>
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                        <CardTitle className="flex items-center gap-2 text-xl">
-                            <Sparkles className="h-5 w-5 text-primary" />
-                            Build an agent by chatting
-                        </CardTitle>
-                        <CardDescription className="mt-1">
-                            Describe your business and I&apos;ll ask a few questions,
-                            then build a working agent — with what it costs a minute.
-                        </CardDescription>
-                    </div>
+                    {heading ? (
+                        <div>
+                            <CardTitle className="flex items-center gap-2 text-xl">
+                                <Sparkles className="h-5 w-5 text-primary" />
+                                Build an agent by chatting
+                            </CardTitle>
+                            <CardDescription className="mt-1">
+                                Describe your business and I&apos;ll ask a few questions,
+                                then build a working agent — with what it costs a minute.
+                            </CardDescription>
+                        </div>
+                    ) : (
+                        // The allowance still has to sit at the right-hand end,
+                        // and it is the only thing left in this row.
+                        <span />
+                    )}
                     {config.usage.limit > 0 ? (
                         <span
                             className="shrink-0 rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs tabular-nums text-muted-foreground"
@@ -299,7 +311,7 @@ export function AgentBuilderPanel({
                 </div>
             </CardHeader>
 
-            <CardContent>
+            <CardContent className={heading ? undefined : "px-0"}>
                 {started ? (
                     <div
                         ref={scrollRef}
