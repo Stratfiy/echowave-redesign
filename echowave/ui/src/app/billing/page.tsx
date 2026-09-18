@@ -120,6 +120,9 @@ type Balance = {
   /** Whether calling is stopped right now. Computed by the server so the
    *  banner and the runtime that refuses the call agree on one definition. */
   calling_blocked: boolean;
+  /** Whether this plan puts bots on the phone. A text-only plan is told its
+   *  replies stop, not its calls: it never had calls. */
+  voice_allowed?: boolean;
   gst_rate_basis_points: number;
   is_export: boolean;
   billing_profile_complete: boolean;
@@ -689,6 +692,10 @@ export default function BillingPage() {
   // it. One minimum top-up's worth of runway is enough notice to act on.
   const runningLow =
     !outOfCredit && balancePaise < (balance?.min_topup_paise ?? 0);
+  // What the floor stops. "Calling is paused" on a plan whose card says
+  // "no phone line" reads as a feature the account never had.
+  const whatStops = balance?.voice_allowed === false ? "Replies" : "Calling";
+  const whatStopsLower = whatStops === "Replies" ? "Replies stop" : "Calling pauses";
 
   // What the card will actually be charged, shown before the customer clicks
   // pay. Discovering the tax at the card form reads as a surprise fee.
@@ -798,14 +805,14 @@ export default function BillingPage() {
                     unable to dial reads that as our arithmetic being broken. */}
         {outOfCredit && (
           <p className="mt-2 text-sm text-red-600 dark:text-red-400">
-            Calling is paused — the balance is below{" "}
-            {formatCreditsLabel(floorPaise)}. Add credit from{" "}
+            {whatStops === "Replies" ? "Replies are paused" : "Calling is paused"}{" "}
+            — the balance is below {formatCreditsLabel(floorPaise)}. Add credit from{" "}
             {formatPaise(balance?.min_topup_paise ?? 0)} to start again.
           </p>
         )}
         {runningLow && (
           <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">
-            Running low. Calling pauses once this falls below{" "}
+            Running low. {whatStopsLower} once this falls below{" "}
             {formatCreditsLabel(floorPaise)}.
           </p>
         )}
