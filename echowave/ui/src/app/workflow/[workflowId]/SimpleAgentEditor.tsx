@@ -1,7 +1,7 @@
 "use client";
 
 import { GitBranch, Info } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { readSimpleAgent, writeSimpleAgent } from "@/components/flow/simpleAgent";
 import type { FlowNode } from "@/components/flow/types";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { BotSkills } from "@/components/workflow/BotSkills";
+import { ChangeByChat } from "@/components/workflow/ChangeByChat";
 
 /**
  * A one-prompt agent, as one screen.
@@ -37,6 +38,7 @@ export function SimpleAgentEditor({
     readOnly = false,
     header,
     workflowId,
+    name = "this bot",
 }: {
     nodes: FlowNode[];
     onNodesChange: (next: FlowNode[]) => void;
@@ -48,8 +50,12 @@ export function SimpleAgentEditor({
     /** The bot this form is editing, so its taught skills can be listed
      *  under the instructions they modify. */
     workflowId?: number;
+    /** What the bot is called, for the chat that changes it. */
+    name?: string;
 }) {
     const fields = useMemo(() => readSimpleAgent(nodes), [nodes]);
+    // Set once the chat has written a draft this form is not showing.
+    const [revised, setRevised] = useState(false);
 
     const update = (patch: Parameters<typeof writeSimpleAgent>[1]) => {
         if (readOnly) return;
@@ -72,11 +78,34 @@ export function SimpleAgentEditor({
                         One agent, one job. It answers, it does the thing, it hangs up.
                     </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={onOpenCanvas}>
-                    <GitBranch className="mr-2 h-4 w-4" />
-                    Open canvas
-                </Button>
+                <div className="flex items-center gap-2">
+                    {!readOnly && (
+                        <ChangeByChat name={name} onRevised={() => setRevised(true)} />
+                    )}
+                    <Button variant="outline" size="sm" onClick={onOpenCanvas}>
+                        <GitBranch className="mr-2 h-4 w-4" />
+                        Open canvas
+                    </Button>
+                </div>
             </div>
+
+            {/* Announced, not applied. The chat wrote the draft while this
+                form was still holding the old one, so saving from here
+                without reloading would put the old text back. */}
+            {revised && (
+                <div
+                    role="status"
+                    className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 px-4 py-3 text-sm"
+                >
+                    <span>
+                        The chat saved a new draft of this bot. Reload to see it — nothing
+                        is live until you publish.
+                    </span>
+                    <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
+                        Reload
+                    </Button>
+                </div>
+            )}
 
             <div className="space-y-6">
                 <div className="space-y-2">

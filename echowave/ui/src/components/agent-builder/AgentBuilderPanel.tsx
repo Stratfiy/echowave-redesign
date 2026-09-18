@@ -51,6 +51,8 @@ interface Usage {
 interface ChatResponse {
     reply: string;
     history: Record<string, unknown>[];
+    /** The tools the turn actually ran, by name. */
+    actions?: string[];
     created_workflow_id: number | null;
     usage: Usage;
 }
@@ -82,9 +84,15 @@ export interface Prefill {
 export function AgentBuilderPanel({
     prefill,
     showSuggestions = true,
+    onActions,
 }: {
     prefill?: Prefill;
     showSuggestions?: boolean;
+    /** The tools each turn ran. A screen showing the thing this chat just
+     *  changed reloads on it: the chat writes a draft straight to the
+     *  database, and a form still holding the old draft would save it back
+     *  over the new one the moment somebody typed. */
+    onActions?: (actions: string[]) => void;
 } = {}) {
     const { user, loading: authLoading } = useAuth();
     const [config, setConfig] = useState<BuilderConfig | null>(null);
@@ -210,13 +218,14 @@ export function AgentBuilderPanel({
                         ? { ...previous, usage: { ...previous.usage, ...data.usage } }
                         : previous,
                 );
+                if (data.actions?.length) onActions?.(data.actions);
             } catch (err) {
                 setError(detailFromError(err, "The assistant could not reply."));
             } finally {
                 setSending(false);
             }
         },
-        [history, sending],
+        [history, sending, onActions],
     );
 
     if (!config) {

@@ -415,6 +415,42 @@ def tool_schemas() -> list[dict[str, Any]]:
             },
         },
         {
+            "name": "revise_agent_prompt",
+            "description": (
+                "Rewrite what an agent says -- its first message, its system "
+                "prompt, its persona. Use this when the user wants it to say "
+                "something differently, ask for something else, or stop doing "
+                "something; use revise_agent_facts instead when only a fact "
+                "like the hours or the address has changed. Works on any "
+                "one-step agent, not only ones built from a template here. "
+                "Supply only the parts that change; anything left out is "
+                "kept, and a part you supply replaces that whole field, so "
+                "send the complete new text rather than the edit. Saves a "
+                "DRAFT; the live agent keeps answering exactly as before "
+                "until a person opens it and publishes. Tell the user that, "
+                "every time, and quote the new wording back to them."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "workflow_id": {"type": "integer"},
+                    "first_message": {
+                        "type": "string",
+                        "description": ("The whole new greeting, or omit to keep it."),
+                    },
+                    "system_prompt": {
+                        "type": "string",
+                        "description": ("The whole new briefing, or omit to keep it."),
+                    },
+                    "persona": {
+                        "type": "string",
+                        "description": ("The whole new persona, or omit to keep it."),
+                    },
+                },
+                "required": ["workflow_id"],
+            },
+        },
+        {
             "name": "list_connected_apps",
             "description": (
                 "List the outside apps this account has already connected -- "
@@ -642,6 +678,16 @@ async def dispatch(
                 organization_id=organization_id,
                 workflow_id=arguments.get("workflow_id"),
                 variables=arguments.get("variables") or {},
+            )
+        if name == "revise_agent_prompt":
+            return await _revise_agent_prompt(
+                organization_id=organization_id,
+                workflow_id=arguments.get("workflow_id"),
+                wording={
+                    field: arguments[field]
+                    for field in ("first_message", "system_prompt", "persona")
+                    if arguments.get(field) is not None
+                },
             )
         if name == "list_connected_apps":
             return await _list_connected_apps(organization_id)
@@ -1027,6 +1073,145 @@ async def _revise_agent_facts(
         "changed": sorted(variables),
         "open_url": f"/workflow/{workflow_id}",
         "next_steps": [
+            "Say plainly that this is saved as a draft and the live agent is "
+            "still answering exactly as it did before.",
+            "Tell them to open the agent, test it, and publish when happy.",
+        ],
+    }
+
+
+#: The node each editable piece of wording lives on, and the field it is
+#: stored in. The one-prompt editor in the UI reads and writes exactly these
+#: three, and a chat that edits a bot has to mean the same thing by "the
+#: prompt" as the screen does, or the two will disagree about what changed.
+_WORDING = {
+    "first_message": ("startCall", "greeting"),
+    "system_prompt": ("agentNode", "prompt"),
+    "persona": ("globalNode", "prompt"),
+}
+
+
+async def _revise_agent_prompt(
+    *,
+    organization_id: int,
+    workflow_id: Any,
+    wording: dict[str, str],
+) -> dict[str, Any]:
+    """Rewrite what an agent says, and save the result as a draft.
+
+    The sibling of :func:`_revise_agent_facts` and deliberately not the same
+    tool. Facts re-fill a template's blanks and only work on an agent built
+    from one; this changes the wording itself and works on any agent simple
+    enough that one prompt describes it. Most agents somebody wants to reword
+    were not built from a template, and before this the chat could only tell
+    them to go and edit it by hand.
+
+    Never touches what is answering the phone: the draft is saved and a person
+    publishes, the same boundary the rest of this catalogue draws.
+
+    Returns the old and new text of every field it changed, so the chat can
+    show the change rather than assert it. A reply that says "done" about
+    words nobody has seen is not reviewable, and these are the words a
+    business says to its own customers.
+    """
+    if not isinstance(workflow_id, int):
+        return {"error": "workflow_id must be the number from list_my_agents."}
+
+    changes = {
+        field: value
+        for field, value in wording.items()
+        if field in _WORDING and isinstance(value, str) and value.strip()
+    }
+    if not changes:
+        return {
+            "error": (
+                "Nothing to change. Supply first_message, system_prompt or "
+                "persona, and ask the user what the new wording should be."
+            )
+        }
+
+    # Scoped, deliberately not `get_workflow_by_id`: a workflow_id a model
+    # produced is a request-supplied id however it came by it.
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=organization_id
+    )
+    if workflow is None:
+        return {"error": f"No agent {workflow_id} in this account."}
+
+    definition = dict(getattr(workflow, "workflow_definition", None) or {})
+    nodes = definition.get("nodes") or []
+    if not nodes:
+        return {
+            "error": (
+                f"Agent {workflow_id} has no nodes to reword. Open it in the "
+                f"editor instead: /workflow/{workflow_id}"
+            )
+        }
+
+    # More than one step means the wording is spread over a flow, and "the
+    # prompt" no longer names one thing. Rewording one of several steps from
+    # a chat that cannot show the others is how somebody breaks a branch they
+    # never saw.
+    if sum(1 for node in nodes if node.get("type") == "agentNode") > 1:
+        return {
+            "error": (
+                f"Agent {workflow_id} has more than one step, so its wording "
+                "lives in several places at once and cannot be rewritten from "
+                f"this chat. Open its canvas: /workflow/{workflow_id}"
+            )
+        }
+
+    revised: dict[str, dict[str, str]] = {}
+    updated_nodes = []
+    for node in nodes:
+        node = dict(node)
+        data = dict(node.get("data") or {})
+        for field, text in changes.items():
+            node_type, key = _WORDING[field]
+            if node.get("type") != node_type:
+                continue
+            revised[field] = {"before": str(data.get(key) or ""), "after": text}
+            data[key] = text
+            # A greeting the runtime is to speak has to be marked as text, or
+            # it is read as a recording that does not exist.
+            if field == "first_message":
+                data["greeting_type"] = "text"
+        node["data"] = data
+        updated_nodes.append(node)
+
+    missing = sorted(set(changes) - set(revised))
+    if missing:
+        return {
+            "error": (
+                f"Agent {workflow_id} has nowhere to put "
+                f"{', '.join(missing)}. Open it in the editor instead: "
+                f"/workflow/{workflow_id}"
+            )
+        }
+
+    definition["nodes"] = updated_nodes
+    try:
+        dto = ReactFlowDTO.model_validate(definition)
+        WorkflowGraph(dto)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Reworded agent {} did not validate", workflow_id)
+        return {"error": f"The reworded agent did not validate: {exc}"}
+
+    await db_client.update_workflow(
+        workflow_id=workflow_id,
+        name=None,
+        workflow_definition=definition,
+        template_context_variables=None,
+        workflow_configurations=None,
+        organization_id=organization_id,
+    )
+    return {
+        "revised": True,
+        "workflow_id": workflow_id,
+        "changed": revised,
+        "open_url": f"/workflow/{workflow_id}",
+        "next_steps": [
+            "Quote the new wording back, so they can read what changed.",
             "Say plainly that this is saved as a draft and the live agent is "
             "still answering exactly as it did before.",
             "Tell them to open the agent, test it, and publish when happy.",
