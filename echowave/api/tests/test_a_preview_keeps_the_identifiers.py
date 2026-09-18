@@ -97,3 +97,42 @@ class TestShapesThatAreNotRowsOfDicts:
         ]
         out = spill.preview({"rows": rows}, stored_as="k")
         assert out["first"][0]["id"] == 0
+
+
+#: One Gmail message fetched by id, shaped the way the real one is: a long
+#: body, and a headers list that is the biggest list in the record.
+ONE = {
+    "messageText": "Your card payment is due on Friday. " * 600,
+    "payload": {"mimeType": "multipart/alternative"},
+    "headers": [{"name": f"X-Header-{n}", "value": "v" * 50} for n in range(30)],
+    "threadId": "thread-one",
+    "sender": "billing@bank.example",
+    "subject": "Payment due",
+}
+
+
+class TestARecordAroundAListKeepsItsOwnFields:
+    """Seen live: one message, spilled, previewed as five header rows and
+    nothing else. The thread id and sender beside the list were gone, and
+    the bot said it could not reply for want of them."""
+
+    def _preview(self) -> dict:
+        return spill.preview(ONE, stored_as="k")
+
+    def test_the_thread_id_and_sender_ride_along(self):
+        fields = self._preview()["fields"]
+        assert fields["threadId"] == "thread-one"
+        assert fields["sender"] == "billing@bank.example"
+        assert fields["subject"] == "Payment due"
+
+    def test_the_body_is_shortened_and_the_list_summarised(self):
+        fields = self._preview()["fields"]
+        assert fields["messageText"].endswith(" …")
+        assert fields["headers"] == "30 items"
+
+    def test_the_rows_are_still_there(self):
+        out = self._preview()
+        assert out["rows"] == 30 and len(out["first"]) == spill.PREVIEW_ITEMS
+
+    def test_it_stays_small(self):
+        assert len(json.dumps(self._preview())) < 3_000
