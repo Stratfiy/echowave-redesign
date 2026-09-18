@@ -129,7 +129,9 @@ export default function AgentTriggersPage() {
         setError(null);
         const result = await compileTriggerApiV1WorkflowsWorkflowIdTriggersCompilePost({
             path: { workflow_id: workflowId },
-            body: { sentence, answers },
+            // The compiler is told which kind, so an email trigger is not
+            // asked which service the mail comes from.
+            body: { sentence, answers, source },
         });
         setCompiling(false);
         if (result.error) {
@@ -137,7 +139,7 @@ export default function AgentTriggersPage() {
             return;
         }
         setPlan(result.data ?? null);
-    }, [sentence, answers, workflowId]);
+    }, [sentence, answers, source, workflowId]);
 
     const save = useCallback(async () => {
         if (!plan || !plan.ready) return;

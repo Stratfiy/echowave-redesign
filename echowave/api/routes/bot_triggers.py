@@ -109,9 +109,15 @@ async def compile_trigger(
     the sentence itself."""
     organization_id = _organization_id(user)
     await _owned_workflow(workflow_id, organization_id)
+    if body.source not in bot_triggers.SOURCES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unknown source {body.source!r}. Use one of: "
+            + ", ".join(bot_triggers.SOURCES),
+        )
     async with db_client.async_session() as session:
         compiled = await bot_triggers.compile(
-            body.sentence, answers=body.answers, session=session
+            body.sentence, answers=body.answers, session=session, source=body.source
         )
     return TriggerCompileResponse(
         **compiled.as_dict(), filter_summary=bot_triggers.describe(compiled.filter)

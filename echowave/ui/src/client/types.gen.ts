@@ -12239,6 +12239,10 @@ export type TriggerCompileRequest = {
     answers?: {
         [key: string]: string;
     };
+    /**
+     * Source
+     */
+    source?: string;
 };
 
 /**
