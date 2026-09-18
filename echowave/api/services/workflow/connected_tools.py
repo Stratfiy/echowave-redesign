@@ -27,6 +27,7 @@ notices; the worst case of guessing "read" is an email that went out.
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Any, Optional
 
@@ -464,17 +465,57 @@ def apps_block(
     )
 
 
+#: The lengths one field's text is cut to, tried in turn until the result
+#: fits. Long enough first to keep the gist of a message body; short enough
+#: last that a row of prose still leaves room for the fields beside it.
+_FIELD_CHARS = (1_200, 400, 160)
+
+
+def _slim(value: Any, *, field_chars: int, depth: int = 0) -> Any:
+    """Every key stays; only long text is shortened."""
+    if isinstance(value, str):
+        return value if len(value) <= field_chars else value[:field_chars] + " …"
+    if isinstance(value, dict):
+        if depth >= 3:
+            return {"…": f"{len(value)} more fields"}
+        return {
+            k: _slim(v, field_chars=field_chars, depth=depth + 1)
+            for k, v in value.items()
+        }
+    if isinstance(value, list):
+        if depth >= 3:
+            return [f"{len(value)} items"]
+        return [_slim(v, field_chars=field_chars, depth=depth + 1) for v in value]
+    return value
+
+
 def _bounded(result: Any) -> Any:
-    """Keep a tool result inside the context budget."""
-    if isinstance(result, dict) and isinstance(result.get("data"), (dict, list)):
-        text = str(result["data"])
-        if len(text) > MAX_RESULT_CHARS:
-            return {
-                **result,
-                "data": text[:MAX_RESULT_CHARS] + "… (truncated)",
-                "truncated": True,
-            }
-    return result
+    """Keep a tool result inside the context budget.
+
+    Seen live: a bot fetched one email, then said it could not draft a reply
+    for want of the thread id and the sender. The message was too long for
+    the budget and too short to be spilled, and this cut it as raw JSON --
+    the body comes first in a Gmail message, so the thread id and sender
+    fell off the end. The same lesson the spill preview already learned:
+    shorten the prose and keep every key, so what a later call needs is
+    there whatever order it was serialised in. Cutting the serialised text
+    is the last resort, when even the shortest fields do not fit.
+    """
+    if not (isinstance(result, dict) and isinstance(result.get("data"), (dict, list))):
+        return result
+    data = result["data"]
+    if len(json.dumps(data, default=str)) <= MAX_RESULT_CHARS:
+        return result
+    for field_chars in _FIELD_CHARS:
+        slimmed = _slim(data, field_chars=field_chars)
+        if len(json.dumps(slimmed, default=str)) <= MAX_RESULT_CHARS:
+            return {**result, "data": slimmed, "truncated": True}
+    text = json.dumps(_slim(data, field_chars=_FIELD_CHARS[-1]), default=str)
+    return {
+        **result,
+        "data": text[:MAX_RESULT_CHARS] + "… (truncated)",
+        "truncated": True,
+    }
 
 
 async def execute(

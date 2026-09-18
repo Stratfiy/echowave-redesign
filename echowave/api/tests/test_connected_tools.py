@@ -7,6 +7,7 @@ nothing about a tool's name can shadow one of Decibyl's own.
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -221,3 +222,60 @@ class TestRunningOne:
             )
         assert result["truncated"] is True
         assert len(result["data"]) <= connected_tools.MAX_RESULT_CHARS + 32
+
+
+@pytest.mark.asyncio
+class TestABoundedResultKeepsItsKeys:
+    """Seen live: a bot fetched one email and then said it could not draft
+    a reply for want of the thread id and the sender. The message was too
+    long for the budget and too short to be spilled, and the budget was
+    applied by cutting the serialised JSON. The body comes first in a Gmail
+    message, so the two short fields a reply needs fell off the end."""
+
+    def _message(self, body_chars: int) -> dict:
+        return {
+            "messageText": "Dear customer, your payment is due. " * (body_chars // 36),
+            "payload": {"headers": [{"name": "X", "value": "y"}]},
+            "threadId": "thread-42",
+            "sender": "billing@bank.example",
+            "subject": "Payment due",
+        }
+
+    async def _fetch(self, data):
+        with (
+            patch.object(
+                connected_tools,
+                "execute_composio_tool",
+                AsyncMock(return_value={"status": "success", "data": data}),
+            ),
+            patch("api.services.billing.events.charge_in_own_session", new=AsyncMock()),
+        ):
+            return await connected_tools.execute(
+                organization_id=7,
+                tool=_tool("GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID"),
+                arguments={"message_id": "m1"},
+                ref_id="r",
+            )
+
+    async def test_a_long_email_keeps_its_thread_id_and_sender(self):
+        result = await self._fetch(self._message(body_chars=9_000))
+        assert result["truncated"] is True
+        assert result["data"]["threadId"] == "thread-42"
+        assert result["data"]["sender"] == "billing@bank.example"
+        assert result["data"]["subject"] == "Payment due"
+        assert result["data"]["messageText"].endswith(" …")
+        assert len(json.dumps(result["data"])) <= connected_tools.MAX_RESULT_CHARS
+
+    async def test_a_short_email_is_left_alone(self):
+        message = self._message(body_chars=500)
+        result = await self._fetch(message)
+        assert result["data"] == message and "truncated" not in result
+
+    async def test_a_list_of_long_rows_keeps_every_row_s_keys(self):
+        rows = [
+            {"body": "x" * 3_000, "id": f"row-{i}", "from": f"p{i}@example.com"}
+            for i in range(4)
+        ]
+        result = await self._fetch(rows)
+        assert [row["id"] for row in result["data"]] == [f"row-{i}" for i in range(4)]
+        assert all(row["from"].endswith("@example.com") for row in result["data"])
