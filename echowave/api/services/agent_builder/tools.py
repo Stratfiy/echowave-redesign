@@ -422,7 +422,9 @@ def tool_schemas() -> list[dict[str, Any]]:
                 "something differently, ask for something else, or stop doing "
                 "something; use revise_agent_facts instead when only a fact "
                 "like the hours or the address has changed. Works on any "
-                "one-step agent, not only ones built from a template here. "
+                "agent, not only ones built from a template here -- though on "
+                "an agent with several steps only the first message and the "
+                "persona can be changed, because the briefing is one per step. "
                 "Supply only the parts that change; anything left out is "
                 "kept, and a part you supply replaces that whole field, so "
                 "send the complete new text rather than the edit. Saves a "
@@ -1148,18 +1150,28 @@ async def _revise_agent_prompt(
             )
         }
 
-    # More than one step means the wording is spread over a flow, and "the
-    # prompt" no longer names one thing. Rewording one of several steps from
-    # a chat that cannot show the others is how somebody breaks a branch they
-    # never saw.
+    # A flow has one greeting and one persona, and a briefing per step.
+    #
+    # The first two are still single things and are still safe to change from
+    # a chat. The briefing is not: "the prompt" names several, and rewording
+    # one of them from a chat that cannot show the others is how somebody
+    # breaks a branch they never saw. So the refusal is scoped to the field
+    # that is genuinely ambiguous rather than to the whole bot -- refusing
+    # everything made this tool invisible to most bots people actually own,
+    # which is the same as not having built it.
     if sum(1 for node in nodes if node.get("type") == "agentNode") > 1:
-        return {
-            "error": (
-                f"Agent {workflow_id} has more than one step, so its wording "
-                "lives in several places at once and cannot be rewritten from "
-                f"this chat. Open its canvas: /workflow/{workflow_id}"
-            )
-        }
+        if "system_prompt" in changes:
+            return {
+                "error": (
+                    f"Agent {workflow_id} has more than one step, so its "
+                    "briefing lives in several places at once and cannot be "
+                    "rewritten from this chat -- open its canvas: "
+                    f"/workflow/{workflow_id}. Its first message and persona "
+                    "are each one thing, and this tool can still change those."
+                )
+            }
+        # A flow's steps each hold a prompt; only the greeting and the persona
+        # are being written, and each of those lives on exactly one node.
 
     revised: dict[str, dict[str, str]] = {}
     updated_nodes = []
