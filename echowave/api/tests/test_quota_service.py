@@ -874,3 +874,92 @@ async def test_the_credit_check_does_not_run_before_tenant_isolation(monkeypatch
     assert result.has_quota is False
     assert result.error_code == "workflow_not_found"
     has_credit.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# The wall is worded for the run that hit it
+# ---------------------------------------------------------------------------
+#
+# Seen on a fresh account: "hello" typed into a bot's chat came back as
+# "Calling stops when your balance falls below ₹20. Add credit to start calling
+# again." No call had happened. And the account's 150 free credits were one
+# email verification away, which the sentence never said.
+
+
+def _text_run(workflow_id: int = 7):
+    return SimpleNamespace(workflow_id=workflow_id, mode="textchat", definition=None)
+
+
+def _call_run(workflow_id: int = 7):
+    return SimpleNamespace(workflow_id=workflow_id, mode="plivo", definition=None)
+
+
+def test_a_text_run_is_told_about_replies_not_calls():
+    message = quota_service.no_credit_message(mode="textchat")
+    assert message.startswith("Replies stop")
+    assert "call" not in message.lower()
+    assert "₹20" in message and "₹1,000" in message
+
+
+def test_a_call_keeps_its_own_words():
+    message = quota_service.no_credit_message(mode="plivo")
+    assert message.startswith("Calling stops")
+    assert message == quota_service.no_credit_message()
+
+
+def test_free_credit_one_step_away_is_named_before_money():
+    message = quota_service.no_credit_message(mode="textchat", verify_email_credits=150)
+    assert "Verify your email" in message
+    assert "150 free credits" in message
+    assert message.index("Verify your email") < message.index("₹1,000")
+
+
+@pytest.mark.asyncio
+async def test_refusing_a_text_run_uses_the_text_words(monkeypatch):
+    _patch_workflow_context(monkeypatch)
+    monkeypatch.setattr(
+        quota_service.db_client, "get_workflow_run", AsyncMock(return_value=_text_run())
+    )
+    monkeypatch.setattr(quota_service, "_has_credit", AsyncMock(return_value=False))
+    monkeypatch.setattr(
+        quota_service, "_verify_email_credits", AsyncMock(return_value=0)
+    )
+
+    result = await quota_service.authorize_workflow_run_start(
+        workflow_id=7, organization_id=42, workflow_run_id=99
+    )
+
+    assert result.has_quota is False
+    assert result.error_code == "insufficient_credit"
+    assert result.error_message.startswith("Replies stop")
+
+
+@pytest.mark.asyncio
+async def test_refusing_an_unverified_account_names_the_open_door(monkeypatch):
+    _patch_workflow_context(monkeypatch)
+    monkeypatch.setattr(
+        quota_service.db_client, "get_workflow_run", AsyncMock(return_value=_call_run())
+    )
+    monkeypatch.setattr(quota_service, "_has_credit", AsyncMock(return_value=False))
+    monkeypatch.setattr(
+        quota_service, "_verify_email_credits", AsyncMock(return_value=150)
+    )
+
+    result = await quota_service.authorize_workflow_run_start(
+        workflow_id=7, organization_id=42, workflow_run_id=99
+    )
+
+    assert "Verify your email and 150 free credits land" in result.error_message
+
+
+@pytest.mark.asyncio
+async def test_a_failure_to_read_the_email_step_costs_only_the_sentence(monkeypatch):
+    class _Boom:
+        async def __aenter__(self):
+            raise RuntimeError("db away")
+
+        async def __aexit__(self, *exc):
+            return False
+
+    monkeypatch.setattr(quota_service.db_client, "async_session", lambda: _Boom())
+    assert await quota_service._verify_email_credits(42) == 0

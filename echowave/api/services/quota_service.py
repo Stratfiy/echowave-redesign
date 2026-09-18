@@ -32,7 +32,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.db.models import UserModel
-from api.enums import PostHogEvent
+from api.enums import PostHogEvent, WorkflowRunMode
 from api.services.billing import reservations
 from api.services.configuration.ai_model_configuration import (
     get_effective_ai_model_configuration_for_workflow,
@@ -64,13 +64,36 @@ INVALID_SERVICE_KEY_MESSAGE = (
 #: Composed rather than a constant string because calling stops at a floor, not
 #: at zero, and a message saying "out of credit" to an account showing ₹18 reads
 #: as a bug in our arithmetic rather than as a thing they can fix.
-def no_credit_message() -> str:
+def no_credit_message(*, mode: str | None = None, verify_email_credits: int = 0) -> str:
+    """The wall in the customer's words, for the kind of run that hit it.
+
+    ``mode`` is the run's ``WorkflowRunMode``. A reply in a channel or a chat
+    is not a call, and a person who typed "hello" and read "start calling
+    again" was told about a thing they never did. ``verify_email_credits`` is
+    the free credit one step away for an account that has not yet verified
+    its address: the door that is actually open is named ahead of the one
+    that costs money.
+    """
     from api.constants import MIN_BALANCE_PAISE, MIN_TOPUP_PAISE
 
-    return (
-        f"Calling stops when your balance falls below ₹{MIN_BALANCE_PAISE / 100:,.0f}. "
-        f"Add credit from ₹{MIN_TOPUP_PAISE / 100:,.0f} to start calling again."
+    floor = f"₹{MIN_BALANCE_PAISE / 100:,.0f}"
+    topup = f"₹{MIN_TOPUP_PAISE / 100:,.0f}"
+    text = mode == WorkflowRunMode.TEXTCHAT.value
+    stops = (
+        f"Replies stop when your balance falls below {floor}."
+        if text
+        else f"Calling stops when your balance falls below {floor}."
     )
+    if verify_email_credits:
+        back = (
+            f"Verify your email and {verify_email_credits} free credits land, "
+            f"or add credit from {topup}."
+        )
+    elif text:
+        back = f"Add credit from {topup} to carry on."
+    else:
+        back = f"Add credit from {topup} to start calling again."
+    return f"{stops} {back}"
 
 
 #: Kept for callers that import the old name. Evaluated at import time, so it
@@ -181,12 +204,46 @@ async def _mint_managed_model_correlation(
     return QuotaCheckResult(has_quota=True)
 
 
-def _no_credit_result() -> QuotaCheckResult:
+def _no_credit_result(
+    *, mode: str | None = None, verify_email_credits: int = 0
+) -> QuotaCheckResult:
     return QuotaCheckResult(
         has_quota=False,
         error_code="insufficient_credit",
-        error_message=no_credit_message(),
+        error_message=no_credit_message(
+            mode=mode, verify_email_credits=verify_email_credits
+        ),
     )
+
+
+async def _verify_email_credits(organization_id: int) -> int:
+    """The free credit that verifying the email would land, or 0.
+
+    Zero when the onboarding grant is off, when the address is already
+    verified, or when the step has already paid out. Never raises: this only
+    decides a sentence, and a failure to read it must not change a refusal
+    into anything else.
+    """
+    try:
+        from api.services.billing import onboarding_credits
+
+        step = onboarding_credits.STEPS_BY_KEY[onboarding_credits.VERIFY_EMAIL]
+        if not (onboarding_credits.ENABLED and step.enabled):
+            return 0
+        async with db_client.async_session() as session:
+            paid = await onboarding_credits._granted_by_step(session, organization_id)
+            if step.key in paid:
+                return 0
+            if await step.check(session, organization_id):
+                return 0
+        return step.credits
+    except Exception as exc:  # noqa: BLE001 - a sentence, not a decision
+        logger.warning(
+            "Could not tell whether org {} still has its email credit: {}",
+            organization_id,
+            exc,
+        )
+        return 0
 
 
 async def _has_credit(organization_id: int, workflow_run_id: int | None = None) -> bool:
@@ -419,6 +476,7 @@ async def _authorize_workflow_run_start(
         # draft on every save, which can carry a different service key than
         # the definition the run will actually use.
         workflow_configurations = workflow.workflow_configurations
+        mode: str | None = None
         if workflow_run_id is not None:
             # As with the owner lookup, a DB read failure falls through to the
             # outer fail-closed handler; only a genuinely missing/mismatched run
@@ -438,6 +496,7 @@ async def _authorize_workflow_run_start(
                     error_code="workflow_run_not_found",
                     error_message="Workflow run not found",
                 )
+            mode = getattr(workflow_run, "mode", None)
             if workflow_run.definition is not None:
                 workflow_configurations = (
                     workflow_run.definition.workflow_configurations
@@ -452,7 +511,10 @@ async def _authorize_workflow_run_start(
                 organization_id,
                 workflow_id,
             )
-            return _no_credit_result()
+            return _no_credit_result(
+                mode=mode,
+                verify_email_credits=await _verify_email_credits(organization_id),
+            )
 
         user_config = await get_effective_ai_model_configuration_for_workflow(
             organization_id=organization_id,
@@ -473,7 +535,10 @@ async def _authorize_workflow_run_start(
         if not await _hold_funds(
             organization_id=organization_id, workflow_run_id=workflow_run_id
         ):
-            return _no_credit_result()
+            return _no_credit_result(
+                mode=mode,
+                verify_email_credits=await _verify_email_credits(organization_id),
+            )
 
         return result
 

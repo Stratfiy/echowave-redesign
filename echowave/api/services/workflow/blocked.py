@@ -83,7 +83,9 @@ def _run_href(workflow_id: Optional[int]) -> str:
 def _no_quota(workflow_id: Optional[int]) -> Wall:
     return Wall(
         reason="no_quota",
-        says="It ran out of credit part-way through, so it stopped rather than half-finish.",
+        # Every writer of this reason refuses the run before it starts, so
+        # "part-way through" was a story about a thing that never happened.
+        says="It has no credit to run on, so it did not start.",
         ways=_lettered(
             ("Top up now", "/billing"),
             ("Turn on automatic top-up", "/billing"),
