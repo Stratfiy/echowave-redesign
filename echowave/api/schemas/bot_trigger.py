@@ -34,6 +34,9 @@ class TriggerCompileRequest(BaseModel):
 
     sentence: str = Field(min_length=1, max_length=2_000)
     answers: dict[str, str] = Field(default_factory=dict)
+    #: "webhook" or "email". The compiler is told which, so an email trigger
+    #: is not asked which service the mail comes from.
+    source: str = Field(default="webhook", max_length=16)
 
     model_config = ConfigDict(extra="forbid")
 

@@ -487,3 +487,52 @@ class TestTheOperatorsRoutes:
         assert response.json()["status"] == "filtered"
         assert response.json()["missing_fields"] == ["phone"]
         enqueue.assert_not_awaited()
+
+
+class TestTheCompilerKnowsTheSource:
+    """Seen live: an Email trigger's compile asked "which email service or
+    inbox is this webhook coming from, so I know the field names?" The
+    compiler only ever knew about webhooks. An email's fields are fixed once
+    it is normalised, and the compiler is told so."""
+
+    def test_an_email_trigger_is_told_its_fields_and_not_to_ask(self):
+        prompt = bot_triggers._prompt(
+            "reply to appointment requests", None, bot_triggers.SOURCE_EMAIL
+        )
+        assert "EMAIL trigger" in prompt
+        for field in bot_triggers.EMAIL_EVENT_FIELDS:
+            assert field in prompt
+        assert "Never ask which mail service" in prompt
+
+    def test_a_webhook_prompt_is_unchanged(self):
+        prompt = bot_triggers._prompt("when an order comes in", None)
+        assert prompt == "Operator's sentence: when an order comes in"
+        assert "EMAIL" not in prompt
+
+    @pytest.mark.asyncio
+    async def test_compile_passes_the_source_through_to_the_model(self):
+        reply = ModelReply(
+            text="",
+            tool_calls=(
+                ToolCall(
+                    id="1",
+                    name=bot_triggers.COMPILE_TOOL_NAME,
+                    arguments={"name": "Appointment mail", "instruction": "Reply."},
+                ),
+            ),
+        )
+        model = SimpleNamespace(provider="anthropic", model="m", api_key="k")
+        with (
+            patch.object(bot_triggers, "resolve_model", AsyncMock(return_value=model)),
+            patch.object(
+                bot_triggers.builder_client, "complete", AsyncMock(return_value=reply)
+            ) as complete,
+        ):
+            compiled = await bot_triggers.compile(
+                "reply to appointment requests",
+                session=None,
+                source=bot_triggers.SOURCE_EMAIL,
+            )
+        assert compiled.ready
+        prompt = complete.await_args.kwargs["conversation"].messages[0]["content"]
+        assert "EMAIL trigger" in prompt and "subject" in prompt

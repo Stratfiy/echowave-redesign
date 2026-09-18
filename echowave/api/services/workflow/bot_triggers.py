@@ -520,8 +520,34 @@ def from_arguments(arguments: dict[str, Any], sentence: str) -> Compiled:
     )
 
 
-def _prompt(sentence: str, answers: dict[str, str] | None) -> str:
+#: What every email event looks like once ``normalise_email`` has run. Told
+#: to the compiler so it never asks which mail service the message comes
+#: from or which field holds the sender: seen live, an Email trigger was
+#: asked exactly that, because the compiler only ever knew about webhooks.
+EMAIL_EVENT_FIELDS = ("from", "subject", "text", "html", "recipient", "message_id")
+
+
+def _source_note(source: str) -> str:
+    if source == SOURCE_EMAIL:
+        return (
+            "This is an EMAIL trigger, not a webhook. Every event is one "
+            "email that has already been parsed into exactly these fields: "
+            + ", ".join(EMAIL_EVENT_FIELDS)
+            + ". Use those names for fields and filter rules. Never ask which "
+            "mail service or inbox the message comes from, or which field "
+            "holds the sender or the subject: that is settled."
+        )
+    return ""
+
+
+def _prompt(
+    sentence: str, answers: dict[str, str] | None, source: str = SOURCE_WEBHOOK
+) -> str:
     lines = [f"Operator's sentence: {sentence.strip()}"]
+    note = _source_note(source)
+    if note:
+        lines.append("")
+        lines.append(note)
     if answers:
         lines.append("")
         lines.append("Answers to your earlier questions:")
@@ -532,7 +558,11 @@ def _prompt(sentence: str, answers: dict[str, str] | None) -> str:
 
 
 async def compile(
-    sentence: str, *, answers: dict[str, str] | None = None, session: Any
+    sentence: str,
+    *,
+    answers: dict[str, str] | None = None,
+    session: Any,
+    source: str = SOURCE_WEBHOOK,
 ) -> Compiled:
     """Turn a sentence into a trigger, or into the questions that stand in its way.
 
@@ -560,7 +590,7 @@ async def compile(
         )
 
     conversation = Conversation()
-    conversation.add_user(_prompt(sentence, answers))
+    conversation.add_user(_prompt(sentence, answers, source))
     try:
         reply = await builder_client.complete(
             provider=model.provider,
