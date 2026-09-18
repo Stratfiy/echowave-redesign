@@ -99,14 +99,19 @@ const PINNED_ROWS: PinnedRow[] = [
   contextRow("activity"),
   { kind: "link", title: "Bots", icon: Bot, url: "/workflow" },
   { kind: "link", title: "Tasks", icon: CalendarClock, url: "/tasks" },
-  contextRow("marketplace"),
-  contextRow("setup"),
-  // Account is not here. It is behind the person at the foot, which is
-  // where Buzz keeps settings and where everybody now looks for them: seven
-  // rows stood above the bots on a phone, and the one you reach for least
-  // was among them. The row is gone, the panel is not -- the profile menu
-  // opens it, and every destination inside it is still one tap away.
 ];
+
+/** The contexts behind the person, rather than above the bots.
+ *
+ *  Four rows are what a day needs: the thread, what the bots did, the bots,
+ *  and what runs on its own. The other three are a shop you visit when you
+ *  want something, a setup you do once, and an account you check monthly --
+ *  and all three stood above the roster on every screen, on a phone most of
+ *  all. Buzz keeps settings behind the profile card for the same reason.
+ *
+ *  Nothing is lost. Each opens its panel exactly as its row did, and the
+ *  guard that every destination lives in exactly one panel still holds. */
+const PERSONAL_CONTEXTS: NavContextId[] = ["marketplace", "setup", "account"];
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -629,19 +634,27 @@ export function AppSidebar() {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" side="top" className="w-56">
-              {/* The Account panel, reached from the person rather than from a
-                  row of its own. Opening it swaps the panel behind this menu,
-                  so Billing, Compliance and the rest are where they were. */}
-              <DropdownMenuItem
-                onClick={() => {
-                  setPickedContext("account");
-                  setOpen(true);
-                }}
-                className="cursor-pointer"
-              >
-                <Settings className="mr-2 h-4 w-4" />
-                Account
-              </DropdownMenuItem>
+              {/* The shop, the setup and the account, reached from the person
+                  rather than from three rows of their own. Opening one swaps
+                  the panel behind this menu, so every destination inside is
+                  where it was. */}
+              {PERSONAL_CONTEXTS.map((id) => {
+                const context = NAV_CONTEXTS.find((candidate) => candidate.id === id)!;
+                const Icon = context.icon;
+                return (
+                  <DropdownMenuItem
+                    key={id}
+                    onClick={() => {
+                      setPickedContext(id);
+                      setOpen(true);
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <Icon className="mr-2 h-4 w-4" />
+                    {context.title}
+                  </DropdownMenuItem>
+                );
+              })}
               {provider === "stack" && (
                 <DropdownMenuItem onClick={() => router.push("/handler/account-settings")} className="cursor-pointer">
                   <Settings className="mr-2 h-4 w-4" />
