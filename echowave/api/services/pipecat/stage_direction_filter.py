@@ -59,7 +59,20 @@ _DIRECTION_WORDS = (
     "|paused|pausing|beat|silence|whispers|whispering|smiles|smiling|nods"
     "|nodding|coughs|clears throat|clearing throat|breathes|breathing"
 )
-_DIRECTIONAL = rf"(?:{_DIRECTION_WORDS}|[A-Za-z]+(?:ing|ly))(?:\s+[A-Za-z]+(?:ing|ly))?"
+#: Two shapes, and the difference between them is the whole safety margin.
+#:
+#: A word off the list may take a plain modifier in front of it -- "[long
+#: pause]", "[awkward silence]" -- because the list is what makes it a
+#: direction and the modifier is only describing it.
+#:
+#: A bare -ing or -ly word may NOT. "morning" ends in -ing, so allowing a
+#: modifier there would make "(this morning)" a direction, and that is
+#: content. It may only pair with another -ing or -ly word: "(pausing
+#: briefly)".
+_DIRECTIONAL = (
+    rf"(?:[A-Za-z]+\s+)?(?:{_DIRECTION_WORDS})(?:\s+[A-Za-z]+(?:ing|ly))?"
+    rf"|[A-Za-z]+(?:ing|ly)(?:\s+[A-Za-z]+(?:ing|ly))?"
+)
 
 _PATTERNS: tuple[re.Pattern[str], ...] = (
     # *pauses warmly*  /  _softly_ -- paired, and never across a line, so an
@@ -68,9 +81,9 @@ _PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(rf"(?<![A-Za-z0-9_])_{_EMPHASISED}_(?![A-Za-z0-9_])"),
     # (softly) / [laughs] / <sighs> -- only when the contents read as a
     # direction, never merely because they are short.
-    re.compile(rf"\(\s*{_DIRECTIONAL}\s*\)", re.IGNORECASE),
-    re.compile(rf"\[\s*{_DIRECTIONAL}\s*\]", re.IGNORECASE),
-    re.compile(rf"<\s*{_DIRECTIONAL}\s*>", re.IGNORECASE),
+    re.compile(rf"\(\s*(?:{_DIRECTIONAL})\s*\)", re.IGNORECASE),
+    re.compile(rf"\[\s*(?:{_DIRECTIONAL})\s*\]", re.IGNORECASE),
+    re.compile(rf"<\s*(?:{_DIRECTIONAL})\s*>", re.IGNORECASE),
 )
 
 

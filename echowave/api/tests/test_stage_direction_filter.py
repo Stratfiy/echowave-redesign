@@ -25,7 +25,11 @@ class TestDirectionsAreRemoved:
             ("(softly) Good morning.", "Good morning."),
             ("[laughs] That is right.", "That is right."),
             ("<sighs> Fine.", "Fine."),
+            # A direction off the list may carry a modifier: the list is what
+            # makes it a direction, the adjective only describes it.
             ("Hello. [long pause] Are you there?", "Hello. Are you there?"),
+            ("[awkward silence] Anyway.", "Anyway."),
+            ("(pausing briefly) Yes.", "Yes."),
             # The one that ends a demo: a whole reply that is nothing else.
             ("*smiling warmly*", ""),
         ],
@@ -47,6 +51,9 @@ class TestSpeechSurvives:
             # because four words with no digits looked like a direction.
             "Your balance is 1240 rupees (as of this morning).",
             "Let me check (one moment).",
+            # "morning" ends in -ing. A bare -ing word may not take a modifier
+            # for exactly this reason, or this would be read as a direction.
+            "I will call you (this morning).",
             "Delivery is Tuesday (24 Sep).",
             "Sure! (Let me check that for you right now, one moment.)",
             # A bare asterisk is arithmetic, not markup.
