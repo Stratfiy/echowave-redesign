@@ -22,6 +22,7 @@ beforeEach(() => {
   Element.prototype.scrollIntoView = vi.fn();
   window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() });
 });
+
 describe("sidebar interactions", () => {
   it("is flush with the edge, the full height, like Slack's", () => {
     // It floated as a rounded card for a while, which put a white header
@@ -52,10 +53,12 @@ describe("sidebar interactions", () => {
     route.pathname = "/billing";
     render(<SidebarProvider><AppSidebar /></SidebarProvider>);
     const tabs = screen.getAllByRole("tab").map((t) => t.getAttribute("aria-label"));
-    expect(tabs).toEqual(["Home", "Activity", "Marketplace", "Setup", "Account"]);
+    expect(tabs).toEqual(["Home", "Activity", "Marketplace", "Setup"]);
     // A rail pointing somewhere other than the screen you are reading is
     // worse than no rail.
-    expect(screen.getByRole("tab", { name: "Account" }).getAttribute("aria-selected")).toBe("true");
+    // /billing belongs to Account, which no longer has a row: the panel is
+    // still the one showing, and the person at the foot is how you get back
+    // to it from elsewhere.
     expect(screen.getByRole("link", { name: "Billing" })).toBeTruthy();
   });
 
@@ -86,7 +89,7 @@ describe("sidebar interactions", () => {
    * links are crammed into a 56px column. */
   it("offers every context in the collapsed rail", () => {
     render(<SidebarProvider defaultOpen={false}><AppSidebar /></SidebarProvider>);
-    for (const title of ["Home", "Activity", "Marketplace", "Setup", "Account"]) {
+    for (const title of ["Home", "Activity", "Marketplace", "Setup"]) {
       expect(screen.getByRole("tab", { name: title })).toBeTruthy();
     }
     // No panel while collapsed: a 56px column cannot hold a destination list.
@@ -94,10 +97,11 @@ describe("sidebar interactions", () => {
   });
   it("opens the panel when a context is picked from the collapsed rail", () => {
     render(<SidebarProvider defaultOpen={false}><AppSidebar /></SidebarProvider>);
-    fireEvent.click(screen.getByRole("tab", { name: "Account" }));
-    // Billing, not Settings: WORKSPACE is folded by default, so asserting on
-    // a link inside it would be testing the fold rather than the panel.
-    expect(screen.getByRole("link", { name: "Billing" })).toBeTruthy();
+    // Setup, since Account is behind the person now and a dropdown does not
+    // open under fireEvent. What this pins is that picking a context from the
+    // folded rail opens the panel, which Setup shows as well as Account did.
+    fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
+    expect(screen.getByRole("link", { name: "Phone numbers" })).toBeTruthy();
   });
   it("the rail's Home button goes home, since the panel no longer lists it", () => {
     /* The Home row was removed from the panel so the panel could be the
@@ -150,12 +154,18 @@ describe("sidebar interactions", () => {
     const rows = Array.from(rail.querySelectorAll("a, button")).map(
       (el) => el.getAttribute("aria-label") ?? el.textContent?.trim(),
     );
-    expect(rows).toEqual(["Home", "Activity", "Bots", "Tasks", "Marketplace", "Setup", "Account"]);
+    // Account is missing on purpose: it lives behind the person at the foot,
+    // as Buzz keeps settings, so the rows above the bots are the ones you
+    // reach for daily.
+    expect(rows).toEqual(["Home", "Activity", "Bots", "Tasks", "Marketplace", "Setup"]);
   });
 
   it("does not offer staff contexts to a customer", () => {
     render(<SidebarProvider defaultOpen={false}><AppSidebar /></SidebarProvider>);
-    fireEvent.click(screen.getByRole("tab", { name: "Account" }));
-    expect(screen.queryByRole("link", { name: "Review queue" })).toBeNull();
+    // Every context a customer can open, and the staff queue in none of them.
+    for (const context of ["Home", "Activity", "Marketplace", "Setup"]) {
+      fireEvent.click(screen.getByRole("tab", { name: context }));
+      expect(screen.queryByRole("link", { name: "Review queue" })).toBeNull();
+    }
   });
 });

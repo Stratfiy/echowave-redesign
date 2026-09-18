@@ -101,7 +101,11 @@ const PINNED_ROWS: PinnedRow[] = [
   { kind: "link", title: "Tasks", icon: CalendarClock, url: "/tasks" },
   contextRow("marketplace"),
   contextRow("setup"),
-  contextRow("account"),
+  // Account is not here. It is behind the person at the foot, which is
+  // where Buzz keeps settings and where everybody now looks for them: seven
+  // rows stood above the bots on a phone, and the one you reach for least
+  // was among them. The row is gone, the panel is not -- the profile menu
+  // opens it, and every destination inside it is still one tap away.
 ];
 
 export function AppSidebar() {
@@ -625,6 +629,19 @@ export function AppSidebar() {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" side="top" className="w-56">
+              {/* The Account panel, reached from the person rather than from a
+                  row of its own. Opening it swaps the panel behind this menu,
+                  so Billing, Compliance and the rest are where they were. */}
+              <DropdownMenuItem
+                onClick={() => {
+                  setPickedContext("account");
+                  setOpen(true);
+                }}
+                className="cursor-pointer"
+              >
+                <Settings className="mr-2 h-4 w-4" />
+                Account
+              </DropdownMenuItem>
               {provider === "stack" && (
                 <DropdownMenuItem onClick={() => router.push("/handler/account-settings")} className="cursor-pointer">
                   <Settings className="mr-2 h-4 w-4" />
