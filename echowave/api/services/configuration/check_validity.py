@@ -404,8 +404,11 @@ class UserConfigurationValidator:
         against the customer.
 
         ``service_config`` is absent on the platform credential sweep, which
-        has a key but no agent. There, only question one is asked -- which is
-        still strictly more than this function used to do.
+        has a key but no agent -- so questions two and three are skipped and
+        only the key itself is checked. A caller that *does* know which model
+        it means, as the managed-tier check does, says so by passing a
+        configuration carrying that model: question two then applies and
+        question three still does not, because there is no voice on it.
         """
         if not (api_key and api_key.strip()):
             raise ValueError(
@@ -446,6 +449,13 @@ class UserConfigurationValidator:
         except Exception:
             return True
 
+        # Off the configuration only. The first parameter is named ``model``
+        # but ``_check_api_key`` passes the PROVIDER into it -- every probe in
+        # this class has the same misnamed argument -- so reading it here
+        # checks the key against the string "elevenlabs" and fails every
+        # account. The platform sweep reaches this check by handing over a
+        # configuration that carries a model and nothing else, which is what
+        # ``key_validation.validate_key`` builds.
         configured_model = getattr(service_config, "model", None)
         if configured_model and available and configured_model not in available:
             raise ValueError(

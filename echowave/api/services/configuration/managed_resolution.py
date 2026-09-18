@@ -25,6 +25,7 @@ from api.db import db_client
 from api.enums import CostComponent
 from api.services.configuration import (
     credential_validation,
+    key_validation,
     managed_language,
     managed_tiers,
     platform_credentials,
@@ -325,3 +326,41 @@ async def missing_platform_keys() -> list[tuple[str, str]]:
             if not key:
                 missing.append((component, provider))
     return missing
+
+
+async def unusable_managed_tiers() -> list[tuple[str, str, str]]:
+    """``(component, tier, why)`` for every managed tier our own key cannot run.
+
+    ``missing_platform_keys`` asks whether we hold a key. This asks the harder
+    question: whether the key we hold may use the model the tier actually
+    resolves to. They are not the same, and the gap between them is the shape
+    of a bad morning -- a tier on the shelf, a key that authenticates, a model
+    the plan does not include, and every managed call on that tier refused as a
+    403 at dial time with nothing in the interface to explain it.
+
+    A definitive no only. A vendor that times out, or answers in a shape we do
+    not recognise, is not evidence against us; the underlying probes already
+    hold that line, and this reports what they report.
+    """
+    unusable: list[tuple[str, str, str]] = []
+    async with db_client.async_session() as session:
+        for component, tier in sorted(managed_tiers.every_tier()):
+            # resolve() never returns None: an unknown tier falls back to
+            # default, which is the behaviour a stored configuration relies on.
+            resolved = managed_tiers.resolve(component, tier)
+            key = await platform_credentials.resolve_api_key(
+                session,
+                component=_credential_component(component),
+                provider=resolved.provider,
+            )
+            if not key:
+                # Already reported, by name, from missing_platform_keys.
+                continue
+            result = await key_validation.validate_key(
+                resolved.provider, key, model=resolved.model
+            )
+            if result.outcome == "invalid":
+                unusable.append(
+                    (component, tier, result.message or "The vendor rejected it.")
+                )
+    return unusable
