@@ -11,7 +11,7 @@
  * prompt is the page and the profile is the column beside it.
  */
 
-import { Brain, Database, Plug, Wrench } from 'lucide-react';
+import { Brain, Database, Plug, Plus, Wrench } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -123,17 +123,30 @@ function ChipSection({
     title,
     chips,
     empty,
+    add,
 }: {
     icon: typeof Wrench;
     title: string;
     chips: Chip[];
     empty: React.ReactNode;
+    /** A plus at the end of the heading, for the place more of these come from. */
+    add?: { href: string; label: string };
 }) {
     return (
         <section>
             <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <Icon className="h-3.5 w-3.5" aria-hidden />
                 {title}
+                {add && (
+                    <Link
+                        href={add.href}
+                        aria-label={add.label}
+                        title={add.label}
+                        className="ml-auto rounded p-0.5 hover:bg-accent hover:text-foreground"
+                    >
+                        <Plus className="h-3.5 w-3.5" aria-hidden />
+                    </Link>
+                )}
             </h3>
             {chips.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{empty}</p>
@@ -225,15 +238,9 @@ export function AgentProfilePanel({
             <ChipSection
                 icon={Wrench}
                 title="Skills"
+                add={{ href: `/marketplace/skills?for=${workflowId}`, label: 'Add a skill' }}
                 chips={skillIds.filter((id) => !isIntegration(tools[id]?.category)).map((id) => chipOf(id, tools[id]))}
-                empty={
-                    <>
-                        None yet.{' '}
-                        <Link href={`/workflow/${workflowId}/tools`} className="underline underline-offset-2">
-                            Add a skill
-                        </Link>
-                    </>
-                }
+                empty={'None yet. A skill is a written procedure it follows, on top of its instructions.'}
             />
             <ChipSection
                 icon={Plug}

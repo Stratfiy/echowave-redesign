@@ -128,13 +128,13 @@ describe("sidebar interactions", () => {
     render(<SidebarProvider><AppSidebar /></SidebarProvider>);
     // No nav rows in the Home panel. The lists below name themselves --
     // Channels and Direct messages, as Buzz does -- and neither heading is a
-    // link: Agents is pinned above and is the one door to the roster.
+    // link: Bots is pinned above and is the one door to the roster.
     expect(screen.queryByRole("link", { name: "Home" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Your bots" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Channels" })).toBeNull();
-    const agents = screen.getByRole("link", { name: "Agents" });
-    expect(agents.getAttribute("href")).toBe("/workflow");
-    expect(agents.closest("[data-rail]")).toBeTruthy();
+    const bots = screen.getByRole("link", { name: "Bots" });
+    expect(bots.getAttribute("href")).toBe("/workflow");
+    expect(bots.closest("[data-rail]")).toBeTruthy();
     // The two sections' doors are there even before anything has loaded.
     expect(screen.getByLabelText("New chat")).toBeTruthy();
     expect(screen.getByLabelText("Add a bot")).toBeTruthy();
@@ -163,11 +163,11 @@ describe("sidebar interactions", () => {
     // Three, and only three. The shop, the setup and the account are behind
     // the person; the bots are the roster below, under a label that is
     // already the door to the full list.
-    expect(rows).toEqual(["Home", "Activity", "Desk", "Agents"]);
+    expect(rows).toEqual(["Home", "Activity", "Desk", "Bots"]);
   });
 
   it("keeps the same four rows folded to icons", () => {
-    // Agents is pinned now, the way Buzz pins it, so the roster has a door
+    // Bots is pinned now, the way Buzz pins Agents, so the roster has a door
     // whether or not the panel is showing the list -- and the rows do not
     // change between the two states, which they used to.
     render(<SidebarProvider defaultOpen={false}><AppSidebar /></SidebarProvider>);
@@ -175,8 +175,8 @@ describe("sidebar interactions", () => {
     const rows = Array.from(rail.querySelectorAll("a, button")).map(
       (el) => el.getAttribute("aria-label") ?? el.textContent?.trim(),
     );
-    expect(rows).toEqual(["Home", "Activity", "Desk", "Agents"]);
-    expect(screen.getByRole("link", { name: "Agents" }).getAttribute("href")).toBe("/workflow");
+    expect(rows).toEqual(["Home", "Activity", "Desk", "Bots"]);
+    expect(screen.getByRole("link", { name: "Bots" }).getAttribute("href")).toBe("/workflow");
   });
 
   it("does not offer staff contexts to a customer", () => {
