@@ -38,6 +38,16 @@ declare global {
   }
 }
 
+/** The `detail` of a refused public request, when it is a sentence. */
+async function serverSentence(res: Response): Promise<string | null> {
+  try {
+    const detail = ((await res.json()) as { detail?: unknown }).detail;
+    return typeof detail === "string" && detail.trim() ? detail : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function TalkPage() {
   const token = useParams<{ token: string }>().token;
   const [config, setConfig] = useState<Config | null>(null);
@@ -155,7 +165,12 @@ export default function TalkPage() {
         body: JSON.stringify({ token, mode: "text" }),
       });
       if (!res.ok) {
-        setChatError("Could not start the chat. The link may be paused or out of minutes.");
+        // The server's sentence is written for the visitor -- a link out of
+        // minutes, an assistant not taking messages -- so it is shown as is.
+        setChatError(
+          (await serverSentence(res)) ??
+            "Could not start the chat. The link may be paused or out of minutes.",
+        );
         return;
       }
       const data = (await res.json()) as { session_token: string };
@@ -182,7 +197,7 @@ export default function TalkPage() {
         },
       );
       if (!res.ok) {
-        setChatError("That message did not go through. Try again.");
+        setChatError((await serverSentence(res)) ?? "That message did not go through. Try again.");
         return;
       }
       const data = (await res.json()) as { messages: ChatMessage[] };
