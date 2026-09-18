@@ -112,7 +112,18 @@ export default function BotChatPage({
                     />
                 </div>
                 {aboutOpen && (
-                    <AuxiliaryPanel label="About this bot" onClose={() => setAboutOpen(false)}>
+                    <AuxiliaryPanel
+                        label="About this bot"
+                        onClose={() => setAboutOpen(false)}
+                        // The panel's own action, opposite the control that
+                        // puts it away -- the shape Refero catalogues and the
+                        // slot AuxiliaryPanel has had since it was written.
+                        action={
+                            <Button asChild size="sm" variant="ghost">
+                                <Link href={`/workflow/${id}/settings`}>Edit</Link>
+                            </Button>
+                        }
+                    >
                         <AboutPanel workflowId={id} name={botName} />
                     </AuxiliaryPanel>
                 )}

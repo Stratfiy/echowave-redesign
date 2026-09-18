@@ -21,6 +21,8 @@ import type { FlowNode } from '@/components/flow/types';
 import { MemoryList } from '@/components/memory/MemoryList';
 import { useAuth } from '@/lib/auth';
 
+import { AgentStanding } from './AgentStanding';
+
 /** Every tool a step of this bot names, once each. */
 export function skillIdsOf(nodes: FlowNode[]): string[] {
     const seen = new Set<string>();
@@ -161,11 +163,14 @@ export function AgentProfilePanel({
     workflowId,
     name,
     nodes,
+    folderId,
     children,
 }: {
     workflowId: number;
     name: string;
     nodes: FlowNode[];
+    /** The channel it belongs to, for the standing block at the top. */
+    folderId?: number | null;
     /** The brains-and-voice row, rendered under the profile. */
     children?: React.ReactNode;
 }) {
@@ -205,6 +210,13 @@ export function AgentProfilePanel({
                     </p>
                 </div>
             </div>
+
+            {/* How it is standing, before any of the configuration. Buzz leads
+                its agent profile with Status and Last error for the reason its
+                own notes give: failures rise, reads recede. This panel used to
+                open on Instructions, so a bot whose Gmail had been failing all
+                morning looked exactly like one having a perfect day. */}
+            <AgentStanding workflowId={workflowId} folderId={folderId} />
 
             {/* Two lists, the way the reference splits them: skills are what
                 the bot itself can do, integrations are the outside software it

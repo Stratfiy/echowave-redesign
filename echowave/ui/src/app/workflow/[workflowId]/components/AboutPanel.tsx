@@ -32,6 +32,7 @@ export function AboutPanel({
     const fetched = useRef(false);
     const [nodes, setNodes] = useState<FlowNode[]>([]);
     const [configurations, setConfigurations] = useState<WorkflowConfigurations | null>(null);
+    const [folderId, setFolderId] = useState<number | null>(null);
 
     useEffect(() => {
         if (authLoading || !user || fetched.current) return;
@@ -42,6 +43,7 @@ export function AboutPanel({
             const definition = response.data.workflow_definition as { nodes?: FlowNode[] } | null;
             setNodes(definition?.nodes ?? []);
             setConfigurations((response.data.workflow_configurations ?? null) as WorkflowConfigurations | null);
+            setFolderId((response.data as { folder_id?: number | null }).folder_id ?? null);
         })();
     }, [authLoading, user, workflowId]);
 
@@ -68,7 +70,7 @@ export function AboutPanel({
     return (
         <div className="flex h-full flex-col">
             <div className="min-h-0 flex-1 overflow-y-auto">
-                <AgentProfilePanel workflowId={workflowId} name={name} nodes={nodes}>
+                <AgentProfilePanel workflowId={workflowId} name={name} nodes={nodes} folderId={folderId}>
                     <ModelRow
                         workflowId={workflowId}
                         editable
