@@ -2,6 +2,8 @@
 
 import { addDays, format, subDays } from 'date-fns';
 import { Calendar, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import {
@@ -63,9 +65,28 @@ function browserTimezone(): string {
   }
 }
 
+/** The date in `?date=`, as a local date. Analytics sends somebody here by
+ *  pressing a day in its chart, and the day they pressed is the whole point
+ *  of the trip -- landing on today instead would lose it.
+ *
+ *  Parsed by hand rather than `new Date("2026-09-14")`, which is read as
+ *  midnight UTC and lands on the day before for anybody west of it. */
+function dateFromQuery(raw: string | null): Date | null {
+  if (!raw) return null;
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (!parts) return null;
+  const date = new Date(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 export default function ReportsPage() {
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [selectedWorkflow, setSelectedWorkflow] = useState<string>('all');
+  const params = useSearchParams();
+  const [selectedDate, setSelectedDate] = useState<Date>(
+    () => dateFromQuery(params?.get('date') ?? null) ?? new Date(),
+  );
+  const [selectedWorkflow, setSelectedWorkflow] = useState<string>(
+    () => params?.get('workflow_id') ?? 'all',
+  );
   const [workflows, setWorkflows] = useState<WorkflowOption[]>([]);
   const [report, setReport] = useState<DailyReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -217,7 +238,17 @@ export default function ReportsPage() {
     <>
     <PageHeader
       tabs={CALLS_TABS}
-      title="Daily reports"
+      title="A day in detail"
+      description={
+        <>
+          Every call on one date, and the CSV behind it. For the shape over
+          weeks — answer rate, length, the hours the phone rings — see{" "}
+          <Link href="/analytics" className="underline underline-offset-4">
+            Analytics
+          </Link>
+          .
+        </>
+      }
       actions={
         <div className="flex flex-col flex-wrap gap-4 sm:flex-row sm:items-center items-start">
           {/* Workflow Selector */}
