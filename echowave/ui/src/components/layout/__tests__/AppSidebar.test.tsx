@@ -36,18 +36,35 @@ describe("sidebar interactions", () => {
     expect(screen.getByRole("link", { name: "Compliance" }).getAttribute("aria-current")).toBe("page");
     expect(screen.queryByRole("link", { name: "Do not call" })).toBeNull();
   });
-  it("expands developers without removing its routes and remembers the choice", () => {
-    // Setup has no row of its own now -- it is behind the person -- so the
-    // panel is reached the way anybody actually gets there: by standing on a
-    // page that belongs to it. Knowledge base rather than a developer page,
-    // because standing on one of those opens the group being tested.
+  it("shows a panel's whole list at once, with nothing to expand first", () => {
+    // Setup has no row of its own -- it is behind the person -- so the panel
+    // is reached the way anybody actually gets there: by standing on a page
+    // that belongs to it.
+    //
+    // Every row is readable on arrival. The headings these used to sit under
+    // were written when this panel held all seventeen destinations; a panel
+    // is now one context's own two-to-five rows, and a fold over them hid
+    // working links behind a click nobody knew to make.
     route.pathname = "/files";
     render(<SidebarProvider><AppSidebar /></SidebarProvider>);
 
+    for (const name of ["Files", "Phone numbers", "Web widget", "API keys", "Connect"]) {
+      expect(screen.getByRole("link", { name })).toBeTruthy();
+    }
+  });
+
+  it("names the two developer rows for what each one is", () => {
+    // They read "API keys & SDKs" and "API & webhooks": two of the panel's
+    // four rows opening with the same word, and the second disagreeing with
+    // its own page, which has always called itself Connect.
+    route.pathname = "/files";
+    render(<SidebarProvider><AppSidebar /></SidebarProvider>);
+
+    expect(screen.queryByRole("link", { name: "API & webhooks" })).toBeNull();
     expect(screen.queryByRole("link", { name: "API keys & SDKs" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Developers" }));
-    expect(screen.getByRole("link", { name: "API keys & SDKs" })).toBeTruthy();
-    expect(JSON.parse(localStorage.getItem("decibyl.sidebar.closedSections")!)).not.toContain("DEVELOPERS");
+    expect(
+      screen.getByRole("link", { name: "Connect" }).getAttribute("href"),
+    ).toBe("/deploy/connect");
   });
 
   it("offers every context, and opens the one the current page belongs to", () => {
@@ -70,17 +87,18 @@ describe("sidebar interactions", () => {
     render(<SidebarProvider><AppSidebar /></SidebarProvider>);
     fireEvent.click(screen.getByRole("tab", { name: "Activity" }));
     expect(screen.getByRole("tab", { name: "Activity" }).getAttribute("aria-selected")).toBe("true");
-    // Campaigns, not Calls: MONITOR is one of the groups folded by default, so
-    // asserting on a link inside it would be testing the fold, not the panel.
+    // Both of Activity's rows, with no fold between them.
     expect(screen.getByRole("link", { name: "Campaigns" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Calls" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Billing" })).toBeNull();
   });
-  it("opens a saved closed group when navigating to a related page", () => {
-    localStorage.setItem("decibyl.sidebar.closedSections", JSON.stringify(["DEPLOY"]));
+  it("has no group headings left to fold", () => {
     route.pathname = "/numbers";
     render(<SidebarProvider><AppSidebar /></SidebarProvider>);
     expect(screen.getByRole("link", { name: "Phone numbers" }).getAttribute("aria-current")).toBe("page");
-    expect(screen.getByRole("button", { name: "Deploy" }).getAttribute("aria-expanded")).toBe("true");
+    for (const heading of ["Deploy", "Monitor", "Developers", "Workspace"]) {
+      expect(screen.queryByRole("button", { name: heading })).toBeNull();
+    }
   });
   /* Collapsed is the rail, and nothing may become unreachable from it.
    *

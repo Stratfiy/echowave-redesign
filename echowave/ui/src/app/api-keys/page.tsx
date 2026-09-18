@@ -396,7 +396,7 @@ export default function APIKeysPage() {
             {dialog}
             <PageHeader
                 tabs={DEVELOPER_TABS}
-                title="API keys & SDKs"
+                title="API keys"
                 description="Manage your API keys to access Decibyl services programmatically"
             />
             <PageBody>
