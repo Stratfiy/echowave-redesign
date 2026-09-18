@@ -138,15 +138,21 @@ jobs:
         id: ecr
         # Best-effort, like the step above: until the repositories and the
         # IAM permission exist, this workflow must keep publishing to GHCR
-        # rather than turning red on every merge. Once ECR is in place the
-        # `push-ecr` step below starts pushing and nothing here changes.
+        # rather than turning red on every merge.
+        #
+        # Logging in is NOT the same as being allowed to push, and that gap
+        # is what turned this job red on every merge from 15 Sept. The role
+        # can `ecr:GetAuthorizationToken`, so this step succeeds; it cannot
+        # `ecr:BatchGetImage` on the repositories, so the push that followed
+        # failed -- inside the one step that also pushed GHCR, taking the
+        # whole job down with it. The ECR push is its own step now, below.
         if: steps.aws.outcome == 'success'
         continue-on-error: true
         uses: aws-actions/amazon-ecr-login@v2
 
       - uses: docker/setup-buildx-action@v3
 
-      - name: Build and push
+      - name: Build and push to GHCR
         uses: docker/build-push-action@v6
         with:
           # The application root for both, not the service directory: the API
@@ -165,12 +171,39 @@ jobs:
           tags: |
             ghcr.io/${{ steps.ns.outputs.owner }}/decibyl-${{ matrix.name }}:latest
             ghcr.io/${{ steps.ns.outputs.owner }}/decibyl-${{ matrix.name }}:${{ github.sha }}
-            ${{ steps.ecr.outcome == 'success' && format('{0}/decibyl-{1}:latest', steps.ecr.outputs.registry, matrix.name) || '' }}
-            ${{ steps.ecr.outcome == 'success' && format('{0}/decibyl-{1}:{2}', steps.ecr.outputs.registry, matrix.name, github.sha) || '' }}
           # Cache lives with the Actions runner, not on the production disk,
           # which is the entire point of moving the build here.
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+          provenance: false
+
+      # ECR is where the box pulls from, and it is the half that is not
+      # permitted yet. Its own step, so a denied push leaves this job amber
+      # on one step instead of red on the merge: the image still exists in
+      # GHCR, which is what the rollback store and the buildable-Dockerfile
+      # proof actually need. The layers are already built and cached, so
+      # this costs seconds.
+      #
+      # TO TURN THIS GREEN, on the DecibylGitHubDeploy role, for the three
+      # decibyl-* repositories: ecr:BatchGetImage,
+      # ecr:GetDownloadUrlForLayer, ecr:BatchCheckLayerAvailability,
+      # ecr:InitiateLayerUpload, ecr:UploadLayerPart,
+      # ecr:CompleteLayerUpload, ecr:PutImage. The role has the account-level
+      # ecr:GetAuthorizationToken already, which is why the login above
+      # succeeds and only the push is refused.
+      - name: Push to ECR
+        if: steps.ecr.outcome == 'success'
+        continue-on-error: true
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/decibyl-${{ matrix.name }}:latest
+            ${{ steps.ecr.outputs.registry }}/decibyl-${{ matrix.name }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.name }}
           provenance: false
 
       - name: Say what to deploy
