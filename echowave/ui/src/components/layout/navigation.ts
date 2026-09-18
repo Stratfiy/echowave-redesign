@@ -6,7 +6,6 @@ import {
   ContactRound,
   Database,
   Globe,
-  GraduationCap,
   Handshake,
   Home,
   Key,
@@ -15,7 +14,6 @@ import {
   Megaphone,
   Phone,
   PhoneCall,
-  Plug,
   Settings,
   Shield,
   ShieldCheck,
@@ -24,7 +22,6 @@ import {
   UserCog,
   Wallet,
   Workflow,
-  Wrench,
 } from "lucide-react";
 
 export type SidebarNavItem = {
@@ -227,43 +224,40 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
           "playback",
         ],
       },
-      // The shop's departments, in the order somebody shops them: what a
-      // bot can do, how it should do it, the bot itself, and the systems it
-      // reaches. Entries rather than a tab strip across the screen -- the
-      // panel beside the rail is where a shop's departments belong.
+      // The shop, one row. Its departments -- Bots, Tools, Skills,
+      // Integrations -- are tabs across the top of it, the way Buzz's own
+      // directory carries All channels / Joined / Archived. As four rows they
+      // read as four unrelated features, and one of them shared a word with
+      // the account's own Your tools below.
       {
-        title: "Tools",
-        url: "/marketplace/tools",
-        icon: Wrench,
-        keywords: ["tools", "actions", "ready-made", "http", "webhook", "lookup"],
-      },
-      {
-        title: "Skills",
-        url: "/marketplace/skills",
-        icon: GraduationCap,
+        title: "Marketplace",
+        url: "/marketplace",
+        activePaths: [
+          "/marketplace/tools",
+          "/marketplace/skills",
+          "/marketplace/integrations",
+          "/integrations/apps",
+        ],
+        icon: ShoppingBag,
         keywords: [
+          "marketplace",
+          "bots",
+          "templates",
+          "hire",
+          "add",
+          "shop",
+          "tools",
+          "actions",
           "skills",
           "procedure",
           "playbook",
-          "teach",
-          "how to",
-          "markdown",
-          "md",
+          "integrations",
+          "apps",
+          "connectors",
+          "connect",
+          "gmail",
+          "whatsapp",
         ],
-      },
-      {
-        title: "Bots",
-        url: "/marketplace",
-        activePaths: ["/marketplace"],
-        icon: ShoppingBag,
-        keywords: ["marketplace", "bots", "templates", "hire", "add", "shop"],
-      },
-      {
-        title: "Integrations",
-        url: "/marketplace/integrations",
-        activePaths: ["/integrations/apps"],
-        icon: Plug,
-        keywords: ["integrations", "apps", "connectors", "connect", "gmail", "whatsapp"],
       },
       // What this account has, not what it could add: the catalogue of apps
       // is the Marketplace's Integrations tab, and it was a second copy of

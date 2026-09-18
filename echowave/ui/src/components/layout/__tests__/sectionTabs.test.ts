@@ -16,6 +16,7 @@ import {
   COMPLIANCE_TABS,
   DEVELOPER_TABS,
   KNOWLEDGE_TABS,
+  MARKETPLACE_TABS,
   TELEPHONY_TABS,
   WORK_TABS,
 } from "../SectionTabs";
@@ -26,6 +27,7 @@ const STRIPS = {
   KNOWLEDGE_TABS,
   COMPLIANCE_TABS,
   BILLING_TABS,
+  MARKETPLACE_TABS,
   TELEPHONY_TABS,
   WORK_TABS,
 };
@@ -86,6 +88,20 @@ describe("section tabs", () => {
     // the sidebar already pins. The assistant is a colleague you talk to,
     // not a container for the workspace's screens.
     expect(WORK_TABS.map((tab) => tab.href)).toEqual(["/tasks", "/requests"]);
+  });
+
+  it("gives the shop one screen with departments, not four rows", () => {
+    // Four rows for one shop read as four unrelated features, and the shop's
+    // Tools shared a word with the account's own Your tools.
+    expect(MARKETPLACE_TABS.map((tab) => tab.href)).toEqual([
+      "/marketplace",
+      "/marketplace/tools",
+      "/marketplace/skills",
+      "/marketplace/integrations",
+    ]);
+    // /marketplace leads the strip and must not carry prefix, or every
+    // department would light it as well as their own.
+    expect(MARKETPLACE_TABS.every((tab) => !tab.prefix)).toBe(true);
   });
 
   it("lets /analytics light its tab from a detail page without stealing /analytics/spend", () => {
