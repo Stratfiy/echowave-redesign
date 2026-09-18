@@ -134,7 +134,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                   second way to put a header on a screen — two of them is how the
                   app ended up with titles at different sizes in different
                   places. */}
-              <main className="app-surface min-h-0 flex-1 overflow-y-auto">
+              {/* The white card inside the gradient frame, the way Buzz sets
+                  its channel pane: rounded, a hairline, a breath of margin on
+                  the open sides. Pages scroll inside it, so a sticky header
+                  stays pinned to the card's top edge. */}
+              <main className="app-surface app-card mb-2 mr-2 min-h-0 flex-1 overflow-y-auto rounded-2xl">
                 {children}
               </main>
             </SidebarInset>
