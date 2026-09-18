@@ -23,6 +23,7 @@
 
 import { ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
+import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 
@@ -30,9 +31,17 @@ export function AgentHeader({
     workflowId,
     name,
     onBack,
+    actions,
 }: {
     workflowId: number;
     name: string;
+    /**
+     * Buttons for the right of the bar -- the chat's About, Test and Share.
+     * They used to share a row with the tab strip, and on a 1280px screen
+     * the two did not fit: the last tabs sat clipped behind the buttons with
+     * no scrollbar to say so. The bar has the room; the strip needs the row.
+     */
+    actions?: ReactNode;
     /**
      * Interposed where leaving could discard an edit — the settings page
      * routes this through its unsaved-changes guard. Plain navigation
@@ -54,6 +63,7 @@ export function AgentHeader({
                 <ArrowLeft className="h-4 w-4" />
             </Button>
             <h1 className="min-w-0 truncate text-sm font-semibold">{name}</h1>
+            {actions && <div className="ml-auto flex shrink-0 gap-2">{actions}</div>}
         </header>
     );
 }

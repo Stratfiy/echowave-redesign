@@ -59,36 +59,39 @@ export default function BotChatPage({
 
     return (
         <div className="flex h-full flex-col">
-            <AgentHeader workflowId={id} name={name || 'Bot'} />
-            <div className="flex items-center justify-between gap-3 border-b border-border pr-6">
-                <AgentTabs workflowId={id} />
-                <div className="flex shrink-0 gap-2 py-1.5">
-                    {/* Who this bot is -- skills, knowledge, memory, brains
-                        and voice -- opens beside the chat, like a teammate's
-                        profile in Slack. */}
-                    <Button
-                        size="sm"
-                        variant={aboutOpen ? 'secondary' : 'outline'}
-                        aria-pressed={aboutOpen}
-                        onClick={() => setAboutOpen((open) => !open)}
-                    >
-                        <Info className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-                        About
-                    </Button>
-                    <Button asChild size="sm" variant="outline">
-                        <Link href={`/workflow/${id}?onboarding=web_call`}>
-                            <Phone className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-                            Test
-                        </Link>
-                    </Button>
-                    <Button asChild size="sm" variant="outline">
-                        <Link href={`/workflow/${id}/settings?tab=share`}>
-                            <Share2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-                            Share
-                        </Link>
-                    </Button>
-                </div>
-            </div>
+            <AgentHeader
+                workflowId={id}
+                name={name || 'Bot'}
+                actions={
+                    <>
+                        {/* Who this bot is -- skills, knowledge, memory, brains
+                            and voice -- opens beside the chat, like a teammate's
+                            profile in Slack. */}
+                        <Button
+                            size="sm"
+                            variant={aboutOpen ? 'secondary' : 'outline'}
+                            aria-pressed={aboutOpen}
+                            onClick={() => setAboutOpen((open) => !open)}
+                        >
+                            <Info className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                            About
+                        </Button>
+                        <Button asChild size="sm" variant="outline">
+                            <Link href={`/workflow/${id}?onboarding=web_call`}>
+                                <Phone className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                                Test
+                            </Link>
+                        </Button>
+                        <Button asChild size="sm" variant="outline">
+                            <Link href={`/workflow/${id}/settings?tab=share`}>
+                                <Share2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                                Share
+                            </Link>
+                        </Button>
+                    </>
+                }
+            />
+            <AgentTabs workflowId={id} />
             <div className="flex min-h-0 flex-1">
                 <div className="flex min-w-0 flex-1 flex-col">
                     <ChannelStream
