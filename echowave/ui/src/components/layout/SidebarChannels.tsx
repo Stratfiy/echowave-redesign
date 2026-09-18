@@ -89,14 +89,13 @@ export function SidebarChannels({ collapsed }: { collapsed: boolean }) {
 
   return (
     <SidebarGroup className="py-1">
-      {/* The heading is a door and carries its own action, the way the
-          reference does it: the label opens the full list, the plus makes a
-          new one. Shown even with nothing under it -- an account with no
-          channels needs the plus more than one with eight. */}
+      {/* A heading that carries its own action: the label names the list,
+          the plus makes a new one. It used to link to /workflow -- the third
+          copy of that destination on one panel, after the pinned row and the
+          bots' own label. Shown even with nothing under it: an account with
+          no channels needs the plus more than one with eight. */}
       <SidebarGroupLabel className="h-8 justify-between text-[15px] font-normal text-sidebar-foreground/70">
-        <Link href="/workflow" className="hover:text-sidebar-foreground">
-          Channels
-        </Link>
+        <span>Channels</span>
         <button
           type="button"
           aria-label="New chat"

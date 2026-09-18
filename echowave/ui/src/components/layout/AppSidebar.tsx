@@ -83,7 +83,8 @@ function sentenceCase(label: string): string {
  *  members are bots. A context row opens that context's sections beneath
  *  it (Activity, Marketplace, Setup, Account); Home does that and goes
  *  home; Desk is a plain door onto the diary, the in-tray and the contact
- *  book, which are three tabs of one screen. */
+ *  book, and Agents onto the roster, the way Buzz pins Agents above its
+ *  channels. */
 type PinnedRow =
   | { kind: "context"; title: string; icon: LucideIcon; context: NavContext }
   | { kind: "link"; title: string; icon: LucideIcon; url: string };
@@ -97,27 +98,21 @@ const PINNED_ROWS: PinnedRow[] = [
   contextRow("home"),
   contextRow("activity"),
   { kind: "link", title: "Desk", icon: CalendarClock, url: "/tasks" },
+  // Buzz pins Agents above its channel sections, and the lists below are
+  // Channels and Direct messages. This is that, read for a product whose
+  // members are bots: Agents is the roster and what it can do, the lists
+  // below are the conversations. Neither list's heading is a door now, so
+  // this is the one way to the full list rather than the third.
+  { kind: "link", title: "Agents", icon: Bot, url: "/workflow" },
 ];
-
-/** The same door, for the one state that cannot show the roster.
- *
- *  A pinned Bots row and the YOUR BOTS label were both /workflow: one idea
- *  written twice on a screen that already has too much. The label wins,
- *  because the roster under it is what somebody came for and the label is
- *  the way past it to the full list.
- *
- *  Folded to icons there is no roster -- a column of bare avatars is a
- *  puzzle -- so the door comes back as a row. Open or folded, it is on the
- *  screen exactly once. */
-const BOTS_ROW: PinnedRow = { kind: "link", title: "Bots", icon: Bot, url: "/workflow" };
 
 /** The contexts behind the person, rather than above the bots.
  *
- *  Four rows are what a day needs: the thread, what the bots did, the bots,
- *  and what runs on its own. The other three are a shop you visit when you
- *  want something, a setup you do once, and an account you check monthly --
- *  and all three stood above the roster on every screen, on a phone most of
- *  all. Buzz keeps settings behind the profile card for the same reason.
+ *  Four rows are what a day needs: the thread, what the bots did, the desk,
+ *  and the roster. The other three are a shop you visit when you want
+ *  something, a setup you do once, and an account you check monthly -- and
+ *  all three stood above the roster on every screen, on a phone most of all.
+ *  Buzz keeps settings behind the profile card for the same reason.
  *
  *  Nothing is lost. Each opens its panel exactly as its row did, and the
  *  guard that every destination lives in exactly one panel still holds. */
@@ -471,17 +466,15 @@ export function AppSidebar() {
         )}
 
         {/* The pinned rows, Buzz's Inbox / Pulse / Projects / Agents /
-            Workflows read for this product: Home, Activity and Desk, with
-            the bots as the roster below. A context row opens its
+            Workflows read for this product: Home, Activity, Desk and
+            Agents, with the conversations as the lists below. A context row
+            opens its
             sections below; a plain row is a door. The five contexts were a
             vertical strip of icons down the edge; as rows they read like
             the rest of the panel and take the same tint when selected. */}
         <div role="tablist" aria-label="Workspace" data-rail="" className="px-1 pt-1">
           <SidebarMenu>
-            {(isCollapsed
-              ? [PINNED_ROWS[0], PINNED_ROWS[1], BOTS_ROW, PINNED_ROWS[2]]
-              : PINNED_ROWS
-            ).map((row) => {
+            {PINNED_ROWS.map((row) => {
               const Icon = row.icon;
               if (row.kind === "link") {
                 const selected = activeUrl === row.url;
@@ -586,8 +579,8 @@ export function AppSidebar() {
               </SidebarGroup>
             </React.Fragment>
           ))}
-          {/* Home is the workspace: the knowledge base, then the channels and
-              the bots, Buzz's Channels and Direct messages.
+          {/* Home is the workspace: the files, then the channels and the
+              bots, Buzz's Channels and Direct messages.
 
               No Decibyl row. Home *is* Decibyl -- the pinned row above goes to
               /overview and this one went to /overview, so the assistant was
@@ -601,7 +594,7 @@ export function AppSidebar() {
                     <SidebarMenuButton asChild isActive={pathname === "/files"}>
                       <Link href="/files">
                         <Database aria-hidden="true" className="h-4 w-4 shrink-0" />
-                        <span className="truncate">Knowledge base</span>
+                        <span className="truncate">Files</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

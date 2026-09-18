@@ -107,9 +107,11 @@ export function SidebarBots({ collapsed }: { collapsed: boolean }) {
       {/* Label opens the full list, plus hires a new one. Shown even with
           nothing under it: the plus is the door a fresh account needs. */}
       <SidebarGroupLabel className="h-8 justify-between text-[15px] font-normal text-sidebar-foreground/70">
-        <Link href="/workflow" className="hover:text-sidebar-foreground">
-          Your bots
-        </Link>
+        {/* A heading, not a door. Agents is pinned above and goes to the full
+            list; this said the same thing in the same panel, which is how
+            Buzz reads too -- Direct messages names the list, it is not a
+            link to somewhere else. */}
+        <span>Direct messages</span>
         <Link
           href="/start"
           aria-label="Add a bot"
@@ -134,7 +136,7 @@ export function SidebarBots({ collapsed }: { collapsed: boolean }) {
                 asChild
                 isActive={active}
                 tooltip={bot.status}
-                className="h-11"
+                className="h-9"
               >
                 {/* `title` as well as the status tooltip: a name long enough
                     to truncate is exactly the name somebody needs to read in
@@ -147,19 +149,13 @@ export function SidebarBots({ collapsed }: { collapsed: boolean }) {
                   >
                     {initials(bot.name)}
                   </span>
-                  {/* Two lines, like a chat list: the name, and the last
-                      thing said or done. The rail read as a directory with
-                      one line; a teammate you talk to has a last message. */}
-                  <span className="flex min-w-0 flex-1 flex-col leading-tight">
-                    <span className={cn("truncate", unread && "font-semibold")}>
-                      {bot.name}
-                    </span>
-                    {bot.last_line && (
-                      <span className="truncate text-[11px] font-normal text-sidebar-foreground/60">
-                        {bot.last_actor === "human" ? "You: " : ""}
-                        {bot.last_line}
-                      </span>
-                    )}
+                  {/* The name, and nothing else. A second line of the last
+                      thing said doubled the height of every row and read as
+                      noise in a list somebody scans to find a bot; the dot
+                      beside it already says there is something new. Buzz
+                      lists its direct messages the same way. */}
+                  <span className={cn("min-w-0 flex-1 truncate", unread && "font-semibold")}>
+                    {bot.name}
                   </span>
                   {unread ? (
                     // Unread, in the brand colour: something happened since

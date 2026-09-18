@@ -446,19 +446,27 @@
      invisible to `tsc` and to `next build` — the font loads, nothing uses it —
      so this line is the whole reason the app is not in the system font. */
   html {
-    font-family: var(--font-app-sans), ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-app-sans), Inter, "Avenir Next", "Segoe UI",
+      ui-sans-serif, system-ui, sans-serif;
   }
 
   body {
     @apply bg-background text-foreground;
     font-family: inherit;
+    /* Buzz's own body rule is `antialiased`, and it is most of why their
+       text reads lighter than ours at the same size in the same face: both
+       apps are Inter. Without it the browser paints subpixel-antialiased
+       text, which thickens every stem on a light ground. */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
     /* One face, two weights (15 Sept). Headings are the body face in bold,
      the way Slack sets a channel name over its messages; the display face
      that stood here made every screen read as two products. */
   h1, h2 {
-    font-family: var(--font-app-sans), ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-app-sans), Inter, "Avenir Next", "Segoe UI",
+      ui-sans-serif, system-ui, sans-serif;
     font-weight: 700;
     letter-spacing: -0.01em;
   }
