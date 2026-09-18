@@ -18,6 +18,7 @@ import {
   MIN_BRIGHT_CONTRAST,
   MIN_DEEP_CONTRAST,
   resolveAccent,
+  RETIRED_ACCENT_VARIABLES,
 } from "../accent";
 
 describe("the accent palette", () => {
@@ -43,6 +44,20 @@ describe("the accent palette", () => {
     expect(ACCENTS[0].id).toBe(DEFAULT_ACCENT_ID);
     // Catppuccin mauve, the hue Buzz leads with in both its modes.
     expect(ACCENTS[0].bright).toBe("#8839ef");
+  });
+
+  it("never paints the frame", () => {
+    // The rail and the panel are the shell's gradient with dark ink on it.
+    // These were written here as inline styles on :root, which beat the
+    // stylesheet, so a stored accent kept the sidebar dark long after the
+    // gradient shipped. An accent owns the ring, the brand fills and the
+    // active row -- nothing that is a surface.
+    for (const accent of ACCENTS) {
+      const names = Object.keys(accentVariables(accent));
+      for (const retired of RETIRED_ACCENT_VARIABLES) {
+        expect(names, `${accent.id} still writes ${retired}`).not.toContain(retired);
+      }
+    }
   });
 
   it("has no duplicate ids", () => {
@@ -80,25 +95,17 @@ describe("resolveAccent", () => {
 });
 
 describe("accentVariables", () => {
-  it("themes the frame: a dark rail, a dark panel one step up, the deep half on the rail's active state", () => {
-    const vars = accentVariables(ACCENTS[2]); // indigo
-    expect(vars["--rail"]).toMatch(/^#[0-9a-f]{6}$/);
-    expect(contrastOnWhite(vars["--rail"])).toBeGreaterThan(10);
-    expect(contrastOnWhite(vars["--sidebar"])).toBeGreaterThan(8);
-    expect(contrastOnWhite(vars["--sidebar"])).toBeLessThan(contrastOnWhite(vars["--rail"]));
-    expect(vars["--rail-accent"]).toBe(ACCENTS[2].deep);
-  });
-
-  it("keeps the panel's text readable on the panel, for every preset", () => {
-    // The regression this guards: a light panel written by the theme while
-    // globals.css set the panel's text to off-white, so every row but the
-    // selected one vanished. Panel dark, text near-white, both from one map.
+  it("marks the row you are standing on, and nothing wider", () => {
+    // What is left of the frame after the gradient: the active row's fill
+    // and its label. The eleven surface variables that used to be here are
+    // covered by "never paints the frame" above.
     for (const accent of ACCENTS) {
       const vars = accentVariables(accent);
-      expect(contrastOnWhite(vars["--sidebar"])).toBeGreaterThan(8);
-      expect(contrastOnWhite(vars["--sidebar-foreground"])).toBeLessThan(1.2);
       expect(vars["--sidebar-primary"]).toBe(accent.deep);
       expect(vars["--sidebar-primary-foreground"]).toBe("#ffffff");
+      expect(contrastOnWhite(vars["--sidebar-primary"])).toBeGreaterThanOrEqual(
+        MIN_DEEP_CONTRAST,
+      );
     }
   });
 
@@ -138,6 +145,24 @@ describe("the anti-flash boot script", () => {
 
     eval(ACCENT_BOOT_SCRIPT);
     expect(document.documentElement.style.getPropertyValue("--ring")).toBe("#4f46e5");
+    window.localStorage.removeItem("decibyl.accent");
+  });
+
+  it("drops a frame colour an older build stored", () => {
+    // The shape localStorage still holds on every machine that ran the old
+    // build: the accent map with the eleven frame variables in it.
+    const indigo = ACCENTS.find((accent) => accent.id === "indigo")!;
+    const stored = {
+      id: "indigo",
+      vars: { ...accentVariables(indigo), "--sidebar": "#341e51", "--rail": "#2f1b19" },
+    };
+    window.localStorage.setItem("decibyl.accent", JSON.stringify(stored));
+
+    eval(ACCENT_BOOT_SCRIPT);
+    const style = document.documentElement.style;
+    expect(style.getPropertyValue("--sidebar")).toBe("");
+    expect(style.getPropertyValue("--rail")).toBe("");
+    expect(style.getPropertyValue("--ring")).toBe("#4f46e5");
     window.localStorage.removeItem("decibyl.accent");
   });
 
