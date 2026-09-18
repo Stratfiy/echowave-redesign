@@ -11,7 +11,8 @@
  *
  * Read-only on purpose. Attaching is a multi-select over every bot on the
  * shelf and a second way of doing it here would be a second answer to the
- * same question; this points at the shelf instead.
+ * same question; this points at the shelf instead, carrying the bot's id so
+ * the shelf's picker opens with this bot already ticked.
  */
 
 import { BookOpen } from "lucide-react";
@@ -55,7 +56,7 @@ export function BotSkills({ workflowId }: { workflowId: number }) {
             <div className="flex items-baseline justify-between gap-3">
                 <h3 className="text-sm font-medium">Skills it has been taught</h3>
                 <Link
-                    href="/marketplace/skills"
+                    href={`/marketplace/skills?for=${workflowId}`}
                     className="text-xs text-muted-foreground underline-offset-4 hover:underline"
                 >
                     Teach it another

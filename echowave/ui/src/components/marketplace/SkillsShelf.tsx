@@ -14,6 +14,7 @@
  */
 
 import { BookOpen, Check, Loader2, Plus, X } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -148,6 +149,13 @@ export function SkillsShelf({ query }: { query: string }) {
     const [busy, setBusy] = useState(false);
     // The skill whose bots are being picked, and the ticks so far.
     const [picking, setPicking] = useState<SkillCardType | null>(null);
+    // The bot that sent somebody here, from the plus beside its Skills.
+    //
+    // Without it the library is a shop with no idea who is shopping: a person
+    // who came from one bot to teach it one thing has to find that bot again
+    // in a list of all of them, having just left its screen. With it, the tick
+    // is already there and Add to bot is one press.
+    const cameFrom = Number(useSearchParams()?.get("for")) || null;
     // The skill being read: title first, body when it arrives, so the
     // dialog opens at once rather than after a round trip.
     const [reading, setReading] = useState<{ title: string; body: string | null } | null>(null);
@@ -184,7 +192,10 @@ export function SkillsShelf({ query }: { query: string }) {
     const openPicker = (skill: SkillCardType) => {
         setError(null);
         setPicking(skill);
-        setTicked((skill.on_bots ?? []).map((b) => b.id));
+        const already = (skill.on_bots ?? []).map((b) => b.id);
+        setTicked(
+            cameFrom && !already.includes(cameFrom) ? [...already, cameFrom] : already,
+        );
     };
 
     const save = async () => {

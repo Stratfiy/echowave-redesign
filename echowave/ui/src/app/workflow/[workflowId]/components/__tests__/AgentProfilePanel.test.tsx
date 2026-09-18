@@ -78,10 +78,15 @@ describe('the panel', () => {
         expect(integrations.querySelector('li')?.getAttribute('title')).toBe('Check availability, Book appointment');
     });
 
-    it('offers a door when there are no skills', () => {
+    // The plus is the one door to the library, and it carries the bot with
+    // it: the shelf attaches a skill by ticking bots, so a library reached
+    // without the bot's id makes somebody find the bot they just left.
+    it('offers one door to the library, carrying the bot', () => {
         tools.mockResolvedValue({ data: [] });
         memory.mockResolvedValue({ data: { facts: [], gaps: [] } });
         render(<AgentProfilePanel workflowId={3} name="Bot" nodes={[]} />);
-        expect(screen.getByRole('link', { name: 'Add a skill' }).getAttribute('href')).toBe('/workflow/3/tools');
+        const doors = screen.getAllByRole('link', { name: 'Add a skill' });
+        expect(doors).toHaveLength(1);
+        expect(doors[0].getAttribute('href')).toBe('/marketplace/skills?for=3');
     });
 });

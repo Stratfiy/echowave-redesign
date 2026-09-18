@@ -98,7 +98,7 @@ export function SidebarBots({ collapsed }: { collapsed: boolean }) {
       {/* Label opens the full list, plus hires a new one. Shown even with
           nothing under it: the plus is the door a fresh account needs. */}
       <SidebarGroupLabel className="h-8 justify-between text-[15px] font-normal text-sidebar-foreground/70">
-        {/* A heading, not a door. Agents is pinned above and goes to the full
+        {/* A heading, not a door. Bots is pinned above and goes to the full
             list; this said the same thing in the same panel, which is how
             Buzz reads too -- Direct messages names the list, it is not a
             link to somewhere else. */}

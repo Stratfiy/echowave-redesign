@@ -83,7 +83,7 @@ function sentenceCase(label: string): string {
  *  members are bots. A context row opens that context's sections beneath
  *  it (Activity, Marketplace, Setup, Account); Home does that and goes
  *  home; Desk is a plain door onto the diary, the in-tray and the contact
- *  book, and Agents onto the roster, the way Buzz pins Agents above its
+ *  book, and Bots onto the roster, the way Buzz pins Agents above its
  *  channels. */
 type PinnedRow =
   | { kind: "context"; title: string; icon: LucideIcon; context: NavContext }
@@ -99,11 +99,16 @@ const PINNED_ROWS: PinnedRow[] = [
   contextRow("activity"),
   { kind: "link", title: "Desk", icon: CalendarClock, url: "/tasks" },
   // Buzz pins Agents above its channel sections, and the lists below are
-  // Channels and Direct messages. This is that, read for a product whose
-  // members are bots: Agents is the roster and what it can do, the lists
-  // below are the conversations. Neither list's heading is a door now, so
-  // this is the one way to the full list rather than the third.
-  { kind: "link", title: "Agents", icon: Bot, url: "/workflow" },
+  // Channels and Direct messages. This is that shape, in our word: Buzz's
+  // members are agents and ours are bots, and the product says bots
+  // everywhere else -- the marketplace shelf, the roster, the empty states.
+  // Borrowing the shape is the point; borrowing the vocabulary would leave
+  // one row speaking a language nothing else in the app speaks.
+  //
+  // The row is the roster and what each one can do; the lists below are the
+  // conversations. Neither list heading is a door, so this is the one way to
+  // the full list rather than the third.
+  { kind: "link", title: "Bots", icon: Bot, url: "/workflow" },
 ];
 
 /** The contexts behind the person, rather than above the bots.
@@ -467,7 +472,7 @@ export function AppSidebar() {
 
         {/* The pinned rows, Buzz's Inbox / Pulse / Projects / Agents /
             Workflows read for this product: Home, Activity, Desk and
-            Agents, with the conversations as the lists below. A context row
+            Bots, with the conversations as the lists below. A context row
             opens its
             sections below; a plain row is a door. The five contexts were a
             vertical strip of icons down the edge; as rows they read like
