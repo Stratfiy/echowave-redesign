@@ -31,6 +31,7 @@ from api.schemas.workflow_configurations import (
 )
 from api.sdk_expose import sdk_expose
 from api.services.auth.depends import get_user
+from api.services.compliance import acceptable_use
 from api.services.configuration import model_presets
 from api.services.configuration.agent_options import managed_stack_override
 from api.services.configuration.ai_model_configuration import (
@@ -1486,6 +1487,30 @@ async def publish_workflow(
     if errors:
         raise _validation_errors_http_exception(errors)
 
+    # Read the instructions against the acceptable use policy.
+    #
+    # Here rather than on every save: a draft is work in progress and a
+    # warning on each keystroke is a warning nobody reads, while publishing is
+    # the moment this becomes the thing that answers the phone -- the same
+    # reason this route already carries the DTO, graph and trigger checks.
+    #
+    # It warns and never refuses, per the policy's own enforcement model: the
+    # terms carry a suspension power exercised by a person, and a language
+    # model reading prose is not the right thing to stand between a paying
+    # customer and their own bot. `screen` cannot raise.
+    async with db_client.async_session() as session:
+        findings = await acceptable_use.screen(
+            session,
+            instructions=acceptable_use.instructions_in(draft.workflow_json),
+        )
+    if findings:
+        logger.warning(
+            "Acceptable-use findings on workflow {} for org {}: {}",
+            workflow_id,
+            user.selected_organization_id,
+            [f.clause for f in findings],
+        )
+
     try:
         published = await db_client.publish_workflow_draft(workflow_id)
     except ValueError as e:
@@ -1506,6 +1531,9 @@ async def publish_workflow(
         "version_number": published.version_number,
         "status": published.status,
         "published_at": published.published_at,
+        # Empty for almost every bot. Present so the screen can name the
+        # clause rather than say "something is wrong with your prompt".
+        "acceptable_use_findings": [f.as_dict() for f in findings],
     }
 
 

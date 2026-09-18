@@ -47,6 +47,14 @@ interface WorkflowEditorHeaderProps {
     renameWorkflow: (newName: string) => Promise<void>;
 }
 
+/** One clause the published instructions breach, as the API reports it. */
+interface AcceptableUseFinding {
+    clause: string;
+    title: string;
+    quote: string;
+    why: string;
+}
+
 export const WorkflowEditorHeader = ({
     workflowName,
     isDirty,
@@ -104,7 +112,23 @@ export const WorkflowEditorHeader = ({
             error: "Failed to publish workflow",
         });
         try {
-            await promise;
+            const { data } = await promise;
+            // The acceptable use policy, read against what was just published.
+            //
+            // A warning and never a refusal: the terms carry a suspension
+            // power a person exercises, and a language model reading prose is
+            // not the thing to stand between somebody and their own bot. So
+            // the bot is live and this names the clause, with the sentence
+            // that triggered it, for however long it takes to read.
+            const findings =
+                (data as { acceptable_use_findings?: AcceptableUseFinding[] } | undefined)
+                    ?.acceptable_use_findings ?? [];
+            for (const finding of findings) {
+                toast.warning(finding.title, {
+                    description: `${finding.why} — "${finding.quote}"`,
+                    duration: 30_000,
+                });
+            }
             onPublished();
         } finally {
             setPublishing(false);
