@@ -107,8 +107,9 @@ FORCE_TURN_RELAY="${FORCE_TURN_RELAY:-false}"
 # Telemetry opt-out (default: true)
 ENABLE_TELEMETRY="${ENABLE_TELEMETRY:-true}"
 
-# Container registry (defaults to the public OSS registry)
-REGISTRY="${REGISTRY:-ghcr.io/decibyl-hq}"
+# Container registry. The default is the namespace this repository's own CI
+# publishes to; it was `ghcr.io/decibyl-hq`, which nobody here controls.
+REGISTRY="${REGISTRY:-ghcr.io/stratfiy}"
 
 echo ""
 echo -e "${GREEN}Configuration:${NC}"

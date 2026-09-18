@@ -65,15 +65,35 @@ build from the current directory by testing for `.git` beside
 would clone a *different* repository over the top of yours. Passing it
 explicitly settles the question.
 
-**`DEPLOY_MODE=build` is what makes it your code.** Without it the stack pulls
-`${REGISTRY:-decibylai}/decibyl-api:latest` — a registry nobody here controls,
-holding upstream's build with none of the billing, prepaid, GST or privacy work
-in it. That failure is silent: containers start, the app loads, and nothing
-looks wrong. In build mode `setup_remote.sh` writes a
+**`DEPLOY_MODE=build` builds from this checkout; without it the stack pulls.**
+It now pulls `${REGISTRY:-ghcr.io/stratfiy}/decibyl-api:latest`, which is where
+this repository's CI publishes, so pulling is a real option rather than a trap.
+The default used to be `decibylai` — a Docker Hub namespace nobody here
+controls, holding upstream's build with none of the billing, prepaid, GST or
+privacy work in it, and the failure was silent: containers started, the app
+loaded, and nothing looked wrong. Build mode is still what you want when the
+code on the box is meant to be the code in front of you. In build mode `setup_remote.sh` writes a
 `docker-compose.override.yaml` that builds both images from the checkout, and
 Compose picks it up automatically from then on. (`docker-compose.build.yaml` in
 the repo root does the same job for a manual `docker compose -f … -f …` run —
 use one or the other, never both.)
+
+**The box needs to be able to pull at all.** Two credentials, neither of them
+Decibyl's:
+
+* **Docker Hub.** `postgres`, `redis`, `minio`, `nginx`, `coturn` and the rest
+  come from Docker Hub, and an unauthenticated daemon shares one small pull
+  quota with every other machine on its IP. When that runs out the error names
+  the image and not the cause — `pull access denied for minio/minio,
+  repository does not exist or may require 'docker login'` on an image that is
+  public. `docker login` with any free account on the box fixes it.
+* **GHCR.** `decibyl-api`, `decibyl-ui` and `decibyl-sandbox` are published to
+  `ghcr.io/stratfiy`. If those packages are private the box needs a read token:
+  `echo "$TOKEN" | docker login ghcr.io -u <user> --password-stdin`. Making the
+  packages public removes the step.
+
+Check both with `docker compose pull` before a deploy depends on them. It is
+the only check that means anything, and it fails with the registry's own words.
 
 **Step 3 is not optional either, and nothing warns you.** Compose reads `.env`
 for interpolation; it does not put those values inside containers. Every
