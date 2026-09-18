@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -37,11 +37,12 @@ describe("sidebar interactions", () => {
     expect(screen.queryByRole("link", { name: "Do not call" })).toBeNull();
   });
   it("expands developers without removing its routes and remembers the choice", () => {
+    // Setup has no row of its own now -- it is behind the person -- so the
+    // panel is reached the way anybody actually gets there: by standing on a
+    // page that belongs to it. Knowledge base rather than a developer page,
+    // because standing on one of those opens the group being tested.
+    route.pathname = "/files";
     render(<SidebarProvider><AppSidebar /></SidebarProvider>);
-    // The developer doors live in the Setup panel now, so reaching them is two
-    // moves: pick the context, then open the folded group inside it.
-    expect(screen.queryByRole("button", { name: "Developers" })).toBeNull();
-    fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
 
     expect(screen.queryByRole("link", { name: "API keys & SDKs" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Developers" }));
@@ -52,8 +53,10 @@ describe("sidebar interactions", () => {
   it("offers every context, and opens the one the current page belongs to", () => {
     route.pathname = "/billing";
     render(<SidebarProvider><AppSidebar /></SidebarProvider>);
+    // Two context rows, because four rows are what a day needs and the other
+    // three are behind the person.
     const tabs = screen.getAllByRole("tab").map((t) => t.getAttribute("aria-label"));
-    expect(tabs).toEqual(["Home", "Activity", "Marketplace", "Setup"]);
+    expect(tabs).toEqual(["Home", "Activity"]);
     // A rail pointing somewhere other than the screen you are reading is
     // worse than no rail.
     // /billing belongs to Account, which no longer has a row: the panel is
@@ -89,19 +92,20 @@ describe("sidebar interactions", () => {
    * links are crammed into a 56px column. */
   it("offers every context in the collapsed rail", () => {
     render(<SidebarProvider defaultOpen={false}><AppSidebar /></SidebarProvider>);
-    for (const title of ["Home", "Activity", "Marketplace", "Setup"]) {
+    for (const title of ["Home", "Activity"]) {
       expect(screen.getByRole("tab", { name: title })).toBeTruthy();
     }
+    // And the person, who carries the other three.
+    expect(screen.getByRole("button", { name: "Account menu" })).toBeTruthy();
     // No panel while collapsed: a 56px column cannot hold a destination list.
     expect(screen.queryByRole("link", { name: "Billing" })).toBeNull();
   });
   it("opens the panel when a context is picked from the collapsed rail", () => {
     render(<SidebarProvider defaultOpen={false}><AppSidebar /></SidebarProvider>);
-    // Setup, since Account is behind the person now and a dropdown does not
-    // open under fireEvent. What this pins is that picking a context from the
-    // folded rail opens the panel, which Setup shows as well as Account did.
-    fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
-    expect(screen.getByRole("link", { name: "Phone numbers" })).toBeTruthy();
+    // Activity, since it is one of the two that still has a row. What this
+    // pins is that picking a context from the folded rail opens the panel.
+    fireEvent.click(screen.getByRole("tab", { name: "Activity" }));
+    expect(screen.getByRole("link", { name: "Campaigns" })).toBeTruthy();
   });
   it("the rail's Home button goes home, since the panel no longer lists it", () => {
     /* The Home row was removed from the panel so the panel could be the
@@ -116,7 +120,7 @@ describe("sidebar interactions", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Home" }));
     expect(router.push).toHaveBeenCalledWith("/overview");
     router.push.mockReset();
-    fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Activity" }));
     expect(router.push).not.toHaveBeenCalled();
   });
   it("the Home panel is channels and bots, not a menu", () => {
@@ -154,18 +158,25 @@ describe("sidebar interactions", () => {
     const rows = Array.from(rail.querySelectorAll("a, button")).map(
       (el) => el.getAttribute("aria-label") ?? el.textContent?.trim(),
     );
-    // Account is missing on purpose: it lives behind the person at the foot,
-    // as Buzz keeps settings, so the rows above the bots are the ones you
-    // reach for daily.
-    expect(rows).toEqual(["Home", "Activity", "Bots", "Tasks", "Marketplace", "Setup"]);
+    // Four, and only four. The shop, the setup and the account are behind the
+    // person: a day needs the thread, what the bots did, the bots, and what
+    // runs on its own.
+    expect(rows).toEqual(["Home", "Activity", "Bots", "Tasks"]);
   });
 
   it("does not offer staff contexts to a customer", () => {
     render(<SidebarProvider defaultOpen={false}><AppSidebar /></SidebarProvider>);
-    // Every context a customer can open, and the staff queue in none of them.
-    for (const context of ["Home", "Activity", "Marketplace", "Setup"]) {
+    // Every panel a customer can reach, by row or by standing on one of its
+    // pages, and the staff queue in none of them.
+    for (const context of ["Home", "Activity"]) {
       fireEvent.click(screen.getByRole("tab", { name: context }));
       expect(screen.queryByRole("link", { name: "Review queue" })).toBeNull();
+    }
+    for (const page of ["/api-keys", "/billing", "/marketplace"]) {
+      route.pathname = page;
+      cleanup();
+      render(<SidebarProvider><AppSidebar /></SidebarProvider>);
+      expect(screen.queryByRole("link", { name: "Review queue" }), page).toBeNull();
     }
   });
 });
