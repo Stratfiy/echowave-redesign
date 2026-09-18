@@ -37,6 +37,7 @@ import {
     translateTextApiV1TranslatePost,
 } from '@/client/sdk.gen';
 import type { ThreadChip, TimelineEvent } from '@/client/types.gen';
+import { BotAvatar } from '@/components/bot/BotAvatar';
 import { BlockedCard } from '@/components/channel/BlockedCard';
 import { tagTokens } from '@/components/channel/ChannelComposer';
 import { emphasisTokens } from '@/components/channel/emphasis';
@@ -80,6 +81,68 @@ function when(at: string): string {
         hour: 'numeric',
         minute: '2-digit',
     });
+}
+
+/** The clock alone, for a row that follows one by the same author: the day
+ *  is already on the divider above and the name on the row above. */
+function clockOnly(at: string): string {
+    const date = new Date(at);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
+/** The heading a day of the thread sits under. Today and yesterday by name,
+ *  because that is how somebody scrolling back says it to themselves. */
+export function dayLabel(at: string): string {
+    const date = new Date(at);
+    if (Number.isNaN(date.getTime())) return '';
+    const midnight = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const days = Math.round((midnight(new Date()) - midnight(date)) / 86_400_000);
+    if (days === 0) return 'Today';
+    if (days === 1) return 'Yesterday';
+    return date.toLocaleDateString(undefined, {
+        day: 'numeric',
+        month: 'short',
+        ...(date.getFullYear() === new Date().getFullYear() ? {} : { year: 'numeric' }),
+    });
+}
+
+/** True when this row opens a new calendar day, so a date goes above it. */
+export function opensDay(event: TimelineEvent, previous?: TimelineEvent): boolean {
+    if (!previous) return true;
+    const a = new Date(previous.at);
+    const b = new Date(event.at);
+    if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return false;
+    return a.toDateString() !== b.toDateString();
+}
+
+/** Kinds that draw a card of their own. A card always carries its own
+ *  attribution, so it never joins the run of messages above it. */
+const CARDS = new Set([
+    'call_ended',
+    'edit_proposed',
+    'activity',
+    'action_proposed',
+    'connector_offered',
+    'needs_secret',
+    'needs_decision',
+]);
+
+/** How long a pause can be and still read as one person still talking. */
+const BURST_MS = 5 * 60 * 1000;
+
+/** True when this row is the same author still talking, within a few minutes
+ *  of the last one. Saying their name and the date over every line of a
+ *  four-line answer is noise; the run reads as one turn without it. */
+export function sameBurst(event: TimelineEvent, previous?: TimelineEvent): boolean {
+    if (!previous) return false;
+    if (event.blocked || previous.blocked) return false;
+    if (CARDS.has(event.kind) || CARDS.has(previous.kind)) return false;
+    if (event.actor !== previous.actor) return false;
+    if ((event.workflow_id ?? null) !== (previous.workflow_id ?? null)) return false;
+    if (opensDay(event, previous)) return false;
+    const gap = new Date(event.at).getTime() - new Date(previous.at).getTime();
+    return Number.isFinite(gap) && gap >= 0 && gap < BURST_MS;
 }
 
 /** A message with its `@bot` and `#channel` tags painted blue. */
@@ -561,11 +624,15 @@ export function ChannelStream({
                         // many. Opening it shows every row as it was.
                         const latest = group.events[group.events.length - 1];
                         const id = group.key + group.events[0].id;
+                        const opener = group.events[0];
+                        const before = inOrder[inOrder.indexOf(opener) - 1];
                         if (latest.kind === 'activity') {
                             // A run of readings: the latest, and how many. Muted,
                             // one line, opening to every step.
                             return (
-                                <li key={`group-${id}`} className="flex gap-3">
+                                <React.Fragment key={`group-${id}`}>
+                                {dividers(opener, before)}
+                                <li className="flex gap-3">
                                     <ActivityRow event={latest} who={activityWho(latest)}>
                                         <span> · {group.events.length} steps</span>
                                         <button
@@ -577,6 +644,7 @@ export function ChannelStream({
                                         </button>
                                     </ActivityRow>
                                 </li>
+                                </React.Fragment>
                             );
                         }
                         const isCall = latest.kind === 'call_ended';
@@ -585,13 +653,19 @@ export function ChannelStream({
                             ? `${group.events.length} calls not answered`
                             : `${latest.summary} · ${group.events.length} steps`;
                         return (
-                            <li key={`group-${id}`} className="flex gap-3">
-                                <span
-                                    aria-hidden
-                                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--accent-brand-soft)] text-[var(--accent-brand)]"
-                                >
-                                    {isCall ? <Phone className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-                                </span>
+                            <React.Fragment key={`group-${id}`}>
+                            {dividers(opener, before)}
+                            <li className="flex gap-3">
+                                {isCall ? (
+                                    <span
+                                        aria-hidden
+                                        className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--accent-brand-soft)] text-[var(--accent-brand)]"
+                                    >
+                                        <Phone className="h-4 w-4" />
+                                    </span>
+                                ) : (
+                                    face(latest)
+                                )}
                                 <div className="min-w-0 flex-1">
                                     <p className="text-sm">
                                         <span className="font-medium">{who}</span>
@@ -611,6 +685,7 @@ export function ChannelStream({
                                     </p>
                                 </div>
                             </li>
+                            </React.Fragment>
                         );
                     }
                     return group.events.map((event) => renderEvent(event, inOrder.indexOf(event)));
@@ -689,23 +764,62 @@ export function ChannelStream({
         </div>
     );
 
+    /** The date above a new day, and the line above the first row somebody
+     *  has not seen. Both belong to the row below them, so they are drawn
+     *  wherever that row is drawn -- folded run or single message alike. */
+    function dividers(event: TimelineEvent, previous?: TimelineEvent) {
+        return (
+            <>
+                {opensDay(event, previous) && (
+                    <li
+                        key={`day-${event.id}`}
+                        aria-label={dayLabel(event.at)}
+                        className="flex items-center gap-2 pt-1"
+                    >
+                        <span className="h-px flex-1 bg-border" />
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            {dayLabel(event.at)}
+                        </span>
+                        <span className="h-px flex-1 bg-border" />
+                    </li>
+                )}
+                {seenBefore.current &&
+                    event.at > seenBefore.current &&
+                    (!previous || !(previous.at > seenBefore.current)) && (
+                        <li key={`new-${event.id}`} aria-label="New" className="flex items-center gap-2">
+                            <span className="h-px flex-1 bg-[var(--accent-brand)]/40" />
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--accent-brand)]">
+                                New
+                            </span>
+                            <span className="h-px flex-1 bg-[var(--accent-brand)]/40" />
+                        </li>
+                    )}
+            </>
+        );
+    }
+
+    /** A bot's own face in the gutter, the one the rail and the bots list
+     *  draw. Every row used to wear the same brand square, so a thread with
+     *  three bots in it looked like one voice. */
+    function face(event: TimelineEvent) {
+        const name = (event.workflow_id != null && botNames[event.workflow_id]) || fallbackName;
+        return (
+            <BotAvatar
+                id={event.workflow_id ?? name}
+                name={name}
+                size="sm"
+                className="mt-0.5 h-7 w-7 rounded-md"
+            />
+        );
+    }
+
     function renderEvent(event: TimelineEvent, index: number) {
         {
                     // Oldest first, so the NEW line goes above the first row
                     // newer than the previous visit.
                     const previous = inOrder[index - 1];
-                    const divider =
-                        seenBefore.current &&
-                        event.at > seenBefore.current &&
-                        (!previous || !(previous.at > seenBefore.current)) ? (
-                            <li key={`new-${event.id}`} aria-label="New" className="flex items-center gap-2">
-                                <span className="h-px flex-1 bg-[var(--accent-brand)]/40" />
-                                <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--accent-brand)]">
-                                    New
-                                </span>
-                                <span className="h-px flex-1 bg-[var(--accent-brand)]/40" />
-                            </li>
-                        ) : null;
+                    const divider = dividers(event, previous);
+                    const burst = sameBurst(event, previous);
                     if (event.kind === 'call_ended') {
                         // A call is a row with a door: the length and how it
                         // ended here, the transcript and recording behind it.
@@ -761,12 +875,7 @@ export function ChannelStream({
                             <React.Fragment key={event.id}>
                             {divider}
                             <li className="flex gap-3">
-                                <span
-                                    aria-hidden
-                                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--accent-brand-soft)] text-[var(--accent-brand)]"
-                                >
-                                    <Bot className="h-4 w-4" />
-                                </span>
+                                {face(event)}
                                 <div className="min-w-0 flex-1">
                                     <p className="mb-1 text-sm">
                                         <span className="font-medium">{proposer}</span>
@@ -810,12 +919,7 @@ export function ChannelStream({
                             <React.Fragment key={event.id}>
                             {divider}
                             <li className="flex gap-3">
-                                <span
-                                    aria-hidden
-                                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--accent-brand-soft)] text-[var(--accent-brand)]"
-                                >
-                                    <Bot className="h-4 w-4" />
-                                </span>
+                                {face(event)}
                                 <div className="min-w-0 flex-1">
                                     <p className="mb-1 text-sm">
                                         <span className="font-medium">{proposer}</span>
@@ -848,12 +952,7 @@ export function ChannelStream({
                             <React.Fragment key={event.id}>
                             {divider}
                             <li className="flex gap-3">
-                                <span
-                                    aria-hidden
-                                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--accent-brand-soft)] text-[var(--accent-brand)]"
-                                >
-                                    <Bot className="h-4 w-4" />
-                                </span>
+                                {face(event)}
                                 <div className="min-w-0 flex-1">
                                     <p className="mb-1 text-sm">
                                         <span className="font-medium">{asker}</span>
@@ -877,12 +976,7 @@ export function ChannelStream({
                             <React.Fragment key={event.id}>
                             {divider}
                             <li className="flex gap-3">
-                                <span
-                                    aria-hidden
-                                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--accent-brand-soft)] text-[var(--accent-brand)]"
-                                >
-                                    <Bot className="h-4 w-4" />
-                                </span>
+                                {face(event)}
                                 <div className="min-w-0 flex-1">
                                     <p className="mb-1 text-sm">
                                         <span className="font-medium">{asker}</span>
@@ -941,12 +1035,7 @@ export function ChannelStream({
                             <React.Fragment key={event.id}>
                             {divider}
                             <li className="flex gap-3">
-                                <span
-                                    aria-hidden
-                                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--accent-brand-soft)] text-[var(--accent-brand)]"
-                                >
-                                    <Bot className="h-4 w-4" />
-                                </span>
+                                {face(event)}
                                 <div className="min-w-0 flex-1">
                                     <p className="mb-1 text-sm">
                                         <span className="font-medium">{asker}</span>
@@ -977,26 +1066,40 @@ export function ChannelStream({
                     return (
                         <React.Fragment key={event.id}>
                         {divider}
-                        <li className="flex gap-3">
-                            <span
-                                aria-hidden
-                                className={cn(
-                                    'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md',
-                                    fromPerson
-                                        ? 'bg-accent text-foreground'
-                                        : 'bg-[var(--accent-brand-soft)] text-[var(--accent-brand)]',
-                                )}
-                            >
-                                <Icon className={cn('h-4 w-4', tone?.className)} />
-                            </span>
+                        {/* A row that carries on from the one above keeps the
+                            gutter and drops the heading: the same name and
+                            the same date over every line of one answer is
+                            noise. The clock stays, in the gutter, on hover. */}
+                        <li className="group flex gap-3">
+                            {burst ? (
+                                <span className="w-7 shrink-0 text-right text-[10px] leading-7 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+                                    <time dateTime={event.at}>{clockOnly(event.at)}</time>
+                                </span>
+                            ) : !fromPerson && !tone ? (
+                                face(event)
+                            ) : (
+                                <span
+                                    aria-hidden
+                                    className={cn(
+                                        'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md',
+                                        fromPerson
+                                            ? 'bg-accent text-foreground'
+                                            : 'bg-[var(--accent-brand-soft)] text-[var(--accent-brand)]',
+                                    )}
+                                >
+                                    <Icon className={cn('h-4 w-4', tone?.className)} />
+                                </span>
+                            )}
                             <div className="min-w-0 flex-1">
-                                <p className="text-sm">
-                                    <span className="font-medium">{author}</span>
-                                    <span className="ml-2 text-xs text-muted-foreground">
-                                        <time dateTime={event.at}>{when(event.at)}</time>
-                                        {event.is_deliverable ? ' · handed to you' : ''}
-                                    </span>
-                                </p>
+                                {!burst && (
+                                    <p className="text-sm">
+                                        <span className="font-medium">{author}</span>
+                                        <span className="ml-2 text-xs text-muted-foreground">
+                                            <time dateTime={event.at}>{when(event.at)}</time>
+                                            {event.is_deliverable ? ' · handed to you' : ''}
+                                        </span>
+                                    </p>
+                                )}
                                 {/* whitespace-pre-wrap: somebody who typed a
                                     list wrote the line breaks on purpose. */}
                                 {messageBody(event) && (

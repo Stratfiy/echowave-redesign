@@ -133,8 +133,8 @@ describe('what is new since last time', () => {
         const rows = Array.from(document.querySelectorAll('ol > li')).map(
             (li) => li.getAttribute('aria-label') ?? li.textContent,
         );
-        // Oldest first on screen: read, NEW, then the two new rows.
-        expect(rows.findIndex((r) => r === 'New')).toBe(1);
+        // Oldest first on screen: the day, the read row, NEW, then the two new rows.
+        expect(rows.findIndex((r) => r === 'New')).toBe(2);
         // And the visit moved the mark.
         expect(JSON.parse(localStorage.getItem('decibyl.bot-seen')!)['3'] > '2026-09-13T05:30:00Z').toBe(true);
     });
@@ -489,5 +489,78 @@ describe('the little markdown a model writes', () => {
         withBody('2 * 3 = 6');
         render(<ChannelStream folderId={5} botNames={{}} />);
         expect(await screen.findByText(/2 \* 3 = 6/)).toBeTruthy();
+    });
+});
+
+describe('the rhythm of a thread', () => {
+    it('says a name and a date once for a run by the same author', async () => {
+        timeline.mockResolvedValue({
+            data: {
+                events: [
+                    event({ id: 2, at: '2026-09-13T06:01:00Z', summary: 'Second line' }),
+                    event({ id: 1, at: '2026-09-13T06:00:00Z', summary: 'First line' }),
+                ],
+                next_before_at: null,
+                next_before_id: null,
+            },
+        });
+        render(<ChannelStream workflowId={3} botNames={{ 3: 'Front desk' }} />);
+        await screen.findByText('Second line');
+        expect(screen.getAllByText('Front desk').length).toBe(1);
+    });
+
+    it('says it again when somebody else speaks in between', async () => {
+        timeline.mockResolvedValue({
+            data: {
+                events: [
+                    event({ id: 3, at: '2026-09-13T06:02:00Z', summary: 'And again' }),
+                    event({ id: 2, at: '2026-09-13T06:01:00Z', actor: 'human', summary: 'Thanks' }),
+                    event({ id: 1, at: '2026-09-13T06:00:00Z', summary: 'First line' }),
+                ],
+                next_before_at: null,
+                next_before_id: null,
+            },
+        });
+        render(<ChannelStream workflowId={3} botNames={{ 3: 'Front desk' }} />);
+        await screen.findByText('And again');
+        expect(screen.getAllByText('Front desk').length).toBe(2);
+    });
+
+    it('says it again after a long pause', async () => {
+        timeline.mockResolvedValue({
+            data: {
+                events: [
+                    event({ id: 2, at: '2026-09-13T09:00:00Z', summary: 'Hours later' }),
+                    event({ id: 1, at: '2026-09-13T06:00:00Z', summary: 'First line' }),
+                ],
+                next_before_at: null,
+                next_before_id: null,
+            },
+        });
+        render(<ChannelStream workflowId={3} botNames={{ 3: 'Front desk' }} />);
+        await screen.findByText('Hours later');
+        expect(screen.getAllByText('Front desk').length).toBe(2);
+    });
+
+    it('puts a date between two days', async () => {
+        timeline.mockResolvedValue({
+            data: {
+                events: [
+                    event({ id: 2, at: '2026-09-14T06:00:00Z', summary: 'The next day' }),
+                    event({ id: 1, at: '2026-09-13T06:00:00Z', summary: 'The day before' }),
+                ],
+                next_before_at: null,
+                next_before_id: null,
+            },
+        });
+        render(<ChannelStream workflowId={3} botNames={{ 3: 'Front desk' }} />);
+        await screen.findByText('The next day');
+        const days = Array.from(document.querySelectorAll('ol > li')).filter(
+            (li) => li.getAttribute('aria-label') && li.getAttribute('aria-label') !== 'New',
+        );
+        expect(days.length).toBe(2);
+        // And the two dates differ, so the divider is the day and not a
+        // line drawn above every row.
+        expect(new Set(days.map((li) => li.getAttribute('aria-label'))).size).toBe(2);
     });
 });
