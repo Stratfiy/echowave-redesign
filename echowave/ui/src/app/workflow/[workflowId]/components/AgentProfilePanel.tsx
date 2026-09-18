@@ -235,7 +235,7 @@ export function AgentProfilePanel({
                 empty={
                     <>
                         Nothing connected.{' '}
-                        <Link href="/integrations/apps" className="underline underline-offset-2">
+                        <Link href="/marketplace/integrations" className="underline underline-offset-2">
                             Marketplace
                         </Link>
                     </>

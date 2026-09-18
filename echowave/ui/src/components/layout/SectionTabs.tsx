@@ -105,3 +105,12 @@ export const TELEPHONY_TABS: PageTab[] = [
   { href: "/telephony-configurations", label: "Carriers & numbers", prefix: true },
   { href: "/verified-numbers", label: "Test numbers", prefix: true },
 ];
+
+/** The two developer screens, a tab apart. They were two sidebar rows
+ *  under one heading and reached each other only through a button in the
+ *  corner of one of them; somebody with a key in hand looking for where to
+ *  point a webhook had to go back to the sidebar to find out. */
+export const DEVELOPER_TABS: PageTab[] = [
+  { href: "/api-keys", label: "API keys & SDKs", prefix: true },
+  { href: "/deploy/connect", label: "API & webhooks", prefix: true },
+];
