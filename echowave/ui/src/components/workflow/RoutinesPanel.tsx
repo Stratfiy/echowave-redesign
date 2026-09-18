@@ -340,7 +340,7 @@ export function RoutinesPanel({ workflowId }: { workflowId: number }) {
                         {offerable(catalogue, editing?.needs_apps ?? []).length === 0 ? (
                             <p className="mt-2 text-xs text-muted-foreground">
                                 No accounts are connected yet.{" "}
-                                <Link className="underline" href="/integrations/apps">
+                                <Link className="underline" href="/marketplace/integrations">
                                     Connect one
                                 </Link>{" "}
                                 and it can be named here.

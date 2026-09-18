@@ -15,6 +15,7 @@ import {
 import type { ApiKeyResponse, CreateApiKeyResponse, CreateServiceKeyResponse,ServiceKeyResponse } from '@/client/types.gen';
 import { useConfirm } from '@/components/ConfirmDialog';
 import { PageBody, PageHeader } from '@/components/layout/PageHeader';
+import { DEVELOPER_TABS } from '@/components/layout/SectionTabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -394,6 +395,7 @@ export default function APIKeysPage() {
         <div className="min-h-screen">
             {dialog}
             <PageHeader
+                tabs={DEVELOPER_TABS}
                 title="API keys & SDKs"
                 description="Manage your API keys to access Decibyl services programmatically"
             />

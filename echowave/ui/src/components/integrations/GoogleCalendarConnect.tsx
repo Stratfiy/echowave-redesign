@@ -47,7 +47,7 @@ async function calendarFetch(
     }
 }
 
-export function GoogleCalendarConnect({ returnPath = "/integrations/apps" }: { returnPath?: string }) {
+export function GoogleCalendarConnect({ returnPath = "/marketplace/integrations" }: { returnPath?: string }) {
     const auth = useAuth();
     const router = useRouter();
     const hasFetched = useRef(false);

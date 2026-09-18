@@ -15,7 +15,7 @@
  * either thing on.
  */
 
-import { ExternalLink, Workflow } from "lucide-react";
+import { Workflow } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
@@ -24,6 +24,7 @@ import { ConnectRecipes } from "@/components/deploy/ConnectRecipes";
 import { DeployAgentPicker } from "@/components/deploy/DeployAgentPicker";
 import { useDeployAgents } from "@/components/deploy/useDeployAgents";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import { DEVELOPER_TABS } from "@/components/layout/SectionTabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -56,16 +57,9 @@ function ConnectScreen() {
     return (
         <div>
             <PageHeader
+                tabs={DEVELOPER_TABS}
                 title="Connect"
                 description="Make something else start a call — a lead form, a CRM, a spreadsheet — and get the result back when it ends."
-                actions={
-                    <Button variant="outline" asChild>
-                        <Link href="/api-keys">
-                            API keys
-                            <ExternalLink className="ml-2 h-4 w-4" />
-                        </Link>
-                    </Button>
-                }
             />
             <PageBody className="space-y-6">
                 {agents === null ? (

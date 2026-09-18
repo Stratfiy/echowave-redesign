@@ -14,6 +14,7 @@ import {
   BOTS_TABS,
   CALLS_TABS,
   COMPLIANCE_TABS,
+  DEVELOPER_TABS,
   KNOWLEDGE_TABS,
   TELEPHONY_TABS,
 } from "../SectionTabs";
@@ -61,6 +62,12 @@ describe("section tabs", () => {
     // take calls was exactly backwards.
     expect(CALLS_TABS.map((tab) => tab.href)).toContain("/missed-calls");
     expect(TELEPHONY_TABS.map((tab) => tab.href)).not.toContain("/missed-calls");
+  });
+
+  it("puts the two developer screens a tab apart", () => {
+    // They were two sidebar rows that reached each other only through a
+    // button in the corner of one of them.
+    expect(DEVELOPER_TABS.map((tab) => tab.href)).toEqual(["/api-keys", "/deploy/connect"]);
   });
 
   it("keeps the phone strip in the order the work happens", () => {
