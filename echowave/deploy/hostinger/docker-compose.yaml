@@ -136,7 +136,7 @@ services:
       - app-network
 
   api:
-    image: ${REGISTRY:-decibylai}/decibyl-api:${DECIBYL_VERSION:-latest}
+    image: ${REGISTRY:-ghcr.io/stratfiy}/decibyl-api:${DECIBYL_VERSION:-latest}
     restart: unless-stopped
     # See the note in the root docker-compose.yaml: Compose reads .env for
     # interpolation only, so anything not named below would be absent inside the
@@ -230,7 +230,7 @@ services:
       - traefik
 
   ui:
-    image: ${REGISTRY:-decibylai}/decibyl-ui:${DECIBYL_VERSION:-latest}
+    image: ${REGISTRY:-ghcr.io/stratfiy}/decibyl-ui:${DECIBYL_VERSION:-latest}
     restart: unless-stopped
     environment:
       HOSTNAME: "0.0.0.0"

@@ -181,14 +181,16 @@ case "$TARGET_VERSION" in
     *) [[ "$TARGET_VERSION" =~ ^[0-9] ]] && IMAGE_TAG="$TARGET_VERSION" ;;
 esac
 
-if [[ -n "$IMAGE_TAG" ]]; then
-    if curl -fsI "https://hub.docker.com/v2/repositories/decibylai/decibyl-api/tags/$IMAGE_TAG/" >/dev/null 2>&1; then
-        decibyl_success "✓ Image tag :$IMAGE_TAG found on Docker Hub"
-    else
-        decibyl_warn "Warning: image tag :$IMAGE_TAG not found on Docker Hub - leaving images at :latest"
-        IMAGE_TAG=""
-    fi
-fi
+# No pre-flight tag probe.
+#
+# This asked Docker Hub whether `decibylai/decibyl-api:$IMAGE_TAG` existed --
+# a namespace nobody here controls and not where the images are. So the probe
+# missed every real tag, and its failure path was to silently blank IMAGE_TAG
+# and deploy `:latest` instead: an operator who asked for one version got a
+# different one, with a warning in a scrollback nobody reads.
+#
+# The pull that follows is the only check that counts, and it fails loudly
+# against the registry actually in use.
 
 echo ""
 echo -e "${GREEN}Update plan:${NC}"

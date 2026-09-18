@@ -13,7 +13,7 @@
 # -----------------------------------------------------------------------------
 image:
   registry: docker.io
-  repository: decibylai/decibyl-api
+  repository: ghcr.io/stratfiy/decibyl-api
   tag: latest
   pullPolicy: IfNotPresent
 
@@ -342,7 +342,7 @@ ui:
 
   image:
     registry: docker.io
-    repository: decibylai/decibyl-ui
+    repository: ghcr.io/stratfiy/decibyl-ui
     tag: latest
     pullPolicy: IfNotPresent
 

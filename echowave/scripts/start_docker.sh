@@ -2,7 +2,10 @@
 set -e
 
 ENV_FILE=".env"
-REGISTRY="${REGISTRY:-ghcr.io/decibyl-hq}"
+# The namespace CI publishes to. It was `ghcr.io/decibyl-hq`, which nobody
+# here controls: a run with REGISTRY unset either failed to pull or, worse,
+# succeeded against somebody else's image.
+REGISTRY="${REGISTRY:-ghcr.io/stratfiy}"
 ENABLE_TELEMETRY="${ENABLE_TELEMETRY:-true}"
 
 fail() {

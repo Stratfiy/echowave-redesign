@@ -8,12 +8,12 @@
 # Use this override for LOCAL work, and for a machine that cannot reach the
 # registry.
 #
-# The defaults in `docker-compose.yaml` (`decibylai`) and `start_docker.sh`
-# (`ghcr.io/decibyl-hq`) are registries nobody here controls, and whatever is in
-# them is *upstream's* build — not this fork. Set REGISTRY to your own GHCR
-# namespace in `.env`; running the stack against a default either fails to pull
-# or, worse, succeeds and quietly runs somebody else's image with none of the
-# billing, prepaid or GST work in it.
+# The defaults are `ghcr.io/stratfiy` now -- the namespace this repository's
+# own CI publishes to. They used to be `decibylai` and `ghcr.io/decibyl-hq`,
+# registries nobody here controls holding *upstream's* build, so a stack run
+# without REGISTRY set either failed to pull or, worse, succeeded and quietly
+# ran somebody else's image with none of the billing, prepaid or GST work in
+# it. Set REGISTRY only to point somewhere else.
 #
 # Use it whenever you are deploying your own code:
 #
