@@ -630,7 +630,7 @@ export default function CampaignDetailPage() {
                     <CardContent>
                         <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <dt className="text-sm font-medium">Workflow</dt>
+                                <dt className="text-sm font-medium">Bot</dt>
                                 <dd className="mt-1">
                                     <button
                                         onClick={handleWorkflowClick}
@@ -677,7 +677,7 @@ export default function CampaignDetailPage() {
                                 </dd>
                             </div>
                             <div>
-                                <dt className="text-sm font-medium">Telephony Configuration</dt>
+                                <dt className="text-sm font-medium">Calling from</dt>
                                 <dd className="mt-1">
                                     {campaign.telephony_configuration_id ? (
                                         <button

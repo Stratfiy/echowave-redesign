@@ -109,7 +109,7 @@ export default function NewCampaignPage() {
             }
         } catch (error) {
             console.error('Failed to fetch workflows:', error);
-            toast.error('Failed to load workflows');
+            toast.error('Could not load your bots');
         } finally {
             setIsLoadingWorkflows(false);
         }
@@ -136,7 +136,7 @@ export default function NewCampaignPage() {
             }
         } catch (error) {
             console.error('Failed to fetch telephony configurations:', error);
-            toast.error('Failed to load telephony configurations');
+            toast.error('Could not load your carrier setups');
         } finally {
             setIsLoadingTelephonyConfigs(false);
         }
@@ -358,7 +358,7 @@ export default function NewCampaignPage() {
                     Back to Campaigns
                 </Button>
                 <h1 className="text-3xl font-bold mb-2">Create New Campaign</h1>
-                <p className="text-muted-foreground">Set up a new campaign to execute workflows at scale</p>
+                <p className="text-muted-foreground">Point a bot at a list of numbers and it calls each one.</p>
             </div>
 
             <Card>
@@ -386,23 +386,23 @@ export default function NewCampaignPage() {
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="workflow">Workflow</Label>
+                                <Label htmlFor="workflow">Bot</Label>
                                 <Select
                                     value={selectedWorkflowId}
                                     onValueChange={setSelectedWorkflowId}
                                     required
                                 >
                                     <SelectTrigger id="workflow">
-                                        <SelectValue placeholder="Select a workflow" />
+                                        <SelectValue placeholder="Choose a bot" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {isLoadingWorkflows ? (
                                             <SelectItem value="loading" disabled>
-                                                Loading workflows...
+                                                Loading bots…
                                             </SelectItem>
                                         ) : workflows.length === 0 ? (
                                             <SelectItem value="none" disabled>
-                                                No workflows found
+                                                No bots yet
                                             </SelectItem>
                                         ) : (
                                             workflows.map((workflow) => (
@@ -417,22 +417,26 @@ export default function NewCampaignPage() {
                                     </SelectContent>
                                 </Select>
                                 <p className="text-sm text-muted-foreground">
-                                    Select the workflow to execute for each row in the data source
+                                    The bot that makes each call.
                                 </p>
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="telephony-config">Telephony Configuration</Label>
+                                <Label htmlFor="telephony-config">Calling from</Label>
                                 {!isLoadingTelephonyConfigs && telephonyConfigs.length === 0 ? (
                                     <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-                                        No telephony configurations yet.{' '}
+                                        No number to call from yet.{' '}
+                                        <Link href="/numbers" className="underline text-foreground">
+                                            Get a number
+                                        </Link>
+                                        , or{' '}
                                         <Link
                                             href="/telephony-configurations"
                                             className="underline text-foreground"
                                         >
-                                            Add one
-                                        </Link>{' '}
-                                        to create a campaign.
+                                            connect your own carrier
+                                        </Link>
+                                        .
                                     </div>
                                 ) : (
                                     <Select
@@ -441,12 +445,12 @@ export default function NewCampaignPage() {
                                         required
                                     >
                                         <SelectTrigger id="telephony-config">
-                                            <SelectValue placeholder="Select a telephony configuration" />
+                                            <SelectValue placeholder="Choose a carrier setup" />
                                         </SelectTrigger>
                                         <SelectContent>
                                             {isLoadingTelephonyConfigs ? (
                                                 <SelectItem value="loading" disabled>
-                                                    Loading configurations...
+                                                    Loading…
                                                 </SelectItem>
                                             ) : (
                                                 telephonyConfigs.map((config) => (
@@ -463,12 +467,12 @@ export default function NewCampaignPage() {
                                     </Select>
                                 )}
                                 <p className="text-sm text-muted-foreground">
-                                    Outbound calls for this campaign will use this configuration&apos;s caller IDs
+                                    Calls go out from this setup&apos;s numbers.
                                 </p>
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="source-type">Data Source Type</Label>
+                                <Label htmlFor="source-type">Contacts</Label>
                                 <Select
                                     value={sourceType}
                                     onValueChange={(value) => {
@@ -486,7 +490,7 @@ export default function NewCampaignPage() {
                                     </SelectContent>
                                 </Select>
                                 <p className="text-sm text-muted-foreground">
-                                    Choose where your contact data is stored
+                                    Where the numbers come from.
                                 </p>
                             </div>
 
