@@ -304,7 +304,7 @@ export function AppSidebar() {
               source: "sidebar",
             })
           }
-          className="flex w-11 flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-rail-foreground/70 transition-colors hover:bg-white/10 hover:text-rail-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-accent"
+          className="flex w-11 flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-rail-foreground/70 transition-colors hover:bg-black/5 hover:text-rail-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-accent"
         >
           <LifeBuoy className="h-5 w-5" />
           <span className="text-[10px] leading-none">Get help</span>
@@ -362,7 +362,7 @@ export function AppSidebar() {
             <Link
               href="/"
               aria-label="Decibyl"
-              className="mb-1 flex h-9 w-9 items-center justify-center rounded-lg bg-rail-accent text-rail-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-accent"
+              className="mb-1 flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--accent-brand)] text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-brand)]"
             >
               <span className="text-sm font-semibold leading-none">d</span>
             </Link>
@@ -399,7 +399,7 @@ export function AppSidebar() {
                       ? "bg-rail-accent text-rail-accent-foreground"
                       : // 80% rather than a muted token: muted-foreground is read
                         // against the light panel and disappears on the rail.
-                        "text-rail-foreground/70 hover:bg-white/10 hover:text-rail-foreground",
+                        "text-rail-foreground/70 hover:bg-black/5 hover:text-rail-foreground",
                   )}
                 >
                   <Icon aria-hidden="true" className="h-[18px] w-[18px]" />
@@ -419,7 +419,7 @@ export function AppSidebar() {
             <div className="mt-auto flex flex-col items-center gap-1 pt-2">
               {setupCallButton}
               <SidebarTrigger
-                className="h-9 w-9 rounded-md text-rail-foreground/70 hover:bg-white/10 hover:text-rail-foreground"
+                className="h-9 w-9 rounded-md text-rail-foreground/70 hover:bg-black/5 hover:text-rail-foreground"
                 aria-label={
                   isCollapsed ? "Open the panel" : "Fold the panel away"
                 }
@@ -449,7 +449,7 @@ export function AppSidebar() {
             piece, the way Slack's does. The switcher's own styling is for
             a light panel; it is recoloured here rather than taught about
             the rail. */}
-          <div className="flex min-h-11 items-center bg-rail px-2 text-rail-foreground [&_button]:text-rail-foreground [&_button:hover]:bg-white/10 [&_button_svg]:text-rail-foreground/70">
+          <div className="flex min-h-11 items-center bg-rail px-2 text-rail-foreground [&_button]:text-rail-foreground [&_button:hover]:bg-black/5 [&_button_svg]:text-rail-foreground/70">
             <div className="flex w-full items-center gap-2">
               <div className="min-w-0 flex-1">
                 <OrganizationSwitcher collapsed={isCollapsed} />

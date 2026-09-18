@@ -133,7 +133,7 @@ function GlobalSearch() {
         onKeyDown={onKeyDown}
         placeholder="Search pages…"
         aria-label="Search pages"
-        className="h-7 rounded-md border-transparent bg-white/15 pl-9 pr-3 text-sm text-rail-foreground shadow-none placeholder:text-rail-foreground/60 focus-visible:border-rail-accent focus-visible:bg-white/20"
+        className="h-7 rounded-md border-transparent bg-white/55 pl-9 pr-3 text-sm text-rail-foreground shadow-none placeholder:text-rail-foreground/60 focus-visible:border-[var(--accent-brand)] focus-visible:bg-white/85"
       />
       {open && query.trim() !== "" && (
         <div className="absolute left-0 right-0 top-9 z-50 overflow-hidden rounded-xl border border-border bg-popover py-1 shadow-[var(--shadow-raised)]">
@@ -193,7 +193,7 @@ export function TopBar() {
       .join("") || "U";
 
   return (
-    <header className="sticky top-0 z-40 flex h-11 shrink-0 items-center gap-2 bg-rail px-3 text-rail-foreground">
+    <header className="sticky top-0 z-40 flex h-11 shrink-0 items-center gap-2 px-3 text-rail-foreground">
       <Button
         variant="ghost"
         size="icon"
