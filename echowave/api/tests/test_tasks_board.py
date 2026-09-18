@@ -284,3 +284,90 @@ class TestWiring:
     def test_decibyl_and_the_bots_carry_the_tool_and_it_is_priced(self):
         assert tasks_board.TOOL_NAME in [t["name"] for t in decibyl.TOOLS()]
         assert billing_events.credits_for(billing_events.TASK_RUN) == 1
+
+
+class TestATaskRefusedForCreditWaits:
+    """Seen live: a request filed on an account with no credit landed in
+    Done, badged COULD NOT, beside the finished ones. Nothing was tried, so
+    nothing failed: it waits for a person to add credit and press Run again,
+    which is what the Waiting column is for."""
+
+    async def test_it_is_filed_as_waiting_with_the_reason(self):
+        row = SimpleNamespace(
+            id=12,
+            organization_id=7,
+            assignee_workflow_id=4,
+            from_workflow_id=None,
+            title="Say hello",
+            brief="One line.",
+            status="todo",
+            result=None,
+            due_at=None,
+            created_by=None,
+            created_at=None,
+            started_at=None,
+            finished_at=None,
+            workflow_run_id=None,
+            source_run_id=None,
+            depth=0,
+        )
+        session = AsyncMock()
+        session.__aenter__ = AsyncMock(return_value=session)
+        session.__aexit__ = AsyncMock(return_value=False)
+        session.get = AsyncMock(return_value=row)
+        refused = SimpleNamespace(
+            has_quota=False,
+            error_message="Replies stop when your balance falls below ₹20.",
+        )
+        with (
+            patch.object(tasks_board.db_client, "async_session", return_value=session),
+            patch.object(
+                tasks_board.db_client,
+                "get_all_workflows_for_listing",
+                AsyncMock(
+                    return_value=[
+                        SimpleNamespace(id=4, name="Front desk", handle="front")
+                    ]
+                ),
+            ),
+            patch.object(tasks_board.db_client, "update_task", AsyncMock()),
+            patch.object(
+                tasks_board.db_client,
+                "create_workflow_run",
+                AsyncMock(return_value=SimpleNamespace(id=99)),
+            ),
+            patch(
+                "api.services.quota_service.authorize_workflow_run_start",
+                AsyncMock(return_value=refused),
+            ),
+            patch("pipecat.utils.run_context.set_current_run_id"),
+            patch.object(tasks_board, "_finish", AsyncMock()) as finish,
+        ):
+            await tasks_board.run_task(12)
+        kwargs = finish.await_args.kwargs
+        assert kwargs["status"] == tasks_board.WAITING
+        assert kwargs["result"].startswith("Could not start: Replies stop")
+
+    async def test_the_office_hears_it_could_not_start(self):
+        waiting = _task(
+            status="waiting", from_workflow_id=None, result="Could not start: x"
+        )
+        with (
+            patch.object(
+                tasks_board.db_client, "update_task", AsyncMock(return_value=waiting)
+            ),
+            patch.object(tasks_board.agent_timeline, "record", AsyncMock()) as record,
+            patch.object(tasks_board.agent_timeline, "record_activity", AsyncMock()),
+            patch("api.tasks.arq.enqueue_job", AsyncMock()),
+        ):
+            await tasks_board._finish(
+                12,
+                organization_id=7,
+                status="waiting",
+                result="Could not start: x",
+                run_id=99,
+                from_id=None,
+                assignee_name="Retention",
+                title="Say hello",
+            )
+        assert "could not start the task" in record.await_args.kwargs["summary"]
