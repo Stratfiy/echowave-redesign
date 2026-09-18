@@ -6,7 +6,6 @@ import {
   ArrowUpCircle,
   Bot,
   CalendarClock,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Database,
@@ -34,7 +33,6 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -69,12 +67,6 @@ import {
 
 const TELEPHONY_WARNING_COPY = "Action required";
 
-/** Section labels are stored shouting ("DEVELOPERS") because the closed-set
- *  preference is keyed on them; the panel reads them the way Slack does,
- *  in sentence case at body size. */
-function sentenceCase(label: string): string {
-  return label.charAt(0) + label.slice(1).toLowerCase();
-}
 
 /** The rows pinned to the top of the panel, in reading order.
  *
@@ -215,50 +207,7 @@ export function AppSidebar() {
     isCollapsed || activeContext === "home"
       ? []
       : getContextSections(activeContext, navSections);
-  const activeSection = navSections.find((section) =>
-    section.items.some((item) => item.url === activeUrl),
-  )?.label;
-  const [closedSections, setClosedSections] = useState<string[]>([
-    "MONITOR",
-    "DEVELOPERS",
-    "WORKSPACE",
-  ]);
-  useEffect(() => {
-    try {
-      const saved: unknown = JSON.parse(
-        localStorage.getItem("decibyl.sidebar.closedSections") ?? "null",
-      );
-      if (
-        Array.isArray(saved) &&
-        saved.every((value) => typeof value === "string")
-      )
-        setClosedSections(saved);
-    } catch {
-      /* Storage may be unavailable in private browsing. */
-    }
-  }, []);
-  useEffect(() => {
-    if (activeSection)
-      setClosedSections((current) =>
-        current.filter((label) => label !== activeSection),
-      );
-  }, [pathname, activeSection]);
-  const toggleSection = (label: string) => {
-    const next = closedSections.includes(label)
-      ? closedSections.filter((section) => section !== label)
-      : [...closedSections, label];
-    setClosedSections(next);
-    try {
-      localStorage.setItem(
-        "decibyl.sidebar.closedSections",
-        JSON.stringify(next),
-      );
-    } catch {
-      /* Optional preference. */
-    }
-  };
-
-  // Eighteen destinations do not fit a 900px viewport, so the list scrolls.
+  // A panel can still outrun a short viewport, so the list scrolls.
   // Left alone it rests at the top, which puts the *current* page half under
   // the footer — a selected item you cannot see reads as a broken sidebar
   // rather than a scrolled one. block: "nearest" means this only moves the
@@ -266,7 +215,7 @@ export function AppSidebar() {
   const activeLinkRef = useRef<HTMLAnchorElement | null>(null);
   useEffect(() => {
     activeLinkRef.current?.scrollIntoView({ block: "nearest" });
-  }, [pathname, closedSections]);
+  }, [pathname, activeContext]);
 
   const handleMobileNavClick = () => {
     if (isMobile) {
@@ -541,48 +490,29 @@ export function AppSidebar() {
             isCollapsed && "hidden",
           )}
         >
+          {/* One flat list, no headings.
+              DEPLOY, MONITOR, DEVELOPERS and WORKSPACE were written when this
+              panel showed all seventeen destinations at once and needed
+              sorting into piles. A panel is now one context's own rows -- two
+              to five of them -- and on Activity each heading was wrapping a
+              single link. A heading over one row is a word to read before
+              reading the row.
+
+              The sections keep their order, so the rows arrive in the same
+              sequence as before; only the labels and their collapse arrows
+              are gone. `px-0`, because the group's own padding sat these rows
+              four pixels right of the pinned rows above and made one panel
+              look like two. */}
           {contextSections.map((section) => (
-            <React.Fragment key={section.label ?? "overview"}>
-              <SidebarGroup className="py-1">
-                {section.label && (
-                  <SidebarGroupLabel
-                    asChild
-                    className="notranslate h-8 text-[15px] font-normal text-sidebar-foreground/70"
-                    translate="no"
-                  >
-                    <button
-                      type="button"
-                      aria-expanded={!closedSections.includes(section.label)}
-                      aria-controls={`nav-${section.label}`}
-                      onClick={() => toggleSection(section.label!)}
-                      className="w-full justify-between hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-                    >
-                      {sentenceCase(section.label)}
-                      <ChevronDown
-                        aria-hidden="true"
-                        className={cn(
-                          "h-3.5 w-3.5 transition-transform",
-                          closedSections.includes(section.label) && "-rotate-90",
-                        )}
-                      />
-                    </button>
-                  </SidebarGroupLabel>
-                )}
-                <SidebarMenu
-                  id={section.label ? `nav-${section.label}` : undefined}
-                  hidden={!!section.label && closedSections.includes(section.label)}
-                  className={cn(
-                    !!section.label && closedSections.includes(section.label) && "hidden",
-                  )}
-                >
-                  {section.items.map((item) => (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarLink item={item} />
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroup>
-            </React.Fragment>
+            <SidebarGroup key={section.label ?? "overview"} className="px-0 py-1">
+              <SidebarMenu>
+                {section.items.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarLink item={item} />
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroup>
           ))}
           {/* Home is the workspace: the files, then the channels and the
               bots, Buzz's Channels and Direct messages.

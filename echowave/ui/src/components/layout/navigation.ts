@@ -413,13 +413,20 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
     label: "DEVELOPERS",
     items: [
       {
-        title: "API keys & SDKs",
+        // "API keys", not "API keys & SDKs". It sat directly above another
+        // row beginning with the same word, and a panel where two of four
+        // rows start "API" is a panel somebody reads twice.
+        title: "API keys",
         url: "/api-keys",
         icon: Key,
         keywords: ["api", "sdk", "mcp", "token"],
       },
       {
-        title: "API & webhooks",
+        // "Connect", which is what its own page has always called itself:
+        // make something else start a call and get the result back. The
+        // sidebar said "API & webhooks", so the row and the page it opened
+        // disagreed about what this is.
+        title: "Connect",
         url: "/deploy/connect",
         icon: Workflow,
         keywords: [

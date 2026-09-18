@@ -111,8 +111,12 @@ export const TELEPHONY_TABS: PageTab[] = [
  *  corner of one of them; somebody with a key in hand looking for where to
  *  point a webhook had to go back to the sidebar to find out. */
 export const DEVELOPER_TABS: PageTab[] = [
-  { href: "/api-keys", label: "API keys & SDKs", prefix: true },
-  { href: "/deploy/connect", label: "API & webhooks", prefix: true },
+  // One name per screen, the same one the sidebar and the page use. These
+  // read "API keys & SDKs" and "API & webhooks" while the second page called
+  // itself Connect, so the row, the tab and the heading were three names for
+  // two things.
+  { href: "/api-keys", label: "API keys", prefix: true },
+  { href: "/deploy/connect", label: "Connect", prefix: true },
 ];
 
 /** The desk: the diary, the in-tray and the contact book.
