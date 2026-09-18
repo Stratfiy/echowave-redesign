@@ -29,15 +29,19 @@ from api.routes.turn_credentials import (
     TurnCredentialsResponse,
     generate_turn_credentials,
 )
+from api.services.billing import events as billing_events
+from api.services.billing import reservations
 from api.services.embed_logo import (
     is_own_logo_key,
     logo_from_settings,
     public_settings,
 )
+from api.services.quota_service import authorize_workflow_run_start
 from api.services.storage import (
     get_current_storage_backend,
     get_storage_for_backend,
 )
+from api.services.workflow import one_shot_run
 
 router = APIRouter(prefix="/public/embed", tags=["public-embed"])
 
@@ -415,6 +419,26 @@ async def initialize_embed_session(
         logger.error(f"Failed to create workflow run: {e}")
         raise HTTPException(status_code=500, detail="Failed to create workflow run")
 
+    # A chat on the link is paid from the owner's credits like everything
+    # else the bot does. Voice is authorised where the call is answered
+    # (webrtc_signaling); text had no such point, so an account at zero
+    # served strangers for free. The visitor is told only that the assistant
+    # is not taking messages -- the owner's balance is the owner's business.
+    if is_text:
+        quota = await authorize_workflow_run_start(
+            workflow_id=embed_token.workflow_id,
+            organization_id=embed_token.organization_id,
+            workflow_run_id=workflow_run.id,
+        )
+        if not quota.has_quota:
+            logger.warning(
+                "Share link for workflow {} turned a visitor away: {}",
+                embed_token.workflow_id,
+                quota.error_code or quota.error_message,
+            )
+            await one_shot_run.close(workflow_run.id)
+            raise HTTPException(status_code=403, detail=NOT_TAKING_MESSAGES)
+
     # Generate session token
     session_token = generate_session_token()
 
@@ -747,6 +771,33 @@ async def _start_text_session(run_id: int) -> None:
     await initialize_text_chat_session(run_id=run_id, text_session=text_session)
 
 
+#: Said to a visitor when the owner's account cannot pay for the reply. Never
+#: the reason: the balance is the owner's business, and the owner learns it
+#: from their own screen.
+NOT_TAKING_MESSAGES = "This assistant is not taking messages right now."
+
+
+async def _owner_can_pay(organization_id: int, run_id: int) -> bool:
+    """Whether the link's owner has credit for one more reply.
+
+    Fails open, as the same check does at run start: a database error is
+    "we could not read the balance", and turning every visitor away because
+    one query failed is worse than one reply we might not be paid for.
+    """
+    try:
+        async with db_client.async_session() as session:
+            return await reservations.has_credit(
+                session, organization_id=organization_id, workflow_run_id=run_id
+            )
+    except Exception as exc:  # noqa: BLE001 - see the docstring
+        logger.error(
+            "Could not read credit for org {} on a share link; allowing: {}",
+            organization_id,
+            exc,
+        )
+        return True
+
+
 def _visible_messages(session_data: dict) -> list[dict]:
     """The transcript, stripped to what a visitor may see.
 
@@ -825,6 +876,11 @@ async def post_embed_text_message(
     if not text_session:
         raise HTTPException(status_code=404, detail="Chat session not found")
 
+    # Every reply costs a credit, so a session that began funded stops when
+    # the balance reaches the floor, the same as a bot's own chat would.
+    if not await _owner_can_pay(embed_token.organization_id, run_id):
+        raise HTTPException(status_code=403, detail=NOT_TAKING_MESSAGES)
+
     try:
         text_session = await append_text_chat_user_message(
             run_id=run_id,
@@ -840,6 +896,16 @@ async def post_embed_text_message(
     except Exception as e:
         logger.error(f"Embed text turn failed for run {run_id}: {e}")
         raise HTTPException(status_code=500, detail="Could not send that message")
+
+    # One event, one price (KAN-56), keyed on the turn so a retry never
+    # charges twice: the same rule a reply in a channel is billed by.
+    last_turn = billing_events.last_turn_of(text_session)
+    await billing_events.charge_in_own_session(
+        organization_id=embed_token.organization_id,
+        event=billing_events.event_for_turn(last_turn),
+        ref_id=f"{run_id}:{(last_turn or {}).get('id') or 'turn'}",
+        note="Share link chat",
+    )
 
     session_data = normalize_text_chat_session_data(text_session.session_data)
     return EmbedTextMessageResponse(

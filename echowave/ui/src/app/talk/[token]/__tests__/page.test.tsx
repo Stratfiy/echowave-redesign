@@ -143,4 +143,20 @@ describe("TalkPage", () => {
     await waitFor(() => expect(screen.getByTestId("talk-title").textContent).toBe("Not available"));
     expect(screen.getByText("This link has used its minutes for today.")).toBeTruthy();
   });
+
+  it("shows the server's own sentence when the chat cannot start", async () => {
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url.includes("/config/")) return json({ agent_name: "Elock support" });
+      if (url.endsWith("/public/embed/init"))
+        return json({ detail: "This assistant is not taking messages right now." }, 403);
+      return json({}, 404);
+    });
+    render(<TalkPage />);
+    await waitFor(() => expect(screen.getByText(/chat by typing/i)).toBeTruthy());
+    fireEvent.click(screen.getByText(/chat by typing/i));
+    await waitFor(() =>
+      expect(screen.getByText("This assistant is not taking messages right now.")).toBeTruthy(),
+    );
+    expect(screen.queryByText(/paused or out of minutes/)).toBeNull();
+  });
 });
