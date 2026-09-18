@@ -239,6 +239,20 @@ describe('a bot that was asked shows as thinking', () => {
         // The next poll brings the reply; the row goes.
         await waitFor(() => expect(screen.queryByLabelText('Front desk is thinking')).toBeNull(), { timeout: 7000 });
     }, 10000);
+
+    it('says so when the wait runs out, rather than vanishing', async () => {
+        // A spinner that never stops is a lie, but a row that disappears is
+        // worse: the bot was working, the line went, and nothing said whether
+        // it finished, failed, or is still going. Silence is a state.
+        timeline.mockResolvedValue({ data: { events: [], next_before_at: null, next_before_id: null } });
+        const since = new Date(Date.now() - 4 * 60 * 1000).toISOString();
+        render(
+            <ChannelStream workflowId={3} botNames={{ 3: 'Front desk' }} waitingFor={{ since, bots: [3] }} />,
+        );
+        expect(await screen.findByLabelText('Front desk has not replied')).toBeTruthy();
+        expect(screen.queryByLabelText('Front desk is thinking')).toBeNull();
+        expect(screen.getByText(/No reply yet/)).toBeTruthy();
+    }, 10000);
 });
 
 describe('a proposed change to the bot', () => {

@@ -243,9 +243,14 @@ export function groupRows(inOrder: TimelineEvent[]): Group[] {
     return groups;
 }
 
-/** How long a bot may show as thinking before the row is taken down. A reply
+/** How long a bot may show as thinking before the row stops spinning. A reply
  *  that has not landed in three minutes is not coming, and a spinner that
- *  never stops is a lie. */
+ *  never stops is a lie.
+ *
+ *  The row does not go away at that point, it changes what it says. Taking it
+ *  down leaves the reader with a question they cannot answer: the bot was
+ *  working, the line vanished, and nothing said whether it finished, failed
+ *  or is still going. Silence is a state, and a state has to be rendered. */
 const THINKING_FOR_MS = 3 * 60 * 1000;
 
 export function ChannelStream({
@@ -446,21 +451,25 @@ export function ChannelStream({
     // Bots asked and not yet heard from. A row of theirs newer than the
     // question ends it; so does the clock, because a reply that has not
     // landed in three minutes is not coming.
-    const thinking =
-        waitingFor && Date.now() - new Date(waitingFor.since).getTime() < THINKING_FOR_MS
-            ? waitingFor.bots.filter(
-                  (bot) =>
-                      !events.some(
-                          (e) =>
-                              (assistant ? e.workflow_id == null : e.workflow_id === bot) &&
-                              e.actor !== 'human' &&
-                              // A reading is work on the way to the reply,
-                              // not the reply.
-                              e.kind !== 'activity' &&
-                              e.at > waitingFor.since,
-                      ),
-              )
-            : [];
+    const thinking = waitingFor
+        ? waitingFor.bots.filter(
+              (bot) =>
+                  !events.some(
+                      (e) =>
+                          (assistant ? e.workflow_id == null : e.workflow_id === bot) &&
+                          e.actor !== 'human' &&
+                          // A reading is work on the way to the reply,
+                          // not the reply.
+                          e.kind !== 'activity' &&
+                          e.at > waitingFor.since,
+                  ),
+          )
+        : [];
+    // Past the clock the row stays but stops pretending: no spinner, and a
+    // line that says the wait is over and the reply never came.
+    const gaveUp =
+        !!waitingFor &&
+        Date.now() - new Date(waitingFor.since).getTime() >= THINKING_FOR_MS;
 
     const activityWho = (event: TimelineEvent) =>
         (event.workflow_id != null && botNames[event.workflow_id]) || fallbackName;
@@ -469,7 +478,7 @@ export function ChannelStream({
     // than the timeline, and shown in the thinking row in place of the
     // spinner's word. Decibyl's thread has no bot; a bot's chat has one.
     const [draft, setDraft] = useState('');
-    const waiting = thinking.length > 0;
+    const waiting = thinking.length > 0 && !gaveUp;
     // Refreshed when a reply lands, so the chips answer what was just said
     // rather than what was said when the screen opened.
     const wasWaiting = useRef(false);
@@ -607,7 +616,15 @@ export function ChannelStream({
                     return group.events.map((event) => renderEvent(event, inOrder.indexOf(event)));
                 })}
                 {thinking.map((bot) => (
-                    <li key={`thinking-${bot}`} className="flex gap-3" aria-label={`${botNames[bot] || fallbackName} is thinking`}>
+                    <li
+                        key={`thinking-${bot}`}
+                        className="flex gap-3"
+                        aria-label={
+                            gaveUp
+                                ? `${botNames[bot] || fallbackName} has not replied`
+                                : `${botNames[bot] || fallbackName} is thinking`
+                        }
+                    >
                         <span
                             aria-hidden
                             className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--accent-brand-soft)] text-[var(--accent-brand)]"
@@ -618,7 +635,12 @@ export function ChannelStream({
                             <p className="text-sm">
                                 <span className="font-medium">{botNames[bot] || fallbackName}</span>
                             </p>
-                            {draft ? (
+                            {gaveUp ? (
+                                <p className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+                                    <CircleSlash className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                                    No reply yet. Ask again, or check History for what it did.
+                                </p>
+                            ) : draft ? (
                                 <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed" data-testid="forming">
                                     {/* Emphasised here too, so the reply does
                                         not visibly re-set when it finalises. A
