@@ -30,7 +30,7 @@ from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind, WorkflowRunMode
 from api.services.billing import events as billing_events
 from api.services.quota_service import authorize_workflow_run_start
-from api.services.workflow import agent_timeline, unattended
+from api.services.workflow import agent_timeline, one_shot_run, unattended
 from api.services.workflow.text_chat_runner import default_text_chat_checkpoint
 from api.services.workflow.text_chat_session_service import (
     append_text_chat_user_message,
@@ -219,6 +219,8 @@ async def run_routine(routine_id: int) -> Optional[int]:
         # system it cannot reach, and that only becomes visible if the run is
         # processed like any other.
         return run_id
+    finally:
+        await one_shot_run.close(run_id)
 
 
 async def _load(routine_id: int) -> Optional[dict[str, Any]]:
