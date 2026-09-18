@@ -46,6 +46,7 @@ from api.services.billing import (
     documents,
     payments,
     plans,
+    subscription_plans,
     topup_nudge,
     topup_packs,
 )
@@ -210,6 +211,12 @@ async def get_balance(user: UserModel = Depends(get_user)) -> dict[str, Any]:
         currency = await topup_packs.billing_currency(
             session, organization_id=organization_id
         )
+        # Whether this account's bots are on the phone at all. A text-only
+        # plan told "calling is paused" at zero balance reads that as a
+        # feature it never had; its replies are what stop.
+        plan = await subscription_plans.plan_for_organization(
+            session, organization_id=organization_id
+        )
     async with db_client.async_session() as session:
         burn = await topup_nudge.daily_burn_paise(
             session, organization_id=organization_id
@@ -268,6 +275,9 @@ async def get_balance(user: UserModel = Depends(get_user)) -> dict[str, Any]:
         # Reads the same rule the reservation gate applies, or the screen says
         # blocked while calls go through.
         "calling_blocked": (not internal) and balance < MIN_BALANCE_PAISE,
+        # What "blocked" stops: calls on a voice plan, replies on a text-only
+        # one. The banner and the chip word themselves from this.
+        "voice_allowed": plan.voice_allowed,
         # So the screen can show what will actually be charged before the
         # customer clicks pay, rather than surprising them at the card form.
         "gst_rate_basis_points": 0 if profile.is_export else GST_RATE_BASIS_POINTS,

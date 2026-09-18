@@ -85,3 +85,20 @@ describe("billing confirmation", () => {
     expect(api.payments).toHaveBeenCalledTimes(11);
   });
 });
+
+describe("what the floor stops", () => {
+  // Seen live on a Free account: "Calling is paused" above a plan card that
+  // says "no phone line". A text-only plan's replies are what stop.
+  it("says replies are paused on a text-only plan", async () => {
+    api.balance.mockResolvedValue({ data: { ...balance, balance_paise: 0, calling_blocked: true, voice_allowed: false } });
+    await mount();
+    expect(screen.getByText(/Replies are paused/)).toBeTruthy();
+    expect(screen.queryByText(/Calling is paused/)).toBeNull();
+  });
+
+  it("says calling is paused on a voice plan", async () => {
+    api.balance.mockResolvedValue({ data: { ...balance, balance_paise: 0, calling_blocked: true, voice_allowed: true } });
+    await mount();
+    expect(screen.getByText(/Calling is paused/)).toBeTruthy();
+  });
+});

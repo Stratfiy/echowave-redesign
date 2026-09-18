@@ -78,6 +78,10 @@ class TestTheBalanceSaysCredits:
                     "api.routes.payments.is_internal", new=AsyncMock(return_value=False)
                 ),
                 patch(
+                    "api.routes.payments.subscription_plans.plan_for_organization",
+                    new=AsyncMock(return_value=SimpleNamespace(voice_allowed=True)),
+                ),
+                patch(
                     "api.routes.payments.billing_profile.get_profile",
                     new=AsyncMock(return_value=profile),
                 ),
