@@ -38,8 +38,15 @@ COPY ui/src ./src
 # Set build-time environment variables (needed for Next.js build)
 ENV NEXT_PUBLIC_NODE_ENV="oss"
 ENV NEXT_TELEMETRY_DISABLED="1"
-ENV NEXT_PUBLIC_CHATWOOT_URL="https://chat.decibyl.com"
-ENV NEXT_PUBLIC_CHATWOOT_TOKEN="3fkFx2mCEjNHjM9gaNc4A82X"
+# The support chat widget (components/ChatwootWidget.tsx) loads only when
+# NEXT_PUBLIC_CHATWOOT_URL and NEXT_PUBLIC_CHATWOOT_TOKEN are set at build
+# time. They were baked in here pointing at a host that answers 502, so
+# every page loaded a dead script. Pass them as build args once there is a
+# live host; the widget stays off until then.
+ARG NEXT_PUBLIC_CHATWOOT_URL=""
+ARG NEXT_PUBLIC_CHATWOOT_TOKEN=""
+ENV NEXT_PUBLIC_CHATWOOT_URL=$NEXT_PUBLIC_CHATWOOT_URL
+ENV NEXT_PUBLIC_CHATWOOT_TOKEN=$NEXT_PUBLIC_CHATWOOT_TOKEN
 ENV BACKEND_URL="http://api:8000"
 
 # Build the application with standalone mode
