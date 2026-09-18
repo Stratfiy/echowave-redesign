@@ -21,7 +21,7 @@ import api.utils.url_security as url_security
 def saas(monkeypatch):
     # The guard is a no-op in OSS mode (localhost model servers are normal
     # there); the SaaS deployment is the one that must not be turned inward.
-    monkeypatch.setattr(url_security, "DEPLOYMENT_MODE", "saas")
+    monkeypatch.setattr(url_security, "URL_POLICY", "saas")
 
 
 BLOCKED = [

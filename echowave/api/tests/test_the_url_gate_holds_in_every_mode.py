@@ -33,12 +33,12 @@ from api.utils.url_security import validate_user_configured_service_url
 
 @pytest.fixture
 def oss(monkeypatch):
-    monkeypatch.setattr(url_security, "DEPLOYMENT_MODE", "oss")
+    monkeypatch.setattr(url_security, "URL_POLICY", "oss")
 
 
 @pytest.fixture
 def saas(monkeypatch):
-    monkeypatch.setattr(url_security, "DEPLOYMENT_MODE", "saas")
+    monkeypatch.setattr(url_security, "URL_POLICY", "saas")
 
 
 class TestRefusedEverywhere:
@@ -206,3 +206,43 @@ class TestIpv6Loopback:
             validate_user_configured_service_url(
                 "http://[::]:8443/", field_name="stt.base_url"
             )
+
+
+class TestThePolicyHasItsOwnSwitch:
+    """Flipping DEPLOYMENT_MODE to saas also routes bot creation through the
+    managed model service, which the production box cannot reach. The URL
+    gate takes its own setting so the security half can be turned on alone,
+    and follows the deployment mode when nobody set it."""
+
+    def test_url_policy_follows_the_deployment_mode_by_default(self, monkeypatch):
+        import importlib
+
+        monkeypatch.delenv("URL_POLICY", raising=False)
+        monkeypatch.setenv("DEPLOYMENT_MODE", "oss")
+        import api.constants as constants
+
+        importlib.reload(constants)
+        assert constants.URL_POLICY == "oss"
+        monkeypatch.setenv("DEPLOYMENT_MODE", "saas")
+        importlib.reload(constants)
+        assert constants.URL_POLICY == "saas"
+        monkeypatch.delenv("DEPLOYMENT_MODE", raising=False)
+        importlib.reload(constants)
+
+    def test_url_policy_alone_turns_the_gate_strict(self, monkeypatch):
+        import importlib
+
+        monkeypatch.setenv("DEPLOYMENT_MODE", "oss")
+        monkeypatch.setenv("URL_POLICY", "saas")
+        import api.constants as constants
+
+        importlib.reload(constants)
+        assert constants.DEPLOYMENT_MODE == "oss" and constants.URL_POLICY == "saas"
+        monkeypatch.setattr(url_security, "URL_POLICY", constants.URL_POLICY)
+        with pytest.raises(ValueError):
+            validate_user_configured_service_url(
+                "http://127.0.0.1:8000/hook", field_name="Webhook URL"
+            )
+        monkeypatch.delenv("URL_POLICY", raising=False)
+        monkeypatch.delenv("DEPLOYMENT_MODE", raising=False)
+        importlib.reload(constants)

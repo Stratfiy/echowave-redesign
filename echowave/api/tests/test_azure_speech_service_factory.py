@@ -135,7 +135,7 @@ def test_validator_accepts_azure_speech_services():
 
 
 def test_validator_accepts_azure_realtime_service(monkeypatch):
-    monkeypatch.setattr("api.utils.url_security.DEPLOYMENT_MODE", "oss")
+    monkeypatch.setattr("api.utils.url_security.URL_POLICY", "oss")
     validator = UserConfigurationValidator()
 
     assert (
@@ -151,7 +151,7 @@ def test_validator_accepts_azure_realtime_service(monkeypatch):
 
 
 def test_create_azure_realtime_blocks_private_endpoint_in_saas(monkeypatch):
-    monkeypatch.setattr("api.utils.url_security.DEPLOYMENT_MODE", "saas")
+    monkeypatch.setattr("api.utils.url_security.URL_POLICY", "saas")
     user_config = SimpleNamespace(
         realtime=SimpleNamespace(
             provider=ServiceProviders.AZURE_REALTIME.value,
@@ -171,7 +171,7 @@ def test_create_azure_realtime_blocks_private_endpoint_in_saas(monkeypatch):
 
 
 def test_create_azure_realtime_uses_ga_websocket_url_by_default(monkeypatch):
-    monkeypatch.setattr("api.utils.url_security.DEPLOYMENT_MODE", "oss")
+    monkeypatch.setattr("api.utils.url_security.URL_POLICY", "oss")
     user_config = SimpleNamespace(
         realtime=SimpleNamespace(
             provider=ServiceProviders.AZURE_REALTIME.value,
@@ -190,7 +190,7 @@ def test_create_azure_realtime_uses_ga_websocket_url_by_default(monkeypatch):
 
 
 def test_create_azure_realtime_preserves_explicit_preview_websocket_url(monkeypatch):
-    monkeypatch.setattr("api.utils.url_security.DEPLOYMENT_MODE", "oss")
+    monkeypatch.setattr("api.utils.url_security.URL_POLICY", "oss")
     user_config = SimpleNamespace(
         realtime=SimpleNamespace(
             provider=ServiceProviders.AZURE_REALTIME.value,
