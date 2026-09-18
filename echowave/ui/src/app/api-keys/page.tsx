@@ -60,6 +60,12 @@ export default function APIKeysPage() {
     const [showCreatedKeyDialog, setShowCreatedKeyDialog] = useState(false);
     const [showCreatedServiceKeyDialog, setShowCreatedServiceKeyDialog] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    // The model service that issues service keys is not part of every
+    // deployment. When it is not reachable the keys are not broken, they
+    // are meaningless here -- and the API's 503 says so in words meant for
+    // whoever runs the box. This screen says it once, in words for a
+    // customer, and offers no button that could only fail the same way.
+    const [serviceKeysUnavailable, setServiceKeysUnavailable] = useState(false);
 
     // Redirect if not authenticated
     useEffect(() => {
@@ -146,9 +152,15 @@ export default function APIKeysPage() {
             });
 
             if (response.error) {
+                if (response.response?.status === 503) {
+                    setServiceKeysUnavailable(true);
+                    setServiceKeys([]);
+                    return;
+                }
                 setError(detailFromResult(response, 'Failed to fetch service keys'));
                 return;
             }
+            setServiceKeysUnavailable(false);
             setServiceKeys(response.data ?? []);
         } catch (err) {
             setError('Failed to fetch service keys');
@@ -511,6 +523,17 @@ export default function APIKeysPage() {
                     </Card>
 
                     {/* Decibyl Service Keys Section */}
+                    {serviceKeysUnavailable ? (
+                        <Card className="mb-6">
+                            <CardHeader>
+                                <CardTitle>Decibyl Service Keys</CardTitle>
+                                <CardDescription>
+                                    Decibyl-managed model keys are not available on this deployment.
+                                    Bring your own provider keys under Model configurations and nothing here is needed.
+                                </CardDescription>
+                            </CardHeader>
+                        </Card>
+                    ) : (
                     <Card className="mb-6">
                         <CardHeader>
                             <div className="flex justify-between items-center">
@@ -624,6 +647,7 @@ export default function APIKeysPage() {
                             )}
                         </CardContent>
                     </Card>
+                    )}
 
                     <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
                         <p className="text-sm text-yellow-600 dark:text-yellow-500">
