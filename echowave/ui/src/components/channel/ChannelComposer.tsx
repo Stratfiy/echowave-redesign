@@ -430,7 +430,10 @@ export function ChannelComposer({
     };
 
     return (
-        <div className="bg-transparent px-4 pb-3 pt-2">
+        // A hairline above it: without the card that used to hold the two
+        // together, the thread scrolls under the composer and needs an edge
+        // to stop against.
+        <div className="shrink-0 border-t border-border/70 bg-background px-4 pb-3 pt-2 sm:px-6">
             {(error || dictation.error) && (
                 <p className="mb-2 text-sm text-destructive" role="alert">
                     {error || dictation.error}
