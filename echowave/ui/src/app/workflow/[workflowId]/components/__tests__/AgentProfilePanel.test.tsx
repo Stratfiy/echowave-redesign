@@ -12,6 +12,14 @@ vi.mock('@/client/sdk.gen', () => ({
     listToolsApiV1ToolsGet: tools,
     readMemoryApiV1OrganisationMemoryGet: memory,
     setStatusApiV1OrganisationMemoryFactIdStatusPost: vi.fn(),
+    // The standing block at the top of the panel reads these. A quiet,
+    // healthy bot: this file is about what the panel makes of a definition,
+    // and AgentStanding has its own tests.
+    teamStatusApiV1TeamStatusGet: vi.fn().mockResolvedValue({ data: { hours: 24, members: [] } }),
+    agentReadinessApiV1WorkflowWorkflowIdReadinessGet: vi
+        .fn()
+        .mockResolvedValue({ data: { ready: true, items: [] } }),
+    listFoldersApiV1FolderGet: vi.fn().mockResolvedValue({ data: [] }),
 }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
 
