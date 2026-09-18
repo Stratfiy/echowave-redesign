@@ -8,7 +8,6 @@
  * save path for the pencils on those tiles.
  */
 
-import { X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
@@ -16,7 +15,6 @@ import {
     updateWorkflowApiV1WorkflowWorkflowIdPut,
 } from '@/client/sdk.gen';
 import type { FlowNode } from '@/components/flow/types';
-import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 import type { WorkflowConfigurations } from '@/types/workflow-configurations';
 
@@ -26,11 +24,9 @@ import { ModelRow } from './ModelRow';
 export function AboutPanel({
     workflowId,
     name,
-    onClose,
 }: {
     workflowId: number;
     name: string;
-    onClose: () => void;
 }) {
     const { user, loading: authLoading } = useAuth();
     const fetched = useRef(false);
@@ -71,12 +67,6 @@ export function AboutPanel({
 
     return (
         <div className="flex h-full flex-col">
-            <div className="flex items-center justify-between border-b border-border px-5 py-3">
-                <p className="text-sm font-semibold">About</p>
-                <Button variant="ghost" size="icon" aria-label="Close" onClick={onClose}>
-                    <X className="h-4 w-4" />
-                </Button>
-            </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
                 <AgentProfilePanel workflowId={workflowId} name={name} nodes={nodes}>
                     <ModelRow
