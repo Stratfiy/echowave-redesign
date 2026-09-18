@@ -392,6 +392,11 @@ class TestTheOperatorsRoutes:
                     route.bot_triggers, "compile", AsyncMock(return_value=asked)
                 ),
                 patch.object(route.db_client, "async_session", _no_session),
+                # Metered like a builder message; the meter has its own tests.
+                patch(
+                    "api.routes.agent_builder.meter_builder_message",
+                    AsyncMock(return_value=(SimpleNamespace(used=1), 0)),
+                ),
             ):
                 async with AsyncClient(
                     transport=ASGITransport(app=app), base_url="http://test"
@@ -536,3 +541,60 @@ class TestTheCompilerKnowsTheSource:
         assert compiled.ready
         prompt = complete.await_args.kwargs["conversation"].messages[0]["content"]
         assert "EMAIL trigger" in prompt and "subject" in prompt
+
+
+@pytest.mark.asyncio
+class TestWorkingItOutIsABuilderMessage:
+    """ "Work it out" runs the builder model and was free at zero credit. It is
+    now metered through the same door as a builder message: the month's
+    allowance, then five credits, refused with the way out named."""
+
+    class _Session:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+    async def _compile(self, meter):
+        from fastapi import HTTPException
+
+        from api.routes import bot_triggers as route
+        from api.schemas.bot_trigger import TriggerCompileRequest
+
+        user = SimpleNamespace(id=1, selected_organization_id=7)
+        with (
+            patch.object(route, "_organization_id", lambda u: 7),
+            patch.object(route, "_owned_workflow", AsyncMock()),
+            patch.object(route.db_client, "async_session", lambda: self._Session()),
+            patch("api.routes.agent_builder.meter_builder_message", meter),
+            patch.object(
+                route.bot_triggers,
+                "compile",
+                AsyncMock(return_value=bot_triggers._plain("do it", "")),
+            ) as compile_,
+        ):
+            try:
+                result = await route.compile_trigger(
+                    3, TriggerCompileRequest(sentence="when an order comes in"), user
+                )
+            except HTTPException as exc:
+                return exc, compile_
+            return result, compile_
+
+    async def test_a_refused_message_never_reaches_the_model(self):
+        from fastapi import HTTPException
+
+        meter = AsyncMock(
+            side_effect=HTTPException(status_code=402, detail="Add credit.")
+        )
+        exc, compile_ = await self._compile(meter)
+        assert isinstance(exc, HTTPException) and exc.status_code == 402
+        compile_.assert_not_awaited()
+
+    async def test_a_metered_message_compiles(self):
+        meter = AsyncMock(return_value=(SimpleNamespace(used=1), 0))
+        result, compile_ = await self._compile(meter)
+        meter.assert_awaited_once()
+        compile_.assert_awaited_once()
+        assert result.name == "Do it"
