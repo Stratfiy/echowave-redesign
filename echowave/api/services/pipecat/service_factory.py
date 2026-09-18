@@ -27,6 +27,7 @@ from api.services.pipecat.gemini_json_schema_adapter import (
 from api.services.pipecat.minimax_tts import MiniMaxOwnedSessionTTSService
 from api.services.pipecat.sarvam_llm import DecibylSarvamLLMService
 from api.services.pipecat.sarvam_tts import DecibylSarvamTTSService
+from api.services.pipecat.stage_direction_filter import StageDirectionFilter
 from api.utils.url_security import validate_user_configured_service_url
 from pipecat.pipeline.service_switcher import (
     ServiceSwitcher,
@@ -839,7 +840,11 @@ def _create_tts_service_instance(provider, service, /, **kwargs):
         kwargs.setdefault("text_aggregation_mode", TextAggregationMode.TOKEN)
     if policy.silence_time_s is not None:
         kwargs.setdefault("silence_time_s", policy.silence_time_s)
-    kwargs.setdefault("text_filters", [XMLFunctionTagFilter()])
+    # Two filters, for the two things a model emits that are not speech:
+    # function-call markup, and stage directions. A TTS engine reads both out
+    # loud -- "asterisk pauses warmly asterisk" -- and the second is the one a
+    # customer hears on a first call.
+    kwargs.setdefault("text_filters", [XMLFunctionTagFilter(), StageDirectionFilter()])
     kwargs.setdefault("skip_aggregator_types", ["recording_router", "recording"])
 
     transforms = _SPEECH_TEXT_TRANSFORMS.get()
