@@ -15,6 +15,7 @@ import type { DocumentResponseSchema, RecordingResponseSchema, ToolResponse } fr
 import { useNodeSpecs } from "@/components/flow/renderer";
 import { isSimpleAgent } from "@/components/flow/simpleAgent";
 import { FlowEdge, FlowNode, NodeType } from "@/components/flow/types";
+import { AuxiliaryPanel } from '@/components/layout/AuxiliaryPanel';
 import { HireExpertNudge } from "@/components/lead-forms/HireExpertNudge";
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
@@ -793,7 +794,7 @@ function RenderWorkflow({
                         </div>
 
                         {isTesterRailOpen && (
-                            <aside className="hidden h-full w-[400px] shrink-0 border-l border-border xl:block">
+                            <AuxiliaryPanel label="Test this bot" className="hidden xl:flex">
                                 <WorkflowTesterPanel
                                     workflowId={workflowId}
                                     initialMode={testerInitialMode}
@@ -805,7 +806,7 @@ function RenderWorkflow({
                                     onClose={() => setIsTesterRailOpen(false)}
                                     onRuntimeNodeTransition={handleRuntimeNodeTransition}
                                 />
-                            </aside>
+                            </AuxiliaryPanel>
                         )}
                     </div>
 

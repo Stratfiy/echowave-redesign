@@ -10,6 +10,7 @@ import { AgentTabs } from '@/app/workflow/[workflowId]/components/AgentTabs';
 import { getWorkflowApiV1WorkflowFetchWorkflowIdGet } from '@/client/sdk.gen';
 import { ChannelComposer } from '@/components/channel/ChannelComposer';
 import { ChannelStream } from '@/components/channel/ChannelStream';
+import { AuxiliaryPanel } from '@/components/layout/AuxiliaryPanel';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 
@@ -111,15 +112,9 @@ export default function BotChatPage({
                     />
                 </div>
                 {aboutOpen && (
-                    // Opaque, and on a phone it takes the whole screen: a
-                    // translucent panel beside a chat that has no room to
-                    // sit beside was two screens printed on one.
-                    <aside
-                        className="fixed inset-0 z-40 bg-background md:static md:z-auto md:w-full md:max-w-[400px] md:shrink-0 md:border-l md:border-border"
-                        aria-label="About this bot"
-                    >
-                        <AboutPanel workflowId={id} name={botName} onClose={() => setAboutOpen(false)} />
-                    </aside>
+                    <AuxiliaryPanel label="About this bot" onClose={() => setAboutOpen(false)}>
+                        <AboutPanel workflowId={id} name={botName} />
+                    </AuxiliaryPanel>
                 )}
             </div>
         </div>
