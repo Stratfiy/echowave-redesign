@@ -463,11 +463,15 @@ async def run_task(task_id: int) -> int | None:
             workflow_run_id=run_id,
         )
         if not quota.has_quota:
+            # Nothing was tried, so nothing failed: the task waits for a
+            # person to put credit on the account and press Run again. Filing
+            # it as could-not put it in Done, beside the finished ones, which
+            # is the one column where nobody looks for work still to do.
             reason = quota.error_message or "no credit for this run"
             await _finish(
                 task_id,
                 organization_id=organization_id,
-                status=COULD_NOT,
+                status=WAITING,
                 result=f"Could not start: {reason}",
                 run_id=run_id,
                 from_id=from_id,
@@ -579,7 +583,14 @@ async def _finish(
         workflow_run_id=run_id,
     )
     done = status == DONE
-    line = f"{assignee_name} {'finished' if done else 'could not do'} the task: {title}"
+    verb = (
+        "finished"
+        if done
+        else "could not start"
+        if status == WAITING
+        else "could not do"
+    )
+    line = f"{assignee_name} {verb} the task: {title}"
     payload = {
         "task": as_dict(task) if task else {"id": task_id},
         "result": result[:500],
