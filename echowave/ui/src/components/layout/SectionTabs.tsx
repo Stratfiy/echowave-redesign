@@ -100,9 +100,16 @@ export const BILLING_TABS: PageTab[] = [
  * calls was exactly backwards.
  */
 export const TELEPHONY_TABS: PageTab[] = [
-  { href: "/verification", label: "Verification", prefix: true },
-  { href: "/numbers", label: "Get a number", prefix: true },
-  { href: "/telephony-configurations", label: "Carriers & numbers", prefix: true },
+  // Verification is not a fourth thing to do: it is step 1 of getting a
+  // number, drawn inside Get a number with its live status, and the form it
+  // links to is the only reason /verification exists. A tab of its own put
+  // the same step in two places and let somebody start with the paperwork
+  // without ever seeing what it was for, so it lights this tab instead.
+  { href: "/numbers", label: "Get a number", prefix: true, also: ["/verification"] },
+  // Named for what it holds, which is what the page has always been titled:
+  // "Carriers & numbers" on the tab against "Phone numbers" on the screen
+  // meant the strip and the heading disagreed about where you were.
+  { href: "/telephony-configurations", label: "Your numbers", prefix: true },
   { href: "/verified-numbers", label: "Test numbers", prefix: true },
 ];
 

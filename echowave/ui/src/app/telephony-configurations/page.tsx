@@ -154,7 +154,7 @@ export default function TelephonyConfigurationsPage() {
     <div className="min-h-screen">
       <PageHeader
         tabs={TELEPHONY_TABS}
-        title="Phone numbers"
+        title="Your numbers"
         description={
           <>
             Your own carrier accounts, if you bring one. Calls go out through the

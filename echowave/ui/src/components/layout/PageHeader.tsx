@@ -21,6 +21,10 @@ export type PageTab = {
   /** Match the pathname by prefix rather than equality. Needed for sections
    *  whose tab lands on a list that then pushes detail routes underneath it. */
   prefix?: boolean;
+  /** Other routes that light this tab. For a screen that is a step inside
+   *  another one rather than a peer of it: it has no tab of its own, and the
+   *  strip keeps saying where the reader is. */
+  also?: string[];
 };
 
 interface PageHeaderProps {
@@ -46,9 +50,9 @@ export function PageTabs({ tabs }: { tabs: PageTab[] }) {
     >
       <ul className="-mb-px flex min-w-max items-center gap-1 px-4 sm:px-6">
       {tabs.map((tab) => {
-        const active = tab.prefix
-          ? pathname.startsWith(tab.href)
-          : pathname === tab.href;
+        const active =
+          (tab.prefix ? pathname.startsWith(tab.href) : pathname === tab.href) ||
+          (tab.also ?? []).some((route) => pathname.startsWith(route));
         return (
           <li key={tab.href}>
             <Link
