@@ -93,7 +93,7 @@ export function AgentRefSelect({
         <Select value={value || undefined} onValueChange={onChange}>
             <SelectTrigger>
                 <SelectValue
-                    placeholder={agents === null ? "Loading…" : "Choose an bot"}
+                    placeholder={agents === null ? "Loading…" : "Choose a bot"}
                 />
             </SelectTrigger>
             <SelectContent>

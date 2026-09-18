@@ -35,7 +35,7 @@ export function DeployAgentPicker({
                         onValueChange={(value) => onSelect(Number(value))}
                     >
                         <SelectTrigger id="deploy-agent" className="max-w-md">
-                            <SelectValue placeholder="Choose an bot" />
+                            <SelectValue placeholder="Choose a bot" />
                         </SelectTrigger>
                         <SelectContent>
                             {agents.map((agent) => (

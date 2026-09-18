@@ -480,7 +480,7 @@ export function BrainPanel({ config, onChange, tuning, onTuning }: PanelProps) {
                 blurb={
                     config.agent_can_end_call
                         ? "The bot can hang up when there is nothing left to do — nobody on the line, the caller finished, or a wrong number."
-                        : "Off. Only the caller's own goodbye ends a call, so an bot talking to an empty line keeps talking."
+                        : "Off. Only the caller's own goodbye ends a call, so a bot talking to an empty line keeps talking."
                 }
                 control={
                     <Switch

@@ -132,7 +132,7 @@ export default function NewSquadPage() {
         <>
             <PageHeader
                 title="New squad"
-                description="One front desk that greets the caller and hands the call to the right bot. Each member is an bot you already have."
+                description="One front desk that greets the caller and hands the call to the right bot. Each member is a bot you already have."
                 actions={
                     <Button asChild variant="ghost" size="sm">
                         <Link href="/workflow">
@@ -218,7 +218,7 @@ export default function NewSquadPage() {
                                             onChange={(e) => setMember(index, { agentUuid: e.target.value })}
                                             className="h-9 w-full rounded-[var(--radius-control)] border border-input bg-card px-3 text-sm"
                                         >
-                                            <option value="">Choose an bot</option>
+                                            <option value="">Choose a bot</option>
                                             {(agents ?? []).map((agent) => (
                                                 <option key={agent.uuid} value={agent.uuid}>
                                                     {agent.name}
