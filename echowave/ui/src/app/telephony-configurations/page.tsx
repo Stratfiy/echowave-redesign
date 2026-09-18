@@ -157,8 +157,8 @@ export default function TelephonyConfigurationsPage() {
         title="Phone numbers"
         description={
           <>
-            Connect one or more telephony provider accounts. Each campaign uses one
-            configuration; inbound calls are routed to the right one by account ID.{" "}
+            Your own carrier accounts, if you bring one. Calls go out through the
+            carrier you pick, and calls to a carrier&apos;s numbers come in through it.{" "}
             <a
               href="https://docs.decibyl.ai/integrations/telephony/overview"
               target="_blank"
@@ -228,9 +228,9 @@ export default function TelephonyConfigurationsPage() {
         ) : items.length === 0 ? (
           <Card>
             <CardHeader>
-              <CardTitle>No telephony configurations yet</CardTitle>
+              <CardTitle>No carrier connected yet</CardTitle>
               <CardDescription>
-                Add one to enable outbound calls and receive inbound calls.
+                Connect one to make and take calls on numbers you already own. Or get a number from us instead.
               </CardDescription>
             </CardHeader>
             <CardContent>
