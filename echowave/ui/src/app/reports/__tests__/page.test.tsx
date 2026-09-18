@@ -18,6 +18,12 @@ vi.mock("@/client/sdk.gen", () => ({
     getPreferencesApiV1OrganizationsPreferencesGet: preferences,
     getWorkflowOptionsApiV1OrganizationsReportsWorkflowsGet: vi.fn().mockResolvedValue({ data: [] }),
 }));
+const query = vi.hoisted(() => ({ value: "" }));
+vi.mock("next/navigation", () => ({
+    useSearchParams: () => new URLSearchParams(query.value),
+    useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+    usePathname: () => "/reports",
+}));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ isAuthenticated: true, user: { id: 1 }, loading: false }) }));
 vi.mock("../components/DispositionChart", () => ({ DispositionChart: () => <div /> }));
 vi.mock("../components/DurationChart", () => ({ DurationChart: () => <div /> }));
@@ -29,6 +35,7 @@ const here = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata";
 
 beforeEach(() => {
     vi.clearAllMocks();
+    query.value = "";
     daily.mockResolvedValue({ data: { date: "2026-09-18", timezone: "x", workflow_id: null, metrics: { total_runs: 0, xfer_count: 0 }, disposition_distribution: [], call_duration_distribution: [] } });
 });
 
@@ -55,5 +62,46 @@ describe("the daily report's timezone", () => {
         render(<ReportsPage />);
         await waitFor(() => expect(daily).toHaveBeenCalled());
         expect(daily.mock.calls[0][0].query.timezone).toBe(here);
+    });
+});
+
+describe("the day Analytics sent it to", () => {
+    it("opens the date in the URL, not today", async () => {
+        query.value = "date=2026-09-14";
+        preferences.mockResolvedValue({ data: { timezone: "Asia/Kolkata" } });
+        render(<ReportsPage />);
+        await waitFor(() => expect(daily).toHaveBeenCalled());
+        expect(daily.mock.calls[0][0].query.date).toBe("2026-09-14");
+    });
+
+    it("opens the bot in the URL too", async () => {
+        query.value = "date=2026-09-14&workflow_id=7";
+        preferences.mockResolvedValue({ data: { timezone: "Asia/Kolkata" } });
+        render(<ReportsPage />);
+        await waitFor(() => expect(daily).toHaveBeenCalled());
+        expect(daily.mock.calls[0][0].query.workflow_id).toBe(7);
+    });
+
+    it("falls back to today when the date is not a date", async () => {
+        query.value = "date=yesterday";
+        preferences.mockResolvedValue({ data: { timezone: "Asia/Kolkata" } });
+        render(<ReportsPage />);
+        await waitFor(() => expect(daily).toHaveBeenCalled());
+        const today = new Date();
+        const pad = (n: number) => String(n).padStart(2, "0");
+        expect(daily.mock.calls[0][0].query.date).toBe(
+            `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`,
+        );
+    });
+
+    it("points back at Analytics for the shape over weeks", async () => {
+        preferences.mockResolvedValue({ data: { timezone: "Asia/Kolkata" } });
+        render(<ReportsPage />);
+        // The tab strip links there too; this is the one in the sentence
+        // under the title, which is what tells somebody why they would.
+        const links = await screen.findAllByText("Analytics");
+        expect(
+            links.some((el) => el.closest("a")?.getAttribute("href") === "/analytics"),
+        ).toBe(true);
     });
 });

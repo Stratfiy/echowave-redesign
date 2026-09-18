@@ -16,7 +16,7 @@
 
 import { AlertTriangle } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
     Bar,
@@ -118,6 +118,7 @@ function formatHour(hour: number): string {
 
 export default function CallAnalyticsPage() {
     const mode = useChartMode();
+    const router = useRouter();
     const authReady = useAuthReady();
     const searchParams = useSearchParams();
     const days = Number(searchParams.get("days")) || 30;
@@ -226,11 +227,20 @@ export default function CallAnalyticsPage() {
                                 />
                             }
                         />
+                        {/* A day here is a door. The shape tells you which
+                            day is worth looking at; pressing it opens that
+                            day's calls, rather than making somebody find the
+                            date again on another screen. */}
                         <Bar
                             dataKey="calls"
                             name="Calls"
                             fill={seriesColor(0, mode)}
                             radius={[3, 3, 0, 0]}
+                            cursor="pointer"
+                            onClick={(entry: { payload?: DailyRow }) => {
+                                const day = entry?.payload?.day;
+                                if (day) router.push(`/reports?date=${day}`);
+                            }}
                         />
                         <Line
                             type="monotone"
@@ -451,14 +461,14 @@ export default function CallAnalyticsPage() {
                 meant the reader had to guess which of them answered their
                 question. It is one day's calls in detail, which is what you
                 want *after* the shape above tells you which day to look at --
-                so it sits here, at the end of that reading, rather than
-                competing with it. */}
+                so it is downstream of this screen, reached by pressing the
+                day, with this line as the keyboard path to the same place. */}
             <p className="text-sm text-muted-foreground">
-                Want one day in detail?{" "}
+                Press a day in the chart above for{" "}
                 <Link href="/reports" className="font-medium underline underline-offset-4">
-                    Daily reports
-                </Link>{" "}
-                lists every call for a single date, with a CSV.
+                    that day in detail
+                </Link>
+                : every call on it, with a CSV.
             </p>
         </div>
     );
