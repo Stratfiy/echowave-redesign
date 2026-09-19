@@ -3,7 +3,7 @@
 import json
 import re
 from typing import Any, Dict, Optional
-from urllib.parse import quote
+from urllib.parse import parse_qsl, quote, urlsplit, urlunsplit
 
 import httpx
 from loguru import logger
@@ -227,6 +227,27 @@ def _resolve_preset_parameters(
 _URL_PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 
+def merge_query(url: str, params: dict) -> tuple[str, dict]:
+    """Fold a URL's own query string into the arguments sent beside it.
+
+    httpx *replaces* a URL's query with `params` rather than adding to it, so
+    a tool whose URL carries account scoping -- Zakya's `?organization_id=`,
+    a versioned endpoint's `?api-version=` -- lost it the moment the model
+    supplied an argument, and the call failed mid-conversation rather than at
+    setup.
+
+    A name in both wins from the argument: the URL's query is the operator's
+    configuration, and a parameter they declared with the same name is the
+    value they meant to vary at runtime.
+    """
+    split = urlsplit(url)
+    if not split.query:
+        return url, params
+    merged = dict(parse_qsl(split.query, keep_blank_values=True))
+    merged.update(params)
+    return urlunsplit(split._replace(query="")), merged
+
+
 def fill_url_placeholders(
     url: str, arguments: Dict[str, Any]
 ) -> tuple[str, Dict[str, Any], Optional[str]]:
@@ -371,6 +392,16 @@ async def execute_http_tool(
         body = resolved_arguments
     elif method in ("GET", "DELETE") and resolved_arguments:
         params = resolved_arguments
+
+    # httpx *replaces* a URL's query string with `params` rather than adding to
+    # it, so a tool whose URL carries account scoping -- Zakya's
+    # `?organization_id=`, a versioned endpoint's `?api-version=` -- lost it
+    # the moment the model supplied an argument, and the call failed on a live
+    # conversation rather than at setup. Merge here instead: the URL's own
+    # query is the operator's configuration, and a declared parameter of the
+    # same name is the runtime value, so the argument wins.
+    if params:
+        url, params = merge_query(url, params)
 
     # An HTTP tool's URL is operator-configured, but "operator" is any customer
     # on the platform, and this request leaves our network with the tool's

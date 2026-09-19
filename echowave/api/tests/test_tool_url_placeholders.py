@@ -17,7 +17,10 @@ import re
 import pytest
 
 from api.services.integrations.tool_library import _LIBRARY
-from api.services.workflow.tools.custom_tool import fill_url_placeholders
+from api.services.workflow.tools.custom_tool import (
+    fill_url_placeholders,
+    merge_query,
+)
 
 BASE = "https://shop.myshopify.com/admin/api/2026-07"
 
@@ -135,3 +138,39 @@ class TestEveryLibraryTemplateMatchesTheMechanism:
                 f"{entry.key}: {parameter.name} is both hardcoded in the query "
                 f"string and sent as an argument"
             )
+
+
+class TestAUrlKeepsItsOwnQueryString:
+    """httpx replaces a URL's query with the params sent beside it, so a tool
+    whose URL carries account scoping lost it the moment the model supplied an
+    argument -- and the call failed on a live conversation, not at setup."""
+
+    def test_a_url_with_no_query_is_untouched(self):
+        url, params = merge_query(f"{BASE}/orders.json", {"name": "1001"})
+        assert url == f"{BASE}/orders.json"
+        assert params == {"name": "1001"}
+
+    def test_the_urls_own_scoping_survives_an_argument(self):
+        url, params = merge_query(
+            "https://api.zakya.in/inventory/v1/contacts?organization_id=555",
+            {"phone": "+919876543210"},
+        )
+        assert url == "https://api.zakya.in/inventory/v1/contacts"
+        assert params == {"organization_id": "555", "phone": "+919876543210"}
+
+    def test_an_argument_of_the_same_name_wins(self):
+        """The URL's query is configuration; a declared parameter of the same
+        name is the value the operator meant to vary per call."""
+        url, params = merge_query(
+            "https://example.test/search?limit=10", {"limit": "50"}
+        )
+        assert params == {"limit": "50"}
+
+    def test_every_zakya_entry_still_names_its_organisation(self):
+        """The id is not optional: Zakya refuses a request without it rather
+        than defaulting to the only shop on the account."""
+        for entry in _LIBRARY:
+            if entry.vendor != "Zakya":
+                continue
+            _, params = merge_query(entry.url, {"x": "1"})
+            assert params.get("organization_id"), entry.key
