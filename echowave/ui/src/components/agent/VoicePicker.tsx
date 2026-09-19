@@ -70,7 +70,8 @@ export function VoicePicker({
     const playerRef = useRef<HTMLAudioElement | null>(null);
     const [playing, setPlaying] = useState<string | null>(null);
     // Voices we asked the server to record and it had nothing to give. Kept
-    // so a second press does not repeat a request that already said no.
+    // so a second press does not repeat a request that already said no, and
+    // so the row can say as much where the button was.
     const [silent, setSilent] = useState<Record<string, true>>({});
 
     const start = (voiceId: string, url: string) => {
@@ -134,9 +135,8 @@ export function VoicePicker({
                                 // A play button on every voice now, not only
                                 // the ones already recorded: an unrecorded
                                 // voice is one press away from being
-                                // recorded. Only a voice the server has told
-                                // us it cannot record loses its button.
-                                const hasSample = !silent[option.voice_id];
+                                // recorded.
+                                const noSample = !!silent[option.voice_id];
                                 return (
                                     <span
                                         key={option.voice_id}
@@ -161,24 +161,36 @@ export function VoicePicker({
                                                   ? `${option.name} · default`
                                                   : option.name}
                                         </button>
-                                        {/* Shown until the server says there is
-                                            nothing to play. A button that fails
-                                            on click is worse than no button, so
-                                            one that comes back empty removes
-                                            itself rather than failing twice. */}
-                                        {hasSample && (
-                                            <button
-                                                type="button"
-                                                aria-label={`Hear ${option.name}`}
-                                                onClick={() => void play(option)}
-                                                className="-ml-1 rounded-full p-1.5 text-muted-foreground transition-colors hover:text-foreground"
+                                        {/* The server answers with nothing
+                                            when the vendor does not speak this
+                                            language, or cannot be reached. The
+                                            press is still worth making later --
+                                            the next deploy may have a key the
+                                            last one lacked -- so the button
+                                            stays and the row says where the
+                                            sound went. A button that quietly
+                                            removes itself reads as a misclick,
+                                            and the listener is left believing
+                                            they broke it. */}
+                                        <button
+                                            type="button"
+                                            aria-label={`Hear ${option.name}`}
+                                            onClick={() => void play(option)}
+                                            className="-ml-1 rounded-full p-1.5 text-muted-foreground transition-colors hover:text-foreground"
+                                        >
+                                            {playing === option.voice_id ? (
+                                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                            ) : (
+                                                <Play className="h-3.5 w-3.5" />
+                                            )}
+                                        </button>
+                                        {noSample && (
+                                            <span
+                                                role="status"
+                                                className="ml-0.5 text-[11px] text-muted-foreground"
                                             >
-                                                {playing === option.voice_id ? (
-                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                                ) : (
-                                                    <Play className="h-3.5 w-3.5" />
-                                                )}
-                                            </button>
+                                                no sample yet
+                                            </span>
                                         )}
                                     </span>
                                 );
