@@ -98,11 +98,11 @@ export function LoginForm({ signupEnabled }: { signupEnabled: boolean }) {
 
       <form onSubmit={handleSubmit} className="space-y-4" data-testid="login-form">
         <div className="space-y-2">
-          <Label htmlFor="email">Work email</Label>
+          <Label htmlFor="email">Email</Label>
           <Input
             id="email"
             type="email"
-            placeholder="you@company.com"
+            placeholder="you@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
