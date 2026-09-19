@@ -19,6 +19,9 @@ const SECTION_IDS = [
     "qa",
     "outcomes",
     "general",
+    // What this bot rings the bell for: `NoticesCard`, in the Advanced tab
+    // beside the rest of how the bot behaves toward its owner.
+    "notices",
     "variables",
     "voicemail",
     "recordings",

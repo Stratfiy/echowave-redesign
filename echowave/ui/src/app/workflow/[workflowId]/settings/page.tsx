@@ -61,6 +61,7 @@ import { AgentHeader } from "../components/AgentHeader";
 import { AgentTabs } from "../components/AgentTabs";
 import { QaCard } from "../components/QaCard";
 import { useWorkflowState } from "../hooks/useWorkflowState";
+import { NoticesCard } from "./NoticesCard";
 import {
     ALWAYS_AVAILABLE,
     extractionVariables,
@@ -1817,6 +1818,11 @@ function WorkflowSettingsInner({
                                 onSave={saveWorkflowConfigurations}
                                 modelConfigurationDefaults={modelConfigurationDefaults}
                             />
+
+                            {/* What this bot interrupts you for. The runtime
+                                has read this per bot for a while; until now
+                                nothing on any screen let anybody choose it. */}
+                            <NoticesCard workflowId={Number(workflowId)} />
 
                             <VoicemailSection
                                 workflowConfigurations={resolvedWorkflowConfigurationsForRender}
