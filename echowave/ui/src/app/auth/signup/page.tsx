@@ -99,18 +99,23 @@ function SignupForm() {
         <p className="text-sm text-muted-foreground">Put your first bot to work in minutes — no credit card required.</p>
       </div>
 
-      <GoogleSignInButton label="Sign up with Google" referralCode={referralCode} />
-      <p className="text-center text-xs text-muted-foreground" data-testid="signup-google-notice">
-        Continuing with Google means you agree to the <LegalLinks />.
-      </p>
+      <GoogleSignInButton
+        label="Sign up with Google"
+        referralCode={referralCode}
+        notice={
+          <p className="text-center text-xs text-muted-foreground" data-testid="signup-google-notice">
+            Continuing with Google means you agree to the <LegalLinks />.
+          </p>
+        }
+      />
 
       <form onSubmit={handleSubmit} className="space-y-4" data-testid="signup-form">
         <div className="space-y-2">
-          <Label htmlFor="email">Work email</Label>
+          <Label htmlFor="email">Email</Label>
           <Input
             id="email"
             type="email"
-            placeholder="you@company.com"
+            placeholder="you@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required

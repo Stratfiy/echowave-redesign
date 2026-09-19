@@ -1,16 +1,23 @@
 // Decibyl auth shell: one centred column, the form card in the middle.
 //
-// Near-white canvas, ink text, one accent — Decibyl coral — and a single
-// gradient orb doing the work a hero illustration usually does. The old
-// two-column split put the form off to one side and filled the other half
-// with chips and a sales block; a visitor's eye went everywhere except the
-// thing they came to do. Now the card is the centre of the page, the brand
-// sits above it, and the enterprise line is a quiet footer for the few who
-// need it.
+// The card is the centre of the page, the brand sits above it, and the
+// enterprise line is a quiet footer for the few who need it. Self-hosting
+// and BYOK stay true and stay in that footer, not the first sentence.
 //
-// The copy still says what the product does for the buyer — answer the
-// phone — rather than the developer-tool pitch. Self-hosting and BYOK stay
-// true and stay in the enterprise line, not the first sentence.
+// **The ground is the app's ground.** This page used to open on a large
+// coral-to-mauve orb behind the headline, which is the one decoration the
+// product itself no longer has anywhere: the chat lost its purple wash, and
+// a door dressed differently from the room behind it reads as a different
+// product. So the canvas is plain `--background`, the same surface the
+// signed-in app stands on, and the only colour is the logo and one accented
+// phrase.
+//
+// **The pitch is the whole product, not one channel.** It read "Decibyl
+// answers your phone" -- true, and a third of what a customer buys. The
+// same bot replies on WhatsApp and email, looks things up in the tools the
+// business already runs, and files what it did. A visitor who only wants
+// the phone still reads it in the first line; one who wants a bot that
+// finishes a job no longer has to guess whether this does that.
 
 import type { ReactNode } from "react";
 
@@ -24,43 +31,25 @@ export function AuthShell({
   enterpriseSlot?: ReactNode;
 }) {
   return (
-    <div className="relative flex min-h-screen w-full flex-col items-center overflow-x-hidden bg-background px-6 py-10 text-foreground sm:py-14">
-      {/* The orb. One soft coral sphere, sitting behind the top of the page.
-          Decorative only: it is the sole chromatic element on an otherwise
-          achromatic canvas, so it must never compete with the form. */}
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-0 flex justify-center">
-        <div
-          className="mt-[-9rem] size-[26rem] rounded-full opacity-[0.55] blur-3xl sm:size-[34rem]"
-          style={{ background: "var(--brand-gradient)" }}
-        />
-      </div>
-
+    <div className="flex min-h-screen w-full flex-col items-center overflow-x-hidden bg-background px-6 py-10 text-foreground sm:py-14">
       {/* Brand */}
       <header className="relative z-10 flex flex-col items-center gap-3">
         <BrandLogo className="h-9" />
-        <span
-          className="rounded-full border px-3 py-1 text-[11px] font-medium uppercase tracking-wider"
-          style={{
-            borderColor: "var(--accent-brand-soft)",
-            background: "var(--accent-brand-tint)",
-            color: "var(--accent-brand)",
-          }}
-        >
+        <span className="rounded-full border border-border px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
           by nAutomation Labs
         </span>
       </header>
 
       {/* Headline. 400 weight, tight leading, one accented phrase. */}
       <div className="relative z-10 mt-8 max-w-xl text-center">
-        <h1 className="text-[28px] font-normal leading-[1.1] tracking-[-0.01em] text-brand-heading sm:text-[34px]">
-          Every missed call{" "}
-          <span style={{ color: "var(--accent-brand)" }}>is a customer</span>{" "}
-          who rang someone else.
+        <h1 className="text-balance text-[28px] font-normal leading-[1.1] tracking-[-0.01em] text-brand-heading sm:text-[34px]">
+          A bot for every job nobody has time for.
         </h1>
         <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-brand-body">
-          Decibyl answers your phone in Hindi, Tamil, Telugu and eight more —
-          books the appointment, qualifies the lead, and hands anything real to
-          a person. Set one up yourself in ten minutes.
+          Decibyl&rsquo;s bots answer the phone, reply on WhatsApp and email,
+          look things up in the tools you already run, and hand back what they
+          finished. In Hindi, Tamil, Telugu and eight more. Set one up yourself
+          in ten minutes.
         </p>
       </div>
 

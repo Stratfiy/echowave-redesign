@@ -11,6 +11,7 @@
  * simply do not render on that.
  */
 
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -34,8 +35,15 @@ function GoogleMark() {
 export function GoogleSignInButton({
     label = "Continue with Google",
     referralCode,
+    notice,
 }: {
     label?: string;
+    /** The click-wrap line for this button: pressing it accepts the same
+     *  documents the form's tick does. It renders here rather than beside the
+     *  caller's form because it is only true when the button is -- when the
+     *  deployment has no Google, the caller was left showing a sentence about
+     *  a button nobody could see. */
+    notice?: ReactNode;
     /** A partner's code, from `?ref=` on the signup link.
      *
      *  Passed to `/auth/google/start`, which folds it into the signed OAuth
@@ -113,6 +121,8 @@ export function GoogleSignInButton({
                 <GoogleMark />
                 {starting ? "Redirecting…" : label}
             </Button>
+
+            {notice}
 
             <div className="flex items-center gap-3">
                 <span className="h-px flex-1 bg-border" />
