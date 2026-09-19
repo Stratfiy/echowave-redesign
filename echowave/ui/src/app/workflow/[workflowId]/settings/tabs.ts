@@ -36,7 +36,7 @@ export const TABS = [
         label: "Advanced",
         icon: Variable,
         // "general" is the call itself: name, fallbacks, limits, recording.
-        sections: ["general", "voicemail", "variables", "identity"],
+        sections: ["general", "notices", "voicemail", "variables", "identity"],
     },
     {
         id: "share",
