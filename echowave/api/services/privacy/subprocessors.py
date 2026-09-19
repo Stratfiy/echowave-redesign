@@ -49,6 +49,18 @@ INFRASTRUCTURE = (
 IN_USE_WINDOW_DAYS = 90
 
 
+#: Line items that are not a company. `credits` is the rounding line that
+#: lifts a call to whole credits -- house revenue, priced against nobody --
+#: and it rode into the list because it is stored in the same `provider`
+#: column as Deepgram and Sarvam. It was published as a sub-processor that
+#: "sees call data", which on a page whose whole claim is derived accuracy is
+#: the worst kind of wrong.
+#:
+#: Matched on the platform component as well as the name, so the next house
+#: line added under it stays out without anybody remembering this.
+_NOT_A_VENDOR = frozenset({"credits", "platform", ""})
+
+
 @dataclass(frozen=True)
 class Subprocessor:
     name: str
@@ -56,6 +68,22 @@ class Subprocessor:
     data: str
     #: configured | observed | infrastructure
     basis: str
+
+
+def _is_vendor(provider: str | None, component: str | None) -> bool:
+    """Whether this line names another company at all.
+
+    A receipt's `provider` column carries house lines as well as vendors, and
+    only a company belongs on a sub-processor list: the question the list
+    answers is "who else saw this", and the answer for a rounding line is
+    nobody.
+    """
+    if not provider:
+        return False
+    return (
+        provider.strip().lower() not in _NOT_A_VENDOR
+        and (component or "").strip().lower() not in _NOT_A_VENDOR
+    )
 
 
 def _purpose_for_component(component: str) -> tuple[str, str]:
@@ -146,7 +174,8 @@ async def in_use(
         )
     ).all()
     for credential in credentials:
-        _merge(found, credential.provider, credential.component, "configured")
+        if _is_vendor(credential.provider, credential.component):
+            _merge(found, credential.provider, credential.component, "configured")
 
     observed = (
         await session.execute(
@@ -159,7 +188,7 @@ async def in_use(
         )
     ).all()
     for provider, component in observed:
-        if provider:
+        if _is_vendor(provider, component):
             _merge(found, provider, component or "", "observed")
 
     return _with_infrastructure(
@@ -216,7 +245,7 @@ async def for_organization(
 
     found: dict[str, dict] = {}
     for provider, component in rows:
-        if provider:
+        if _is_vendor(provider, component):
             _merge(found, provider, component or "", "observed")
     return _with_infrastructure(
         {name: _render(name, entry) for name, entry in found.items()}
