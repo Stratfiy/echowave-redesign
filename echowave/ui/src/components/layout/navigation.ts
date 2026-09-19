@@ -147,7 +147,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         // is delivery, and a person you deal with is desk work.
         title: "Desk",
         url: "/tasks",
-        activePaths: ["/requests", "/contacts"],
+        activePaths: ["/requests", "/contacts", "/deliverables"],
         icon: CalendarClock,
         keywords: [
           "tasks", "scheduled", "routine", "schedule", "every morning", "daily",

@@ -1100,8 +1100,22 @@ export function ChannelStream({
                                         <span className="font-medium">{author}</span>
                                         <span className="ml-2 text-xs text-muted-foreground">
                                             <time dateTime={event.at}>{when(event.at)}</time>
-                                            {event.is_deliverable ? ' · handed to you' : ''}
                                         </span>
+                                        {/* A chip rather than a suffix on the
+                                            timestamp: this row is the thing
+                                            somebody came to the thread for,
+                                            and it read as part of the clock.
+                                            It links to the one list of them,
+                                            because the question after "what
+                                            did it produce" is "what else". */}
+                                        {event.is_deliverable && (
+                                            <Link
+                                                href="/deliverables"
+                                                className="ml-2 inline-flex items-center gap-1 rounded-full border border-emerald-300/60 bg-emerald-50/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 hover:bg-emerald-100/60 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-300"
+                                            >
+                                                Handed to you
+                                            </Link>
+                                        )}
                                     </p>
                                 )}
                                 {/* whitespace-pre-wrap: somebody who typed a

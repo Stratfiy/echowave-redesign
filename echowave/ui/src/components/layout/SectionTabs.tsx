@@ -145,6 +145,11 @@ export const DESK_TABS: PageTab[] = [
   { href: "/tasks", label: "Tasks", prefix: true },
   { href: "/requests", label: "Requests", prefix: true },
   { href: "/contacts", label: "Contacts", prefix: true },
+  // What the bots handed over. The timeline has marked these rows since it
+  // was built and the route has taken `deliverables_only` for as long;
+  // nothing ever asked for it, so the only way to find what a bot produced
+  // was to scroll its thread past every message it also wrote.
+  { href: "/deliverables", label: "Handed over", prefix: true },
 ];
 
 /** The shop, as one screen with departments across the top.
