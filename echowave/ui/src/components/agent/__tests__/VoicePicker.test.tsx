@@ -1,8 +1,13 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type VoiceOption,VoicePicker } from "../VoicePicker";
+
+vi.mock("@/client/client.gen", () => ({
+  client: { get: vi.fn() },
+}));
+import { client } from "@/client/client.gen";
 
 // jsdom has no real audio; capture what the picker tries to play.
 let lastSrc = "";
@@ -111,4 +116,44 @@ describe("a voice whose vendor published no gender", () => {
 
         expect(screen.queryByText("Other")).toBeNull();
     });
+});
+
+describe("a voice the server has no recording for", () => {
+  // Every voice on the deployment came back with a null url -- no platform
+  // key, or a vendor that could not be reached -- and the picker answered by
+  // deleting its own play button. Pressing play and watching the button
+  // disappear reads as having broken something, and leaves the one question
+  // the screen exists to answer unanswered.
+  const nothing = { data: { url: null }, error: undefined };
+
+  beforeEach(() => {
+    vi.mocked(client.get).mockResolvedValue(nothing as never);
+  });
+
+  it("says so, where the sound would have been", async () => {
+    render(
+      <VoicePicker voices={[voice({ name: "Emma" })]} selected="" onSelect={() => {}} />,
+    );
+    fireEvent.click(screen.getByLabelText("Hear Emma"));
+    await waitFor(() => expect(screen.getByText("no sample yet")).toBeTruthy());
+  });
+
+  it("keeps the button, because the next deploy may have the key this one lacked", async () => {
+    render(
+      <VoicePicker voices={[voice({ name: "Emma" })]} selected="" onSelect={() => {}} />,
+    );
+    fireEvent.click(screen.getByLabelText("Hear Emma"));
+    await waitFor(() => expect(screen.getByText("no sample yet")).toBeTruthy());
+    expect(screen.getByLabelText("Hear Emma")).toBeTruthy();
+  });
+
+  it("plays nothing rather than an empty source", async () => {
+    render(
+      <VoicePicker voices={[voice({ name: "Emma" })]} selected="" onSelect={() => {}} />,
+    );
+    fireEvent.click(screen.getByLabelText("Hear Emma"));
+    await waitFor(() => expect(screen.getByText("no sample yet")).toBeTruthy());
+    expect(play).not.toHaveBeenCalled();
+    expect(lastSrc).toBe("");
+  });
 });
