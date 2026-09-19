@@ -13,6 +13,9 @@ export const PUBLIC_PATHS = [
   "/auth/forgot",
   // The public share page: a prospect talks to an agent, no account.
   "/talk",
+  // The trust page: a security review happens before somebody signs up, so
+  // the page answering it cannot be behind the signup.
+  "/trust",
   // The embed widget's own script. It is loaded by the share page and by
   // every customer site that pastes the snippet, so it is never behind a
   // session. Guarded, the redirect to /auth/login answered with HTML under

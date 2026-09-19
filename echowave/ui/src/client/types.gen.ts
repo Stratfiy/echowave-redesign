@@ -32248,6 +32248,33 @@ export type DownloadWorkflowArtifactApiV1PublicDownloadWorkflowTokenArtifactType
     200: unknown;
 };
 
+export type TrustApiV1PublicTrustGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/public/trust';
+};
+
+export type TrustApiV1PublicTrustGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+};
+
+export type TrustApiV1PublicTrustGetResponses = {
+    /**
+     * Response Trust Api V1 Public Trust Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type TrustApiV1PublicTrustGetResponse = TrustApiV1PublicTrustGetResponses[keyof TrustApiV1PublicTrustGetResponses];
+
 export type DeactivateEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenDeleteData = {
     body?: never;
     headers?: {
