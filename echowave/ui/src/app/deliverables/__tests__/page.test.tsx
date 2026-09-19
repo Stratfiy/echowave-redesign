@@ -19,7 +19,8 @@ vi.mock("@/client/sdk.gen", () => ({
 }));
 vi.mock("next/navigation", () => ({ usePathname: () => "/deliverables" }));
 
-import DeliverablesPage, { byDay } from "../page";
+import { byDay } from "../grouping";
+import DeliverablesPage from "../page";
 
 const event = (over: Record<string, unknown> = {}) => ({
     id: 1,

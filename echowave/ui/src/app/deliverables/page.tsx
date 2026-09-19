@@ -25,6 +25,8 @@ import { BotAvatar } from "@/components/bot/BotAvatar";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { DESK_TABS } from "@/components/layout/SectionTabs";
 
+import { byDay } from "./grouping";
+
 /** How each kind reads, so a row says what happened before it is read. */
 const TONE: Record<string, { icon: typeof FileText; className: string; word: string }> = {
     outcome_filed: { icon: CheckCircle2, className: "text-emerald-600", word: "Sorted" },
@@ -44,34 +46,10 @@ function filesOf(event: TimelineEvent): Attached[] {
     );
 }
 
-/** Today and yesterday by name: that is how somebody scrolling back says it. */
-export function dayLabel(at: string): string {
-    const date = new Date(at);
-    if (Number.isNaN(date.getTime())) return "";
-    const midnight = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-    const days = Math.round((midnight(new Date()) - midnight(date)) / 86_400_000);
-    if (days === 0) return "Today";
-    if (days === 1) return "Yesterday";
-    return date.toLocaleDateString(undefined, { day: "numeric", month: "short" });
-}
-
 function clock(at: string): string {
     const date = new Date(at);
     if (Number.isNaN(date.getTime())) return "";
     return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-}
-
-/** The rows in order, cut into days. Exported for the tests: the grouping is
- *  the only logic on this screen worth holding still. */
-export function byDay(events: TimelineEvent[]): { day: string; events: TimelineEvent[] }[] {
-    const days: { day: string; events: TimelineEvent[] }[] = [];
-    for (const event of events) {
-        const label = dayLabel(event.at);
-        const last = days[days.length - 1];
-        if (last && last.day === label) last.events.push(event);
-        else days.push({ day: label, events: [event] });
-    }
-    return days;
 }
 
 export default function DeliverablesPage() {
