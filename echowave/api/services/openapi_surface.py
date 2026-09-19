@@ -117,7 +117,10 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
         "Billing",
         ("billing", "packs", "usage", "reports", "referrals", "partners", "kyc"),
     ),
-    ("Compliance and privacy", ("compliance", "privacy")),
+    # `public-trust` is the same subject read from outside: the platform's own
+    # sub-processors and retention, for somebody doing a security review
+    # before they have an account to log into.
+    ("Compliance and privacy", ("compliance", "privacy", "public-trust")),
     ("Operations", ("health",)),
 )
 

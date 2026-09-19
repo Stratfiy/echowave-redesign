@@ -49,8 +49,8 @@ from api.routes.public_agent import router as public_agent_router
 from api.routes.public_download import router as public_download_router
 from api.routes.public_email import router as public_email_router
 from api.routes.public_embed import router as public_embed_router
-from api.routes.public_trust import router as public_trust_router
 from api.routes.public_triggers import router as public_triggers_router
+from api.routes.public_trust import router as public_trust_router
 from api.routes.public_whatsapp import router as public_whatsapp_router
 from api.routes.referrals import router as referrals_router
 from api.routes.reports import router as reports_router
