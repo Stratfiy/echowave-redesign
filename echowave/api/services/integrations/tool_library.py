@@ -87,6 +87,7 @@ class ToolLibraryResponse(BaseModel):
 _ZOHO = "Zoho CRM"
 _HUBSPOT = "HubSpot"
 _SHOPIFY = "Shopify"
+_ZAKYA = "Zakya"
 
 #: Repeated on every Zoho entry rather than said once, because the datacentre
 #: is the single most common way a Zoho integration fails and it fails with
@@ -109,6 +110,24 @@ _SHOPIFY_SETUP = (
     "and whose value is the Admin API access token from a custom app with "
     "read_orders — and read_all_orders too if the shop needs orders older than "
     "60 days, which Shopify withholds without it."
+)
+
+
+#: Repeated on every Zakya entry. Three things are the operator's and all
+#: three fail at call time rather than at setup: the organisation id, the
+#: datacentre, and the grant.
+#:
+#: Zakya is Zoho's retail product and rides the Zoho Inventory API shape under
+#: its own host, so the organisation id is not optional -- an id-less request
+#: is refused outright rather than defaulting to the only shop on the account.
+_ZAKYA_SETUP = (
+    "Replace YOUR_ORG_ID with this shop's organisation id (Zakya → Manage "
+    "Organisations, or GET https://api.zakya.in/v1/organizations), and change "
+    ".in to .com if the account is on the US datacentre. Connect an oauth2 "
+    "credential whose token URL is https://accounts.zoho.in/oauth/v2/token "
+    "and whose header prefix is Zoho-oauthtoken — Zakya rejects Bearer — with "
+    "the ZohoPOSAPI...READ scopes for contacts, items, salesorders and "
+    "invoices."
 )
 
 
@@ -385,6 +404,106 @@ _LIBRARY: tuple[LibraryTool, ...] = (
             )
         ],
         setup_note=_SHOPIFY_SETUP,
+    ),
+    # ----------------------------------------------------------------- Zakya
+    # Read-only on purpose for a first release. A counter assistant answers
+    # "do you have it", "what do I owe" and "where is my order" all day; it
+    # does not write a sales order mid-sentence, and a POST whose body shape
+    # is wrong fails on a live call rather than at setup.
+    LibraryTool(
+        key="zakya_find_customer",
+        vendor=_ZAKYA,
+        display_name="Find the caller",
+        summary="Look the caller up in the shop's own customer list.",
+        tool_name="find_customer",
+        tool_description=(
+            "Look up the person calling, by phone number, among the shop's "
+            "customers. Call this at the start of a call to find out whether "
+            "they have bought before and what their customer id is — the "
+            "order and invoice lookups both need that id. If nothing comes "
+            "back, treat them as a new customer."
+        ),
+        method="GET",
+        url="https://api.zakya.in/inventory/v1/contacts?organization_id=YOUR_ORG_ID",
+        parameters=[
+            LibraryToolParameter(
+                name="phone",
+                description=(
+                    "The caller's phone number as the shop stores it, usually "
+                    "with the country code."
+                ),
+            )
+        ],
+        setup_note=_ZAKYA_SETUP,
+    ),
+    LibraryTool(
+        key="zakya_find_item",
+        vendor=_ZAKYA,
+        display_name="Is it in stock",
+        summary="Answer price and availability without walking to the shelf.",
+        tool_name="find_item",
+        tool_description=(
+            "Search the shop's stock by name, brand or SKU. Call this when the "
+            "caller asks whether something is available, what it costs, or "
+            "which sizes or variants are in. Read back the rate and the stock "
+            "on hand; if several match, say how many and ask which one."
+        ),
+        method="GET",
+        url="https://api.zakya.in/inventory/v1/items?organization_id=YOUR_ORG_ID",
+        parameters=[
+            LibraryToolParameter(
+                name="search_text",
+                description=(
+                    "What the caller asked for, in their words: a product "
+                    "name, a brand, or an SKU."
+                ),
+            )
+        ],
+        setup_note=_ZAKYA_SETUP,
+    ),
+    LibraryTool(
+        key="zakya_customer_orders",
+        vendor=_ZAKYA,
+        display_name="Where is my order",
+        summary="Answer the commonest call in retail, in one lookup.",
+        tool_name="customer_orders",
+        tool_description=(
+            "List this customer's sales orders, most recent first. Call this "
+            "after finding the customer, when they ask about an order they "
+            "have placed. Tell them the order's status and date rather than "
+            "reading out every line of it."
+        ),
+        method="GET",
+        url="https://api.zakya.in/inventory/v1/salesorders?organization_id=YOUR_ORG_ID",
+        parameters=[
+            LibraryToolParameter(
+                name="customer_id",
+                description="The customer id from the earlier caller lookup.",
+            )
+        ],
+        setup_note=_ZAKYA_SETUP,
+    ),
+    LibraryTool(
+        key="zakya_customer_invoices",
+        vendor=_ZAKYA,
+        display_name="What do I owe",
+        summary="Read an outstanding balance back to the person who owes it.",
+        tool_name="customer_invoices",
+        tool_description=(
+            "List this customer's invoices and what is still due on them. "
+            "Call this after finding the customer, when they ask about a bill, "
+            "a balance or a payment. Never read out another customer's "
+            "invoice, and never quote a total you did not get from here."
+        ),
+        method="GET",
+        url="https://api.zakya.in/inventory/v1/invoices?organization_id=YOUR_ORG_ID",
+        parameters=[
+            LibraryToolParameter(
+                name="customer_id",
+                description="The customer id from the earlier caller lookup.",
+            )
+        ],
+        setup_note=_ZAKYA_SETUP,
     ),
 )
 
