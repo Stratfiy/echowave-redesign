@@ -96,7 +96,14 @@ describe("section tabs", () => {
     // reach a door the sidebar already pins. Contacts came from Setup, where
     // it sat beside Campaigns -- but a campaign dialling a list is delivery,
     // and a person you deal with is desk work.
-    expect(DESK_TABS.map((tab) => tab.href)).toEqual(["/tasks", "/requests", "/contacts"]);
+    // Handed over joined them once the timeline could filter to the rows a
+    // bot hands back: finished work is desk work too.
+    expect(DESK_TABS.map((tab) => tab.href)).toEqual([
+        "/tasks",
+        "/requests",
+        "/contacts",
+        "/deliverables",
+    ]);
   });
 
   it("gives the shop one screen with departments, not four rows", () => {
