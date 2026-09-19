@@ -557,6 +557,33 @@ class TestSubprocessorsAreDerived:
         assert entry.basis == "configured"
         assert entry.purpose == "Speech recognition"
 
+    async def test_the_credits_rounding_line_is_not_a_company(self, async_session):
+        """Seen on the published trust page: "credits — Processing — Call
+        data". It is the line that lifts a call to whole credits, house
+        revenue priced against nobody, and it rode in because it is stored in
+        the same `provider` column as Deepgram."""
+        _, workflow, _ = await _org(async_session, "roundingline")
+        run = await _run(async_session, workflow)
+        await _cost_item(async_session, run, provider="credits", component="platform")
+
+        listed = await subprocessors.in_use(async_session)
+
+        assert not any(s.name == "credits" for s in listed)
+
+    async def test_the_rounding_line_is_not_a_company_for_one_account_either(
+        self, async_session
+    ):
+        """The same list, narrowed to one account, is what /privacy shows."""
+        organization, workflow, _ = await _org(async_session, "roundingorg")
+        run = await _run(async_session, workflow)
+        await _cost_item(async_session, run, provider="credits", component="platform")
+
+        listed = await subprocessors.for_organization(
+            async_session, organization_id=organization.id
+        )
+
+        assert not any(s.name == "credits" for s in listed)
+
     async def test_a_deactivated_provider_drops_off(self, async_session):
         """Deactivating is how a provider is taken out of service. If it stayed
         on the list, taking a vendor out would never be visible to anyone."""
