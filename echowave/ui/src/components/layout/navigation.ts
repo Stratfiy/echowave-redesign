@@ -128,7 +128,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         // day it opened on a greeting and a composer: it says what happened
         // and lets you act, and the charts it used to lead with are below the
         // fold. "Overview" told a reader to expect a dashboard.
-        title: "Home",
+        title: "Decibyl",
         url: "/overview",
         icon: Home,
         keywords: ["home", "dashboard", "overview", "start"],
@@ -145,12 +145,12 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         // board people and bots file work on, and Contacts came from Setup --
         // it sat beside Campaigns because a campaign dials a list, but that
         // is delivery, and a person you deal with is desk work.
-        title: "Desk",
+        title: "Tasks",
         url: "/tasks",
         activePaths: ["/requests", "/contacts", "/deliverables"],
         icon: CalendarClock,
         keywords: [
-          "tasks", "scheduled", "routine", "schedule", "every morning", "daily",
+          "desk", "tasks", "scheduled", "routine", "schedule", "every morning", "daily",
           "requests", "board", "kanban", "delegate", "hand-off", "todo",
           "contacts", "contact list", "caller", "customers", "phone book",
           "email", "address",
@@ -170,7 +170,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         //
         // "bots" and "team" both stay as search keywords: a rename that
         // makes a destination unsearchable is a rename that loses it.
-        title: "Your bots",
+        title: "Agents",
         url: "/workflow",
         // The old models page redirects here; keep it lit while it does.
         activePaths: ["/model-configurations"],
@@ -179,7 +179,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
           // "bots" first: it is what the rail used to say and what most
           // people still type. A rename that makes a destination unsearchable
           // is a rename that loses it.
-          "bots",
+          "agents", "agent", "your bots",
           "bot",
           "team",
           "bots",
@@ -209,7 +209,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         // "Files", not "Knowledge base". The row names what is in it -- the
         // documents and clips a bot reads -- rather than the category the
         // industry files them under.
-        title: "Files",
+        title: "Knowledge",
         url: "/files",
         activePaths: ["/recordings"],
         icon: Database,

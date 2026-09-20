@@ -4,15 +4,18 @@ import { ReactFlowInstance } from "@xyflow/react";
 import { FlowEdge, FlowNode, NodeType } from "@/components/flow/types";
 
 // Node dimensions
-const NODE_WIDTH = 350;
-const NODE_HEIGHT = 120;
+const NODE_WIDTH = 280;
+const NODE_HEIGHT = 180;
 const VERTICAL_SPACING = 150; // Vertical spacing between stacked nodes
 const SECTION_HORIZONTAL_GAP = 500; // Horizontal gap between sections
 
-const WORKFLOW_NODE_TYPES = new Set([
+const WORKFLOW_NODE_TYPES = new Set<string>([
     NodeType.START_CALL,
     NodeType.AGENT_NODE,
     NodeType.END_CALL,
+    'branch',
+    'wait',
+    'handoff',
 ]);
 
 function isRightRailNode(type: string): boolean {
@@ -45,7 +48,7 @@ export const layoutNodes = (
 
     // Layout workflow nodes using dagre
     const g = new dagre.graphlib.Graph();
-    g.setGraph({ rankdir, nodesep: 400, ranksep: 300 });
+    g.setGraph({ rankdir, nodesep: 80, ranksep: 120 });
     g.setDefaultEdgeLabel(() => ({}));
 
     // Sort workflow nodes so startCall comes first and endCall comes last
@@ -58,7 +61,7 @@ export const layoutNodes = (
     });
 
     sortedWorkflowNodes.forEach((node) => {
-        g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
+        g.setNode(node.id, { width: node.measured?.width ?? NODE_WIDTH, height: node.measured?.height ?? NODE_HEIGHT });
     });
 
     // Only include edges between workflow nodes
@@ -73,56 +76,20 @@ export const layoutNodes = (
 
     dagre.layout(g);
 
-    // Group workflow nodes by their Y position (rank/depth level)
-    const nodesByRank = new Map<number, { node: FlowNode; dagreNode: dagre.Node }[]>();
-    sortedWorkflowNodes.forEach((node) => {
-        const dagreNode = g.node(node.id);
-        const rankY = Math.round(dagreNode.y / 50) * 50;
-        if (!nodesByRank.has(rankY)) {
-            nodesByRank.set(rankY, []);
-        }
-        nodesByRank.get(rankY)!.push({ node, dagreNode });
-    });
-
-    const horizontalStagger = 600;
-    const ranks = Array.from(nodesByRank.keys()).sort((a, b) => a - b);
-
-    // Calculate workflow bounds
     let workflowMinX = Infinity;
     let workflowMaxX = -Infinity;
     let workflowMinY = Infinity;
     let workflowMaxY = -Infinity;
-
     const positionedWorkflowNodes = sortedWorkflowNodes.map((node) => {
-        const dagreNode = g.node(node.id);
-        const rankY = Math.round(dagreNode.y / 50) * 50;
-        const rankIndex = ranks.indexOf(rankY);
-        const nodesAtRank = nodesByRank.get(rankY)!;
-
-        let xOffset = 0;
-
-        // Apply zigzag pattern for single nodes at each rank
-        if (nodesAtRank.length === 1) {
-            if (node.type !== 'startCall' && node.type !== NodeType.START_CALL &&
-                node.type !== 'endCall' && node.type !== NodeType.END_CALL) {
-                xOffset = (rankIndex % 2 === 0) ? -horizontalStagger : horizontalStagger;
-            }
-        }
-
-        const x = dagreNode.x + xOffset;
-        const y = dagreNode.y;
-
+        const placed = g.node(node.id);
+        const x = placed.x - placed.width / 2;
+        const y = placed.y - placed.height / 2;
         workflowMinX = Math.min(workflowMinX, x);
-        workflowMaxX = Math.max(workflowMaxX, x + NODE_WIDTH);
+        workflowMaxX = Math.max(workflowMaxX, x + placed.width);
         workflowMinY = Math.min(workflowMinY, y);
-        workflowMaxY = Math.max(workflowMaxY, y + NODE_HEIGHT);
-
-        return {
-            ...node,
-            position: { x, y }
-        };
+        workflowMaxY = Math.max(workflowMaxY, y + placed.height);
+        return { ...node, position: { x, y } };
     });
-
     // Calculate center Y of the workflow for vertical alignment
     const workflowCenterY = (workflowMinY + workflowMaxY) / 2;
     const workflowTopY = workflowMinY;

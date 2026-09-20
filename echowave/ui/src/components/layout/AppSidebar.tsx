@@ -68,51 +68,25 @@ import {
 const TELEPHONY_WARNING_COPY = "Action required";
 
 
-/** The rows pinned to the top of the panel, in reading order.
- *
- *  Buzz pins Inbox, Pulse, Projects, Agents and Workflows above its
- *  channel sections; this is the same shape read for a product whose
- *  members are bots. A context row opens that context's sections beneath
- *  it (Activity, Marketplace, Setup, Account); Home does that and goes
- *  home; Desk is a plain door onto the diary, the in-tray and the contact
- *  book, and Bots onto the roster, the way Buzz pins Agents above its
- *  channels. */
+/** Primary destinations stay visible while contextual setup links remain available. */
 type PinnedRow =
   | { kind: "context"; title: string; icon: LucideIcon; context: NavContext }
   | { kind: "link"; title: string; icon: LucideIcon; url: string };
 
 function contextRow(id: NavContextId): PinnedRow {
   const context = NAV_CONTEXTS.find((c) => c.id === id)!;
-  return { kind: "context", title: context.title, icon: context.icon, context };
+  return { kind: "context", title: id === "home" ? "Decibyl" : context.title, icon: context.icon, context };
 }
 
 const PINNED_ROWS: PinnedRow[] = [
   contextRow("home"),
+  { kind: "link", title: "Tasks", icon: CalendarClock, url: "/tasks" },
+  { kind: "link", title: "Agents", icon: Bot, url: "/workflow" },
+  { kind: "link", title: "Knowledge", icon: Database, url: "/files" },
   contextRow("activity"),
-  { kind: "link", title: "Desk", icon: CalendarClock, url: "/tasks" },
-  // Buzz pins Agents above its channel sections, and the lists below are
-  // Channels and Direct messages. This is that shape, in our word: Buzz's
-  // members are agents and ours are bots, and the product says bots
-  // everywhere else -- the marketplace shelf, the roster, the empty states.
-  // Borrowing the shape is the point; borrowing the vocabulary would leave
-  // one row speaking a language nothing else in the app speaks.
-  //
-  // The row is the roster and what each one can do; the lists below are the
-  // conversations. Neither list heading is a door, so this is the one way to
-  // the full list rather than the third.
-  { kind: "link", title: "Bots", icon: Bot, url: "/workflow" },
 ];
 
-/** The contexts behind the person, rather than above the bots.
- *
- *  Four rows are what a day needs: the thread, what the bots did, the desk,
- *  and the roster. The other three are a shop you visit when you want
- *  something, a setup you do once, and an account you check monthly -- and
- *  all three stood above the roster on every screen, on a phone most of all.
- *  Buzz keeps settings behind the profile card for the same reason.
- *
- *  Nothing is lost. Each opens its panel exactly as its row did, and the
- *  guard that every destination lives in exactly one panel still holds. */
+/** Marketplace, setup and account controls remain available from the account menu. */
 const PERSONAL_CONTEXTS: NavContextId[] = ["marketplace", "setup", "account"];
 
 export function AppSidebar() {
@@ -206,7 +180,10 @@ export function AppSidebar() {
   const contextSections =
     isCollapsed || activeContext === "home"
       ? []
-      : getContextSections(activeContext, navSections);
+      : getContextSections(activeContext, navSections).map((section) => ({
+          ...section,
+          items: section.items.filter((item) => item.url !== "/files"),
+        }));
   // A panel can still outrun a short viewport, so the list scrolls.
   // Left alone it rests at the top, which puts the *current* page half under
   // the footer — a selected item you cannot see reads as a broken sidebar
@@ -419,13 +396,7 @@ export function AppSidebar() {
           </div>
         )}
 
-        {/* The pinned rows, Buzz's Inbox / Pulse / Projects / Agents /
-            Workflows read for this product: Home, Activity, Desk and
-            Bots, with the conversations as the lists below. A context row
-            opens its
-            sections below; a plain row is a door. The five contexts were a
-            vertical strip of icons down the edge; as rows they read like
-            the rest of the panel and take the same tint when selected. */}
+{/* Primary destinations and contextual activity navigation. */}
         <div role="tablist" aria-label="Workspace" data-rail="" className="px-1 pt-1">
           <SidebarMenu>
             {PINNED_ROWS.map((row) => {
@@ -461,8 +432,8 @@ export function AppSidebar() {
                     type="button"
                     role="tab"
                     aria-selected={selected}
-                    aria-label={context.title}
-                    tooltip={context.title}
+                    aria-label={row.title}
+                    tooltip={row.title}
                     isActive={selected}
                     onClick={() => {
                       setPickedContext(context.id);
@@ -474,7 +445,7 @@ export function AppSidebar() {
                     className={cn("rounded-md text-sidebar-foreground/85", isCollapsed && "justify-center")}
                   >
                     <Icon aria-hidden="true" className="h-4 w-4 shrink-0 text-sidebar-foreground/70" />
-                    <span className={cn("truncate", isCollapsed && "sr-only")}>{context.title}</span>
+                    <span className={cn("truncate", isCollapsed && "sr-only")}>{row.title}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               );
@@ -514,27 +485,9 @@ export function AppSidebar() {
               </SidebarMenu>
             </SidebarGroup>
           ))}
-          {/* Home is the workspace: the files, then the channels and the
-              bots, Buzz's Channels and Direct messages.
-
-              No Decibyl row. Home *is* Decibyl -- the pinned row above goes to
-              /overview and this one went to /overview, so the assistant was
-              announced twice on a panel we had just finished thinning out. The
-              pinned row wins: it is the one that is there on every screen. */}
+{/* Conversations remain separate from agent setup. */}
           {activeContext === "home" && (
             <>
-              <SidebarGroup className="py-1">
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname === "/files"}>
-                      <Link href="/files">
-                        <Database aria-hidden="true" className="h-4 w-4 shrink-0" />
-                        <span className="truncate">Files</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroup>
               <SidebarChannels collapsed={isCollapsed} />
               <SidebarBots collapsed={isCollapsed} />
             </>
