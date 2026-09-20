@@ -26,6 +26,7 @@ from api.services.gen_ai.transcription import (
     build_transcription_service,
 )
 from api.services.storage import storage_fs
+from api.services.workflow import recording_storage
 
 router = APIRouter(prefix="/workflow-recordings", tags=["workflow-recordings"])
 
@@ -40,6 +41,34 @@ async def _generate_unique_recording_id(organization_id: int) -> str:
     raise HTTPException(
         status_code=500, detail="Failed to generate unique recording ID"
     )
+
+
+def _validated_storage_key(storage_key: str, *, organization_id: int) -> str:
+    """The key the caller sent, once it is shown to be theirs.
+
+    The client carries this between ``/upload-url`` and ``POST /``, and the
+    second call used to store whatever it was handed. Since the row lookup
+    behind playback is org-scoped, an account could create a row of its own
+    naming another tenant's object and then read it back through the scoped
+    lookup -- the tenant check was on the row rather than on what the row
+    points at.
+
+    400 rather than 403: the caller is authenticated and entitled to this
+    endpoint. What is wrong is the key in the body.
+    """
+    if not recording_storage.belongs_to_organization(storage_key, organization_id):
+        logger.warning(
+            "Refusing a recording whose storage key is not org "
+            f"{organization_id}'s to name."
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "storage_key must be one returned by /workflow-recordings/"
+                "upload-url for this organization."
+            ),
+        )
+    return storage_key
 
 
 def _build_response(rec) -> RecordingResponseSchema:
@@ -78,10 +107,10 @@ async def get_upload_urls(
                 user.selected_organization_id
             )
 
-            storage_key = (
-                f"recordings/{user.selected_organization_id}"
-                f"/{recording_id}"
-                f"/{fd.filename}"
+            storage_key = recording_storage.storage_key_for(
+                organization_id=user.selected_organization_id,
+                recording_id=recording_id,
+                filename=fd.filename,
             )
 
             upload_url = await storage_fs.aget_presigned_put_url(
@@ -140,7 +169,10 @@ async def create_recordings(
                 recording_id=rec_req.recording_id,
                 organization_id=user.selected_organization_id,
                 transcript=rec_req.transcript,
-                storage_key=rec_req.storage_key,
+                storage_key=_validated_storage_key(
+                    rec_req.storage_key,
+                    organization_id=user.selected_organization_id,
+                ),
                 storage_backend=backend.value,
                 created_by=user.id,
                 tts_provider=rec_req.tts_provider,
