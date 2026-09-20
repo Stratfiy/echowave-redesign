@@ -28,10 +28,11 @@ long a call lasted and what it cost identifies nobody.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
+from typing import Any
 
 from loguru import logger
-from sqlalchemy import or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.constants import (
@@ -259,6 +260,28 @@ async def purge_expired(
 
     Bounded per run so one sweep cannot hold a transaction open across a very
     large backlog; the cron simply catches up over subsequent passes.
+
+    **The batch has to be spent on rows with work due, which is why the policy
+    is in the query.** The candidate filter used to be "recording not purged OR
+    transcript not purged" -- a correct description of unfinished work and the
+    wrong description of work available *now*. Recordings expire at 90 days and
+    transcripts at 365, so between those dates a row has had its audio deleted
+    and its transcript is not yet due. It is finished for the time being, it
+    still matched, and being the oldest it sorted first.
+
+    Once ``limit`` runs sat in that window they filled the batch every night
+    and the rows behind them crossing day 90 were never reached. Nothing
+    failed: ``purge_run`` on an already-purged row finds no objects, reports
+    the row cleared, and the nightly log said "purged 500 runs, deleted 0
+    objects" indefinitely. The silent-absence shape from AGENTS.md, with a
+    deletion as the thing that goes missing -- so what accumulated was personal
+    data a privacy notice says was erased.
+
+    So the predicate now asks what the loop below would actually do, against
+    each organization's own windows rather than one platform-wide number:
+    the recording window has passed, and either the audio is still there or the
+    transcript is still there and its own window has passed too. Rows with
+    nothing due are not selected, so every batch makes progress.
     """
     now = now or datetime.now(UTC)
 
@@ -276,34 +299,55 @@ async def purge_expired(
             policy.transcript_retention_days or 0,
         )
 
-    oldest_kept = now - timedelta(days=MINIMUM_RETENTION_DAYS)
+    def _window(column) -> Any:
+        """One organization's window in days, as the DB sees it.
+
+        Mirrors ``resolve_policy``: the policy's value, the platform default
+        where the policy is absent or leaves it null, and never below
+        ``MINIMUM_RETENTION_DAYS`` -- a window mistakenly set to 0 must not
+        delete calls as they finish.
+        """
+        default = (
+            DEFAULT_RECORDING_RETENTION_DAYS
+            if column is DataRetentionPolicyModel.recording_retention_days
+            else DEFAULT_TRANSCRIPT_RETENTION_DAYS
+        )
+        return func.greatest(MINIMUM_RETENTION_DAYS, func.coalesce(column, default))
+
+    def _due(column) -> Any:
+        """Whether a run is past that window, as at ``now``."""
+        return WorkflowRunModel.created_at <= now - func.make_interval(
+            0, 0, 0, _window(column)
+        )
+
+    recording_due = _due(DataRetentionPolicyModel.recording_retention_days)
+    transcript_due = _due(DataRetentionPolicyModel.transcript_retention_days)
+
+    # is_distinct_from, not !=, because a NULL url is "not purged" and SQL's
+    # != would answer NULL to that.
+    recording_present = WorkflowRunModel.recording_url.is_distinct_from(PURGED_MARKER)
+    transcript_present = WorkflowRunModel.transcript_url.is_distinct_from(PURGED_MARKER)
+
     candidates = (
         await session.scalars(
             select(WorkflowRunModel)
             .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+            # Outer, because most organizations have no policy row and take the
+            # platform default. An inner join would quietly exempt every one of
+            # them from retention -- an allowlist by accident.
+            .outerjoin(
+                DataRetentionPolicyModel,
+                DataRetentionPolicyModel.organization_id
+                == WorkflowModel.organization_id,
+            )
             .where(
-                WorkflowRunModel.created_at < oldest_kept,
-                # Not-yet-fully-purged, which is a different question from
-                # "still has audio". purge_run stamps recording_url the moment
-                # it deletes the audio, but only stamps transcript_url once the
-                # transcript window has also passed. Selecting on the recording
-                # alone therefore dropped every row at the *first* purge: the
-                # audio went at day 90, the row became invisible to this query,
-                # and the day-365 transcript purge never came for it. The
-                # transcript, the gathered context and every field the agent
-                # extracted from the caller stayed forever, against a retention
-                # period we publish in a privacy notice and warrant in a DPA.
-                #
-                # It also excluded runs that never had audio at all — recording
-                # disabled, or a text session — so their transcripts were never
-                # examined either.
-                #
-                # is_distinct_from, not !=, because a NULL transcript_url is
-                # "not purged" and SQL's != would answer NULL to that.
-                or_(
-                    WorkflowRunModel.recording_url.is_distinct_from(PURGED_MARKER),
-                    WorkflowRunModel.transcript_url.is_distinct_from(PURGED_MARKER),
-                ),
+                WorkflowModel.organization_id.is_not(None),
+                # The recording window gates the whole row, matching the loop:
+                # purge_run always clears the audio, so it must not be called
+                # for a run whose audio is still within its window even when
+                # the transcript window is shorter.
+                recording_due,
+                or_(recording_present, and_(transcript_present, transcript_due)),
             )
             .order_by(WorkflowRunModel.created_at)
             .limit(limit)
@@ -321,6 +365,12 @@ async def purge_expired(
         policy = await resolve_policy(session, organization_id=organization_id)
         age_days = (now - run.created_at).days if run.created_at else 0
 
+        # Kept although the query now applies the same rule. The two compute
+        # the boundary differently -- whole days here, an interval there -- so
+        # for a few hours either side of a window's edge they can disagree.
+        # This is the direction that must not be wrong: a row the query offered
+        # too early is skipped and collected on the next sweep, where deleting
+        # audio a few hours early cannot be undone.
         if age_days < policy.recording_days:
             continue
 
