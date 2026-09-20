@@ -10,7 +10,7 @@ import pytest
 from starlette.datastructures import Headers
 
 import api.middleware_rate_limit as mw
-from api.middleware_rate_limit import RateLimitMiddleware, _classify, _identity
+from api.middleware_rate_limit import RateLimitMiddleware, _classify, _identities
 from api.services.rate_limit import RateLimiter
 
 
@@ -51,21 +51,37 @@ class TestClassify:
 
 
 class TestIdentity:
-    def test_api_key_wins_and_only_the_prefix_is_used(self):
-        headers = Headers({"x-api-key": "dcb_supersecretvalue_1234567890"})
-        ident = _identity(headers, {})
-        assert ident == "key:dcb_supersec"
-        assert "supersecretvalue" not in ident
+    """What a request is counted against.
 
-    def test_forwarded_ip_when_no_key(self):
+    This used to assert that the API key *won* and that the leftmost
+    X-Forwarded-For entry was the client. Both were the caller's own choice, so
+    both handed out a fresh bucket per request -- see
+    ``test_rate_limit_buckets_cannot_be_spoofed.py`` for the full account and
+    for the spoofing cases. What is left here is the shape the rest of this
+    module depends on.
+    """
+
+    def test_a_key_adds_a_bucket_and_does_not_replace_the_address(self):
+        headers = Headers({"x-api-key": "dcb_supersecretvalue_1234567890"})
+        identities = _identities(headers, {"client": ("198.51.100.2", 5555)})
+
+        assert "ip:198.51.100.2" in identities
+        assert any(i.startswith("key:") for i in identities)
+
+    def test_the_key_never_appears_in_its_own_bucket_name(self):
+        headers = Headers({"x-api-key": "dcb_supersecretvalue_1234567890"})
+        identities = _identities(headers, {})
+        assert "supersecretvalue" not in " ".join(identities)
+
+    def test_the_trusted_entry_of_the_forwarded_chain_is_the_client(self):
+        """One proxy in front, so the rightmost entry is the one it wrote."""
         headers = Headers({"x-forwarded-for": "203.0.113.9, 10.0.0.1"})
-        assert _identity(headers, {}) == "ip:203.0.113.9"
+        assert _identities(headers, {}) == ["ip:10.0.0.1"]
 
     def test_socket_ip_is_the_last_resort(self):
-        assert (
-            _identity(Headers({}), {"client": ("198.51.100.2", 5555)})
-            == "ip:198.51.100.2"
-        )
+        assert _identities(Headers({}), {"client": ("198.51.100.2", 5555)}) == [
+            "ip:198.51.100.2"
+        ]
 
 
 class _FakeRedis:

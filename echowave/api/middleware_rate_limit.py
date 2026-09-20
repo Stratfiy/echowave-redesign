@@ -9,8 +9,15 @@ Three classes, cheapest allowance last:
   password has no key yet.
 * ``embed`` — the public, unauthenticated embed/talk endpoints. The cost-DoS
   surface (each session spins up a model), keyed by IP.
-* ``default`` — everything else, keyed by API key when present so one tenant
-  cannot spend another's allowance.
+* ``default`` — everything else, counted against the API key as well when one
+  is present, so one tenant cannot spend another's allowance.
+
+Every request is counted against its client address whatever its class, and a
+request carrying an API key is counted against the key *in addition*. The key
+used to replace the address bucket, which meant an unauthenticated caller
+could mint a fresh bucket per request out of a random header -- see
+``_identities``. The address itself is read from a position in
+X-Forwarded-For the caller cannot write to -- see ``_client_address``.
 
 Health and OPTIONS preflight are never counted: monitoring and CORS probes
 are not abuse, and rate-limiting a liveness check turns a Redis blip into a
@@ -19,6 +26,7 @@ false outage alarm.
 
 from __future__ import annotations
 
+import hashlib
 import json
 
 from loguru import logger
@@ -30,6 +38,7 @@ from api.constants import (
     RATE_LIMIT_DEFAULT_PER_MINUTE,
     RATE_LIMIT_EMBED_PER_MINUTE,
     RATE_LIMIT_ENABLED,
+    RATE_LIMIT_TRUSTED_PROXY_HOPS,
 )
 from api.services.rate_limit import rate_limiter
 
@@ -76,24 +85,71 @@ def _classify(path: str) -> tuple[str, int] | None:
     return "default", RATE_LIMIT_DEFAULT_PER_MINUTE
 
 
-def _identity(headers: Headers, scope: Scope) -> str:
-    """Who to bucket this request under: API key if present, else client IP.
+def _client_address(headers: Headers, scope: Scope) -> str:
+    """The caller's address, read from a position the caller cannot choose.
 
-    The IP is read from X-Forwarded-For first because the app sits behind a
-    proxy whose socket address is shared by every caller; the raw socket is
-    the fallback for a direct connection.
+    X-Forwarded-For is a list every proxy appends the peer it saw to, so it
+    reads oldest-first and the *rightmost* entries are the ones our own
+    infrastructure wrote. This used to take the leftmost, which is the entry a
+    caller types for themselves -- so varying it produced a fresh bucket per
+    request and the limit never fired.
+
+    Counting ``RATE_LIMIT_TRUSTED_PROXY_HOPS`` in from the right lands on the
+    peer our outermost trusted proxy saw. Anything further left is caller text
+    and is ignored.
+
+    Falls back to the socket when the chain is shorter than the configured
+    hops, which means the header did not come through our chain: indexing into
+    it anyway would read that caller text as the client. Zero hops ignores the
+    header outright -- with no proxy in front, none of it was written by anyone
+    we trust.
     """
-    api_key = headers.get("x-api-key")
+    hops = max(0, RATE_LIMIT_TRUSTED_PROXY_HOPS)
+    if hops:
+        # Blank entries dropped before indexing, or a caller could insert one
+        # to push the real entry out of position.
+        chain = [
+            entry.strip()
+            for entry in headers.get("x-forwarded-for", "").split(",")
+            if entry.strip()
+        ]
+        if len(chain) >= hops:
+            return chain[-hops]
+
+    client = scope.get("client")
+    return client[0] if client else "unknown"
+
+
+def _identities(headers: Headers, scope: Scope) -> list[str]:
+    """Every bucket this request counts against. All of them must be under.
+
+    The API key used to *replace* the address bucket, and the middleware runs
+    long before anything authenticates it, so the key did not have to be real.
+    A fresh random string per request was a fresh bucket per request, and the
+    limit counted to one forever -- on ``/user/auth/*``, the brute-force
+    bucket, that made twenty password guesses a minute into unlimited ones.
+
+    So the key adds a bucket rather than replacing one. Every request is
+    counted against its address, which it cannot choose; a request carrying a
+    key is counted against the key as well, which is what keeps one tenant from
+    spending another's allowance -- the reason keys were used here at all.
+
+    The consequence worth naming: tenants sharing one egress address now share
+    that address's allowance. That is the safe direction of the trade, and it
+    is what ``RATE_LIMIT_DEFAULT_PER_MINUTE`` is there to tune.
+    """
+    identities = [f"ip:{_client_address(headers, scope)}"]
+
+    api_key = (headers.get("x-api-key") or "").strip()
     if api_key:
-        # The prefix, not the secret: enough to separate tenants, and a key
-        # fragment does not belong in a Redis keyspace that is dumped in logs.
-        return f"key:{api_key[:12]}"
-    forwarded = headers.get("x-forwarded-for", "")
-    ip = forwarded.split(",")[0].strip()
-    if not ip:
-        client = scope.get("client")
-        ip = client[0] if client else "unknown"
-    return f"ip:{ip}"
+        # A digest, not a prefix. This string is logged on every refusal and
+        # lives in a Redis keyspace that gets dumped, and a prefix of a
+        # credential is still part of a credential. Truncated because the
+        # bucket only needs to tell keys apart, not to be reversible.
+        digest = hashlib.sha256(api_key.encode()).hexdigest()[:16]
+        identities.append(f"key:{digest}")
+
+    return identities
 
 
 class RateLimitMiddleware:
@@ -119,23 +175,27 @@ class RateLimitMiddleware:
 
         bucket, limit = classified
         headers = Headers(scope=scope)
-        identity = _identity(headers, scope)
 
-        allowed, retry_after = await rate_limiter.check(
-            bucket=bucket,
-            identity=identity,
-            limit=limit,
-            window_secs=_WINDOW_SECS,
-        )
-        if allowed:
-            await self.app(scope, receive, send)
+        # Every bucket, not the first one that passes. Computing both and
+        # checking one would be the same defect in a new place.
+        for identity in _identities(headers, scope):
+            allowed, retry_after = await rate_limiter.check(
+                bucket=bucket,
+                identity=identity,
+                limit=limit,
+                window_secs=_WINDOW_SECS,
+            )
+            if allowed:
+                continue
+
+            logger.warning(
+                f"Rate limit hit: bucket={bucket} identity={identity} "
+                f"limit={limit}/{_WINDOW_SECS}s path={scope.get('path')}"
+            )
+            await self._send_429(send, retry_after)
             return
 
-        logger.warning(
-            f"Rate limit hit: bucket={bucket} identity={identity} "
-            f"limit={limit}/{_WINDOW_SECS}s path={scope.get('path')}"
-        )
-        await self._send_429(send, retry_after)
+        await self.app(scope, receive, send)
 
     async def _send_429(self, send: Send, retry_after: int) -> None:
         body = json.dumps(

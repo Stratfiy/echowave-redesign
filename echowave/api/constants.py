@@ -172,6 +172,21 @@ RATE_LIMIT_ENABLED = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
 RATE_LIMIT_AUTH_PER_MINUTE = int(os.getenv("RATE_LIMIT_AUTH_PER_MINUTE", "20"))
 RATE_LIMIT_EMBED_PER_MINUTE = int(os.getenv("RATE_LIMIT_EMBED_PER_MINUTE", "60"))
 RATE_LIMIT_DEFAULT_PER_MINUTE = int(os.getenv("RATE_LIMIT_DEFAULT_PER_MINUTE", "600"))
+
+# How many reverse proxies sit between the internet and this process.
+#
+# X-Forwarded-For is a list each proxy appends the peer it saw to, so the
+# entries this many in from the right were written by our own infrastructure
+# and everything to the left of them is text the caller sent. Reading the
+# leftmost entry -- the obvious reading, and the previous one -- reads the
+# caller's own claim about who they are, which is how varying one header bought
+# an unlimited allowance.
+#
+# One is the shipped topology: nginx in front of uvicorn. Add a hop for a CDN
+# or load balancer that also appends. Set it to 0 when this process is reachable
+# directly, which makes the header be ignored entirely -- with no proxy in
+# front, no part of it was written by anyone we trust.
+RATE_LIMIT_TRUSTED_PROXY_HOPS = int(os.getenv("RATE_LIMIT_TRUSTED_PROXY_HOPS", "1"))
 CORS_ALLOWED_ORIGINS = [
     o.strip() for o in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",") if o.strip()
 ]
