@@ -1217,8 +1217,77 @@ TURN_CREDENTIAL_TTL = int(os.getenv("TURN_CREDENTIAL_TTL", "86400"))
 FORCE_TURN_RELAY = os.getenv("FORCE_TURN_RELAY", "false").lower() == "true"
 
 # OSS Email/Password Auth
-OSS_JWT_SECRET = os.getenv("OSS_JWT_SECRET", "change-me-in-production")
+#
+# The default below is a placeholder, and a placeholder that ships in the
+# repository is not a secret: it is in every fork, every deploy template and
+# every image. A deployment that never set OSS_JWT_SECRET signs its sessions
+# with a string anybody can read, so anybody can mint a token for any user_id
+# and be that user.
+#
+# Nothing about that is visible from the outside -- signup, login and sessions
+# all work exactly as intended -- which is why the check below is a refusal to
+# boot rather than a warning. There is no later moment at which somebody is
+# prompted to notice.
+PLACEHOLDER_JWT_SECRET = "change-me-in-production"
+
+#: ENVIRONMENTs where the placeholder is allowed to stand: a laptop and the
+#: test suite, both of which need a fixed key to run at all and neither of
+#: which holds anyone's data. Spelled the same way verification_sender.py
+#: spells it, so the two cannot drift.
+_DEV_ENVIRONMENTS = frozenset({"test", "local", "development", "dev"})
+
+OSS_JWT_SECRET = os.getenv("OSS_JWT_SECRET", PLACEHOLDER_JWT_SECRET)
 OSS_JWT_EXPIRY_HOURS = int(os.getenv("OSS_JWT_EXPIRY_HOURS", "720"))  # 30 days
+
+
+def verify_jwt_secret_is_safe(
+    *,
+    secret: str | None = None,
+    environment: str | None = None,
+    auth_provider: str | None = None,
+) -> None:
+    """Raise unless this deployment can sign a session token safely.
+
+    Called at import so the process dies at boot, in front of whoever is
+    deploying, instead of serving requests with a public signing key.
+
+    Scoped to the deployments where the secret actually authenticates someone.
+    Under Stack Auth ``create_jwt_token`` is never reached, so refusing to boot
+    over an unused variable would be a false alarm -- and a false alarm at boot
+    is answered by setting the variable to anything at all, which is how a
+    guard teaches people to defeat it.
+
+    The arguments exist so the rule can be tested at every combination without
+    a subprocess; the defaults are this deployment's own values.
+    """
+    secret = OSS_JWT_SECRET if secret is None else secret
+    environment = ENVIRONMENT if environment is None else environment
+    auth_provider = AUTH_PROVIDER if auth_provider is None else auth_provider
+
+    if (auth_provider or "").strip().lower() != "local":
+        return
+    if (environment or "").strip().lower() in _DEV_ENVIRONMENTS:
+        return
+
+    if not (secret or "").strip():
+        raise RuntimeError(
+            "OSS_JWT_SECRET is not set. This deployment signs its own session "
+            "tokens and cannot do so with an empty key. Generate one with "
+            "`openssl rand -hex 32` and set OSS_JWT_SECRET."
+        )
+    if secret.strip() == PLACEHOLDER_JWT_SECRET:
+        raise RuntimeError(
+            f"OSS_JWT_SECRET is still the placeholder {PLACEHOLDER_JWT_SECRET!r}, "
+            "which ships in this repository and is therefore public. Anyone "
+            "could sign a token for any user. Generate a real one with "
+            "`openssl rand -hex 32` and set OSS_JWT_SECRET."
+        )
+
+
+# At import, not at first login: a deployment that cannot authenticate safely
+# should not accept the first request, and "the next person to sign in finds
+# out" is not a deploy-time failure.
+verify_jwt_secret_is_safe()
 
 TUNER_BASE_URL = os.getenv("TUNER_BASE_URL", "https://api.usetuner.ai")
 
