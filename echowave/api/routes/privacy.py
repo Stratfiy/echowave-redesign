@@ -23,7 +23,8 @@ from api.constants import (
 )
 from api.db import db_client
 from api.db.models import UserModel
-from api.services.auth.depends import get_user
+from api.enums import OrganizationRole
+from api.services.auth.depends import get_user, require_organization_role
 from api.services.compliance import agreements
 from api.services.messaging import announce
 from api.services.privacy import (
@@ -83,9 +84,16 @@ async def get_retention(user: UserModel = Depends(get_user)) -> dict[str, Any]:
 
 @router.put("/retention")
 async def set_retention(
-    request: RetentionRequest, user: UserModel = Depends(get_user)
+    request: RetentionRequest,
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
 ) -> dict[str, Any]:
-    """Set how long this account's call data is kept."""
+    """Set how long this account's call data is kept.
+
+    Admin, because shortening the window is a deletion with a delay on it: the
+    next nightly sweep removes recordings and transcripts that were inside
+    their window this morning. Reading the window stays open to members -- it
+    describes the account without binding it.
+    """
     organization_id = _organization_id(user)
     async with db_client.async_session() as session:
         try:
@@ -109,12 +117,17 @@ async def set_retention(
 
 @router.post("/erasure")
 async def request_erasure(
-    request: ErasureRequest, user: UserModel = Depends(get_user)
+    request: ErasureRequest,
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
 ) -> dict[str, Any]:
     """Erase one person's data from this account's calls.
 
     Irreversible, and deliberately so — a right to erasure satisfied by
-    something recoverable is not satisfied.
+    something recoverable is not satisfied. Which is exactly why it is admin:
+    every route here is scoped to the caller's own organization, so tenant
+    isolation was never the question, but inside one tenant the newest member
+    could destroy the account's history with no way back. The enum puts
+    removing one number from the DND list at this tier, and this is larger.
     """
     organization_id = _organization_id(user)
     async with db_client.async_session() as session:
@@ -166,9 +179,15 @@ async def export_data(
     phone_number: str | None = Query(
         None, description="Export one person's data. Omit for the whole account."
     ),
-    user: UserModel = Depends(get_user),
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
 ) -> dict[str, Any]:
-    """Everything held, as JSON — GDPR Art 20 portability, DPDP s11 access."""
+    """Everything held, as JSON — GDPR Art 20 portability, DPDP s11 access.
+
+    Admin, because without ``phone_number`` this is the whole account in one
+    response: every call, every transcript, and every field an agent extracted
+    from a caller. A member who can take that home is a data breach with a
+    login.
+    """
     organization_id = _organization_id(user)
     async with db_client.async_session() as session:
         if phone_number:

@@ -732,9 +732,13 @@ class OrganizationRole(str, Enum):
         account and, on a paid app, spends against whoever authorized it --
         the
         billing profile (which decides what tax the customer is charged), the
-        autopay mandate (a standing authority to debit a bank account), and
+        autopay mandate (a standing authority to debit a bank account),
         removing a number from the do-not-disturb list (a regulatory act, and
-        the one entry nobody notices going missing).
+        the one entry nobody notices going missing), and the privacy tools that
+        act on the whole account: erasing a person's data (irreversible by
+        design), shortening the retention window (a deletion with a delay on
+        it), and exporting everything held (every call and transcript the
+        account has, in one download).
     OWNER
         Everything an admin can do, plus membership: who is in the
         organization and at what tier. The last Owner cannot be demoted or
