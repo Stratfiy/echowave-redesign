@@ -3,6 +3,7 @@ Cloudonix implementation of the TelephonyProvider interface.
 """
 
 import asyncio
+import hmac
 import json
 import random
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -884,31 +885,62 @@ class CloudonixProvider(TelephonyProvider):
         """
         Verify the API key of an inbound Cloudonix webhook for security.
 
-        Cloudonix uses ``x-cx-apikey`` header validation instead of signature
-        verification. The API key from the webhook should match the
-        bearer_token in our configuration.
+        Cloudonix authenticates with a shared secret in the ``x-cx-apikey``
+        header rather than a digest signed over the body, so this is a
+        comparison against the configured ``bearer_token`` rather than an HMAC.
+
+        This used to compute the comparison, log the verdict and then
+        ``return True`` regardless. The discarded result is what made it
+        survive review: on a forged request the logs said validation had
+        failed, which reads like something already handled, and the call was
+        started anyway. What that endpoint does is originate a call billed to
+        the organization it names, so the gap was "anyone who can reach the URL
+        can place calls on any account".
+
+        Returns False for a missing key, a wrong key, and for a provider with
+        no token configured. The last one is deliberate: "nothing to compare
+        against" is not a reason to accept everything, or an organization
+        halfway through setup has an open endpoint until somebody finishes the
+        form.
         """
-        api_key = headers.get("x-cx-apikey", "")
+        # Header names are case-insensitive per RFC 9110. Starlette hands us
+        # lowercase keys today, so this costs nothing and stops a future caller
+        # passing a raw dict from failing closed in a way that reads as an
+        # outage rather than a bug.
+        api_key = ""
+        for name, value in headers.items():
+            if name.lower() == "x-cx-apikey":
+                api_key = value or ""
+                break
+
         if not api_key:
             logger.warning("No x-cx-apikey provided in Cloudonix webhook")
             return False
 
-        # The bearer_token in config is the same as x-cx-apikey header value
         if not self.bearer_token:
-            logger.warning("No bearer_token configured for Cloudonix provider")
+            logger.warning(
+                "Refusing a Cloudonix webhook: no bearer_token is configured "
+                "for this telephony configuration, so nothing can be verified."
+            )
             return False
 
-        # Compare the API keys
-        is_valid = api_key == self.bearer_token
-
-        if is_valid:
-            logger.info("Cloudonix x-cx-apikey validation successful")
-        else:
+        # compare_digest, not ==. String equality returns at the first
+        # differing byte, and how long it took leaks how much of the key
+        # matched -- a webhook endpoint anyone can call is exactly where that
+        # is worth paying for.
+        if not hmac.compare_digest(api_key, self.bearer_token):
+            # No fragment of the expected key in the log line. A forged request
+            # is how an attacker gets that line written, and the previous
+            # message handed them the last eight characters of the real
+            # credential for the price of one wrong guess.
             logger.warning(
-                f"Cloudonix x-cx-apikey validation failed. Expected key ending with ...{self.bearer_token[-8:] if len(self.bearer_token) > 8 else 'SHORT_KEY'}"
+                "Cloudonix x-cx-apikey validation failed for domain {}.",
+                self.domain_id,
             )
+            return False
 
-        return True  # TODO: update this post clarification from cloudonix
+        logger.info("Cloudonix x-cx-apikey validation successful")
+        return True
 
     async def configure_inbound(
         self, address: str, webhook_url: Optional[str]
