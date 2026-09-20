@@ -89,6 +89,23 @@ def is_deliverable() -> bool:
     return channel in REAL_CHANNELS
 
 
+def uses_platform_line() -> bool:
+    """Whether this deployment delivers codes on carriage Decibyl pays for.
+
+    True for every real channel. ``voice`` dials from the shared outbound pool
+    and both SMS branches send on the platform's own carrier account -- not the
+    customer's telephony configuration, deliberately, because the accounts this
+    feature exists for have none. False only for ``log``, which puts nothing on
+    a network and bills nobody.
+
+    Read by ``verified_numbers`` to decide whether the destination policy and
+    the daily cap apply: both exist because the caller chooses the destination
+    and we pay for it, so neither has anything to bite on when nothing is
+    dialled.
+    """
+    return (VERIFICATION_CHANNEL or "log").strip().lower() in REAL_CHANNELS
+
+
 def test_calls_require_verified_number() -> bool:
     """Whether a test call may only go to a number the account has proved it owns.
 

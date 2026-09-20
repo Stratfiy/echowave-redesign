@@ -1339,6 +1339,14 @@ VERIFICATION_RESEND_COOLDOWN_SECONDS = int(
     os.getenv("VERIFICATION_RESEND_COOLDOWN_SECONDS", "60")
 )
 
+# The ceiling the per-number limits do not reach. Five sends per number and a
+# sixty-second cooldown bound what one number can be sent; neither says
+# anything about how many *different* numbers an account can work through in a
+# day, which is the whole of the volume abuse when the carriage is ours. Twenty
+# is generous for the legitimate case -- an account verifying its own handsets
+# -- and an uninteresting budget for a dialler.
+VERIFICATION_MAX_DAILY_SENDS = int(os.getenv("VERIFICATION_MAX_DAILY_SENDS", "20"))
+
 # Whether a test call may only go to a number the account has verified.
 #
 # Dialling whatever string a user types is a harassment vector, so the gate

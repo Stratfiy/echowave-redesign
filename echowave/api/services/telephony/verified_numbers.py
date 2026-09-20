@@ -10,7 +10,7 @@ Decibyl ring any number its user types. That is a telephone-harassment vector
 wearing the costume of a convenience feature, and the fix is the same
 mechanism: dial it only once somebody has answered it.
 
-Three limits, each closing a different abuse:
+Five limits, each closing a different abuse:
 
 * **Attempts per code.** Six digits is a million possibilities and falls to
   exhaustive guessing in well under a second. Five wrong answers burns the code.
@@ -18,8 +18,16 @@ Three limits, each closing a different abuse:
   free SMS cannon pointed at a stranger, paid for by us.
 * **A cooldown between sends.** Stops the same thing at a slower rate, and
   stops an impatient user paying for four texts to receive one code.
+* **Where the code may be sent.** The code goes out as a call on the platform's
+  own carriage, to a destination the caller types. An arbitrary international
+  number is our carriage; a premium-rate number pays out to whoever asked us to
+  dial it. Indian mobiles only.
+* **Sends per account per day.** The three limits above are all per *number*,
+  and none of them notices an account working through a thousand different
+  ones.
 
-None of the three is optional and none substitutes for the others.
+None of the five is optional and none substitutes for the others. The last two
+apply only when the platform is paying -- see ``_uses_platform_line``.
 """
 
 from __future__ import annotations
@@ -33,11 +41,12 @@ from loguru import logger
 from api.constants import (
     VERIFICATION_CODE_TTL_MINUTES,
     VERIFICATION_MAX_ATTEMPTS,
+    VERIFICATION_MAX_DAILY_SENDS,
     VERIFICATION_MAX_SENDS,
     VERIFICATION_RESEND_COOLDOWN_SECONDS,
 )
 from api.services.auth import otp as _otp
-from api.services.compliance.dnd import normalise_number
+from api.services.compliance.dnd import is_indian_mobile, normalise_number
 
 
 class VerificationError(Exception):
@@ -56,6 +65,10 @@ class TooManyAttempts(VerificationError):
 
 class TooManySends(VerificationError):
     reason = "too_many_sends"
+
+
+class DailyLimitReached(VerificationError):
+    reason = "daily_limit_reached"
 
 
 class ResendTooSoon(VerificationError):
@@ -78,6 +91,25 @@ class StartedVerification:
     #: whose code comes back in the API response verifies nothing.
     code: str
     expires_at: datetime
+
+
+def _uses_platform_line() -> bool:
+    """Whether a code goes out on carriage Decibyl pays for.
+
+    Every real channel does: ``voice`` dials from the shared outbound pool and
+    both SMS branches send on the platform's own Plivo or Twilio account,
+    deliberately rather than the customer's telephony configuration -- the
+    accounts this feature serves have none. Only the dev-only ``log`` channel
+    puts nothing on a network.
+
+    So this is the question "is somebody being rung, at our expense", and it is
+    what the two limits below hang on. Indirected through a function rather
+    than read at import so a test can say which deployment it is describing,
+    and so the module does not bake in the channel an operator can change.
+    """
+    from api.services.telephony import verification_sender
+
+    return verification_sender.uses_platform_line()
 
 
 #: Re-exported from services/auth/otp so email verification at signup and
@@ -117,6 +149,38 @@ async def start_verification(
     from api.db import db_client as default_db_client
 
     client = db or default_db_client
+
+    # Two limits that only exist when the platform is paying for the carriage,
+    # asked before anything is stored: a refused number should not leave a row
+    # behind, and must not have been charged for.
+    if _uses_platform_line():
+        # Where. The caller picks the destination and we are billed for it, so
+        # an arbitrary international number is our carriage and a premium-rate
+        # number is a payout to whoever asked us to dial. normalise_number
+        # accepts any country by design -- it builds a DND comparison key, not
+        # a permission -- so the policy has to be stated here.
+        if not is_indian_mobile(number):
+            raise NumberNotDialable(
+                "We can only send verification calls to Indian mobile numbers "
+                "(+91). Contact support to verify a number outside that range."
+            )
+
+        # How many. The per-number ceiling and the cooldown bound what one
+        # number can be sent and say nothing about how many different numbers
+        # an account can work through in a day, which is the volume abuse.
+        #
+        # A trailing window rather than a calendar day: a cap that resets at
+        # midnight hands an abuser two full allowances back to back across the
+        # boundary.
+        sent_today = await client.count_verification_sends_since(
+            organization_id, moment - timedelta(days=1)
+        )
+        if sent_today >= VERIFICATION_MAX_DAILY_SENDS:
+            raise DailyLimitReached(
+                "This account has requested its daily limit of verification "
+                "calls. Try again tomorrow, or contact support."
+            )
+
     existing = await client.get_verified_number(organization_id, number)
 
     if existing is not None:

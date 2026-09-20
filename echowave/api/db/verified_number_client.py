@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, Sequence
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from api.db.base_client import BaseDBClient
@@ -170,6 +170,35 @@ class VerifiedNumberClient(BaseDBClient):
                 .order_by(VerifiedNumberModel.created_at.desc())
             )
             return result.scalars().all()
+
+    async def count_verification_sends_since(
+        self, organization_id: int, since: datetime
+    ) -> int:
+        """How many of this organization's numbers were sent a code since ``since``.
+
+        Counts numbers rather than individual sends, because ``last_sent_at``
+        holds only the most recent one per row and there is no per-send
+        record. That is the bound worth having: the per-number ceiling and the
+        cooldown already cap resends to a single number at five, so what this
+        adds is the limit on how many *different* numbers an account can make
+        us dial -- which is the volume abuse the other two do not touch.
+
+        Removed rows are counted. Removal is a soft delete precisely so the
+        send counters survive it (see ``remove_verified_number``); a daily cap
+        that forgot a number the moment it was removed would be reset by
+        start-remove-start, which is the loop the soft delete exists to stop.
+        """
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(func.count())
+                .select_from(VerifiedNumberModel)
+                .where(
+                    VerifiedNumberModel.organization_id == organization_id,
+                    VerifiedNumberModel.last_sent_at.is_not(None),
+                    VerifiedNumberModel.last_sent_at >= since,
+                )
+            )
+            return int(result.scalar() or 0)
 
     async def remove_verified_number(
         self, organization_id: int, phone_number: str

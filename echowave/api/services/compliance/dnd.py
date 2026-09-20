@@ -112,6 +112,46 @@ def normalise_number(raw: str | None) -> str | None:
     return digits
 
 
+#: Indian mobile numbers open 6, 7, 8 or 9 after the country code; every other
+#: series in the national plan is something else. Landlines start 2-5, and the
+#: ranges this exists to exclude are up there too -- 1800 toll-free, the 140
+#: telemarketing series, the 1xx service codes.
+_INDIAN_MOBILE_LEADING_DIGITS = frozenset("6789")
+
+
+def is_indian_mobile(normalised: str | None) -> bool:
+    """Whether this key is an Indian mobile number.
+
+    Asked where the *platform* pays for the carriage, which is a different
+    question from the one ``normalise_number`` answers. Normalisation builds a
+    comparison key for the DND list and deliberately accepts any country: a
+    customer's own trunk dialling Singapore is their business and their bill.
+    Platform carriage is ours, so it has a destination policy, and this is it.
+
+    Two abuses close together here. An arbitrary international number is
+    carriage at our expense. A premium-rate number -- +1 900, +44 909, and the
+    Indian service series -- pays out to whoever asked us to dial it, which
+    turns a verification endpoint into a revenue share. Requiring the mobile
+    series of one country answers both, because the ranges that pay out are not
+    in it.
+
+    Takes the normalised key rather than raw input, like everything else in
+    this module: a second normalisation path is how a number stops matching
+    itself between one check and the next.
+    """
+    if not normalised:
+        return False
+    if not normalised.isdigit():
+        return False
+    if not normalised.startswith(_DEFAULT_COUNTRY_CODE):
+        return False
+
+    national = normalised[len(_DEFAULT_COUNTRY_CODE) :]
+    if len(national) != _NATIONAL_LENGTH:
+        return False
+    return national[0] in _INDIAN_MOBILE_LEADING_DIGITS
+
+
 def to_dialable(normalised: str | None) -> str | None:
     """Turn a comparison key back into a number a carrier will accept.
 

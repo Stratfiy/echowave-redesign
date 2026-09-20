@@ -131,7 +131,11 @@ async def start(
         )
     except service.NumberNotDialable as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except (service.TooManySends, service.ResendTooSoon) as exc:
+    except (
+        service.TooManySends,
+        service.ResendTooSoon,
+        service.DailyLimitReached,
+    ) as exc:
         # 429 rather than 400: the request is well-formed and the answer is
         # "later", which is what a client needs to distinguish to back off.
         raise HTTPException(status_code=429, detail=str(exc)) from exc
