@@ -1,95 +1,25 @@
-/**
- * One agent, one row of tabs.
- *
- * There were two rows. The agent-level strip carried Assistant, Logs, Tools,
- * Analysis and Advanced; the settings page then drew its own underneath with
- * Models, Calling, Analysis, Deploy and Advanced. So "Analysis" and "Advanced"
- * each appeared twice, a centimetre apart, going to different places — and the
- * outer "Advanced" opened the inner "Calling", which is not a thing anyone can
- * be expected to guess.
- *
- * Vapi has one strip and that is the whole of the fix. Every destination is
- * named exactly once, the name says where it goes, and nothing is nested
- * inside something with the same name.
- *
- * These navigate rather than swap panels. Each screen loads its own data, and
- * a tab that fetches when you open it is what you want here regardless of how
- * it is wired.
- *
- * **Four of them are the settings page on different tabs**, so the pathname
- * alone cannot tell them apart. Rather than read the query string during
- * render — which drags in a Suspense boundary for a highlight — the settings
- * page passes down which of its tabs is showing. The page that knows the
- * answer is the one that says.
- */
-
 "use client";
 
-import {
-    BarChart3,
-    Bot,
-    ClipboardCheck,
-    MessagesSquare,
-    ScrollText,
-    Share2,
-    Variable,
-    Wrench,
-    Zap,
-} from "lucide-react";
+import { BarChart3, Bot, ChevronDown, ClipboardCheck, MessagesSquare, ScrollText, Share2, Variable, Wrench, Zap } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 import type { TabId } from "../settings/tabs";
 
-/**
- * Chat, Instructions, Graph, then Vapi's Logs, Tools, Analysis, Advanced, and Share.
- *
- * Assistant, Logs, Tools, Analysis, Advanced is the strip on the product we
- * are measured against, and it is enough: the models and how they listen,
- * think and speak are behind the pencil on each tile of the Assistant tab,
- * so they need no tab of their own; evals are a card on Analysis. Share is
- * the one addition — a link to text a prospect and a widget for a website
- * are the two ways an agent reaches people outside this account, and
- * "Deploy" said neither.
- *
- * `settingsTab` marks the three that are the settings page; the rest are
- * their own routes.
- */
+/** All existing destinations remain available; messaging is separate from setup. */
 export const AGENT_TABS = [
-    // First, and first deliberately. The strip below is Vapi's, and Vapi
-    // sells to developers: it opens on how the agent is configured. Decibyl
-    // sells a teammate, and what you want from a teammate is what they have
-    // been doing. Configuration is a thing you set once; the thread is the
-    // thing you come back for.
-    { key: "thread", label: "Messages", icon: MessagesSquare },
-    // Instructions carries "Open canvas", and the canvas is still its own
-    // linkable place (?view=graph). It is not a tab: two tabs on one route
-    // for two views of one definition made the strip say the bot had a
-    // "Graph" the way it has Logs and Tools, which it does not -- the graph
-    // is how the instructions are drawn.
-    { key: "assistant", label: "Instructions", icon: Bot },
-    // "History", not "Logs": it is what this bot has been doing -- the calls
-    // it took, the runs it made -- and Home's strip already calls the same
-    // kind of record by a plain word. "Logs" reads as developer output.
-    { key: "logs", label: "History", icon: ScrollText },
-    { key: "tools", label: "Tools", icon: Wrench },
-    // What rings this bot from outside: a webhook today (KAN-137), an inbox
-    // and app events next. Beside Tools because both answer "what can it
-    // do", one for what it reaches for and one for what reaches it.
-    { key: "triggers", label: "Triggers", icon: Zap },
-    // What this bot has actually been doing: runs a day, answer rate, time on
-    // calls, what it spent, and the tokens its brains used. Beside Triggers
-    // because both are about the bot in use rather than the bot as built.
-    { key: "analytics", label: "Analytics", icon: BarChart3 },
-    // "Quality", not "Analysis". It sets how calls are judged and what is
-    // kept -- reviewing, outcomes, recordings, evals -- and a tab called
-    // Analysis one place along from a tab called Analytics is two words
-    // nobody can tell apart at a glance.
-    { key: "analysis", label: "Quality", icon: ClipboardCheck, settingsTab: "analysis" },
-    { key: "advanced", label: "Advanced", icon: Variable, settingsTab: "advanced" },
-    { key: "share", label: "Share", icon: Share2, settingsTab: "share" },
+    { key: "assistant", label: "Edit", icon: Bot, group: "primary" },
+    { key: "logs", label: "Activity", icon: ScrollText, group: "primary" },
+    { key: "tools", label: "Tools", icon: Wrench, group: "setup" },
+    { key: "triggers", label: "Triggers", icon: Zap, group: "setup" },
+    { key: "analysis", label: "Quality", icon: ClipboardCheck, settingsTab: "analysis", group: "setup" },
+    { key: "advanced", label: "Advanced", icon: Variable, settingsTab: "advanced", group: "setup" },
+    { key: "share", label: "Share", icon: Share2, settingsTab: "share", group: "setup" },
+    { key: "analytics", label: "Analytics", icon: BarChart3, group: "reporting" },
+    { key: "thread", label: "Message", icon: MessagesSquare, group: "message" },
 ] as const;
 
 type Tab = (typeof AGENT_TABS)[number];
@@ -97,88 +27,68 @@ type Tab = (typeof AGENT_TABS)[number];
 function hrefFor(tab: Tab, workflowId: number): string {
     const base = `/workflow/${workflowId}`;
     if ("settingsTab" in tab) return `${base}/settings?tab=${tab.settingsTab}`;
-    switch (tab.key) {
-        case "thread":
-            return `${base}/thread`;
-        case "logs":
-            return `${base}/runs`;
-        case "tools":
-            return `${base}/tools`;
-        case "triggers":
-            return `${base}/triggers`;
-        case "analytics":
-            return `${base}/analytics`;
-        default:
-            return base;
-    }
+    if (tab.key === "assistant") return base;
+    if (tab.key === "logs") return `${base}/runs`;
+    return `${base}/${tab.key}`;
 }
 
-export function AgentTabs({
-    workflowId,
-    settingsTab,
-    dirtyTabs,
-}: {
+function UnsavedIndicator() {
+    return <span className="h-1.5 w-1.5 rounded-full bg-orange-500" aria-label="Unsaved changes" />;
+}
+
+export function AgentTabs({ workflowId, settingsTab, dirtyTabs }: {
     workflowId: number;
-    /** Which settings tab is showing, when the settings page is the one open. */
+    /** Settings routes share a pathname; the page supplies its active section. */
     settingsTab?: TabId;
-    /** Settings tabs holding an edit nobody has saved. */
     dirtyTabs?: ReadonlySet<string>;
 }) {
     const pathname = usePathname();
     const base = `/workflow/${workflowId}`;
-
     const isActive = (tab: Tab) => {
-        if ("settingsTab" in tab) return settingsTab === tab.settingsTab;
-        if (tab.key === "thread") return pathname.startsWith(`${base}/thread`);
-        if (tab.key === "logs") return pathname.startsWith(`${base}/runs`);
-        if (tab.key === "tools") return pathname.startsWith(`${base}/tools`);
-        if (tab.key === "triggers") return pathname.startsWith(`${base}/triggers`);
-        if (tab.key === "analytics") return pathname.startsWith(`${base}/analytics`);
-        // The editor, and only the editor. `startsWith` would light it on
-        // every tab, since every one of these lives under the same base.
-        // The editor, whichever of its two views is showing: the canvas is
-        // reached from inside Instructions rather than from the strip.
-        return pathname === base;
+        if ("settingsTab" in tab) return pathname === `${base}/settings` && settingsTab === tab.settingsTab;
+        const href = hrefFor(tab, workflowId);
+        return pathname === href || (tab.key !== "assistant" && pathname.startsWith(`${href}/`));
+    };
+    const menuTabs = AGENT_TABS.filter((tab) => tab.group === "setup" || tab.group === "reporting");
+    const activeSetup = menuTabs.find(isActive);
+    const setupDirty = menuTabs.some((tab) => "settingsTab" in tab && dirtyTabs?.has(tab.settingsTab));
+    const linkClass = (active: boolean) => cn(
+        "-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2",
+        active ? "border-primary font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+    );
+    const renderLink = (tab: Tab, inMenu = false) => {
+        const Icon = tab.icon;
+        const link = <Link href={hrefFor(tab, workflowId)} aria-current={isActive(tab) ? "page" : undefined} className={inMenu ? cn(isActive(tab) && "bg-accent font-medium") : linkClass(isActive(tab))}>
+            <Icon className="h-3.5 w-3.5" aria-hidden="true" />{tab.label}
+            {"settingsTab" in tab && dirtyTabs?.has(tab.settingsTab) && <UnsavedIndicator />}
+        </Link>;
+        return inMenu ? <DropdownMenuItem key={tab.key} asChild>{link}</DropdownMenuItem> : <div key={tab.key}>{link}</div>;
     };
 
     return (
-        <nav
-            aria-label="Bot"
-            className="w-full overflow-x-auto border-b border-border px-6"
-        >
-            <ul className="flex min-w-max gap-1">
-                {AGENT_TABS.map((tab) => {
-                    const Icon = tab.icon;
-                    const active = isActive(tab);
-                    // A tab hiding an unsaved edit has to say so, or moving
-                    // away from it looks like discarding the work.
-                    const unsaved =
-                        "settingsTab" in tab && dirtyTabs?.has(tab.settingsTab);
-                    return (
-                        <li key={tab.key}>
-                            <Link
-                                href={hrefFor(tab, workflowId)}
-                                aria-current={active ? "page" : undefined}
-                                className={cn(
-                                    "-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm whitespace-nowrap transition-colors",
-                                    active
-                                        ? "border-primary font-medium text-foreground"
-                                        : "border-transparent text-muted-foreground hover:text-foreground",
-                                )}
-                            >
-                                <Icon className="h-3.5 w-3.5" />
-                                {tab.label}
-                                {unsaved && (
-                                    <span
-                                        className="h-1.5 w-1.5 rounded-full bg-orange-500"
-                                        aria-label="Unsaved changes"
-                                    />
-                                )}
-                            </Link>
-                        </li>
-                    );
-                })}
-            </ul>
+        <nav aria-label="Agent" className="flex w-full flex-wrap items-center justify-between gap-x-3 border-b border-border px-4 sm:px-6">
+            <div className="flex items-center gap-1">
+                {AGENT_TABS.filter((tab) => tab.group === "primary").map((tab) => renderLink(tab))}
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <button type="button" className={linkClass(Boolean(activeSetup))}>
+                            {activeSetup ? `Setup · ${activeSetup.label}` : "Setup"}
+                            {setupDirty && <UnsavedIndicator />}
+                            <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+                        </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-52">
+                        <DropdownMenuLabel>Agent setup</DropdownMenuLabel>
+                        {menuTabs.filter((tab) => tab.group === "setup").map((tab) => renderLink(tab, true))}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel>Reporting</DropdownMenuLabel>
+                        {menuTabs.filter((tab) => tab.group === "reporting").map((tab) => renderLink(tab, true))}
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
+            <Link href={`${base}/thread`} aria-current={pathname === `${base}/thread` || pathname.startsWith(`${base}/thread/`) ? "page" : undefined} className="my-1 inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2">
+                <MessagesSquare className="h-3.5 w-3.5" aria-hidden="true" />Message
+            </Link>
         </nav>
     );
 }

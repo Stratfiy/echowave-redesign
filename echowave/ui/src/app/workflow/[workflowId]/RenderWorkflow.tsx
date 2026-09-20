@@ -620,7 +620,11 @@ function RenderWorkflow({
                                 nodeTypes={nodeTypes}
                                 edgeTypes={edgeTypes}
                                 onConnect={isViewingHistoricalVersion ? undefined : onConnect}
-                                minZoom={0.4}
+                                minZoom={0.15}
+                                maxZoom={2}
+                                panOnScroll
+                                selectionOnDrag
+                                panOnDrag={[1, 2]}
                                 onInit={(instance) => {
                                     rfInstance.current = instance;
                                     // Center the workflow on load
@@ -652,11 +656,12 @@ function RenderWorkflow({
                                                     <TooltipTrigger asChild>
                                                         <Button
                                                             variant="default"
-                                                            size="icon"
+                                                            size="sm"
                                                             onClick={() => setIsAddNodePanelOpen(true)}
                                                             className="shadow-md hover:shadow-lg"
                                                         >
                                                             <Plus className="h-4 w-4" />
+                                                            Add node
                                                         </Button>
                                                     </TooltipTrigger>
                                                     <TooltipContent side="left">
@@ -707,7 +712,7 @@ function RenderWorkflow({
                                 or a second agent and this disappears, because
                                 there would be nothing honest for the form to
                                 show. */}
-                            <div className="absolute right-6 top-4 z-10">
+                            <div className="absolute left-4 top-4 z-10">
                                 <Button
                                     variant="outline"
                                     size="sm"
@@ -776,7 +781,7 @@ function RenderWorkflow({
                                                     variant="outline"
                                                     size="icon"
                                                     onClick={() => {
-                                                        setNodes(layoutNodes(nodes, edges, 'TB', rfInstance));
+                                                        setNodes(layoutNodes(nodes, edges, 'LR', rfInstance));
                                                         setIsDirty(true);
                                                     }}
                                                     className="bg-white shadow-sm hover:shadow-md h-8 w-8"
@@ -793,6 +798,12 @@ function RenderWorkflow({
                             </div>
                         </>
                         )}
+                            <AddNodePanel
+                                isOpen={isAddNodePanelOpen}
+                                onNodeSelect={handleNodeSelect}
+                                onClose={() => setIsAddNodePanelOpen(false)}
+                                nodes={nodes}
+                            />
                         </div>
 
                         {isTesterRailOpen && (
@@ -827,13 +838,6 @@ function RenderWorkflow({
                         </SheetContent>
                     </Sheet>
                 </div>
-
-                <AddNodePanel
-                    isOpen={isAddNodePanelOpen}
-                    onNodeSelect={handleNodeSelect}
-                    onClose={() => setIsAddNodePanelOpen(false)}
-                    nodes={nodes}
-                />
 
                 <VersionHistoryPanel
                     isOpen={isVersionPanelOpen}

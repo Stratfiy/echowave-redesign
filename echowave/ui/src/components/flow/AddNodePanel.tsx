@@ -1,10 +1,11 @@
 import * as LucideIcons from 'lucide-react';
-import { Circle, ExternalLink, type LucideIcon, X } from 'lucide-react';
-import { useEffect, useMemo } from 'react';
+import { Circle, type LucideIcon, Search, X } from 'lucide-react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import type { NodeSpec } from '@/client/types.gen';
 import { useNodeSpecs } from '@/components/flow/renderer';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 import { FlowNode, NodeType } from './types';
 
@@ -19,8 +20,8 @@ type AddNodePanelProps = {
 // mapping and the rendering order.
 const SECTION_ORDER: Array<{ category: NodeSpec['category']; title: string }> = [
     { category: 'trigger', title: 'Triggers' },
-    { category: 'call_node', title: 'Bot Nodes' },
-    { category: 'global_node', title: 'Global Nodes' },
+    { category: 'call_node', title: 'Conversation and actions' },
+    { category: 'global_node', title: 'Agent configuration' },
     { category: 'integration', title: 'Integrations' },
 ];
 
@@ -58,9 +59,11 @@ function NodeSection({
                         <Button
                             key={spec.name}
                             variant="outline"
-                            className="w-full justify-start p-4 h-auto hover:bg-accent/50 transition-colors"
+                            className="w-full justify-start p-2 h-auto hover:bg-muted transition-colors"
                             onClick={() => onNodeSelect(spec.name as NodeType)}
                             disabled={disabled}
+                            aria-label={spec.display_name}
+                            aria-description={disabled ? 'Already at the limit for this agent' : spec.description}
                             title={
                                 disabled
                                     ? `${spec.display_name} limit reached for this workflow`
@@ -68,15 +71,15 @@ function NodeSection({
                             }
                         >
                             <div className="flex items-center">
-                                <div className="bg-muted p-2 rounded-lg mr-3 border border-border">
-                                    <Icon className="h-5 w-5" />
+                                <div className="bg-muted p-2 rounded-lg mr-3 shrink-0 border border-border">
+                                    <Icon className="h-4 w-4" />
                                 </div>
                                 <div className="flex flex-col items-start text-left min-w-0">
                                     <span className="font-medium text-sm">
                                         {spec.display_name}
                                     </span>
                                     <span className="text-xs text-muted-foreground whitespace-normal">
-                                        {spec.description}
+                                        {disabled ? 'Already at the limit for this agent' : spec.description}
                                     </span>
                                 </div>
                             </div>
@@ -90,15 +93,20 @@ function NodeSection({
 
 export default function AddNodePanel({ isOpen, onNodeSelect, onClose, nodes }: AddNodePanelProps) {
     const { specs } = useNodeSpecs();
+    const [query, setQuery] = useState('');
+    const searchRef = useRef<HTMLInputElement>(null);
+    const titleId = useId();
+    const searchId = useId();
+    const normalizedQuery = query.trim().toLowerCase();
 
     // Group registered specs by category, preserving the SECTION_ORDER.
     // Adding a new node type with a new spec.category just shows up here.
     const sections = useMemo(() => {
         return SECTION_ORDER.map(({ category, title }) => ({
             title,
-            specs: specs.filter((s) => s.category === category),
+            specs: specs.filter((s) => s.category === category && `${s.display_name} ${s.description} ${s.name} ${title}`.toLowerCase().includes(normalizedQuery)),
         }));
-    }, [specs]);
+    }, [specs, normalizedQuery]);
 
     const nodeTypeCounts = useMemo(() => {
         const counts = new Map<string, number>();
@@ -109,52 +117,50 @@ export default function AddNodePanel({ isOpen, onNodeSelect, onClose, nodes }: A
     }, [nodes]);
 
     useEffect(() => {
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape' && isOpen) {
-                onClose();
-            }
+        if (!isOpen) return;
+        const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        setQuery('');
+        searchRef.current?.focus();
+        return () => {
+            if (previousFocus?.isConnected) previousFocus.focus();
         };
+    }, [isOpen]);
 
-        document.addEventListener('keydown', handleKeyDown);
-        return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, onClose]);
+    // Closed panels must not leave off-screen controls in the tab order.
+    if (!isOpen) return null;
+    const resultCount = sections.reduce((count, section) => count + section.specs.length, 0);
 
     return (
-        <div
-            className={`fixed z-51 right-0 top-0 h-full w-80 bg-background shadow-lg transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'
-                }`}
+        <aside
+            aria-labelledby={titleId}
+            className="nodrag nowheel absolute z-50 right-0 top-0 flex h-full w-80 max-w-full flex-col border-l border-border bg-background shadow-xl"
+            onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                    event.stopPropagation();
+                    onClose();
+                }
+            }}
         >
-            <div className="p-4 h-full overflow-y-auto">
-                <div className="flex justify-between items-center mb-6">
-                    <div className="flex flex-col gap-1">
-                        <h2 className="text-lg font-semibold">Add New Node</h2>
-                        <a
-                            href="https://docs.decibyl.ai/voice-agent/introduction"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors"
-                        >
-                            <ExternalLink className="w-3 h-3" />
-                            View Nodes Documentation
-                        </a>
-                    </div>
-                    <Button variant="ghost" size="icon" onClick={onClose}>
-                        <X className="w-5 h-5" />
+            <div className="border-b border-border p-4">
+                <div className="mb-3 flex items-center justify-between">
+                    <h2 id={titleId} className="text-base font-semibold">Add a node</h2>
+                    <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close node picker">
+                        <X className="size-4" />
                     </Button>
                 </div>
-
-                <div className="space-y-6">
-                    {sections.map(({ title, specs }) => (
-                        <NodeSection
-                            key={title}
-                            title={title}
-                            specs={specs}
-                            onNodeSelect={onNodeSelect}
-                            nodeTypeCounts={nodeTypeCounts}
-                        />
-                    ))}
+                <label htmlFor={searchId} className="sr-only">Search nodes</label>
+                <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" />
+                    <Input id={searchId} ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search nodes…" className="pl-9" />
                 </div>
+                <p className="mt-2 text-xs text-muted-foreground" aria-live="polite">{resultCount} {resultCount === 1 ? 'node' : 'nodes'} available</p>
             </div>
-        </div>
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-3">
+                {sections.map(({ title, specs }) => (
+                    <NodeSection key={title} title={title} specs={specs} onNodeSelect={onNodeSelect} nodeTypeCounts={nodeTypeCounts} />
+                ))}
+                {resultCount === 0 && <p className="px-2 py-6 text-sm text-muted-foreground">No matching nodes. Try a different name or action.</p>}
+            </div>
+        </aside>
     );
 }

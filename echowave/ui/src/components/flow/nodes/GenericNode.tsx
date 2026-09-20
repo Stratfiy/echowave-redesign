@@ -163,13 +163,13 @@ function getBadgeForSpec(
         case "start":
             return { label: "Start Node", className: "bg-emerald-500 text-white" };
         case "bot":
-            return { label: "Bot Node", className: "bg-blue-500 text-white" };
+            return { label: "Agent", className: "bg-blue-500 text-white" };
         case "end":
             return { label: "End Node", className: "bg-rose-500 text-white" };
         case "global":
             return { label: "Global Node", className: "bg-amber-500 text-white" };
         case "trigger":
-            return { label: "API Trigger", className: "bg-purple-500 text-white" };
+            return { label: "API Trigger", className: "bg-slate-600 text-white" };
         case "webhook":
             return { label: "Webhook", className: "bg-indigo-500 text-white" };
         case "qa":
@@ -300,7 +300,7 @@ function CanvasPreview({
     const hasDocRefs = spec.properties.some((p) => p.type === "document_refs");
     return (
         <>
-            <p className="text-sm text-muted-foreground line-clamp-5 leading-relaxed">
+            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
                 {data.prompt || "No prompt configured"}
             </p>
             {hasToolRefs && data.tool_uuids && data.tool_uuids.length > 0 && (
@@ -662,13 +662,14 @@ export const GenericNode = memo(({ data, selected, id, type }: GenericNodeProps)
 
             <NodeToolbar isVisible={selected} position={Position.Right}>
                 <div className="flex flex-col gap-1">
-                    <Button onClick={() => setOpen(true)} variant="outline" size="icon">
+                    <Button aria-label={`Edit ${data.name || fallbackTitle}`} onClick={() => setOpen(true)} variant="outline" size="icon">
                         <Edit />
                     </Button>
                     {/* Start nodes can't be deleted (workflow always needs one). */}
                     {type !== "startCall" && (
                         <Button
                             onClick={handleDeleteNode}
+                            aria-label={`Delete ${data.name || fallbackTitle}`}
                             variant="outline"
                             size="icon"
                         >

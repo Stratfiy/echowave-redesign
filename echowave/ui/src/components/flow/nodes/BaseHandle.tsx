@@ -16,15 +16,15 @@ export const BaseHandle = forwardRef<HTMLDivElement, BaseHandleProps>(
                 type={type}
                 {...props}
                 className={cn(
-                    "transition-all hover:!bg-blue-500",
+                    "transition-colors hover:!bg-teal-600 !border-2 !border-background",
                     // Source (outgoing) has larger visible handle for easier connection
-                    isSource && "!h-[16px] !w-[16px] rounded-full",
+                    isSource && "!h-[14px] !w-[14px] !rounded-full",
                     // Target (incoming) smaller rectangle
-                    isTarget && "!h-[10px] !w-[14px] rounded-sm",
+                    isTarget && "!h-[14px] !w-[14px] !rounded-sm",
                     className,
                 )}
                 style={{
-                    border: 'none',
+                    border: '2px solid var(--background)',
                     background: '#94A3B8', // slate-400
                     ...props.style,
                 }}

@@ -1,0 +1,8 @@
+Buzz component reuse in Decibyl
+Copyright 2026 Block, Inc.
+Licensed under Apache License 2.0; see buzz-LICENSE.txt.
+Source: https://github.com/block/buzz/blob/ef2aa1ae38fadcc0bc22b8bf6ed96b35933146be/desktop/src/features/agents/ui/AgentIdentityCard.tsx
+Upstream file blob: 60d16c833eb5b400d8bd00ab0f4a35dd8111c5fb
+Local file: src/components/workflow/AgentIdentityCard.tsx
+Modified for Decibyl: initials avatar and local utility import; removed Buzz profile dependencies.
+No upstream root NOTICE file was present at the pinned revision (GitHub returned 404).

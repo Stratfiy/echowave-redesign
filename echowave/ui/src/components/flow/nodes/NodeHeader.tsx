@@ -58,7 +58,7 @@ export const NodeHeaderTitle = forwardRef<
         <Comp
             ref={ref}
             {...props}
-            className={cn(className, "user-select-none flex-1 font-semibold")}
+            className={cn(className, "select-none min-w-0 flex-1 truncate text-sm font-semibold")}
         />
     );
 });

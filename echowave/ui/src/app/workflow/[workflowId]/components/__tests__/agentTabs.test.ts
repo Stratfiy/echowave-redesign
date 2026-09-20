@@ -1,14 +1,3 @@
-/**
- * One row of tabs, and every destination named once.
- *
- * There were two rows. The agent-level strip carried Analysis and Advanced;
- * the settings page drew its own underneath with Analysis and Advanced again,
- * a centimetre apart and going to different places — and the outer "Advanced"
- * opened the inner "Calling". Nobody can be expected to guess that, and it is
- * the kind of thing that reads as fine to whoever built it and as broken to
- * everyone else.
- */
-
 import { describe, expect, it } from "vitest";
 
 import { TABS as SETTINGS_TABS } from "../../settings/tabs";
@@ -59,20 +48,16 @@ describe("the agent's tabs", () => {
     });
 });
 
-describe("chat, then the definition", () => {
-    it("opens on chat, with the definition beside it", () => {
+describe("editing and activity, with separate messaging", () => {
+    it("prioritizes editing and activity", () => {
         const labels = AGENT_TABS.map((tab) => tab.label);
-        expect(labels.slice(0, 2)).toEqual(["Messages", "Instructions"]);
+        expect(labels.slice(0, 2)).toEqual(["Edit", "Activity"]);
     });
 
-    it("names the thread and the record the way Home does", () => {
-        // One word per thing across the product: Home's strip opens on
-        // Messages and a bot's does too, and what a bot has been doing is
-        // History on both. "Chat" and "Logs" were a second vocabulary for
-        // the same two ideas.
+    it("uses a distinct messaging action and activity destination", () => {
         const labels = AGENT_TABS.map((tab) => tab.label);
-        expect(labels).toContain("Messages");
-        expect(labels).toContain("History");
+        expect(labels).toContain("Message");
+        expect(labels).toContain("Activity");
         expect(labels).not.toContain("Chat");
         expect(labels).not.toContain("Logs");
     });

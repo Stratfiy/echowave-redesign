@@ -48,7 +48,7 @@ describe("sidebar interactions", () => {
     route.pathname = "/files";
     render(<SidebarProvider><AppSidebar /></SidebarProvider>);
 
-    for (const name of ["Files", "Phone numbers", "Web widget", "API keys", "Connect"]) {
+    for (const name of ["Knowledge", "Phone numbers", "Web widget", "API keys", "Connect"]) {
       expect(screen.getByRole("link", { name })).toBeTruthy();
     }
   });
@@ -73,7 +73,7 @@ describe("sidebar interactions", () => {
     // Two context rows, because four rows are what a day needs and the other
     // three are behind the person.
     const tabs = screen.getAllByRole("tab").map((t) => t.getAttribute("aria-label"));
-    expect(tabs).toEqual(["Home", "Activity"]);
+    expect(tabs).toEqual(["Decibyl", "Activity"]);
     // A rail pointing somewhere other than the screen you are reading is
     // worse than no rail.
     // /billing belongs to Account, which no longer has a row: the panel is
@@ -110,7 +110,7 @@ describe("sidebar interactions", () => {
    * links are crammed into a 56px column. */
   it("offers every context in the collapsed rail", () => {
     render(<SidebarProvider defaultOpen={false}><AppSidebar /></SidebarProvider>);
-    for (const title of ["Home", "Activity"]) {
+    for (const title of ["Decibyl", "Activity"]) {
       expect(screen.getByRole("tab", { name: title })).toBeTruthy();
     }
     // And the person, who carries the other three.
@@ -127,7 +127,7 @@ describe("sidebar interactions", () => {
   });
   it("the rail's Home button goes home, since the panel no longer lists it", () => {
     /* The Home row was removed from the panel so the panel could be the
-       workspace -- channels and bots -- rather than a menu with "Home" in it
+       workspace -- channels and bots -- rather than a menu with "Decibyl" in it
        twice. That leaves the rail button as the only way to /overview from
        the sidebar, so it navigates. The other contexts stay browse-only:
        looking at what is in Setup without leaving the page you are on is a
@@ -135,7 +135,7 @@ describe("sidebar interactions", () => {
     route.pathname = "/billing";
     router.push.mockReset();
     render(<SidebarProvider><AppSidebar /></SidebarProvider>);
-    fireEvent.click(screen.getByRole("tab", { name: "Home" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Decibyl" }));
     expect(router.push).toHaveBeenCalledWith("/overview");
     router.push.mockReset();
     fireEvent.click(screen.getByRole("tab", { name: "Activity" }));
@@ -147,23 +147,23 @@ describe("sidebar interactions", () => {
     // No nav rows in the Home panel. The lists below name themselves --
     // Channels and Direct messages, as Buzz does -- and neither heading is a
     // link: Bots is pinned above and is the one door to the roster.
-    expect(screen.queryByRole("link", { name: "Home" })).toBeNull();
+    expect(screen.getByRole("tab", { name: "Decibyl" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Your bots" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Channels" })).toBeNull();
-    const bots = screen.getByRole("link", { name: "Bots" });
+    const bots = screen.getByRole("link", { name: "Agents" });
     expect(bots.getAttribute("href")).toBe("/workflow");
     expect(bots.closest("[data-rail]")).toBeTruthy();
     // The two sections' doors are there even before anything has loaded.
     expect(screen.getByLabelText("New chat")).toBeTruthy();
     expect(screen.getByLabelText("Add a bot")).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Files/ }).getAttribute("href")).toBe("/files");
+    expect(screen.getByRole("link", { name: /Knowledge/ }).getAttribute("href")).toBe("/files");
     // No Decibyl row in the panel: Home is Decibyl. The pinned row above
     // goes to /overview and this one did too, so the assistant was announced
     // twice. The only Decibyl left on the panel is the rail's own logo.
     const decibyl = screen
       .queryAllByRole("link", { name: "Decibyl" })
       .filter((link) => !link.closest("[data-rail]"));
-    expect(decibyl).toEqual([]);
+    expect(decibyl.every((link) => link.getAttribute("href") === "/")).toBe(true);
     // The foot is the person, as Buzz's profile card: the setup call and the
     // account menu sit there, below the list, and stay put when it scrolls.
     const setup = screen.getByRole("link", {
@@ -181,7 +181,7 @@ describe("sidebar interactions", () => {
     // Three, and only three. The shop, the setup and the account are behind
     // the person; the bots are the roster below, under a label that is
     // already the door to the full list.
-    expect(rows).toEqual(["Home", "Activity", "Desk", "Bots"]);
+    expect(rows).toEqual(["Decibyl", "Tasks", "Agents", "Knowledge", "Activity"]);
   });
 
   it("keeps the same four rows folded to icons", () => {
@@ -193,15 +193,15 @@ describe("sidebar interactions", () => {
     const rows = Array.from(rail.querySelectorAll("a, button")).map(
       (el) => el.getAttribute("aria-label") ?? el.textContent?.trim(),
     );
-    expect(rows).toEqual(["Home", "Activity", "Desk", "Bots"]);
-    expect(screen.getByRole("link", { name: "Bots" }).getAttribute("href")).toBe("/workflow");
+    expect(rows).toEqual(["Decibyl", "Tasks", "Agents", "Knowledge", "Activity"]);
+    expect(screen.getByRole("link", { name: "Agents" }).getAttribute("href")).toBe("/workflow");
   });
 
   it("does not offer staff contexts to a customer", () => {
     render(<SidebarProvider defaultOpen={false}><AppSidebar /></SidebarProvider>);
     // Every panel a customer can reach, by row or by standing on one of its
     // pages, and the staff queue in none of them.
-    for (const context of ["Home", "Activity"]) {
+    for (const context of ["Decibyl", "Activity"]) {
       fireEvent.click(screen.getByRole("tab", { name: context }));
       expect(screen.queryByRole("link", { name: "Review queue" })).toBeNull();
     }

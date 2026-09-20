@@ -85,10 +85,9 @@ export const NodeEditDialog = ({
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogContent
-                className="max-h-[85vh] overflow-y-auto"
-                style={{ maxWidth: "1200px", width: "95vw" }}
+                className="inset-y-0 left-auto right-0 flex h-dvh max-h-dvh w-full max-w-full translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-y-0 border-r-0 p-0 sm:max-w-[520px]"
             >
-                <DialogHeader>
+                <DialogHeader className="shrink-0 border-b p-5 pr-12 text-left">
                     <div className="flex items-center justify-between">
                         <DialogTitle>{title}</DialogTitle>
                         {documentationUrl && (
@@ -104,7 +103,7 @@ export const NodeEditDialog = ({
                         )}
                     </div>
                     <DialogDescription>
-                        Configure the settings for this node in your workflow.
+                        Edit this node. Save applies your changes to the agent definition.
                     </DialogDescription>
                     {nodeData.invalid && nodeData.validationMessage && (
                         <div className="mt-2 flex items-center gap-2 rounded-md bg-red-50 p-2 text-sm text-red-500 border border-red-200">
@@ -113,7 +112,7 @@ export const NodeEditDialog = ({
                         </div>
                     )}
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5">
                     {children}
                 </div>
                 {error && (
@@ -122,7 +121,7 @@ export const NodeEditDialog = ({
                         <span>{error}</span>
                     </div>
                 )}
-                <DialogFooter>
+                <DialogFooter className="shrink-0 border-t bg-background p-4">
                     <div className="flex items-center gap-2">
                         <Button
                             variant="outline"
