@@ -829,6 +829,35 @@ async def websocket_ari_endpoint(websocket: WebSocket):
         await websocket.close(code=4400, reason="Missing required query params")
         return
 
+    # Same check the path-based media socket makes, and for the same reason:
+    # the three routing ids are supplied by whoever connects, so on their own
+    # they are a guessable bearer capability for live, bidirectional audio on
+    # somebody else's call. This route was exempt on the grounds that the
+    # Asterisk behind it is the customer's own machine -- which is true of
+    # Asterisk and says nothing about who else can reach this endpoint.
+    #
+    # Checked before the handshake is accepted, so an unauthorised connection
+    # is refused rather than accepted-then-closed.
+    granted = await stream_capability.verify(
+        websocket.query_params.get(stream_capability.TOKEN_PARAM),
+        workflow_id=int(workflow_id),
+        organization_id=int(organization_id),
+        workflow_run_id=int(workflow_run_id),
+    )
+    if not granted:
+        if TELEPHONY_WS_REQUIRE_TOKEN:
+            logger.warning(
+                f"Refusing ARI media socket for run {workflow_run_id} (org "
+                f"{organization_id}): no valid stream capability presented."
+            )
+            await websocket.close(code=4401, reason="Unauthorized")
+            return
+        logger.warning(
+            f"ARI media socket for run {workflow_run_id} presented no valid "
+            "stream capability and TELEPHONY_WS_REQUIRE_TOKEN is off — "
+            "allowing it."
+        )
+
     # Accept with "media" subprotocol — chan_websocket sends
     # Sec-WebSocket-Protocol: media and requires it echoed back.
     await websocket.accept(subprotocol="media")

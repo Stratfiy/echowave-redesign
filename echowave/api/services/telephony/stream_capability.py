@@ -28,9 +28,15 @@ token was minted for against the ones in the path. A token is therefore useless
 on any run but its own, so a leaked one — an access log, a carrier's dashboard —
 grants at most a replay of the call it was already for.
 
-ARI is deliberately not covered here. It connects on its own route with its own
-shape, and the Asterisk behind it is the customer's own machine on the
-customer's own network; see ``ari_manager``.
+ARI connects on its own route with its own shape -- the ids arrive as query
+params from the externalMedia dial string rather than in the path -- and is
+covered by the same capability. It was exempt for a while on the grounds that
+the Asterisk behind it is the customer's own machine on the customer's own
+network. That is true of Asterisk and beside the point: ``/ws/ari`` is mounted
+on the same public API as its sibling, so what needed defending was never who
+runs the PBX but who else can reach the endpoint. ``ari_manager`` mints the
+token into the dial string; ``routes/telephony.websocket_ari_endpoint`` checks
+it.
 """
 
 from __future__ import annotations

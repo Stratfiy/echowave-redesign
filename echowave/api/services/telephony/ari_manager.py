@@ -23,7 +23,7 @@ import redis.asyncio as aioredis
 import websockets
 from loguru import logger
 
-from api.constants import REDIS_URL
+from api.constants import REDIS_URL, TELEPHONY_WS_REQUIRE_TOKEN
 from api.db import db_client
 from api.enums import CallType, WorkflowRunMode
 from api.services.call_concurrency import (
@@ -31,7 +31,7 @@ from api.services.call_concurrency import (
     call_concurrency,
 )
 from api.services.quota_service import authorize_workflow_run_start
-from api.services.telephony import credential_encryption
+from api.services.telephony import credential_encryption, stream_capability
 from api.services.telephony.call_transfer_manager import get_call_transfer_manager
 from api.services.telephony.transfer_event_protocol import (
     TransferEvent,
@@ -446,6 +446,60 @@ class ARIConnection:
         logger.info(f"[ARI org={self.organization_id}] Answered channel {channel_id}")
         return True
 
+    @staticmethod
+    async def _external_media_transport_data(
+        *,
+        workflow_id: str,
+        organization_id: int,
+        workflow_run_id: str,
+    ) -> str:
+        """The ``v()`` dial string Asterisk appends to the websocket URL.
+
+        e.g. ``wss://api.decibyl.ai/ws/ari?workflow_id=1&organization_id=2&
+        workflow_run_id=3&t=...``
+
+        The three routing ids were the whole of it, and they are the caller's
+        to choose -- three small integers are not a secret, so the socket they
+        addressed was a guessable bearer capability for live, bidirectional
+        audio on somebody else's call. ``stream_capability`` had ARI listed as
+        deliberately out of scope on the grounds that the Asterisk behind it is
+        the customer's own machine; true, and beside the point, because the
+        route it connects to is mounted on the same public API as every other.
+
+        So the capability rides along as a fourth field. ``v()`` is comma and
+        paren delimited and ``secrets.token_urlsafe`` emits none of either, so
+        the dial string stays parseable.
+
+        Raising when no capability can be minted is the same trade
+        ``stream_capability.stream_url`` makes: a call placed with a URL the
+        socket will refuse rings, is answered, and dies the moment media should
+        start, which reads as "the call ends when I pick up" and leaves nothing
+        in the call's record saying why.
+        """
+        fields = [
+            f"workflow_id={workflow_id}",
+            f"organization_id={organization_id}",
+            f"workflow_run_id={workflow_run_id}",
+        ]
+
+        token = await stream_capability.mint(
+            workflow_id=int(workflow_id),
+            organization_id=int(organization_id),
+            workflow_run_id=int(workflow_run_id),
+        )
+        if token:
+            fields.append(f"{stream_capability.TOKEN_PARAM}={token}")
+        elif TELEPHONY_WS_REQUIRE_TOKEN:
+            raise stream_capability.StreamCapabilityUnavailable(
+                f"Could not mint a stream capability for run {workflow_run_id}, "
+                "and the ARI media socket requires one. The call is not being "
+                "placed with a dial string that would be refused after answer. "
+                "Check Redis; set TELEPHONY_WS_REQUIRE_TOKEN=false to accept "
+                "unauthenticated media sockets for the duration of the incident."
+            )
+
+        return f"v({','.join(fields)})"
+
     async def _create_external_media(
         self,
         workflow_id: str,
@@ -463,12 +517,10 @@ class ARIConnection:
         that id. The caller can then register ext-channel state ahead of
         the POST and avoid racing against the StasisStart event.
         """
-        # v() appends URI query params to the websocket_client.conf URL
-        # e.g. wss://api.decibyl.ai/ws/ari?workflow_id=1&organization_id=2&workflow_run_id=3
-        transport_data = (
-            f"v(workflow_id={workflow_id},"
-            f"organization_id={self.organization_id},"
-            f"workflow_run_id={workflow_run_id})"
+        transport_data = await self._external_media_transport_data(
+            workflow_id=workflow_id,
+            organization_id=self.organization_id,
+            workflow_run_id=workflow_run_id,
         )
 
         params = {
