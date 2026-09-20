@@ -8,14 +8,11 @@ import { describe, expect, it } from "vitest";
 const ROOT = join(__dirname, "..");
 const SLIPS = [/\ban bot\b/i, /\ba agent\b/i, /\ba assistant\b/i, /\ban workflow\b/i];
 
-// The same rename left the old words in visible text: a heading that says
-// "Workflow Runs" over a list of calls, "No agents yet" on a screen whose
-// sidebar says Bots. These are JSX text nodes, so the `>` and `<` are literal.
+// Agent is the current product term; legacy Bot labels remain during migration.
+// Internal workflow terminology should still not leak into these user-facing
+// labels. These patterns match JSX text nodes, not code identifiers.
 const OLD_NAMES = [
     />[^<\n]*\bworkflow runs?\b[^<\n]*</i,
-    />[^<\n]*\bno agents yet\b[^<\n]*</i,
-    />[^<\n]*\bcreate an agent\b[^<\n]*</i,
-    />[^<\n]*\bvoice agent\b[^<\n]*</i,
     />[^<\n]*\binbound workflow\b[^<\n]*</i,
 ];
 
@@ -39,10 +36,10 @@ describe("the copy reads as English", () => {
         expect(offenders).toEqual([]);
     });
 
-    it("never calls a bot an agent or a workflow where a person can read it", () => {
+    it("keeps internal workflow names out of user-facing labels", () => {
         const offenders: string[] = [];
         for (const file of walk(ROOT)) {
-            if (file.includes("/superadmin/")) continue;
+            if (/[\\/]superadmin[\\/]/.test(file)) continue;
             const text = readFileSync(file, "utf8");
             for (const slip of OLD_NAMES) if (slip.test(text)) offenders.push(file.replace(ROOT, "") + ": " + slip);
         }
