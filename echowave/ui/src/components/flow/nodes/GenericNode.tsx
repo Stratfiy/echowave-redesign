@@ -1,14 +1,12 @@
 import { NodeProps, NodeToolbar, Position } from "@xyflow/react";
 import * as LucideIcons from "lucide-react";
-import { Check, Circle, Copy, Edit, type LucideIcon, Trash2Icon } from "lucide-react";
+import { AlertCircle, Circle, Edit, type LucideIcon, Trash2Icon } from "lucide-react";
 import Link from "next/link";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 
 import { useWorkflow } from "@/app/workflow/[workflowId]/contexts/WorkflowContext";
 import type { NodeSpec } from "@/client/types.gen";
-import { DocumentBadges } from "@/components/flow/DocumentBadges";
 import { NodeEditForm, useNodeSpecs } from "@/components/flow/renderer";
-import { ToolBadges } from "@/components/flow/ToolBadges";
 import { FlowNodeData } from "@/components/flow/types";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,42 +15,16 @@ import { useAppConfig } from "@/context/AppConfigContext";
 import { cn } from "@/lib/utils";
 import { resolveWebhookBaseUrl } from "@/lib/webhookUrl";
 
-import { NodeContent } from "./common/NodeContent";
+import { BaseHandle } from "./BaseHandle";
+import { BaseNode } from "./BaseNode";
 import { NodeEditDialog } from "./common/NodeEditDialog";
 import { useNodeHandlers } from "./common/useNodeHandlers";
+import { NodeHeader, NodeHeaderIcon, NodeHeaderTitle } from "./NodeHeader";
 
 // ─── Static per-spec UI maps ──────────────────────────────────────────────
 // Small lookups indexed by spec.name. Keeping these in the renderer (not
 // the spec) avoids leaking UI concerns into the backend schema. Add an
 // entry when registering a new node type.
-
-type NodeStyleVariant =
-    | "start"
-    | "bot"
-    | "end"
-    | "global"
-    | "trigger"
-    | "webhook"
-    | "qa"
-    | "branch"
-    | "wait"
-    | "integration";
-
-const STYLE_VARIANT_BY_SPEC: Record<string, NodeStyleVariant> = {
-    startCall: "start",
-    agentNode: "bot",
-    endCall: "end",
-    globalNode: "global",
-    trigger: "trigger",
-    webhook: "webhook",
-    qa: "qa",
-    branch: "branch",
-    wait: "wait",
-    // Grouped with the other post-call integrations (webhook, QA): it is not a
-    // step in the conversation, it is something that happens once the call is
-    // over.
-    sms: "integration",
-};
 
 const HANDLES_BY_SPEC: Record<string, { source: boolean; target: boolean }> = {
     startCall: { source: true, target: false },
@@ -125,228 +97,6 @@ function resolveIntegrationEnabled(
         if (typeof value === "boolean") return value;
     }
     return true;
-}
-
-function resolveIntegrationSummary(
-    spec: NodeSpec,
-    data: FlowNodeData,
-): string {
-    for (const prop of spec.properties) {
-        if (
-            prop.name === "name" ||
-            prop.name.endsWith("enabled") ||
-            /api[_-]?key|token|secret/i.test(prop.name)
-        ) {
-            continue;
-        }
-
-        const value = data[prop.name];
-        if (typeof value === "string" && value.trim().length > 0) {
-            return value.length > 30 ? `${value.slice(0, 30)}...` : value;
-        }
-        if (typeof value === "number") {
-            return String(value);
-        }
-    }
-    return "Not configured";
-}
-
-function getBadgeForSpec(
-    spec: NodeSpec | undefined,
-    variant: NodeStyleVariant,
-): { label: string; className: string } {
-    if (!spec) {
-        return { label: "Node", className: "bg-zinc-500 text-white" };
-    }
-
-    switch (variant) {
-        case "start":
-            return { label: "Start Node", className: "bg-emerald-500 text-white" };
-        case "bot":
-            return { label: "Agent", className: "bg-blue-500 text-white" };
-        case "end":
-            return { label: "End Node", className: "bg-rose-500 text-white" };
-        case "global":
-            return { label: "Global Node", className: "bg-amber-500 text-white" };
-        case "trigger":
-            return { label: "API Trigger", className: "bg-slate-600 text-white" };
-        case "webhook":
-            return { label: "Webhook", className: "bg-indigo-500 text-white" };
-        case "qa":
-            return { label: "QA Analysis", className: "bg-teal-500 text-white" };
-        // Slate rather than a colour of its own: a branch is the one node on
-        // the canvas that never speaks, and reading as machinery rather than
-        // as another conversational step is the correct signal.
-        case "branch":
-            return { label: "Branch", className: "bg-slate-600 text-white" };
-        // Same slate family as Branch: both are flow machinery rather than
-        // conversation, and reading as a pair is the correct signal.
-        case "wait":
-            return { label: "Wait", className: "bg-slate-500 text-white" };
-        case "integration":
-            return { label: spec.display_name, className: "bg-cyan-600 text-white" };
-    }
-}
-
-// ─── Canvas preview dispatch ──────────────────────────────────────────────
-
-function CanvasPreview({
-    spec,
-    data,
-    onCopyTrigger,
-    triggerCopied,
-    onStaleTools,
-    onStaleDocuments,
-}: {
-    spec: NodeSpec;
-    data: FlowNodeData;
-    onCopyTrigger: () => void;
-    triggerCopied: boolean;
-    onStaleTools: (uuids: string[]) => void;
-    onStaleDocuments: (uuids: string[]) => void;
-}) {
-    const { config: appConfig } = useAppConfig();
-    if (spec.name === "trigger") {
-        const endpoint = buildTriggerEndpoints(
-            data.trigger_path,
-            resolveWebhookBaseUrl(appConfig?.tunnelUrl),
-        ).production;
-        return (
-            <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">API Endpoint:</p>
-                <div className="flex items-center gap-1">
-                    <code className="text-xs break-all bg-muted px-1 py-0.5 rounded flex-1">
-                        {endpoint || "Generating..."}
-                    </code>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 shrink-0"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onCopyTrigger();
-                        }}
-                    >
-                        {triggerCopied ? (
-                            <Check className="h-3 w-3" />
-                        ) : (
-                            <Copy className="h-3 w-3" />
-                        )}
-                    </Button>
-                </div>
-            </div>
-        );
-    }
-
-    if (spec.name === "webhook") {
-        const method = data.http_method || "POST";
-        const url = data.endpoint_url || "";
-        const enabled = data.enabled !== false;
-        const truncated = !url
-            ? "Not configured"
-            : url.length > 30
-            ? url.slice(0, 30) + "..."
-            : url;
-        return (
-            <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">
-                        {method}
-                    </span>
-                    <span className="text-xs text-muted-foreground truncate flex-1">
-                        {truncated}
-                    </span>
-                </div>
-                <StatusDot enabled={enabled} />
-            </div>
-        );
-    }
-
-    if (spec.name === "qa") {
-        const llmSource =
-            data.qa_use_workflow_llm !== false
-                ? "Workflow LLM"
-                : `${data.qa_provider || "openai"}/${data.qa_model || "gpt-4.1"}`;
-        const enabled = data.qa_enabled !== false;
-        return (
-            <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">
-                        {llmSource}
-                    </span>
-                </div>
-                <StatusDot enabled={enabled} />
-            </div>
-        );
-    }
-
-    if (spec.category === "integration") {
-        const enabled = resolveIntegrationEnabled(spec, data);
-        const destination = resolveIntegrationSummary(spec, data);
-        return (
-            <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">
-                        {destination}
-                    </span>
-                </div>
-                <StatusDot enabled={enabled} />
-            </div>
-        );
-    }
-
-    // Default: prompt preview + tool/document badges (when spec declares them).
-    const hasToolRefs = spec.properties.some((p) => p.type === "tool_refs");
-    const hasDocRefs = spec.properties.some((p) => p.type === "document_refs");
-    return (
-        <>
-            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-                {data.prompt || "No prompt configured"}
-            </p>
-            {hasToolRefs && data.tool_uuids && data.tool_uuids.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-border/50">
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
-                        <LucideIcons.Wrench className="h-3 w-3" />
-                        <span>Tools:</span>
-                    </div>
-                    <ToolBadges
-                        toolUuids={data.tool_uuids}
-                        onStaleUuidsDetected={onStaleTools}
-                        mcpToolFilters={data.mcp_tool_filters}
-                    />
-                </div>
-            )}
-            {hasDocRefs && data.document_uuids && data.document_uuids.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-border/50">
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
-                        <LucideIcons.FileText className="h-3 w-3" />
-                        <span>Documents:</span>
-                    </div>
-                    <DocumentBadges
-                        documentUuids={data.document_uuids}
-                        onStaleUuidsDetected={onStaleDocuments}
-                    />
-                </div>
-            )}
-        </>
-    );
-}
-
-function StatusDot({ enabled }: { enabled: boolean }) {
-    return (
-        <div className="flex items-center gap-1.5">
-            <Circle
-                className={`h-2 w-2 ${
-                    enabled
-                        ? "fill-green-500 text-green-500"
-                        : "fill-gray-400 text-gray-400"
-                }`}
-            />
-            <span className="text-xs text-muted-foreground">
-                {enabled ? "Enabled" : "Disabled"}
-            </span>
-        </div>
-    );
 }
 
 // ─── Trigger webhook URLs (test + production) — rendered inside the dialog ─
@@ -499,7 +249,7 @@ export const GenericNode = memo(({ data, selected, id, type }: GenericNodeProps)
         id,
         additionalData,
     });
-    const { saveWorkflow, tools, documents, recordings, workflowUuid } = useWorkflow();
+    const { saveWorkflow, tools, documents, recordings, workflowUuid, readOnly } = useWorkflow();
     const { bySpecName } = useNodeSpecs();
     const { config: appConfig } = useAppConfig();
     const spec = bySpecName.get(type);
@@ -526,53 +276,6 @@ export const GenericNode = memo(({ data, selected, id, type }: GenericNodeProps)
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [spec]);
 
-    // ── Trigger auto-UUID + canvas copy state ──────────────────────────
-    const [triggerCopied, setTriggerCopied] = useState(false);
-    const handleCopyTrigger = useCallback(async () => {
-        const endpoint = buildTriggerEndpoints(data.trigger_path, webhookBaseUrl).production;
-        if (!endpoint) return;
-        await navigator.clipboard.writeText(endpoint);
-        setTriggerCopied(true);
-        setTimeout(() => setTriggerCopied(false), 2000);
-    }, [data.trigger_path, webhookBaseUrl]);
-
-    // For trigger nodes without a path yet, generate one and persist.
-    useEffect(() => {
-        if (type !== "trigger") return;
-        if (data.trigger_path) return;
-        const newPath = crypto.randomUUID();
-        handleSaveNodeData({ ...data, trigger_path: newPath });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [type]);
-
-    // ── Stale tool/document cleanup (was duplicated in Start/Agent) ─────
-    const handleStaleTools = useCallback(
-        async (staleUuids: string[]) => {
-            const cleaned = (data.tool_uuids ?? []).filter(
-                (u) => !staleUuids.includes(u),
-            );
-            handleSaveNodeData({
-                ...data,
-                tool_uuids: cleaned.length > 0 ? cleaned : undefined,
-            });
-            await saveWorkflow();
-        },
-        [data, handleSaveNodeData, saveWorkflow],
-    );
-    const handleStaleDocuments = useCallback(
-        async (staleUuids: string[]) => {
-            const cleaned = (data.document_uuids ?? []).filter(
-                (u) => !staleUuids.includes(u),
-            );
-            handleSaveNodeData({
-                ...data,
-                document_uuids: cleaned.length > 0 ? cleaned : undefined,
-            });
-            await saveWorkflow();
-        },
-        [data, handleSaveNodeData, saveWorkflow],
-    );
-
     // ── Dirty / save / open handlers ────────────────────────────────────
     const propertyNames = useMemo(
         () => spec?.properties.map((p) => p.name) ?? [],
@@ -590,7 +293,7 @@ export const GenericNode = memo(({ data, selected, id, type }: GenericNodeProps)
     }, [values, data, spec, propertyNames]);
 
     const handleSave = async () => {
-        if (!spec) return;
+        if (!spec || readOnly) return;
         handleSaveNodeData({
             ...data,
             ...(values as Partial<FlowNodeData>),
@@ -610,21 +313,13 @@ export const GenericNode = memo(({ data, selected, id, type }: GenericNodeProps)
     }, [data, open]);
 
     // ── Render ──────────────────────────────────────────────────────────
-    const styleVariant =
-        STYLE_VARIANT_BY_SPEC[type] ??
-        (spec?.category === "integration" ? "integration" : "bot");
     const handles =
         HANDLES_BY_SPEC[type] ??
         (spec?.category === "integration"
             ? { source: false, target: false }
             : { source: true, target: true });
-    const badge = getBadgeForSpec(spec, styleVariant);
     const Icon = spec ? resolveIcon(spec.icon) : Circle;
     const docUrl = spec?.docs_url ?? DOC_URL_BY_SPEC[type];
-    const contentLabel = spec?.properties.some((p) => p.name === "prompt")
-        ? "Prompt"
-        : "Details";
-
     // Edit dialog title: "Edit {display_name}". Webhook keeps the original
     // "Edit Webhook" wording — display_name is "Webhook" so it works out.
     const dialogTitle = spec ? `Edit ${spec.display_name}` : "Edit Node";
@@ -632,41 +327,36 @@ export const GenericNode = memo(({ data, selected, id, type }: GenericNodeProps)
 
     return (
         <>
-            <NodeContent
-                selected={selected}
-                invalid={data.invalid}
+            <BaseNode
+                selected={selected} invalid={data.invalid}
                 selected_through_edge={data.selected_through_edge}
                 hovered_through_edge={data.hovered_through_edge}
                 runtimeActive={data.runtime_active}
-                title={data.name || fallbackTitle}
-                icon={<Icon />}
-                badgeLabel={badge.label}
-                badgeClassName={badge.className}
-                contentLabel={contentLabel}
-                hasSourceHandle={handles.source}
-                hasTargetHandle={handles.target}
-                onDoubleClick={() => setOpen(true)}
-                nodeId={id}
+                onDoubleClick={() => handleOpenChange(true)}
+                onKeyDown={(event) => { if (event.key === "Enter" && event.target === event.currentTarget) { event.preventDefault(); handleOpenChange(true); } }}
+                aria-label={`${data.name || fallbackTitle}, ${fallbackTitle}. Press Enter to inspect.`}
             >
-                {spec && (
-                    <CanvasPreview
-                        spec={spec}
-                        data={data}
-                        onCopyTrigger={handleCopyTrigger}
-                        triggerCopied={triggerCopied}
-                        onStaleTools={handleStaleTools}
-                        onStaleDocuments={handleStaleDocuments}
-                    />
-                )}
-            </NodeContent>
+                {handles.target && <BaseHandle type="target" position={Position.Left} aria-label="Input connection" />}
+                <NodeHeader>
+                    <NodeHeaderIcon><Icon aria-hidden="true" /></NodeHeaderIcon>
+                    <div className="min-w-0 flex-1">
+                        <NodeHeaderTitle title={data.name || fallbackTitle}>{data.name || fallbackTitle}</NodeHeaderTitle>
+                        <p className="mt-1 truncate text-[11px] text-muted-foreground">{fallbackTitle}</p>
+                    </div>
+                    {data.invalid ? <AlertCircle aria-label="Needs attention" className="h-4 w-4 shrink-0 text-destructive" />
+                        : data.runtime_active ? <span aria-label="Running" className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-teal-500" />
+                        : spec?.category === "integration" && !resolveIntegrationEnabled(spec, data) ? <span className="shrink-0 text-[10px] text-muted-foreground">Off</span> : null}
+                </NodeHeader>
+                {handles.source && <BaseHandle type="source" position={Position.Right} aria-label="Output connection" />}
+            </BaseNode>
 
-            <NodeToolbar isVisible={selected} position={Position.Right}>
-                <div className="flex flex-col gap-1">
+            <NodeToolbar isVisible={selected} position={Position.Top}>
+                <div className="flex gap-1">
                     <Button aria-label={`Edit ${data.name || fallbackTitle}`} onClick={() => setOpen(true)} variant="outline" size="icon">
                         <Edit />
                     </Button>
                     {/* Start nodes can't be deleted (workflow always needs one). */}
-                    {type !== "startCall" && (
+                    {type !== "startCall" && !readOnly && (
                         <Button
                             onClick={handleDeleteNode}
                             aria-label={`Delete ${data.name || fallbackTitle}`}

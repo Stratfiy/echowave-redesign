@@ -124,9 +124,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           {/* h-screen, not min-h-screen: the column is bounded, so a page
               that wants to scroll its own list (a chat) can say h-full and
               have it mean something. Ordinary pages scroll inside <main>. */}
-          <div className="flex h-screen w-full">
+          <div className="flex h-dvh w-full">
             <AppSidebar />
-            <SidebarInset className="min-h-0 flex-1">
+            <SidebarInset className="min-h-0 min-w-0 flex-1">
               <BackendStatusBanner />
               <ImpersonationBanner />
               <VerifyEmailBanner />

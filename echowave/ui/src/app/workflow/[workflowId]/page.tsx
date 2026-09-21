@@ -101,12 +101,9 @@ export default function WorkflowDetailPage() {
     }
     else {
         return stableUser ? (
-            <>
-                {/* Above the canvas, because the two steps people stall on —
-                    calling the agent, putting it on a number — are both
-                    invisible from inside the editor. It removes itself once
-                    there is nothing left to do. */}
-                <SetupRail workflowId={workflow.id} />
+            <div className="flex h-full min-h-0 flex-col">
+                {/* Guided setup stays on onboarding links, leaving ordinary editing focused. */}
+                {searchParams.has("onboarding") && <SetupRail workflowId={workflow.id} />}
                 <RenderWorkflow
                     initialWorkflowName={workflow.name}
                     workflowId={workflow.id}
@@ -117,7 +114,7 @@ export default function WorkflowDetailPage() {
                     initialFlow={{
                         nodes: workflow.workflow_definition.nodes as FlowNode[],
                         edges: workflow.workflow_definition.edges as FlowEdge[],
-                        viewport: { x: 0, y: 0, zoom: 0 }
+                        viewport: { x: 0, y: 0, zoom: 1 }
                     }}
                     initialTemplateContextVariables={workflow.template_context_variables as Record<string, string> || {}}
                     initialWorkflowConfigurations={
@@ -130,7 +127,7 @@ export default function WorkflowDetailPage() {
                     initialView={initialView}
                     user={stableUser}
                 />
-            </>
+            </div>
         ) : null;
     }
 }

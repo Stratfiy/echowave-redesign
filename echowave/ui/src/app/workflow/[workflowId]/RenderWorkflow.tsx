@@ -5,8 +5,11 @@ import {
     BackgroundVariant,
     Panel,
     ReactFlow,
+    useNodesInitialized,
+    useReactFlow,
+    useViewport,
 } from "@xyflow/react";
-import { BrushCleaning, ClipboardList, Maximize2, Minus, Plus, Settings } from 'lucide-react';
+import { BrushCleaning, Focus, Maximize2, Minimize2, Minus, Plus, Redo2, Undo2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -34,7 +37,7 @@ import { WorkflowEditorHeader } from "./components/WorkflowEditorHeader";
 import { WorkflowTesterPanel } from './components/WorkflowTesterPanel';
 import { WorkflowProvider } from "./contexts/WorkflowContext";
 import { useWorkflowState } from "./hooks/useWorkflowState";
-import { useWorkflowStore } from './stores/workflowStore';
+import { graphSnapshot, useUndoRedo, useWorkflowStore } from './stores/workflowStore';
 import { layoutNodes } from './utils/layoutNodes';
 
 const edgeTypes = {
@@ -42,6 +45,30 @@ const edgeTypes = {
 };
 
 const VERSIONS_PAGE_SIZE = 10;
+
+function CanvasZoomLabel() {
+    const { zoom } = useViewport();
+    return <Panel position="bottom-right"><span className="rounded-md border bg-background px-2 py-1 text-xs tabular-nums text-muted-foreground" aria-label={`Canvas zoom ${Math.round(zoom * 100)} percent`}>{Math.round(zoom * 100)}%</span></Panel>;
+}
+
+function InitialCanvasViewport() {
+    const initialized = useNodesInitialized();
+    const flow = useReactFlow<FlowNode, FlowEdge>();
+    const positioned = useRef(false);
+    useEffect(() => {
+        if (!initialized || positioned.current) return;
+        const graphNodes = flow.getNodes();
+        if (!graphNodes.length) return;
+        positioned.current = true;
+        if (window.innerWidth < 768) {
+            const start = graphNodes.find(node => node.type === NodeType.START_CALL) ?? graphNodes[0];
+            void flow.setCenter(start.position.x + 112, start.position.y + 36, { zoom: 1 });
+        } else {
+            void flow.fitView({ padding: 0.2, minZoom: 0.65, maxZoom: 1 });
+        }
+    }, [flow, initialized]);
+    return null;
+}
 
 interface RenderWorkflowProps {
     initialWorkflowName: string;
@@ -122,7 +149,6 @@ function RenderWorkflow({
         isDirty,
         workflowValidationErrors,
         templateContextVariables,
-        setNodes,
         setIsDirty,
         setIsAddNodePanelOpen,
         handleNodeSelect,
@@ -141,12 +167,26 @@ function RenderWorkflow({
         user,
     });
 
+    const [canvasFullscreen, setCanvasFullscreen] = useState(false);
+    const { undo, redo, canUndo, canRedo } = useUndoRedo();
+    useEffect(() => {
+        const exit = (event: KeyboardEvent) => {
+            if (event.key === 'Escape' && !event.defaultPrevented && !document.querySelector('[role="dialog"]')) setCanvasFullscreen(false);
+        };
+        window.addEventListener('keydown', exit);
+        return () => window.removeEventListener('keydown', exit);
+    }, []);
+    const focusStart = useCallback(() => {
+        const start = nodes.find(node => node.selected) ?? nodes.find(node => node.type === NodeType.START_CALL) ?? nodes[0];
+        if (start) void rfInstance.current?.setCenter(start.position.x + 112, start.position.y + 36, { zoom: 1, duration: 200 });
+    }, [nodes, rfInstance]);
     const [showCanvas, setShowCanvasState] = useState(initialView === "graph");
     useEffect(() => {
         setShowCanvasState(initialView === "graph");
     }, [initialView]);
     const setShowCanvas = useCallback((on: boolean) => {
         setShowCanvasState(on);
+        setCanvasFullscreen(false);
         setIsAddNodePanelOpen(false);
         const params = new URLSearchParams(searchParams.toString());
         if (on) params.set("view", "graph");
@@ -159,17 +199,15 @@ function RenderWorkflow({
     // so the initial render is stable before specs load, then merge in any
     // spec-defined or already-present node types so plugin integrations like
     // Tuner render without extra React registrations.
-    const nodeTypes = useMemo(() => {
-        const typeNames = new Set<string>([
+    const nodeTypeNames = JSON.stringify(Array.from(new Set<string>([
             ...Object.values(NodeType),
             ...specs.map((spec) => spec.name),
             ...nodes.map((node) => node.type),
             ...(initialFlow?.nodes ?? []).map((node) => node.type),
-        ]);
-        return Object.fromEntries(
-            Array.from(typeNames).map((typeName) => [typeName, GenericNode]),
-        );
-    }, [initialFlow?.nodes, nodes, specs]);
+        ])).sort());
+    const nodeTypes = useMemo(() => Object.fromEntries(
+        (JSON.parse(nodeTypeNames) as string[]).map(typeName => [typeName, GenericNode]),
+    ), [nodeTypeNames]);
 
     // Derive hasDraft from the current version status
     const hasDraft = currentVersionStatus === "draft";
@@ -417,7 +455,7 @@ function RenderWorkflow({
 
     // Memoize defaultEdgeOptions to prevent unnecessary re-renders
     const defaultEdgeOptions = useMemo(() => ({
-        animated: true,
+        animated: false,
         type: "custom"
     }), []);
 
@@ -527,8 +565,9 @@ function RenderWorkflow({
 
     return (
         <WorkflowProvider value={workflowContextValue}>
-            <div className="flex flex-col h-screen min-w-fit">
-                <HireExpertNudge workflowId={workflowId} />
+            <div style={{ '--primary': '#0f766e', '--primary-foreground': '#ffffff', '--ring': '#0f766e' } as React.CSSProperties} className={canvasFullscreen ? "fixed inset-0 z-40 flex min-h-0 min-w-0 flex-col bg-background" : "flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden"}>
+                {!canvasFullscreen && <HireExpertNudge workflowId={workflowId} />}
+                <div className={canvasFullscreen ? "hidden" : "shrink-0"}>
                 {/* New Workflow Editor Header */}
                 <WorkflowEditorHeader
                     workflowName={workflowName}
@@ -550,26 +589,29 @@ function RenderWorkflow({
                     renameWorkflow={renameWorkflow}
                 />
 
-                {/* One agent, five tabs -- the shape Vapi uses. These were four
-                    unrelated URLs reached from a back arrow and a menu, so an
-                    agent was never one thing you were looking at. */}
                 <AgentTabs workflowId={workflowId} />
-                <div className="flex items-center gap-2 border-b px-6 py-3" role="group" aria-label="Editor view">
+                </div>
+                <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2" role="group" aria-label="Editor view">
                     <Button size="sm" variant={showCanvas ? "ghost" : "secondary"} aria-pressed={!showCanvas} onClick={() => setShowCanvas(false)}>Chat</Button>
                     <Button size="sm" variant={showCanvas ? "secondary" : "ghost"} aria-pressed={showCanvas} onClick={() => setShowCanvas(true)}>Graph</Button>
-                    <span className="ml-2 text-xs text-muted-foreground">One shared draft</span>
+                    <span className="ml-1 hidden text-xs text-muted-foreground sm:inline">One shared draft</span>
+                    {showCanvas && <Button className="ml-auto" size="sm" variant="ghost" aria-label={canvasFullscreen ? "Exit full screen" : "Full screen canvas"} onClick={() => setCanvasFullscreen(value => !value)}>
+                        {canvasFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                        <span className="hidden sm:inline">{canvasFullscreen ? "Exit full screen" : "Full screen"}</span>
+                    </Button>}
                 </div>
 
                 {/* Workflow Canvas */}
                 <div className="flex-1 min-h-0">
                     <div className="flex h-full min-w-0">
-                        <div className="relative min-w-0 flex-1 overflow-auto">
-                        <div hidden={showCanvas}>
+                        <div className="relative min-w-0 flex-1 overflow-hidden">
+                        <div hidden={showCanvas} className="h-full overflow-auto">
                             <GraphEditChat key={`${workflowId}-${activeVersionId ?? 'current'}-${editorSession}`} workflowId={workflowId} readOnly={isViewingHistoricalVersion} />
                         </div>
                         {showCanvas && (
                         <>
                             <ReactFlow
+                                className="bg-slate-50 dark:bg-slate-950"
                                 key={activeVersionId ?? 'current'}
                                 nodes={displayNodes}
                                 edges={edges}
@@ -578,17 +620,20 @@ function RenderWorkflow({
                                 nodeTypes={nodeTypes}
                                 edgeTypes={edgeTypes}
                                 onConnect={isViewingHistoricalVersion ? undefined : onConnect}
+                                onBeforeDelete={async ({ nodes: deletedNodes, edges: deletedEdges }) => {
+                                    if (!isViewingHistoricalVersion) {
+                                        useWorkflowStore.getState().deleteGraphElements(deletedNodes.map(node => node.id), deletedEdges.map(edge => edge.id));
+                                    }
+                                    // Commit the node and attached edges together, rather than React Flow's separate callbacks.
+                                    return false;
+                                }}
                                 minZoom={0.15}
                                 maxZoom={2}
                                 panOnScroll
-                                selectionOnDrag
-                                panOnDrag={[1, 2]}
+                                panOnDrag
+                                selectionKeyCode="Shift"
                                 onInit={(instance) => {
                                     rfInstance.current = instance;
-                                    // Center the workflow on load
-                                    setTimeout(() => {
-                                        instance.fitView({ padding: 0.2, duration: 200, maxZoom: 0.75 });
-                                    }, 0);
                                 }}
                                 defaultEdgeOptions={defaultEdgeOptions}
                                 defaultViewport={initialFlow?.viewport}
@@ -604,73 +649,29 @@ function RenderWorkflow({
                                     size={1}
                                     color="#94a3b8"
                                 />
+                                <CanvasZoomLabel />
+                                <InitialCanvasViewport />
 
-                                {/* Top-right controls - vertical layout (hidden when viewing history) */}
-                                {!isViewingHistoricalVersion && (
-                                    <Panel position="top-right">
-                                        <TooltipProvider>
-                                            <div className="flex flex-col gap-2">
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <Button
-                                                            variant="default"
-                                                            size="sm"
-                                                            onClick={() => setIsAddNodePanelOpen(true)}
-                                                            className="shadow-md hover:shadow-lg"
-                                                        >
-                                                            <Plus className="h-4 w-4" />
-                                                            Add node
-                                                        </Button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent side="left">
-                                                        <p>Add node</p>
-                                                    </TooltipContent>
-                                                </Tooltip>
-
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <Button
-                                                            variant="outline"
-                                                            size="icon"
-                                                            onClick={() => router.push(`/workflow/${workflowId}/setup`)}
-                                                            className="bg-white shadow-sm hover:shadow-md"
-                                                        >
-                                                            <ClipboardList className="h-4 w-4" />
-                                                        </Button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent side="left">
-                                                        <p>Fill in the business details</p>
-                                                    </TooltipContent>
-                                                </Tooltip>
-
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <Button
-                                                            variant="outline"
-                                                            size="icon"
-                                                            onClick={() => router.push(`/workflow/${workflowId}/settings`)}
-                                                            className="bg-white shadow-sm hover:shadow-md"
-                                                        >
-                                                            <Settings className="h-4 w-4" />
-                                                        </Button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent side="left">
-                                                        <p>Bot settings</p>
-                                                    </TooltipContent>
-                                                </Tooltip>
-                                            </div>
-                                        </TooltipProvider>
-                                    </Panel>
-                                )}
+                                <Panel position="top-left">
+                                    <div className="flex items-center gap-1 rounded-xl border bg-background p-1 shadow-sm">
+                                        {!isViewingHistoricalVersion && <>
+                                            <Button size="sm" className="bg-teal-700 text-white hover:bg-teal-800" onClick={() => setIsAddNodePanelOpen(true)}><Plus className="h-4 w-4" />Add node</Button>
+                                            <Button size="icon" variant="ghost" aria-label="Undo graph edit" disabled={!canUndo} onClick={undo}><Undo2 className="h-4 w-4" /></Button>
+                                            <Button size="icon" variant="ghost" aria-label="Redo graph edit" disabled={!canRedo} onClick={redo}><Redo2 className="h-4 w-4" /></Button>
+                                        </>}
+                                        {isViewingHistoricalVersion && <span className="px-2 text-xs">Read-only version</span>}
+                                    </div>
+                                </Panel>
                             </ReactFlow>
 
-                            <div className="absolute bottom-12 left-8 z-10 flex gap-2">
+                            <div className="absolute bottom-5 left-3 z-10 flex gap-1 rounded-xl border bg-background p-1 shadow-sm">
                                 <TooltipProvider>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
                                             <Button
                                                 variant="outline"
                                                 size="icon"
+                                                aria-label="Zoom in"
                                                 onClick={() => rfInstance.current?.zoomIn()}
                                                 className="bg-white shadow-sm hover:shadow-md h-8 w-8"
                                             >
@@ -687,6 +688,7 @@ function RenderWorkflow({
                                             <Button
                                                 variant="outline"
                                                 size="icon"
+                                                aria-label="Zoom out"
                                                 onClick={() => rfInstance.current?.zoomOut()}
                                                 className="bg-white shadow-sm hover:shadow-md h-8 w-8"
                                             >
@@ -703,7 +705,8 @@ function RenderWorkflow({
                                             <Button
                                                 variant="outline"
                                                 size="icon"
-                                                onClick={() => rfInstance.current?.fitView()}
+                                                aria-label="Fit all nodes"
+                                                onClick={() => rfInstance.current?.fitView({ padding: 0.15, maxZoom: 1 })}
                                                 className="bg-white shadow-sm hover:shadow-md h-8 w-8"
                                             >
                                                 <Maximize2 className="h-4 w-4" />
@@ -714,15 +717,17 @@ function RenderWorkflow({
                                         </TooltipContent>
                                     </Tooltip>
 
+                                    <Button variant="outline" size="icon" className="h-8 w-8" aria-label="Focus selected or start node at readable zoom" onClick={focusStart}><Focus className="h-4 w-4" /></Button>
                                     {!isViewingHistoricalVersion && (
                                         <Tooltip>
                                             <TooltipTrigger asChild>
                                                 <Button
                                                     variant="outline"
                                                     size="icon"
+                                                    aria-label="Arrange nodes"
                                                     onClick={() => {
-                                                        setNodes(layoutNodes(nodes, edges, 'LR', rfInstance));
-                                                        setIsDirty(true);
+                                                        const current = useWorkflowStore.getState();
+                                                        current.applyGraphProposal(workflowId, graphSnapshot(current.nodes, current.edges), layoutNodes(current.nodes, current.edges, 'LR', rfInstance), current.edges);
                                                     }}
                                                     className="bg-white shadow-sm hover:shadow-md h-8 w-8"
                                                 >

@@ -59,7 +59,7 @@ function NodeSection({
                         <Button
                             key={spec.name}
                             variant="outline"
-                            className="w-full justify-start p-2 h-auto hover:bg-muted transition-colors"
+                            className="w-full justify-start p-3 h-auto hover:border-teal-600/40 hover:bg-teal-500/5 transition-colors"
                             onClick={() => onNodeSelect(spec.name as NodeType)}
                             disabled={disabled}
                             aria-label={spec.display_name}
@@ -78,7 +78,7 @@ function NodeSection({
                                     <span className="font-medium text-sm">
                                         {spec.display_name}
                                     </span>
-                                    <span className="text-xs text-muted-foreground whitespace-normal">
+                                    <span className="text-xs text-muted-foreground whitespace-normal line-clamp-2">
                                         {disabled ? 'Already at the limit for this agent' : spec.description}
                                     </span>
                                 </div>
@@ -102,10 +102,13 @@ export default function AddNodePanel({ isOpen, onNodeSelect, onClose, nodes }: A
     // Group registered specs by category, preserving the SECTION_ORDER.
     // Adding a new node type with a new spec.category just shows up here.
     const sections = useMemo(() => {
-        return SECTION_ORDER.map(({ category, title }) => ({
+        const groups = SECTION_ORDER.map(({ category, title }) => ({
             title,
             specs: specs.filter((s) => s.category === category && `${s.display_name} ${s.description} ${s.name} ${title}`.toLowerCase().includes(normalizedQuery)),
         }));
+        const known = new Set(SECTION_ORDER.map(section => section.category));
+        groups.push({ title: "Other nodes", specs: specs.filter(spec => !known.has(spec.category) && `${spec.display_name} ${spec.description} ${spec.name}`.toLowerCase().includes(normalizedQuery)) });
+        return groups;
     }, [specs, normalizedQuery]);
 
     const nodeTypeCounts = useMemo(() => {
@@ -133,7 +136,7 @@ export default function AddNodePanel({ isOpen, onNodeSelect, onClose, nodes }: A
     return (
         <aside
             aria-labelledby={titleId}
-            className="nodrag nowheel absolute z-50 right-0 top-0 flex h-full w-80 max-w-full flex-col border-l border-border bg-background shadow-xl"
+            className="nodrag nowheel absolute z-50 inset-x-0 bottom-0 flex max-h-[75%] w-full flex-col rounded-t-xl border-t border-border bg-background shadow-xl sm:left-auto sm:right-0 sm:top-0 sm:h-full sm:max-h-full sm:w-80 sm:rounded-none sm:border-l"
             onKeyDown={(event) => {
                 if (event.key === 'Escape') {
                     event.stopPropagation();

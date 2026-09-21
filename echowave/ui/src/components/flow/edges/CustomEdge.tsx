@@ -1,374 +1,98 @@
-import { BaseEdge, type Edge, EdgeLabelRenderer, type EdgeProps, getSmoothStepPath, useReactFlow } from '@xyflow/react';
-import { AlertCircle, Pencil, Trash2 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { BaseEdge, EdgeLabelRenderer, type EdgeProps, getSmoothStepPath } from '@xyflow/react';
+import { AlertCircle, Trash2 } from 'lucide-react';
+import { useEffect, useId, useRef, useState } from 'react';
 
-import { useWorkflow, useWorkflowOptional } from "@/app/workflow/[workflowId]/contexts/WorkflowContext";
-import { useWorkflowStore } from "@/app/workflow/[workflowId]/stores/workflowStore";
-import { StaticTextWarning, TextOrAudioInput } from "@/components/flow/TextOrAudioInput";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useWorkflow, useWorkflowOptional } from '@/app/workflow/[workflowId]/contexts/WorkflowContext';
+import { useWorkflowStore } from '@/app/workflow/[workflowId]/stores/workflowStore';
+import { StaticTextWarning, TextOrAudioInput } from '@/components/flow/TextOrAudioInput';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { cn } from "@/lib/utils";
+import { cn } from '@/lib/utils';
 
-import { FlowEdge, FlowEdgeData, FlowNode } from '../types';
-type CustomEdge = Edge<{ value: number }, 'custom'>;
+import { FlowEdgeData } from '../types';
 
+interface CustomEdgeProps extends EdgeProps { data: FlowEdgeData }
 
-interface EdgeDetailsDialogProps {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    data?: FlowEdgeData;
-    onSave: (value: FlowEdgeData) => void;
-}
-
-const EdgeDetailsDialog = ({ open, onOpenChange, data, onSave }: EdgeDetailsDialogProps) => {
+export default function CustomEdge(props: CustomEdgeProps) {
+    const { id, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, style, selected, markerEnd, markerStart } = props;
     const readOnly = useWorkflowOptional()?.readOnly ?? false;
     const { recordings } = useWorkflow();
-    const [condition, setCondition] = useState(data?.condition ?? '');
-    const [label, setLabel] = useState(data?.label ?? '');
-    const [transitionSpeech, setTransitionSpeech] = useState(data?.transition_speech ?? '');
-    const [transitionSpeechType, setTransitionSpeechType] = useState<'text' | 'audio'>(data?.transition_speech_type ?? 'text');
-    const [transitionSpeechRecordingId, setTransitionSpeechRecordingId] = useState(data?.transition_speech_recording_id ?? '');
+    const updateEdge = useWorkflowStore(state => state.updateEdge);
+    const deleteEdge = useWorkflowStore(state => state.deleteEdge);
+    const [open, setOpen] = useState(false);
+    const [draft, setDraft] = useState<FlowEdgeData>(data);
+    const fieldId = useId();
+    const labelRef = useRef<HTMLInputElement>(null);
+    const openerRef = useRef<HTMLButtonElement>(null);
+    const edges = useWorkflowStore(state => state.edges);
+    const parallel = edges.filter(edge => (edge.source === source && edge.target === target) || (edge.source === target && edge.target === source)).sort((a, b) => a.id.localeCompare(b.id));
+    const labelOffset = parallel.length > 1 ? (parallel.findIndex(edge => edge.id === id) - (parallel.length - 1) / 2) * 30 : 0;
+    useEffect(() => { if (open) setDraft({ ...data }); }, [open, data]);
 
-    // Update form state when data changes (e.g., from undo/redo)
-    useEffect(() => {
-        if (open) {
-            setCondition(data?.condition ?? '');
-            setLabel(data?.label ?? '');
-            setTransitionSpeech(data?.transition_speech ?? '');
-            setTransitionSpeechType(data?.transition_speech_type ?? 'text');
-            setTransitionSpeechRecordingId(data?.transition_speech_recording_id ?? '');
-        }
-    }, [data, open]);
-
-    const handleSave = useCallback(() => {
-        onSave({
-            condition,
-            label,
-            transition_speech: transitionSpeechType === 'text' ? (transitionSpeech || undefined) : undefined,
-            transition_speech_type: transitionSpeechType,
-            transition_speech_recording_id: transitionSpeechType === 'audio' ? (transitionSpeechRecordingId || undefined) : undefined,
-        });
-        onOpenChange(false);
-    }, [condition, label, transitionSpeech, transitionSpeechType, transitionSpeechRecordingId, onSave, onOpenChange]);
-
-    // Handle Cmd+S / Ctrl+S keyboard shortcut to save
-    useEffect(() => {
-        if (!open || readOnly) return;
-
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                handleSave();
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown, true);
-        return () => window.removeEventListener('keydown', handleKeyDown, true);
-    }, [open, readOnly, handleSave]);
-
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-h-[85vh] flex flex-col">
+    const apply = () => {
+        if (readOnly) return;
+        // Update the shared draft and its undo history; saving remains explicit.
+        const next = { ...data, ...draft };
+        if ((next.transition_speech_type ?? 'text') === 'audio') next.transition_speech = '';
+        else next.transition_speech_recording_id = '';
+        updateEdge(id, { data: next });
+        setOpen(false);
+    };
+    const [path, labelX, labelY] = source === target
+        ? [`M ${sourceX} ${sourceY} C ${sourceX + 80} ${sourceY - 50}, ${targetX + 80} ${targetY + 50}, ${targetX} ${targetY}`, sourceX + 80, sourceY]
+        : getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 8, offset: 20 });
+    const speechType = draft?.transition_speech_type ?? 'text';
+    return <>
+        <g onDoubleClick={() => setOpen(true)}>
+            <BaseEdge id={id} path={path} markerEnd={markerEnd} markerStart={markerStart} interactionWidth={20}
+                style={{ ...style, stroke: data?.invalid ? '#ef4444' : selected ? '#0d9488' : '#94a3b8', strokeWidth: selected ? 2 : 1.5 }} />
+        </g>
+        <EdgeLabelRenderer>
+            <button ref={openerRef} type="button" aria-label={`Edit connection: ${data?.label || 'Condition'}`}
+                style={{ position: 'absolute', pointerEvents: 'all', transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY + labelOffset}px)` }}
+                onClick={() => setOpen(true)}
+                className={cn('nodrag nopan flex max-w-[144px] items-center gap-1 rounded-md border bg-background px-2 py-1 text-[11px] font-medium shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500', data?.invalid ? 'border-destructive text-destructive' : selected ? 'border-teal-600 text-teal-700 dark:text-teal-300' : 'border-border text-muted-foreground hover:border-teal-600')}>
+                {data?.invalid && <AlertCircle aria-label="Invalid connection" className="size-3 shrink-0" />}
+                <span className="truncate">{data?.label || 'Condition'}</span>
+            </button>
+        </EdgeLabelRenderer>
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogContent style={{ '--primary': '#0f766e', '--primary-foreground': '#ffffff', '--ring': '#0f766e' } as React.CSSProperties} onOpenAutoFocus={event => { event.preventDefault(); labelRef.current?.focus(); }} onCloseAutoFocus={event => { event.preventDefault(); openerRef.current?.focus(); }} className="left-0 right-0 top-auto bottom-0 flex max-h-[85dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col rounded-t-xl rounded-b-none sm:left-auto sm:top-0 sm:bottom-0 sm:h-dvh sm:max-h-none sm:w-[400px] sm:max-w-[90vw] sm:rounded-none"
+                onKeyDownCapture={event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); event.stopPropagation(); apply(); } }}>
                 <DialogHeader>
-                    <DialogTitle>Edit Condition</DialogTitle>
-                    {data?.invalid && data.validationMessage && (
-                        <div className="mt-2 flex items-center gap-2 rounded-md bg-red-50 p-2 text-sm text-red-500 border border-red-200">
-                            <AlertCircle className="h-4 w-4" />
-                            <span>{data.validationMessage}</span>
-                        </div>
-                    )}
+                    <DialogTitle>Connection</DialogTitle>
+                    <DialogDescription>Choose when this path runs. Apply updates your draft; use the editor Save button to keep changes.</DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4 overflow-y-auto">
+                {data?.invalid && data.validationMessage && <p role="alert" className="rounded-md border border-destructive/30 p-2 text-sm text-destructive">{data.validationMessage}</p>}
+                <fieldset disabled={readOnly} className="grid min-h-0 gap-4 overflow-y-auto py-2">
                     <div className="grid gap-2">
-                        <Label>Condition Label</Label>
-                        <Label className="text-xs text-muted-foreground">
-                            Enter a short label which helps identify this pathway in logs
-                        </Label>
-                        <Input
-                            type="text"
-                            value={label}
-                            maxLength={64}
-                            onChange={(e) => setLabel(e.target.value)}
-                        />
-                        <div className="text-xs text-muted-foreground">
-                            {label.length}/64 characters
-                        </div>
+                        <Label htmlFor={`${fieldId}-label`}>Label</Label>
+                        <p className="text-xs text-muted-foreground">A short name for this path, also shown in logs.</p>
+                        <Input ref={labelRef} id={`${fieldId}-label`} value={draft?.label ?? ''} maxLength={64} onChange={event => setDraft({ ...draft, label: event.target.value })} />
                     </div>
                     <div className="grid gap-2">
-                        <Label>Condition</Label>
-                        <Label className="text-xs text-muted-foreground">
-                            Describe a condition that will be evaluated to determine if this pathway should be taken
-                        </Label>
-                        <Textarea
-                            value={condition}
-                            onChange={(e) => setCondition(e.target.value)}
-                        />
+                        <Label htmlFor={`${fieldId}-condition`}>Condition</Label>
+                        <p className="text-xs text-muted-foreground">Describe when the agent should take this path.</p>
+                        <Textarea id={`${fieldId}-condition`} value={draft?.condition ?? ''} onChange={event => setDraft({ ...draft, condition: event.target.value })} />
                     </div>
                     <div className="grid gap-2">
-                        <Label>Transition Speech</Label>
-                        <Label className="text-xs text-muted-foreground">
-                            Optional text or audio the assistant will play right before transitioning to the node.
-                            This will not be attached in Conversation Context. Use this as simple filler to reduce latency.
-                        </Label>
-                        <TextOrAudioInput
-                            type={transitionSpeechType}
-                            onTypeChange={setTransitionSpeechType}
-                            recordingId={transitionSpeechRecordingId}
-                            onRecordingIdChange={setTransitionSpeechRecordingId}
-                            recordings={recordings ?? []}
-                        >
-                            <>
-                                <StaticTextWarning />
-                                <Textarea
-                                    value={transitionSpeech}
-                                    placeholder="e.g. Let me transfer you to our billing department..."
-                                    onChange={(e) => setTransitionSpeech(e.target.value)}
-                                />
-                            </>
+                        <Label>Transition speech</Label>
+                        <p className="text-xs text-muted-foreground">Optional speech before moving to the next step. It is not added to conversation context.</p>
+                        <TextOrAudioInput type={speechType} onTypeChange={type => setDraft({ ...draft, transition_speech_type: type })}
+                            recordingId={draft?.transition_speech_recording_id ?? ''} onRecordingIdChange={recordingId => setDraft({ ...draft, transition_speech_recording_id: recordingId })} recordings={recordings ?? []}>
+                            <StaticTextWarning />
+                            <Textarea aria-label="Transition speech text" value={draft?.transition_speech ?? ''} onChange={event => setDraft({ ...draft, transition_speech: event.target.value })} />
                         </TextOrAudioInput>
                     </div>
-                </div>
-                <DialogFooter>
-                    <div className="flex items-center gap-2">
-                        <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-                        <Button onClick={handleSave} disabled={readOnly}>
-                            {readOnly ? "Read Only" : "Save"}
-                        </Button>
-                    </div>
+                </fieldset>
+                <DialogFooter className="border-t pt-4 sm:justify-between">
+                    <Button variant="ghost" className="text-destructive hover:text-destructive" disabled={readOnly} onClick={() => { if (!readOnly) { deleteEdge(id); setOpen(false); } }}><Trash2 className="mr-2 size-4" />Delete connection</Button>
+                    <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button className="bg-teal-700 text-white hover:bg-teal-800" disabled={readOnly} onClick={apply}>{readOnly ? 'Read only' : 'Apply'}</Button></div>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
-    );
-};
-
-interface CustomEdgeProps extends EdgeProps {
-    data: FlowEdgeData;
-}
-
-export default function CustomEdge(props: CustomEdgeProps) {
-    const { id, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, style, selected } = props;
-
-    const { getEdges, setNodes } = useReactFlow<FlowNode, FlowEdge>();
-    const { saveWorkflow } = useWorkflow();
-    const updateEdge = useWorkflowStore((state) => state.updateEdge);
-    const deleteEdge = useWorkflowStore((state) => state.deleteEdge);
-    const [open, setOpen] = useState(false);
-    const [isHovered, setIsHovered] = useState(false);
-
-    const parallel = getEdges().filter(
-        (e) =>
-            (e.source === source && e.target === target) ||
-            (e.source === target && e.target === source)
-    );
-
-    // 2) if there are two, sort by id and pick an index
-    let offsetX = 0;
-    let offsetY = 0;
-    if (parallel.length > 1) {
-        const sorted = parallel.slice().sort((a, b) => a.id.localeCompare(b.id));
-        const idx = sorted.findIndex((e) => e.id === id);
-
-        // first edge (idx 0) moves right & down;
-        // second edge (idx 1) moves left & up
-        if (idx === 0) {
-            offsetX = 100;
-            offsetY = 0;
-        } else {
-            offsetX = 0;
-            offsetY = -50;
-        }
-    }
-
-    // Check if this is a self-loop (source and target are the same node)
-    const isSelfLoop = source === target;
-
-    // 3) draw the edge path + get label coords
-    // Use custom arc path for self-loops, smoothstep for regular edges
-    let edgePath: string;
-    let labelX: number;
-    let labelY: number;
-
-    if (isSelfLoop) {
-        // Create a loop arc that goes out and around the node
-        const loopRadius = 50;
-        const loopOffsetX = 80;
-        // Arc path: start from source, curve out and back to target
-        edgePath = `M ${sourceX} ${sourceY}
-                    C ${sourceX + loopOffsetX} ${sourceY - loopRadius},
-                      ${targetX + loopOffsetX} ${targetY + loopRadius},
-                      ${targetX} ${targetY}`;
-        labelX = sourceX + loopOffsetX;
-        labelY = sourceY;
-    } else {
-        // Use smoothstep path for orthogonal/elbow edges
-        // borderRadius: 8 gives slightly rounded corners for a clean look
-        // offset: 20 provides spacing before the first bend
-        const [path, lx, ly] = getSmoothStepPath({
-            sourceX,
-            sourceY,
-            sourcePosition,
-            targetX,
-            targetY,
-            targetPosition,
-            borderRadius: 8,
-            offset: 20,
-        });
-        edgePath = path;
-        labelX = lx;
-        labelY = ly;
-    }
-
-    // Update connected nodes when edge is selected or hovered
-    useEffect(() => {
-        setNodes((nodes) => {
-            return nodes.map((node) => {
-                if (node.id === source || node.id === target) {
-                    // Update both properties based on edge state
-                    const shouldSelectThroughEdge = selected || false;
-                    const shouldHoverThroughEdge = isHovered || false;
-
-                    // Only update if state actually changed
-                    if (
-                        node.data.selected_through_edge !== shouldSelectThroughEdge ||
-                        node.data.hovered_through_edge !== shouldHoverThroughEdge
-                    ) {
-                        return {
-                            ...node,
-                            data: {
-                                ...node.data,
-                                selected_through_edge: shouldSelectThroughEdge,
-                                hovered_through_edge: shouldHoverThroughEdge
-                            }
-                        };
-                    }
-                }
-                return node;
-            });
-        });
-    }, [selected, isHovered, source, target, setNodes]);
-
-    const handleSaveEdgeData = useCallback(async (updatedData: FlowEdgeData) => {
-        // Use the workflow store's updateEdge method to properly track history
-        updateEdge(id, { data: updatedData });
-        await saveWorkflow();
-    }, [id, updateEdge, saveWorkflow]);
-
-    const handleDeleteEdge = useCallback(() => {
-        deleteEdge(id);
-    }, [id, deleteEdge]);
-
-    return (
-        <>
-            <g
-                onMouseEnter={() => setIsHovered(true)}
-                onMouseLeave={() => setIsHovered(false)}
-                onDoubleClick={() => setOpen(true)}
-            >
-                <BaseEdge
-                    id={id}
-                    path={edgePath}
-                    style={{
-                        ...style,
-                        stroke: selected
-                            ? '#3B82F6'  // blue-500 when selected
-                            : isHovered
-                                ? '#60A5FA'  // blue-400 when hovered
-                                : data?.invalid ? '#EF4444' : '#94A3B8',
-                        strokeWidth: selected ? 4 : isHovered ? 3 : 2.5,
-                        filter: selected
-                            ? 'drop-shadow(0 0 8px rgba(59, 130, 246, 0.6))'
-                            : isHovered
-                                ? 'drop-shadow(0 0 6px rgba(96, 165, 250, 0.4))'
-                                : 'none',
-                        transition: 'stroke 0.2s ease, stroke-width 0.2s ease, filter 0.2s ease',
-                    }}
-                    interactionWidth={20}
-                />
-            </g>
-            {/* Always show label, expand on select/hover */}
-            <EdgeLabelRenderer>
-                <div
-                    style={{
-                        position: 'absolute',
-                        pointerEvents: 'all',
-                        transformOrigin: 'center',
-                        transform: `translate(-50%, -50%) translate(${labelX + offsetX}px, ${labelY + offsetY}px)`,
-                        zIndex: 1000,
-                    }}
-                    className="nodrag nopan"
-                    onMouseEnter={() => setIsHovered(true)}
-                    onMouseLeave={() => setIsHovered(false)}
-                    onDoubleClick={() => setOpen(true)}
-                >
-                    {/* Show full EdgeLabel when selected or hovered, otherwise show simple label */}
-                    {(selected || isHovered) ? (
-                        <div className={cn(
-                            "flex flex-col gap-2 bg-card rounded-lg border min-w-[220px]",
-                            "animate-in fade-in zoom-in duration-200",
-                            data?.invalid
-                                ? "border-destructive/50 shadow-[0_0_15px_rgba(239,68,68,0.3)]"
-                                : selected
-                                    ? "border-primary ring-2 ring-primary/40 shadow-[0_0_20px_rgba(59,130,246,0.5)]"
-                                    : "border-border shadow-xl"
-                        )}>
-                            {/* Header with label */}
-                            <div className={cn(
-                                "flex items-center justify-between px-3 py-2 border-b",
-                                data?.invalid ? "bg-destructive/10 border-destructive/30" : "bg-muted/50 border-border"
-                            )}>
-                                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                    Condition
-                                </span>
-                                <div className="flex items-center gap-1">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive text-muted-foreground"
-                                        onClick={handleDeleteEdge}
-                                    >
-                                        <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-6 w-6 p-0 hover:bg-muted text-muted-foreground"
-                                        onClick={() => setOpen(true)}
-                                    >
-                                        <Pencil className="h-3 w-3" />
-                                    </Button>
-                                </div>
-                            </div>
-                            {/* Content */}
-                            <div className="px-3 pb-3">
-                                <div className="text-sm font-medium text-card-foreground break-words">
-                                    {data?.label || data?.condition || 'Click to set condition'}
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
-                        /* Simple label shown by default - amber/orange colored pill style */
-                        <div className={cn(
-                            "px-3 py-1.5 rounded-full text-xs font-medium shadow-md",
-                            "transition-all duration-200",
-                            data?.invalid
-                                ? "bg-destructive text-destructive-foreground"
-                                : "bg-amber-500 text-amber-950"
-                        )}>
-                            {data?.label || data?.condition || 'No condition'}
-                        </div>
-                    )}
-                </div>
-            </EdgeLabelRenderer>
-            <EdgeDetailsDialog
-                open={open}
-                onOpenChange={setOpen}
-                data={data}
-                onSave={handleSaveEdgeData}
-            />
-        </>
-    );
+    </>;
 }

@@ -16,7 +16,7 @@ export const BaseHandle = forwardRef<HTMLDivElement, BaseHandleProps>(
                 type={type}
                 {...props}
                 className={cn(
-                    "transition-colors hover:!bg-teal-600 !border-2 !border-background",
+                    "transition-colors hover:!bg-teal-600 !border-2 !border-slate-400 hover:!border-teal-700",
                     // Source (outgoing) has larger visible handle for easier connection
                     isSource && "!h-[14px] !w-[14px] !rounded-full",
                     // Target (incoming) smaller rectangle
@@ -25,7 +25,7 @@ export const BaseHandle = forwardRef<HTMLDivElement, BaseHandleProps>(
                 )}
                 style={{
                     border: '2px solid var(--background)',
-                    background: '#94A3B8', // slate-400
+                    background: 'var(--card)',
                     ...props.style,
                 }}
             >
