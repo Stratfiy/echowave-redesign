@@ -852,6 +852,19 @@ RECORDING_DISCLOSURE_TEXT = os.getenv(
     "Just so you know, this call is recorded for quality and training purposes.",
 )
 
+# FD-1 (21 Sept 2026): the caller is told they are speaking with an AI, in
+# the agent's first turn, before the greeting -- the same shape as the
+# recording disclosure and for the same reason: omission must not switch it
+# off. EU AI Act Article 50 (in force 2 August 2026) and the FCC's ruling
+# that AI-generated voices are artificial under the TCPA both expect it.
+# Per agent, default on; switching it off is a deliberate act that names
+# the jurisdictions where that is unlawful, and lands in Activity.
+AI_DISCLOSURE_ENABLED = os.getenv("AI_DISCLOSURE_ENABLED", "true").lower() == "true"
+AI_DISCLOSURE_TEXT = os.getenv(
+    "AI_DISCLOSURE_TEXT",
+    "Hi, you're speaking with an AI assistant.",
+)
+
 # ─── Database connection pool ────────────────────────────────────────────────
 #
 # SQLAlchemy defaults to 5 connections with 10 overflow. That ceiling is

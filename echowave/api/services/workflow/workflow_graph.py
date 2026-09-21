@@ -151,6 +151,8 @@ class Node:
             data, "recording_disclosure_enabled", None
         )
         self.recording_disclosure = getattr(data, "recording_disclosure", None)
+        self.ai_disclosure_enabled = getattr(data, "ai_disclosure_enabled", None)
+        self.ai_disclosure = getattr(data, "ai_disclosure", None)
         self.delayed_start = getattr(data, "delayed_start", False)
         self.delayed_start_duration = getattr(data, "delayed_start_duration", None)
         self.tool_uuids = getattr(data, "tool_uuids", None)

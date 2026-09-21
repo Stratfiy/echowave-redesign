@@ -68,6 +68,7 @@ from api.services.workflow.agent_brief import (
 from api.services.workflow.disposition import merge_taxonomies
 from api.services.workflow.dto import ReactFlowDTO, sanitize_workflow_definition
 from api.services.workflow.duplicate import duplicate_workflow
+from api.services.compliance import ai_disclosure
 from api.services.workflow.errors import ItemKind, WorkflowError
 from api.services.workflow.outcome_board import WINDOWS, board
 from api.services.workflow.run_usage_response import (
@@ -264,6 +265,11 @@ async def _validate_workflow_definition(
                 message=issue.message,
             )
         )
+
+    # ----------- AI-identity line (FD-1) ------------
+    # May be switched off only with the acknowledgement; a draft that has it
+    # off and unacknowledged does not publish.
+    errors.extend(ai_disclosure.problems(workflow_definition))
 
     # ----------- Trigger Path Conflict Check ------------
     trigger_paths = extract_trigger_paths(workflow_definition)
@@ -2020,6 +2026,13 @@ async def update_workflow(
         instance_errors = _node_instance_validation_errors(workflow_definition)
         if instance_errors:
             raise _validation_errors_http_exception(instance_errors, status_code=409)
+        # Switching the AI-identity line off without the acknowledgement is
+        # refused at save, not only at publish: the person is looking at the
+        # setting now, and the message names what to tick (FD-1).
+        disclosure_errors = ai_disclosure.problems(workflow_definition)
+        if disclosure_errors:
+            raise _validation_errors_http_exception(disclosure_errors)
+        previous_definition: Optional[dict] = None
         if workflow_definition:
             existing_workflow = await db_client.get_workflow(
                 workflow_id, organization_id=user.selected_organization_id
@@ -2032,6 +2045,7 @@ async def update_workflow(
                     if existing_draft
                     else existing_workflow.released_definition.workflow_json
                 )
+                previous_definition = existing_def
                 workflow_definition = merge_workflow_api_keys(
                     workflow_definition,
                     existing_def,
@@ -2235,6 +2249,15 @@ async def update_workflow(
                 workflow_id=workflow.id,
                 organization_id=user.selected_organization_id,
                 trigger_paths=trigger_paths,
+            )
+            # The switch, with a name on it, in Activity (FD-1).
+            await ai_disclosure.note_change(
+                organization_id=user.selected_organization_id,
+                workflow_id=workflow.id,
+                workflow_name=workflow.name,
+                user_id=user.id,
+                before=previous_definition,
+                after=workflow_definition,
             )
 
         # Return draft content if one exists (save creates a draft)

@@ -219,6 +219,8 @@ def apply_brief(definition: dict[str, Any], brief: AgentBrief) -> dict[str, Any]
             # every call here is recorded. Defaulted on rather than left to be
             # remembered, matching what the Start Call node does by default.
             data.setdefault("recording_disclosure_enabled", True)
+            # And that the voice is an AI's (FD-1), for the same reason.
+            data.setdefault("ai_disclosure_enabled", True)
             if brief.welcome_message.strip():
                 data["greeting"] = brief.welcome_message.strip()
                 data["greeting_type"] = "text"
