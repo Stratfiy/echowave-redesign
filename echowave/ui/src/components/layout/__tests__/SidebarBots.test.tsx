@@ -12,9 +12,10 @@ import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const teamStatus = vi.hoisted(() => vi.fn());
+const route = vi.hoisted(() => ({ pathname: "/overview" }));
 const auth = vi.hoisted(() => ({ user: { id: 1 } as { id: number } | null, loading: false }));
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/overview" }));
+vi.mock("next/navigation", () => ({ usePathname: () => route.pathname }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => auth }));
 vi.mock("@/client/sdk.gen", () => ({ teamStatusApiV1TeamStatusGet: teamStatus }));
 vi.mock("@/components/ui/sidebar", () => ({
@@ -36,6 +37,7 @@ function member(id: number, name: string, tone = "working") {
 }
 
 beforeEach(() => {
+    route.pathname = "/overview";
     teamStatus.mockReset();
     auth.user = { id: 1 };
     auth.loading = false;
@@ -43,6 +45,17 @@ beforeEach(() => {
 });
 
 describe("the bots in the rail", () => {
+    it.each(["/workflow/1", "/workflow/1/settings", "/workflow/10/thread"])("does not select a DM on %s", async (path) => {
+        route.pathname = path;
+        render(<SidebarBots collapsed={false} />);
+        expect((await screen.findByRole("link", { name: /Front desk/ })).getAttribute("aria-current")).toBeNull();
+    });
+    it("selects the matching DM thread", async () => {
+        route.pathname = "/workflow/1/thread";
+        render(<SidebarBots collapsed={false} />);
+        expect((await screen.findByRole("link", { name: /Front desk/ })).getAttribute("aria-current")).toBe("page");
+        expect(screen.getByRole("link", { name: /Quote desk/ }).getAttribute("aria-current")).toBeNull();
+    });
     it("lists them by name, each opening its thread", async () => {
         // The thread, not the editor. A bot in the workspace panel is a
         // teammate you talk to; how it is configured is a tab away once you

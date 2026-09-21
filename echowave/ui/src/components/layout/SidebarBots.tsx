@@ -119,7 +119,7 @@ export function SidebarBots({ collapsed }: { collapsed: boolean }) {
           // are there. Landing on the model form was the single thing that
           // made this read as a builder rather than a team.
           const href = `/workflow/${bot.workflow_id}/thread`;
-          const active = pathname.startsWith(`/workflow/${bot.workflow_id}`);
+          const active = pathname === href || pathname.startsWith(`${href}/`);
           const unread = !active && isUnread(bot.workflow_id, bot.last_at);
           return (
             <SidebarMenuItem key={bot.workflow_id}>
@@ -133,7 +133,7 @@ export function SidebarBots({ collapsed }: { collapsed: boolean }) {
                     to truncate is exactly the name somebody needs to read in
                     full, and the tooltip slot is already spent on what the bot
                     is doing. The browser's own is free and does not fight it. */}
-                <Link href={href} title={bot.name}>
+                <Link href={href} title={bot.name} aria-current={active ? "page" : undefined}>
                   <BotAvatar id={bot.workflow_id} name={bot.name} />
                   {/* The name, and nothing else. A second line of the last
                       thing said doubled the height of every row and read as
