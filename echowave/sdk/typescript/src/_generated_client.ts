@@ -86,9 +86,12 @@ export abstract class _GeneratedClient {
     }
 
     /** List knowledge base documents available to the authenticated organization. */
-    async listDocuments(opts: { status?: string; limit?: number; offset?: number } = {}): Promise<DocumentListResponseSchema> {
+    async listDocuments(opts: { status?: string; scope?: string; folderId?: number; workflowId?: number; limit?: number; offset?: number } = {}): Promise<DocumentListResponseSchema> {
         const params: Record<string, unknown> = {
             ...(opts.status !== undefined ? { "status": opts.status } : {}),
+            ...(opts.scope !== undefined ? { "scope": opts.scope } : {}),
+            ...(opts.folderId !== undefined ? { "folder_id": opts.folderId } : {}),
+            ...(opts.workflowId !== undefined ? { "workflow_id": opts.workflowId } : {}),
             ...(opts.limit !== undefined ? { "limit": opts.limit } : {}),
             ...(opts.offset !== undefined ? { "offset": opts.offset } : {}),
         };

@@ -362,6 +362,50 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AgentSchedule
+         * @description The hours an agent keeps, as something the platform can enforce.
+         *
+         *     Narayani's opening hours live in its prompt -- "9:30 to 1:00 is when the
+         *     clinic is open" -- so the agent can *say* them and the platform cannot
+         *     *keep* them. A call at eleven at night is answered, a slot is agreed, and
+         *     nobody at the clinic will honour it.
+         *
+         *     Off by default, and off means always open: an agent nobody has scheduled
+         *     behaves exactly as it does today. Everything ambiguous resolves to open as
+         *     well -- see services/workflow/agent_hours.py -- because taking a number off
+         *     the air is a worse failure than answering a call out of hours.
+         */
+        AgentSchedule: {
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /**
+             * Timezone
+             * @default Asia/Kolkata
+             */
+            timezone: string;
+            /** Slots */
+            slots?: components["schemas"]["AgentScheduleSlot"][];
+        };
+        /**
+         * AgentScheduleSlot
+         * @description One window in an agent's week.
+         *
+         *     Shaped like the campaign scheduler's slot on purpose: an operator who has
+         *     set calling windows on a campaign should not meet a second, differently
+         *     shaped idea of a week on the agent.
+         */
+        AgentScheduleSlot: {
+            /** Day Of Week */
+            day_of_week: number;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+        };
         /** AmbientNoiseConfigurationDefaults */
         AmbientNoiseConfigurationDefaults: {
             /**
@@ -377,6 +421,54 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
+        /**
+         * BackchannelConfigurationDefaults
+         * @description A filler ("hmm", "one moment") when the reply is slow to start.
+         *
+         *     Off by default: the phrases have to be in the agent's language, and a
+         *     filler in the wrong one is worse than the silence. ``delay_secs`` is how
+         *     long the caller waits before hearing one; ``phrases`` are rotated. See
+         *     services/pipecat/backchannel.py.
+         */
+        BackchannelConfigurationDefaults: {
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /**
+             * Delay Secs
+             * @default 1.2
+             */
+            delay_secs: number;
+            /** Phrases */
+            phrases?: string[];
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * BotChannel
+         * @description Where a bot does its work: on the phone, or in writing.
+         *
+         *     Deliberately two values, and deliberately *not* the publisher-facing
+         *     ``Channel`` in ``services/packs/_base.py``. That one names WhatsApp,
+         *     email, Slack and Telegram because a marketplace listing can promise them;
+         *     this one is read by the runtime, and the runtime has exactly two -- the
+         *     pipecat pipeline and the text-chat runner. A third value here would be a
+         *     claim the product cannot keep.
+         *
+         *     ``VOICE`` says nothing about direction. Who rings whom is
+         *     ``WorkflowModel.call_type``, which is unchanged: a voice bot is inbound or
+         *     outbound as it always was, and a chat bot is neither, which is the whole
+         *     point of this enum existing rather than a third ``CallType``.
+         *
+         *     Stored in ``workflow_configurations``, so no migration and no new column
+         *     on a table telephony reads. Absent means VOICE -- every bot that existed
+         *     before this did was a call bot, and an unset field has to keep meaning
+         *     what it meant.
+         * @enum {string}
+         */
+        BotChannel: "voice" | "chat";
         /**
          * CalculatorToolDefinition
          * @description Tool definition for Calculator tools.
@@ -437,6 +529,75 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
+        /**
+         * ComposioToolConfig
+         * @description Configuration for one tool on one Composio-connected app.
+         *
+         *     Deliberately one tool per Decibyl tool rather than a whole toolkit. A
+         *     toolkit is hundreds of slugs; handing an agent all of Gmail means handing
+         *     it GMAIL_DELETE_MESSAGE, and the operator who wanted "send the customer
+         *     their invoice" did not ask for that. Naming the slug is also what makes the
+         *     parameters knowable: we can state what the model must supply instead of
+         *     letting it guess at a catalog.
+         *
+         *     There is no credential field on purpose. *Which organization* this acts for
+         *     is not configuration -- it is derived from the caller at execution time
+         *     (see services/integrations/composio/client.py), so no value stored here can
+         *     reach another tenant's data.
+         *
+         *     ``connected_account_id`` is a different question and belongs here. A clinic
+         *     with three doctors connects three calendars, all under the one organization
+         *     identity, and "Book with Dr Ramesh" and "Book with Dr Priya" are then two
+         *     tools differing only by this field. Because an agent holds a list of tools
+         *     per node, that also settles permissions without a permission system: an
+         *     agent that was not given the second tool cannot reach the second calendar.
+         */
+        ComposioToolConfig: {
+            /**
+             * Toolkit
+             * @description Composio toolkit slug, e.g. GMAIL or GOOGLESHEETS.
+             */
+            toolkit: string;
+            /**
+             * Tool Slug
+             * @description Composio tool slug, e.g. GMAIL_SEND_EMAIL.
+             */
+            tool_slug: string;
+            /**
+             * Connected Account Id
+             * @description Which connected account this tool acts on, e.g. a specific doctor's calendar. Omit to use the organization's default.
+             */
+            connected_account_id?: string | null;
+            /**
+             * Parameters
+             * @description Arguments the agent supplies, passed through to the tool.
+             */
+            parameters?: components["schemas"]["ToolParameter"][];
+            /**
+             * Timeout Secs
+             * @description How long to wait for the tool before giving up, in seconds.
+             * @default 12
+             */
+            timeout_secs: number;
+        };
+        /**
+         * ComposioToolDefinition
+         * @description Tool definition for running one Composio tool.
+         */
+        ComposioToolDefinition: {
+            /**
+             * Schema Version
+             * @description Schema version.
+             * @default 1
+             */
+            schema_version: number;
+            /**
+             * @description Tool type. (enum property replaced by openapi-typescript)
+             * @enum {string}
+             */
+            type: "composio";
+            config: components["schemas"]["ComposioToolConfig"];
+        };
         /** ContactListRequest */
         ContactListRequest: {
             /** Name */
@@ -479,7 +640,7 @@ export interface components {
              * @default http_api
              * @enum {string}
              */
-            category: "http_api" | "end_call" | "transfer_call" | "calculator" | "native" | "integration" | "mcp" | "google_calendar";
+            category: "http_api" | "end_call" | "transfer_call" | "calculator" | "native" | "integration" | "mcp" | "google_calendar" | "rate_table" | "composio" | "web";
             /**
              * Icon
              * @description Lucide icon identifier.
@@ -496,7 +657,7 @@ export interface components {
              * Definition
              * @description Typed tool definition.
              */
-            definition: components["schemas"]["HttpApiToolDefinition"] | components["schemas"]["EndCallToolDefinition"] | components["schemas"]["TransferCallToolDefinition"] | components["schemas"]["CalculatorToolDefinition"] | components["schemas"]["McpToolDefinition"] | components["schemas"]["GoogleCalendarToolDefinition"];
+            definition: components["schemas"]["HttpApiToolDefinition"] | components["schemas"]["EndCallToolDefinition"] | components["schemas"]["TransferCallToolDefinition"] | components["schemas"]["CalculatorToolDefinition"] | components["schemas"]["RateTableToolDefinition"] | components["schemas"]["McpToolDefinition"] | components["schemas"]["GoogleCalendarToolDefinition"] | components["schemas"]["ComposioToolDefinition"] | components["schemas"]["WebToolDefinition"];
         };
         /** CreateWorkflowRequest */
         CreateWorkflowRequest: {
@@ -619,6 +780,15 @@ export interface components {
             };
             /** Source Url */
             source_url?: string | null;
+            /**
+             * Scope
+             * @default library
+             */
+            scope: string;
+            /** Folder Id */
+            folder_id?: number | null;
+            /** Workflow Id */
+            workflow_id?: number | null;
             /**
              * Created At
              * Format: date-time
@@ -834,6 +1004,13 @@ export interface components {
              * @description Recording ID for an audio custom message.
              */
             customMessageRecordingId?: string | null;
+            /**
+             * Mock Response
+             * @description Answer the model with this instead of calling the URL. For building and demonstrating an agent before the backend exists.
+             */
+            mock_response?: {
+                [key: string]: unknown;
+            } | null;
         };
         /**
          * HttpApiToolDefinition
@@ -1079,7 +1256,7 @@ export interface components {
             credential_uuid?: string | null;
             /**
              * Tools Filter
-             * @description Allowlist of MCP tool names to expose. Empty exposes all tools.
+             * @description Allowlist of MCP tool names to expose. On create, empty is filled with the server's read-only tools; on update, empty exposes all.
              */
             tools_filter?: string[];
             /**
@@ -1187,6 +1364,28 @@ export interface components {
             node_types: components["schemas"]["NodeSpec"][];
         };
         /**
+         * NoiseSuppressionConfigurationDefaults
+         * @description Noise off the caller's audio before the agent hears it.
+         *
+         *     On by default: the people who call an Indian business are on a road, in a
+         *     shop, on a bus. ``level`` is the share of the denoised signal in the blend
+         *     the agent hears, 20 to 100 — see services/pipecat/noise_suppression.py.
+         */
+        NoiseSuppressionConfigurationDefaults: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Level
+             * @default 100
+             */
+            level: number;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
          * NumberInputOptions
          * @description Renderer hints for numeric inputs.
          */
@@ -1197,6 +1396,45 @@ export interface components {
              * @default false
              */
             fractional: boolean;
+        };
+        /**
+         * OutcomeAction
+         * @description Something the agent does once the call is over.
+         *
+         *     The other half of :class:`CallOutcome`. That one names what a call can turn
+         *     out to be; this one says what should happen when it turns out that way --
+         *     append the booking to the clinic's sheet, raise the CRM record, send the
+         *     payment link.
+         *
+         *     **After the call, not during, and that is the point.** The same action is
+         *     already possible as a tool the agent calls mid-conversation, and for most
+         *     of what a business wants it is the wrong shape: writing a row takes a
+         *     second or more of a live line, and a caller listening to silence while we
+         *     talk to Google is a worse experience than one whose booking is filed
+         *     thirty seconds after they hang up. Nothing here is on the caller's clock,
+         *     so nothing here needs a filler phrase, a timeout budget, or a decision from
+         *     the model about whether it is worth the wait.
+         *
+         *     Deterministic, too. A tool the agent *may* call is a tool it sometimes does
+         *     not, and "always log the booking" cannot be built out of a model's
+         *     judgement. This fires on the outcome code, or on every call.
+         */
+        OutcomeAction: {
+            /** Tool Uuid */
+            tool_uuid: string;
+            /** When */
+            when?: string[];
+            /** Arguments */
+            arguments?: {
+                [key: string]: string;
+            };
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+        } & {
+            [key: string]: unknown;
         };
         /**
          * PresetToolParameter
@@ -1326,6 +1564,112 @@ export interface components {
          * @enum {string}
          */
         PropertyType: "string" | "number" | "boolean" | "options" | "multi_options" | "fixed_collection" | "json" | "tool_refs" | "document_refs" | "recording_ref" | "credential_ref" | "agent_ref" | "mention_textarea" | "url";
+        /**
+         * RateTableConfig
+         * @description An operator's rate card: grids, the rules around them, and its wording.
+         *
+         *     Loosely typed on purpose below the top level. A card is the operator's own
+         *     data and its shape varies -- two grids or seven, half-kilo bands or whole
+         *     ones -- so the schema fixes the parts the lookup depends on and leaves the
+         *     numbers alone. What it will not accept is a card with no grids, because
+         *     that one produces a tool that refuses every question at call time instead
+         *     of failing here, where somebody is looking.
+         */
+        RateTableConfig: {
+            /**
+             * Currency
+             * @description Currency the amounts are in.
+             * @default
+             */
+            currency: string;
+            /**
+             * Grids
+             * @description The card itself: variant -> band -> series -> amount. For a courier that reads kind -> weight -> zone -> price.
+             */
+            grids: {
+                [key: string]: {
+                    [key: string]: {
+                        [key: string]: number;
+                    };
+                };
+            };
+            /**
+             * Default Variant
+             * @description Grid to use when the model does not name one.
+             */
+            default_variant?: string | null;
+            /**
+             * Crossovers
+             * @description Rules of the form {variant: {above_band: N, use: other_variant}}, for cards where one kind starts pricing as another past a size.
+             */
+            crossovers?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /**
+             * Overflow
+             * @description Per-unit metering past the last band: {from: N, tiers: [{upto: N|null, per_unit: {series: rate}}]}.
+             */
+            overflow?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Aliases
+             * @description What a caller might say, mapped to a column of the card. Matching ignores case and punctuation.
+             */
+            aliases?: {
+                [key: string]: string;
+            };
+            /**
+             * Labels
+             * @description How the tool is described to the agent: function_name, description, destination, band, variant.
+             */
+            labels?: {
+                [key: string]: string;
+            };
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * RateTableToolDefinition
+         * @description Tool definition for a rate-card lookup.
+         */
+        RateTableToolDefinition: {
+            /**
+             * Schema Version
+             * @description Schema version.
+             * @default 1
+             */
+            schema_version: number;
+            /**
+             * @description Tool type. (enum property replaced by openapi-typescript)
+             * @enum {string}
+             */
+            type: "rate_table";
+            /** @description The operator's rate card. */
+            config: components["schemas"]["RateTableConfig"];
+        };
+        /**
+         * RecordingConfigurationDefaults
+         * @description Whether the call's audio is kept.
+         *
+         *     On by default: the recording is what a call review, a QA grade and a
+         *     dispute are settled with. Off means no audio is buffered or uploaded for
+         *     the call — the transcript, the usage and the outcome are still kept, and
+         *     the agent stops telling the caller the call is recorded, because it isn't.
+         *     For the clinic or the lender whose compliance team says "no voice data at
+         *     rest".
+         */
+        RecordingConfigurationDefaults: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+        } & {
+            [key: string]: unknown;
+        };
         /**
          * RecordingListResponseSchema
          * @description Response schema for list of recordings.
@@ -1541,9 +1885,67 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
+        /**
+         * WebToolConfig
+         * @description What an agent's web tool is kept to (OP-2). Both optional: an empty
+         *     list is the whole web, and no page figure is the platform's cap.
+         */
+        WebToolConfig: {
+            /**
+             * Allowed Domains
+             * @description Sites this agent may search and read, as hosts (acme.example). Empty means any site the platform's rules allow.
+             */
+            allowed_domains?: string[];
+            /**
+             * Max Pages Per Run
+             * @description Pages one run may read; blank means the platform's cap.
+             */
+            max_pages_per_run?: number | null;
+        };
+        /**
+         * WebToolDefinition
+         * @description Tool definition for the built-in web tools (OP-1, OP-2).
+         *
+         *     The search runs on the platform's own key and the fetch is the
+         *     platform's own fetcher, so there is nothing to fill in unless the agent
+         *     is to be kept to a list of sites or to fewer pages a run. One tool row
+         *     gives the agent both ``web_search`` and ``web_fetch`` (search only on a
+         *     voice call, where a page's worth of text has no place). Each search is
+         *     charged as a tool call plus the vendor's price passed through at cost;
+         *     a fetch is a tool call.
+         */
+        WebToolDefinition: {
+            /**
+             * Schema Version
+             * @description Schema version.
+             * @default 1
+             */
+            schema_version: number;
+            /**
+             * @description Tool type. (enum property replaced by openapi-typescript)
+             * @enum {string}
+             */
+            type: "web";
+            /** @description Sites and page cap, when the agent has them. */
+            config?: components["schemas"]["WebToolConfig"] | null;
+        };
         /** WorkflowConfigurationDefaults */
         WorkflowConfigurationDefaults: {
+            /** @default voice */
+            channel: components["schemas"]["BotChannel"];
             ambient_noise_configuration?: components["schemas"]["AmbientNoiseConfigurationDefaults"];
+            noise_suppression_configuration?: components["schemas"]["NoiseSuppressionConfigurationDefaults"];
+            recording_configuration?: components["schemas"]["RecordingConfigurationDefaults"];
+            backchannel_configuration?: components["schemas"]["BackchannelConfigurationDefaults"];
+            /** End Call Phrases */
+            end_call_phrases?: string[];
+            /** End Call Farewell */
+            end_call_farewell?: string | null;
+            /**
+             * Agent Can End Call
+             * @default false
+             */
+            agent_can_end_call: boolean;
             /**
              * Max Call Duration
              * @default 300
@@ -1587,10 +1989,17 @@ export interface components {
              */
             user_speech_timeout: number;
             /**
+             * Caller Environment
+             * @default normal
+             * @enum {string}
+             */
+            caller_environment: "quiet" | "normal" | "noisy";
+            /**
              * Dictionary
              * @default
              */
             dictionary: string;
+            agent_schedule?: components["schemas"]["AgentSchedule"];
             /**
              * Interruption Backoff Secs
              * @default 0
@@ -1607,6 +2016,8 @@ export interface components {
             fallback_stt?: components["schemas"]["FallbackServiceConfiguration"][];
             /** Call Outcomes */
             call_outcomes?: components["schemas"]["CallOutcome"][];
+            /** Outcome Actions */
+            outcome_actions?: components["schemas"]["OutcomeAction"][];
             /**
              * Follow Caller Language
              * @default false
@@ -1619,9 +2030,11 @@ export interface components {
             accept_keypad_input: boolean;
             /**
              * Speak Like Callers
-             * @default false
+             * @default true
              */
             speak_like_callers: boolean;
+            /** Agent Languages */
+            agent_languages?: string[];
         } & {
             [key: string]: unknown;
         };
@@ -1652,6 +2065,13 @@ export interface components {
             folder_id?: number | null;
             /** Workflow Uuid */
             workflow_uuid?: string | null;
+            /** Handle */
+            handle?: string | null;
+            /**
+             * Is Squad
+             * @default false
+             */
+            is_squad: boolean;
         };
         /** WorkflowResponse */
         WorkflowResponse: {
@@ -1702,10 +2122,16 @@ export interface components {
     headers: never;
     pathItems: never;
 }
+export type AgentSchedule = components['schemas']['AgentSchedule'];
+export type AgentScheduleSlot = components['schemas']['AgentScheduleSlot'];
 export type AmbientNoiseConfigurationDefaults = components['schemas']['AmbientNoiseConfigurationDefaults'];
+export type BackchannelConfigurationDefaults = components['schemas']['BackchannelConfigurationDefaults'];
+export type BotChannel = components['schemas']['BotChannel'];
 export type CalculatorToolDefinition = components['schemas']['CalculatorToolDefinition'];
 export type CallDispositionCodes = components['schemas']['CallDispositionCodes'];
 export type CallOutcome = components['schemas']['CallOutcome'];
+export type ComposioToolConfig = components['schemas']['ComposioToolConfig'];
+export type ComposioToolDefinition = components['schemas']['ComposioToolDefinition'];
 export type ContactListRequest = components['schemas']['ContactListRequest'];
 export type ContactListResponse = components['schemas']['ContactListResponse'];
 export type CreateToolRequest = components['schemas']['CreateToolRequest'];
@@ -1736,13 +2162,18 @@ export type NodeCategory = components['schemas']['NodeCategory'];
 export type NodeExample = components['schemas']['NodeExample'];
 export type NodeSpec = components['schemas']['NodeSpec'];
 export type NodeTypesResponse = components['schemas']['NodeTypesResponse'];
+export type NoiseSuppressionConfigurationDefaults = components['schemas']['NoiseSuppressionConfigurationDefaults'];
 export type NumberInputOptions = components['schemas']['NumberInputOptions'];
+export type OutcomeAction = components['schemas']['OutcomeAction'];
 export type PresetToolParameter = components['schemas']['PresetToolParameter'];
 export type PropertyLayoutOptions = components['schemas']['PropertyLayoutOptions'];
 export type PropertyOption = components['schemas']['PropertyOption'];
 export type PropertyRendererOptions = components['schemas']['PropertyRendererOptions'];
 export type PropertySpec = components['schemas']['PropertySpec'];
 export type PropertyType = components['schemas']['PropertyType'];
+export type RateTableConfig = components['schemas']['RateTableConfig'];
+export type RateTableToolDefinition = components['schemas']['RateTableToolDefinition'];
+export type RecordingConfigurationDefaults = components['schemas']['RecordingConfigurationDefaults'];
 export type RecordingListResponseSchema = components['schemas']['RecordingListResponseSchema'];
 export type RecordingResponseSchema = components['schemas']['RecordingResponseSchema'];
 export type ToolLibraryResponse = components['schemas']['ToolLibraryResponse'];
@@ -1752,6 +2183,8 @@ export type TransferCallConfig = components['schemas']['TransferCallConfig'];
 export type TransferCallToolDefinition = components['schemas']['TransferCallToolDefinition'];
 export type UpdateWorkflowRequest = components['schemas']['UpdateWorkflowRequest'];
 export type ValidationError = components['schemas']['ValidationError'];
+export type WebToolConfig = components['schemas']['WebToolConfig'];
+export type WebToolDefinition = components['schemas']['WebToolDefinition'];
 export type WorkflowConfigurationDefaults = components['schemas']['WorkflowConfigurationDefaults'];
 export type WorkflowListResponse = components['schemas']['WorkflowListResponse'];
 export type WorkflowResponse = components['schemas']['WorkflowResponse'];
@@ -2100,6 +2533,10 @@ export interface operations {
             query?: {
                 /** @description Filter by processing status */
                 status?: string | null;
+                /** @description library | org | channel | bot */
+                scope?: string | null;
+                folder_id?: number | null;
+                workflow_id?: number | null;
                 limit?: number;
                 offset?: number;
             };
