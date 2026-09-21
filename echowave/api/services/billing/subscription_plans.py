@@ -685,6 +685,169 @@ LADDER_SEED: tuple[dict, ...] = (
 )
 
 
+def ladder_2026_09() -> bool:
+    """Whether the 21 September 2026 ladder is on. Read at call time, so a
+    test can turn it either way and a deployment flips it without a restart
+    of anything that imported this module."""
+    return bool(constants.PLAN_LADDER_2026_09_ENABLED)
+
+
+#: The ladder decided 21 Sept 2026 by the founder after the competitor tier
+#: study (vault: Credits Plan). Six rungs on sale — Free, Go, Personal,
+#: Business, Pro, Scale — under *new codes*, so a deployed database keeps every
+#: existing row and every account's entitlement; the old rungs are withdrawn
+#: from sale the way Starter was, not deleted. No rung includes a phone
+#: number: numbers are an add-on at the rental price. The credit counts are
+#: the ceilings that hold the 65% delivery-margin floor at full redemption
+#: (Go 300, Personal 700, Business 1,800) or sit deliberately under it (Pro
+#: 12,000 of ~20,000; Scale 30,000 of ~40,000) to leave room for support and
+#: concurrent calls. Every figure is a replay hypothesis: the measured task
+#: replay confirms or changes it before anything is published, and this
+#: tuple is where a changed one gets changed first.
+#:
+#: The global rows are INR prices set from cost inside the $12–19 / $49–99 /
+#: $199–399 test ranges, carrying the USD figure as a reference. They are
+#: seeded ``enabled=False``: nothing puts them on sale until billing-region
+#: gating (from payment information, never IP) exists.
+LADDER_SEED_2026_09: tuple[dict, ...] = (
+    dict(
+        code="go",
+        label="Go",
+        sort_order=11,
+        blurb="Light everyday assistance and a few routines. 300 credits a month.",
+        price_paise=49_900,
+        annual_price_paise=499_000,
+        balance_paise=_credits(300),
+        included_numbers=0,
+        voice_allowed=False,
+        knowledge_base_bytes=1024 * MB,
+        knowledge_base_max_file_bytes=25 * MB,
+    ),
+    dict(
+        code="personal",
+        label="Personal",
+        sort_order=12,
+        blurb="Frequent personal work, more specialists and parallel tasks. 700 credits a month.",
+        price_paise=99_900,
+        annual_price_paise=999_000,
+        balance_paise=_credits(700),
+        included_numbers=0,
+        voice_allowed=False,
+        knowledge_base_bytes=5 * 1024 * MB,
+        knowledge_base_max_file_bytes=50 * MB,
+    ),
+    dict(
+        code="business_v2",
+        label="Business",
+        sort_order=21,
+        blurb="Shared agents, roles, approvals and pooled credits for five people. 1,800 credits a month; numbers are an add-on.",
+        price_paise=299_900,
+        annual_price_paise=2_999_000,
+        balance_paise=_credits(1_800),
+        included_numbers=0,
+        voice_allowed=True,
+        knowledge_base_bytes=10 * 1024 * MB,
+        knowledge_base_max_file_bytes=100 * MB,
+    ),
+    dict(
+        code="pro",
+        label="Pro",
+        sort_order=31,
+        blurb="Fifteen people, five simultaneous calls, per-agent budgets and priority support. 12,000 credits a month.",
+        price_paise=999_900,
+        annual_price_paise=9_999_000,
+        balance_paise=_credits(12_000),
+        included_numbers=0,
+        voice_allowed=True,
+        knowledge_base_bytes=50 * 1024 * MB,
+        knowledge_base_max_file_bytes=250 * MB,
+    ),
+    dict(
+        code="scale_v2",
+        label="Scale",
+        sort_order=41,
+        blurb="Thirty people, ten simultaneous calls, multi-location. 30,000 credits a month.",
+        price_paise=1_999_900,
+        annual_price_paise=19_999_000,
+        balance_paise=_credits(30_000),
+        included_numbers=0,
+        voice_allowed=True,
+        knowledge_base_bytes=200 * 1024 * MB,
+        knowledge_base_max_file_bytes=1024 * MB,
+    ),
+    dict(
+        code="personal_global",
+        label="Personal",
+        sort_order=62,
+        enabled=False,
+        blurb="Personal, outside India. 1,200 credits a month.",
+        price_paise=144_000,
+        annual_price_paise=1_440_000,
+        price_usd_cents=1_500,
+        balance_paise=_credits(1_200),
+        included_numbers=0,
+        voice_allowed=False,
+        knowledge_base_bytes=5 * 1024 * MB,
+        knowledge_base_max_file_bytes=50 * MB,
+    ),
+    dict(
+        code="business_global",
+        label="Business",
+        sort_order=71,
+        enabled=False,
+        blurb="Business, outside India. 4,500 credits a month; bring your own carrier.",
+        price_paise=660_000,
+        annual_price_paise=6_600_000,
+        price_usd_cents=6_900,
+        balance_paise=_credits(4_500),
+        included_numbers=0,
+        voice_allowed=False,
+        knowledge_base_bytes=10 * 1024 * MB,
+        knowledge_base_max_file_bytes=100 * MB,
+    ),
+    dict(
+        code="pro_global",
+        label="Pro",
+        sort_order=81,
+        enabled=False,
+        blurb="Pro, outside India. 20,000 credits a month; bring your own carrier.",
+        price_paise=2_200_000,
+        annual_price_paise=22_000_000,
+        price_usd_cents=22_900,
+        balance_paise=_credits(20_000),
+        included_numbers=0,
+        voice_allowed=False,
+        knowledge_base_bytes=50 * 1024 * MB,
+        knowledge_base_max_file_bytes=250 * MB,
+    ),
+    dict(
+        code="scale_global",
+        label="Scale",
+        sort_order=91,
+        enabled=False,
+        blurb="Scale, outside India. 40,000 credits a month; bring your own carrier.",
+        price_paise=3_830_000,
+        annual_price_paise=38_300_000,
+        price_usd_cents=39_900,
+        balance_paise=_credits(40_000),
+        included_numbers=0,
+        voice_allowed=False,
+        knowledge_base_bytes=200 * 1024 * MB,
+        knowledge_base_max_file_bytes=1024 * MB,
+    ),
+)
+
+#: Withdrawn from sale — not deleted — the moment the 2026-09 ladder is on.
+#: Accounts on them keep collecting and granting what they bought.
+WITHDRAWN_2026_09: tuple[str, ...] = (
+    "everyday",
+    "business",
+    "growth",
+    "scale",
+    STARTER,
+)
+
+
 async def ensure_seeded(session: AsyncSession) -> Plan:
     """Make sure every plan exists, without overwriting an edited one.
 
@@ -738,6 +901,39 @@ async def ensure_seeded(session: AsyncSession) -> Plan:
             await session.flush()
             starter = _view(row)
             logger.info("Starter withdrawn from sale; Business is its successor")
+
+    if ladder_2026_09():
+        for seed in LADDER_SEED_2026_09:
+            if await get_plan(session, code=seed["code"]) is None:
+                await save(session, **seed)
+        rows = (
+            (
+                await session.execute(
+                    select(SubscriptionPlanModel).where(
+                        SubscriptionPlanModel.code.in_(WITHDRAWN_2026_09),
+                        SubscriptionPlanModel.enabled.is_(True),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for row in rows:
+            row.enabled = False
+        if rows:
+            await session.flush()
+            logger.info(
+                "Withdrew {} from sale; the 21 September ladder is on",
+                ", ".join(sorted(r.code for r in rows)),
+            )
+            if starter.code in {r.code for r in rows}:
+                starter = _view(
+                    await session.scalar(
+                        select(SubscriptionPlanModel).where(
+                            SubscriptionPlanModel.code == STARTER
+                        )
+                    )
+                )
 
     await plan_limits.ensure_seeded(session)
     return starter

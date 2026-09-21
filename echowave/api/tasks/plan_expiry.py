@@ -23,7 +23,7 @@ from __future__ import annotations
 from loguru import logger
 
 from api.db import db_client
-from api.services.billing import plans
+from api.services.billing import onboarding_credits, plans
 
 
 async def expire_lapsed_plan_balance(ctx: dict | None = None) -> dict[str, int]:
@@ -31,6 +31,9 @@ async def expire_lapsed_plan_balance(ctx: dict | None = None) -> dict[str, int]:
     try:
         async with db_client.async_session() as session:
             counters = await plans.sweep_lapsed_plan_balance(session)
+            # Welcome grants under the 21 September ladder expire on the same
+            # sweep: thirty days, the unspent part, once per account.
+            welcome = await onboarding_credits.expire_welcome_grants(session)
             await session.commit()
     except Exception as exc:  # noqa: BLE001 — a cron must not die on one bad row
         logger.error("Plan balance expiry sweep failed: {}", exc)
@@ -42,5 +45,12 @@ async def expire_lapsed_plan_balance(ctx: dict | None = None) -> dict[str, int]:
             counters["expired"],
             counters["considered"],
             counters["paise"] / 100,
+        )
+    if welcome["expired"]:
+        logger.info(
+            "Expired unused welcome credits on {} of {} accounts (₹{:.2f})",
+            welcome["expired"],
+            welcome["considered"],
+            welcome["paise"] / 100,
         )
     return counters

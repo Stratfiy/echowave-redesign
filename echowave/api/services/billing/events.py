@@ -24,6 +24,7 @@ from loguru import logger
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api import constants
 from api.db.models import CreditLedgerModel
 from api.enums import AgentEventKind, CreditLedgerKind
 from api.services.billing.credits import PAISE_PER_CREDIT
@@ -172,6 +173,11 @@ TIMELINE_PRICES: dict[str, str] = {
 
 
 def credits_for(event: str) -> int:
+    # The builder-message fee is retired by the 21 September 2026 ladder: a
+    # builder call costs the model rate from the same allowance and nothing
+    # on top. One counter is easier to explain than two.
+    if event == BUILDER_MESSAGE and constants.PLAN_LADDER_2026_09_ENABLED:
+        return 0
     return EVENT_CREDITS[event]
 
 

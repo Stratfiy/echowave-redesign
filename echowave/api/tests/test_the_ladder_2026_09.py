@@ -30,7 +30,12 @@ import pytest
 from api import constants
 from api.db.models import CreditLedgerModel, OrganizationModel
 from api.enums import CreditLedgerKind
-from api.services.billing import events, onboarding_credits, plan_limits, subscription_plans
+from api.services.billing import (
+    events,
+    onboarding_credits,
+    plan_limits,
+    subscription_plans,
+)
 
 pytestmark = pytest.mark.asyncio
 
@@ -100,7 +105,9 @@ class TestTheNewLadderLands:
         await subscription_plans.ensure_seeded(async_session)
         by_code = {
             p.code: p
-            for p in await subscription_plans.list_plans(async_session, enabled_only=False)
+            for p in await subscription_plans.list_plans(
+                async_session, enabled_only=False
+            )
         }
         expected = {
             # code: (label, price rupees, credits a month, voice)
@@ -151,26 +158,36 @@ class TestTheNewLadderLands:
             assert plan.included_numbers == 0, code
             assert plan.enabled is False, code
 
-    async def test_seeding_twice_changes_nothing(self, ladder_on, db_session, async_session):
+    async def test_seeding_twice_changes_nothing(
+        self, ladder_on, db_session, async_session
+    ):
         await subscription_plans.ensure_seeded(async_session)
         first = [
             (p.code, p.price_paise, p.credits, p.enabled)
-            for p in await subscription_plans.list_plans(async_session, enabled_only=False)
+            for p in await subscription_plans.list_plans(
+                async_session, enabled_only=False
+            )
         ]
         await subscription_plans.ensure_seeded(async_session)
         again = [
             (p.code, p.price_paise, p.credits, p.enabled)
-            for p in await subscription_plans.list_plans(async_session, enabled_only=False)
+            for p in await subscription_plans.list_plans(
+                async_session, enabled_only=False
+            )
         ]
         assert again == first
 
-    async def test_the_caps_climb_the_new_ladder(self, ladder_on, db_session, async_session):
+    async def test_the_caps_climb_the_new_ladder(
+        self, ladder_on, db_session, async_session
+    ):
         await subscription_plans.ensure_seeded(async_session)
         assert plan_limits.ladder() == tuple(NEW_ON_SALE)
-        table = await plan_limits.limits_for_plans(async_session, plan_codes=NEW_ON_SALE)
+        table = await plan_limits.limits_for_plans(
+            async_session, plan_codes=NEW_ON_SALE
+        )
         expected = {
             # code: (members, bots, concurrent calls, routines, min interval minutes)
-            "free": (1, 1, 0, 1, 24 * 60),
+            "free": (1, 1, 0, 2, 24 * 60),  # existing row; not re-seeded
             "go": (1, 3, 0, 3, 60),
             "personal": (1, 10, 0, 10, 15),
             "business_v2": (5, 30, 1, 50, 15),
