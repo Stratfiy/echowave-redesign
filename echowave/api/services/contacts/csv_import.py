@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -50,6 +51,20 @@ _PHONE_HEADERS = (
 
 _NAME_HEADERS = ("name", "full_name", "full name", "customer_name", "customer name")
 
+#: Header names taken as the email column (OP-3). A file with addresses and
+#: no numbers is a prospect list, and it imports.
+_EMAIL_HEADERS = (
+    "email",
+    "e-mail",
+    "email_address",
+    "email address",
+    "mail",
+    "work email",
+    "work_email",
+)
+
+_EMAIL_SHAPE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
 
 @dataclass
 class ContactImportResult:
@@ -61,6 +76,7 @@ class ContactImportResult:
     #: say so once, not return 50,000 identical complaints.
     problems: list[tuple[int, str]] = field(default_factory=list)
     phone_column: str | None = None
+    email_column: str | None = None
     truncated: bool = False
 
     _PROBLEM_CAP = 25
@@ -129,71 +145,113 @@ def parse_contacts_csv(
         return result
 
     phone_key = phone_column or _pick(headers, _PHONE_HEADERS)
-    if not phone_key:
+    email_key = _pick(headers, _EMAIL_HEADERS)
+    if not phone_key and not email_key:
         result.note(
             0,
-            "No phone column found. Name one of the columns 'phone' (or "
-            f"'mobile', 'number'), or choose one explicitly. Found: "
-            f"{', '.join(h for h in headers if h)}.",
+            "No phone or email column found. Name one of the columns 'phone' "
+            "(or 'mobile', 'number') or 'email', or choose the phone column "
+            f"explicitly. Found: {', '.join(h for h in headers if h)}.",
         )
         return result
     result.phone_column = phone_key
+    result.email_column = email_key
 
     name_key = _pick(headers, _NAME_HEADERS)
     seen: set[str] = set()
+    seen_emails: set[str] = set()
 
     for line, raw_row in enumerate(reader, start=2):
         if len(result.rows) >= MAX_CONTACT_ROWS:
             result.truncated = True
             break
 
-        raw_phone = _clean_cell(raw_row.get(phone_key))
-        if not raw_phone:
+        raw_phone = _clean_cell(raw_row.get(phone_key)) if phone_key else ""
+        raw_email = _clean_cell(raw_row.get(email_key)) if email_key else ""
+        if not raw_phone and not raw_email:
             # A trailing blank line is the common case and is not worth
-            # reporting as a problem; a blank phone mid-file is.
+            # reporting as a problem; a blank row mid-file is.
             if any(_clean_cell(v) for v in raw_row.values()):
-                result.note(line, "No phone number in this row.")
+                result.note(line, "No phone number or email address in this row.")
             continue
 
-        try:
-            address = normalize_telephony_address(raw_phone, country_hint=country_hint)
-        except ValueError:
-            result.note(line, f"{raw_phone!r} is not a usable phone number.")
-            continue
+        normalized: str | None = None
+        if raw_phone:
+            try:
+                address = normalize_telephony_address(
+                    raw_phone, country_hint=country_hint
+                )
+            except ValueError:
+                result.note(line, f"{raw_phone!r} is not a usable phone number.")
+                continue
 
-        # The normalizer never rejects: anything it cannot read as a number or
-        # a SIP URI comes back as a "sip_extension", which is right for a
-        # carrier's dial string and wrong here. A cell reading "call him back"
-        # would otherwise be stored as a contact whose phone is that sentence —
-        # matching nobody, forever, while counting towards the imported total.
-        #
-        # A bare extension of digits is still allowed, because a SIP deployment
-        # legitimately has those and refusing them would make this import
-        # unusable for ARI accounts.
-        if address.address_type == "sip_extension" and not address.canonical.isdigit():
-            result.note(line, f"{raw_phone!r} is not a usable phone number.")
-            continue
+            # The normalizer never rejects: anything it cannot read as a
+            # number or a SIP URI comes back as a "sip_extension", which is
+            # right for a carrier's dial string and wrong here. A cell
+            # reading "call him back" would otherwise be stored as a contact
+            # whose phone is that sentence — matching nobody, forever, while
+            # counting towards the imported total.
+            #
+            # A bare extension of digits is still allowed, because a SIP
+            # deployment legitimately has those and refusing them would make
+            # this import unusable for ARI accounts.
+            if (
+                address.address_type == "sip_extension"
+                and not address.canonical.isdigit()
+            ):
+                result.note(line, f"{raw_phone!r} is not a usable phone number.")
+                continue
 
-        normalized = address.canonical
+            normalized = address.canonical
 
-        if normalized in seen:
-            # Within one file. Across files the upsert handles it, but here we
-            # would be sending two rows with the same conflict key in a single
-            # statement, which Postgres refuses outright.
-            result.note(line, f"{raw_phone!r} appears earlier in this file.")
-            continue
-        seen.add(normalized)
+            if normalized in seen:
+                # Within one file. Across files the upsert handles it, but
+                # here we would be sending two rows with the same conflict
+                # key in a single statement, which Postgres refuses outright.
+                result.note(line, f"{raw_phone!r} appears earlier in this file.")
+                continue
+            seen.add(normalized)
+
+        email: str | None = None
+        if raw_email:
+            if not _EMAIL_SHAPE.match(raw_email):
+                if normalized is None:
+                    result.note(line, f"{raw_email!r} is not an email address.")
+                    continue
+                # A number and a broken address: keep the contact, note the
+                # address, so a list is not refused over one typo.
+                result.note(
+                    line, f"{raw_email!r} is not an email address; kept without it."
+                )
+            else:
+                lowered = raw_email.lower()
+                if lowered in seen_emails:
+                    if normalized is None:
+                        result.note(
+                            line, f"{raw_email!r} appears earlier in this file."
+                        )
+                        continue
+                    result.note(
+                        line,
+                        f"{raw_email!r} appears earlier in this file; kept without it.",
+                    )
+                else:
+                    seen_emails.add(lowered)
+                    email = raw_email
 
         attributes = {
             key: _clean_cell(value)
             for key, value in raw_row.items()
-            if key and key not in (phone_key, name_key) and _clean_cell(value)
+            if key
+            and key not in (phone_key, name_key, email_key)
+            and _clean_cell(value)
         }
 
         result.rows.append(
             {
-                "phone_raw": raw_phone,
+                "phone_raw": raw_phone or None,
                 "phone_normalized": normalized,
+                "email": email,
                 "name": _clean_cell(raw_row.get(name_key)) or None
                 if name_key
                 else None,

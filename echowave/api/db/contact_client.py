@@ -8,7 +8,7 @@ never that the caller may touch it. See the org-scoping rules in
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from sqlalchemy import delete, func, or_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -35,7 +35,7 @@ class ContactClient(BaseDBClient):
 
     async def get_contact_lists(
         self, *, organization_id: int
-    ) -> List[ContactListModel]:
+    ) -> list[ContactListModel]:
         async with self.async_session() as session:
             result = await session.execute(
                 select(ContactListModel)
@@ -46,7 +46,7 @@ class ContactClient(BaseDBClient):
 
     async def get_contact_list(
         self, contact_list_id: int, *, organization_id: int
-    ) -> Optional[ContactListModel]:
+    ) -> ContactListModel | None:
         async with self.async_session() as session:
             result = await session.execute(
                 select(ContactListModel).where(
@@ -63,7 +63,7 @@ class ContactClient(BaseDBClient):
         organization_id: int,
         name: str | None = None,
         description: str | None = None,
-    ) -> Optional[ContactListModel]:
+    ) -> ContactListModel | None:
         async with self.async_session() as session:
             result = await session.execute(
                 select(ContactListModel).where(
@@ -117,7 +117,7 @@ class ContactClient(BaseDBClient):
         limit: int = 50,
         offset: int = 0,
         search: str | None = None,
-    ) -> Tuple[List[ContactModel], int]:
+    ) -> tuple[list[ContactModel], int]:
         async with self.async_session() as session:
             conditions = [
                 ContactModel.contact_list_id == contact_list_id,
@@ -128,6 +128,7 @@ class ContactClient(BaseDBClient):
                 conditions.append(
                     ContactModel.phone_normalized.ilike(like)
                     | ContactModel.phone_raw.ilike(like)
+                    | ContactModel.email_normalized.ilike(like)
                     | ContactModel.name.ilike(like)
                 )
 
@@ -149,7 +150,7 @@ class ContactClient(BaseDBClient):
         terms: list[str],
         *,
         limit: int = 5,
-    ) -> List[ContactModel]:
+    ) -> list[ContactModel]:
         """Contacts anywhere in this account matching any of these terms.
 
         The counterpart to :meth:`get_contacts`, which searches inside one
@@ -172,6 +173,7 @@ class ContactClient(BaseDBClient):
                     ContactModel.name.ilike(f"%{term}%")
                     | ContactModel.phone_normalized.ilike(f"%{term}%")
                     | ContactModel.phone_raw.ilike(f"%{term}%")
+                    | ContactModel.email_normalized.ilike(f"%{term}%")
                     for term in cleaned
                 ]
             )
@@ -188,7 +190,7 @@ class ContactClient(BaseDBClient):
 
     async def find_contact_by_phone(
         self, contact_list_id: int, phone_normalized: str
-    ) -> Optional[ContactModel]:
+    ) -> ContactModel | None:
         """The inbound lookup, on a ringing phone.
 
         Not org-scoped, and that is deliberate rather than an oversight: the
@@ -206,19 +208,34 @@ class ContactClient(BaseDBClient):
             )
             return result.scalar_one_or_none()
 
+    async def find_contact_by_email(
+        self, contact_list_id: int, email_normalized: str, *, organization_id: int
+    ) -> ContactModel | None:
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(ContactModel).where(
+                    ContactModel.contact_list_id == contact_list_id,
+                    ContactModel.organization_id == organization_id,
+                    ContactModel.email_normalized == email_normalized,
+                )
+            )
+            return result.scalar_one_or_none()
+
     async def upsert_contacts(
         self,
         contact_list_id: int,
         *,
         organization_id: int,
-        rows: List[Dict[str, Any]],
-    ) -> Tuple[int, int]:
+        rows: list[dict[str, Any]],
+    ) -> tuple[int, int]:
         """Insert or refresh contacts, returning ``(written, skipped)``.
 
         Upsert rather than insert so re-uploading a corrected CSV is a refresh
         instead of a duplicate set somebody has to clean up by hand — the
         unique constraint on ``(contact_list_id, phone_normalized)`` is what
-        makes that well-defined.
+        makes that well-defined. A row with no number (OP-3: a prospect
+        with an address) is keyed on ``(contact_list_id, email_normalized)``
+        instead, and a row with neither is skipped and counted.
 
         Chunked because a contact list is the one table here an account fills
         by uploading a file, and a single statement carrying 50,000 rows is how
@@ -227,34 +244,56 @@ class ContactClient(BaseDBClient):
         if not rows:
             return 0, 0
 
+        by_phone: list[dict[str, Any]] = []
+        by_email: list[dict[str, Any]] = []
+        skipped = 0
+        for row in rows:
+            email = (row.get("email") or "").strip() or None
+            values = {
+                "organization_id": organization_id,
+                "contact_list_id": contact_list_id,
+                "phone_raw": row.get("phone_raw") or None,
+                "phone_normalized": row.get("phone_normalized") or None,
+                "email": email,
+                "email_normalized": email.lower() if email else None,
+                "name": row.get("name"),
+                "attributes": row.get("attributes") or {},
+            }
+            if values["phone_normalized"]:
+                by_phone.append(values)
+            elif values["email_normalized"]:
+                by_email.append(values)
+            else:
+                skipped += 1
+
         written = 0
         CHUNK = 500
         async with self.async_session() as session:
-            for start in range(0, len(rows), CHUNK):
-                chunk = [
-                    {
-                        "organization_id": organization_id,
-                        "contact_list_id": contact_list_id,
-                        "phone_raw": row["phone_raw"],
-                        "phone_normalized": row["phone_normalized"],
-                        "name": row.get("name"),
-                        "attributes": row.get("attributes") or {},
-                    }
-                    for row in rows[start : start + CHUNK]
-                ]
-                statement = pg_insert(ContactModel).values(chunk)
-                statement = statement.on_conflict_do_update(
-                    constraint="uq_contacts_list_phone",
-                    set_={
-                        "phone_raw": statement.excluded.phone_raw,
-                        "name": statement.excluded.name,
-                        "attributes": statement.excluded.attributes,
-                    },
-                )
-                await session.execute(statement)
-                written += len(chunk)
+            for rows_, constraint, refresh in (
+                (
+                    by_phone,
+                    "uq_contacts_list_phone",
+                    ("phone_raw", "email", "email_normalized"),
+                ),
+                (by_email, "uq_contacts_list_email", ("email",)),
+            ):
+                for start in range(0, len(rows_), CHUNK):
+                    chunk = rows_[start : start + CHUNK]
+                    statement = pg_insert(ContactModel).values(chunk)
+                    statement = statement.on_conflict_do_update(
+                        constraint=constraint,
+                        set_={
+                            **{
+                                col: getattr(statement.excluded, col) for col in refresh
+                            },
+                            "name": statement.excluded.name,
+                            "attributes": statement.excluded.attributes,
+                        },
+                    )
+                    await session.execute(statement)
+                    written += len(chunk)
             await session.commit()
-        return written, 0
+        return written, skipped
 
     async def delete_contact(self, contact_id: int, *, organization_id: int) -> bool:
         async with self.async_session() as session:

@@ -23,13 +23,14 @@ class TestFindingTheColumns:
             assert result.phone_column == header, header
             assert len(result.rows) == 1, header
 
-    def test_a_file_with_no_phone_column_says_which_columns_it_found(self):
+    def test_a_file_with_no_phone_or_email_column_says_which_columns_it_found(self):
         """The operator has to fix this in their spreadsheet, so the message
-        has to name what we saw rather than what we wanted."""
-        result = parse_contacts_csv(_csv("name,email", "Asha,a@example.com"))
+        has to name what we saw rather than what we wanted. A file with an
+        email column and no phone column imports since OP-3."""
+        result = parse_contacts_csv(_csv("name,city", "Asha,Pune"))
 
         assert not result.rows
-        assert "email" in result.problems[0][1]
+        assert "city" in result.problems[0][1]
 
     def test_an_explicit_column_overrides_the_guess(self):
         result = parse_contacts_csv(

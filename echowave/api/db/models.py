@@ -469,9 +469,16 @@ class ContactModel(Base):
         Integer, ForeignKey("contact_lists.id", ondelete="CASCADE"), nullable=False
     )
     #: As the account supplied it, kept so a list reads back the way it was
-    #: uploaded rather than in our canonical form.
-    phone_raw = Column(String(255), nullable=False)
-    phone_normalized = Column(String(255), nullable=False)
+    #: uploaded rather than in our canonical form. Optional since OP-3: a
+    #: prospect found on the web has an address and no number, and a
+    #: contact that could only be a caller kept every such lead out of the
+    #: book. A contact carries a number, an address, or both, never neither.
+    phone_raw = Column(String(255), nullable=True)
+    phone_normalized = Column(String(255), nullable=True)
+    #: As supplied, and lower-cased for matching; the second is what the
+    #: unique constraint and the lookups read.
+    email = Column(String(320), nullable=True)
+    email_normalized = Column(String(320), nullable=True)
     name = Column(String(255), nullable=True)
     attributes = Column(
         JSON, nullable=False, default=dict, server_default=text("'{}'::json")
@@ -491,8 +498,18 @@ class ContactModel(Base):
             "phone_normalized",
             name="uq_contacts_list_phone",
         ),
+        UniqueConstraint(
+            "contact_list_id",
+            "email_normalized",
+            name="uq_contacts_list_email",
+        ),
+        CheckConstraint(
+            "phone_normalized IS NOT NULL OR email_normalized IS NOT NULL",
+            name="ck_contacts_reachable",
+        ),
         # The inbound lookup: one list, one number, on a ringing phone.
         Index("ix_contacts_lookup", "contact_list_id", "phone_normalized"),
+        Index("ix_contacts_email", "contact_list_id", "email_normalized"),
         Index("ix_contacts_org", "organization_id"),
     )
 

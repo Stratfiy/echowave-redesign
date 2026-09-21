@@ -93,7 +93,8 @@ async def _contacts(
     return [
         {
             "name": r.name or "",
-            "phone": r.phone_normalized or r.phone_raw,
+            "phone": r.phone_normalized or r.phone_raw or "",
+            **({"email": r.email} if getattr(r, "email", None) else {}),
             "attributes": {
                 k: v
                 for k, v in (r.attributes or {}).items()

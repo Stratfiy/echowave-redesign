@@ -2880,11 +2880,15 @@ export type ContactResponse = {
     /**
      * Phone Raw
      */
-    phone_raw: string;
+    phone_raw?: string | null;
     /**
      * Phone Normalized
      */
-    phone_normalized: string;
+    phone_normalized?: string | null;
+    /**
+     * Email
+     */
+    email?: string | null;
     /**
      * Name
      */
@@ -6174,6 +6178,10 @@ export type ImportResponse = {
      * Phone Column
      */
     phone_column?: string | null;
+    /**
+     * Email Column
+     */
+    email_column?: string | null;
     /**
      * Truncated
      */
