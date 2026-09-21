@@ -430,6 +430,7 @@ async def cost_workflow_run(
         session,
         organization_id=organization_id,
         workflow_run_id=workflow_run_id,
+        workflow_id=run.workflow_id,
         amount_paise=cost.total_charged_paise,
         recost=recost,
     )
@@ -446,6 +447,7 @@ async def _debit_ledger(
     workflow_run_id: int,
     amount_paise: int,
     recost: bool,
+    workflow_id: int | None = None,
 ) -> None:
     """Record the usage debit for a run, exactly once.
 
@@ -485,7 +487,16 @@ async def _debit_ledger(
             ref_type="workflow_run",
             ref_id=ref_id,
             balance_after_paise=balance - amount_paise,
+            workflow_id=workflow_id,
         )
+    )
+    await session.flush()
+    # The debit may have crossed a spend cap (S-1); the next start reads the
+    # incident this opens.
+    from api.services.billing import budgets
+
+    await budgets.observe_charge(
+        session, organization_id=organization_id, workflow_id=workflow_id
     )
 
 

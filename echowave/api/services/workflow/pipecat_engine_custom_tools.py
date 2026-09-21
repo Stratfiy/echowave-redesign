@@ -1038,6 +1038,7 @@ class CustomToolManager:
             event=billing_events.tool_call_event(toolkit),
             ref_id=ref,
             note=f"{function_name} via {toolkit or 'connector'}",
+            workflow_id=context.get("workflow_id"),
         )
 
     def _create_mcp_handler(self, session: "McpToolSession", function_name: str):

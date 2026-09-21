@@ -255,6 +255,7 @@ async def answer_in_channel(
             event=event,
             ref_id=f"{run_id}:{(last_turn or {}).get('id') or 'turn'}",
             note=f"{name} in {'a channel' if folder_id is not None else 'chat'}",
+            workflow_id=workflow_id,
         )
         if not answer:
             # The single most important case to record. A bot that ran and

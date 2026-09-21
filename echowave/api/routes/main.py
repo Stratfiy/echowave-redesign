@@ -15,6 +15,7 @@ from api.routes.auth import router as auth_router
 from api.routes.billing_dashboard import router as billing_dashboard_router
 from api.routes.bot_event_webhooks import router as bot_event_webhooks_router
 from api.routes.bot_triggers import router as bot_triggers_router
+from api.routes.budgets import router as budgets_router
 from api.routes.campaign import router as campaign_router
 from api.routes.connectors import router as connectors_router
 from api.routes.contacts import router as contacts_router
@@ -138,6 +139,7 @@ router.include_router(organization_router)
 router.include_router(s3_router)
 router.include_router(service_keys_router)
 router.include_router(organization_usage_router)
+router.include_router(budgets_router)
 router.include_router(reports_router)
 router.include_router(webrtc_signaling_router)
 router.include_router(turn_credentials_router)

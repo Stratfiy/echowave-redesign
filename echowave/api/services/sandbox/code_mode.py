@@ -190,6 +190,7 @@ async def run_for_bot(
                 event=billing_events.SCRIPT_RUN,
                 ref_id=ref_id,
                 note=(why or "script")[:80],
+                workflow_id=workflow_id,
             )
         except Exception as exc:  # noqa: BLE001 - the run happened; log it
             logger.error(

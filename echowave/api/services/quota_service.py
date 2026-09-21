@@ -33,7 +33,7 @@ from loguru import logger
 from api.db import db_client
 from api.db.models import UserModel
 from api.enums import PostHogEvent, WorkflowRunMode
-from api.services.billing import reservations
+from api.services.billing import budgets, reservations
 from api.services.configuration.ai_model_configuration import (
     get_effective_ai_model_configuration_for_workflow,
 )
@@ -516,6 +516,26 @@ async def _authorize_workflow_run_start(
                 verify_email_credits=await _verify_email_credits(organization_id),
             )
 
+        # A spend cap the customer set (S-1) is checked here, after the
+        # balance and before the gateway, for the same reason: every kind of
+        # run starts through this function, so this is where one refusal
+        # covers a call, a routine, a trigger, a reply and a task alike.
+        budget = await budgets.evaluate_in_own_session(
+            organization_id=organization_id, workflow_id=workflow.id
+        )
+        if not budget.allowed:
+            logger.info(
+                "Workflow start authorization denied: org {} workflow {} is at "
+                "its spend cap",
+                organization_id,
+                workflow_id,
+            )
+            return QuotaCheckResult(
+                has_quota=False,
+                error_code=budgets.ERROR_CODE,
+                error_message=budget.message,
+            )
+
         user_config = await get_effective_ai_model_configuration_for_workflow(
             organization_id=organization_id,
             workflow_configurations=workflow_configurations,
@@ -543,7 +563,7 @@ async def _authorize_workflow_run_start(
         return result
 
     except Exception as e:
-        logger.error(f"Error during workflow run start authorization: {str(e)}")
+        logger.error(f"Error during workflow run start authorization: {e!s}")
         # Only an httpx transport failure raised while calling the model gateway
         # is allowed to fail open, and that is handled at the call site above.
         # Database, configuration, response-validation, and programming errors
