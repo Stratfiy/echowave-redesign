@@ -15,7 +15,7 @@ and could be any length. An unbounded history is an unbounded prompt on our own
 key.
 """
 
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -24,6 +24,7 @@ from api.db import db_client
 from api.db.models import UserModel
 from api.services.agent_builder import limits, settings
 from api.services.agent_builder.client import BuilderClientError
+from api.services.agent_builder.edit_proposal import EditProposalRequest, propose_edit
 from api.services.agent_builder.session import run_turn
 from api.services.auth.depends import get_user
 
@@ -37,6 +38,35 @@ MAX_HISTORY_MESSAGES = 80
 #: One message's ceiling. Long enough to paste a list of doctors or opening
 #: hours, short enough that nobody pastes a book.
 MAX_MESSAGE_CHARS = 4000
+
+
+@router.post("/edit-proposal")
+async def edit_proposal(
+    payload: EditProposalRequest,
+    user: Annotated[UserModel, Depends(get_user)],
+) -> dict[str, Any]:
+    """Preview an edit of the caller's unsaved graph; no draft is written."""
+    organization_id = user.selected_organization_id
+    if organization_id is None:
+        raise HTTPException(status_code=400, detail="No organization selected")
+    workflow = await db_client.get_workflow(
+        payload.workflow_id, organization_id=organization_id
+    )
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    async with db_client.async_session() as session:
+        try:
+            model = await settings.resolve_model(session)
+        except settings.BuilderUnavailable as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        state, charged_credits = await meter_builder_message(session, organization_id)
+        try:
+            result = await propose_edit(
+                model=model, graph=payload.graph, message=payload.message
+            )
+        except BuilderClientError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {**result, "usage": _usage(state, charged_credits=charged_credits)}
 
 
 class ChatRequest(BaseModel):
