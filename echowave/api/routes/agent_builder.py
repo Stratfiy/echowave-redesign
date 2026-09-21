@@ -61,7 +61,9 @@ async def edit_proposal(
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         state, charged_credits = await meter_builder_message(session, organization_id)
         try:
-            result = await propose_edit(model=model, graph=payload.graph, message=payload.message)
+            result = await propose_edit(
+                model=model, graph=payload.graph, message=payload.message
+            )
         except BuilderClientError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {**result, "usage": _usage(state, charged_credits=charged_credits)}
