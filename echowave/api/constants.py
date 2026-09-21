@@ -585,6 +585,15 @@ SERPER_API_KEY = os.getenv("SERPER_API_KEY", "").strip()
 # and reduced to text here, which is enough for a page that is mostly text.
 CRAWL4AI_URL = os.getenv("CRAWL4AI_URL", "").strip().rstrip("/")
 WEB_FETCH_MAX_CHARS = int(os.getenv("WEB_FETCH_MAX_CHARS", "12000"))
+
+# D-1b: a Decibyl conversation belongs to the person who started it. Off,
+# and every member of a workspace sees every conversation, as before. On,
+# and a thread is listed and read by its author; a thread with no recorded
+# author (the one every account had before threads, and anything written
+# before the author was stamped) is an Admin's to see, nobody else's.
+DECIBYL_PRIVATE_THREADS_ENABLED = (
+    os.getenv("DECIBYL_PRIVATE_THREADS_ENABLED", "false").lower() == "true"
+)
 WEB_FETCH_PER_DOMAIN_PER_MINUTE = int(
     os.getenv("WEB_FETCH_PER_DOMAIN_PER_MINUTE", "10")
 )

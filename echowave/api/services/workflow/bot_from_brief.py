@@ -27,6 +27,7 @@ card offering Hear it and Try it on the bot that came out.
 
 from __future__ import annotations
 
+import re
 from typing import Any, Optional
 
 from loguru import logger
@@ -311,14 +312,71 @@ async def build(
     )
     if scheduled:
         note = f"{note} It runs {scheduled}, once you test it."
+    waiting_on = await _waiting_on(
+        organization_id=organization_id, spec=str(args.get("spec") or "")
+    )
+    if waiting_on:
+        one = len(waiting_on) == 1
+        note = (
+            f"{note} Waiting on: {', '.join(waiting_on)} -- connect "
+            f"{'it' if one else 'them'} from the card{'' if one else 's'} "
+            f"above and the bot has {'its' if one else 'their'} tools."
+        )
 
     return {
         "workflow_id": workflow.id,
         "handle": getattr(workflow, "handle", None),
         "steps": steps,
         "runs": scheduled,
+        "waiting_on": waiting_on,
         "note": note,
     }
+
+
+#: How many connect cards one build puts on the thread. A brief naming six
+#: apps gets three cards and a sentence naming the rest.
+MAX_WAITING_CARDS = 3
+
+
+async def _waiting_on(*, organization_id: int, spec: str) -> list[str]:
+    """The apps the brief names that this workspace has not connected (D-1b).
+
+    The bot is built now, with the tools of the apps that *are* connected;
+    the rest are the "waiting on" list, and each gets a connect card on the
+    thread so the person connects it where they are rather than being sent
+    to a screen. Matched on whole words against the connector catalogue, so
+    "shopify" in the brief finds Shopify and "gmail" does not find
+    "notgmailish". Never raises: a list that cannot be read is an empty
+    list, and the bot is the deliverable.
+    """
+    text = (spec or "").lower()
+    if not text:
+        return []
+    try:
+        from api.services.integrations.composio import catalogue
+        from api.services.workflow import connector_offer
+
+        rows = await catalogue.connectors()
+        connected = {
+            connected_tools.toolkit_of(t)
+            for t in await connected_tools.list_for_organization(organization_id)
+        }
+        missing = [
+            row.slug
+            for row in rows
+            if row.slug
+            and row.slug not in connected
+            and re.search(rf"(?<![a-z0-9]){re.escape(row.slug)}(?![a-z0-9])", text)
+        ]
+        for slug in missing[:MAX_WAITING_CARDS]:
+            await connector_offer.offer(
+                organization_id=organization_id,
+                arguments={"app": slug, "why": "The bot you just built uses it."},
+            )
+        return missing
+    except Exception as exc:  # noqa: BLE001 - the bot is the deliverable
+        logger.warning("Could not work out what the built bot is waiting on: {}", exc)
+        return []
 
 
 async def _attach_named_apps(
