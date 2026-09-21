@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useWorkflowStore } from "@/app/workflow/[workflowId]/stores/workflowStore";
-import { FlowNode } from "@/components/flow/types";
+import { FlowEdge, FlowNode } from "@/components/flow/types";
 
 import { GraphEditChat } from "../GraphEditChat";
 
@@ -45,6 +45,71 @@ describe("GraphEditChat", () => {
         act(() => useWorkflowStore.setState({ nodes: [node("Manual edit")] }));
         expect((screen.getByRole("button", { name: "Apply to draft" }) as HTMLButtonElement).disabled).toBe(true);
         expect(screen.getByText(/Your draft changed since/)).toBeTruthy();
+    });
+    it("reviews added steps and connections and restores exact topology with Undo", async () => {
+        const original = [node("Old")];
+        const added = { ...node("Ask for the date"), id: "date", data: { name: "Appointment date", prompt: "Ask for the date" } } as FlowNode;
+        const edge = { id: "to-date", source: "agent", target: "date", data: { label: "Continue", condition: "ready" } } as FlowEdge;
+        mocks.post.mockResolvedValue({ data: {
+            status: "proposal", summary: "Ask for the date first",
+            graph: { nodes: [...original, added], edges: [edge] },
+            changes: [
+                { node_id: "date", field: "node_added", before: null, after: "Ask for the date" },
+                { node_id: "date", field: "edge_added", before: null, after: "Agent → Appointment date" },
+            ],
+        } });
+        render(<GraphEditChat workflowId={39} />);
+        await request();
+        expect(screen.getByText("Appointment date / Step added")).toBeTruthy();
+        expect(screen.getByText("Appointment date / Connection added")).toBeTruthy();
+        expect(useWorkflowStore.getState().nodes).toEqual(original);
+        fireEvent.click(screen.getByRole("button", { name: "Apply to draft" }));
+        expect(useWorkflowStore.getState().edges).toEqual([edge]);
+        expect(useWorkflowStore.getState().nodes).toEqual([...original, added]);
+        fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+        expect(useWorkflowStore.getState().nodes).toEqual(original);
+        expect(useWorkflowStore.getState().edges).toEqual([]);
+        fireEvent.click(screen.getByRole("button", { name: "Redo" }));
+        expect(useWorkflowStore.getState().edges).toEqual([edge]);
+        expect(mocks.post).toHaveBeenCalledTimes(1);
+    });
+    it("rejects malformed change descriptions without mutating the draft", async () => {
+        mocks.post.mockResolvedValue({ data: { ...reply, changes: [{ node_id: "agent", field: "node_added", before: {}, after: "New" }] } });
+        render(<GraphEditChat workflowId={39} />);
+        fireEvent.change(screen.getByLabelText("What should change?"), { target: { value: "Add a step" } });
+        fireEvent.click(screen.getByRole("button", { name: "Propose edit" }));
+        await screen.findByRole("alert");
+        expect(screen.queryByRole("button", { name: "Apply to draft" })).toBeNull();
+        expect(useWorkflowStore.getState().isDirty).toBe(false);
+    });
+    it("shows a removed step name and restores it with its connections", async () => {
+        const removed = { ...node("Collect details"), id: "details", data: { name: "Details", prompt: "Collect details" } } as FlowNode;
+        const originalEdges = [{ id: "details-edge", source: "agent", target: "details" }] as FlowEdge[];
+        useWorkflowStore.setState({ nodes: [node("Old"), removed], edges: originalEdges });
+        mocks.post.mockResolvedValue({ data: {
+            ...reply, graph: { nodes: [node("Old")], edges: [] },
+            changes: [{ node_id: "details", field: "node_removed", before: "Collect details", after: null }],
+        } });
+        render(<GraphEditChat workflowId={39} />);
+        await request();
+        expect(screen.getByText("Details / Step removed")).toBeTruthy();
+        fireEvent.click(screen.getByRole("button", { name: "Apply to draft" }));
+        expect(useWorkflowStore.getState().nodes).toEqual([node("Old")]);
+        fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+        expect(useWorkflowStore.getState().nodes).toEqual([node("Old"), removed]);
+        expect(useWorkflowStore.getState().edges).toEqual(originalEdges);
+    });
+    it.each([
+        { nodes: [{ id: "new" }], edges: [] },
+        { nodes: [node("Old")], edges: [{ id: "broken", source: "agent", target: "missing" }] },
+    ])("rejects malformed graph previews without crashing", async (graph) => {
+        mocks.post.mockResolvedValue({ data: { ...reply, graph } });
+        render(<GraphEditChat workflowId={39} />);
+        fireEvent.change(screen.getByLabelText("What should change?"), { target: { value: "Add a step" } });
+        fireEvent.click(screen.getByRole("button", { name: "Propose edit" }));
+        await screen.findByRole("alert");
+        expect(screen.queryByRole("button", { name: "Apply to draft" })).toBeNull();
+        expect(useWorkflowStore.getState().nodes).toEqual([node("Old")]);
     });
     it("discards without mutating the draft", async () => {
         mocks.post.mockResolvedValue({ data: reply });
