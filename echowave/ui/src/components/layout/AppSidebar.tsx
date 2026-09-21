@@ -1,22 +1,24 @@
 "use client";
 
-import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
   ArrowUpCircle,
   Bot,
   CalendarClock,
+  ChartColumnBig,
   ChevronLeft,
   ChevronRight,
   Database,
+  Home,
   LifeBuoy,
   LogOut,
   Settings,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import posthog from "posthog-js";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 
 import { OrganizationSwitcher } from "@/components/layout/OrganizationSwitcher";
 import { SidebarBots } from "@/components/layout/SidebarBots";
@@ -26,6 +28,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -55,12 +59,10 @@ import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 import {
-  contextIdForUrl,
   getActiveNavUrl,
   getContextSections,
   getVisibleNavSections,
   NAV_CONTEXTS,
-  type NavContext,
   type NavContextId,
   type SidebarNavItem,
 } from "./navigation";
@@ -68,22 +70,13 @@ import {
 const TELEPHONY_WARNING_COPY = "Action required";
 
 
-/** Primary destinations stay visible while contextual setup links remain available. */
-type PinnedRow =
-  | { kind: "context"; title: string; icon: LucideIcon; context: NavContext }
-  | { kind: "link"; title: string; icon: LucideIcon; url: string };
-
-function contextRow(id: NavContextId): PinnedRow {
-  const context = NAV_CONTEXTS.find((c) => c.id === id)!;
-  return { kind: "context", title: id === "home" ? "Decibyl" : context.title, icon: context.icon, context };
-}
-
-const PINNED_ROWS: PinnedRow[] = [
-  contextRow("home"),
-  { kind: "link", title: "Tasks", icon: CalendarClock, url: "/tasks" },
-  { kind: "link", title: "Agents", icon: Bot, url: "/workflow" },
-  { kind: "link", title: "Knowledge", icon: Database, url: "/files" },
-  contextRow("activity"),
+/** Stable destinations: selecting one always navigates, never swaps the sidebar. */
+const PINNED_ROWS: SidebarNavItem[] = [
+  { title: "Decibyl", icon: Home, url: "/overview" },
+  { title: "Tasks", icon: CalendarClock, url: "/tasks" },
+  { title: "Agents", icon: Bot, url: "/workflow" },
+  { title: "Knowledge", icon: Database, url: "/files" },
+  { title: "Activity", icon: ChartColumnBig, url: "/usage" },
 ];
 
 /** Marketplace, setup and account controls remain available from the account menu. */
@@ -92,7 +85,7 @@ const PERSONAL_CONTEXTS: NavContextId[] = ["marketplace", "setup", "account"];
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { state, isMobile, setOpenMobile, setOpen } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const { user, logout, provider } = useAuth();
   const displayIdentity =
     user?.displayName ||
@@ -147,52 +140,18 @@ export function AppSidebar() {
   });
   const activeUrl = getActiveNavUrl(pathname, navSections);
 
-  /* Which panel the rail is showing.
-   *
-   * Seeded from the page you are on, so arriving at /billing from a link opens
-   * Account rather than leaving the rail pointing somewhere else — a rail that
-   * disagrees with the screen is worse than no rail. Clicking a rail icon then
-   * overrides it until you navigate, which is what makes browsing another
-   * panel possible without leaving the page you are reading. */
-  const [pickedContext, setPickedContext] = useState<NavContextId | null>(null);
-  const routeContext = activeUrl ? contextIdForUrl(activeUrl) : "home";
-  const activeContext = pickedContext ?? routeContext;
-  useEffect(() => {
-    setPickedContext(null);
-  }, [pathname]);
-
-  /* Collapsed is the rail on its own, so there is no panel to fill.
-   *
-   * It used to be the opposite: the rail was hidden and all seventeen
-   * destinations were listed as bare glyphs in a column that needed its own
-   * scrollbar. Seventeen unlabelled icons is not a navigation, it is a
-   * memory test — and the one thing that *would* have survived the squeeze
-   * intact, the five labelled contexts, was the thing being dropped. Nothing
-   * becomes unreachable: every context is one click from here, and clicking
-   * one opens the panel it names. */
-  // Home shows places, not features. The nav rows -- a Home link, a Bots
-  // link under a BUILD heading -- are the app's own table of contents, and in
-  // the one panel that is supposed to be the workspace they read as chrome:
-  // "Home" twice (the rail already says it), and "Bots" above a section
-  // called YOUR BOTS. So Home renders the channels and the bots and nothing
-  // else, the way the reference does. The rail's Home button carries the
-  // navigation the removed link used to.
-  const contextSections =
-    isCollapsed || activeContext === "home"
-      ? []
-      : getContextSections(activeContext, navSections).map((section) => ({
-          ...section,
-          items: section.items.filter((item) => item.url !== "/files"),
-        }));
-  // A panel can still outrun a short viewport, so the list scrolls.
-  // Left alone it rests at the top, which puts the *current* page half under
-  // the footer — a selected item you cannot see reads as a broken sidebar
-  // rather than a scrolled one. block: "nearest" means this only moves the
-  // list when the active item is actually out of view.
+  const accountGroups = PERSONAL_CONTEXTS.map((id) => ({
+    id,
+    title: NAV_CONTEXTS.find((context) => context.id === id)!.title,
+    items: getContextSections(id, navSections).flatMap((section) => section.items)
+      .filter((item) => !PINNED_ROWS.some((row) => row.url === item.url)),
+  }));
+  const activityLinks = getContextSections("activity", navSections)
+    .flatMap((section) => section.items).filter((item) => item.url !== "/usage");
   const activeLinkRef = useRef<HTMLAnchorElement | null>(null);
   useEffect(() => {
     activeLinkRef.current?.scrollIntoView({ block: "nearest" });
-  }, [pathname, activeContext]);
+  }, [pathname]);
 
   const handleMobileNavClick = () => {
     if (isMobile) {
@@ -201,7 +160,8 @@ export function AppSidebar() {
   };
 
   const SidebarLink = ({ item }: { item: SidebarNavItem }) => {
-    const isItemActive = activeUrl === item.url;
+    const isConversation = /^\/workflow\/[^/]+\/thread(?:\/|$)/.test(pathname) || pathname.startsWith("/channels/");
+    const isItemActive = !isConversation && activeUrl === item.url;
     const Icon = item.icon;
     const showWarningDot = item.showsTelephonyWarning && hasTelephonyWarning;
     const tooltip = {
@@ -315,20 +275,6 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" variant="sidebar" className="app-sidebar">
-      {/* pb-2 plus an opaque footer below: the nav list is taller than a 900px
-          viewport once MANAGE has six entries, so the last item scrolls under
-          the footer. Without a background on the footer it showed through and
-          the final entry read as clipped rather than as scrolled. */}
-      {/* Rail on the left, panel on the right.
-          The model landed as a horizontal strip; this is the column it was
-          always meant to be — five contexts down the edge, one panel beside
-          them that swaps entirely. Same behaviour, and the tests that guard
-          it are unchanged, because what they assert is which destinations a
-          context offers rather than where the buttons sit.
-
-          Every context is always rendered, which is the point. Filtering the
-          panel without offering a way back to the others is how a destination
-          silently stops being reachable. */}
       <SidebarContent
         className="notranslate h-full flex-col gap-0 p-0"
         translate="no"
@@ -345,6 +291,7 @@ export function AppSidebar() {
         >
           <Link
             href="/"
+            onClick={handleMobileNavClick}
             aria-label="Decibyl"
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-brand)] text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-brand)]"
           >
@@ -355,6 +302,7 @@ export function AppSidebar() {
               <div className="min-w-0 flex-1">
                 <OrganizationSwitcher collapsed={isCollapsed} />
               </div>
+              {isMobile && <button type="button" aria-label="Close navigation" onClick={() => setOpenMobile(false)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"><X className="h-5 w-5" /></button>}
               {isBehind && latestRelease && (
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -396,102 +344,19 @@ export function AppSidebar() {
           </div>
         )}
 
-{/* Primary destinations and contextual activity navigation. */}
-        <div role="tablist" aria-label="Workspace" data-rail="" className="px-1 pt-1">
+        <nav aria-label="Workspace" data-rail="" className="px-1 pt-1">
           <SidebarMenu>
-            {PINNED_ROWS.map((row) => {
-              const Icon = row.icon;
-              if (row.kind === "link") {
-                const selected = activeUrl === row.url;
-                return (
-                  <SidebarMenuItem key={row.title}>
-                    <SidebarMenuButton
-                      asChild
-                      tooltip={row.title}
-                      isActive={selected}
-                      className="rounded-md text-sidebar-foreground/85"
-                    >
-                      <Link
-                        href={row.url}
-                        aria-current={selected ? "page" : undefined}
-                        onClick={handleMobileNavClick}
-                        className={cn(isCollapsed && "justify-center")}
-                      >
-                        <Icon aria-hidden="true" className="h-4 w-4 shrink-0 text-sidebar-foreground/70" />
-                        <span className={cn("truncate", isCollapsed && "sr-only")}>{row.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              }
-              const context = row.context;
-              const selected = context.id === activeContext;
-              return (
-                <SidebarMenuItem key={context.id}>
-                  <SidebarMenuButton
-                    type="button"
-                    role="tab"
-                    aria-selected={selected}
-                    aria-label={row.title}
-                    tooltip={row.title}
-                    isActive={selected}
-                    onClick={() => {
-                      setPickedContext(context.id);
-                      if (isCollapsed) setOpen(true);
-                      if (context.id === "home" && pathname !== "/overview") {
-                        router.push("/overview");
-                      }
-                    }}
-                    className={cn("rounded-md text-sidebar-foreground/85", isCollapsed && "justify-center")}
-                  >
-                    <Icon aria-hidden="true" className="h-4 w-4 shrink-0 text-sidebar-foreground/70" />
-                    <span className={cn("truncate", isCollapsed && "sr-only")}>{row.title}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              );
-            })}
+            {PINNED_ROWS.map((item) => <SidebarMenuItem key={item.url}><SidebarLink item={item} /></SidebarMenuItem>)}
           </SidebarMenu>
-        </div>
-
-        {/* What the selected row opens. Hidden when folded: a 64px column
-            cannot hold a destination list, and the rows above are the doors. */}
-        <div
-          className={cn(
-            "min-w-0 flex-1 overflow-y-auto px-1 py-1",
-            isCollapsed && "hidden",
-          )}
-        >
-          {/* One flat list, no headings.
-              DEPLOY, MONITOR, DEVELOPERS and WORKSPACE were written when this
-              panel showed all seventeen destinations at once and needed
-              sorting into piles. A panel is now one context's own rows -- two
-              to five of them -- and on Activity each heading was wrapping a
-              single link. A heading over one row is a word to read before
-              reading the row.
-
-              The sections keep their order, so the rows arrive in the same
-              sequence as before; only the labels and their collapse arrows
-              are gone. `px-0`, because the group's own padding sat these rows
-              four pixels right of the pinned rows above and made one panel
-              look like two. */}
-          {contextSections.map((section) => (
-            <SidebarGroup key={section.label ?? "overview"} className="px-0 py-1">
-              <SidebarMenu>
-                {section.items.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarLink item={item} />
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroup>
-          ))}
-{/* Conversations remain separate from agent setup. */}
-          {activeContext === "home" && (
-            <>
-              <SidebarChannels collapsed={isCollapsed} />
-              <SidebarBots collapsed={isCollapsed} />
-            </>
-          )}
+        </nav>
+        <div className={cn("min-w-0 flex-1 overflow-y-auto px-1 py-1", isCollapsed && "hidden")}
+          onClick={(event) => { if ((event.target as HTMLElement).closest("a[href]")) handleMobileNavClick(); }}>
+          {activityLinks.length > 0 && <SidebarGroup aria-label="Activity tools" className="px-0 py-1">
+            <p className="px-2 py-1 text-xs text-sidebar-foreground/60">Activity tools</p>
+            <SidebarMenu>{activityLinks.map((item) => <SidebarMenuItem key={item.url}><SidebarLink item={item} /></SidebarMenuItem>)}</SidebarMenu>
+          </SidebarGroup>}
+          <SidebarChannels collapsed={isCollapsed} />
+          <SidebarBots collapsed={isCollapsed} />
         </div>
       </SidebarContent>
 
@@ -524,39 +389,24 @@ export function AppSidebar() {
                 )}
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" side="top" className="w-56">
-              {/* The shop, the setup and the account, reached from the person
-                  rather than from three rows of their own. Opening one swaps
-                  the panel behind this menu, so every destination inside is
-                  where it was. */}
-              {PERSONAL_CONTEXTS.map((id) => {
-                const context = NAV_CONTEXTS.find((candidate) => candidate.id === id)!;
-                const Icon = context.icon;
-                return (
-                  <DropdownMenuItem
-                    key={id}
-                    onClick={() => {
-                      setPickedContext(id);
-                      setOpen(true);
-                    }}
-                    className="cursor-pointer"
-                  >
-                    <Icon className="mr-2 h-4 w-4" />
-                    {context.title}
-                  </DropdownMenuItem>
-                );
-              })}
+            <DropdownMenuContent align="start" side="top" className="max-h-[70vh] w-64 overflow-y-auto">
+              {accountGroups.map((group) => group.items.length > 0 && <React.Fragment key={group.id}>
+                <DropdownMenuLabel>{group.title}</DropdownMenuLabel>
+                {group.items.map((item) => <DropdownMenuItem key={item.url} asChild>
+                  <Link href={item.url} aria-current={activeUrl === item.url ? "page" : undefined} onClick={handleMobileNavClick}>
+                    <item.icon className="mr-2 h-4 w-4" />{item.title}
+                    {item.showsTelephonyWarning && hasTelephonyWarning && <AlertTriangle aria-label={TELEPHONY_WARNING_COPY} className="ml-auto h-4 w-4 text-amber-500" />}
+                  </Link>
+                </DropdownMenuItem>)}
+                <DropdownMenuSeparator />
+              </React.Fragment>)}
               {provider === "stack" && (
-                <DropdownMenuItem onClick={() => router.push("/handler/account-settings")} className="cursor-pointer">
+                <DropdownMenuItem onClick={() => { handleMobileNavClick(); router.push("/handler/account-settings"); }} className="cursor-pointer">
                   <Settings className="mr-2 h-4 w-4" />
                   Account settings
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onClick={() => router.push("/settings")} className="cursor-pointer">
-                <Settings className="mr-2 h-4 w-4" />
-                Settings
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => logout()} className="cursor-pointer">
+              <DropdownMenuItem onClick={() => { handleMobileNavClick(); logout(); }} className="cursor-pointer">
                 <LogOut className="mr-2 h-4 w-4" />
                 Sign out
               </DropdownMenuItem>
