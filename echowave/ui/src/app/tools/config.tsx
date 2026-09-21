@@ -14,9 +14,10 @@ import type {
     ToolParameter,
     TransferCallConfig,
     TransferCallToolDefinition,
+    WebToolDefinition,
 } from "@/client/types.gen";
 
-export type ToolCategory = "http_api" | "end_call" | "transfer_call" | "calculator" | "native" | "integration" | "mcp" | "google_calendar";
+export type ToolCategory = "http_api" | "end_call" | "transfer_call" | "calculator" | "native" | "integration" | "mcp" | "google_calendar" | "web";
 
 export type EndCallMessageType = "none" | "custom" | "audio";
 export type TransferDestinationSource = "static" | "dynamic";
@@ -97,6 +98,18 @@ export const TOOL_CATEGORIES: ToolCategoryConfig[] = [
         },
     },
     {
+        value: "web",
+        label: "Web search",
+        description: "Search the web and read pages on the platform's key — each search is a tool call plus the search itself",
+        icon: Globe,
+        iconName: "globe",
+        iconColor: "#2563EB",
+        autoFill: {
+            name: "Web search",
+            description: "Search the web and read pages, on the platform's key. Each search is a tool call plus the search itself; a page read is a tool call.",
+        },
+    },
+    {
         value: "mcp",
         label: "MCP Server",
         description: "Connect a customer MCP server; its tools become available to the bot",
@@ -173,6 +186,8 @@ export function getToolTypeLabel(category: string): string {
             return "MCP Server Tool";
         case "google_calendar":
             return "Google Calendar Tool";
+        case "web":
+            return "Web Search Tool";
         default:
             return "Tool";
     }
@@ -200,7 +215,8 @@ export type ToolDefinition =
     | TransferCallToolDefinition
     | CalculatorToolDefinition
     | McpToolDefinition
-    | GoogleCalendarToolDefinition;
+    | GoogleCalendarToolDefinition
+    | WebToolDefinition;
 
 export function createEndCallDefinition(config: EndCallConfig): EndCallToolDefinition {
     return {
@@ -243,6 +259,13 @@ export function createGoogleCalendarDefinition(): GoogleCalendarToolDefinition {
     };
 }
 
+export function createWebDefinition(): WebToolDefinition {
+    return {
+        schema_version: 1,
+        type: "web",
+    };
+}
+
 export const MCP_URL_PATTERN = /^https?:\/\//i;
 
 export function createMcpDefinition(
@@ -275,6 +298,8 @@ export function createToolDefinition(category: ToolCategory): ToolDefinition {
             return createCalculatorDefinition();
         case "google_calendar":
             return createGoogleCalendarDefinition();
+        case "web":
+            return createWebDefinition();
         case "http_api":
         default:
             return createHttpApiDefinition();

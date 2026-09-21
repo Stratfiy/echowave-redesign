@@ -8,9 +8,11 @@ the vendor's price for the request, passed through at cost. The event is
 Shaped like ``embedding_ingestion.py``, not ``costing.py``: a direct ledger
 debit outside the call receipt, because a lookup from a thread has no run to
 hang a line on, plus one row in ``data_lookup_costs`` so the unit-economics
-screen sees vendor cost beside charge. A lookup made during a *call* is not
-this module's: the pipeline records it under ``usage_info["data"]`` and the
-call receipt prices it (``usage.py``).
+screen sees vendor cost beside charge. An agent's own search (OP-1, the
+``web`` tool category) comes through here too, on a call or off it, with
+the agent's ``workflow_id`` so its spend cap sees it; ``usage_info["data"]``
+on a call receipt (``usage.py``) is for a vendor the pipeline itself
+metered, and today nothing writes it.
 
 **Never a standalone customer-facing line.** The customer sees the tool
 call; this row is the itemised cost behind it, on the internal screen.

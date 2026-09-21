@@ -3257,7 +3257,7 @@ export type CreateToolRequest = {
      *
      * Tool category. Must match definition.type.
      */
-    category?: 'http_api' | 'end_call' | 'transfer_call' | 'calculator' | 'native' | 'integration' | 'mcp' | 'google_calendar' | 'rate_table' | 'composio';
+    category?: 'http_api' | 'end_call' | 'transfer_call' | 'calculator' | 'native' | 'integration' | 'mcp' | 'google_calendar' | 'rate_table' | 'composio' | 'web';
     /**
      * Icon
      *
@@ -3291,7 +3291,9 @@ export type CreateToolRequest = {
         type: 'google_calendar';
     } & GoogleCalendarToolDefinition) | ({
         type: 'composio';
-    } & ComposioToolDefinition);
+    } & ComposioToolDefinition) | ({
+        type: 'web';
+    } & WebToolDefinition);
 };
 
 /**
@@ -12930,7 +12932,9 @@ export type UpdateToolRequest = {
         type: 'google_calendar';
     } & GoogleCalendarToolDefinition) | ({
         type: 'composio';
-    } & ComposioToolDefinition) | null;
+    } & ComposioToolDefinition) | ({
+        type: 'web';
+    } & WebToolDefinition) | null;
     /**
      * Status
      */
@@ -13511,6 +13515,33 @@ export type VonageConfigurationResponse = {
      * From Numbers
      */
     from_numbers: Array<string>;
+};
+
+/**
+ * WebToolDefinition
+ *
+ * Tool definition for the built-in web tools (OP-1).
+ *
+ * No configuration: the search runs on the platform's own key and the fetch
+ * is the platform's own fetcher, so there is nothing for the operator to
+ * fill in. One tool row gives the agent both ``web_search`` and
+ * ``web_fetch`` (search only on a voice call, where a page's worth of text
+ * has no place). Each search is charged as a tool call plus the vendor's
+ * price passed through at cost; a fetch is a tool call.
+ */
+export type WebToolDefinition = {
+    /**
+     * Schema Version
+     *
+     * Schema version.
+     */
+    schema_version?: number;
+    /**
+     * Type
+     *
+     * Tool type.
+     */
+    type: 'web';
 };
 
 /**

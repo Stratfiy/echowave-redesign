@@ -272,6 +272,7 @@ class ToolCategory(Enum):
         "google_calendar"  # Create events on a connected Google Calendar (implemented)
     )
     COMPOSIO = "composio"  # Run one Composio tool against a connected app (implemented)
+    WEB = "web"  # Built-in web search and page fetch on the platform key (OP-1)
 
 
 class ToolStatus(Enum):

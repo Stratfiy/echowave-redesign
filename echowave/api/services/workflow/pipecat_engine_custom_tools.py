@@ -43,6 +43,7 @@ from api.services.telephony.escalation import briefing_from_config
 from api.services.telephony.factory import get_telephony_provider_for_run
 from api.services.telephony.transfer_event_protocol import TransferContext
 from api.services.workflow import app_interactions, connected_tools, unattended
+from api.services.workflow import agent_web
 from api.services.workflow.tools.calculator import get_calculator_tools, safe_calculator
 from api.services.workflow.tools.custom_tool import (
     execute_http_tool,
@@ -436,6 +437,26 @@ class CustomToolManager:
                         )
                     continue
 
+                if agent_web.is_web_tool(tool):
+                    # Built-in web (OP-1): search, and on a text run a page
+                    # fetch. Off with the flag, so a row made while it was
+                    # on offers nothing once it is off.
+                    if not agent_web.enabled():
+                        continue
+                    for tool_def in agent_web.function_schemas(
+                        voice=bool(self._engine._is_voice)
+                    ):
+                        func = tool_def["function"]
+                        schemas.append(
+                            get_function_schema(
+                                func["name"],
+                                func["description"],
+                                properties=func["parameters"]["properties"],
+                                required=func["parameters"]["required"],
+                            )
+                        )
+                    continue
+
                 if tool.category == ToolCategory.CALCULATOR.value:
                     # Built-in calculator: return pre-defined schemas
                     for tool_def in get_calculator_tools():
@@ -565,6 +586,11 @@ class CustomToolManager:
                         f"Registered rate table tool handler "
                         f"(tool_uuid: {tool.tool_uuid})"
                     )
+                    continue
+
+                if agent_web.is_web_tool(tool):
+                    if agent_web.enabled():
+                        self._register_web_handlers()
                     continue
 
                 if tool.category == ToolCategory.CALCULATOR.value:
@@ -738,6 +764,68 @@ class CustomToolManager:
         self._register(
             "safe_calculator", calculate_func, kind=ToolCategory.CALCULATOR.value
         )
+
+    def _register_web_handlers(self) -> None:
+        """Register the built-in web tools (OP-1): the same functions Decibyl
+        runs from its thread, charged to this agent.
+
+        Keyed on the tool call's id, so a retried turn pays once; charged
+        against the workflow, so the agent's own spend cap sees it. Never
+        raises: a search that fails is told to the model in its own words.
+        """
+        from api.services.workflow import web_tools
+
+        async def _context(function_call_params: FunctionCallParams) -> dict:
+            ids = await self._interaction_context()
+            call_id = getattr(function_call_params, "tool_call_id", None)
+            run_id = ids.get("workflow_run_id")
+            return {
+                "organization_id": int(ids.get("organization_id") or 0),
+                "workflow_id": ids.get("workflow_id"),
+                "ref_id": f"{run_id or 'run'}:web:{call_id or 'x'}",
+            }
+
+        async def search_func(function_call_params: FunctionCallParams) -> None:
+            ids = await _context(function_call_params)
+            try:
+                result = await web_tools.search(
+                    ids["organization_id"],
+                    dict(function_call_params.arguments or {}),
+                    ref_id=ids["ref_id"],
+                    workflow_id=ids["workflow_id"],
+                )
+            except Exception as exc:  # noqa: BLE001 - the turn must finish
+                logger.error("web_search failed on a run: {}", exc)
+                result = {"status": "error", "error": "The search did not run."}
+            await function_call_params.result_callback(result)
+
+        async def fetch_func(function_call_params: FunctionCallParams) -> None:
+            ids = await _context(function_call_params)
+            try:
+                result = await web_tools.fetch(
+                    ids["organization_id"],
+                    dict(function_call_params.arguments or {}),
+                    ref_id=ids["ref_id"],
+                    workflow_id=ids["workflow_id"],
+                )
+            except Exception as exc:  # noqa: BLE001 - the turn must finish
+                logger.error("web_fetch failed on a run: {}", exc)
+                result = {"status": "error", "error": "The page could not be read."}
+            await function_call_params.result_callback(result)
+
+        self._register(
+            web_tools.SEARCH_TOOL_NAME,
+            search_func,
+            kind=ToolCategory.WEB.value,
+            timeout_secs=web_tools.TIMEOUT_SECS + 5.0,
+        )
+        if not self._engine._is_voice:
+            self._register(
+                web_tools.FETCH_TOOL_NAME,
+                fetch_func,
+                kind=ToolCategory.WEB.value,
+                timeout_secs=web_tools.TIMEOUT_SECS + 5.0,
+            )
 
     def _register_rate_table_handler(self, tool: Any) -> None:
         """Register the built-in rate-card lookup with the LLM.

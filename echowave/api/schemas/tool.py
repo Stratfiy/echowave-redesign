@@ -42,6 +42,7 @@ ToolCategoryValue = Literal[
     "google_calendar",
     "rate_table",
     "composio",
+    "web",
 ]
 
 
@@ -474,6 +475,21 @@ class CalculatorToolDefinition(BaseModel):
     type: Literal["calculator"] = Field(description="Tool type.")
 
 
+class WebToolDefinition(BaseModel):
+    """Tool definition for the built-in web tools (OP-1).
+
+    No configuration: the search runs on the platform's own key and the fetch
+    is the platform's own fetcher, so there is nothing for the operator to
+    fill in. One tool row gives the agent both ``web_search`` and
+    ``web_fetch`` (search only on a voice call, where a page's worth of text
+    has no place). Each search is charged as a tool call plus the vendor's
+    price passed through at cost; a fetch is a tool call.
+    """
+
+    schema_version: int = Field(default=1, description="Schema version.")
+    type: Literal["web"] = Field(description="Tool type.")
+
+
 class RateTableConfig(BaseModel):
     """An operator's rate card: grids, the rules around them, and its wording.
 
@@ -597,6 +613,7 @@ ToolDefinition = Annotated[
         McpToolDefinition,
         GoogleCalendarToolDefinition,
         ComposioToolDefinition,
+        WebToolDefinition,
     ],
     Field(discriminator="type"),
 ]
