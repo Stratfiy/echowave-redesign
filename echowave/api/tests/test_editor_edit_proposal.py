@@ -186,6 +186,7 @@ def test_request_limits_and_ambiguous_ids(graph):
 def test_model_receives_only_editable_projection_and_one_proposal(monkeypatch, graph):
     graph["nodes"][1]["data"]["qa_api_key"] = "SENSITIVE_KEY"
     graph["nodes"][1]["data"]["custom_headers"] = {"Authorization": "SECRET_TOKEN"}
+    graph["edges"][0]["data"]["custom_headers"] = {"Authorization": "EDGE_SECRET"}
     complete = AsyncMock(
         return_value=ModelReply(
             text="",
@@ -212,7 +213,11 @@ def test_model_receives_only_editable_projection_and_one_proposal(monkeypatch, g
     )
     assert result["status"] == "clarification"
     sent = json.dumps(complete.call_args.kwargs["conversation"].messages)
-    assert "SENSITIVE_KEY" not in sent and "SECRET_TOKEN" not in sent
+    assert (
+        "SENSITIVE_KEY" not in sent
+        and "SECRET_TOKEN" not in sent
+        and "EDGE_SECRET" not in sent
+    )
     assert "Book for" in sent
     assert "$ref" not in json.dumps(complete.call_args.kwargs["tools"])
 
