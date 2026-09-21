@@ -45,6 +45,7 @@ from api.services.workflow import (
     connected_tools,
     connector_offer,
     contact_lookup,
+    decibyl_tasks,
     document_fields,
     documents,
     draft_requests,
@@ -897,6 +898,24 @@ async def _answer(
                 # The tool it asked about is now offered with its arguments.
                 tools = await tools_for(organization_id, loaded)
             capped = reads_only and rounds >= MAX_TOOL_ROUNDS
+            if capped and decibyl_tasks.enabled():
+                # Mid-plan at the cap, and the board can carry on (D-1a):
+                # hand it the transcript and tell the person where the
+                # answer will land, instead of asking them to ask again.
+                task = await decibyl_tasks.hand_off(
+                    organization_id,
+                    messages=conversation.messages,
+                    loaded=loaded,
+                    preset=preset,
+                    thread_id=thread_id,
+                    author_id=author_id,
+                    request=text,
+                    rounds=rounds,
+                )
+                reply = client.ModelReply(
+                    text=decibyl_tasks.HANDED_OFF.format(rounds=rounds, task_id=task.id)
+                )
+                break
             if capped:
                 # Tools are being taken away because of the cap, not because
                 # a card ended the phase. Say so, or the model is handed

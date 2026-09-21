@@ -5994,6 +5994,10 @@ class AgentTaskModel(Base):
 
     due_at = Column(DateTime(timezone=True), nullable=True)
     result = Column(Text, nullable=True)
+    #: Decibyl's own unfinished work (D-1a): the transcript and tool state of
+    #: a turn that hit its round cap, so the board can carry on from exactly
+    #: there in the background. NULL on every task a bot or a person does.
+    continuation = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     started_at = Column(DateTime(timezone=True), nullable=True)
     finished_at = Column(DateTime(timezone=True), nullable=True)

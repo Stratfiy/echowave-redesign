@@ -559,6 +559,18 @@ BUDGET_POLICIES_ENABLED = (
     os.getenv("BUDGET_POLICIES_ENABLED", "false").lower() == "true"
 )
 
+# D-1a (21 Sept 2026): Decibyl keeps working past a reply's tool-round cap.
+# Off, and a turn that hits the cap answers with what it has, as before. On,
+# and the turn hands the rest to a task on the board that runs in the
+# background under the workspace's spend cap and reports on the thread. The
+# round ceiling and the progress cadence are the two numbers that decide
+# how much one ask may spend before a person hears back.
+DECIBYL_LONG_TASKS_ENABLED = (
+    os.getenv("DECIBYL_LONG_TASKS_ENABLED", "false").lower() == "true"
+)
+DECIBYL_TASK_MAX_ROUNDS = int(os.getenv("DECIBYL_TASK_MAX_ROUNDS", "40"))
+DECIBYL_TASK_PROGRESS_EVERY = int(os.getenv("DECIBYL_TASK_PROGRESS_EVERY", "5"))
+
 
 # --- The in-product agent builder -------------------------------------------
 #
