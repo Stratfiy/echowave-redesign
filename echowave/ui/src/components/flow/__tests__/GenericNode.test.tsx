@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { NodeProps } from "@xyflow/react";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -14,7 +14,7 @@ vi.mock("../nodes/BaseHandle", () => ({ BaseHandle: (props: { type: string; posi
 vi.mock("@/app/workflow/[workflowId]/contexts/WorkflowContext", () => ({ useWorkflow: () => ({ saveWorkflow: state.save, readOnly: state.readOnly, tools: [], documents: [], recordings: [] }) }));
 vi.mock("@/context/AppConfigContext", () => ({ useAppConfig: () => ({ config: null }) }));
 vi.mock("@/components/flow/renderer", () => ({ useNodeSpecs: () => ({ bySpecName: state.specs }), NodeEditForm: (props: { values: Record<string, unknown> }) => { state.form(props); return <div>Inspector fields</div>; } }));
-vi.mock("../nodes/common/NodeEditDialog", () => ({ NodeEditDialog: ({ children, open }: { children: React.ReactNode; open: boolean }) => open ? <div role="dialog">{children}</div> : null }));
+vi.mock("../nodes/common/NodeEditDialog", () => ({ NodeEditDialog: ({ children, open, onSave }: { children: React.ReactNode; open: boolean; onSave?: () => void }) => open ? <div role="dialog"><button onClick={onSave}>Apply</button>{children}</div> : null }));
 const data: FlowNodeData = { name: "Support", prompt: "A very long instruction that belongs only in the inspector", tool_uuids: ["tool"], document_uuids: ["document"] };
 function node(type = "agentNode", extra: Partial<FlowNodeData> = {}) { return <GenericNode {...({ id: "a", type, selected: true, data: { ...data, ...extra } } as NodeProps & { type: string; data: FlowNodeData })} />; }
 beforeEach(() => {
@@ -65,5 +65,33 @@ describe("compact canvas nodes", () => {
         state.specs.get("agentNode").properties.push({ name: "interruption_enabled", default: false });
         render(node("agentNode", { interruption_enabled: false }));
         expect(screen.queryByText("Off")).toBeNull();
+    });
+    // Applying an inspector edit must reach the shared draft and stop there.
+    // While this wrote through to the server, opening any node and pressing
+    // the button persisted everything else in the draft with it — including a
+    // chat proposal nobody had accepted.
+    it("applies inspector edits to the draft without writing to the server", () => {
+        render(node("agentNode"));
+        fireEvent.keyDown(screen.getByLabelText(/Press Enter to inspect/), { key: "Enter" });
+        act(() => state.form.mock.lastCall?.[0].onChange({ ...state.form.mock.lastCall?.[0].values, prompt: "Shorter instructions" }));
+        fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+        expect(useWorkflowStore.getState().nodes[0].data.prompt).toBe("Shorter instructions");
+        expect(useWorkflowStore.getState().isDirty).toBe(true);
+        expect(state.save).not.toHaveBeenCalled();
+    });
+    it("leaves a historical version untouched when the inspector is applied", () => {
+        state.readOnly = true;
+        render(node("agentNode"));
+        fireEvent.keyDown(screen.getByLabelText(/Press Enter to inspect/), { key: "Enter" });
+        act(() => state.form.mock.lastCall?.[0].onChange({ ...state.form.mock.lastCall?.[0].values, prompt: "Shorter instructions" }));
+        fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+        expect(useWorkflowStore.getState().nodes[0].data.prompt).toBe(data.prompt);
+        expect(useWorkflowStore.getState().isDirty).toBe(false);
+    });
+    it("tells an unsaved trigger how to get its URL rather than showing a spinner", () => {
+        render(node("trigger"));
+        fireEvent.keyDown(screen.getByLabelText(/Press Enter to inspect/), { key: "Enter" });
+        expect(screen.getAllByText("Save this draft to generate the URL.").length).toBeGreaterThan(0);
+        expect(screen.queryByText("Example Request")).toBeNull();
     });
 });
