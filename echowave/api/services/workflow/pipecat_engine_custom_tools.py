@@ -590,7 +590,7 @@ class CustomToolManager:
 
                 if agent_web.is_web_tool(tool):
                     if agent_web.enabled():
-                        self._register_web_handlers()
+                        self._register_web_handlers(tool)
                     continue
 
                 if tool.category == ToolCategory.CALCULATOR.value:
@@ -765,15 +765,19 @@ class CustomToolManager:
             "safe_calculator", calculate_func, kind=ToolCategory.CALCULATOR.value
         )
 
-    def _register_web_handlers(self) -> None:
+    def _register_web_handlers(self, tool: Any = None) -> None:
         """Register the built-in web tools (OP-1): the same functions Decibyl
         runs from its thread, charged to this agent.
 
         Keyed on the tool call's id, so a retried turn pays once; charged
-        against the workflow, so the agent's own spend cap sees it. Never
-        raises: a search that fails is told to the model in its own words.
+        against the workflow, so the agent's own spend cap sees it. The
+        run's page cap and the tool's own list of sites (OP-2) go with
+        every call. Never raises: a search that fails is told to the model
+        in its own words.
         """
         from api.services.workflow import web_tools
+
+        limits = agent_web.limits_of(tool)
 
         async def _context(function_call_params: FunctionCallParams) -> dict:
             ids = await self._interaction_context()
@@ -782,6 +786,7 @@ class CustomToolManager:
             return {
                 "organization_id": int(ids.get("organization_id") or 0),
                 "workflow_id": ids.get("workflow_id"),
+                "run_id": run_id,
                 "ref_id": f"{run_id or 'run'}:web:{call_id or 'x'}",
             }
 
@@ -793,6 +798,7 @@ class CustomToolManager:
                     dict(function_call_params.arguments or {}),
                     ref_id=ids["ref_id"],
                     workflow_id=ids["workflow_id"],
+                    allowed_domains=limits["allowed_domains"],
                 )
             except Exception as exc:  # noqa: BLE001 - the turn must finish
                 logger.error("web_search failed on a run: {}", exc)
@@ -807,6 +813,9 @@ class CustomToolManager:
                     dict(function_call_params.arguments or {}),
                     ref_id=ids["ref_id"],
                     workflow_id=ids["workflow_id"],
+                    run_key=f"run:{ids['run_id'] or 'none'}",
+                    max_pages=limits["max_pages"],
+                    allowed_domains=limits["allowed_domains"],
                 )
             except Exception as exc:  # noqa: BLE001 - the turn must finish
                 logger.error("web_fetch failed on a run: {}", exc)

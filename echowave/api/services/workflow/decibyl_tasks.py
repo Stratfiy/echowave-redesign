@@ -227,7 +227,11 @@ async def continue_task(task_id: int) -> None:
                         asked_for_schema = True
                     else:
                         result = await decibyl._tool(
-                            organization_id, call, author_id, request=request
+                            organization_id,
+                            call,
+                            author_id,
+                            request=request,
+                            thread_id=thread_id,
                         )
                     conversation.add_tool_result(call, result)
                     if not decibyl._was_a_read(call, result):

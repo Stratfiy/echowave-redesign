@@ -908,7 +908,13 @@ async def _answer(
                     result = await _load_tool(organization_id, call, loaded)
                     asked_for_schema = True
                 else:
-                    result = await _tool(organization_id, call, author_id, request=text)
+                    result = await _tool(
+                        organization_id,
+                        call,
+                        author_id,
+                        request=text,
+                        thread_id=thread_id,
+                    )
                 conversation.add_tool_result(call, result)
                 if not _was_a_read(call, result):
                     reads_only = False
@@ -1356,6 +1362,7 @@ async def _tool(
     call: Any,
     author_id: int | None = None,
     request: str = "",
+    thread_id: str | None = None,
 ) -> dict[str, Any]:
     if str(call.name or "").startswith(connected_tools.PREFIX):
         return await _app_tool(organization_id, call, request=request)
@@ -1433,10 +1440,13 @@ async def _tool(
             ref_id=f"decibyl:{organization_id}:{call.id or call.name}",
         )
     if call.name == web_tools.FETCH_TOOL_NAME and web_tools.enabled():
+        # One conversation is one run for the page cap (OP-2): a thread
+        # that has read its pages for the day answers with what it has.
         return await web_tools.fetch(
             organization_id,
             arguments,
             ref_id=f"decibyl:{organization_id}:{call.id or call.name}",
+            run_key=f"thread:{organization_id}:{thread_id or author_id or 'main'}",
         )
     if call.name == records.TOOL_NAME and web_tools.enabled():
         return await records.for_thread(organization_id, arguments)

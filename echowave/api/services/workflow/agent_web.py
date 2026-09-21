@@ -77,6 +77,26 @@ def is_web_tool(tool: Any) -> bool:
     return getattr(tool, "category", None) == ToolCategory.WEB.value
 
 
+def limits_of(tool: Any) -> dict[str, Any]:
+    """The tool row's allow-list and page cap (OP-2), as keyword arguments
+    for ``web_tools``: ``allowed_domains`` and ``max_pages``."""
+    definition_ = getattr(tool, "definition", None) or {}
+    config = definition_.get("config") if isinstance(definition_, dict) else None
+    config = config if isinstance(config, dict) else {}
+    domains = config.get("allowed_domains") or []
+    cap = config.get("max_pages_per_run")
+    try:
+        cap = int(cap) if cap else None
+    except (TypeError, ValueError):
+        cap = None
+    return {
+        "allowed_domains": [str(d) for d in domains if d]
+        if isinstance(domains, list)
+        else [],
+        "max_pages": cap,
+    }
+
+
 def function_schemas(*, voice: bool) -> list[dict[str, Any]]:
     """The raw ``{"type": "function", "function": ...}`` schemas, in the shape
     the calculator hands the tool manager."""
@@ -158,5 +178,6 @@ __all__ = [
     "ensure_tool",
     "function_schemas",
     "is_web_tool",
+    "limits_of",
     "mentions_web",
 ]

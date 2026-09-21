@@ -475,19 +475,58 @@ class CalculatorToolDefinition(BaseModel):
     type: Literal["calculator"] = Field(description="Tool type.")
 
 
-class WebToolDefinition(BaseModel):
-    """Tool definition for the built-in web tools (OP-1).
+class WebToolConfig(BaseModel):
+    """What an agent's web tool is kept to (OP-2). Both optional: an empty
+    list is the whole web, and no page figure is the platform's cap."""
 
-    No configuration: the search runs on the platform's own key and the fetch
-    is the platform's own fetcher, so there is nothing for the operator to
-    fill in. One tool row gives the agent both ``web_search`` and
-    ``web_fetch`` (search only on a voice call, where a page's worth of text
-    has no place). Each search is charged as a tool call plus the vendor's
-    price passed through at cost; a fetch is a tool call.
+    allowed_domains: List[str] = Field(
+        default_factory=list,
+        max_length=50,
+        description=(
+            "Sites this agent may search and read, as hosts (acme.example). "
+            "Empty means any site the platform's rules allow."
+        ),
+    )
+    max_pages_per_run: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=200,
+        description="Pages one run may read; blank means the platform's cap.",
+    )
+
+    @field_validator("allowed_domains")
+    @classmethod
+    def _hosts_only(cls, domains: List[str]) -> List[str]:
+        out: List[str] = []
+        for raw in domains:
+            text = (raw or "").strip().lower()
+            if "://" in text:
+                text = text.split("://", 1)[1]
+            text = text.split("/", 1)[0].rstrip(".").removeprefix("www.")
+            if not text or " " in text or "*" in text or "." not in text:
+                raise ValueError(f"{raw!r} is not a host such as acme.example")
+            if text not in out:
+                out.append(text)
+        return out
+
+
+class WebToolDefinition(BaseModel):
+    """Tool definition for the built-in web tools (OP-1, OP-2).
+
+    The search runs on the platform's own key and the fetch is the
+    platform's own fetcher, so there is nothing to fill in unless the agent
+    is to be kept to a list of sites or to fewer pages a run. One tool row
+    gives the agent both ``web_search`` and ``web_fetch`` (search only on a
+    voice call, where a page's worth of text has no place). Each search is
+    charged as a tool call plus the vendor's price passed through at cost;
+    a fetch is a tool call.
     """
 
     schema_version: int = Field(default=1, description="Schema version.")
     type: Literal["web"] = Field(description="Tool type.")
+    config: Optional[WebToolConfig] = Field(
+        default=None, description="Sites and page cap, when the agent has them."
+    )
 
 
 class RateTableConfig(BaseModel):

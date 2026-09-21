@@ -597,6 +597,11 @@ DECIBYL_PRIVATE_THREADS_ENABLED = (
 WEB_FETCH_PER_DOMAIN_PER_MINUTE = int(
     os.getenv("WEB_FETCH_PER_DOMAIN_PER_MINUTE", "10")
 )
+# OP-2: how many pages one run (an agent run, or one Decibyl conversation
+# in a day) may read on the platform's fetcher, whatever the model asks.
+# A run that reads its cap is told so and keeps answering with what it has.
+# An agent's web tool may set a lower figure of its own.
+WEB_FETCH_MAX_PAGES_PER_RUN = int(os.getenv("WEB_FETCH_MAX_PAGES_PER_RUN", "25"))
 
 
 # --- The in-product agent builder -------------------------------------------

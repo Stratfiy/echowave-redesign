@@ -13518,16 +13518,38 @@ export type VonageConfigurationResponse = {
 };
 
 /**
+ * WebToolConfig
+ *
+ * What an agent's web tool is kept to (OP-2). Both optional: an empty
+ * list is the whole web, and no page figure is the platform's cap.
+ */
+export type WebToolConfig = {
+    /**
+     * Allowed Domains
+     *
+     * Sites this agent may search and read, as hosts (acme.example). Empty means any site the platform's rules allow.
+     */
+    allowed_domains?: Array<string>;
+    /**
+     * Max Pages Per Run
+     *
+     * Pages one run may read; blank means the platform's cap.
+     */
+    max_pages_per_run?: number | null;
+};
+
+/**
  * WebToolDefinition
  *
- * Tool definition for the built-in web tools (OP-1).
+ * Tool definition for the built-in web tools (OP-1, OP-2).
  *
- * No configuration: the search runs on the platform's own key and the fetch
- * is the platform's own fetcher, so there is nothing for the operator to
- * fill in. One tool row gives the agent both ``web_search`` and
- * ``web_fetch`` (search only on a voice call, where a page's worth of text
- * has no place). Each search is charged as a tool call plus the vendor's
- * price passed through at cost; a fetch is a tool call.
+ * The search runs on the platform's own key and the fetch is the
+ * platform's own fetcher, so there is nothing to fill in unless the agent
+ * is to be kept to a list of sites or to fewer pages a run. One tool row
+ * gives the agent both ``web_search`` and ``web_fetch`` (search only on a
+ * voice call, where a page's worth of text has no place). Each search is
+ * charged as a tool call plus the vendor's price passed through at cost;
+ * a fetch is a tool call.
  */
 export type WebToolDefinition = {
     /**
@@ -13542,6 +13564,10 @@ export type WebToolDefinition = {
      * Tool type.
      */
     type: 'web';
+    /**
+     * Sites and page cap, when the agent has them.
+     */
+    config?: WebToolConfig | null;
 };
 
 /**

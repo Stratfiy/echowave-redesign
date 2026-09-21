@@ -140,7 +140,7 @@ class TestASearchOnARun:
         search = AsyncMock(return_value={"status": "success", "results": []})
         with (
             patch("api.services.workflow.web_tools.search", search),
-            patch(f"{CTM}.app_interactions.record", AsyncMock()),
+            patch(f"{CTM}.app_interactions._safe_record", AsyncMock()),
         ):
             await handler(params)
 
@@ -171,7 +171,7 @@ class TestASearchOnARun:
                 "api.services.workflow.web_tools.search",
                 AsyncMock(side_effect=RuntimeError("vendor down")),
             ),
-            patch(f"{CTM}.app_interactions.record", AsyncMock()),
+            patch(f"{CTM}.app_interactions._safe_record", AsyncMock()),
         ):
             await handler(params)
         assert results[0]["status"] == "error"
@@ -193,7 +193,7 @@ class TestASearchOnARun:
             result_callback=result_callback,
             function_name=web_tools.FETCH_TOOL_NAME,
         )
-        with patch(f"{CTM}.app_interactions.record", AsyncMock()):
+        with patch(f"{CTM}.app_interactions._safe_record", AsyncMock()):
             await handler(params)
         assert results[0]["status"] != "success"
         assert "linkedin" in str(results[0]).lower()
