@@ -62,7 +62,7 @@ def _composed_rule_missing(folder: FolderPack) -> list[str]:
 class TestLiveFoldersEqualTheCatalogue:
     def test_every_catalogue_pack_has_a_folder_and_it_is_current(self):
         pairs = [(p, get_template(p.template_id)) for p in _packs(None, None)]
-        assert len(pairs) == 8
+        assert len(pairs) == 9
         assert check_drift(pairs, LIVE_DIR) == [], (
             "packs/live has drifted from the catalogue; "
             "run: python -m scripts.export_pack_folders"

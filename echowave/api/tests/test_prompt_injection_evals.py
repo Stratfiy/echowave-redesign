@@ -436,7 +436,7 @@ class TestTheRuleReachesEveryLivePack:
         )
 
         packs = all_packs()
-        assert len(packs) == 8
+        assert len(packs) == 9
         missing = []
         for pack in packs:
             template = get_template(pack.template_id)

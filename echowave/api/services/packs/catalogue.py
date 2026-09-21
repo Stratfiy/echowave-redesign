@@ -26,8 +26,8 @@ await a query.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from functools import lru_cache
-from typing import Iterable, Optional
 
 from loguru import logger
 
@@ -92,7 +92,7 @@ _GOOGLE_CALENDAR = RequiredConnector(
 
 
 def _packs(
-    demo_number: Optional[str], demo_url: Optional[str] = None
+    demo_number: str | None, demo_url: str | None = None
 ) -> tuple[AgentPack, ...]:
     """Build the catalogue against whatever ways a prospect can hear the demo.
 
@@ -350,6 +350,76 @@ def _packs(
             listed=True,
         ),
         AgentPack(
+            slug="outbound_prospecting",
+            name="Outbound Prospecting",
+            job="Find new customers",
+            summary=(
+                "Finds businesses that fit your ideal customer on the public "
+                "web, reads their own pages, and drafts one email per prospect "
+                "that you approve before it goes -- from your own mailbox."
+            ),
+            publisher=DECIBYL,
+            # No calling channel: on the plan, no seat, nothing to hear. It
+            # runs on a routine and the only thing that leaves is an email a
+            # person confirmed on a card.
+            channels=[Channel.SCHEDULED, Channel.EMAIL],
+            template_id="outbound_prospecting",
+            # Horizontal on purpose: anybody who sells to other businesses.
+            industries=[],
+            languages=["en"],
+            required_facts=[
+                RequiredFact(
+                    key="who_we_are",
+                    question="What do you sell, and to whom?",
+                    kind=FactKind.LONG_TEXT,
+                    example="Dental practice software for clinics with 2-10 doctors",
+                    used_for="How the emails describe you.",
+                ),
+                RequiredFact(
+                    key="ideal_customer",
+                    question="Who do you want to reach?",
+                    kind=FactKind.LONG_TEXT,
+                    example="Dental clinics with 2-10 doctors in Chennai",
+                    used_for="What it searches the web for.",
+                ),
+                RequiredFact(
+                    key="offer",
+                    question="What are you offering them?",
+                    example="A free month, set up in an afternoon",
+                    used_for="The one sentence every email makes.",
+                ),
+                RequiredFact(
+                    key="sender_name",
+                    question="Whose name should the emails go out under?",
+                    example="Priya Raman",
+                    used_for="The signature, and the name on the card you approve.",
+                ),
+                RequiredFact(
+                    key="per_run",
+                    question="How many new prospects should one run find?",
+                    kind=FactKind.NUMBER,
+                    required=False,
+                    example="10",
+                    used_for="Where a run stops. Ten if you skip this.",
+                ),
+            ],
+            required_connectors=[
+                RequiredConnector(
+                    app="gmail",
+                    label="Gmail",
+                    used_for="Sending each approved email from your own mailbox.",
+                    required=False,
+                ),
+                RequiredConnector(
+                    app="outlook",
+                    label="Outlook",
+                    used_for="The same, for a Microsoft mailbox; connect one of the two.",
+                    required=False,
+                ),
+            ],
+            listed=True,
+        ),
+        AgentPack(
             slug="compliance_reminder",
             name="Compliance Reminder Bot",
             job="Watch what falls due",
@@ -418,7 +488,7 @@ async def resolve_packs() -> tuple[AgentPack, ...]:
     mean somebody marking a demo line in the admin and then wondering why the
     shelf is still empty -- which is exactly the confusion the env var caused.
     """
-    contact: dict[str, Optional[str]] = {}
+    contact: dict[str, str | None] = {}
     try:
         contact = await db_client.demo_contact()
     except Exception as error:  # noqa: BLE001
@@ -437,7 +507,7 @@ async def resolve_listed_packs() -> tuple[AgentPack, ...]:
     return tuple(pack for pack in await resolve_packs() if pack.listed)
 
 
-async def resolve_pack(slug: str) -> Optional[AgentPack]:
+async def resolve_pack(slug: str) -> AgentPack | None:
     for pack in await resolve_packs():
         if pack.slug == slug:
             return pack
@@ -454,14 +524,14 @@ def listed_packs() -> tuple[AgentPack, ...]:
     return tuple(pack for pack in _cached() if pack.listed)
 
 
-def get_pack(slug: str) -> Optional[AgentPack]:
+def get_pack(slug: str) -> AgentPack | None:
     for pack in _cached():
         if pack.slug == slug:
             return pack
     return None
 
 
-def jobs(packs: Optional[Iterable[AgentPack]] = None) -> tuple[str, ...]:
+def jobs(packs: Iterable[AgentPack] | None = None) -> tuple[str, ...]:
     """The job groups on the shelf, in the order packs first declare them.
 
     Insertion order rather than alphabetical: the shelf is ordered by what we
