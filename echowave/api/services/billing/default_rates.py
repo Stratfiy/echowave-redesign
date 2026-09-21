@@ -1054,6 +1054,195 @@ DEFAULT_RATES: tuple[DefaultRate, ...] = (
 )
 
 
+# ---------------------------------------------------------------------------
+# The split price book (S-1, 21 Sept 2026)
+#
+# The rows above carry one blended rate per model because a call's token split
+# was not known until it happened. It is known now -- the pipeline records
+# prompt, completion and cache-read tokens per model -- so the vendor's three
+# prices can each be charged for what they are. These rows are the same models
+# as ``LLM_RATES`` at the same list prices, un-blended, plus the cached-input
+# price, and they are seeded only when ``METERING_SPLIT_2026_09_ENABLED`` is
+# on (see :func:`rates`). The blended rows stay: a run costed before the split,
+# and an estimate that has no token split to work from, still resolve to them.
+# ---------------------------------------------------------------------------
+
+#: What a vendor charges for an input token its cache served, as a share of
+#: the uncached input price. Published per vendor rather than per model, which
+#: is why it lives here as a rule and not on each row: OpenAI halves it (a
+#: tenth on the gpt-5 family), Anthropic and Google charge a tenth, DeepSeek a
+#: tenth. A vendor with no cache discount charges cached input as input, and
+#: that is what a share of 1.0 says -- not that the figure is unknown.
+CACHED_INPUT_SHARE: dict[str, float] = {
+    "openai": 0.5,
+    "anthropic": 0.1,
+    "google": 0.1,
+    "deepseek": 0.1,
+}
+#: OpenAI's newer family discounts cached input further than the rest.
+CACHED_INPUT_SHARE_BY_MODEL: dict[tuple[str, str], float] = {
+    ("openai", "gpt-5"): 0.1,
+}
+
+
+@dataclass(frozen=True)
+class ModelPrice:
+    """A model's list price the way its vendor publishes it: USD per million
+    input tokens and per million output tokens."""
+
+    provider: str
+    model: str
+    input_per_million: float
+    output_per_million: float
+    basis: str
+    provisional: bool = False
+    checked_on: str = ""
+
+
+#: The same models ``LLM_RATES`` prices, un-blended. A change to a price here
+#: is a change to the blended row too; the test that holds the two together
+#: is what makes editing one and forgetting the other impossible to miss.
+LLM_MODEL_PRICES: tuple[ModelPrice, ...] = (
+    ModelPrice("openai", "", 0.15, 0.60, "gpt-4o-mini list", checked_on=CHECKED_ON),
+    ModelPrice("openai", "gpt-4o-mini", 0.15, 0.60, "list", checked_on=CHECKED_ON),
+    ModelPrice("openai", "gpt-4o", 2.50, 10.00, "list", checked_on=CHECKED_ON),
+    ModelPrice("openai", "gpt-5", 1.25, 10.00, "list", checked_on=CHECKED_ON),
+    ModelPrice("openai", "gpt-4.1", 2.00, 8.00, "list", checked_on=CHECKED_ON),
+    ModelPrice("openai", "gpt-4.1-mini", 0.40, 1.60, "list", checked_on=CHECKED_ON),
+    ModelPrice(
+        "anthropic", "", 1.00, 5.00, "Claude Haiku 4.5 list", checked_on=CHECKED_ON
+    ),
+    ModelPrice(
+        "anthropic", "claude-haiku-4-5", 1.00, 5.00, "list", checked_on=CHECKED_ON
+    ),
+    ModelPrice(
+        "anthropic", "claude-sonnet-5", 2.00, 10.00, "list", checked_on=CHECKED_ON
+    ),
+    ModelPrice(
+        "anthropic", "claude-sonnet-4-5", 3.00, 15.00, "list", checked_on=CHECKED_ON
+    ),
+    ModelPrice(
+        "anthropic", "claude-sonnet-4-6", 3.00, 15.00, "list", checked_on=CHECKED_ON
+    ),
+    ModelPrice(
+        "anthropic", "claude-opus-5", 5.00, 25.00, "list", checked_on=CHECKED_ON
+    ),
+    ModelPrice(
+        "anthropic", "claude-opus-4-8", 5.00, 25.00, "list", checked_on=CHECKED_ON
+    ),
+    ModelPrice(
+        "cerebras", "", 0.25, 0.69, "gpt-oss-120b list — unconfirmed", provisional=True
+    ),
+    ModelPrice("deepseek", "", 0.28, 1.10, "chat list — unconfirmed", provisional=True),
+    ModelPrice("mistral", "", 0.20, 0.60, "Small list — unconfirmed", provisional=True),
+    ModelPrice(
+        "fireworks", "", 0.90, 0.90, "70B-class list — unconfirmed", provisional=True
+    ),
+    ModelPrice(
+        "google", "", 0.30, 2.50, "Gemini 2.5 Flash list", checked_on=CHECKED_ON
+    ),
+    ModelPrice("google", "gemini-2.5-flash", 0.30, 2.50, "list", checked_on=CHECKED_ON),
+    ModelPrice(
+        "google", "gemini-2.5-flash-lite", 0.10, 0.40, "list", checked_on=CHECKED_ON
+    ),
+    ModelPrice(
+        "google", "gemini-3.5-flash-lite", 0.30, 2.50, "list", checked_on=CHECKED_ON
+    ),
+    ModelPrice("google", "gemini-3.8-flash", 0.75, 3.75, "list", checked_on=CHECKED_ON),
+    ModelPrice(
+        "sarvam",
+        "sarvam-105b",
+        _inr(29.28),
+        _inr(73.20),
+        "Rs29.28/Rs73.20 per 1M published",
+        checked_on=CHECKED_ON,
+    ),
+    ModelPrice(
+        "sarvam",
+        "sarvam-105b-conversations",
+        _inr(29.28),
+        _inr(73.20),
+        "Rs29.28/Rs73.20 per 1M published",
+        checked_on=CHECKED_ON,
+    ),
+    ModelPrice(
+        "sarvam",
+        "gemma-4-31b",
+        _inr(36.60),
+        _inr(91.50),
+        f"{PROVISIONAL_MARKER} — Gemma-4 31B (beta) Rs36.60/Rs91.50 per 1M",
+        provisional=True,
+        checked_on=CHECKED_ON,
+    ),
+    ModelPrice(
+        "sarvam",
+        "",
+        _inr(29.28),
+        _inr(73.20),
+        "provider-wide fallback, at the 105B price",
+        checked_on=CHECKED_ON,
+    ),
+)
+
+
+def cached_input_share(provider: str, model: str = "") -> float:
+    """The cached-input price as a share of the input price, per vendor."""
+    return CACHED_INPUT_SHARE_BY_MODEL.get(
+        (provider, model), CACHED_INPUT_SHARE.get(provider, 1.0)
+    )
+
+
+def split_rates_for(price: ModelPrice) -> tuple[DefaultRate, DefaultRate, DefaultRate]:
+    """One model's three rows: input, cached input, output, USD per 1k tokens."""
+    share = cached_input_share(price.provider, price.model)
+    common = {
+        "provider": price.provider,
+        "model": price.model,
+        "unit": RateUnit.THOUSAND_TOKENS,
+        "provisional": price.provisional,
+        "checked_on": price.checked_on,
+    }
+    return (
+        DefaultRate(
+            component=CostComponent.LLM_INPUT,
+            usd_per_unit=price.input_per_million / 1000,
+            basis=f"${price.input_per_million}/1M input — {price.basis}",
+            **common,
+        ),
+        DefaultRate(
+            component=CostComponent.LLM_CACHED,
+            usd_per_unit=price.input_per_million * share / 1000,
+            basis=(
+                f"${price.input_per_million * share:g}/1M cached input "
+                f"({share:g}x input, the vendor's published cache discount) — "
+                f"{price.basis}"
+            ),
+            **common,
+        ),
+        DefaultRate(
+            component=CostComponent.LLM_OUTPUT,
+            usd_per_unit=price.output_per_million / 1000,
+            basis=f"${price.output_per_million}/1M output — {price.basis}",
+            **common,
+        ),
+    )
+
+
+LLM_SPLIT_RATES: tuple[DefaultRate, ...] = tuple(
+    rate for price in LLM_MODEL_PRICES for rate in split_rates_for(price)
+)
+
+
+def rates() -> tuple[DefaultRate, ...]:
+    """The rows the seeder writes: the book above, plus the split rows once
+    the split is switched on. Read at call time so a test can flip it."""
+    from api import constants
+
+    if constants.METERING_SPLIT_2026_09_ENABLED:
+        return (*DEFAULT_RATES, *LLM_SPLIT_RATES)
+    return DEFAULT_RATES
+
+
 def usd_to_mpaise(usd: float, *, usd_inr: float) -> int:
     """One USD price to millipaise, rounded half-up.
 
@@ -1065,4 +1254,4 @@ def usd_to_mpaise(usd: float, *, usd_inr: float) -> int:
     from decimal import ROUND_HALF_UP, Decimal
 
     mpaise = Decimal(str(usd)) * Decimal(str(usd_inr)) * Decimal(100_000)
-    return int(mpaise.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    return int(mpaise.quantize(Decimal(1), rounding=ROUND_HALF_UP))

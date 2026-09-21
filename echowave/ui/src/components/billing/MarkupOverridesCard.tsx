@@ -43,7 +43,17 @@ import {
 import { detailFromResult } from "@/lib/apiError";
 import { formatDateIST } from "@/lib/billing/format";
 
-const COMPONENTS = ["stt", "llm", "tts", "telephony", "embedding"] as const;
+const COMPONENTS = [
+    "stt",
+    "llm",
+    "llm_input",
+    "llm_cached",
+    "llm_output",
+    "tts",
+    "telephony",
+    "embedding",
+    "data",
+] as const;
 
 type Override = {
     id: number;

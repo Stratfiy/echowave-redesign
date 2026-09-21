@@ -135,6 +135,10 @@ type Report = {
 const COMPONENT_LABELS: Record<string, string> = {
     stt: "Speech to text",
     llm: "Language model",
+    llm_input: "Language model · input",
+    llm_cached: "Language model · cached input",
+    llm_output: "Language model · output",
+    data: "Bought data",
     tts: "Text to speech",
     telephony: "Telephony",
     platform: "Platform fee",

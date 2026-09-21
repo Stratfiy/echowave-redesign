@@ -539,6 +539,26 @@ BYOK_TIERED_FEE_ENABLED = (
     os.getenv("BYOK_TIERED_FEE_ENABLED", "false").lower() == "true"
 )
 
+# Slice S-1 of the two-agent pilot (21 Sept 2026, Billing Gap Audit slice 1):
+# the language-model line splits into input, cached-input and output tokens,
+# each at its vendor's own price, instead of one blended 70/30 rate. Off, and
+# every receipt is costed exactly as before against the blended ``llm`` rows;
+# on, and a run whose usage recorded the split is costed on three lines, the
+# ``data`` component (contact lookups, search, fetch bought on a platform key)
+# is metered, and the seeder writes the split rows beside the blended ones.
+# Read at call time, never at import, so a test can turn it either way.
+METERING_SPLIT_2026_09_ENABLED = (
+    os.getenv("METERING_SPLIT_2026_09_ENABLED", "false").lower() == "true"
+)
+
+# Spend caps a customer sets on a workspace or on one agent (S-1, after the
+# paperclip budget-policy shape): warn at a share of the cap, stop at the
+# cap. Off, and no policy is read anywhere -- a run authorisation costs
+# nothing extra and nothing is ever refused for a budget.
+BUDGET_POLICIES_ENABLED = (
+    os.getenv("BUDGET_POLICIES_ENABLED", "false").lower() == "true"
+)
+
 
 # --- The in-product agent builder -------------------------------------------
 #

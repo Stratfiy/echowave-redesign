@@ -40,8 +40,18 @@ import re
 from collections.abc import Iterable
 from typing import Any
 
+from api import constants
 from api.enums import CostComponent
 from api.services.billing.cost_engine import UsageItem
+
+#: Vendors whose ``prompt_tokens`` figure *excludes* the tokens their cache
+#: served. Anthropic reports ``input_tokens`` net of ``cache_read_input_tokens``
+#: and ``cache_creation_input_tokens``; OpenAI and Google report a prompt
+#: count that already contains the cached part (``prompt_tokens_details.
+#: cached_tokens``, ``cachedContentTokenCount``). Getting this wrong double
+#: counts cached input on one vendor or bills it as free on the other, so the
+#: rule is by vendor and written down here rather than guessed per line.
+_CACHE_OUTSIDE_PROMPT_PROVIDERS = frozenset({"anthropic"})
 
 # Processor class names carry the provider, e.g. "DeepgramSTTService" or
 # "DograhLLMService". Strip the service suffix and lower-case what remains.
@@ -227,8 +237,10 @@ def usage_items_from_usage_info(
 ) -> tuple[UsageItem, ...]:
     """Extract costable usage from a run's ``usage_info``.
 
-    LLM quantity is total tokens (prompt + completion); TTS is characters; STT
-    is seconds. Zero-quantity entries are dropped — a line item costing nothing
+    LLM quantity is total tokens (prompt + completion) on the blended line,
+    or three lines -- input, cached input, output -- when
+    ``METERING_SPLIT_2026_09_ENABLED`` is on (see :func:`llm_split_items`);
+    TTS is characters; STT is seconds. Zero-quantity entries are dropped — a line item costing nothing
     only adds noise to a receipt.
 
     A component the account ran on its own key produces no line at all: it
@@ -253,6 +265,10 @@ def usage_items_from_usage_info(
             if not isinstance(value, dict):
                 continue
             processor, model = _split_key(key)
+            provider = provider_from_processor(processor)
+            if constants.METERING_SPLIT_2026_09_ENABLED:
+                items.extend(llm_split_items(value, provider=provider, model=model))
+                continue
             tokens = _as_int(value.get("prompt_tokens")) + _as_int(
                 value.get("completion_tokens")
             )
@@ -260,9 +276,30 @@ def usage_items_from_usage_info(
                 items.append(
                     UsageItem(
                         component=CostComponent.LLM,
-                        provider=provider_from_processor(processor),
+                        provider=provider,
                         model=model,
                         quantity=tokens,
+                    )
+                )
+
+    # Bought data (S-1): ``{"<provider>|||<kind>": <requests>}``, written by a
+    # tool that spent a platform key on a lookup, a search or a fetch. A
+    # lookup made on the customer's own connector is recorded under a "byok"
+    # key source and produces no line, the same rule as the model components:
+    # the customer already pays that vendor. Missing reads as managed, the
+    # same direction as the model components and for the same reason -- a
+    # tool that spends our key and forgets to say so is still our money.
+    if constants.METERING_SPLIT_2026_09_ENABLED and key_sources.get("data") != "byok":
+        for key, value in _as_mapping(usage_info.get("data")).items():
+            processor, kind = _split_key(key)
+            requests = _as_int(value)
+            if requests:
+                items.append(
+                    UsageItem(
+                        component=CostComponent.DATA,
+                        provider=provider_from_processor(processor),
+                        model=kind,
+                        quantity=requests,
                     )
                 )
 
@@ -349,6 +386,48 @@ def usage_items_from_usage_info(
                 )
 
     return tuple(items)
+
+
+def llm_split_items(
+    value: dict[str, Any], *, provider: str, model: str
+) -> tuple[UsageItem, ...]:
+    """One model's token counts as the three lines its vendor prices.
+
+    ``value`` is one ``usage_info["llm"]`` entry: ``prompt_tokens``,
+    ``completion_tokens`` and, when the vendor reported them,
+    ``cache_read_input_tokens`` and ``cache_creation_input_tokens``.
+
+    * **cached** is what the vendor's prompt cache served, at its cached rate.
+    * **input** is the rest of the prompt. Whether ``prompt_tokens`` already
+      contains the cached part depends on the vendor (see
+      ``_CACHE_OUTSIDE_PROMPT_PROVIDERS``); the arithmetic follows the vendor
+      so the same tokens are never priced twice or given away. Tokens written
+      *into* the cache are input at the input rate -- Anthropic bills them at
+      1.25x input, and the quarter is small enough to absorb rather than
+      carry a fourth line for; a receipt should say so if that changes.
+    * **output** is the completion.
+
+    Zero lines are dropped, so a vendor that reports no cache produces two
+    lines rather than a third reading nought.
+    """
+    prompt = _as_int(value.get("prompt_tokens"))
+    completion = _as_int(value.get("completion_tokens"))
+    cached = _as_int(value.get("cache_read_input_tokens"))
+    created = _as_int(value.get("cache_creation_input_tokens"))
+    if provider in _CACHE_OUTSIDE_PROMPT_PROVIDERS:
+        uncached = prompt + created
+    else:
+        uncached = max(prompt - cached, 0)
+    lines = (
+        (CostComponent.LLM_INPUT, uncached),
+        (CostComponent.LLM_CACHED, cached),
+        (CostComponent.LLM_OUTPUT, completion),
+    )
+    return tuple(
+        UsageItem(component=component, provider=provider, model=model, quantity=n)
+        for component, n in lines
+        if n
+    )
 
 
 def billable_seconds_from_usage_info(usage_info: dict[str, Any] | None) -> int:
