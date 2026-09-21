@@ -1,6 +1,6 @@
 import random
 from enum import Enum, auto
-from typing import Annotated, ClassVar, Dict, Literal, Optional, Type, TypeVar, Union
+from typing import Annotated, ClassVar, Literal, TypeVar
 
 from pydantic import (
     BaseModel,
@@ -262,7 +262,7 @@ class BaseEmbeddingsConfiguration(BaseServiceConfiguration):
 
 
 # Unified registry for all service types
-REGISTRY: Dict[ServiceType, Dict[str, Type[BaseServiceConfiguration]]] = {
+REGISTRY: dict[ServiceType, dict[str, type[BaseServiceConfiguration]]] = {
     ServiceType.LLM: {},
     ServiceType.TTS: {},
     ServiceType.STT: {},
@@ -278,6 +278,16 @@ _KEYED_COMPONENTS: tuple[tuple[str, ServiceType], ...] = (
     ("llm", ServiceType.LLM),
     ("tts", ServiceType.TTS),
 )
+
+#: Vendors keyed for the ``data`` component: bought lookups on the platform's
+#: key (a web search, a page, a contact), metered per request at cost. They
+#: have no service configuration to register under, so they are listed here
+#: and folded into the same two lookups the speech and model vendors use --
+#: which is what puts them on the provider-keys screen (OP-1 needs Serper
+#: entered there, not as an environment variable on the box).
+DATA_PROVIDERS: dict[str, tuple[str, ...]] = {
+    "serper": ("data",),
+}
 
 
 #: A realtime (speech-to-speech) provider authenticates with the same vendor
@@ -340,7 +350,7 @@ def components_for_provider(provider: str) -> tuple[str, ...]:
         component
         for component, service_type in _KEYED_COMPONENTS
         if provider in REGISTRY[service_type]
-    )
+    ) + DATA_PROVIDERS.get(provider, ())
 
 
 def known_providers() -> dict[str, tuple[str, ...]]:
@@ -377,6 +387,8 @@ def known_providers() -> dict[str, tuple[str, ...]]:
     # to be typed in by hand before that becomes visible.
     for key_provider in REALTIME_KEY_PROVIDER.values():
         providers[key_provider] = providers.get(key_provider, ()) + ("realtime",)
+    for provider, components in DATA_PROVIDERS.items():
+        providers[provider] = providers.get(provider, ()) + components
     return providers
 
 
@@ -386,7 +398,7 @@ T = TypeVar("T", bound=BaseServiceConfiguration)
 def register_service(service_type: ServiceType):
     """Generic decorator for registering service configurations"""
 
-    def decorator(cls: Type[T]) -> Type[T]:
+    def decorator(cls: type[T]) -> type[T]:
         # Get provider from class attributes or field defaults
         provider = getattr(cls, "provider", None)
         if provider is None:
@@ -404,19 +416,19 @@ def register_service(service_type: ServiceType):
 
 
 # Convenience decorators
-def register_llm(cls: Type[BaseLLMConfiguration]):
+def register_llm(cls: type[BaseLLMConfiguration]):
     return register_service(ServiceType.LLM)(cls)
 
 
-def register_tts(cls: Type[BaseTTSConfiguration]):
+def register_tts(cls: type[BaseTTSConfiguration]):
     return register_service(ServiceType.TTS)(cls)
 
 
-def register_stt(cls: Type[BaseSTTConfiguration]):
+def register_stt(cls: type[BaseSTTConfiguration]):
     return register_service(ServiceType.STT)(cls)
 
 
-def register_embeddings(cls: Type[BaseEmbeddingsConfiguration]):
+def register_embeddings(cls: type[BaseEmbeddingsConfiguration]):
     return register_service(ServiceType.EMBEDDINGS)(cls)
 
 
@@ -1288,39 +1300,35 @@ REALTIME_PROVIDERS = {
 
 
 LLMConfig = Annotated[
-    Union[
-        OpenAILLMService,
-        AnthropicLLMConfiguration,
-        CerebrasLLMConfiguration,
-        DeepSeekLLMConfiguration,
-        MistralLLMConfiguration,
-        FireworksLLMConfiguration,
-        GoogleVertexLLMConfiguration,
-        GroqLLMService,
-        OpenRouterLLMConfiguration,
-        GoogleLLMService,
-        AzureLLMService,
-        DecibylLLMService,
-        AWSBedrockLLMConfiguration,
-        SpeachesLLMConfiguration,
-        HuggingFaceLLMConfiguration,
-        MiniMaxLLMConfiguration,
-        SarvamLLMConfiguration,
-        CustomLLMConfiguration,
-    ],
+    OpenAILLMService
+    | AnthropicLLMConfiguration
+    | CerebrasLLMConfiguration
+    | DeepSeekLLMConfiguration
+    | MistralLLMConfiguration
+    | FireworksLLMConfiguration
+    | GoogleVertexLLMConfiguration
+    | GroqLLMService
+    | OpenRouterLLMConfiguration
+    | GoogleLLMService
+    | AzureLLMService
+    | DecibylLLMService
+    | AWSBedrockLLMConfiguration
+    | SpeachesLLMConfiguration
+    | HuggingFaceLLMConfiguration
+    | MiniMaxLLMConfiguration
+    | SarvamLLMConfiguration
+    | CustomLLMConfiguration,
     Field(discriminator="provider"),
 ]
 
 RealtimeConfig = Annotated[
-    Union[
-        OpenAIRealtimeLLMConfiguration,
-        GrokRealtimeLLMConfiguration,
-        UltravoxRealtimeLLMConfiguration,
-        GoogleRealtimeLLMConfiguration,
-        GoogleVertexRealtimeLLMConfiguration,
-        AzureRealtimeLLMConfiguration,
-        DecibylRealtimeConfiguration,
-    ],
+    OpenAIRealtimeLLMConfiguration
+    | GrokRealtimeLLMConfiguration
+    | UltravoxRealtimeLLMConfiguration
+    | GoogleRealtimeLLMConfiguration
+    | GoogleVertexRealtimeLLMConfiguration
+    | AzureRealtimeLLMConfiguration
+    | DecibylRealtimeConfiguration,
     Field(discriminator="provider"),
 ]
 
@@ -1424,7 +1432,7 @@ class ElevenlabsTTSConfiguration(BaseServiceConfiguration):
             "unless a voice actually needs it."
         ),
     )
-    language: Optional[str] = Field(
+    language: str | None = Field(
         default=None,
         description=(
             "Language code for synthesis, e.g. 'ta' for Tamil or 'hi' for "
@@ -1820,7 +1828,7 @@ class MiniMaxTTSConfiguration(BaseTTSConfiguration):
     speed: float = Field(
         default=1.0, ge=0.5, le=2.0, description="Speech speed (0.5 to 2.0)."
     )
-    language: Optional[str] = Field(
+    language: str | None = Field(
         default=None,
         description=(
             "Language code for synthesis, e.g. 'ta' for Tamil. Sent to MiniMax "
@@ -1952,24 +1960,22 @@ class XAITTSConfiguration(BaseServiceConfiguration):
 
 
 TTSConfig = Annotated[
-    Union[
-        DeepgramTTSConfiguration,
-        GoogleTTSConfiguration,
-        OpenAITTSService,
-        ElevenlabsTTSConfiguration,
-        CartesiaTTSConfiguration,
-        InworldTTSConfiguration,
-        DecibylTTSService,
-        SarvamTTSConfiguration,
-        RumikTTSConfiguration,
-        CambTTSConfiguration,
-        RimeTTSConfiguration,
-        SpeachesTTSConfiguration,
-        MiniMaxTTSConfiguration,
-        AzureSpeechTTSConfiguration,
-        SmallestAITTSConfiguration,
-        XAITTSConfiguration,
-    ],
+    DeepgramTTSConfiguration
+    | GoogleTTSConfiguration
+    | OpenAITTSService
+    | ElevenlabsTTSConfiguration
+    | CartesiaTTSConfiguration
+    | InworldTTSConfiguration
+    | DecibylTTSService
+    | SarvamTTSConfiguration
+    | RumikTTSConfiguration
+    | CambTTSConfiguration
+    | RimeTTSConfiguration
+    | SpeachesTTSConfiguration
+    | MiniMaxTTSConfiguration
+    | AzureSpeechTTSConfiguration
+    | SmallestAITTSConfiguration
+    | XAITTSConfiguration,
     Field(discriminator="provider"),
 ]
 
@@ -2391,22 +2397,20 @@ class SmallestAISTTConfiguration(BaseSTTConfiguration):
 
 
 STTConfig = Annotated[
-    Union[
-        DeepgramSTTConfiguration,
-        CartesiaSTTConfiguration,
-        OpenAISTTConfiguration,
-        GoogleSTTConfiguration,
-        DecibylSTTService,
-        SpeechmaticsSTTConfiguration,
-        SarvamSTTConfiguration,
-        SpeachesSTTConfiguration,
-        HuggingFaceSTTConfiguration,
-        AssemblyAISTTConfiguration,
-        GladiaSTTConfiguration,
-        AzureSpeechSTTConfiguration,
-        SmallestAISTTConfiguration,
-        ElevenlabsSTTConfiguration,
-    ],
+    DeepgramSTTConfiguration
+    | CartesiaSTTConfiguration
+    | OpenAISTTConfiguration
+    | GoogleSTTConfiguration
+    | DecibylSTTService
+    | SpeechmaticsSTTConfiguration
+    | SarvamSTTConfiguration
+    | SpeachesSTTConfiguration
+    | HuggingFaceSTTConfiguration
+    | AssemblyAISTTConfiguration
+    | GladiaSTTConfiguration
+    | AzureSpeechSTTConfiguration
+    | SmallestAISTTConfiguration
+    | ElevenlabsSTTConfiguration,
     Field(discriminator="provider"),
 ]
 
@@ -2508,16 +2512,14 @@ class DecibylEmbeddingsConfiguration(BaseEmbeddingsConfiguration):
 
 
 EmbeddingsConfig = Annotated[
-    Union[
-        OpenAIEmbeddingsConfiguration,
-        OpenRouterEmbeddingsConfiguration,
-        AzureOpenAIEmbeddingsConfiguration,
-        DecibylEmbeddingsConfiguration,
-    ],
+    OpenAIEmbeddingsConfiguration
+    | OpenRouterEmbeddingsConfiguration
+    | AzureOpenAIEmbeddingsConfiguration
+    | DecibylEmbeddingsConfiguration,
     Field(discriminator="provider"),
 ]
 
 ServiceConfig = Annotated[
-    Union[LLMConfig, RealtimeConfig, TTSConfig, STTConfig, EmbeddingsConfig],
+    LLMConfig | RealtimeConfig | TTSConfig | STTConfig | EmbeddingsConfig,
     Field(discriminator="provider"),
 ]

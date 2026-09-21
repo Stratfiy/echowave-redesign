@@ -54,6 +54,41 @@ class ValidationResult:
         return self.outcome != "invalid"
 
 
+async def _check_serper(api_key: str) -> ValidationResult:
+    """One cheap search on the key. Serper answers 401/403 to a wrong key and
+    200 to a right one; anything else is the vendor, not the key."""
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS) as http:
+            response = await http.post(
+                "https://google.serper.dev/search",
+                json={"q": "decibyl key check", "num": 1},
+                headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
+            )
+    except Exception as exc:  # noqa: BLE001 - the vendor, not the key
+        logger.warning("Could not reach Serper to check a key: {}", exc)
+        return ValidationResult(
+            "unverified",
+            "The key was stored. Decibyl could not reach Serper to check it — "
+            "run one web search to confirm it works.",
+        )
+    if response.status_code in (401, 403):
+        return ValidationResult("invalid", "Serper rejected that key.")
+    if response.status_code == 200:
+        return ValidationResult("valid", "Serper accepted the key.")
+    return ValidationResult(
+        "unverified",
+        f"The key was stored. Serper answered {response.status_code}, so it "
+        "could not be checked — run one web search to confirm it works.",
+    )
+
+
+#: Data vendors have no service configuration and no probe in
+#: ``check_validity``; each gets a small check of its own here.
+_DATA_CHECKS = {"serper": _check_serper}
+
+
 def _validator():
     # Imported lazily: check_validity pulls in every provider SDK at module
     # scope, and the routes that store a key should not pay that cost -- nor
@@ -65,6 +100,8 @@ def _validator():
 
 def can_validate(provider: str) -> bool:
     """Whether a probe exists for this vendor at all."""
+    if (provider or "").strip().lower() in _DATA_CHECKS:
+        return True
     try:
         return (provider or "").strip().lower() in _validator()._validator_map
     except Exception:  # noqa: BLE001 -- a missing SDK is "cannot validate"
@@ -88,6 +125,9 @@ async def validate_key(
     500 is a save path that will be.
     """
     provider = (provider or "").strip().lower()
+
+    if provider in _DATA_CHECKS:
+        return await _DATA_CHECKS[provider](api_key)
 
     try:
         validator = _validator()
@@ -117,7 +157,7 @@ async def validate_key(
 
     try:
         ok = await asyncio.wait_for(asyncio.to_thread(_run), timeout=TIMEOUT_SECONDS)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning("Validating a {} key timed out.", provider)
         return ValidationResult(
             "unverified",
