@@ -553,6 +553,53 @@ class MissedCallEventModel(Base):
     )
 
 
+class NumberPredeclarationModel(Base):
+    """A calling number's pre-declaration to its telecom provider (FD-2).
+
+    TRAI's TCCCP Third Amendment requires that a number used for automated
+    voice calls in India is declared to the provider first. Keyed on the
+    number rather than on a ``telephony_phone_numbers`` row, because a
+    provider's calling numbers live in its configuration's credentials and
+    need not have a row here; the declaration is a fact about the number
+    wherever it is configured. One row per number per workspace.
+    """
+
+    __tablename__ = "number_predeclarations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    # E.164 with the leading +, the way a carrier is handed it.
+    address_normalized = Column(String(32), nullable=False)
+    # declared | pending | withdrawn -- see compliance/predeclaration.py.
+    status = Column(
+        String(16), nullable=False, default="pending", server_default="pending"
+    )
+    declared_at = Column(DateTime(timezone=True), nullable=True)
+    # The provider's acknowledgement: a ticket, a reference, a header id.
+    reference = Column(String(120), nullable=True)
+    note = Column(Text, nullable=True)
+    declared_by = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    __table_args__ = (
+        Index(
+            "uq_number_predeclarations_org_number",
+            "organization_id",
+            "address_normalized",
+            unique=True,
+        ),
+    )
+
+
 class TelephonyPhoneNumberModel(Base):
     __tablename__ = "telephony_phone_numbers"
 

@@ -24,7 +24,7 @@ from api.services.call_concurrency import (
     CallConcurrencyLimitError,
     call_concurrency,
 )
-from api.services.compliance import dnd
+from api.services.compliance import dnd, predeclaration
 from api.services.quota_service import authorize_workflow_run_start
 from api.services.telephony import number_lifecycle, verified_numbers
 from api.services.telephony.factory import (
@@ -414,6 +414,14 @@ async def _execute_resolved_target(
     # are required by providers that build the media WebSocket URL at dial time
     # (e.g. Telnyx, Cloudonix); without them the URL contains "None/None" and
     # the stream connection fails.
+    # The calling number (FD-2): an Indian number only once declared.
+    try:
+        from_number = await predeclaration.choose(
+            target.organization_id, list(getattr(provider, "from_numbers", None) or [])
+        )
+    except predeclaration.NotPredeclared as refused:
+        await call_concurrency.release_workflow_run_slot(workflow_run.id)
+        raise HTTPException(status_code=451, detail=str(refused)) from refused
     try:
         await provider.initiate_call(
             to_number=request.phone_number,
@@ -421,6 +429,7 @@ async def _execute_resolved_target(
             workflow_run_id=workflow_run.id,
             workflow_id=target.workflow.id,
             organization_id=target.organization_id,
+            **({"from_number": from_number} if from_number else {}),
         )
     except Exception as e:
         logger.warning(

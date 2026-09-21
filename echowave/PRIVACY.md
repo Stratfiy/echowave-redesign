@@ -170,6 +170,28 @@ definition with the line off and no acknowledgement is refused at save and at
 publish. The switch, either way, is a row in Activity carrying the person who
 made it and the jurisdictions acknowledged.
 
+### Pre-declared calling numbers — TRAI TCCCP Third Amendment (18 Sept 2026)
+
+`api/services/compliance/predeclaration.py`, `TRAI_PREDECLARATION_ENFORCED`.
+
+A number used for automated voice calls in India must be declared to the
+telecom provider first. The provider does the declaring; Decibyl keeps the
+account's **record** of it (`number_predeclarations`: status, date, reference)
+and reads it where the calling number is chosen, on every path that dials —
+the campaign dialler's number pool, the outbound helper, the public agent,
+the editor's test call.
+
+**Enforced, an undeclared Indian number is refused with the reason**, before a
+run is created or a slot spent. Numbers outside India pass: the duty is
+India's. A verified test call to the account's own handset is exempt, for the
+reason the calling window is. A record that cannot be read refuses rather than
+guesses.
+
+**Off by default.** Switching it on refuses calls on a deployment whose numbers
+are not yet recorded, which is a decision, not an upgrade. The telephony
+configuration screen shows each Indian number's status and records a
+declaration; an Admin's role is required.
+
 ### Sub-processors — GDPR Art 28(2), DPDP s11(1)(c)
 
 `api/services/privacy/subprocessors.py`. `GET /api/v1/privacy/subprocessors`.

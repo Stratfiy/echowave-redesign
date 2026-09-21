@@ -23,6 +23,7 @@ from api.services.call_concurrency import (
     CallConcurrencyLimitError,
     call_concurrency,
 )
+from api.services.compliance import predeclaration
 from api.services.quota_service import authorize_workflow_run_start
 from api.utils.common import get_backend_endpoints
 
@@ -54,6 +55,12 @@ async def dial_workflow(
     ``source`` names the caller in concurrency accounting and in the run's
     context, so a bill can be traced back to the thing that caused it.
     """
+    # The calling number first (FD-2): an Indian number places an automated
+    # call only once declared to its provider. Refused here, before a slot
+    # or a run exists, with the reason; None lets the provider pick.
+    from_number = await predeclaration.choose(
+        organization_id, list(getattr(provider, "from_numbers", None) or [])
+    )
     try:
         slot = await call_concurrency.acquire_org_slot(
             organization_id, source=source, timeout=0
@@ -117,6 +124,7 @@ async def dial_workflow(
             workflow_run_id=workflow_run_id,
             workflow_id=workflow.id,
             organization_id=organization_id,
+            **({"from_number": from_number} if from_number else {}),
         )
     except Exception:
         await call_concurrency.release_workflow_run_slot(workflow_run_id)

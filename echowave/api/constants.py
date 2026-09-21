@@ -865,6 +865,19 @@ AI_DISCLOSURE_TEXT = os.getenv(
     "Hi, you're speaking with an AI assistant.",
 )
 
+# FD-2 (21 Sept 2026): TRAI's TCCCP Third Amendment (18 Sept 2026) requires
+# that a number used for automated (auto-dialler, robocall) voice calls in
+# India is pre-declared to the telecom provider. On, and an Indian calling
+# number places an automated call only once the account has recorded its
+# declaration (services/compliance/predeclaration.py); an undeclared one is
+# refused with the reason, and a verified test call to the account's own
+# handset is exempt. Off by default: switching it on refuses calls on a
+# deployment whose numbers are not yet recorded, which is a decision, not an
+# upgrade.
+TRAI_PREDECLARATION_ENFORCED = (
+    os.getenv("TRAI_PREDECLARATION_ENFORCED", "false").lower() == "true"
+)
+
 # ─── Database connection pool ────────────────────────────────────────────────
 #
 # SQLAlchemy defaults to 5 connections with 10 overflow. That ceiling is

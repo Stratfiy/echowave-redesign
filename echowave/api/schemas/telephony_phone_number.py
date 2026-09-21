@@ -144,6 +144,10 @@ class PhoneNumberResponse(BaseModel):
     # Only set on create/update responses when the route attempted a
     # provider-side sync (e.g. setting Twilio's VoiceUrl). Omitted on reads.
     provider_sync: Optional[ProviderSyncStatus] = None
+    # TRAI pre-declaration (FD-2), for an Indian number: declared | pending |
+    # withdrawn | not_declared. None for a number outside India, where no
+    # declaration applies. Read from number_predeclarations on the list.
+    predeclaration_status: Optional[str] = None
 
 
 class PhoneNumberListResponse(BaseModel):
