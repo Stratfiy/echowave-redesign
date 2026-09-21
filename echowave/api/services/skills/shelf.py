@@ -55,7 +55,10 @@ async def shelf(organization_id: int) -> dict[str, Any]:
     names = await _bot_names(organization_id)
     cards_installed: list[dict[str, Any]] = []
     cards_rest: list[dict[str, Any]] = []
-    for slug, skill in catalogue.all_skills().items():
+    from api.services.workflow.skill_context import imported_skills
+
+    shelved = {**catalogue.all_skills(), **await imported_skills(organization_id)}
+    for slug, skill in shelved.items():
         card = skill.as_card()
         if slug in have:
             card["on_bots"] = [
@@ -90,7 +93,11 @@ async def install(
 ) -> None:
     """Keep a skill. Installing twice is the same as installing once."""
     if catalogue.get(slug) is None:
-        raise SkillError(f"There is no skill called {slug!r}.")
+        imported = await db_client.get_skill_document(
+            organization_id=organization_id, slug=slug
+        )
+        if imported is None:
+            raise SkillError(f"There is no skill called {slug!r}.")
     await db_client.add_organisation_skill(
         organization_id=organization_id, slug=slug, workflow_id=None, user_id=user_id
     )

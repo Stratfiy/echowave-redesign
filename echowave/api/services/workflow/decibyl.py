@@ -37,6 +37,7 @@ from api.enums import AgentEventActor, AgentEventKind
 from api.services import prompt_budget, reporting_window
 from api.services.knowledge_graph import quiet, recall, teach
 from api.services.organization_preferences import get_organization_preferences
+from api.services.skills import imports as skill_imports
 from api.services.workflow import (
     actions,
     agent_timeline,
@@ -128,6 +129,10 @@ SYSTEM = (
     "outcomes, on demand and free. Use it for a list, a count or a date "
     "range the context does not already carry; the context's rows are "
     "only the ones the question named.\n"
+    "- install_from_repository: skills from a GitHub repository the person "
+    "names. Reads it now and proposes one card listing what it would "
+    "install; a person confirms. Say what was found, including what was "
+    "skipped and why, then end your reply.\n"
     "- run_script: a short Python script in the sandbox for a job over many "
     "rows or many records, with the connected apps reachable by name inside "
     "it. Four credits a run; offered only on plans that have it.\n"
@@ -1217,6 +1222,7 @@ def office_tools() -> list[dict[str, Any]]:
                 web_tools.search_tool_schema(),
                 web_tools.fetch_tool_schema(),
                 records.tool_schema(),
+                skill_imports.tool_schema(),
             )
             if web_tools.enabled()
             else ()
@@ -1434,6 +1440,8 @@ async def _tool(
         )
     if call.name == records.TOOL_NAME and web_tools.enabled():
         return await records.for_thread(organization_id, arguments)
+    if call.name == skill_imports.TOOL_NAME and web_tools.enabled():
+        return await skill_imports.for_thread(organization_id, arguments)
     if call.name == "run_script" and web_tools.enabled():
         from api.services.sandbox import code_mode
 

@@ -194,12 +194,51 @@ async def installed_for(
         return []
     found = []
     seen: set[str] = set()
+    imported = None
     for row in rows:
         slug = getattr(row, "slug", None)
         if not slug or slug in seen:
             continue
         seen.add(slug)
         entry = catalogue.get(slug)
+        if entry is None:
+            # Not shipped: an imported one, body kept in the workspace (D-1b).
+            if imported is None:
+                imported = await imported_skills(organization_id)
+            entry = imported.get(slug)
         if entry is not None:
             found.append(entry)
     return found
+
+
+async def imported_skills(organization_id: int) -> dict[str, Any]:
+    """The skills this workspace imported, as catalogue entries. Never
+    raises: one reading of several."""
+    from api.services.skills.catalogue import CatalogueSkill
+    from api.services.skills.document import PortableSkill
+
+    try:
+        rows = await db_client.list_skill_documents(organization_id=organization_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Could not read imported skills for org {}: {}", organization_id, exc
+        )
+        return {}
+    out: dict[str, Any] = {}
+    for row in rows:
+        out[row.slug] = CatalogueSkill(
+            slug=row.slug,
+            title=row.title,
+            description=row.description or "",
+            division="Imported",
+            emoji=str((row.metadata_ or {}).get("emoji") or ""),
+            source=row.source_repo or "",
+            license=row.licence or "",
+            skill=PortableSkill(
+                name=row.slug,
+                description=row.description or "",
+                body=row.body or "",
+                metadata=dict(row.metadata_ or {}),
+            ),
+        )
+    return out

@@ -6042,6 +6042,65 @@ class AgentTaskModel(Base):
     __table_args__ = (Index("ix_agent_tasks_org_status", "organization_id", "status"),)
 
 
+class OrganisationSkillDocumentModel(Base):
+    """A skill an account brought in from a repository, body and all (D-1b).
+
+    The shipped catalogue is files in the release; this is a file the
+    account imported -- from a GitHub link, on the thread -- kept whole so
+    the shelf can show it and a bot can run it. ``slug`` is the same key
+    ``organisation_skills`` uses, so an imported skill installs, attaches and
+    uninstalls exactly like a shipped one; the only difference is where the
+    body is read from. Every import needs a review before a bot runs it:
+    the parser flags concerns, but an empty list is not a pass.
+    """
+
+    __tablename__ = "organisation_skill_documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    slug = Column(String(64), nullable=False)
+    title = Column(String(200), nullable=False)
+    description = Column(Text, nullable=False, default="")
+    body = Column(Text, nullable=False, default="")
+    # Every frontmatter key the parser did not consume, kept rather than
+    # dropped, the way the catalogue keeps them.
+    metadata_ = Column("metadata", JSON, nullable=False, default=dict)
+    # Where it came from, pinned: a repository, a ref, a path in it.
+    source_repo = Column(String(200), nullable=False, default="")
+    source_ref = Column(String(120), nullable=False, default="")
+    source_path = Column(String(500), nullable=False, default="")
+    licence = Column(String(64), nullable=False, default="")
+    # What the parser flagged, as sentences, for the reviewer.
+    concerns = Column(JSON, nullable=False, default=list)
+    reviewed_by = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    reviewed_at = Column(DateTime(timezone=True), nullable=True)
+    created_by = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    __table_args__ = (
+        Index(
+            "uq_organisation_skill_documents_org_slug",
+            "organization_id",
+            "slug",
+            unique=True,
+        ),
+    )
+
+
 class AdminActionLogModel(Base):
     """A durable record of a sensitive staff action (KAN-82).
 

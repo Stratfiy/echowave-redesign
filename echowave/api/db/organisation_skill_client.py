@@ -1,12 +1,12 @@
 """Reads and writes for installed skills. Org-scoped on every one."""
 
 from collections.abc import Sequence
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy import delete, func, select
 
 from api.db.base_client import BaseDBClient
-from api.db.models import OrganisationSkillModel
+from api.db.models import OrganisationSkillDocumentModel, OrganisationSkillModel
 
 
 class OrganisationSkillClient(BaseDBClient):
@@ -156,3 +156,67 @@ class OrganisationSkillClient(BaseDBClient):
                     )
                 )
             await session.commit()
+
+    # --- imported skills, body and all (D-1b) -------------------------------
+
+    async def list_skill_documents(
+        self, *, organization_id: int
+    ) -> Sequence[OrganisationSkillDocumentModel]:
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(OrganisationSkillDocumentModel)
+                .where(
+                    OrganisationSkillDocumentModel.organization_id == organization_id
+                )
+                .order_by(OrganisationSkillDocumentModel.id.asc())
+            )
+            return result.scalars().all()
+
+    async def get_skill_document(
+        self, *, organization_id: int, slug: str
+    ) -> Optional[OrganisationSkillDocumentModel]:
+        async with self.async_session() as session:
+            return await session.scalar(
+                select(OrganisationSkillDocumentModel).where(
+                    OrganisationSkillDocumentModel.organization_id == organization_id,
+                    OrganisationSkillDocumentModel.slug == slug,
+                )
+            )
+
+    async def upsert_skill_document(
+        self, *, organization_id: int, slug: str, **fields: Any
+    ) -> OrganisationSkillDocumentModel:
+        """Write an imported skill, replacing one with the same slug: the
+        same file imported again is the newer version of itself."""
+        async with self.async_session() as session:
+            row = await session.scalar(
+                select(OrganisationSkillDocumentModel).where(
+                    OrganisationSkillDocumentModel.organization_id == organization_id,
+                    OrganisationSkillDocumentModel.slug == slug,
+                )
+            )
+            if row is None:
+                row = OrganisationSkillDocumentModel(
+                    organization_id=organization_id, slug=slug, **fields
+                )
+                session.add(row)
+            else:
+                for key, value in fields.items():
+                    setattr(row, key, value)
+            await session.commit()
+            await session.refresh(row)
+            return row
+
+    async def delete_skill_document(self, *, organization_id: int, slug: str) -> bool:
+        async with self.async_session() as session:
+            row = await session.scalar(
+                select(OrganisationSkillDocumentModel).where(
+                    OrganisationSkillDocumentModel.organization_id == organization_id,
+                    OrganisationSkillDocumentModel.slug == slug,
+                )
+            )
+            if row is None:
+                return False
+            await session.delete(row)
+            await session.commit()
+            return True

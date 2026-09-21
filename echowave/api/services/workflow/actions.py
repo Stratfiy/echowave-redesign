@@ -100,7 +100,11 @@ SEND_DOCUMENT = "send_document"
 #: validates the spec, and propose_action's enum stays the short list of
 #: things a bot may propose about the account.
 BUILD_FROM_SPEC = "build_from_spec"
-INTERNAL_ACTIONS = (RUN_TOOL, SEND_DOCUMENT, BUILD_FROM_SPEC)
+#: Install skills from a repository the person named (D-1b; see
+#: services/skills/imports.py). Internal for the same reason: Decibyl reaches
+#: it through its own tool, which has already read the repository.
+INSTALL_FROM_REPOSITORY = "install_from_repository"
+INTERNAL_ACTIONS = (RUN_TOOL, SEND_DOCUMENT, BUILD_FROM_SPEC, INSTALL_FROM_REPOSITORY)
 
 #: The states a proposal moves through. Terminal ones are the last four.
 PROPOSED = "proposed"
@@ -287,6 +291,34 @@ async def resolve(
             return bot_from_brief.resolve(arguments)
         except bot_from_brief.BriefError as exc:
             raise ActionError(str(exc)) from exc
+
+    if action == INSTALL_FROM_REPOSITORY:
+        repository = str(arguments.get("repository") or "").strip()[:200]
+        slugs = [str(s)[:64] for s in (arguments.get("slugs") or []) if str(s).strip()]
+        titles = [str(t)[:200] for t in (arguments.get("titles") or [])]
+        if not repository or not slugs:
+            raise ActionError("Nothing to install from there.")
+        count = len(slugs)
+        return {
+            "action": INSTALL_FROM_REPOSITORY,
+            "args": {
+                "repository": repository,
+                "ref": str(arguments.get("ref") or "HEAD")[:120],
+                "path": str(arguments.get("path") or "")[:500],
+                "slugs": slugs,
+                "titles": titles,
+            },
+            "label": (
+                f"Install {count} skill{'s' if count != 1 else ''} from {repository}"
+            ),
+            "why": why,
+            "effect": (
+                "Puts them on the Skills shelf for review. No bot runs one "
+                "until a person puts it on that bot."
+            ),
+            "reversible": True,
+            "state": PROPOSED,
+        }
 
     if action == SEND_DOCUMENT:
         from api.services.workflow import documents
@@ -820,6 +852,41 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
         )
         return str(built["note"])
 
+    if action == INSTALL_FROM_REPOSITORY:
+        from api.services.skills import imports
+
+        user_id = int(((payload.get("confirmed") or {}).get("by")) or 0) or None
+        try:
+            owner, _, repo = str(args.get("repository") or "").partition("/")
+            link = imports.Link(
+                owner=owner,
+                repo=repo,
+                ref=str(args.get("ref") or "HEAD"),
+                path=str(args.get("path") or ""),
+            )
+            found = imports.recognise(await imports.fetch(link))
+            done = await imports.install(
+                organization_id=organization_id,
+                user_id=user_id,
+                link=link,
+                found=found,
+                only=list(args.get("slugs") or []),
+            )
+        except imports.ImportError_ as exc:
+            raise ActionError(str(exc)) from exc
+        except ActionError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - said on the card, not raised at a person
+            logger.warning("Could not install from {}: {}", args.get("repository"), exc)
+            raise ActionError(
+                "The repository could not be installed from just now."
+            ) from exc
+        payload.setdefault("result", {}).update({"installed": done})
+        return (
+            f"Installed {len(done)} skill{'s' if len(done) != 1 else ''} from "
+            f"{args.get('repository')}. They are on the Skills shelf for review."
+        )
+
     if action == SEND_DOCUMENT:
         from api.services.workflow import documents
 
@@ -879,6 +946,14 @@ async def _reverse(organization_id: int, payload: dict[str, Any]) -> None:
             status=str(args.get("was_status") or "confirmed"),
         ):
             raise ActionError("That fact is no longer in memory.")
+        return
+    if action == INSTALL_FROM_REPOSITORY:
+        from api.services.skills import imports
+
+        installed = list(
+            ((payload.get("result") or {}).get("installed")) or args.get("slugs") or []
+        )
+        await imports.uninstall(organization_id=organization_id, slugs=installed)
         return
     raise ActionError("This cannot be put back.")
 
