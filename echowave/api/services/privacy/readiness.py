@@ -41,8 +41,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.constants import (
-    AI_DISCLOSURE_ENABLED,
     ACCEPTED_RECOVERY_POINT_HOURS,
+    AI_DISCLOSURE_ENABLED,
     BACKUP_ENABLED,
     BACKUP_STALE_AFTER_HOURS,
     DATABASE_PITR_ENABLED,

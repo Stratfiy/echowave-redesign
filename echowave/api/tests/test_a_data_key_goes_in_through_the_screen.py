@@ -74,10 +74,10 @@ class TestTheCheck:
 
 class TestTheSearchReadsIt:
     async def test_the_stored_key_is_the_one_the_search_uses(self):
-        from api.services.workflow import web_tools
-
         import contextlib
         from types import SimpleNamespace
+
+        from api.services.workflow import web_tools
 
         @contextlib.asynccontextmanager
         async def _session():

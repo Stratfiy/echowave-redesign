@@ -20,8 +20,12 @@ from api.db import db_client
 from api.db.models import UserModel
 from api.enums import PostHogEvent
 from api.services.agent_builder.assemble import fill_placeholders, required_variables
-from api.services.agent_templates import AgentTemplate, get_template, list_templates
-from api.services.agent_templates import equip
+from api.services.agent_templates import (
+    AgentTemplate,
+    equip,
+    get_template,
+    list_templates,
+)
 from api.services.agent_templates.materialise import (
     TemplateShapeError,
     to_workflow_definition,

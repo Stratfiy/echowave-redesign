@@ -42,8 +42,13 @@ from api.services.telephony.call_transfer_manager import get_call_transfer_manag
 from api.services.telephony.escalation import briefing_from_config
 from api.services.telephony.factory import get_telephony_provider_for_run
 from api.services.telephony.transfer_event_protocol import TransferContext
-from api.services.workflow import app_interactions, connected_tools, unattended
-from api.services.workflow import agent_web, send_approval
+from api.services.workflow import (
+    agent_web,
+    app_interactions,
+    connected_tools,
+    send_approval,
+    unattended,
+)
 from api.services.workflow.tools.calculator import get_calculator_tools, safe_calculator
 from api.services.workflow.tools.custom_tool import (
     execute_http_tool,

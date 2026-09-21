@@ -296,7 +296,7 @@ class ContactClient(BaseDBClient):
         return written, skipped
 
     async def touch_contact(
-        self, contact_id: int, *, organization_id: int, attributes: Dict[str, Any]
+        self, contact_id: int, *, organization_id: int, attributes: dict[str, Any]
     ) -> bool:
         """Merge ``attributes`` onto one contact's open attributes (OP-4: the
         outcome of a send, stamped on the prospect). Existing keys not named
