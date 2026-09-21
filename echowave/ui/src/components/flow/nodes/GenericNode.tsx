@@ -314,15 +314,16 @@ export const GenericNode = memo(({ data, selected, id, type }: GenericNodeProps)
         setOpen(false);
     };
 
+    // The one place the form is seeded, and every path into the inspector —
+    // double-click, Enter, the toolbar's pencil — goes through it. This used
+    // to be an effect keyed on `data` as well, and opening is not the only
+    // thing that changes `data`: marking the graph invalid rewrites the data
+    // of every node, so a validation pass landing while the inspector was
+    // open threw away whatever was being typed into it.
     const handleOpenChange = (newOpen: boolean) => {
         if (newOpen && spec) setValues(seed());
         setOpen(newOpen);
     };
-
-    useEffect(() => {
-        if (open && spec) setValues(seed());
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [data, open]);
 
     // ── Render ──────────────────────────────────────────────────────────
     const handles =
@@ -364,7 +365,7 @@ export const GenericNode = memo(({ data, selected, id, type }: GenericNodeProps)
 
             <NodeToolbar isVisible={selected} position={Position.Top}>
                 <div className="flex gap-1">
-                    <Button aria-label={`Edit ${data.name || fallbackTitle}`} onClick={() => setOpen(true)} variant="outline" size="icon">
+                    <Button aria-label={`Edit ${data.name || fallbackTitle}`} onClick={() => handleOpenChange(true)} variant="outline" size="icon">
                         <Edit />
                     </Button>
                     {/* Start nodes can't be deleted (workflow always needs one). */}

@@ -88,6 +88,28 @@ describe("compact canvas nodes", () => {
         expect(useWorkflowStore.getState().nodes[0].data.prompt).toBe(data.prompt);
         expect(useWorkflowStore.getState().isDirty).toBe(false);
     });
+    // Marking the graph invalid rewrites every node's data. That used to
+    // re-seed an open inspector, so a validation pass landing mid-sentence
+    // took the sentence with it.
+    it("keeps edits in progress when validation rewrites the node's data", () => {
+        const { rerender } = render(node("agentNode"));
+        fireEvent.keyDown(screen.getByLabelText(/Press Enter to inspect/), { key: "Enter" });
+        act(() => state.form.mock.lastCall?.[0].onChange({ ...state.form.mock.lastCall?.[0].values, prompt: "Half a sentence" }));
+        rerender(node("agentNode", { invalid: true, validationMessage: "Needs a prompt" }));
+        expect(state.form.mock.lastCall?.[0].values.prompt).toBe("Half a sentence");
+        fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+        expect(useWorkflowStore.getState().nodes[0].data.prompt).toBe("Half a sentence");
+    });
+    // The toolbar's pencil seeds through the same path as Enter, so reopening
+    // still shows the node as it is now rather than an abandoned draft.
+    it("seeds from the current node when the toolbar reopens the inspector", () => {
+        const { rerender } = render(node("agentNode"));
+        fireEvent.keyDown(screen.getByLabelText(/Press Enter to inspect/), { key: "Enter" });
+        act(() => state.form.mock.lastCall?.[0].onChange({ ...state.form.mock.lastCall?.[0].values, prompt: "Abandoned" }));
+        rerender(node("agentNode", { prompt: "Changed elsewhere" }));
+        fireEvent.click(screen.getByRole("button", { name: "Edit Support" }));
+        expect(state.form.mock.lastCall?.[0].values.prompt).toBe("Changed elsewhere");
+    });
     it("tells an unsaved trigger how to get its URL rather than showing a spinner", () => {
         render(node("trigger"));
         fireEvent.keyDown(screen.getByLabelText(/Press Enter to inspect/), { key: "Enter" });
