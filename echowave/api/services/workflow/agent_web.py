@@ -100,9 +100,14 @@ def limits_of(tool: Any) -> dict[str, Any]:
 def function_schemas(*, voice: bool) -> list[dict[str, Any]]:
     """The raw ``{"type": "function", "function": ...}`` schemas, in the shape
     the calculator hands the tool manager."""
+    from api.services.workflow import prospects
+
     raw = [web_tools.search_tool_schema()]
     if not voice:
         raw.append(web_tools.fetch_tool_schema())
+        # Saving what was found (OP-4) goes with reading it; a caller on the
+        # phone is not building a list.
+        raw.append(prospects.tool_schema())
     return [{"type": "function", "function": schema} for schema in raw]
 
 

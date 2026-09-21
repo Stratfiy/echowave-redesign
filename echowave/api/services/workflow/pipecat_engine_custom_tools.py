@@ -43,7 +43,7 @@ from api.services.telephony.escalation import briefing_from_config
 from api.services.telephony.factory import get_telephony_provider_for_run
 from api.services.telephony.transfer_event_protocol import TransferContext
 from api.services.workflow import app_interactions, connected_tools, unattended
-from api.services.workflow import agent_web
+from api.services.workflow import agent_web, send_approval
 from api.services.workflow.tools.calculator import get_calculator_tools, safe_calculator
 from api.services.workflow.tools.custom_tool import (
     execute_http_tool,
@@ -189,6 +189,11 @@ class CustomToolManager:
         # either a routine firing or it is not, and the bot's setting is
         # pinned with its definition.
         self._writes_gated: Optional[bool] = None
+        # Whether this bot's sends are cards (OP-4), asked once per run.
+        self._approval_wanted: Optional[bool] = None
+        # What this run read on the web, for the card a send becomes: the
+        # evidence is the sources, derived, never a sentence the model wrote.
+        self._sources: list[str] = []
 
     async def _load_tools(self, tool_uuids: list[str], organization_id: int) -> list:
         """Return tool rows for these uuids, fetching only the ones not yet seen.
@@ -246,6 +251,24 @@ class CustomToolManager:
                 self._writes_gated = not allowed
         return self._writes_gated
 
+    async def _sends_are_cards(self) -> bool:
+        """Whether this bot is set to approve every send (OP-4). Cached for
+        the run: the bot's setting is pinned with its definition."""
+        if self._approval_wanted is None:
+            wanted = False
+            try:
+                context = await self._interaction_context()
+                workflow_id = context.get("workflow_id")
+                if workflow_id:
+                    workflow = await db_client.get_workflow_by_id(workflow_id)
+                    wanted = send_approval.wants_approval(
+                        getattr(workflow, "workflow_configurations", None)
+                    )
+            except Exception as exc:  # noqa: BLE001 - not wanted, not fatal
+                logger.warning("Could not read the send-approval setting: {}", exc)
+            self._approval_wanted = wanted
+        return self._approval_wanted
+
     async def _minus_ungated_writes(self, tools: list) -> list:
         """The tools this run may actually use.
 
@@ -267,6 +290,11 @@ class CustomToolManager:
         ):
             return tools
         if not await self._writes_are_gated():
+            return tools
+        # A write that becomes a card is the review the gate exists to
+        # require (OP-4), so a bot whose sends are cards keeps its writes on
+        # a routine: each one is proposed, none is sent.
+        if await self._sends_are_cards():
             return tools
         kept = [
             tool
@@ -790,6 +818,18 @@ class CustomToolManager:
                 "ref_id": f"{run_id or 'run'}:web:{call_id or 'x'}",
             }
 
+        def _note_sources(result: Any, *fallback: str) -> None:
+            if not isinstance(result, dict) or result.get("status") != "success":
+                return
+            urls = [
+                r.get("link")
+                for r in result.get("results") or []
+                if isinstance(r, dict)
+            ]
+            for url in [result.get("url"), *urls, *fallback]:
+                if url and str(url) not in self._sources:
+                    self._sources.append(str(url))
+
         async def search_func(function_call_params: FunctionCallParams) -> None:
             ids = await _context(function_call_params)
             try:
@@ -803,6 +843,7 @@ class CustomToolManager:
             except Exception as exc:  # noqa: BLE001 - the turn must finish
                 logger.error("web_search failed on a run: {}", exc)
                 result = {"status": "error", "error": "The search did not run."}
+            _note_sources(result)
             await function_call_params.result_callback(result)
 
         async def fetch_func(function_call_params: FunctionCallParams) -> None:
@@ -820,6 +861,20 @@ class CustomToolManager:
             except Exception as exc:  # noqa: BLE001 - the turn must finish
                 logger.error("web_fetch failed on a run: {}", exc)
                 result = {"status": "error", "error": "The page could not be read."}
+            _note_sources(result)
+            await function_call_params.result_callback(result)
+
+        async def save_func(function_call_params: FunctionCallParams) -> None:
+            from api.services.workflow import prospects
+
+            ids = await _context(function_call_params)
+            try:
+                result = await prospects.save(
+                    ids["organization_id"], dict(function_call_params.arguments or {})
+                )
+            except Exception as exc:  # noqa: BLE001 - the turn must finish
+                logger.error("save_prospects failed on a run: {}", exc)
+                result = {"status": "error", "error": "The prospects were not saved."}
             await function_call_params.result_callback(result)
 
         self._register(
@@ -835,6 +890,9 @@ class CustomToolManager:
                 kind=ToolCategory.WEB.value,
                 timeout_secs=web_tools.TIMEOUT_SECS + 5.0,
             )
+            from api.services.workflow import prospects
+
+            self._register(prospects.TOOL_NAME, save_func, kind=ToolCategory.WEB.value)
 
     def _register_rate_table_handler(self, tool: Any) -> None:
         """Register the built-in rate-card lookup with the LLM.
@@ -1026,16 +1084,32 @@ class CustomToolManager:
             logger.info(f"Composio Tool EXECUTED: {function_name}")
             logger.info(f"Arguments: {function_call_params.arguments}")
 
+            is_write = not connected_tools.is_read(tool) and not unattended.is_staged(
+                tool
+            )
+            # A send is a card (OP-4): on a bot set to approve its sends, a
+            # write is proposed on the thread with the sources this run read,
+            # and nothing leaves until a person confirms. Before the routine
+            # gate on purpose: the card is the review that gate wants.
+            if is_write and await self._sends_are_cards():
+                context = await self._interaction_context()
+                result = await send_approval.propose_write(
+                    organization_id=int(context.get("organization_id") or 0),
+                    workflow_id=context.get("workflow_id"),
+                    workflow_run_id=context.get("workflow_run_id"),
+                    tool=tool,
+                    arguments=dict(function_call_params.arguments or {}),
+                    sources=list(self._sources),
+                )
+                await function_call_params.result_callback(result)
+                return
+
             # The second half of the gate. `_minus_ungated_writes` keeps the
             # write out of the schema list, so the model normally never asks;
             # a context carried across a node transition can still hold one it
             # no longer has, and that must not be the path by which a routine
             # sends mail at 8am.
-            if (
-                not connected_tools.is_read(tool)
-                and not unattended.is_staged(tool)
-                and await self._writes_are_gated()
-            ):
+            if is_write and await self._writes_are_gated():
                 logger.warning(
                     "Refused {} on an unattended run: writes are off for this bot",
                     function_name,

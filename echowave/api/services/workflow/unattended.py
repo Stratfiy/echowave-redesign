@@ -85,7 +85,9 @@ def is_staged(tool: Any) -> bool:
     return slug.strip().upper() in STAGED_WRITES
 
 
-def briefing(instruction: str, *, writes_allowed: bool) -> str:
+def briefing(
+    instruction: str, *, writes_allowed: bool, sends_are_cards: bool = False
+) -> str:
     """The routine's instruction, with the room described around it.
 
     A routine's instruction reaches the bot as a plain user message, so the
@@ -106,7 +108,11 @@ def briefing(instruction: str, *, writes_allowed: bool) -> str:
         "Do the work now with the tools you have and report what you found. "
         "If you could not, say plainly what stopped you.",
     ]
-    if not writes_allowed:
+    if sends_are_cards:
+        from api.services.workflow import send_approval
+
+        lines.append(send_approval.briefing_line())
+    elif not writes_allowed:
         lines.append(
             "You cannot send anything or change anything in a connected app on "
             "this run. You can write a draft, which nobody receives until a "

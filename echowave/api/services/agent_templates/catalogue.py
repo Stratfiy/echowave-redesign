@@ -1130,6 +1130,174 @@ def _all() -> tuple[AgentTemplate, ...]:
         ),
         # ------------------------------------------------------------------
         AgentTemplate(
+            id="outbound_prospecting",
+            name="Outbound Prospecting",
+            vertical="Any business that sells to other businesses",
+            industry="Any business",
+            function="Follow up leads",
+            direction=CallDirection.scheduled,
+            summary=(
+                "Finds businesses that fit your ideal customer on the public "
+                "web, reads their own pages, saves them as prospects, and "
+                "drafts one email per prospect that you approve before it "
+                "goes -- from your own mailbox."
+            ),
+            languages=["English"],
+            stack=_QUIET,
+            schedule_shape=ScheduleShape(
+                runs="every weekday morning",
+                typical_items_per_run=10,
+                typical_runs_per_month=22,
+            ),
+            needs_web=True,
+            apps=["gmail", "outlook"],
+            approve_sends=True,
+            template_variables={
+                "who_we_are": (
+                    "Your business in one or two lines: what you sell and to whom"
+                ),
+                "ideal_customer": (
+                    "Who you want to reach: kind of business, size, city or "
+                    "region, e.g. dental clinics with 2-10 doctors in Chennai"
+                ),
+                "offer": (
+                    "What you are offering them and why it matters, in a "
+                    "sentence a stranger would understand"
+                ),
+                "sender_name": "Whose name the email goes out under",
+                "per_run": "How many new prospects to find on one run, e.g. 10",
+            },
+            nodes=[
+                TemplateNode(
+                    type="startCall",
+                    name="Find prospects",
+                    greeting="Starting today's prospecting run.",
+                    prompt=(
+                        "You find new customers for {{who_we_are}}.\n\n"
+                        "Ideal customer: {{ideal_customer}}.\n\n"
+                        "First read the Prospects list with search_records so "
+                        "you know who is already there, who was written to and "
+                        "who declined; none of those is new.\n\n"
+                        "Then search the public web for businesses that fit "
+                        "and read each one's own website -- the contact or "
+                        "about page -- with web_fetch, asking for the contact "
+                        "details and who runs it. Take the email address and "
+                        "the name from the business's own page and nowhere "
+                        "else. Never read or search LinkedIn or any social "
+                        "network; the rule is enforced and you will be "
+                        "refused.\n\n"
+                        "Save what you found with save_prospects, with the "
+                        "page each came from and one line on why they fit. "
+                        "Stop at {{per_run}} new prospects for this run, or "
+                        "sooner if the search runs dry -- say so rather than "
+                        "pad the list."
+                    ),
+                    extract={
+                        "found": "How many new prospects were saved this run",
+                    },
+                ),
+                TemplateNode(
+                    type="agentNode",
+                    name="Draft one email each",
+                    prompt=(
+                        "For each prospect saved this run, write one short "
+                        "email from {{sender_name}} and send it with the "
+                        "mail tool; it becomes a card a person approves "
+                        "before anything leaves, so propose it and move to "
+                        "the next.\n\n"
+                        "The offer: {{offer}}.\n\n"
+                        "Under a hundred and twenty words. Open with one "
+                        "specific thing you read on their own page, so it "
+                        "is plainly written to them; say the offer in one "
+                        "sentence; ask one small question. Sign it "
+                        "{{sender_name}} at {{who_we_are}}, and end with one "
+                        "line saying they can reply 'no more' to hear nothing "
+                        "further. No attachments, no links you did not read, "
+                        "no claims about them you did not see on their page.\n\n"
+                        "One email per prospect. Never a second to somebody "
+                        "already written to or declined."
+                    ),
+                    extract={
+                        "proposed": "How many emails were proposed as cards",
+                    },
+                ),
+                TemplateNode(
+                    type="endCall",
+                    name="Close",
+                    prompt=(
+                        "Record the run in one line somebody can read a month "
+                        "later: how many prospects were found and saved, how "
+                        "many emails were proposed for approval, and anything "
+                        "that stopped you -- a search that returned nothing, "
+                        "a mailbox not connected. 'Found 8, proposed 8, two "
+                        "sites refused reading' qualifies; 'completed' does "
+                        "not."
+                    ),
+                ),
+            ],
+            edges=[
+                TemplateEdge(
+                    source="Find prospects",
+                    target="Draft one email each",
+                    label="prospects saved",
+                    condition="At least one new prospect was saved this run",
+                ),
+                TemplateEdge(
+                    source="Find prospects",
+                    target="Close",
+                    label="nothing new",
+                    condition="No new prospect fit, or the search ran dry",
+                ),
+                TemplateEdge(
+                    source="Draft one email each",
+                    target="Close",
+                    label="all proposed",
+                    condition="An email has been proposed for every prospect saved this run",
+                ),
+            ],
+            guardrails=_QUIET_GUARDRAILS
+            + [
+                "Never read, search or mention LinkedIn or any social "
+                "network. Prospects come from the public web and their own "
+                "websites only.",
+                "Never send an email yourself. Every email is a card a person "
+                "approves; propose it once and move on. Never propose twice to "
+                "the same person, and never to anybody marked declined.",
+                "Never state a fact about a prospect that you did not read on "
+                "their own page. Say where it came from on the card.",
+                "One email per prospect, under a hundred and twenty words, "
+                "with a way to say no. No follow-up unless a person asks for "
+                "one.",
+            ],
+            compliance_notes=[
+                "Cold B2B email is lawful in the target markets with approval "
+                "before each send as the control. CAN-SPAM needs no consent "
+                "but fines per non-compliant email; the sender's name and a "
+                "way to opt out are in every draft for that reason. GDPR "
+                "under legitimate interest needs a documented balancing test "
+                "and a notice in the first contact; UK PECR is the most "
+                "permissive. Keep the wording the template writes.",
+                "Sends from the operator's own mailbox through the connected "
+                "app. Gmail and Outlook cap daily sends; a run that proposes "
+                "more than the mailbox allows will have cards fail late. "
+                "Keep per_run modest until the mailbox is warmed.",
+                "No LinkedIn scraping, ever: the fetcher refuses the social "
+                "networks by rule and the prompt says so twice. Prospects "
+                "are read from the business's own public page, which is "
+                "what it published to be found by.",
+                "Each search on the platform's key is metered as a tool call "
+                "plus the vendor's price at cost; a page read is a tool call. "
+                "The workspace's spend cap applies to the run.",
+            ],
+            example_requests=[
+                "find new customers for my business and email them",
+                "a bot that prospects dental clinics in Chennai and drafts outreach",
+                "outbound lead generation with approval before each email",
+                "cold email prospecting from my own gmail",
+            ],
+        ),
+        # ------------------------------------------------------------------
+        AgentTemplate(
             id="compliance_reminder",
             name="Compliance reminder",
             vertical="Any business with dated obligations -- filings, renewals, licences",

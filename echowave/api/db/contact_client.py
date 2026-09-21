@@ -295,6 +295,26 @@ class ContactClient(BaseDBClient):
             await session.commit()
         return written, skipped
 
+    async def touch_contact(
+        self, contact_id: int, *, organization_id: int, attributes: Dict[str, Any]
+    ) -> bool:
+        """Merge ``attributes`` onto one contact's open attributes (OP-4: the
+        outcome of a send, stamped on the prospect). Existing keys not named
+        are kept."""
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(ContactModel).where(
+                    ContactModel.id == contact_id,
+                    ContactModel.organization_id == organization_id,
+                )
+            )
+            row = result.scalar_one_or_none()
+            if row is None:
+                return False
+            row.attributes = {**(row.attributes or {}), **attributes}
+            await session.commit()
+            return True
+
     async def delete_contact(self, contact_id: int, *, organization_id: int) -> bool:
         async with self.async_session() as session:
             result = await session.execute(

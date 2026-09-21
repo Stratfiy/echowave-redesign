@@ -689,6 +689,15 @@ async def settle(
         payload["state"] = DECLINED
         payload["declined"] = _stamp(user_id)
         await _write(event, payload)
+        if payload.get("action") == RUN_TOOL:
+            # A declined send is an outcome too (OP-4): the prospect is
+            # marked, and the next run does not propose them as new.
+            from api.services.workflow import send_approval
+
+            await send_approval.note_declined(
+                organization_id,
+                dict((payload.get("args") or {}).get("arguments") or {}),
+            )
         return payload
 
     if verb == "undo":
@@ -921,6 +930,13 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
         if result.get("status") != "success":
             raise ActionError(str(result.get("error") or "It did not go through."))
         payload.setdefault("result", {})["data"] = result.get("data")
+        # Outcome recorded (OP-4): the prospect the mail went to is stamped
+        # with when and what, so the next run reads it before it writes.
+        from api.services.workflow import send_approval
+
+        await send_approval.note_sent(
+            organization_id, dict(args.get("arguments") or {})
+        )
         return f"Done: {args.get('tool_name', 'the tool')}."
     raise ActionError("That is not something that can be done.")
 

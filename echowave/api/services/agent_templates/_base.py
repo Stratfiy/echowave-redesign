@@ -243,6 +243,13 @@ class AgentTemplate(BaseModel):
     #: as `{{name}}`, so an unfilled one is visible rather than silently spoken.
     template_variables: dict[str, str] = Field(default_factory=dict)
     suggested_voices: list[SuggestedVoice] = Field(default_factory=list)
+    #: What the hired agent is given beyond its prompts (OP-4). ``needs_web``
+    #: puts the workspace's web tool on its nodes; ``apps`` names connected
+    #: apps whose tools it gets, by toolkit slug, the way a brief names them;
+    #: ``approve_sends`` makes every send a card a person confirms.
+    needs_web: bool = False
+    apps: list[str] = Field(default_factory=list)
+    approve_sends: bool = False
 
     model_config = ConfigDict(extra="forbid")
 

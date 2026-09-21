@@ -52,6 +52,7 @@ from api.services.workflow import (
     draft_requests,
     filing,
     office,
+    prospects,
     records,
     reply_draft,
     self_edit,
@@ -125,6 +126,10 @@ SYSTEM = (
     "costs a tool call plus the search; a page read costs a tool call. Use "
     "them for what is outside the workspace and say where a fact came "
     "from. The social networks are never read, by rule; do not offer to.\n"
+    "- save_prospects: save people or businesses found on the web into the "
+    "Prospects list, with the page each came from. Runs now; organising is "
+    "not a send. Read the list with search_records first so nobody already "
+    "written to or declined is saved as new.\n"
     "- search_records: the workspace's own contacts, documents, calls and "
     "outcomes, on demand and free. Use it for a list, a count or a date "
     "range the context does not already carry; the context's rows are "
@@ -1227,6 +1232,7 @@ def office_tools() -> list[dict[str, Any]]:
             (
                 web_tools.search_tool_schema(),
                 web_tools.fetch_tool_schema(),
+                prospects.tool_schema(),
                 records.tool_schema(),
                 skill_imports.tool_schema(),
             )
@@ -1283,6 +1289,7 @@ def _was_a_read(call: Any, result: Any) -> bool:
                 connected_tools.LOAD_TOOL_NAME,
                 web_tools.SEARCH_TOOL_NAME,
                 web_tools.FETCH_TOOL_NAME,
+                prospects.TOOL_NAME,
                 records.TOOL_NAME,
                 "run_script",
             )
@@ -1448,6 +1455,8 @@ async def _tool(
             ref_id=f"decibyl:{organization_id}:{call.id or call.name}",
             run_key=f"thread:{organization_id}:{thread_id or author_id or 'main'}",
         )
+    if call.name == prospects.TOOL_NAME and web_tools.enabled():
+        return await prospects.save(organization_id, arguments)
     if call.name == records.TOOL_NAME and web_tools.enabled():
         return await records.for_thread(organization_id, arguments)
     if call.name == skill_imports.TOOL_NAME and web_tools.enabled():

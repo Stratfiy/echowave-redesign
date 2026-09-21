@@ -78,11 +78,13 @@ class TestTheToolsAnAgentIsOffered:
         assert [s.name for s in schemas] == [
             web_tools.SEARCH_TOOL_NAME,
             web_tools.FETCH_TOOL_NAME,
+            "save_prospects",
         ]
         await manager.register_handlers(["web-1"])
         assert set(registered) == {
             web_tools.SEARCH_TOOL_NAME,
             web_tools.FETCH_TOOL_NAME,
+            "save_prospects",
         }
 
     @pytest.mark.asyncio
@@ -116,6 +118,7 @@ class TestTheToolsAnAgentIsOffered:
             "safe_calculator",
             web_tools.SEARCH_TOOL_NAME,
             web_tools.FETCH_TOOL_NAME,
+            "save_prospects",
         ]
 
 
