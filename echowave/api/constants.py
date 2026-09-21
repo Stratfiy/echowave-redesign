@@ -524,6 +524,17 @@ WHATSAPP_MESSAGE_COST_PAISE = int(os.getenv("WHATSAPP_MESSAGE_COST_PAISE", "12")
 # what existing accounts pay, so they are a commercial decision that should be
 # taken deliberately rather than inherited by upgrading.
 ADDON_BILLING_ENABLED = os.getenv("ADDON_BILLING_ENABLED", "false").lower() == "true"
+
+# The 21 September 2026 ladder — Free, Go, Personal, Business, Pro, Scale —
+# behind a flag, because it changes what an account is offered and what a
+# welcome grant is worth. Off, and the 14 September ladder is exactly what it
+# was; on, and the new rungs land beside the old rows (never over them), the
+# old rungs are withdrawn from sale the way Starter was, the welcome grant is
+# 100 credits that expire in thirty days, and the builder-message fee is gone.
+# Read at call time, never at import, so a test can turn it either way.
+PLAN_LADDER_2026_09_ENABLED = (
+    os.getenv("PLAN_LADDER_2026_09_ENABLED", "false").lower() == "true"
+)
 BYOK_TIERED_FEE_ENABLED = (
     os.getenv("BYOK_TIERED_FEE_ENABLED", "false").lower() == "true"
 )
