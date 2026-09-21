@@ -1819,6 +1819,7 @@ class PipecatEngine:
             workflow_id=getattr(self.workflow, "id", None),
             workflow_run_id=self._workflow_run_id,
             ref_id=f"{self._workflow_run_id or 'run'}:script:{call_id or 'x'}",
+            run_key=f"run:{self._workflow_run_id or 'none'}",
         )
         await function_call_params.result_callback(result)
 

@@ -11243,6 +11243,18 @@ export type SpeechmaticsSttConfiguration = {
 };
 
 /**
+ * SpendCapRequest
+ */
+export type SpendCapRequest = {
+    /**
+     * Credits Per Month
+     *
+     * The agent's monthly cap in credits, hard stop; null removes it.
+     */
+    credits_per_month?: number | null;
+};
+
+/**
  * StartCampaignRequest
  */
 export type StartCampaignRequest = {
@@ -28804,6 +28816,109 @@ export type AgentReadinessApiV1WorkflowWorkflowIdReadinessGetResponses = {
 };
 
 export type AgentReadinessApiV1WorkflowWorkflowIdReadinessGetResponse = AgentReadinessApiV1WorkflowWorkflowIdReadinessGetResponses[keyof AgentReadinessApiV1WorkflowWorkflowIdReadinessGetResponses];
+
+export type WorkflowSpendApiV1WorkflowWorkflowIdSpendGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: {
+        /**
+         * Items Per Run
+         *
+         * How many items one run handles, for the estimate.
+         */
+        items_per_run?: number;
+    };
+    url: '/api/v1/workflow/{workflow_id}/spend';
+};
+
+export type WorkflowSpendApiV1WorkflowWorkflowIdSpendGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type WorkflowSpendApiV1WorkflowWorkflowIdSpendGetError = WorkflowSpendApiV1WorkflowWorkflowIdSpendGetErrors[keyof WorkflowSpendApiV1WorkflowWorkflowIdSpendGetErrors];
+
+export type WorkflowSpendApiV1WorkflowWorkflowIdSpendGetResponses = {
+    /**
+     * Response Workflow Spend Api V1 Workflow  Workflow Id  Spend Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type WorkflowSpendApiV1WorkflowWorkflowIdSpendGetResponse = WorkflowSpendApiV1WorkflowWorkflowIdSpendGetResponses[keyof WorkflowSpendApiV1WorkflowWorkflowIdSpendGetResponses];
+
+export type SetWorkflowSpendCapApiV1WorkflowWorkflowIdSpendCapPutData = {
+    body: SpendCapRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/spend/cap';
+};
+
+export type SetWorkflowSpendCapApiV1WorkflowWorkflowIdSpendCapPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetWorkflowSpendCapApiV1WorkflowWorkflowIdSpendCapPutError = SetWorkflowSpendCapApiV1WorkflowWorkflowIdSpendCapPutErrors[keyof SetWorkflowSpendCapApiV1WorkflowWorkflowIdSpendCapPutErrors];
+
+export type SetWorkflowSpendCapApiV1WorkflowWorkflowIdSpendCapPutResponses = {
+    /**
+     * Response Set Workflow Spend Cap Api V1 Workflow  Workflow Id  Spend Cap Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetWorkflowSpendCapApiV1WorkflowWorkflowIdSpendCapPutResponse = SetWorkflowSpendCapApiV1WorkflowWorkflowIdSpendCapPutResponses[keyof SetWorkflowSpendCapApiV1WorkflowWorkflowIdSpendCapPutResponses];
 
 export type TimelineApiV1TimelineGetData = {
     body?: never;

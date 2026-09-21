@@ -75,6 +75,7 @@ from api.routes.webrtc_signaling import router as webrtc_signaling_router
 from api.routes.workflow import router as workflow_router
 from api.routes.workflow_embed import router as workflow_embed_router
 from api.routes.workflow_outcomes import router as workflow_outcomes_router
+from api.routes.workflow_spend import router as workflow_spend_router
 from api.routes.workflow_recording import router as workflow_recording_router
 from api.routes.workflow_text_chat import router as workflow_text_chat_router
 from api.services.integrations import all_routers
@@ -132,6 +133,7 @@ router.include_router(organisation_memory_router)
 router.include_router(packs_router)
 router.include_router(team_router)
 router.include_router(workflow_outcomes_router)
+router.include_router(workflow_spend_router)
 router.include_router(agent_timeline_router)
 router.include_router(translate_router)
 router.include_router(tool_router)

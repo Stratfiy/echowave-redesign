@@ -22,6 +22,7 @@ import { MemoryList } from '@/components/memory/MemoryList';
 import { useAuth } from '@/lib/auth';
 
 import { AgentStanding } from './AgentStanding';
+import { SpendCard } from './SpendCard';
 
 /** Every tool a step of this bot names, once each. */
 export function skillIdsOf(nodes: FlowNode[]): string[] {
@@ -230,6 +231,10 @@ export function AgentProfilePanel({
                 open on Instructions, so a bot whose Gmail had been failing all
                 morning looked exactly like one having a perfect day. */}
             <AgentStanding workflowId={workflowId} folderId={folderId} />
+
+            {/* What a run costs and what it may not exceed (OP-5): the cap is
+                the one thing here a person sets. */}
+            <SpendCard workflowId={workflowId} />
 
             {/* Two lists, the way the reference splits them: skills are what
                 the bot itself can do, integrations are the outside software it

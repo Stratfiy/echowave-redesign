@@ -602,6 +602,13 @@ WEB_FETCH_PER_DOMAIN_PER_MINUTE = int(
 # A run that reads its cap is told so and keeps answering with what it has.
 # An agent's web tool may set a lower figure of its own.
 WEB_FETCH_MAX_PAGES_PER_RUN = int(os.getenv("WEB_FETCH_MAX_PAGES_PER_RUN", "25"))
+# OP-5: what one script run may spend on the platform's metered tools (a
+# search on our key, a page read) from inside the box, in credits. The
+# script fee is the box; this is what the box may buy. A bot may set a
+# lower figure of its own on its configurations (script_spend_cap_credits).
+SCRIPT_EXTERNAL_SPEND_CAP_CREDITS = int(
+    os.getenv("SCRIPT_EXTERNAL_SPEND_CAP_CREDITS", "50")
+)
 
 
 # --- The in-product agent builder -------------------------------------------

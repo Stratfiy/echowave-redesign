@@ -238,14 +238,14 @@ async def search(
     from api.services.billing import data_costs
     from api.services.billing import events as billing_events
 
-    await billing_events.charge_in_own_session(
+    fee = await billing_events.charge_in_own_session(
         organization_id=organization_id,
         event=billing_events.TOOL_CALL,
         ref_id=ref_id,
         note=f"web search: {query[:60]}",
         workflow_id=workflow_id,
     )
-    await data_costs.debit_lookup_in_own_session(
+    passed_through = await data_costs.debit_lookup_in_own_session(
         organization_id=organization_id,
         provider=SEARCH_PROVIDER,
         kind=SEARCH_KIND,
@@ -253,7 +253,14 @@ async def search(
         ref_id=ref_id,
         workflow_id=workflow_id,
     )
-    out: dict[str, Any] = {"status": "success", "query": query, "results": results}
+    out: dict[str, Any] = {
+        "status": "success",
+        "query": query,
+        "results": results,
+        # What this call cost, in paise, so a caller keeping a run within a
+        # cap (a script, OP-5) can count it without a second lookup.
+        "charged_paise": int(fee or 0) + int(passed_through or 0),
+    }
     if answer:
         out["answer"] = {
             k: str(answer.get(k) or "")[:500]
@@ -710,7 +717,7 @@ async def fetch(
 
     from api.services.billing import events as billing_events
 
-    await billing_events.charge_in_own_session(
+    fee = await billing_events.charge_in_own_session(
         organization_id=organization_id,
         event=billing_events.TOOL_CALL,
         ref_id=ref_id,
@@ -722,6 +729,7 @@ async def fetch(
         "url": url,
         "title": title,
         "text": text,
+        "charged_paise": int(fee or 0),
     }
     if found:
         out["found"] = found
