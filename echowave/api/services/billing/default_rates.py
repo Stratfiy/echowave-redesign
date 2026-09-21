@@ -1084,6 +1084,15 @@ CACHED_INPUT_SHARE_BY_MODEL: dict[tuple[str, str], float] = {
     ("openai", "gpt-5"): 0.1,
 }
 
+#: What a vendor charges to write a token into its cache, as a multiple of
+#: the input price, for the vendors that charge one at all. Anthropic bills a
+#: five-minute cache write at 1.25x input (an hour's at 2x; the pipeline uses
+#: the default). OpenAI and Google charge nothing extra for the write, and
+#: report it inside the prompt count, so they have no row and no line.
+CACHE_WRITE_SHARE: dict[str, float] = {
+    "anthropic": 1.25,
+}
+
 
 @dataclass(frozen=True)
 class ModelPrice:
@@ -1192,9 +1201,17 @@ def cached_input_share(provider: str, model: str = "") -> float:
     )
 
 
-def split_rates_for(price: ModelPrice) -> tuple[DefaultRate, DefaultRate, DefaultRate]:
-    """One model's three rows: input, cached input, output, USD per 1k tokens."""
+def cache_write_share(provider: str) -> float | None:
+    """The cache-write price as a multiple of input, or None where the vendor
+    charges nothing extra for the write."""
+    return CACHE_WRITE_SHARE.get(provider)
+
+
+def split_rates_for(price: ModelPrice) -> tuple[DefaultRate, ...]:
+    """One model's rows: input, cached input, output, and the cache write on
+    a vendor that charges one -- USD per 1k tokens."""
     share = cached_input_share(price.provider, price.model)
+    write = cache_write_share(price.provider)
     common = {
         "provider": price.provider,
         "model": price.model,
@@ -1224,6 +1241,22 @@ def split_rates_for(price: ModelPrice) -> tuple[DefaultRate, DefaultRate, Defaul
             usd_per_unit=price.output_per_million / 1000,
             basis=f"${price.output_per_million}/1M output — {price.basis}",
             **common,
+        ),
+        *(
+            (
+                DefaultRate(
+                    component=CostComponent.LLM_CACHE_WRITE,
+                    usd_per_unit=price.input_per_million * write / 1000,
+                    basis=(
+                        f"${price.input_per_million * write:g}/1M cache write "
+                        f"({write:g}x input, the vendor's published write "
+                        f"premium) — {price.basis}"
+                    ),
+                    **common,
+                ),
+            )
+            if write is not None
+            else ()
         ),
     )
 

@@ -256,6 +256,13 @@ async def execute_pending_text_chat_turn(
         is_completed=execution.is_completed,
     )
 
+    # The turn's tokens are on the run now; write them up as vendor cost so
+    # a text session has a receipt like a call does (charged nothing here --
+    # the event fee is the charge). See billing/tasks.record_text_run_cost.
+    from api.services.billing.tasks import record_text_run_cost
+
+    await record_text_run_cost(run_id)
+
     return await _reload_text_chat_session(run_id)
 
 

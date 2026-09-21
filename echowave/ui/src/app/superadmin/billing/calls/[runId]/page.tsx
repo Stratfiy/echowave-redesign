@@ -88,6 +88,7 @@ const UNIT_LABEL: Record<string, string> = {
     llm_input: "tokens",
     llm_cached: "tokens",
     llm_output: "tokens",
+    llm_cache_write: "tokens",
     data: "requests",
     tts: "characters",
     platform: "seconds",

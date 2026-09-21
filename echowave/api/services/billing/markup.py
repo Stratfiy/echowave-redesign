@@ -576,6 +576,7 @@ COMPONENT_MARKUP_BPS: dict[str, int] = {
     CostComponent.LLM_INPUT.value: 20_000,
     CostComponent.LLM_CACHED.value: 20_000,
     CostComponent.LLM_OUTPUT.value: 20_000,
+    CostComponent.LLM_CACHE_WRITE.value: 20_000,
     # Bought data is passed through at cost; the revenue on a lookup is the
     # tool-call event it rides on (decided 21 Sept 2026, Prospecting Tooling).
     CostComponent.DATA.value: 10_000,

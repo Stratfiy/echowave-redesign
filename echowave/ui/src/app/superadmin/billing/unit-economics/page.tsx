@@ -138,6 +138,7 @@ const COMPONENT_LABELS: Record<string, string> = {
     llm_input: "Language model · input",
     llm_cached: "Language model · cached input",
     llm_output: "Language model · output",
+    llm_cache_write: "Language model · cache write",
     data: "Bought data",
     tts: "Text to speech",
     telephony: "Telephony",

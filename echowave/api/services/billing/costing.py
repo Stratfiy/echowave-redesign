@@ -23,7 +23,7 @@ from api.db.models import (
     WorkflowModel,
     WorkflowRunModel,
 )
-from api.enums import CreditLedgerKind, PostHogEvent
+from api.enums import NON_VOICE_RUN_MODES, CreditLedgerKind, PostHogEvent
 from api.services.billing.addons import addon_keys_from_usage_info
 from api.services.billing.cost_engine import CallCost, RateSpec, compute_call_cost
 from api.services.billing.delivery import platform_fee_is_waived
@@ -217,6 +217,16 @@ async def cost_workflow_run(
     # does not rewrite this receipt.
     at = run.ended_at or run.created_at or datetime.now(UTC)
 
+    # A text run -- a chat, a routine, a trigger, a channel reply, a task --
+    # is charged per event (billing/events.py), never per token. Its receipt
+    # here is the *vendor* side only: every model line at what it cost us and
+    # nothing charged, so margin on non-voice work is measured instead of
+    # read as 100%. Exactly the flat-price shape with a price of nought, which
+    # is why it needs no second engine. The session is re-costed after every
+    # turn (see billing/tasks.record_text_run_cost), so ``recost`` is the
+    # normal case for it, not the exception.
+    text_run = str(getattr(run, "mode", "") or "") in NON_VOICE_RUN_MODES
+
     # One of ours: provider cost, no markup and no per-model override, because
     # any of those would put margin on a call the company made to itself and
     # count it as revenue. See services/billing/internal_accounts.py.
@@ -321,17 +331,21 @@ async def cost_workflow_run(
 
     # One price a minute, when the bundle the agent runs on has one. The
     # itemised rates above are still resolved so vendor cost is measured.
-    flat_rate_mpaise = await _bundle_flat_rate_mpaise(
-        session,
-        run=run,
-        organization_id=organization_id,
-        period_minutes=await _period_minutes(
-            session, organization_id=organization_id, at=at
-        ),
+    flat_rate_mpaise = (
+        0
+        if text_run
+        else await _bundle_flat_rate_mpaise(
+            session,
+            run=run,
+            organization_id=organization_id,
+            period_minutes=await _period_minutes(
+                session, organization_id=organization_id, at=at
+            ),
+        )
     )
     cost = compute_call_cost(
-        billable_seconds=billable_seconds,
-        platform_fee_waived=fee_waived,
+        billable_seconds=0 if text_run else billable_seconds,
+        platform_fee_waived=fee_waived or text_run,
         flat_rate_mpaise=flat_rate_mpaise,
         platform_rate_mpaise=platform_rate_mpaise,
         pulse_seconds=platform.pulse_seconds,

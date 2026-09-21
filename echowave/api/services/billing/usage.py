@@ -401,10 +401,11 @@ def llm_split_items(
     * **input** is the rest of the prompt. Whether ``prompt_tokens`` already
       contains the cached part depends on the vendor (see
       ``_CACHE_OUTSIDE_PROMPT_PROVIDERS``); the arithmetic follows the vendor
-      so the same tokens are never priced twice or given away. Tokens written
-      *into* the cache are input at the input rate -- Anthropic bills them at
-      1.25x input, and the quarter is small enough to absorb rather than
-      carry a fourth line for; a receipt should say so if that changes.
+      so the same tokens are never priced twice or given away.
+    * **cache write** is what was written into the cache, on the vendors that
+      report it outside the prompt and charge a premium for it (Anthropic,
+      1.25x input). On the others a write is not reported separately and is
+      already inside the prompt count, so no line is made from it.
     * **output** is the completion.
 
     Zero lines are dropped, so a vendor that reports no cache produces two
@@ -415,12 +416,15 @@ def llm_split_items(
     cached = _as_int(value.get("cache_read_input_tokens"))
     created = _as_int(value.get("cache_creation_input_tokens"))
     if provider in _CACHE_OUTSIDE_PROMPT_PROVIDERS:
-        uncached = prompt + created
+        uncached = prompt
+        written = created
     else:
         uncached = max(prompt - cached, 0)
+        written = 0
     lines = (
         (CostComponent.LLM_INPUT, uncached),
         (CostComponent.LLM_CACHED, cached),
+        (CostComponent.LLM_CACHE_WRITE, written),
         (CostComponent.LLM_OUTPUT, completion),
     )
     return tuple(

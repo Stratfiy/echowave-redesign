@@ -380,6 +380,12 @@ class CostComponent(str, Enum):
     LLM_INPUT = "llm_input"
     LLM_CACHED = "llm_cached"
     LLM_OUTPUT = "llm_output"
+    #: Input tokens written *into* the vendor's prompt cache, where the vendor
+    #: charges a premium for the write (Anthropic: 1.25x input). Its own line
+    #: rather than folded into input, so the premium is recovered and the
+    #: receipt says what was paid for. Vendors with no write premium never
+    #: produce it.
+    LLM_CACHE_WRITE = "llm_cache_write"
     #: Data bought on a platform key and passed through at cost: a contact
     #: lookup, a web search, a page fetch. Which product is carried in
     #: ``provider`` and which kind of request in ``model``, the way an add-on
@@ -396,6 +402,7 @@ class CostComponent(str, Enum):
             cls.LLM_INPUT,
             cls.LLM_CACHED,
             cls.LLM_OUTPUT,
+            cls.LLM_CACHE_WRITE,
             cls.TTS,
             cls.TELEPHONY,
             cls.EMBEDDING,
@@ -404,8 +411,9 @@ class CostComponent(str, Enum):
 
     @classmethod
     def llm_split_components(cls) -> tuple["CostComponent", ...]:
-        """The three lines the blended ``LLM`` line splits into."""
-        return (cls.LLM_INPUT, cls.LLM_CACHED, cls.LLM_OUTPUT)
+        """The lines the blended ``LLM`` line splits into: three for every
+        vendor, and the cache write for the vendors that charge one."""
+        return (cls.LLM_INPUT, cls.LLM_CACHED, cls.LLM_OUTPUT, cls.LLM_CACHE_WRITE)
 
     @classmethod
     def revenue_components(cls) -> tuple["CostComponent", ...]:

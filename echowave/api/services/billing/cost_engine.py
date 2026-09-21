@@ -59,6 +59,7 @@ MARKED_UP_COMPONENTS = frozenset(
         CostComponent.LLM_INPUT.value,
         CostComponent.LLM_CACHED.value,
         CostComponent.LLM_OUTPUT.value,
+        CostComponent.LLM_CACHE_WRITE.value,
         # Data rides here so that a per-line override *can* be set on it; its
         # default multiple is 1.0 (see markup.COMPONENT_MARKUP_BPS), because
         # the decision on it is pass-through at cost plus the tool-call fee.

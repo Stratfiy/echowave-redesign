@@ -90,13 +90,27 @@ class TestTheSplit:
         assert got[CostComponent.LLM_OUTPUT].quantity == 900
         assert CostComponent.LLM not in got
 
-    def test_anthropic_prompt_excludes_the_cache_and_writes_count_as_input(
+    def test_anthropic_prompt_excludes_the_cache_and_writes_are_their_own_line(
         self, split_on
     ):
         got = _by_component(usage.usage_items_from_usage_info(ANTHROPIC_TURNS))
-        assert got[CostComponent.LLM_INPUT].quantity == 5_000
+        assert got[CostComponent.LLM_INPUT].quantity == 4_000
         assert got[CostComponent.LLM_CACHED].quantity == 6_000
+        assert got[CostComponent.LLM_CACHE_WRITE].quantity == 1_000
         assert got[CostComponent.LLM_OUTPUT].quantity == 900
+
+    def test_a_vendor_with_no_write_premium_never_makes_a_write_line(self, split_on):
+        info = {
+            "llm": {
+                "OpenAILLMService#0|||gpt-4o-mini": {
+                    **OPENAI_TURNS["llm"]["OpenAILLMService#0|||gpt-4o-mini"],
+                    "cache_creation_input_tokens": 2_000,
+                }
+            }
+        }
+        got = _by_component(usage.usage_items_from_usage_info(info))
+        assert CostComponent.LLM_CACHE_WRITE not in got
+        assert sum(i.quantity for i in got.values()) == 10_900
 
     def test_every_line_names_the_model_and_vendor(self, split_on):
         for item in usage.usage_items_from_usage_info(OPENAI_TURNS):
@@ -200,17 +214,38 @@ class TestTheReceipt:
 
 
 class TestTheSplitPriceBook:
-    def test_every_blended_model_has_its_three_rows(self):
+    def test_every_blended_model_has_its_split_rows(self):
         blended = {(r.provider, r.model) for r in default_rates.LLM_RATES}
         split = {(r.provider, r.model) for r in default_rates.LLM_SPLIT_RATES}
         assert blended == split
-        for key in blended:
+        for provider, model in blended:
             rows = [
-                r for r in default_rates.LLM_SPLIT_RATES if (r.provider, r.model) == key
+                r
+                for r in default_rates.LLM_SPLIT_RATES
+                if (r.provider, r.model) == (provider, model)
             ]
-            assert {r.component for r in rows} == set(
-                CostComponent.llm_split_components()
+            expected = {
+                CostComponent.LLM_INPUT,
+                CostComponent.LLM_CACHED,
+                CostComponent.LLM_OUTPUT,
+            }
+            if default_rates.cache_write_share(provider) is not None:
+                expected.add(CostComponent.LLM_CACHE_WRITE)
+            assert {r.component for r in rows} == expected, (provider, model)
+
+    def test_the_cache_write_premium_is_anthropics_published_quarter(self):
+        split = {
+            (r.provider, r.model, r.component): r.usd_per_unit
+            for r in default_rates.LLM_SPLIT_RATES
+        }
+        assert split[
+            ("anthropic", "claude-sonnet-5", CostComponent.LLM_CACHE_WRITE)
+        ] == (
+            pytest.approx(
+                split[("anthropic", "claude-sonnet-5", CostComponent.LLM_INPUT)] * 1.25
             )
+        )
+        assert ("openai", "gpt-4o-mini", CostComponent.LLM_CACHE_WRITE) not in split
 
     def test_the_blend_is_the_split_at_the_documented_share(self):
         """Edit a price on one side and forget the other, and this fails."""

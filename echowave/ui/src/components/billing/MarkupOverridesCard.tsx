@@ -49,6 +49,7 @@ const COMPONENTS = [
     "llm_input",
     "llm_cached",
     "llm_output",
+    "llm_cache_write",
     "tts",
     "telephony",
     "embedding",
