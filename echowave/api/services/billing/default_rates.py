@@ -92,6 +92,10 @@ PROVIDER_SOURCES: dict[str, str] = {
     "vobiz": "https://vobiz.ai/pricing",
     "telnyx": "https://telnyx.com/pricing/call-control",
     "vonage": "https://www.vonage.com/communications-apis/voice/pricing/",
+    # The search vendor behind the ``data`` component (S-1, OP-1). Its own
+    # pricing page returns 404; the packs are read off the signup and
+    # dashboard, which is why every serper row is provisional.
+    "serper": "https://serper.dev/",
     "decibyl": "https://developers.openai.com/api/docs/pricing",
     "decibylgeminilive": "https://ai.google.dev/gemini-api/docs/pricing",
     "decibylgeminilivevertex": "https://cloud.google.com/vertex-ai/generative-ai/pricing",
