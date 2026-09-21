@@ -6,20 +6,20 @@ import {
     Panel,
     ReactFlow,
 } from "@xyflow/react";
-import { BrushCleaning, ClipboardList, Maximize2, Minus, PanelsTopLeft, Plus, Settings } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { BrushCleaning, ClipboardList, Maximize2, Minus, Plus, Settings } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { createWorkflowDraftApiV1WorkflowWorkflowIdCreateDraftPost, getWorkflowVersionsApiV1WorkflowWorkflowIdVersionsGet, listDocumentsApiV1KnowledgeBaseDocumentsGet, listRecordingsApiV1WorkflowRecordingsGet, listToolsApiV1ToolsGet, restoreWorkflowVersionApiV1WorkflowWorkflowIdVersionsVersionIdRestorePost } from '@/client';
 import type { DocumentResponseSchema, RecordingResponseSchema, ToolResponse } from '@/client/types.gen';
 import { useNodeSpecs } from "@/components/flow/renderer";
-import { isSimpleAgent } from "@/components/flow/simpleAgent";
 import { FlowEdge, FlowNode, NodeType } from "@/components/flow/types";
 import { AuxiliaryPanel } from '@/components/layout/AuxiliaryPanel';
 import { HireExpertNudge } from "@/components/lead-forms/HireExpertNudge";
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { GraphEditChat } from "@/components/workflow/GraphEditChat";
 import { useOnboarding } from '@/context/OnboardingContext';
 import { WorkflowConfigurations } from '@/types/workflow-configurations';
 
@@ -33,9 +33,8 @@ import type { WorkflowRuntimeNodeTransition } from './components/workflow-tester
 import { WorkflowEditorHeader } from "./components/WorkflowEditorHeader";
 import { WorkflowTesterPanel } from './components/WorkflowTesterPanel';
 import { WorkflowProvider } from "./contexts/WorkflowContext";
-import { FlowAgentEditor } from './FlowAgentEditor';
 import { useWorkflowState } from "./hooks/useWorkflowState";
-import { SimpleAgentEditor } from './SimpleAgentEditor';
+import { useWorkflowStore } from './stores/workflowStore';
 import { layoutNodes } from './utils/layoutNodes';
 
 const edgeTypes = {
@@ -86,7 +85,10 @@ function RenderWorkflow({
     user,
 }: RenderWorkflowProps) {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { specs } = useNodeSpecs();
+    const loadVersionGraph = useWorkflowStore((state) => state.loadVersionGraph);
+    const editorSession = useWorkflowStore((state) => state.editorSession);
     const { hasCompletedAction } = useOnboarding();
     const [isPhoneCallDialogOpen, setIsPhoneCallDialogOpen] = useState(false);
     const [isVersionPanelOpen, setIsVersionPanelOpen] = useState(false);
@@ -121,7 +123,6 @@ function RenderWorkflow({
         workflowValidationErrors,
         templateContextVariables,
         setNodes,
-        setEdges,
         setIsDirty,
         setIsAddNodePanelOpen,
         handleNodeSelect,
@@ -140,48 +141,19 @@ function RenderWorkflow({
         user,
     });
 
-    /* One prompt or a flow.
-     *
-     * Derived from the graph rather than stored beside it: a stored flag can
-     * disagree with the thing it describes, and an agent marked simple that has
-     * grown a branch would be a screen unable to show what the agent does.
-     * `showCanvas` is the author's override for this session only — the moment
-     * the graph stops being simple the form is not offered at all. */
-    const graphIsSimple = useMemo(
-        () => isSimpleAgent(nodes as FlowNode[], edges as FlowEdge[]),
-        [nodes, edges],
-    );
     const [showCanvas, setShowCanvasState] = useState(initialView === "graph");
-    // The Graph tab is a link, so a click on it changes the URL and the page
-    // hands the new view down; this keeps the state in step with that.
     useEffect(() => {
         setShowCanvasState(initialView === "graph");
     }, [initialView]);
-    // And the buttons inside the views go the other way: they change the
-    // state and keep the URL honest, so a reload or a shared link lands on
-    // the view that was showing.
-    const setShowCanvas = useCallback(
-        (on: boolean) => {
-            setShowCanvasState(on);
-            router.replace(`/workflow/${workflowId}${on ? "?view=graph" : ""}`, { scroll: false });
-        },
-        [router, workflowId],
-    );
-    const useSimpleView = graphIsSimple && !showCanvas;
-    /* Everything else opens on its prompts too. A template makes a four-step
-     * agent, and until now every one of them opened on the canvas — the one
-     * screen a first-time author cannot read. Vapi and Bolna open on the
-     * prompts and keep the graph a click away; so does this. */
-    const useFormView = !showCanvas;
-
-    const handleSimpleNodesChange = useCallback(
-        (next: FlowNode[]) => {
-            setNodes(next as typeof nodes);
-            setIsDirty(true);
-        },
-        [setNodes, setIsDirty],
-    );
-
+    const setShowCanvas = useCallback((on: boolean) => {
+        setShowCanvasState(on);
+        setIsAddNodePanelOpen(false);
+        const params = new URLSearchParams(searchParams.toString());
+        if (on) params.set("view", "graph");
+        else params.delete("view");
+        const query = params.toString();
+        router.replace(`/workflow/${workflowId}${query ? `?${query}` : ""}`, { scroll: false });
+    }, [router, workflowId, searchParams, setIsAddNodePanelOpen]);
 
     // Single generic component for every node type. Seed with core node types
     // so the initial render is stable before specs load, then merge in any
@@ -266,13 +238,12 @@ function RenderWorkflow({
         // This keeps data flow unidirectional (store → props → ReactFlow) and avoids
         // xyflow's d3 event handlers interfering with React's event delegation.
         // The key={activeVersionId} on <ReactFlow> forces a clean remount.
-        setNodes(flowNodes);
-        setEdges(flowEdges);
+        loadVersionGraph(flowNodes, flowEdges);
         // Never mark dirty when switching versions — historical versions are
         // read-only, and loading the draft is restoring the saved state.
         setIsDirty(false);
         setIsVersionPanelOpen(false);
-    }, [setNodes, setEdges, setIsDirty]);
+    }, [loadVersionGraph, setIsDirty]);
 
     // Determine if we are viewing a historical (non-current) version.
     // The "current" version is the draft if one exists, otherwise the published version.
@@ -312,14 +283,13 @@ function RenderWorkflow({
             // Load draft nodes/edges via the Zustand store (same approach as handleSelectVersion)
             const flowNodes = (draft.workflow_json?.nodes ?? []) as FlowNode[];
             const flowEdges = (draft.workflow_json?.edges ?? []) as FlowEdge[];
-            setNodes(flowNodes);
-            setEdges(flowEdges);
+            loadVersionGraph(flowNodes, flowEdges);
             setActiveVersionId(draft.id);
             setIsDirty(false);
             // Refresh the version list so the new draft appears
             fetchVersions(true);
         }
-    }, [versions, handleSelectVersion, workflowId, setNodes, setEdges, setIsDirty, fetchVersions]);
+    }, [versions, handleSelectVersion, workflowId, loadVersionGraph, setIsDirty, fetchVersions]);
 
     // Copy an older version into the draft and open it. The undo for a bad
     // publish: the draft it makes goes through the same Publish gate.
@@ -331,13 +301,12 @@ function RenderWorkflow({
         if (!draft) return;
         setCurrentVersionNumber(draft.version_number);
         setCurrentVersionStatus(draft.status);
-        setNodes((draft.workflow_json?.nodes ?? []) as FlowNode[]);
-        setEdges((draft.workflow_json?.edges ?? []) as FlowEdge[]);
+        loadVersionGraph((draft.workflow_json?.nodes ?? []) as FlowNode[], (draft.workflow_json?.edges ?? []) as FlowEdge[]);
         setActiveVersionId(draft.id);
         setIsDirty(false);
         setIsVersionPanelOpen(false);
         fetchVersions(true);
-    }, [workflowId, setNodes, setEdges, setIsDirty, fetchVersions]);
+    }, [workflowId, loadVersionGraph, setIsDirty, fetchVersions]);
 
     // After a successful publish, refresh the version list and update status
     const handlePublished = useCallback(() => {
@@ -585,31 +554,20 @@ function RenderWorkflow({
                     unrelated URLs reached from a back arrow and a menu, so an
                     agent was never one thing you were looking at. */}
                 <AgentTabs workflowId={workflowId} />
+                <div className="flex items-center gap-2 border-b px-6 py-3" role="group" aria-label="Editor view">
+                    <Button size="sm" variant={showCanvas ? "ghost" : "secondary"} aria-pressed={!showCanvas} onClick={() => setShowCanvas(false)}>Chat</Button>
+                    <Button size="sm" variant={showCanvas ? "secondary" : "ghost"} aria-pressed={showCanvas} onClick={() => setShowCanvas(true)}>Graph</Button>
+                    <span className="ml-2 text-xs text-muted-foreground">One shared draft</span>
+                </div>
 
                 {/* Workflow Canvas */}
                 <div className="flex-1 min-h-0">
                     <div className="flex h-full min-w-0">
                         <div className="relative min-w-0 flex-1 overflow-auto">
-                        {useFormView && !useSimpleView ? (
-                            <FlowAgentEditor
-                                workflowId={workflowId}
-                                name={workflowName}
-                                nodes={nodes as FlowNode[]}
-                                edges={edges as FlowEdge[]}
-                                onNodesChange={handleSimpleNodesChange}
-                                onOpenCanvas={() => setShowCanvas(true)}
-                                readOnly={isViewingHistoricalVersion}
-                            />
-                        ) : useSimpleView ? (
-                            <SimpleAgentEditor
-                                workflowId={workflowId}
-                                name={workflowName}
-                                nodes={nodes as FlowNode[]}
-                                onNodesChange={handleSimpleNodesChange}
-                                onOpenCanvas={() => setShowCanvas(true)}
-                                readOnly={isViewingHistoricalVersion}
-                            />
-                        ) : (
+                        <div hidden={showCanvas}>
+                            <GraphEditChat key={`${workflowId}-${activeVersionId ?? 'current'}-${editorSession}`} workflowId={workflowId} readOnly={isViewingHistoricalVersion} />
+                        </div>
+                        {showCanvas && (
                         <>
                             <ReactFlow
                                 key={activeVersionId ?? 'current'}
@@ -705,24 +663,6 @@ function RenderWorkflow({
                                     </Panel>
                                 )}
                             </ReactFlow>
-
-                            {/* Bottom-left controls - horizontal layout with custom buttons */}
-                            {/* Back to the form, offered only while the graph
-                                is still one agent doing one job. Add a branch
-                                or a second agent and this disappears, because
-                                there would be nothing honest for the form to
-                                show. */}
-                            <div className="absolute left-4 top-4 z-10">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setShowCanvas(false)}
-                                    className="bg-white shadow-sm hover:shadow-md"
-                                >
-                                    <PanelsTopLeft className="mr-2 h-4 w-4" />
-                                    {graphIsSimple ? "Simple view" : "Prompts view"}
-                                </Button>
-                            </div>
 
                             <div className="absolute bottom-12 left-8 z-10 flex gap-2">
                                 <TooltipProvider>
@@ -869,6 +809,7 @@ export default React.memo(RenderWorkflow, (prevProps, nextProps) => {
     return (
         prevProps.workflowId === nextProps.workflowId &&
         prevProps.initialWorkflowName === nextProps.initialWorkflowName &&
+        prevProps.initialView === nextProps.initialView &&
         prevProps.user.id === nextProps.user.id
         // Note: We intentionally don't compare initialFlow, initialTemplateContextVariables,
         // or initialWorkflowConfigurations because they're only used for initialization

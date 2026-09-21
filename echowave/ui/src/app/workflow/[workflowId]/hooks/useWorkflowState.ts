@@ -12,7 +12,7 @@ import posthog from "posthog-js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { useWorkflowStore } from "@/app/workflow/[workflowId]/stores/workflowStore";
+import { graphSnapshot, useWorkflowStore } from "@/app/workflow/[workflowId]/stores/workflowStore";
 import {
     createWorkflowRunApiV1WorkflowWorkflowIdRunsPost,
     getDefaultConfigurationsApiV1UserConfigurationsDefaultsGet,
@@ -23,6 +23,7 @@ import { NodeSpec, WorkflowError } from "@/client/types.gen";
 import { useNodeSpecs } from "@/components/flow/renderer";
 import { FlowEdge, FlowNode, FlowNodeData, NodeType } from "@/components/flow/types";
 import { PostHogEvent } from "@/constants/posthog-events";
+import { detailFromError } from '@/lib/apiError';
 import logger from '@/lib/logger';
 import { getNextNodeId, getRandomId } from "@/lib/utils";
 import {
@@ -119,6 +120,8 @@ export const useWorkflowState = ({
 }: UseWorkflowStateProps) => {
     const router = useRouter();
     const rfInstance = useRef<ReactFlowInstance<FlowNode, FlowEdge> | null>(null);
+    const saveInFlight = useRef(false);
+    const initializedWorkflowId = useRef<number | null>(null);
     const [workflowConfigurationDefaults, setWorkflowConfigurationDefaults] =
         useState<WorkflowConfigurationDefaults | null>(null);
     const [workflowConfigurationDefaultsLoaded, setWorkflowConfigurationDefaultsLoaded] =
@@ -198,7 +201,7 @@ export const useWorkflowState = ({
     // Initialize workflow on mount. Waits for the spec catalog so defaults
     // (allow_interrupt, prompt placeholders, etc.) come from one source.
     useEffect(() => {
-        if (specsLoading || !workflowConfigurationDefaultsLoaded) return;
+        if (specsLoading || !workflowConfigurationDefaultsLoaded || initializedWorkflowId.current === workflowId) return;
 
         const startSpec = bySpecName.get(NodeType.START_CALL);
         const fallbackStartNodes: FlowNode[] = startSpec
@@ -236,6 +239,7 @@ export const useWorkflowState = ({
             resolvedInitialWorkflowConfigurations,
             resolvedInitialWorkflowConfigurations.dictionary ?? ''
         );
+        initializedWorkflowId.current = workflowId;
     }, [workflowId, initialWorkflowName, initialFlow?.nodes, initialFlow?.edges, initialTemplateContextVariables, initialWorkflowConfigurations, initializeWorkflow, specsLoading, bySpecName, workflowConfigurationDefaultsLoaded, workflowConfigurationDefaults]);
 
     // Set up keyboard shortcuts for undo/redo
@@ -333,12 +337,14 @@ export const useWorkflowState = ({
     // Validate workflow function
     const validateWorkflow = useCallback(async () => {
         if (!user?.id) return;
+        const session = useWorkflowStore.getState().editorSession;
         try {
             const response = await validateWorkflowApiV1WorkflowWorkflowIdValidatePost({
                 path: {
                     workflow_id: workflowId,
                 },
             });
+            if (useWorkflowStore.getState().editorSession !== session) return;
             // 422 surfaces under response.error, 200 with is_valid=true under
             // response.data. extractWorkflowErrors normalises both — empty
             // list means "valid" and clears any stale highlights.
@@ -352,12 +358,14 @@ export const useWorkflowState = ({
 
     // Save workflow function. Returns version info from the API response.
     const saveWorkflow = useCallback(async (updateWorkflowDefinition: boolean = true): Promise<{ versionNumber?: number; versionStatus?: string } | undefined> => {
-        if (!user?.id || !rfInstance.current) return;
+        if (!user?.id || saveInFlight.current) return;
         // Read nodes/edges from the Zustand store (synchronously up-to-date)
         // and viewport from the ReactFlow instance to build the flow object.
         // This avoids a race condition where rfInstance.toObject() may return
         // stale node data if React hasn't re-rendered yet after a store update.
-        const { nodes: currentNodes, edges: currentEdges } = useWorkflowStore.getState();
+        const { nodes: currentNodes, edges: currentEdges, workflowId: currentId, workflowName: currentName, editorSession } = useWorkflowStore.getState();
+        if (currentId !== workflowId) return;
+        const base = graphSnapshot(currentNodes, currentEdges);
         const nodeTypeCounts = new Map<string, number>();
         currentNodes.forEach((node) => {
             nodeTypeCounts.set(node.type, (nodeTypeCounts.get(node.type) ?? 0) + 1);
@@ -376,20 +384,22 @@ export const useWorkflowState = ({
             );
             return;
         }
-        const viewport = rfInstance.current.getViewport();
+        const viewport = rfInstance.current?.getViewport() ?? initialFlow?.viewport ?? { x: 0, y: 0, zoom: 1 };
         const flow = { nodes: currentNodes, edges: currentEdges, viewport };
         let result: { versionNumber?: number; versionStatus?: string } | undefined;
         let saveSucceeded = false;
+        saveInFlight.current = true;
         try {
             const response = await updateWorkflowApiV1WorkflowWorkflowIdPut({
                 path: {
                     workflow_id: workflowId,
                 },
                 body: {
-                    name: workflowName,
+                    name: currentName,
                     workflow_definition: updateWorkflowDefinition ? flow : null,
                 },
             });
+            if (useWorkflowStore.getState().editorSession !== editorSession) return;
             if (response.error) {
                 // Backend rejected the save (e.g. 409 trigger-path conflict).
                 // When it carries structured WorkflowError items, reuse the
@@ -402,8 +412,8 @@ export const useWorkflowState = ({
                     applyWorkflowErrors(workflowErrors);
                 }
                 logger.error(`Error saving workflow: ${JSON.stringify(response.error)}`);
+                toast.error(detailFromError(response.error, "Could not save this draft. Your edits are still here."));
             } else {
-                setIsDirty(false);
                 if (response.data) {
                     // Reload server state into the canvas — the backend may
                     // have mutated the definition (e.g. minted a missing
@@ -412,17 +422,23 @@ export const useWorkflowState = ({
                     const wf = response.data.workflow_definition as
                         | { nodes?: FlowNode[]; edges?: FlowEdge[] }
                         | undefined;
-                    if (wf?.nodes) setNodes(wf.nodes);
-                    if (wf?.edges) setEdges(wf.edges);
+                    const accepted = useWorkflowStore.getState().acceptSavedGraph(workflowId, editorSession, base, currentName, wf?.nodes, wf?.edges);
+                    if (!accepted) toast.info("Saved the earlier draft. Your newer edits still need saving.");
                     result = {
                         versionNumber: response.data.version_number ?? undefined,
                         versionStatus: response.data.version_status ?? undefined,
                     };
-                    saveSucceeded = true;
+                    saveSucceeded = accepted;
+                } else {
+                    toast.error("The server did not confirm the save. Your edits are still here.");
                 }
             }
         } catch (error) {
+            if (useWorkflowStore.getState().editorSession !== editorSession) return;
             logger.error(`Error saving workflow: ${error}`);
+            toast.error("Could not save this draft. Your edits are still here.");
+        } finally {
+            saveInFlight.current = false;
         }
 
         // Only run validate after a successful save — when save failed we've
@@ -432,17 +448,14 @@ export const useWorkflowState = ({
         if (saveSucceeded) {
             await validateWorkflow();
         }
-        return result;
+        return useWorkflowStore.getState().editorSession === editorSession ? result : undefined;
     }, [
         workflowId,
-        workflowName,
-        setIsDirty,
-        setNodes,
-        setEdges,
         user,
         validateWorkflow,
         applyWorkflowErrors,
         specs,
+        initialFlow?.viewport,
     ]);
 
     // Set up keyboard shortcut for save (Cmd/Ctrl + S)

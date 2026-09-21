@@ -15,6 +15,7 @@ interface HistoryState {
 interface WorkflowState {
   // Workflow identification
   workflowId: number | null;
+  editorSession: number;
   workflowName: string;
 
   // Flow state
@@ -42,6 +43,9 @@ interface WorkflowState {
 }
 
 interface WorkflowActions {
+  applyGraphProposal: (workflowId: number, base: string, nodes: FlowNode[], edges: FlowEdge[]) => boolean;
+  acceptSavedGraph: (workflowId: number, editorSession: number, base: string, name: string, nodes?: FlowNode[], edges?: FlowEdge[]) => boolean;
+  loadVersionGraph: (nodes: FlowNode[], edges: FlowEdge[]) => void;
   // Initialization
   initializeWorkflow: (
     workflowId: number,
@@ -99,10 +103,27 @@ type WorkflowStore = WorkflowState & WorkflowActions;
 
 const MAX_HISTORY_SIZE = 50;
 
+// Selection, measurements and validation paint are not edits to an agent.
+export function graphSnapshot(nodes: FlowNode[], edges: FlowEdge[]): string {
+  const clean = (item: FlowNode | FlowEdge) => {
+    const copy = { ...item } as Record<string, unknown>;
+    for (const key of ['selected', 'dragging', 'measured', 'width', 'height', 'resizing']) delete copy[key];
+    if (item.data) {
+      const data = { ...item.data } as Record<string, unknown>;
+      delete data.invalid;
+      delete data.validationMessage;
+      copy.data = data;
+    }
+    return copy;
+  };
+  return JSON.stringify({ nodes: nodes.map(clean), edges: edges.map(clean) });
+}
+
 // Create the store
 export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
   // Initial state
   workflowId: null,
+  editorSession: 0,
   workflowName: '',
   nodes: [],
   edges: [],
@@ -117,10 +138,35 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
   rfInstance: null,
 
   // Actions
+  acceptSavedGraph: (workflowId, editorSession, base, name, nodes, edges) => {
+    const state = get();
+    if (state.editorSession !== editorSession || state.workflowId !== workflowId || state.workflowName !== name || graphSnapshot(state.nodes, state.edges) !== base) return false;
+    set({ nodes: nodes ?? state.nodes, edges: edges ?? state.edges, isDirty: false });
+    return true;
+  },
+  applyGraphProposal: (workflowId, base, nodes, edges) => {
+    const state = get();
+    if (state.workflowId !== workflowId || graphSnapshot(state.nodes, state.edges) !== base) return false;
+    // Include the exact pre-apply state even when the last canvas edit was
+    // not a history checkpoint. One undo restores all of it, one redo applies.
+    const history = state.history.slice(0, state.historyIndex + 1);
+    history.push({ nodes: state.nodes, edges: state.edges, workflowName: state.workflowName });
+    history.push({ nodes, edges, workflowName: state.workflowName });
+    const bounded = history.slice(-MAX_HISTORY_SIZE);
+    set({ nodes, edges, history: bounded, historyIndex: bounded.length - 1, isDirty: true, workflowValidationErrors: [] });
+    return true;
+  },
+  loadVersionGraph: (nodes, edges) => {
+    const state = get();
+    set({ nodes, edges, editorSession: state.editorSession + 1,
+      history: [{ nodes, edges, workflowName: state.workflowName }], historyIndex: 0,
+      isDirty: false, workflowValidationErrors: [], isAddNodePanelOpen: false });
+  },
   initializeWorkflow: (workflowId, workflowName, nodes, edges, templateContextVariables = {}, workflowConfigurations = null, dictionary = '') => {
     const initialHistory: HistoryState = { nodes, edges, workflowName };
     set({
       workflowId,
+      editorSession: get().editorSession + 1,
       workflowName,
       nodes,
       edges,
@@ -384,6 +430,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
   clearStore: () => {
     set({
       workflowId: null,
+      editorSession: get().editorSession + 1,
       workflowName: '',
       nodes: [],
       edges: [],
