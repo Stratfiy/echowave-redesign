@@ -47,7 +47,25 @@ DESCRIPTION = (
 )
 
 #: Plans that may run scripts. Free is not one of them.
-ALLOWED_PLANS = frozenset({"everyday", "business", "growth", "scale"})
+ALLOWED_PLANS = frozenset(
+    {
+        "everyday",
+        "business",
+        "growth",
+        "scale",
+        # The 21 September ladder (PLAN_LADDER_2026_09_ENABLED): Go is the
+        # Everyday rung's successor at the same price, so it keeps the tool.
+        "go",
+        "personal",
+        "business_v2",
+        "pro",
+        "scale_v2",
+        "personal_global",
+        "business_global",
+        "pro_global",
+        "scale_global",
+    }
+)
 
 
 def tool_properties() -> dict[str, Any]:

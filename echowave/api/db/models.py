@@ -3972,6 +3972,43 @@ class BudgetIncidentModel(Base):
     )
 
 
+class DataLookupCostModel(Base):
+    """One bought lookup's vendor cost beside what it was charged (D-1b).
+
+    ``call_cost_items`` pairs the two for a call; a web search Decibyl ran
+    from the thread has no run to hang a line on. Same reason
+    ``embedding_ingestion_costs`` exists, same shape: written in the same
+    transaction as the ledger debit, read by the unit-economics screen.
+    """
+
+    __tablename__ = "data_lookup_costs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="SET NULL"), nullable=True
+    )
+    provider = Column(String(64), nullable=False)
+    # What kind of request: search, fetch, enrich. Carried in ``model`` on
+    # the rate row, the way an add-on carries its catalogue key.
+    kind = Column(String(64), nullable=False, default="", server_default="")
+    requests = Column(Integer, nullable=False, default=1, server_default="1")
+    vendor_cost_paise = Column(
+        BigInteger, nullable=False, default=0, server_default="0"
+    )
+    charged_paise = Column(BigInteger, nullable=False, default=0, server_default="0")
+    # The tool call this lookup was part of, so a retried turn writes once.
+    ref_id = Column(String(64), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    __table_args__ = (
+        Index("ix_data_lookup_costs_org_created", "organization_id", "created_at"),
+        Index("uq_data_lookup_costs_org_ref", "organization_id", "ref_id", unique=True),
+    )
+
+
 class DailyOrganizationRollupModel(Base):
     """Pre-aggregated per-account, per-day figures backing the dashboard.
 

@@ -34,6 +34,7 @@ class TestTheUnitMatchesTheComponent:
         CostComponent.STT: RateUnit.MINUTE,
         CostComponent.TELEPHONY: RateUnit.MINUTE,
         CostComponent.EMBEDDING: RateUnit.THOUSAND_TOKENS,
+        CostComponent.DATA: RateUnit.EACH,
     }
 
     def test_every_rate_uses_its_components_unit(self):

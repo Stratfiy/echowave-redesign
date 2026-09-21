@@ -1044,6 +1044,34 @@ EMBEDDING_RATES = (
     ),
 )
 
+#: Bought data (D-1b): per request, passed through at cost. Serper's
+#: published tiers run from $1 to about $0.30 per thousand searches; the
+#: entry tier is the figure until an invoice says otherwise.
+DATA_RATES = (
+    DefaultRate(
+        "serper",
+        "",
+        CostComponent.DATA,
+        RateUnit.EACH,
+        0.001,
+        f"{PROVISIONAL_MARKER} — provider-wide, at the search price",
+        provisional=True,
+        source_url="https://serper.dev/",
+        checked_on="2026-09-21",
+    ),
+    DefaultRate(
+        "serper",
+        "search",
+        CostComponent.DATA,
+        RateUnit.EACH,
+        0.001,
+        f"{PROVISIONAL_MARKER} — $1.00 per 1,000 searches, entry tier; confirm on invoice",
+        provisional=True,
+        source_url="https://serper.dev/",
+        checked_on="2026-09-21",
+    ),
+)
+
 DEFAULT_RATES: tuple[DefaultRate, ...] = (
     *LLM_RATES,
     *REALTIME_RATES,
@@ -1051,6 +1079,7 @@ DEFAULT_RATES: tuple[DefaultRate, ...] = (
     *TTS_RATES,
     *TELEPHONY_RATES,
     *EMBEDDING_RATES,
+    *DATA_RATES,
 )
 
 

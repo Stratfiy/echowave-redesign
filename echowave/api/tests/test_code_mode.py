@@ -85,7 +85,7 @@ print(f"reminded {n}")
 """
         charges: list[str] = []
 
-        async def charge(*, organization_id, event, ref_id, note):
+        async def charge(*, organization_id, event, ref_id, note, workflow_id=None):
             charges.append(event)
 
         with (

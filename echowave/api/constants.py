@@ -571,6 +571,24 @@ DECIBYL_LONG_TASKS_ENABLED = (
 DECIBYL_TASK_MAX_ROUNDS = int(os.getenv("DECIBYL_TASK_MAX_ROUNDS", "40"))
 DECIBYL_TASK_PROGRESS_EVERY = int(os.getenv("DECIBYL_TASK_PROGRESS_EVERY", "5"))
 
+# D-1b (21 Sept 2026): Decibyl's own tools beyond the workspace -- a web
+# search on the platform's key, a fetch of a page, a search over the
+# workspace's own records, and the sandbox. Off, and none is offered.
+DECIBYL_TOOLS_2026_09_ENABLED = (
+    os.getenv("DECIBYL_TOOLS_2026_09_ENABLED", "false").lower() == "true"
+)
+# The search vendor's key when no platform credential row holds one. The
+# credential store (superadmin -> provider keys, component "data") is the
+# place for it; the variable is the fallback for a deployment without one.
+SERPER_API_KEY = os.getenv("SERPER_API_KEY", "").strip()
+# A Crawl4AI server, when one is deployed; blank means pages are fetched
+# and reduced to text here, which is enough for a page that is mostly text.
+CRAWL4AI_URL = os.getenv("CRAWL4AI_URL", "").strip().rstrip("/")
+WEB_FETCH_MAX_CHARS = int(os.getenv("WEB_FETCH_MAX_CHARS", "12000"))
+WEB_FETCH_PER_DOMAIN_PER_MINUTE = int(
+    os.getenv("WEB_FETCH_PER_DOMAIN_PER_MINUTE", "10")
+)
+
 
 # --- The in-product agent builder -------------------------------------------
 #
