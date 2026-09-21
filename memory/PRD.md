@@ -1,15 +1,3 @@
-> **Superseded — kept for history, not for direction.**
->
-> This was written in session 1, when the product was called EchoWave and the
-> task was a rebrand of the Dograh fork. The product is Decibyl, the rebrand is
-> long finished, and the roadmap it lists is not the one being built. Nothing
-> here should be read as current intent.
->
-> Current sources of truth: [`README.md`](../README.md) for what the product
-> is, [`echowave/AGENTS.md`](../echowave/AGENTS.md) for the decisions that are
-> already settled, and [`echowave/ROADMAP.md`](../echowave/ROADMAP.md) for
-> order of work.
-
 # EchoWave — Product Requirements Document
 
 ## Problem Statement (verbatim)

@@ -1,17 +1,8 @@
 # Decibyl
 
-Agents that learn a person or a business, remember what was said, and do the
-work on whatever channel the job needs — a phone call, WhatsApp, email, web
-chat, or nothing but the clock.
-
-What is in here: a real-time speech pipeline with telephony and WebRTC, a
-visual workflow builder, a memory graph that holds what conversations implied
-and labels it `inferred` until somebody confirms it, and an MCP surface so
-coding assistants can design and edit agents directly.
-
-Voice is the hardest channel, not the product. `CallDirection` has four values
-and only two of them ring a phone — see [`AGENTS.md`](AGENTS.md) before
-assuming otherwise.
+Build production voice agents with a visual workflow builder — a real-time
+speech pipeline with telephony and WebRTC, a drag-and-drop builder, and an MCP
+surface so coding assistants can design and edit agents directly.
 
 **This repository is private. Decibyl is a commercial product, not open source.**
 
@@ -52,7 +43,7 @@ Verification in the app.
 
 | Path | What |
 |---|---|
-| `api/` | FastAPI backend — routes, services, pipeline, billing, memory graph |
+| `api/` | FastAPI backend — routes, services, pipeline, billing |
 | `ui/` | Next.js 15 frontend |
 | `docs/` | Mintlify documentation |
 | `pipecat/` | Speech pipeline framework (git submodule) |

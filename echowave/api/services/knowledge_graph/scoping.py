@@ -58,15 +58,5 @@ def group_ids_for_search(organization_id: int | None) -> list[str]:
     One, always. The list is Graphiti's shape, not an invitation to widen it:
     searching more than one organization's partition is never a thing this
     product does, and a helper that made it easy would eventually be used.
-
-    **This is also how personal memory is separated from business memory.** A
-    personal workspace is its own organization with one member, so "Arun is
-    from college, not work" is written to that person's partition and is
-    unreadable from their employer's account. The alternative -- a second
-    dimension on the partition string, one workspace holding both -- was
-    considered and rejected: it would rewrite the single value that is the
-    entire tenancy boundary, in the one place whose failure mode is a silent
-    cross-tenant read. Nothing about personal use needs a new boundary when
-    the audited one already does the job.
     """
     return [group_id_for_organization(organization_id)]
