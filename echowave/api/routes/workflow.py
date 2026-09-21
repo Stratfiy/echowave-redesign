@@ -31,7 +31,7 @@ from api.schemas.workflow_configurations import (
 )
 from api.sdk_expose import sdk_expose
 from api.services.auth.depends import get_user
-from api.services.compliance import acceptable_use
+from api.services.compliance import acceptable_use, ai_disclosure
 from api.services.configuration import model_presets
 from api.services.configuration.agent_options import managed_stack_override
 from api.services.configuration.ai_model_configuration import (
@@ -68,7 +68,6 @@ from api.services.workflow.agent_brief import (
 from api.services.workflow.disposition import merge_taxonomies
 from api.services.workflow.dto import ReactFlowDTO, sanitize_workflow_definition
 from api.services.workflow.duplicate import duplicate_workflow
-from api.services.compliance import ai_disclosure
 from api.services.workflow.errors import ItemKind, WorkflowError
 from api.services.workflow.outcome_board import WINDOWS, board
 from api.services.workflow.run_usage_response import (

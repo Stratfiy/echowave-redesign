@@ -150,6 +150,26 @@ the one that ends up in front of a regulator, so it is the one made impossible.
 call, so it is in the recording and the transcript. The artefact is the evidence
 it happened, which is stronger than a flag beside it claiming so.
 
+### AI-identity disclosure — EU AI Act Art 50, TCPA (FCC ruling on AI voices)
+
+`api/services/compliance/ai_disclosure.py`, `AI_DISCLOSURE_TEXT`.
+
+The agent says the caller is speaking with an AI in its first turn, before the
+recording line and the greeting, as one utterance.
+
+**The same rules as the recording disclosure.** On by default; only an
+explicit `False` on the start node opts out; no separate consent record,
+because the line is in the recording and the transcript. It does not depend on
+recording: the voice is an AI's whether or not anyone keeps the audio.
+
+**Switching it off names the law.** Opting out needs an acknowledgement on the
+start node that a call from an AI without saying so is unlawful in the EU (AI
+Act Article 50, in force 2 August 2026) and on US calls (TCPA as read by the
+FCC's 2024 ruling on AI-generated voices; state bot-disclosure laws). A
+definition with the line off and no acknowledgement is refused at save and at
+publish. The switch, either way, is a row in Activity carrying the person who
+made it and the jurisdictions acknowledged.
+
 ### Sub-processors — GDPR Art 28(2), DPDP s11(1)(c)
 
 `api/services/privacy/subprocessors.py`. `GET /api/v1/privacy/subprocessors`.
