@@ -16,7 +16,7 @@ export const BaseNode = forwardRef<
         ref={ref}
         className={cn(
             // Compact canvas card; full configuration belongs in the inspector.
-            "relative w-[280px] rounded-xl border bg-card text-card-foreground shadow-sm transition-[border-color,box-shadow]",
+            "relative w-[224px] rounded-xl border bg-card text-card-foreground shadow-sm transition-[border-color,box-shadow]",
             // Border styling
             "border-border",
             className,

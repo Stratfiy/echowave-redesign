@@ -25,6 +25,7 @@ interface WorkflowState {
   // History for undo/redo
   history: HistoryState[];
   historyIndex: number;
+  dragStart: HistoryState | null;
 
   // UI state (not tracked in history)
   isDirty: boolean;
@@ -43,6 +44,7 @@ interface WorkflowState {
 }
 
 interface WorkflowActions {
+  deleteGraphElements: (nodeIds: string[], edgeIds: string[]) => void;
   applyGraphProposal: (workflowId: number, base: string, nodes: FlowNode[], edges: FlowEdge[]) => boolean;
   acceptSavedGraph: (workflowId: number, editorSession: number, base: string, name: string, nodes?: FlowNode[], edges?: FlowEdge[]) => boolean;
   loadVersionGraph: (nodes: FlowNode[], edges: FlowEdge[]) => void;
@@ -112,11 +114,30 @@ export function graphSnapshot(nodes: FlowNode[], edges: FlowEdge[]): string {
       const data = { ...item.data } as Record<string, unknown>;
       delete data.invalid;
       delete data.validationMessage;
+      delete data.runtime_active;
+      delete data.selected_through_edge;
+      delete data.hovered_through_edge;
       copy.data = data;
     }
     return copy;
   };
   return JSON.stringify({ nodes: nodes.map(clean), edges: edges.map(clean) });
+}
+
+function sameHistory(a: HistoryState | undefined, b: HistoryState): boolean {
+  return !!a && a.workflowName === b.workflowName && graphSnapshot(a.nodes, a.edges) === graphSnapshot(b.nodes, b.edges);
+}
+
+/** Commit both endpoints once, retaining the original position across drag frames. */
+function commitGraph(state: WorkflowState, updates: Partial<HistoryState>): Partial<WorkflowState> {
+  const before = state.dragStart ?? { nodes: state.nodes, edges: state.edges, workflowName: state.workflowName };
+  const after = { nodes: state.nodes, edges: state.edges, workflowName: state.workflowName, ...updates };
+  if (sameHistory(before, after)) return { ...after, dragStart: null };
+  const history = state.history.slice(0, state.historyIndex + 1);
+  if (!sameHistory(history.at(-1), before)) history.push(before);
+  history.push(after);
+  const bounded = history.slice(-MAX_HISTORY_SIZE);
+  return { ...after, history: bounded, historyIndex: bounded.length - 1, dragStart: null, isDirty: true };
 }
 
 // Create the store
@@ -129,6 +150,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
   edges: [],
   history: [],
   historyIndex: -1,
+  dragStart: null,
   isDirty: false,
   isAddNodePanelOpen: false,
   workflowValidationErrors: [],
@@ -138,28 +160,36 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
   rfInstance: null,
 
   // Actions
+  deleteGraphElements: (nodeIds, edgeIds) => {
+    const state = get();
+    const removedNodes = new Set(nodeIds);
+    const removedEdges = new Set(edgeIds);
+    set(commitGraph(state, {
+      nodes: state.nodes.filter(node => !removedNodes.has(node.id)),
+      edges: state.edges.filter(edge => !removedEdges.has(edge.id) && !removedNodes.has(edge.source) && !removedNodes.has(edge.target)),
+    }));
+  },
   acceptSavedGraph: (workflowId, editorSession, base, name, nodes, edges) => {
     const state = get();
     if (state.editorSession !== editorSession || state.workflowId !== workflowId || state.workflowName !== name || graphSnapshot(state.nodes, state.edges) !== base) return false;
-    set({ nodes: nodes ?? state.nodes, edges: edges ?? state.edges, isDirty: false });
+    const normalized: HistoryState = { nodes: nodes ?? state.nodes, edges: edges ?? state.edges, workflowName: name };
+    // Server defaults belong to the saved state, not a separate user edit.
+    // Keep redo of that state and the next edit's baseline normalized as well.
+    const history = state.history.slice();
+    if (state.historyIndex >= 0) history[state.historyIndex] = normalized;
+    set({ ...normalized, history, isDirty: false });
     return true;
   },
   applyGraphProposal: (workflowId, base, nodes, edges) => {
     const state = get();
     if (state.workflowId !== workflowId || graphSnapshot(state.nodes, state.edges) !== base) return false;
-    // Include the exact pre-apply state even when the last canvas edit was
-    // not a history checkpoint. One undo restores all of it, one redo applies.
-    const history = state.history.slice(0, state.historyIndex + 1);
-    history.push({ nodes: state.nodes, edges: state.edges, workflowName: state.workflowName });
-    history.push({ nodes, edges, workflowName: state.workflowName });
-    const bounded = history.slice(-MAX_HISTORY_SIZE);
-    set({ nodes, edges, history: bounded, historyIndex: bounded.length - 1, isDirty: true, workflowValidationErrors: [] });
+    set({ ...commitGraph(state, { nodes, edges }), workflowValidationErrors: [] });
     return true;
   },
   loadVersionGraph: (nodes, edges) => {
     const state = get();
     set({ nodes, edges, editorSession: state.editorSession + 1,
-      history: [{ nodes, edges, workflowName: state.workflowName }], historyIndex: 0,
+      history: [{ nodes, edges, workflowName: state.workflowName }], historyIndex: 0, dragStart: null,
       isDirty: false, workflowValidationErrors: [], isAddNodePanelOpen: false });
   },
   initializeWorkflow: (workflowId, workflowName, nodes, edges, templateContextVariables = {}, workflowConfigurations = null, dictionary = '') => {
@@ -177,6 +207,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
       workflowValidationErrors: [],
       history: [initialHistory],
       historyIndex: 0,
+      dragStart: null,
     });
   },
 
@@ -188,19 +219,9 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
       workflowName: state.workflowName,
     };
 
-    // Remove any forward history if we're not at the end
-    const newHistory = state.history.slice(0, state.historyIndex + 1);
-    newHistory.push(currentState);
-
-    // Limit history size
-    if (newHistory.length > MAX_HISTORY_SIZE) {
-      newHistory.shift();
-    }
-
-    set({
-      history: newHistory,
-      historyIndex: newHistory.length - 1,
-    });
+    if (sameHistory(state.history[state.historyIndex], currentState)) return;
+    const history = [...state.history.slice(0, state.historyIndex + 1), currentState].slice(-MAX_HISTORY_SIZE);
+    set({ history, historyIndex: history.length - 1 });
   },
 
   undo: () => {
@@ -213,6 +234,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
         edges: historicState.edges,
         workflowName: historicState.workflowName,
         historyIndex: newIndex,
+        dragStart: null,
         isDirty: true,
       });
     }
@@ -228,6 +250,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
         edges: historicState.edges,
         workflowName: historicState.workflowName,
         historyIndex: newIndex,
+        dragStart: null,
         isDirty: true,
       });
     }
@@ -244,125 +267,62 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
   },
 
   setNodes: (nodes, changes) => {
-    // Determine whether to push to history and set isDirty based on change types
-    if (changes && changes.length > 0) {
-      // Check for add/remove changes (always push to history)
-      const hasAddRemoveChanges = changes.some(change =>
-        change.type === 'add' || change.type === 'remove'
-      );
-
-      // Check for position changes - only push to history when drag ENDS (dragging: false)
-      // but still mark as dirty during dragging
-      const hasDragEndChanges = changes.some(change =>
-        change.type === 'position' && change.dragging === false
-      );
-      const isActiveDragging = changes.some(change =>
-        change.type === 'position' && change.dragging === true
-      );
-
-      if (hasAddRemoveChanges || hasDragEndChanges) {
-        get().pushToHistory();
-        set({ nodes, isDirty: true });
-      } else if (isActiveDragging) {
-        // During active dragging, update nodes but don't push to history
-        set({ nodes, isDirty: true });
-      } else {
-        // For selection changes or dimension updates, don't push to history or set dirty
-        set({ nodes });
-      }
+    const state = get();
+    const dragging = changes?.some(change => change.type === 'position' && change.dragging === true);
+    const committed = changes?.some(change => change.type === 'add' || change.type === 'remove' || change.type === 'replace' || (change.type === 'position' && change.dragging !== true));
+    if (committed) {
+      // React Flow reports node and attached-edge deletions separately. Record
+      // a complete graph now so one Undo cannot restore dangling connections.
+      const removedIds = new Set(changes?.filter(change => change.type === 'remove').map(change => change.id));
+      const edges = removedIds.size
+        ? state.edges.filter(edge => !removedIds.has(edge.source) && !removedIds.has(edge.target))
+        : state.edges;
+      set(commitGraph(state, { nodes, edges }));
+    } else if (dragging) {
+      set({ nodes, isDirty: true, dragStart: state.dragStart ?? { nodes: state.nodes, edges: state.edges, workflowName: state.workflowName } });
     } else {
-      // No changes provided, just update nodes without history
+      // Selection, dimensions and initialization do not create undo entries.
       set({ nodes });
     }
   },
 
   addNode: (node) => {
     const state = get();
-    get().pushToHistory();
-    set({
-      nodes: [...state.nodes, node],
-      isDirty: true
-    });
+    set(commitGraph(state, { nodes: [...state.nodes, node] }));
   },
-
   updateNode: (nodeId, updates) => {
     const state = get();
-    get().pushToHistory();
-    set({
-      nodes: state.nodes.map((node) =>
-        node.id === nodeId ? { ...node, ...updates } : node
-      ),
-      isDirty: true,
-    });
+    set(commitGraph(state, { nodes: state.nodes.map(node => node.id === nodeId ? { ...node, ...updates } : node) }));
   },
-
   deleteNode: (nodeId) => {
     const state = get();
-    get().pushToHistory();
-    set({
-      nodes: state.nodes.filter((node) => node.id !== nodeId),
-      edges: state.edges.filter(
-        (edge) => edge.source !== nodeId && edge.target !== nodeId
-      ),
-      isDirty: true,
-    });
+    set(commitGraph(state, {
+      nodes: state.nodes.filter(node => node.id !== nodeId),
+      edges: state.edges.filter(edge => edge.source !== nodeId && edge.target !== nodeId),
+    }));
   },
-
   setEdges: (edges, changes) => {
-    // Determine whether to push to history and set isDirty based on change types
-    if (changes && changes.length > 0) {
-      // Check if any changes are user-initiated (not just selections)
-      const hasDirtyChanges = changes.some(change =>
-        change.type === 'add' ||
-        change.type === 'remove' ||
-        change.type === 'replace'
-      );
-
-      if (hasDirtyChanges) {
-        get().pushToHistory();
-        set({ edges, isDirty: true });
-      } else {
-        // For selection changes, don't push to history
-        set({ edges });
-      }
+    const state = get();
+    if (changes?.some(change => change.type === 'add' || change.type === 'remove' || change.type === 'replace')) {
+      set(commitGraph(state, { edges }));
     } else {
-      // No changes provided, just update edges without history
       set({ edges });
     }
   },
-
   addEdge: (edge) => {
     const state = get();
-    get().pushToHistory();
-    set({
-      edges: [...state.edges, edge],
-      isDirty: true
-    });
+    set(commitGraph(state, { edges: [...state.edges, edge] }));
   },
-
   updateEdge: (edgeId, updates) => {
     const state = get();
-    get().pushToHistory();
-    set({
-      edges: state.edges.map((edge) =>
-        edge.id === edgeId ? { ...edge, ...updates } : edge
-      ),
-      isDirty: true,
-    });
+    set(commitGraph(state, { edges: state.edges.map(edge => edge.id === edgeId ? { ...edge, ...updates } : edge) }));
   },
-
   deleteEdge: (edgeId) => {
     const state = get();
-    get().pushToHistory();
-    set({
-      edges: state.edges.filter((edge) => edge.id !== edgeId),
-      isDirty: true,
-    });
+    set(commitGraph(state, { edges: state.edges.filter(edge => edge.id !== edgeId) }));
   },
-
   setWorkflowName: (workflowName) => {
-    get().pushToHistory();
-    set({ workflowName, isDirty: true });
+    set(commitGraph(get(), { workflowName }));
   },
 
   setTemplateContextVariables: (templateContextVariables) => {
@@ -436,6 +396,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
       edges: [],
       history: [],
       historyIndex: -1,
+  dragStart: null,
       isDirty: false,
       isAddNodePanelOpen: false,
       workflowValidationErrors: [],

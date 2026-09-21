@@ -85,8 +85,10 @@ export const NodeEditDialog = ({
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogContent
-                className="inset-y-0 left-auto right-0 flex h-dvh max-h-dvh w-full max-w-full translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-y-0 border-r-0 p-0 sm:max-w-[520px]"
+                style={{ '--primary': '#0f766e', '--primary-foreground': '#ffffff', '--ring': '#0f766e' } as React.CSSProperties}
+                className="top-auto bottom-0 left-0 right-0 flex h-[88dvh] max-h-[88dvh] w-full max-w-full translate-x-0 translate-y-0 flex-col gap-0 rounded-t-2xl border-b-0 p-0 sm:inset-y-0 sm:left-auto sm:h-dvh sm:max-h-dvh sm:max-w-[480px] sm:rounded-none sm:border-y-0 sm:border-r-0"
             >
+                <div aria-hidden="true" className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-muted-foreground/30 sm:hidden" />
                 <DialogHeader className="shrink-0 border-b p-5 pr-12 text-left">
                     <div className="flex items-center justify-between">
                         <DialogTitle>{title}</DialogTitle>
@@ -129,7 +131,7 @@ export const NodeEditDialog = ({
                         >
                             Cancel
                         </Button>
-                        <Button onClick={handleSave} disabled={readOnly}>
+                        <Button className="bg-teal-700 text-white hover:bg-teal-800" onClick={handleSave} disabled={readOnly}>
                             {readOnly ? "Read Only" : "Save"}
                         </Button>
                     </div>

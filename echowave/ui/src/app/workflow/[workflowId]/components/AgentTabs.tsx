@@ -54,7 +54,7 @@ export function AgentTabs({ workflowId, settingsTab, dirtyTabs }: {
     const setupDirty = menuTabs.some((tab) => "settingsTab" in tab && dirtyTabs?.has(tab.settingsTab));
     const linkClass = (active: boolean) => cn(
         "-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2",
-        active ? "border-primary font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+        active ? "border-teal-600 font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
     );
     const renderLink = (tab: Tab, inMenu = false) => {
         const Icon = tab.icon;
@@ -86,8 +86,8 @@ export function AgentTabs({ workflowId, settingsTab, dirtyTabs }: {
                     </DropdownMenuContent>
                 </DropdownMenu>
             </div>
-            <Link href={`${base}/thread`} aria-current={pathname === `${base}/thread` || pathname.startsWith(`${base}/thread/`) ? "page" : undefined} className="my-1 inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2">
-                <MessagesSquare className="h-3.5 w-3.5" aria-hidden="true" />Message
+            <Link href={`${base}/thread`} title="Message agent" aria-current={pathname === `${base}/thread` || pathname.startsWith(`${base}/thread/`) ? "page" : undefined} className="my-1 inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2">
+                <MessagesSquare className="h-3.5 w-3.5" aria-hidden="true" /><span className="sr-only sm:not-sr-only">Message</span>
             </Link>
         </nav>
     );

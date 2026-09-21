@@ -26,7 +26,7 @@ export const NodeHeader = forwardRef<HTMLElement, NodeHeaderProps>(
                 ref={ref}
                 {...props}
                 className={cn(
-                    "flex items-center justify-between gap-2 px-3 py-2",
+                    "flex items-center justify-between gap-3 px-3 py-3",
                     // Remove or modify these classes if you modify the padding in the
                     // `<BaseNode />` component.
                     className,
@@ -72,7 +72,7 @@ export type NodeHeaderIconProps = HTMLAttributes<HTMLSpanElement>;
 export const NodeHeaderIcon = forwardRef<HTMLSpanElement, NodeHeaderIconProps>(
     ({ className, ...props }, ref) => {
         return (
-            <span ref={ref} {...props} className={cn(className, "[&>*]:size-5")} />
+            <span ref={ref} {...props} className={cn(className, "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 [&>*]:size-5 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200")} />
         );
     },
 );

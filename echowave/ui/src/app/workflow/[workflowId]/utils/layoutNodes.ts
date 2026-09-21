@@ -4,10 +4,10 @@ import { ReactFlowInstance } from "@xyflow/react";
 import { FlowEdge, FlowNode, NodeType } from "@/components/flow/types";
 
 // Node dimensions
-const NODE_WIDTH = 280;
-const NODE_HEIGHT = 180;
-const VERTICAL_SPACING = 150; // Vertical spacing between stacked nodes
-const SECTION_HORIZONTAL_GAP = 500; // Horizontal gap between sections
+const NODE_WIDTH = 224;
+const NODE_HEIGHT = 72;
+const VERTICAL_SPACING = 64; // Vertical spacing between stacked nodes
+const SECTION_HORIZONTAL_GAP = 320; // Horizontal gap between sections
 
 const WORKFLOW_NODE_TYPES = new Set<string>([
     NodeType.START_CALL,
@@ -124,7 +124,7 @@ export const layoutNodes = (
         };
     });
 
-    const webhookNodesX = workflowMaxX + SECTION_HORIZONTAL_GAP;
+    const webhookNodesX = workflowMaxX + 96;
     const rightSideStartY = rightSideNodes.length > 0
         ? workflowCenterY - (
             rightSideNodes.length * NODE_HEIGHT +
@@ -156,7 +156,7 @@ export const layoutNodes = (
 
     // Fit view to the new layout
     setTimeout(() => {
-        rfInstance.current?.fitView({ padding: 0.2, duration: 200, maxZoom: 0.75 });
+        rfInstance.current?.fitView({ padding: 0.2, duration: 200, minZoom: 0.65, maxZoom: 1 });
     }, 0);
 
     return newNodes;
