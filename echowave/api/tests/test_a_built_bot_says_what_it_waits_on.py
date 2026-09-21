@@ -108,3 +108,143 @@ class TestWaitingOn:
                 await bot_from_brief._waiting_on(organization_id=7, spec="shopify")
                 == []
             )
+
+
+def _bot(id_, name, *, apps, brief="Check Shopify stock hourly and email me."):
+    return SimpleNamespace(
+        id=id_,
+        name=name,
+        workflow_definition={
+            "nodes": [
+                {"id": "start-1", "type": "startCall", "data": {"name": "Start"}},
+                {"id": "agent-1", "type": "agentNode", "data": {"name": "Watch"}},
+            ],
+            "edges": [],
+        },
+        workflow_configurations={
+            "channel": "chat",
+            bot_from_brief.WAITING_KEY: {"apps": apps, "brief": brief},
+        },
+    )
+
+
+def _shopify_tool(slug, uuid):
+    return SimpleNamespace(
+        id=1,
+        tool_uuid=uuid,
+        name=slug.replace("_", " ").title(),
+        description="",
+        category="composio",
+        definition={
+            "type": "composio",
+            "config": {"tool_slug": slug, "toolkit": "shopify", "parameters": []},
+        },
+    )
+
+
+class _Rows:
+    def __init__(self, rows):
+        self._rows = rows
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def execute(self, query):
+        rows = self._rows
+        return SimpleNamespace(all=lambda: rows)
+
+
+@pytest.mark.asyncio
+class TestWhenTheAppConnects:
+    async def test_the_waiting_bot_gets_the_tools_and_the_thread_is_told(self):
+        rows = [
+            _bot(1, "Inventory Watch", apps=["shopify"]),
+            _bot(2, "Two Apps", apps=["shopify", "notion"]),
+            _bot(3, "Not Waiting", apps=[]),
+        ]
+        updates: list[dict] = []
+
+        async def _update(workflow_id, **kwargs):
+            updates.append({"id": workflow_id, **kwargs})
+
+        tools = [
+            _shopify_tool("SHOPIFY_GET_PRODUCTS", "u-get"),
+            _shopify_tool("SHOPIFY_GET_INVENTORY_LEVELS", "u-inv"),
+        ]
+        with (
+            patch.object(
+                bot_from_brief.db_client, "async_session", lambda: _Rows(rows)
+            ),
+            patch.object(bot_from_brief.db_client, "update_workflow", _update),
+            patch.object(
+                bot_from_brief.connected_tools,
+                "list_for_organization",
+                AsyncMock(return_value=tools),
+            ),
+            patch.object(
+                bot_from_brief.connected_tools,
+                "mcp_for_organization",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "api.services.workflow.agent_timeline.record_activity", AsyncMock()
+            ) as told,
+        ):
+            done = await bot_from_brief.attach_waiting(organization_id=7, app="shopify")
+
+        assert done == ["Inventory Watch", "Two Apps"]
+        assert [u["id"] for u in updates] == [1, 2]
+        first = updates[0]
+        callers = [
+            n
+            for n in first["workflow_definition"]["nodes"]
+            if n["type"] in ("startCall", "agentNode")
+        ]
+        assert all({"u-get", "u-inv"} <= set(n["data"]["tool_uuids"]) for n in callers)
+        # One bot is done waiting; the other still waits on notion.
+        assert bot_from_brief.WAITING_KEY not in first["workflow_configurations"]
+        second = updates[1]["workflow_configurations"][bot_from_brief.WAITING_KEY]
+        assert second["apps"] == ["notion"]
+        lines = [c.kwargs["summary"] for c in told.await_args_list]
+        assert "Inventory Watch now has shopify" in lines
+        assert "Two Apps now has shopify; still waiting on notion" in lines
+
+    async def test_nobody_waiting_means_nothing_read(self):
+        with (
+            patch.object(
+                bot_from_brief.db_client,
+                "async_session",
+                lambda: _Rows([_bot(3, "Not Waiting", apps=[])]),
+            ),
+            patch.object(
+                bot_from_brief.connected_tools, "list_for_organization", AsyncMock()
+            ) as listed,
+        ):
+            assert (
+                await bot_from_brief.attach_waiting(organization_id=7, app="shopify")
+                == []
+            )
+        listed.assert_not_awaited()
+
+    def test_the_bot_row_carries_what_it_waits_on(self):
+        from api.enums import BotChannel
+
+        config = bot_from_brief._configurations(
+            channel=BotChannel.CHAT, waiting_on=["shopify"], spec="Check Shopify."
+        )
+        assert config == {
+            "channel": "chat",
+            bot_from_brief.WAITING_KEY: {
+                "apps": ["shopify"],
+                "brief": "Check Shopify.",
+            },
+        }
+        assert (
+            bot_from_brief._configurations(
+                channel=BotChannel.VOICE, waiting_on=[], spec="x"
+            )
+            is None
+        )
