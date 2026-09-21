@@ -12,6 +12,7 @@ import {
 import { BrushCleaning, Focus, Maximize2, Minimize2, Minus, Plus, Redo2, Undo2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 import { createWorkflowDraftApiV1WorkflowWorkflowIdCreateDraftPost, getWorkflowVersionsApiV1WorkflowWorkflowIdVersionsGet, listDocumentsApiV1KnowledgeBaseDocumentsGet, listRecordingsApiV1WorkflowRecordingsGet, listToolsApiV1ToolsGet, restoreWorkflowVersionApiV1WorkflowWorkflowIdVersionsVersionIdRestorePost } from '@/client';
 import type { DocumentResponseSchema, RecordingResponseSchema, ToolResponse } from '@/client/types.gen';
@@ -622,6 +623,11 @@ function RenderWorkflow({
                                 onConnect={isViewingHistoricalVersion ? undefined : onConnect}
                                 onBeforeDelete={async ({ nodes: deletedNodes, edges: deletedEdges }) => {
                                     if (!isViewingHistoricalVersion) {
+                                        // The store refuses the start step; say so rather than
+                                        // letting Backspace look broken.
+                                        if (deletedNodes.some(node => node.type === NodeType.START_CALL)) {
+                                            toast.info("The start step stays — a conversation needs somewhere to begin.");
+                                        }
                                         useWorkflowStore.getState().deleteGraphElements(deletedNodes.map(node => node.id), deletedEdges.map(edge => edge.id));
                                     }
                                     // Commit the node and attached edges together, rather than React Flow's separate callbacks.
