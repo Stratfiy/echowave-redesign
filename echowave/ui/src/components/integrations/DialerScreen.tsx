@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, CheckCircle2, Loader2, PhoneCall, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
     connectDialerApiV1DialerConnectionsPost,
@@ -23,6 +23,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { detailFromResult } from "@/lib/apiError";
+import { useAuth } from "@/lib/auth";
 
 interface Connection {
     id: number;
@@ -78,9 +79,15 @@ export function DialerScreen() {
         setState("ready");
     }, []);
 
+    // The auth interceptor attaches the token only once auth has loaded; a
+    // request sent before that fails as if the feature were missing.
+    const { user, loading: authLoading } = useAuth();
+    const hasFetched = useRef(false);
     useEffect(() => {
+        if (authLoading || !user || hasFetched.current) return;
+        hasFetched.current = true;
         void load();
-    }, [load]);
+    }, [authLoading, user, load]);
 
     const missing = vendor.fields.filter((f) => !f.optional && !(values[f.key] ?? "").trim());
     const canConnect = consent && missing.length === 0 && !saving;

@@ -22,6 +22,7 @@ vi.mock("@/client/sdk.gen", () => ({
     connectDialerApiV1DialerConnectionsPost: api.connect,
     disconnectDialerApiV1DialerConnectionsConnectionIdDelete: api.disconnect,
 }));
+vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
 vi.mock("@/components/ConfirmDialog", () => ({
     useConfirm: () => ({ confirm: api.confirm, dialog: null }),
 }));

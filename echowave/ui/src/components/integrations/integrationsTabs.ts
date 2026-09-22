@@ -21,6 +21,7 @@ import { useEffect, useState } from "react";
 import { listDialerConnectionsApiV1DialerConnectionsGet } from "@/client/sdk.gen";
 import type { PageTab } from "@/components/layout/PageHeader";
 import { useOwnKeysAllowed } from "@/hooks/useOwnKeysAllowed";
+import { useAuth } from "@/lib/auth";
 
 /**
  * Whether the dialer import is switched on here (CR-2). The route is a 404
@@ -37,7 +38,11 @@ export function resetDialerAvailability(): void {
 
 function useDialerAvailable(): boolean {
   const [available, setAvailable] = useState(false);
+  // Asked only once auth has loaded: an unauthenticated request is refused,
+  // and a refusal is not an answer to whether the feature exists.
+  const { user, loading: authLoading } = useAuth();
   useEffect(() => {
+    if (authLoading || !user) return;
     let live = true;
     dialerAvailable ??= listDialerConnectionsApiV1DialerConnectionsGet()
       .then((result) => result.response?.status !== 404)
@@ -48,7 +53,7 @@ function useDialerAvailable(): boolean {
     return () => {
       live = false;
     };
-  }, []);
+  }, [authLoading, user]);
   return available;
 }
 
