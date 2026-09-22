@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { createWorkflowRunApiV1WorkflowWorkflowIdRunsPost } from "@/client/sdk.gen";
 import { EstimatedRate } from "@/components/agent/EstimatedRate";
+import type { BotChannel } from "@/components/flow/channelWords";
 import { OnboardingTooltip } from "@/components/onboarding/OnboardingTooltip";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,6 +28,9 @@ import { extractSdkErrorMessage, getErrorMessage } from "./workflow-tester/utils
 
 interface WorkflowTesterPanelProps {
     workflowId: number;
+    /** Phone or writing. A bot that is not on a phone has nothing to dial:
+     * the tester opens on text and does not offer a call. */
+    channel?: BotChannel;
     /** Open on the call tab or the text tab. Defaults to the call. */
     initialMode?: "audio" | "text";
     initialContextVariables?: Record<string, string>;
@@ -41,6 +45,7 @@ interface WorkflowTesterPanelProps {
 
 export function WorkflowTesterPanel({
     workflowId,
+    channel,
     initialMode,
     initialContextVariables,
     disabled,
@@ -55,7 +60,10 @@ export function WorkflowTesterPanel({
     const { markActionCompleted } = useOnboarding();
     const { isAuthenticated, loading: authLoading, getAccessToken } = auth;
     const [accessToken, setAccessToken] = useState<string | null>(null);
-    const [activeMode, setActiveMode] = useState<"audio" | "text">(initialMode ?? "audio");
+    const onPhone = channel !== "chat";
+    const [activeMode, setActiveMode] = useState<"audio" | "text">(
+        onPhone ? (initialMode ?? "audio") : "text",
+    );
     const [chatMode, setChatMode] = useState<"manual" | "simulated">("manual");
     const [chatSessionKey, setChatSessionKey] = useState(0);
     const [chatActive, setChatActive] = useState(false);
@@ -155,11 +163,13 @@ export function WorkflowTesterPanel({
             >
                 <div className="border-b border-border/70 px-4 py-3">
                     <div className="flex items-center gap-3">
-                        <TabsList className="grid h-9 flex-1 grid-cols-2 rounded-lg bg-muted/60 p-1">
-                            <TabsTrigger value="audio" className="rounded-md text-sm">
-                                <Mic className="h-4 w-4" />
-                                Test Audio
-                            </TabsTrigger>
+                        <TabsList className={cn("grid h-9 flex-1 rounded-lg bg-muted/60 p-1", onPhone ? "grid-cols-2" : "grid-cols-1")}>
+                            {onPhone && (
+                                <TabsTrigger value="audio" className="rounded-md text-sm">
+                                    <Mic className="h-4 w-4" />
+                                    Test Audio
+                                </TabsTrigger>
+                            )}
                             <TabsTrigger value="text" className="rounded-md text-sm">
                                 <MessageSquareText className="h-4 w-4" />
                                 Test Chat

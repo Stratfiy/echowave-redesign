@@ -45,7 +45,15 @@ QA_NODE_ID = "qa-1"
 QA_NODE_TYPE = "qa"
 
 
-def qa_node(*, x: int = -340, y: int = 520) -> dict[str, Any]:
+#: What the review node is called on a phone bot's canvas and in call logs.
+#: "Call review" rather than "QA": the person reading a log is looking for
+#: what happened to their call, not for a department.
+CALL_REVIEW = "Call review"
+#: The same node on a bot that is not on a phone. There is no call to review.
+REVIEW = "Review"
+
+
+def qa_node(*, x: int = -340, y: int = 520, name: str = CALL_REVIEW) -> dict[str, Any]:
     """A review node, positioned clear of the conversation.
 
     Placed under the persona rather than in the conversation column, because on
@@ -57,10 +65,7 @@ def qa_node(*, x: int = -340, y: int = 520) -> dict[str, Any]:
         "type": QA_NODE_TYPE,
         "position": {"x": x, "y": y},
         "data": {
-            # What shows on the canvas and in call logs. "Call review" rather
-            # than "QA": the person reading a log is looking for what happened
-            # to their call, not for a department.
-            "name": "Call review",
+            "name": name,
             "qa_enabled": True,
         },
     }

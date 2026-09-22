@@ -6,6 +6,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from "react";
 
 import { useWorkflow } from "@/app/workflow/[workflowId]/contexts/WorkflowContext";
 import type { NodeSpec } from "@/client/types.gen";
+import { nodeKindLabel } from "@/components/flow/channelWords";
 import { NodeEditForm, useNodeSpecs } from "@/components/flow/renderer";
 import { FlowNodeData } from "@/components/flow/types";
 import { Button } from "@/components/ui/button";
@@ -257,7 +258,7 @@ export const GenericNode = memo(({ data, selected, id, type }: GenericNodeProps)
         id,
         additionalData,
     });
-    const { tools, documents, recordings, workflowUuid, readOnly } = useWorkflow();
+    const { tools, documents, recordings, workflowUuid, readOnly, channel } = useWorkflow();
     const { bySpecName } = useNodeSpecs();
     const { config: appConfig } = useAppConfig();
     const spec = bySpecName.get(type);
@@ -336,7 +337,7 @@ export const GenericNode = memo(({ data, selected, id, type }: GenericNodeProps)
     // Edit dialog title: "Edit {display_name}". Webhook keeps the original
     // "Edit Webhook" wording — display_name is "Webhook" so it works out.
     const dialogTitle = spec ? `Edit ${spec.display_name}` : "Edit Node";
-    const fallbackTitle = spec?.display_name ?? "Node";
+    const fallbackTitle = nodeKindLabel(spec?.name, spec?.display_name, channel);
 
     return (
         <>

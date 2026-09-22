@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 
 import { createWorkflowDraftApiV1WorkflowWorkflowIdCreateDraftPost, getWorkflowVersionsApiV1WorkflowWorkflowIdVersionsGet, listDocumentsApiV1KnowledgeBaseDocumentsGet, listRecordingsApiV1WorkflowRecordingsGet, listToolsApiV1ToolsGet, restoreWorkflowVersionApiV1WorkflowWorkflowIdVersionsVersionIdRestorePost } from '@/client';
 import type { DocumentResponseSchema, RecordingResponseSchema, ToolResponse } from '@/client/types.gen';
+import { channelOf } from "@/components/flow/channelWords";
 import { useNodeSpecs } from "@/components/flow/renderer";
 import { FlowEdge, FlowNode, NodeType } from "@/components/flow/types";
 import { AuxiliaryPanel } from '@/components/layout/AuxiliaryPanel';
@@ -546,6 +547,11 @@ function RenderWorkflow({
     );
 
     // Memoize the context value to prevent unnecessary re-renders
+    // Phone or writing. Read from the saved block, falling back to what the
+    // page loaded with, so the canvas speaks the right language on first
+    // paint rather than after the configurations round-trip.
+    const channel = channelOf(workflowConfigurations ?? initialWorkflowConfigurations);
+
     const workflowContextValue = useMemo(() => ({
         saveWorkflow: guardedSaveWorkflow,
         documents,
@@ -554,6 +560,7 @@ function RenderWorkflow({
         recordings,
         workflowUuid,
         readOnly: isViewingHistoricalVersion,
+        channel,
     }), [
         guardedSaveWorkflow,
         documents,
@@ -561,6 +568,7 @@ function RenderWorkflow({
         updateTool,
         recordings,
         workflowUuid,
+        channel,
         isViewingHistoricalVersion,
     ]);
 
@@ -761,6 +769,7 @@ function RenderWorkflow({
                             <AuxiliaryPanel label="Test this bot" className="hidden xl:flex">
                                 <WorkflowTesterPanel
                                     workflowId={workflowId}
+                                    channel={channel}
                                     initialMode={testerInitialMode}
                                     initialContextVariables={templateContextVariables}
                                     disabled={testerDisabledReason !== null}
@@ -778,6 +787,7 @@ function RenderWorkflow({
                         <SheetContent side="right" className="w-full max-w-none p-0 sm:max-w-xl xl:hidden">
                             <WorkflowTesterPanel
                                 workflowId={workflowId}
+                                channel={channel}
                                 initialMode={testerInitialMode}
                                 initialContextVariables={templateContextVariables}
                                 disabled={testerDisabledReason !== null}

@@ -30,7 +30,7 @@ from api.services.workflow.launch_templates import (
     _global_node,
     _start,
 )
-from api.services.workflow.qa_node import qa_node
+from api.services.workflow.qa_node import CALL_REVIEW, REVIEW, qa_node
 
 #: Vertical gap between stacked nodes, matching the launch templates so a
 #: materialised agent opens looking like a hand-authored one rather than a
@@ -70,7 +70,13 @@ def to_workflow_definition(template: AgentTemplate) -> dict[str, Any]:
     # Call review: on from the moment the agent exists. Nothing can collide with
     # it, because the loop below rejects any node type it cannot draw and "qa"
     # is not one of them, so no template can ship a second.
-    nodes: list[dict[str, Any]] = [_global_node(), qa_node()]
+    # Off the phone the words change: a template names its own start node
+    # and there is no call to review. Interruption is a fact about speech.
+    speaks = template.speaks
+    nodes: list[dict[str, Any]] = [
+        _global_node(),
+        qa_node(name=CALL_REVIEW if speaks else REVIEW),
+    ]
     agent_seen = 0
     end_seen = 0
     row = 0
@@ -84,7 +90,14 @@ def to_workflow_definition(template: AgentTemplate) -> dict[str, Any]:
             nodes[0] = {**nodes[0], "data": {"name": node.name, "prompt": node.prompt}}
         elif node.type == "startCall":
             node_id = "start-1"
-            nodes.append(_start(node.greeting or "", node.prompt))
+            nodes.append(
+                _start(
+                    node.greeting or "",
+                    node.prompt,
+                    name=node.name,
+                    allow_interrupt=speaks,
+                )
+            )
             row += 1
         elif node.type in ("agentNode", "agent"):
             agent_seen += 1

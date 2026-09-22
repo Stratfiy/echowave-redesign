@@ -2,6 +2,7 @@ import { createContext, useContext } from 'react';
 
 import type { DocumentResponseSchema, ToolResponse } from '@/client/types.gen';
 import type { RecordingResponseSchema } from '@/client/types.gen';
+import type { BotChannel } from '@/components/flow/channelWords';
 
 interface WorkflowContextType {
     saveWorkflow: (updateWorkflowDefinition?: boolean) => Promise<void>;
@@ -15,6 +16,9 @@ interface WorkflowContextType {
     /** This agent's stable reference, so a hand-over cannot offer itself. */
     workflowUuid?: string;
     readOnly?: boolean;
+    /** Phone or writing. Decides the words the canvas uses for its node
+     * kinds; absent reads as voice, as the API reads it. */
+    channel?: BotChannel;
 }
 
 const WorkflowContext = createContext<WorkflowContextType | undefined>(undefined);
