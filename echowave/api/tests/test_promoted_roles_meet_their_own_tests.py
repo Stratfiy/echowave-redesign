@@ -14,6 +14,7 @@ import pytest
 
 from api.services.agent_templates import get_template
 from api.services.agent_templates.back_office import OFFICE_GUARDRAILS
+from api.services.agent_templates.catalogue import _QUIET_GUARDRAILS
 from api.services.agent_templates.chat_desks import CHAT_GUARDRAILS
 from api.services.packs import get_pack
 
@@ -225,6 +226,21 @@ CASES: dict[str, dict[str, tuple[str, ...]]] = {
             "call the front desk or 112",
         ),
     },
+    "report_generator": {
+        "routine weekly run: three movers with figures, logged": (
+            "name the three that changed most, with the actual figures",
+            "write the run to {{report_log}}",
+        ),
+        "why is collections down: the rows behind it, partial said so": (
+            "find the rows in {{data_source}} behind the change",
+            "if the rows only partly explain it, say so plainly",
+        ),
+        "source down at send time: a note, never stale figures": (
+            "do not build the report from older figures",
+            "send a short note instead, at the same time",
+            "never skip the send silently",
+        ),
+    },
 }
 
 #: The second batch, which carries the paperwork rules rather than the chat
@@ -241,6 +257,9 @@ BACK_OFFICE = {
     "owner_voice_note_clerk",
     "pre_arrival_messenger",
 }
+
+#: Runs on the clock, so it carries the scheduled family's rules.
+SCHEDULED = {"report_generator"}
 
 
 def _prompt(role: str) -> str:
@@ -292,7 +311,13 @@ class TestEveryPromotedRole:
 
     def test_it_carries_the_written_rules_not_the_call_rules(self, role):
         guardrails = get_template(role).guardrails
-        house = OFFICE_GUARDRAILS if role in BACK_OFFICE else CHAT_GUARDRAILS
+        house = (
+            _QUIET_GUARDRAILS
+            if role in SCHEDULED
+            else OFFICE_GUARDRAILS
+            if role in BACK_OFFICE
+            else CHAT_GUARDRAILS
+        )
         assert all(rule in guardrails for rule in house)
         joined = " ".join(guardrails).lower()
         assert "caller" not in joined and "end the call" not in joined

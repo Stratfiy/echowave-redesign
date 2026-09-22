@@ -1,4 +1,4 @@
-"""Shelf entries for the ten back-office desks promoted on 22 Sept 2026.
+"""Shelf entries for the back-office desks promoted on 22 Sept 2026.
 
 Name and job are the prompt pack's own. The questions are rewritten the way
 the chat desks' were, and two more things changed:
@@ -526,6 +526,51 @@ def packs(publisher) -> tuple[AgentPack, ...]:
                 ),
             ],
             required_connectors=[_WHATSAPP, _SHEET],
+        ),
+        pack(
+            slug="report_generator",
+            name="Daily and weekly report generator",
+            job="MIS executive",
+            summary=(
+                "Builds your sales, collections, stock or attendance report on "
+                "schedule, names the three numbers that moved most and the rows "
+                "behind them, and says so when it cannot."
+            ),
+            channels=[Channel.SCHEDULED, Channel.WHATSAPP, Channel.EMAIL],
+            required_facts=[
+                _BUSINESS_NAME,
+                RequiredFact(
+                    key="data_source",
+                    question="Where do the figures come from?",
+                    example="The Sales 2026 sheet, Daily tab",
+                    used_for="The only place it reads figures from.",
+                ),
+                RequiredFact(
+                    key="report_metrics",
+                    question="Which figures should the report cover?",
+                    kind=FactKind.LIST,
+                    example="Sales, Collections, Outstanding, Stock below reorder",
+                    used_for="What it pulls and compares on every run.",
+                ),
+                RequiredFact(
+                    key="report_format",
+                    question="How should the report look?",
+                    kind=FactKind.LONG_TEXT,
+                    example="Totals first, then by branch, as a WhatsApp message",
+                    required=False,
+                    used_for="Your layout, so it reads like the report you know.",
+                ),
+                RequiredFact(
+                    key="recipients",
+                    question="Who gets it, and what should each person see?",
+                    kind=FactKind.LONG_TEXT,
+                    example="Me on WhatsApp: everything. Anna Nagar manager by email: Anna Nagar only",
+                    used_for="Who is sent what, so nobody sees another branch's figures.",
+                ),
+                _sheet("report_log", "Report runs"),
+                _handoff("Karthik, accounts"),
+            ],
+            required_connectors=[_SHEET, _ZOHO_BOOKS, _GMAIL, _WHATSAPP],
         ),
     )
 

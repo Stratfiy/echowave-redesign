@@ -51,6 +51,7 @@ from api.tasks.connector_tools import sync_missing_tools
 from api.tasks.credential_health import check_platform_credentials
 from api.tasks.credit_reservations import sweep_credit_reservations
 from api.tasks.data_retention import purge_expired_call_data
+from api.tasks.dialer_import import import_dialer_calls, purge_imported_calls
 from api.tasks.document_fields import extract_document_fields, remind_due_tasks
 from api.tasks.email_tax_document import email_tax_document
 from api.tasks.evals import run_eval_case
@@ -105,6 +106,8 @@ class WorkerSettings:
         check_provider_balances,
         issue_monthly_tax_invoices,
         purge_expired_call_data,
+        import_dialer_calls,
+        purge_imported_calls,
         run_database_backup,
         run_ledger_snapshot,
         refresh_exchange_rate,
@@ -263,6 +266,25 @@ class WorkerSettings:
         cron(
             purge_expired_call_data,
             hour={19},
+            minute={0},
+            second=0,
+            run_at_startup=False,
+        ),
+        # CR-1: imported dialer calls past their 30 days, alongside the call
+        # data sweep. Runs even with the import off, so nothing outlives its
+        # window because a flag was switched.
+        cron(
+            purge_imported_calls,
+            hour={19},
+            minute={15},
+            second=0,
+            run_at_startup=False,
+        ),
+        # CR-1: the dialer import at 21:00 UTC (02:30 IST), when both dialers
+        # have finished processing the day's recordings and nobody is calling.
+        cron(
+            import_dialer_calls,
+            hour={21},
             minute={0},
             second=0,
             run_at_startup=False,

@@ -2782,6 +2782,107 @@ class ModelUsageModel(Base):
     )
 
 
+class DialerConnectionModel(Base):
+    """A business's own call-centre dialer, connected so its calls can be read.
+
+    Telecalling teams in India dial through Exotel or Tata Smartflo, not
+    through us, so their calls never pass a Decibyl number. Connecting the
+    dialer is how the telecaller coach gets to hear them: a nightly import
+    lists the day's calls through the dialer's API and copies the recordings
+    across (CR-1, decided 22 Sept 2026).
+
+    The credentials are the dialer account's, not ours: Fernet ciphertext of
+    a JSON object, keyed by ``PLATFORM_CREDENTIAL_SECRET`` like every other
+    tenant key, and never returned. ``status`` is what the screen shows:
+    ``connected`` until a run fails, ``needs_attention`` with ``last_error``
+    in plain words once it does -- a Smartflo token lasts at most 90 days,
+    and an import that silently stops is the failure this column exists to
+    prevent.
+    """
+
+    __tablename__ = "dialer_connections"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    # exotel | smartflo
+    vendor = Column(String(32), nullable=False)
+    label = Column(String(128), nullable=True)
+    encrypted_credentials = Column(Text, nullable=False)
+    # The last four characters of the secret that identifies the account, so
+    # the screen can show which one is installed without it being readable.
+    key_last_four = Column(String(8), nullable=False)
+    status = Column(
+        String(32), nullable=False, default="connected", server_default="connected"
+    )
+    last_error = Column(Text, nullable=True)
+    last_synced_at = Column(DateTime(timezone=True), nullable=True)
+    created_by = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (Index("ix_dialer_connections_organization", "organization_id"),)
+
+
+class ImportedCallModel(Base):
+    """One call a person made or took on a connected dialer.
+
+    Kept for the coach to read, and no longer: ``expires_at`` is set at
+    import and a nightly purge deletes the row and its recording. The
+    customer's number is not stored -- the coach needs who called and what
+    was said, not who was called -- only its last four digits, so a person
+    checking a note can find the call on the dialer.
+
+    ``duration_seconds`` and ``transcription_model`` are the measurement:
+    transcribing a call is speech-to-text the platform pays for, and how it
+    is charged is decided with the rest of charging, from what this records.
+    """
+
+    __tablename__ = "imported_calls"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    connection_id = Column(
+        Integer, ForeignKey("dialer_connections.id", ondelete="CASCADE"), nullable=False
+    )
+    vendor = Column(String(32), nullable=False)
+    external_id = Column(String(128), nullable=False)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    duration_seconds = Column(Integer, nullable=False, default=0, server_default="0")
+    direction = Column(String(16), nullable=True)
+    agent_name = Column(String(128), nullable=True)
+    agent_number = Column(String(32), nullable=True)
+    customer_last_four = Column(String(8), nullable=True)
+    recording_key = Column(String(512), nullable=True)
+    transcript = Column(Text, nullable=True)
+    transcription_model = Column(String(128), nullable=True)
+    # pending | transcribed | failed
+    status = Column(
+        String(16), nullable=False, default="pending", server_default="pending"
+    )
+    error = Column(Text, nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id",
+            "vendor",
+            "external_id",
+            name="uq_imported_call_per_vendor",
+        ),
+        Index("ix_imported_calls_org_started", "organization_id", "started_at"),
+        Index("ix_imported_calls_expires", "expires_at"),
+    )
+
+
 class EmbeddingIngestionCostModel(Base):
     """One document's ingestion-embedding cost, alongside what it was charged.
 
