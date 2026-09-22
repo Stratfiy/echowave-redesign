@@ -205,6 +205,11 @@ BOT_FUNCTIONS: frozenset[str] = frozenset(
         # answers customers in writing is none of the six above.
         "Answer enquiries",
         "Handle support",
+        # Added with the back-office desks promoted on 22 Sept 2026: entering,
+        # matching, drafting and routing paperwork, and collecting documents
+        # from people outside the business.
+        "Do the paperwork",
+        "Collect documents",
     }
 )
 
