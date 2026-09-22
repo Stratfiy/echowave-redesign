@@ -63,6 +63,9 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "public-calls",
             "telephony",
             "managed-numbers",
+            # A business's own dialer, connected so its team's calls can be
+            # imported for the telecaller coach (CR-1).
+            "dialer-connections",
             "campaigns",
             "contacts",
             "turn",

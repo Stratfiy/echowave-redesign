@@ -2690,6 +2690,30 @@ export type ConnectLinkResponse = {
 };
 
 /**
+ * ConnectRequest
+ */
+export type ConnectRequest = {
+    /**
+     * Vendor
+     *
+     * exotel | smartflo
+     */
+    vendor: string;
+    /**
+     * Credentials
+     *
+     * Exotel: api_key, api_token, account_sid, and subdomain if not api.exotel.com. Smartflo: api_token from the Smartflo portal.
+     */
+    credentials: {
+        [key: string]: string;
+    };
+    /**
+     * Label
+     */
+    label?: string | null;
+};
+
+/**
  * ConnectedAccount
  */
 export type ConnectedAccount = {
@@ -21542,6 +21566,176 @@ export type DiscoverModelsApiV1ProviderKeysModelsGetResponses = {
 };
 
 export type DiscoverModelsApiV1ProviderKeysModelsGetResponse = DiscoverModelsApiV1ProviderKeysModelsGetResponses[keyof DiscoverModelsApiV1ProviderKeysModelsGetResponses];
+
+export type ListDialerConnectionsApiV1DialerConnectionsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/dialer-connections';
+};
+
+export type ListDialerConnectionsApiV1DialerConnectionsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListDialerConnectionsApiV1DialerConnectionsGetError = ListDialerConnectionsApiV1DialerConnectionsGetErrors[keyof ListDialerConnectionsApiV1DialerConnectionsGetErrors];
+
+export type ListDialerConnectionsApiV1DialerConnectionsGetResponses = {
+    /**
+     * Response List Dialer Connections Api V1 Dialer Connections Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListDialerConnectionsApiV1DialerConnectionsGetResponse = ListDialerConnectionsApiV1DialerConnectionsGetResponses[keyof ListDialerConnectionsApiV1DialerConnectionsGetResponses];
+
+export type ConnectDialerApiV1DialerConnectionsPostData = {
+    body: ConnectRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/dialer-connections';
+};
+
+export type ConnectDialerApiV1DialerConnectionsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ConnectDialerApiV1DialerConnectionsPostError = ConnectDialerApiV1DialerConnectionsPostErrors[keyof ConnectDialerApiV1DialerConnectionsPostErrors];
+
+export type ConnectDialerApiV1DialerConnectionsPostResponses = {
+    /**
+     * Response Connect Dialer Api V1 Dialer Connections Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ConnectDialerApiV1DialerConnectionsPostResponse = ConnectDialerApiV1DialerConnectionsPostResponses[keyof ConnectDialerApiV1DialerConnectionsPostResponses];
+
+export type DisconnectDialerApiV1DialerConnectionsConnectionIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Connection Id
+         */
+        connection_id: number;
+    };
+    query?: never;
+    url: '/api/v1/dialer-connections/{connection_id}';
+};
+
+export type DisconnectDialerApiV1DialerConnectionsConnectionIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DisconnectDialerApiV1DialerConnectionsConnectionIdDeleteError = DisconnectDialerApiV1DialerConnectionsConnectionIdDeleteErrors[keyof DisconnectDialerApiV1DialerConnectionsConnectionIdDeleteErrors];
+
+export type DisconnectDialerApiV1DialerConnectionsConnectionIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ListImportedCallsApiV1DialerConnectionsCallsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+    };
+    url: '/api/v1/dialer-connections/calls';
+};
+
+export type ListImportedCallsApiV1DialerConnectionsCallsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListImportedCallsApiV1DialerConnectionsCallsGetError = ListImportedCallsApiV1DialerConnectionsCallsGetErrors[keyof ListImportedCallsApiV1DialerConnectionsCallsGetErrors];
+
+export type ListImportedCallsApiV1DialerConnectionsCallsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
 
 export type GetBalanceApiV1BillingBalanceGetData = {
     body?: never;

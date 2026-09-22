@@ -570,6 +570,12 @@ TASK_BOARD_2026_09_ENABLED = (
     os.getenv("TASK_BOARD_2026_09_ENABLED", "false").lower() == "true"
 )
 
+# CR-1 (22 Sept 2026): connect a business's own dialer -- Exotel or Tata
+# Smartflo -- and import its human team's recorded calls each night, for the
+# telecaller coach to read. Off until the connect screen's consent wording is
+# approved.
+DIALER_IMPORT_ENABLED = os.getenv("DIALER_IMPORT_ENABLED", "false").lower() == "true"
+
 # D-1a (21 Sept 2026): Decibyl keeps working past a reply's tool-round cap.
 # Off, and a turn that hits the cap answers with what it has, as before. On,
 # and the turn hands the rest to a task on the board that runs in the
