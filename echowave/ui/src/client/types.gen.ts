@@ -16939,6 +16939,66 @@ export type RecordFircApiV1AdminBillingPaymentsPaymentIdFircPutResponses = {
 
 export type RecordFircApiV1AdminBillingPaymentsPaymentIdFircPutResponse = RecordFircApiV1AdminBillingPaymentsPaymentIdFircPutResponses[keyof RecordFircApiV1AdminBillingPaymentsPaymentIdFircPutResponses];
 
+export type TokenUsageReportApiV1AdminBillingTokensByModelGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Organization Id
+         *
+         * One account; omit for the platform
+         */
+        organization_id?: number | null;
+        /**
+         * Format
+         */
+        format?: string;
+        /**
+         * Start
+         *
+         * Inclusive IST day, YYYY-MM-DD
+         */
+        start?: string | null;
+        /**
+         * End
+         *
+         * Inclusive IST day, YYYY-MM-DD
+         */
+        end?: string | null;
+    };
+    url: '/api/v1/admin/billing/tokens/by-model';
+};
+
+export type TokenUsageReportApiV1AdminBillingTokensByModelGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TokenUsageReportApiV1AdminBillingTokensByModelGetError = TokenUsageReportApiV1AdminBillingTokensByModelGetErrors[keyof TokenUsageReportApiV1AdminBillingTokensByModelGetErrors];
+
+export type TokenUsageReportApiV1AdminBillingTokensByModelGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
 export type Gstr1ExportApiV1AdminBillingGstr1GetData = {
     body?: never;
     headers?: {

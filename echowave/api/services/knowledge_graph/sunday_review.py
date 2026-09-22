@@ -24,6 +24,7 @@ from loguru import logger
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
 from api.services.billing import events as billing_events
+from api.services.billing import model_usage
 from api.services.knowledge_graph import quiet
 from api.services.knowledge_graph.client import Fact, recent_facts
 from api.services.workflow import agent_timeline
@@ -162,14 +163,17 @@ async def compose(organization_id: int, material: Material) -> str:
             model = await settings.resolve_model(session)
         conversation = client.Conversation()
         conversation.add_user("Material for the week:\n" + material_text(material))
-        reply = await client.complete(
-            provider=model.provider,
-            model=model.model,
-            api_key=model.api_key,
-            system=SYSTEM,
-            conversation=conversation,
-            tools=[],
-        )
+        with model_usage.scope(
+            organization_id=organization_id, feature="graph_sunday_review"
+        ):
+            reply = await client.complete(
+                provider=model.provider,
+                model=model.model,
+                api_key=model.api_key,
+                system=SYSTEM,
+                conversation=conversation,
+                tools=[],
+            )
         text = trim(reply.text or "")
         return text or plain_review(material)
     except Exception as exc:  # noqa: BLE001 - the review still goes out

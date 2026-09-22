@@ -35,6 +35,7 @@ from loguru import logger
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
 from api.services import prompt_budget, reporting_window
+from api.services.billing import model_usage
 from api.services.knowledge_graph import quiet, recall, teach
 from api.services.organization_preferences import get_organization_preferences
 from api.services.skills import imports as skill_imports
@@ -1537,15 +1538,16 @@ async def _speak(
         last["at"] = now
         await reply_draft.set_draft(organization_id, text)
 
-    return await client.stream(
-        provider=model.provider,
-        model=model.model,
-        api_key=model.api_key,
-        system=SYSTEM,
-        conversation=conversation,
-        on_text=on_text,
-        tools=tools,
-    )
+    with model_usage.scope(organization_id=organization_id, feature="decibyl"):
+        return await client.stream(
+            provider=model.provider,
+            model=model.model,
+            api_key=model.api_key,
+            system=SYSTEM,
+            conversation=conversation,
+            on_text=on_text,
+            tools=tools,
+        )
 
 
 def recent_window() -> datetime:

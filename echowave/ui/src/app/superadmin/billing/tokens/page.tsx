@@ -64,6 +64,8 @@ import {
 import { detailFromResult } from "@/lib/apiError";
 import { formatDateIST, formatNumber, formatPaise } from "@/lib/billing/format";
 
+import { VendorSplit } from "./VendorSplit";
+
 const GRANULARITIES = [
     { key: "day", label: "Daily" },
     { key: "week", label: "Weekly" },
@@ -451,6 +453,8 @@ export default function TokensPage() {
                     )}
                 </CardContent>
             </Card>
+
+            <VendorSplit />
         </div>
     );
 }

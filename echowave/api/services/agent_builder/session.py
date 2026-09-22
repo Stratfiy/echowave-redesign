@@ -28,6 +28,7 @@ from api.services.agent_builder.client import (
     complete,
 )
 from api.services.agent_builder.settings import BuilderModel
+from api.services.billing import model_usage
 
 SYSTEM_PROMPT = """\
 You are the Decibyl agent builder. You help someone put a working voice agent \
@@ -206,14 +207,15 @@ async def run_turn(
     created_workflow_id: int | None = None
 
     for _ in range(constants.AGENT_BUILDER_MAX_TOOL_CALLS_PER_TURN):
-        reply = await complete(
-            provider=model.provider,
-            model=model.model,
-            api_key=model.api_key,
-            system=SYSTEM_PROMPT,
-            conversation=conversation,
-            tools=schemas,
-        )
+        with model_usage.scope(organization_id=organization_id, feature="builder"):
+            reply = await complete(
+                provider=model.provider,
+                model=model.model,
+                api_key=model.api_key,
+                system=SYSTEM_PROMPT,
+                conversation=conversation,
+                tools=schemas,
+            )
         conversation.add_assistant(reply)
 
         if not reply.wants_tools:

@@ -40,6 +40,8 @@ from typing import Any, Awaitable, Callable
 import httpx
 from loguru import logger
 
+from api.services.billing import model_usage
+
 #: Vendors this loop can drive. Values match the provider names used in the
 #: platform credential store, so the key an operator installs selects the
 #: adapter with no mapping table in between.
@@ -91,6 +93,11 @@ class ModelReply:
 
     text: str
     tool_calls: tuple[ToolCall, ...] = ()
+    #: What the vendor said the call used, in the pipeline's shape
+    #: (``prompt_tokens``, ``completion_tokens``, and the cache counts when
+    #: there were any). None when the vendor said nothing, which is not the
+    #: same as saying nothing was used.
+    usage: dict[str, int] | None = None
 
     @property
     def wants_tools(self) -> bool:
@@ -242,6 +249,67 @@ def _anthropic_request(
     return payload
 
 
+# --- usage ------------------------------------------------------------------
+#
+# Each vendor reports usage its own way. All three are read into the shape
+# the pipeline writes to ``usage_info["llm"]``, so the one vendor rule in
+# ``billing.usage.llm_split_items`` -- Anthropic's input is net of its cache,
+# OpenAI's and Google's include it -- splits both the same way.
+
+
+def _count(value: Any) -> int:
+    try:
+        return max(int(value or 0), 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _usage_shape(
+    prompt: Any, completion: Any, cache_read: Any = 0, cache_write: Any = 0
+) -> dict[str, int]:
+    out = {"prompt_tokens": _count(prompt), "completion_tokens": _count(completion)}
+    if _count(cache_read):
+        out["cache_read_input_tokens"] = _count(cache_read)
+    if _count(cache_write):
+        out["cache_creation_input_tokens"] = _count(cache_write)
+    return out
+
+
+def _anthropic_usage(usage: Any) -> dict[str, int] | None:
+    if not isinstance(usage, dict):
+        return None
+    return _usage_shape(
+        usage.get("input_tokens"),
+        usage.get("output_tokens"),
+        usage.get("cache_read_input_tokens"),
+        usage.get("cache_creation_input_tokens"),
+    )
+
+
+def _openai_usage(usage: Any) -> dict[str, int] | None:
+    if not isinstance(usage, dict):
+        return None
+    details = usage.get("prompt_tokens_details") or {}
+    return _usage_shape(
+        usage.get("prompt_tokens"),
+        usage.get("completion_tokens"),
+        details.get("cached_tokens") if isinstance(details, dict) else 0,
+    )
+
+
+def _gemini_usage(usage: Any) -> dict[str, int] | None:
+    if not isinstance(usage, dict):
+        return None
+    # Thinking is billed at the output rate and reported beside the
+    # candidates, not inside them.
+    return _usage_shape(
+        usage.get("promptTokenCount"),
+        _count(usage.get("candidatesTokenCount"))
+        + _count(usage.get("thoughtsTokenCount")),
+        usage.get("cachedContentTokenCount"),
+    )
+
+
 def _anthropic_parse(body: dict[str, Any]) -> ModelReply:
     text_parts: list[str] = []
     calls: list[ToolCall] = []
@@ -256,7 +324,11 @@ def _anthropic_parse(body: dict[str, Any]) -> ModelReply:
                     arguments=block.get("input") or {},
                 )
             )
-    return ModelReply(text="".join(text_parts).strip(), tool_calls=tuple(calls))
+    return ModelReply(
+        text="".join(text_parts).strip(),
+        tool_calls=tuple(calls),
+        usage=_anthropic_usage(body.get("usage")),
+    )
 
 
 # --- OpenAI -----------------------------------------------------------------
@@ -349,7 +421,9 @@ def _openai_parse(body: dict[str, Any]) -> ModelReply:
         )
 
     return ModelReply(
-        text=(message.get("content") or "").strip(), tool_calls=tuple(calls)
+        text=(message.get("content") or "").strip(),
+        tool_calls=tuple(calls),
+        usage=_openai_usage(body.get("usage")),
     )
 
 
@@ -446,7 +520,11 @@ def _gemini_parse(body: dict[str, Any]) -> ModelReply:
                     arguments=call.get("args") or {},
                 )
             )
-    return ModelReply(text="".join(text_parts).strip(), tool_calls=tuple(calls))
+    return ModelReply(
+        text="".join(text_parts).strip(),
+        tool_calls=tuple(calls),
+        usage=_gemini_usage(body.get("usageMetadata")),
+    )
 
 
 # --- the seam ---------------------------------------------------------------
@@ -535,10 +613,12 @@ async def complete(
         raise BuilderClientError("The assistant hit an error. Try again in a moment.")
 
     try:
-        return parse(response.json())
+        reply = parse(response.json())
     except (ValueError, KeyError, TypeError) as exc:
         logger.error("Agent builder could not parse the {} reply: {}", provider, exc)
         raise BuilderClientError("The assistant replied in a form we could not read.")
+    await model_usage.record(provider=provider, model=model, usage=reply.usage)
+    return reply
 
 
 # --- streaming ---------------------------------------------------------------
@@ -577,6 +657,10 @@ class _StreamState:
     def __init__(self) -> None:
         self.parts: list[str] = []
         self.calls: dict[int, dict[str, Any]] = {}
+        self._usage: dict[str, int] | None = None
+
+    def usage(self) -> dict[str, int] | None:
+        return self._usage
 
     def text(self) -> str:
         return "".join(self.parts)
@@ -610,6 +694,16 @@ class _StreamState:
         """Apply one event. Returns whether the text grew."""
         kind = event.get("type")
         index = int(event.get("index") or 0)
+        # Anthropic sends the input side when the message starts and the
+        # output count, cumulative, on each message_delta.
+        if kind == "message_start":
+            self._usage = _anthropic_usage((event.get("message") or {}).get("usage"))
+            return False
+        if kind == "message_delta" and isinstance(event.get("usage"), dict):
+            base = dict(self._usage or {"prompt_tokens": 0})
+            base["completion_tokens"] = _count(event["usage"].get("output_tokens"))
+            self._usage = base
+            return False
         if kind == "content_block_start":
             block = event.get("content_block") or {}
             if block.get("type") == "tool_use":
@@ -628,6 +722,10 @@ class _StreamState:
         return False
 
     def openai(self, event: dict[str, Any]) -> bool:
+        # With stream_options.include_usage, the last chunk carries the usage
+        # and an empty choices list.
+        if isinstance(event.get("usage"), dict):
+            self._usage = _openai_usage(event["usage"])
         choices = event.get("choices") or []
         if not choices:
             return False
@@ -645,6 +743,15 @@ class _StreamState:
                 call["name"] = function["name"]
             call["arguments"] += function.get("arguments") or ""
         return grew
+
+
+def _stream_payload(provider: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """The request made streaming. OpenAI only reports a stream's usage when
+    asked to, in a final chunk; without this there is nothing to meter."""
+    out = {**payload, "stream": True}
+    if provider == OPENAI:
+        out["stream_options"] = {"include_usage": True}
+    return out
 
 
 async def stream(
@@ -699,7 +806,7 @@ async def stream(
             conversation=conversation,
             tools=tools,
         )
-    payload["stream"] = True
+    payload = _stream_payload(provider, payload)
 
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as client:
@@ -747,4 +854,8 @@ async def stream(
         raise BuilderClientError(
             "The assistant could not be reached just now. Try again in a moment."
         ) from exc
-    return ModelReply(text=state.text().strip(), tool_calls=state.tool_calls())
+    usage = state.usage()
+    await model_usage.record(provider=provider, model=model, usage=usage)
+    return ModelReply(
+        text=state.text().strip(), tool_calls=state.tool_calls(), usage=usage
+    )

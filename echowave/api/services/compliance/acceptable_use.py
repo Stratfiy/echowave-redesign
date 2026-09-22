@@ -39,6 +39,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.services.agent_builder import settings
 from api.services.agent_builder.client import BuilderClientError, Conversation, complete
+from api.services.billing import model_usage
 
 
 @dataclass(frozen=True)
@@ -338,14 +339,15 @@ async def screen(session: AsyncSession, *, instructions: str) -> list[Finding]:
     conversation.add_user(_prompt_for(text))
 
     try:
-        reply = await complete(
-            provider=model.provider,
-            model=model.model,
-            api_key=model.api_key,
-            system=_SYSTEM,
-            conversation=conversation,
-            tools=[_tool_schema()],
-        )
+        with model_usage.labelled("acceptable_use"):
+            reply = await complete(
+                provider=model.provider,
+                model=model.model,
+                api_key=model.api_key,
+                system=_SYSTEM,
+                conversation=conversation,
+                tools=[_tool_schema()],
+            )
     except BuilderClientError as exc:
         logger.warning("Acceptable-use screening could not run: {}", exc)
         return []
