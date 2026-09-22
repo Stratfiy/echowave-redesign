@@ -37,6 +37,7 @@ from api.services.configuration.ai_model_configuration import (
     get_organization_ai_model_configuration_v2,
 )
 from api.services.posthog_client import capture_event
+from api.services.workflow import unfilled
 from api.services.workflow.trigger_paths import regenerate_trigger_uuids
 
 router = APIRouter(prefix="/agent-templates", tags=["agent-templates"])
@@ -213,8 +214,17 @@ async def create_from_template(
         user_id=user.id,
     )
 
+    # A template hired without its answers still says {{clinic_name}}. It is
+    # made, because half-finished is a normal place to be, but it does not
+    # answer a phone until somebody fills them in: a caller heard "Namaste, ."
+    # on 20 Sept because nothing stopped one going live with the gap. The
+    # template's own words are "values the operator must supply before going
+    # live", and this is the enforcement of them.
+    gaps = unfilled.problems(definition)
+
     name = (request.agent_name or "").strip() if request else ""
     workflow = await db_client.create_workflow(
+        is_live=not gaps,
         name=name or template.name,
         workflow_definition=regenerate_trigger_uuids(definition),
         user_id=user.id,
@@ -258,7 +268,16 @@ async def create_from_template(
         },
     )
 
-    return {"id": workflow.id, "name": workflow.name, "template_id": template.id}
+    return {
+        "id": workflow.id,
+        "name": workflow.name,
+        "template_id": template.id,
+        "is_live": workflow.is_live,
+        # Named rather than counted, so the screen can say which boxes are
+        # still empty instead of "something is missing". Empty on a hire that
+        # answered everything, which is the ordinary case.
+        "unanswered": sorted(unfilled.names_in(definition)),
+    }
 
 
 def _personalise(
