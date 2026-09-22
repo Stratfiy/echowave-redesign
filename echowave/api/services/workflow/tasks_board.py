@@ -48,13 +48,66 @@ DESCRIPTION = (
     "end your reply. Never file a task to yourself."
 )
 
+# The columns, on paperclip's issue model (TB-1): backlog -> todo ->
+# in_progress -> in_review -> done, with blocked and cancelled as the side
+# exits. ``blocked`` is what the old ``waiting`` and ``could_not`` both were:
+# work a person has to do something about, with the reason on the card.
+BACKLOG = "backlog"
 TODO = "todo"
-DOING = "doing"
-WAITING = "waiting"
+IN_PROGRESS = "in_progress"
+IN_REVIEW = "in_review"
 DONE = "done"
-COULD_NOT = "could_not"
-STATUSES = (TODO, DOING, WAITING, DONE, COULD_NOT)
-TERMINAL = (DONE, COULD_NOT)
+BLOCKED = "blocked"
+CANCELLED = "cancelled"
+STATUSES = (BACKLOG, TODO, IN_PROGRESS, IN_REVIEW, DONE, BLOCKED, CANCELLED)
+#: The five the board had before TB-1, under their new names. With the flag
+#: off these are the only columns a person can move a card to.
+LEGACY_STATUSES = (TODO, IN_PROGRESS, BLOCKED, DONE, CANCELLED)
+TERMINAL = (DONE, CANCELLED)
+#: Work a person has to do something about.
+NEEDS_A_PERSON = (BLOCKED, IN_REVIEW)
+# The old names, for the callers that still say them.
+DOING = IN_PROGRESS
+WAITING = BLOCKED
+COULD_NOT = BLOCKED
+
+PRIORITIES = ("critical", "high", "medium", "low")
+DEFAULT_PRIORITY = "medium"
+
+
+def enabled() -> bool:
+    from api import constants
+
+    return bool(constants.TASK_BOARD_2026_09_ENABLED)
+
+
+def landing_status(answer: str) -> str:
+    """Where an agent's finished task goes. On the board (TB-1) an answer
+    waits in review for a person to sign off; off it, done as before. No
+    answer is blocked either way: somebody has to look."""
+    if not answer:
+        return BLOCKED
+    return IN_REVIEW if enabled() else DONE
+
+
+def identifier_prefix(organization_name: str | None) -> str:
+    """``Decibyl`` -> ``DEC``, ``Kovai Fertility Centre`` -> ``KFC``: the
+    letters a person would use, never a number the database chose."""
+    words = [w for w in re.split(r"[^A-Za-z0-9]+", organization_name or "") if w]
+    if len(words) >= 2:
+        prefix = "".join(w[0] for w in words[:3])
+    elif words:
+        prefix = words[0][:3]
+    else:
+        prefix = "T"
+    return prefix.upper()
+
+
+def identifier(prefix: str | None, number: int | None) -> str | None:
+    if number is None:
+        return None
+    return f"{prefix or 'T'}-{number}"
+
 
 TEAM = "team"
 MAX_DEPTH = 2
@@ -95,6 +148,11 @@ def tool_properties() -> dict[str, Any]:
         "due": {
             "type": "string",
             "description": "When it is needed, if it matters: an ISO date or 'in 3 days'.",
+        },
+        "priority": {
+            "type": "string",
+            "enum": list(PRIORITIES),
+            "description": "How urgent, if not medium.",
         },
     }
 
@@ -163,13 +221,35 @@ async def _depth_of(workflow_run_id: int | None) -> int:
     return int(task.get("depth") or 0) + 1 if task else 0
 
 
-def as_dict(task: Any, names: dict[int, str] | None = None) -> dict[str, Any]:
+def as_dict(
+    task: Any,
+    names: dict[int, str] | None = None,
+    *,
+    people: dict[int, str] | None = None,
+    prefix: str | None = None,
+    comment_count: int | None = None,
+) -> dict[str, Any]:
     names = names or {}
+    people = people or {}
+    assignee_user_id = getattr(task, "assignee_user_id", None)
+    blocked_by = getattr(task, "blocked_by", None)
     return {
         "id": task.id,
+        "number": getattr(task, "number", None),
+        "identifier": identifier(prefix, getattr(task, "number", None)),
         "title": task.title,
         "brief": task.brief or "",
         "status": task.status,
+        "priority": getattr(task, "priority", None) or DEFAULT_PRIORITY,
+        "assignee_user_id": assignee_user_id,
+        "assignee_user_name": people.get(assignee_user_id)
+        if assignee_user_id
+        else None,
+        "parent_id": getattr(task, "parent_id", None),
+        "blocked_by": [int(x) for x in blocked_by]
+        if isinstance(blocked_by, list)
+        else [],
+        "comment_count": comment_count,
         "from_workflow_id": task.from_workflow_id,
         "from_name": names.get(task.from_workflow_id)
         if task.from_workflow_id
@@ -192,6 +272,20 @@ def as_dict(task: Any, names: dict[int, str] | None = None) -> dict[str, Any]:
 # --- filing -----------------------------------------------------------------
 
 
+def _int_or_none(value: Any) -> int | None:
+    try:
+        return int(value) if value not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _ids(value: Any) -> list[int] | None:
+    if not isinstance(value, list):
+        return None
+    out = [i for i in (_int_or_none(v) for v in value) if i is not None]
+    return out or None
+
+
 async def create(
     *,
     organization_id: int,
@@ -209,6 +303,21 @@ async def create(
         return {"status": "not_filed", "reason": "Give the task a title."}
     if not brief:
         return {"status": "not_filed", "reason": "Say what is wanted, in the brief."}
+    priority = str(arguments.get("priority") or DEFAULT_PRIORITY).strip().lower()
+    if priority not in PRIORITIES:
+        return {
+            "status": "not_filed",
+            "reason": f"Priority is one of {', '.join(PRIORITIES)}.",
+        }
+    # A person as the owner (TB-1): the screen says ``user:<id>``; a model
+    # never does, it names a bot or the team.
+    assignee_user_id: int | None = None
+    if wanted.lower().startswith("user:"):
+        try:
+            assignee_user_id = int(wanted.split(":", 1)[1])
+        except ValueError:
+            return {"status": "not_filed", "reason": "That is not a person here."}
+        wanted = TEAM
 
     roster = list(
         await db_client.get_all_workflows_for_listing(organization_id=organization_id)
@@ -242,18 +351,24 @@ async def create(
         organization_id=organization_id,
         title=title,
         brief=brief,
-        status=TODO,
         from_workflow_id=from_workflow_id,
         assignee_workflow_id=assignee.id if assignee else None,
         created_by=created_by,
         source_run_id=workflow_run_id,
         depth=depth,
         due_at=parse_due(arguments.get("due")),
+        priority=priority,
+        assignee_user_id=assignee_user_id,
+        parent_id=_int_or_none(arguments.get("parent_id")),
+        blocked_by=_ids(arguments.get("blocked_by")),
+        status=BACKLOG if arguments.get("backlog") and enabled() else TODO,
     )
 
     owner = (
         f"@{getattr(assignee, 'handle', None) or assignee.name}"
         if assignee
+        else "a person"
+        if assignee_user_id
         else "the team"
     )
     asker = names.get(from_workflow_id, "A person") if from_workflow_id else "A person"
@@ -471,7 +586,7 @@ async def run_task(task_id: int) -> int | None:
             await _finish(
                 task_id,
                 organization_id=organization_id,
-                status=WAITING,
+                status=BLOCKED,
                 result=f"Could not start: {reason}",
                 run_id=run_id,
                 from_id=from_id,
@@ -539,7 +654,7 @@ async def run_task(task_id: int) -> int | None:
         await _finish(
             task_id,
             organization_id=organization_id,
-            status=DONE if answer else COULD_NOT,
+            status=landing_status(answer),
             result=answer or "Ran and had nothing to report.",
             run_id=run_id,
             from_id=from_id,
@@ -552,7 +667,7 @@ async def run_task(task_id: int) -> int | None:
         await _finish(
             task_id,
             organization_id=organization_id,
-            status=COULD_NOT,
+            status=BLOCKED,
             result=f"Could not finish: {str(exc)[:300]}",
             run_id=run_id,
             from_id=from_id,
@@ -583,12 +698,14 @@ async def _finish(
         result=result[:MAX_RESULT],
         workflow_run_id=run_id,
     )
-    done = status == DONE
+    done = status in (DONE, IN_REVIEW)
     verb = (
-        "finished"
+        "handed over for review"
+        if status == IN_REVIEW
+        else "finished"
         if done
         else "could not start"
-        if status == WAITING
+        if result.startswith("Could not start")
         else "could not do"
     )
     line = f"{assignee_name} {verb} the task: {title}"
@@ -596,6 +713,18 @@ async def _finish(
         "task": as_dict(task) if task else {"id": task_id},
         "result": result[:500],
     }
+    if enabled() and task is not None:
+        # The report is a line on the card, under the agent's name, so the
+        # person reviewing reads the conversation, not one overwritten field.
+        try:
+            await db_client.add_task_comment(
+                organization_id=organization_id,
+                task_id=task_id,
+                body=result[:MAX_RESULT],
+                author_workflow_id=task.assignee_workflow_id,
+            )
+        except Exception as exc:  # noqa: BLE001 - the result column has it
+            logger.warning("Could not note the result on task {}: {}", task_id, exc)
     await agent_timeline.record(
         organization_id=organization_id,
         kind=AgentEventKind.DELIVERABLE.value
@@ -649,7 +778,7 @@ async def set_status(
     result: str | None,
     user_id: int,
 ) -> dict[str, Any]:
-    if status not in STATUSES:
+    if status not in (STATUSES if enabled() else LEGACY_STATUSES):
         raise TaskError("Not a column on this board.")
     task = await db_client.get_task(task_id, organization_id=organization_id)
     if task is None:
@@ -660,7 +789,7 @@ async def set_status(
     if (
         status == TODO
         and task.assignee_workflow_id is not None
-        and task.status in TERMINAL
+        and task.status in TERMINAL + NEEDS_A_PERSON
     ):
         # Re-queued for a bot: run it again.
         updated = await db_client.update_task(
@@ -678,26 +807,158 @@ async def set_status(
         task_id, organization_id=organization_id, **fields
     )
     if status in TERMINAL:
+        word = (
+            "signed off"
+            if status == DONE and task.status == IN_REVIEW
+            else "done"
+            if status == DONE
+            else "cancelled"
+        )
         await agent_timeline.record_activity(
             organization_id=organization_id,
-            summary=f"A person marked the task {'done' if status == DONE else 'could not'}: {task.title}",
+            summary=f"A person marked the task {word}: {task.title}",
             payload={"task": as_dict(updated), "by": user_id},
             in_channel=False,
         )
     return as_dict(updated)
 
 
+# --- the card's fields and comments (TB-1) ----------------------------------
+
+EDITABLE = ("priority", "assignee", "parent_id", "blocked_by", "due")
+
+
+async def edit(
+    *,
+    organization_id: int,
+    task_id: int,
+    changes: dict[str, Any],
+    user_id: int,
+) -> dict[str, Any]:
+    """Change what a card says about itself: priority, owner, parent, what
+    it waits on, when it is due. Never its status; that is a move."""
+    task = await db_client.get_task(task_id, organization_id=organization_id)
+    if task is None:
+        raise TaskError("That task is not here.")
+    fields: dict[str, Any] = {}
+    if "priority" in changes:
+        priority = str(changes["priority"] or DEFAULT_PRIORITY).lower()
+        if priority not in PRIORITIES:
+            raise TaskError(f"Priority is one of {', '.join(PRIORITIES)}.")
+        fields["priority"] = priority
+    if "assignee" in changes:
+        wanted = str(changes["assignee"] or TEAM).strip()
+        if wanted.lower().startswith("user:"):
+            fields["assignee_user_id"] = _int_or_none(wanted.split(":", 1)[1])
+            if fields["assignee_user_id"] is None:
+                raise TaskError("That is not a person here.")
+            fields["assignee_workflow_id"] = None
+        elif wanted.lstrip("@").casefold() == TEAM:
+            fields["assignee_user_id"] = None
+            fields["assignee_workflow_id"] = None
+        else:
+            roster = list(
+                await db_client.get_all_workflows_for_listing(
+                    organization_id=organization_id
+                )
+            )
+            bot = _match_bot(wanted, roster)
+            if bot is None:
+                raise TaskError(f"No bot called {wanted!r} here.")
+            fields["assignee_workflow_id"] = bot.id
+            fields["assignee_user_id"] = None
+    if "parent_id" in changes:
+        parent = _int_or_none(changes["parent_id"])
+        if parent == task_id:
+            raise TaskError("A task cannot be its own parent.")
+        fields["parent_id"] = parent
+    if "blocked_by" in changes:
+        ids = _ids(changes["blocked_by"]) or []
+        fields["blocked_by"] = [i for i in ids if i != task_id] or None
+    if "due" in changes:
+        fields["due_at"] = parse_due(changes["due"]) if changes["due"] else None
+    if not fields:
+        return as_dict(task)
+    updated = await db_client.update_task(
+        task_id, organization_id=organization_id, **fields
+    )
+    return as_dict(updated)
+
+
+MAX_COMMENT = 4_000
+
+
+async def comment(
+    *,
+    organization_id: int,
+    task_id: int,
+    body: str,
+    user_id: int,
+) -> dict[str, Any]:
+    text = body.strip()[:MAX_COMMENT]
+    if not text:
+        raise TaskError("Say something.")
+    task = await db_client.get_task(task_id, organization_id=organization_id)
+    if task is None:
+        raise TaskError("That task is not here.")
+    row = await db_client.add_task_comment(
+        organization_id=organization_id,
+        task_id=task_id,
+        body=text,
+        author_user_id=user_id,
+    )
+    return comment_dict(row)
+
+
+def comment_dict(
+    row: Any,
+    names: dict[int, str] | None = None,
+    people: dict[int, str] | None = None,
+) -> dict[str, Any]:
+    names = names or {}
+    people = people or {}
+    return {
+        "id": row.id,
+        "task_id": row.task_id,
+        "body": row.body,
+        "author_user_id": row.author_user_id,
+        "author_workflow_id": row.author_workflow_id,
+        "author_name": (
+            names.get(row.author_workflow_id)
+            if row.author_workflow_id
+            else people.get(row.author_user_id)
+            if row.author_user_id
+            else None
+        ),
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+    }
+
+
 __all__ = [
+    "BACKLOG",
+    "BLOCKED",
+    "CANCELLED",
     "COULD_NOT",
     "DESCRIPTION",
     "DOING",
     "DONE",
+    "IN_PROGRESS",
+    "IN_REVIEW",
+    "LEGACY_STATUSES",
     "MAX_DEPTH",
+    "NEEDS_A_PERSON",
+    "PRIORITIES",
     "STATUSES",
     "TEAM",
     "TODO",
     "TOOL_NAME",
     "WAITING",
+    "comment",
+    "edit",
+    "enabled",
+    "identifier",
+    "identifier_prefix",
+    "landing_status",
     "TaskError",
     "as_dict",
     "create",

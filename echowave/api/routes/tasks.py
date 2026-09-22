@@ -1,4 +1,5 @@
-"""The task board over HTTP (KAN-140 P1). Org-scoped from the user."""
+"""The task board over HTTP (KAN-140 P1; TB-1 makes it a board). Org-scoped
+from the user."""
 
 from __future__ import annotations
 
@@ -25,8 +26,23 @@ def _organization_id(user: UserModel) -> int:
 class TaskWrite(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     brief: str = Field(default="", max_length=4_000)
-    #: A bot's @handle, or "team".
+    #: A bot's @handle, "team", or "user:<id>" for a person (TB-1).
     assignee: str = Field(default="team", max_length=80)
+    due: str | None = Field(default=None, max_length=40)
+    priority: str | None = Field(default=None, max_length=8)
+    parent_id: int | None = None
+    blocked_by: list[int] | None = None
+    #: File it into the backlog rather than to do (TB-1).
+    backlog: bool = False
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class TaskEdit(BaseModel):
+    priority: str | None = Field(default=None, max_length=8)
+    assignee: str | None = Field(default=None, max_length=80)
+    parent_id: int | None = None
+    blocked_by: list[int] | None = None
     due: str | None = Field(default=None, max_length=40)
 
     model_config = ConfigDict(extra="forbid")
@@ -39,21 +55,72 @@ class TaskStatus(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class CommentWrite(BaseModel):
+    body: str = Field(min_length=1, max_length=4_000)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+def _person_name(user: Any) -> str:
+    return (
+        getattr(user, "name", None)
+        or getattr(user, "full_name", None)
+        or getattr(user, "email", None)
+        or f"Member {user.id}"
+    )
+
+
+async def _context(organization_id: int) -> dict[str, Any]:
+    """The names a card needs: the bots, the people, the workspace prefix."""
+    roster = await db_client.get_all_workflows_for_listing(
+        organization_id=organization_id
+    )
+    members = await db_client.list_organization_members(organization_id)
+    organization = await db_client.get_organization_by_id(organization_id)
+    return {
+        "roster": roster,
+        "names": {w.id: w.name for w in roster},
+        "people": {m.user.id: _person_name(m.user) for m in members},
+        "prefix": tasks_board.identifier_prefix(
+            getattr(organization, "name", None) if organization else None
+        ),
+    }
+
+
 @router.get("")
 async def list_tasks(user: Annotated[UserModel, Depends(get_user)]) -> dict[str, Any]:
     organization_id = _organization_id(user)
     rows = await db_client.tasks_for_organization(organization_id)
-    roster = await db_client.get_all_workflows_for_listing(
-        organization_id=organization_id
-    )
-    names = {w.id: w.name for w in roster}
+    ctx = await _context(organization_id)
+    counts = await db_client.comment_counts(organization_id, [t.id for t in rows])
+    enabled = tasks_board.enabled()
     return {
-        "tasks": [tasks_board.as_dict(t, names) for t in rows],
-        "statuses": list(tasks_board.STATUSES),
+        "tasks": [
+            tasks_board.as_dict(
+                t,
+                ctx["names"],
+                people=ctx["people"],
+                prefix=ctx["prefix"],
+                comment_count=counts.get(t.id, 0),
+            )
+            for t in rows
+        ],
+        "statuses": list(
+            tasks_board.STATUSES if enabled else tasks_board.LEGACY_STATUSES
+        ),
         "bots": [
             {"id": w.id, "name": w.name, "handle": getattr(w, "handle", None)}
-            for w in roster
+            for w in ctx["roster"]
         ],
+        "board": {
+            "enabled": enabled,
+            "priorities": list(tasks_board.PRIORITIES),
+            "prefix": ctx["prefix"],
+            "people": [
+                {"id": user_id, "name": name} for user_id, name in ctx["people"].items()
+            ],
+            "me": user.id,
+        },
     }
 
 
@@ -66,7 +133,7 @@ async def create_task(
         organization_id=organization_id,
         from_workflow_id=None,
         workflow_run_id=None,
-        arguments=body.model_dump(),
+        arguments=body.model_dump(exclude_none=True),
         created_by=user.id,
     )
     if result.get("status") != "filed":
@@ -76,10 +143,76 @@ async def create_task(
     task = await db_client.get_task(
         int(result["task_id"]), organization_id=organization_id
     )
-    roster = await db_client.get_all_workflows_for_listing(
-        organization_id=organization_id
+    ctx = await _context(organization_id)
+    return tasks_board.as_dict(
+        task, ctx["names"], people=ctx["people"], prefix=ctx["prefix"], comment_count=0
     )
-    return tasks_board.as_dict(task, {w.id: w.name for w in roster})
+
+
+@router.get("/{task_id}")
+async def get_task(
+    task_id: int, user: Annotated[UserModel, Depends(get_user)]
+) -> dict[str, Any]:
+    """One card with its comments (TB-1)."""
+    organization_id = _organization_id(user)
+    task = await db_client.get_task(task_id, organization_id=organization_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="That task is not here.")
+    ctx = await _context(organization_id)
+    comments = await db_client.comments_for_task(
+        task_id, organization_id=organization_id
+    )
+    out = tasks_board.as_dict(
+        task,
+        ctx["names"],
+        people=ctx["people"],
+        prefix=ctx["prefix"],
+        comment_count=len(comments),
+    )
+    out["comments"] = [
+        tasks_board.comment_dict(c, ctx["names"], ctx["people"]) for c in comments
+    ]
+    return out
+
+
+@router.patch("/{task_id}")
+async def edit_task(
+    task_id: int, body: TaskEdit, user: Annotated[UserModel, Depends(get_user)]
+) -> dict[str, Any]:
+    organization_id = _organization_id(user)
+    try:
+        await tasks_board.edit(
+            organization_id=organization_id,
+            task_id=task_id,
+            changes=body.model_dump(exclude_unset=True),
+            user_id=user.id,
+        )
+    except tasks_board.TaskError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    task = await db_client.get_task(task_id, organization_id=organization_id)
+    ctx = await _context(organization_id)
+    return tasks_board.as_dict(
+        task, ctx["names"], people=ctx["people"], prefix=ctx["prefix"]
+    )
+
+
+@router.post("/{task_id}/comments", status_code=201)
+async def add_comment(
+    task_id: int, body: CommentWrite, user: Annotated[UserModel, Depends(get_user)]
+) -> dict[str, Any]:
+    organization_id = _organization_id(user)
+    try:
+        out = await tasks_board.comment(
+            organization_id=organization_id,
+            task_id=task_id,
+            body=body.body,
+            user_id=user.id,
+        )
+    except tasks_board.TaskError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    ctx = await _context(organization_id)
+    out["author_name"] = ctx["people"].get(user.id)
+    return out
 
 
 @router.post("/{task_id}/status")

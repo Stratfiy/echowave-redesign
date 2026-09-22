@@ -147,7 +147,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         // is delivery, and a person you deal with is desk work.
         title: "Tasks",
         url: "/tasks",
-        activePaths: ["/requests", "/contacts", "/deliverables"],
+        activePaths: ["/requests", "/schedules", "/contacts", "/deliverables"],
         icon: CalendarClock,
         keywords: [
           "desk", "tasks", "scheduled", "routine", "schedule", "every morning", "daily",
@@ -545,7 +545,7 @@ export const NAV_CONTEXTS: NavContext[] = [
     icon: Home,
     // The bots are listed under Home by SidebarBots, which reads the roster
     // rather than this list — this is the door to all of them.
-    urls: ["/overview", "/workflow", "/tasks", "/requests"],
+    urls: ["/overview", "/workflow", "/tasks", "/requests", "/schedules"],
   },
   {
     id: "activity",

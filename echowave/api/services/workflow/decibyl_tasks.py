@@ -334,7 +334,7 @@ async def _finish(
         "status": status,
         "result": result[: tasks_board.MAX_RESULT],
     }
-    if status in tasks_board.TERMINAL:
+    if status in tasks_board.TERMINAL + (tasks_board.BLOCKED,):
         # The transcript has done its job; the card keeps the answer, not
         # the working. A task put back to To do starts from the ask.
         state = dict(task.continuation or {})
@@ -346,10 +346,13 @@ async def _finish(
     updated = await db_client.update_task(
         task.id, organization_id=task.organization_id, **fields
     )
-    verb = {
-        tasks_board.DONE: "finished",
-        tasks_board.WAITING: "could not start",
-    }.get(status, "could not finish")
+    verb = (
+        "finished"
+        if status == tasks_board.DONE
+        else "could not start"
+        if result.startswith("Could not start")
+        else "could not finish"
+    )
     await agent_timeline.record_activity(
         organization_id=task.organization_id,
         summary=f"Decibyl {verb} the task: {task.title}",

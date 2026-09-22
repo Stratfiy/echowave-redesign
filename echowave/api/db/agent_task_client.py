@@ -4,10 +4,10 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from api.db.base_client import BaseDBClient
-from api.db.models import AgentTaskModel
+from api.db.models import AgentTaskCommentModel, AgentTaskModel
 
 
 class AgentTaskClient(BaseDBClient):
@@ -52,7 +52,16 @@ class AgentTaskClient(BaseDBClient):
             return list(result.scalars().all())
 
     async def create_task(self, *, organization_id: int, **fields) -> AgentTaskModel:
+        """A row, numbered inside its workspace (TB-1): the identifier is
+        ``prefix-number``, and the number never moves."""
         async with self.async_session() as session:
+            if fields.get("number") is None:
+                highest = await session.scalar(
+                    select(func.max(AgentTaskModel.number)).where(
+                        AgentTaskModel.organization_id == organization_id
+                    )
+                )
+                fields["number"] = int(highest or 0) + 1
             task = AgentTaskModel(organization_id=organization_id, **fields)
             session.add(task)
             await session.commit()
@@ -62,8 +71,8 @@ class AgentTaskClient(BaseDBClient):
     async def update_task(
         self, task_id: int, *, organization_id: int, **fields: Any
     ) -> AgentTaskModel | None:
-        """Change fields. A status of ``doing`` stamps ``started_at``; a
-        terminal status stamps ``finished_at``."""
+        """Change fields. A status of ``in_progress`` stamps ``started_at``;
+        a terminal status stamps ``finished_at``."""
         async with self.async_session() as session:
             result = await session.execute(
                 select(AgentTaskModel).where(
@@ -78,9 +87,9 @@ class AgentTaskClient(BaseDBClient):
                 setattr(task, key, value)
             status = fields.get("status")
             now = datetime.now(UTC)
-            if status == "doing" and task.started_at is None:
+            if status == "in_progress" and task.started_at is None:
                 task.started_at = now
-            if status in ("done", "could_not"):
+            if status in ("done", "cancelled"):
                 task.finished_at = now
             await session.commit()
             await session.refresh(task)
@@ -100,3 +109,57 @@ class AgentTaskClient(BaseDBClient):
             await session.delete(task)
             await session.commit()
             return True
+
+    # --- comments (TB-1) ---------------------------------------------------
+
+    async def comments_for_task(
+        self, task_id: int, *, organization_id: int
+    ) -> list[AgentTaskCommentModel]:
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(AgentTaskCommentModel)
+                .where(
+                    AgentTaskCommentModel.task_id == task_id,
+                    AgentTaskCommentModel.organization_id == organization_id,
+                )
+                .order_by(AgentTaskCommentModel.id)
+            )
+            return list(result.scalars().all())
+
+    async def comment_counts(
+        self, organization_id: int, task_ids: Sequence[int]
+    ) -> dict[int, int]:
+        if not task_ids:
+            return {}
+        async with self.async_session() as session:
+            rows = await session.execute(
+                select(AgentTaskCommentModel.task_id, func.count())
+                .where(
+                    AgentTaskCommentModel.organization_id == organization_id,
+                    AgentTaskCommentModel.task_id.in_(list(task_ids)),
+                )
+                .group_by(AgentTaskCommentModel.task_id)
+            )
+            return {int(task_id): int(n) for task_id, n in rows.all()}
+
+    async def add_task_comment(
+        self,
+        *,
+        organization_id: int,
+        task_id: int,
+        body: str,
+        author_user_id: int | None = None,
+        author_workflow_id: int | None = None,
+    ) -> AgentTaskCommentModel:
+        async with self.async_session() as session:
+            row = AgentTaskCommentModel(
+                organization_id=organization_id,
+                task_id=task_id,
+                body=body,
+                author_user_id=author_user_id,
+                author_workflow_id=author_workflow_id,
+            )
+            session.add(row)
+            await session.commit()
+            await session.refresh(row)
+            return row
