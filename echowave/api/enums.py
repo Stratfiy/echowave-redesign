@@ -272,6 +272,7 @@ class ToolCategory(Enum):
         "google_calendar"  # Create events on a connected Google Calendar (implemented)
     )
     COMPOSIO = "composio"  # Run one Composio tool against a connected app (implemented)
+    WEB = "web"  # Built-in web search and page fetch on the platform key (OP-1)
 
 
 class ToolStatus(Enum):
@@ -370,11 +371,50 @@ class CostComponent(str, Enum):
     #: adding a feature to the catalogue never needs a migration; which feature
     #: a line is for is carried in ``provider``. See ``billing/addons.py``.
     ADDON = "addon"
+    #: The language model priced the way its vendor prices it (S-1, 21 Sept
+    #: 2026): input tokens, input tokens served from the vendor's prompt
+    #: cache, and output tokens, each on its own line at its own rate. ``LLM``
+    #: stays as the blended line for runs costed before the split and for
+    #: deployments with ``METERING_SPLIT_2026_09_ENABLED`` off; it is also
+    #: still the *configuration* slot (which vendor key, which model), which
+    #: the split never changes.
+    LLM_INPUT = "llm_input"
+    LLM_CACHED = "llm_cached"
+    LLM_OUTPUT = "llm_output"
+    #: Input tokens written *into* the vendor's prompt cache, where the vendor
+    #: charges a premium for the write (Anthropic: 1.25x input). Its own line
+    #: rather than folded into input, so the premium is recovered and the
+    #: receipt says what was paid for. Vendors with no write premium never
+    #: produce it.
+    LLM_CACHE_WRITE = "llm_cache_write"
+    #: Data bought on a platform key and passed through at cost: a contact
+    #: lookup, a web search, a page fetch. Which product is carried in
+    #: ``provider`` and which kind of request in ``model``, the way an add-on
+    #: carries its catalogue key, so a new data vendor never needs a
+    #: migration. A lookup on the customer's own connector produces no line.
+    DATA = "data"
 
     @classmethod
     def provider_components(cls) -> tuple["CostComponent", ...]:
         """Components that represent money paid to a third party."""
-        return (cls.STT, cls.LLM, cls.TTS, cls.TELEPHONY, cls.EMBEDDING)
+        return (
+            cls.STT,
+            cls.LLM,
+            cls.LLM_INPUT,
+            cls.LLM_CACHED,
+            cls.LLM_OUTPUT,
+            cls.LLM_CACHE_WRITE,
+            cls.TTS,
+            cls.TELEPHONY,
+            cls.EMBEDDING,
+            cls.DATA,
+        )
+
+    @classmethod
+    def llm_split_components(cls) -> tuple["CostComponent", ...]:
+        """The lines the blended ``LLM`` line splits into: three for every
+        vendor, and the cache write for the vendors that charge one."""
+        return (cls.LLM_INPUT, cls.LLM_CACHED, cls.LLM_OUTPUT, cls.LLM_CACHE_WRITE)
 
     @classmethod
     def revenue_components(cls) -> tuple["CostComponent", ...]:
@@ -398,6 +438,10 @@ class RateUnit(str, Enum):
     #: exists so a number rental can be expressed as a rate at all; see
     #: ``api/services/billing/rentals.py``.
     MONTH = "month"
+    #: One request: a lookup, a search, a fetch. The unit of the ``data``
+    #: component, whose vendors price per call rather than per anything
+    #: measured inside it.
+    EACH = "each"
 
 
 class CreditLedgerKind(str, Enum):

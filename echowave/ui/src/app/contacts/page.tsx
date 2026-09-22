@@ -295,7 +295,7 @@ export default function ContactsPage() {
                                         <thead className="border-b bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
                                             <tr>
                                                 <th className="p-2 font-medium">Name</th>
-                                                <th className="p-2 font-medium">Phone</th>
+                                                <th className="p-2 font-medium">Phone or email</th>
                                                 <th className="p-2 font-medium">
                                                     Attributes
                                                 </th>
@@ -315,7 +315,7 @@ export default function ContactsPage() {
                                                         )}
                                                     </td>
                                                     <td className="p-2 font-mono text-xs">
-                                                        {contact.phone_normalized}
+                                                        {contact.phone_normalized ?? contact.email ?? "—"}
                                                     </td>
                                                     <td className="p-2 text-xs text-muted-foreground">
                                                         {Object.entries(

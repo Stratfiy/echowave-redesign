@@ -42,6 +42,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.constants import (
     ACCEPTED_RECOVERY_POINT_HOURS,
+    AI_DISCLOSURE_ENABLED,
     BACKUP_ENABLED,
     BACKUP_STALE_AFTER_HOURS,
     DATABASE_PITR_ENABLED,
@@ -164,6 +165,24 @@ def _configuration_checks() -> list[Check]:
             remedy=""
             if RECORDING_DISCLOSURE_ENABLED
             else "Remove RECORDING_DISCLOSURE_ENABLED=false from .env, or set it to true.",
+        )
+    )
+
+    checks.append(
+        Check(
+            key="ai_disclosure",
+            title="Callers are told they are speaking with an AI",
+            status=READY if AI_DISCLOSURE_ENABLED else ACTION_REQUIRED,
+            detail=(
+                "Spoken before the greeting on every voice call, unless an "
+                "agent switched it off with the acknowledgement."
+                if AI_DISCLOSURE_ENABLED
+                else "The AI-identity line is switched off platform-wide."
+            ),
+            reference="EU AI Act Art. 50; FCC ruling on AI voices under the TCPA",
+            remedy=""
+            if AI_DISCLOSURE_ENABLED
+            else "Remove AI_DISCLOSURE_ENABLED=false from .env, or set it to true.",
         )
     )
 

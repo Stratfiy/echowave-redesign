@@ -20,7 +20,12 @@ from api.db import db_client
 from api.db.models import UserModel
 from api.enums import PostHogEvent
 from api.services.agent_builder.assemble import fill_placeholders, required_variables
-from api.services.agent_templates import AgentTemplate, get_template, list_templates
+from api.services.agent_templates import (
+    AgentTemplate,
+    equip,
+    get_template,
+    list_templates,
+)
 from api.services.agent_templates.materialise import (
     TemplateShapeError,
     to_workflow_definition,
@@ -201,6 +206,13 @@ async def create_from_template(
     if request is not None:
         definition = _personalise(definition, request)
 
+    definition = await equip.for_template(
+        definition,
+        template=template,
+        organization_id=user.selected_organization_id,
+        user_id=user.id,
+    )
+
     name = (request.agent_name or "").strip() if request else ""
     workflow = await db_client.create_workflow(
         name=name or template.name,
@@ -212,8 +224,13 @@ async def create_from_template(
         # models — see DECIBYL_GENDER_VOICES. The sentinel is resolved to a real
         # voice at pipeline build, against whichever vendor the tier is on that
         # day, so this keeps working when the tier moves.
-        workflow_configurations=await _voice_override(
-            request, organization_id=user.selected_organization_id, template=template
+        workflow_configurations=equip.configurations(
+            await _voice_override(
+                request,
+                organization_id=user.selected_organization_id,
+                template=template,
+            ),
+            template=template,
         ),
     )
 

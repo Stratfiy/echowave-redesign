@@ -25,7 +25,7 @@ import { FlowEdge, FlowNode, FlowNodeData, NodeType } from "@/components/flow/ty
 import { PostHogEvent } from "@/constants/posthog-events";
 import { detailFromError } from '@/lib/apiError';
 import logger from '@/lib/logger';
-import { getNextNodeId, getRandomId } from "@/lib/utils";
+import { getNextNodeId, getRandomId, nextEdgeId } from "@/lib/utils";
 import {
     type CallOutcome,
     type OutcomeAction,
@@ -479,7 +479,7 @@ export const useWorkflowState = ({
         // Use addEdges from ReactFlow instance
         rfInstance.current.addEdges([{
             ...connection,
-            id: `${connection.source}-${connection.target}`,
+            id: nextEdgeId(connection.source, connection.target, useWorkflowStore.getState().edges),
             data: {
                 label: '',
                 condition: ''

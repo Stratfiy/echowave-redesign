@@ -41,8 +41,11 @@ class ContactListResponse(BaseModel):
 
 class ContactResponse(BaseModel):
     id: int
-    phone_raw: str
-    phone_normalized: str
+    #: Either may be absent since OP-3, never both: a prospect found on the
+    #: web has an address and no number.
+    phone_raw: Optional[str] = None
+    phone_normalized: Optional[str] = None
+    email: Optional[str] = None
     name: Optional[str] = None
     attributes: Dict[str, Any] = Field(default_factory=dict)
 
@@ -61,6 +64,7 @@ class ImportResponse(BaseModel):
     #: parser — a wholly broken file says so once rather than 50,000 times.
     problems: List[str] = Field(default_factory=list)
     phone_column: Optional[str] = None
+    email_column: Optional[str] = None
     truncated: bool = False
 
 
@@ -175,6 +179,7 @@ async def list_contacts(
                 id=row.id,
                 phone_raw=row.phone_raw,
                 phone_normalized=row.phone_normalized,
+                email=row.email,
                 name=row.name,
                 attributes=row.attributes or {},
             )
@@ -249,6 +254,7 @@ async def import_contacts(
             f"line {line}: {why}" if line else why for line, why in parsed.problems
         ],
         phone_column=parsed.phone_column,
+        email_column=parsed.email_column,
         truncated=parsed.truncated,
     )
 

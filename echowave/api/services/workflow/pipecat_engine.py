@@ -17,6 +17,8 @@ from pipecat.services.settings import LLMSettings
 from pipecat.utils.enums import EndTaskReason
 
 from api.constants import (
+    AI_DISCLOSURE_ENABLED,
+    AI_DISCLOSURE_TEXT,
     RECORDING_DISCLOSURE_ENABLED,
     RECORDING_DISCLOSURE_TEXT,
 )
@@ -1168,8 +1170,46 @@ class PipecatEngine:
         # person by name or say which company is calling.
         return self._format_prompt(text)
 
+    def resolve_ai_disclosure(self, node_id: str) -> Optional[str]:
+        """What to say about being an AI before this node opens, if anything.
+
+        Same rules as the recording disclosure (FD-1): a text chat says it in
+        the page it sits in; a workflow that never touched the setting gets
+        the platform default, which is on; only a deliberate False opts out.
+        Unlike the recording line it does not depend on recording: the voice
+        is an AI's whether or not anyone keeps the audio.
+        """
+        if not self._is_voice:
+            return None
+        node = self.workflow.nodes.get(node_id)
+        if not node:
+            return None
+        enabled = getattr(node, "ai_disclosure_enabled", None)
+        if enabled is None:
+            enabled = AI_DISCLOSURE_ENABLED
+        if not enabled:
+            return None
+        text = (getattr(node, "ai_disclosure", None) or "").strip()
+        if not text:
+            text = (AI_DISCLOSURE_TEXT or "").strip()
+        if not text:
+            return None
+        return self._format_prompt(text)
+
+    def resolve_opening_disclosures(self, node_id: str) -> Optional[str]:
+        """Everything said before the greeting, as one utterance: who is
+        speaking (an AI), then that the call is recorded. The identity line
+        goes first because it is the one the caller needs to weigh the
+        rest by."""
+        parts = [
+            self.resolve_ai_disclosure(node_id),
+            self.resolve_recording_disclosure(node_id),
+        ]
+        said = [p.strip() for p in parts if p and p.strip()]
+        return " ".join(said) if said else None
+
     async def _speak_recording_disclosure(self, node_id: str) -> bool:
-        """Speak the disclosure on its own. Returns whether anything was said.
+        """Speak the disclosures on their own. Returns whether anything was said.
 
         Only for the openings that have no text to carry it: a pre-recorded
         audio greeting, and a start node with no greeting at all. Where the
@@ -1185,11 +1225,11 @@ class PipecatEngine:
         the artefact is the evidence, and it is far stronger than a flag we
         could set beside it.
         """
-        text = self.resolve_recording_disclosure(node_id)
+        text = self.resolve_opening_disclosures(node_id)
         if not text or self.task is None:
             return False
 
-        logger.debug("Speaking recording disclosure before the opening")
+        logger.debug("Speaking the opening disclosures before the greeting")
         await self.task.queue_frame(TTSSpeakFrame(text, append_to_context=True))
         return True
 
@@ -1262,7 +1302,7 @@ class PipecatEngine:
             "greeting — answer what they said, then introduce yourself in one "
             "short line."
         ]
-        disclosure = self.resolve_recording_disclosure(node.id)
+        disclosure = self.resolve_opening_disclosures(node.id)
         if disclosure:
             lines.append(
                 "Your very first reply must begin with this disclosure, said "
@@ -1375,9 +1415,7 @@ class PipecatEngine:
         opening_node = (
             previous_node_id is None and node_id == self.workflow.start_node_id
         )
-        disclosure = (
-            self.resolve_recording_disclosure(node_id) if opening_node else None
-        )
+        disclosure = self.resolve_opening_disclosures(node_id) if opening_node else None
         disclosure_pending = bool(disclosure)
 
         if previous_node_id != node_id:
@@ -1781,6 +1819,7 @@ class PipecatEngine:
             workflow_id=getattr(self.workflow, "id", None),
             workflow_run_id=self._workflow_run_id,
             ref_id=f"{self._workflow_run_id or 'run'}:script:{call_id or 'x'}",
+            run_key=f"run:{self._workflow_run_id or 'none'}",
         )
         await function_call_params.result_callback(result)
 

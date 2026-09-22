@@ -215,7 +215,9 @@ class TestTheListOfChats:
             SimpleNamespace(thread_id="t-2", last_at=at, messages=4, first_id=11),
             SimpleNamespace(thread_id=None, last_at=at, messages=9, first_id=2),
         ]
-        listed, _ = await self._listed(rows, [(11, "draft a reply"), (2, "hello")])
+        listed, _ = await self._listed(
+            rows, [(11, "draft a reply", {}), (2, "hello", {})]
+        )
         assert [t["title"] for t in listed] == ["draft a reply", "hello"]
         assert [t["messages"] for t in listed] == [4, 9]
 
@@ -227,7 +229,7 @@ class TestTheListOfChats:
         at = datetime(2026, 9, 17, 10, 0, tzinfo=UTC)
         listed, _ = await self._listed(
             [SimpleNamespace(thread_id=None, last_at=at, messages=9, first_id=2)],
-            [(2, "hello")],
+            [(2, "hello", {})],
         )
         assert listed[0]["thread_id"] is None
 

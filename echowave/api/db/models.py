@@ -469,9 +469,16 @@ class ContactModel(Base):
         Integer, ForeignKey("contact_lists.id", ondelete="CASCADE"), nullable=False
     )
     #: As the account supplied it, kept so a list reads back the way it was
-    #: uploaded rather than in our canonical form.
-    phone_raw = Column(String(255), nullable=False)
-    phone_normalized = Column(String(255), nullable=False)
+    #: uploaded rather than in our canonical form. Optional since OP-3: a
+    #: prospect found on the web has an address and no number, and a
+    #: contact that could only be a caller kept every such lead out of the
+    #: book. A contact carries a number, an address, or both, never neither.
+    phone_raw = Column(String(255), nullable=True)
+    phone_normalized = Column(String(255), nullable=True)
+    #: As supplied, and lower-cased for matching; the second is what the
+    #: unique constraint and the lookups read.
+    email = Column(String(320), nullable=True)
+    email_normalized = Column(String(320), nullable=True)
     name = Column(String(255), nullable=True)
     attributes = Column(
         JSON, nullable=False, default=dict, server_default=text("'{}'::json")
@@ -491,8 +498,18 @@ class ContactModel(Base):
             "phone_normalized",
             name="uq_contacts_list_phone",
         ),
+        UniqueConstraint(
+            "contact_list_id",
+            "email_normalized",
+            name="uq_contacts_list_email",
+        ),
+        CheckConstraint(
+            "phone_normalized IS NOT NULL OR email_normalized IS NOT NULL",
+            name="ck_contacts_reachable",
+        ),
         # The inbound lookup: one list, one number, on a ringing phone.
         Index("ix_contacts_lookup", "contact_list_id", "phone_normalized"),
+        Index("ix_contacts_email", "contact_list_id", "email_normalized"),
         Index("ix_contacts_org", "organization_id"),
     )
 
@@ -550,6 +567,53 @@ class MissedCallEventModel(Base):
     __table_args__ = (
         # The dashboard query: this org's events, newest first.
         Index("ix_missed_call_events_org_received", "organization_id", "received_at"),
+    )
+
+
+class NumberPredeclarationModel(Base):
+    """A calling number's pre-declaration to its telecom provider (FD-2).
+
+    TRAI's TCCCP Third Amendment requires that a number used for automated
+    voice calls in India is declared to the provider first. Keyed on the
+    number rather than on a ``telephony_phone_numbers`` row, because a
+    provider's calling numbers live in its configuration's credentials and
+    need not have a row here; the declaration is a fact about the number
+    wherever it is configured. One row per number per workspace.
+    """
+
+    __tablename__ = "number_predeclarations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    # E.164 with the leading +, the way a carrier is handed it.
+    address_normalized = Column(String(32), nullable=False)
+    # declared | pending | withdrawn -- see compliance/predeclaration.py.
+    status = Column(
+        String(16), nullable=False, default="pending", server_default="pending"
+    )
+    declared_at = Column(DateTime(timezone=True), nullable=True)
+    # The provider's acknowledgement: a ticket, a reference, a header id.
+    reference = Column(String(120), nullable=True)
+    note = Column(Text, nullable=True)
+    declared_by = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    __table_args__ = (
+        Index(
+            "uq_number_predeclarations_org_number",
+            "organization_id",
+            "address_normalized",
+            unique=True,
+        ),
     )
 
 
@@ -3721,12 +3785,30 @@ class CreditLedgerModel(Base):
     note = Column(Text, nullable=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    # Which agent spent it (S-1). A call debit carries its run's workflow, an
+    # event debit the bot that did the work; a grant, a top-up and a charge
+    # nobody's agent made (a translation from the screen, the builder's
+    # allowance) carry NULL. This is what makes "what has this agent spent
+    # this month" one indexed sum over the same rows the balance is derived
+    # from, rather than a join across every table that can charge.
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="SET NULL"), nullable=True
+    )
 
     organization = relationship("OrganizationModel")
     created_by_user = relationship("UserModel")
 
     __table_args__ = (
         Index("ix_credit_ledger_org_created", "organization_id", "created_at"),
+        # An agent's spend in a window: the budget check on every run start
+        # reads this, so it is partial on the rows that are spend.
+        Index(
+            "ix_credit_ledger_usage_org_workflow_created",
+            "organization_id",
+            "workflow_id",
+            "created_at",
+            postgresql_where=text("kind = 'usage'"),
+        ),
         # A completed run must debit the ledger at most once, even if the
         # completion task is retried.
         Index(
@@ -3831,6 +3913,163 @@ class CreditLedgerModel(Base):
             unique=True,
             postgresql_where=text("kind = 'embedding_ingest' AND ref_id IS NOT NULL"),
         ),
+    )
+
+
+class BudgetPolicyModel(Base):
+    """A spend cap a customer set on the workspace or on one agent (S-1).
+
+    After the shape paperclip uses for the same thing: a scope, a window, an
+    amount, a warning share and a hard stop. ``workflow_id`` NULL is the whole
+    workspace; set, it is that one agent. Spend is measured from the ledger's
+    usage rows for the scope in the window -- never from a counter kept
+    beside the policy, which would drift from the balance the first time a
+    recost or a retry touched one and not the other.
+
+    A policy is a customer's own decision about their own money, so it is a
+    row they edit rather than an effective-dated history: nothing downstream
+    re-costs against it.
+    """
+
+    __tablename__ = "budget_policies"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="CASCADE"), nullable=True
+    )
+    # calendar_month | lifetime -- see billing/budgets.py.
+    window_kind = Column(String(16), nullable=False)
+    amount_paise = Column(BigInteger, nullable=False)
+    # Spend past this share of the cap opens a warning, never a stop.
+    warn_percent = Column(Integer, nullable=False, default=80, server_default="80")
+    # At the cap: refuse the next run (True), or only warn (False).
+    hard_stop = Column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    is_active = Column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    created_by = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    __table_args__ = (
+        CheckConstraint("amount_paise >= 0", name="ck_budget_policies_amount"),
+        CheckConstraint(
+            "warn_percent >= 0 AND warn_percent <= 100",
+            name="ck_budget_policies_warn_percent",
+        ),
+        Index("ix_budget_policies_org_active", "organization_id", "is_active"),
+        # One live policy per scope and window. Two partial indexes because a
+        # NULL workflow_id is one scope (the workspace), and a unique index
+        # would let any number of those through.
+        Index(
+            "uq_budget_policies_workspace_window",
+            "organization_id",
+            "window_kind",
+            unique=True,
+            postgresql_where=text("workflow_id IS NULL AND is_active"),
+        ),
+        Index(
+            "uq_budget_policies_agent_window",
+            "organization_id",
+            "workflow_id",
+            "window_kind",
+            unique=True,
+            postgresql_where=text("workflow_id IS NOT NULL AND is_active"),
+        ),
+    )
+
+
+class BudgetIncidentModel(Base):
+    """A policy's threshold crossed in one window (S-1).
+
+    One row per policy, window and threshold, so a warning fires once a month
+    and not once a charge, and a stop is a fact a screen can list rather than
+    a refusal that only ever showed up in a log. ``resolved`` is what a new
+    window or a raised cap does to it; ``dismissed`` is what a person does.
+    """
+
+    __tablename__ = "budget_incidents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    policy_id = Column(
+        Integer, ForeignKey("budget_policies.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="CASCADE"), nullable=True
+    )
+    # warn | hard
+    threshold = Column(String(8), nullable=False)
+    window_start = Column(DateTime(timezone=True), nullable=False)
+    # NULL for a lifetime window.
+    window_end = Column(DateTime(timezone=True), nullable=True)
+    amount_limit_paise = Column(BigInteger, nullable=False)
+    amount_observed_paise = Column(BigInteger, nullable=False)
+    # open | resolved | dismissed
+    status = Column(String(16), nullable=False, default="open", server_default="open")
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index("ix_budget_incidents_org_status", "organization_id", "status"),
+        Index(
+            "uq_budget_incidents_policy_window_threshold",
+            "policy_id",
+            "window_start",
+            "threshold",
+            unique=True,
+            postgresql_where=text("status <> 'dismissed'"),
+        ),
+    )
+
+
+class DataLookupCostModel(Base):
+    """One bought lookup's vendor cost beside what it was charged (D-1b).
+
+    ``call_cost_items`` pairs the two for a call; a web search Decibyl ran
+    from the thread has no run to hang a line on. Same reason
+    ``embedding_ingestion_costs`` exists, same shape: written in the same
+    transaction as the ledger debit, read by the unit-economics screen.
+    """
+
+    __tablename__ = "data_lookup_costs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="SET NULL"), nullable=True
+    )
+    provider = Column(String(64), nullable=False)
+    # What kind of request: search, fetch, enrich. Carried in ``model`` on
+    # the rate row, the way an add-on carries its catalogue key.
+    kind = Column(String(64), nullable=False, default="", server_default="")
+    requests = Column(Integer, nullable=False, default=1, server_default="1")
+    vendor_cost_paise = Column(
+        BigInteger, nullable=False, default=0, server_default="0"
+    )
+    charged_paise = Column(BigInteger, nullable=False, default=0, server_default="0")
+    # The tool call this lookup was part of, so a retried turn writes once.
+    ref_id = Column(String(64), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    __table_args__ = (
+        Index("ix_data_lookup_costs_org_created", "organization_id", "created_at"),
+        Index("uq_data_lookup_costs_org_ref", "organization_id", "ref_id", unique=True),
     )
 
 
@@ -5856,11 +6095,74 @@ class AgentTaskModel(Base):
 
     due_at = Column(DateTime(timezone=True), nullable=True)
     result = Column(Text, nullable=True)
+    #: Decibyl's own unfinished work (D-1a): the transcript and tool state of
+    #: a turn that hit its round cap, so the board can carry on from exactly
+    #: there in the background. NULL on every task a bot or a person does.
+    continuation = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     started_at = Column(DateTime(timezone=True), nullable=True)
     finished_at = Column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (Index("ix_agent_tasks_org_status", "organization_id", "status"),)
+
+
+class OrganisationSkillDocumentModel(Base):
+    """A skill an account brought in from a repository, body and all (D-1b).
+
+    The shipped catalogue is files in the release; this is a file the
+    account imported -- from a GitHub link, on the thread -- kept whole so
+    the shelf can show it and a bot can run it. ``slug`` is the same key
+    ``organisation_skills`` uses, so an imported skill installs, attaches and
+    uninstalls exactly like a shipped one; the only difference is where the
+    body is read from. Every import needs a review before a bot runs it:
+    the parser flags concerns, but an empty list is not a pass.
+    """
+
+    __tablename__ = "organisation_skill_documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    slug = Column(String(64), nullable=False)
+    title = Column(String(200), nullable=False)
+    description = Column(Text, nullable=False, default="")
+    body = Column(Text, nullable=False, default="")
+    # Every frontmatter key the parser did not consume, kept rather than
+    # dropped, the way the catalogue keeps them.
+    metadata_ = Column("metadata", JSON, nullable=False, default=dict)
+    # Where it came from, pinned: a repository, a ref, a path in it.
+    source_repo = Column(String(200), nullable=False, default="")
+    source_ref = Column(String(120), nullable=False, default="")
+    source_path = Column(String(500), nullable=False, default="")
+    licence = Column(String(64), nullable=False, default="")
+    # What the parser flagged, as sentences, for the reviewer.
+    concerns = Column(JSON, nullable=False, default=list)
+    reviewed_by = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    reviewed_at = Column(DateTime(timezone=True), nullable=True)
+    created_by = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    __table_args__ = (
+        Index(
+            "uq_organisation_skill_documents_org_slug",
+            "organization_id",
+            "slug",
+            unique=True,
+        ),
+    )
 
 
 class AdminActionLogModel(Base):

@@ -15,6 +15,7 @@ from api.routes.auth import router as auth_router
 from api.routes.billing_dashboard import router as billing_dashboard_router
 from api.routes.bot_event_webhooks import router as bot_event_webhooks_router
 from api.routes.bot_triggers import router as bot_triggers_router
+from api.routes.budgets import router as budgets_router
 from api.routes.campaign import router as campaign_router
 from api.routes.connectors import router as connectors_router
 from api.routes.contacts import router as contacts_router
@@ -75,6 +76,7 @@ from api.routes.workflow import router as workflow_router
 from api.routes.workflow_embed import router as workflow_embed_router
 from api.routes.workflow_outcomes import router as workflow_outcomes_router
 from api.routes.workflow_recording import router as workflow_recording_router
+from api.routes.workflow_spend import router as workflow_spend_router
 from api.routes.workflow_text_chat import router as workflow_text_chat_router
 from api.services.integrations import all_routers
 
@@ -131,6 +133,7 @@ router.include_router(organisation_memory_router)
 router.include_router(packs_router)
 router.include_router(team_router)
 router.include_router(workflow_outcomes_router)
+router.include_router(workflow_spend_router)
 router.include_router(agent_timeline_router)
 router.include_router(translate_router)
 router.include_router(tool_router)
@@ -138,6 +141,7 @@ router.include_router(organization_router)
 router.include_router(s3_router)
 router.include_router(service_keys_router)
 router.include_router(organization_usage_router)
+router.include_router(budgets_router)
 router.include_router(reports_router)
 router.include_router(webrtc_signaling_router)
 router.include_router(turn_credentials_router)

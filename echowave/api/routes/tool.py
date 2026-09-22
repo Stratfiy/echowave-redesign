@@ -25,6 +25,8 @@ from api.schemas.tool import (
     TransferCallConfig,
     TransferCallToolDefinition,
     UpdateToolRequest,
+    WebToolConfig,
+    WebToolDefinition,
 )
 from api.sdk_expose import sdk_expose
 from api.services.auth.depends import get_user
@@ -59,6 +61,8 @@ __all__ = [
     "TransferCallConfig",
     "TransferCallToolDefinition",
     "UpdateToolRequest",
+    "WebToolConfig",
+    "WebToolDefinition",
     "_populate_discovered_tools",
 ]
 

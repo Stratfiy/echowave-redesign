@@ -37,6 +37,7 @@ from api.enums import AgentEventActor, AgentEventKind
 from api.services import prompt_budget, reporting_window
 from api.services.knowledge_graph import quiet, recall, teach
 from api.services.organization_preferences import get_organization_preferences
+from api.services.skills import imports as skill_imports
 from api.services.workflow import (
     actions,
     agent_timeline,
@@ -45,16 +46,20 @@ from api.services.workflow import (
     connected_tools,
     connector_offer,
     contact_lookup,
+    decibyl_tasks,
     document_fields,
     documents,
     draft_requests,
     filing,
     office,
+    prospects,
+    records,
     reply_draft,
     self_edit,
     skill_context,
     tasks_board,
     untrusted,
+    web_tools,
 )
 
 NAME = "Decibyl"
@@ -117,6 +122,25 @@ SYSTEM = (
     "email into the workspace's Drive, once the person has said what it is "
     "or whose it is. For an identity document use the owner's name as the "
     "person gave it, never a name read off the document.\n"
+    "- web_search and web_fetch: the web, on Decibyl's own key. A search "
+    "costs a tool call plus the search; a page read costs a tool call. Use "
+    "them for what is outside the workspace and say where a fact came "
+    "from. The social networks are never read, by rule; do not offer to.\n"
+    "- save_prospects: save people or businesses found on the web into the "
+    "Prospects list, with the page each came from. Runs now; organising is "
+    "not a send. Read the list with search_records first so nobody already "
+    "written to or declined is saved as new.\n"
+    "- search_records: the workspace's own contacts, documents, calls and "
+    "outcomes, on demand and free. Use it for a list, a count or a date "
+    "range the context does not already carry; the context's rows are "
+    "only the ones the question named.\n"
+    "- install_from_repository: skills from a GitHub repository the person "
+    "names. Reads it now and proposes one card listing what it would "
+    "install; a person confirms. Say what was found, including what was "
+    "skipped and why, then end your reply.\n"
+    "- run_script: a short Python script in the sandbox for a job over many "
+    "rows or many records, with the connected apps reachable by name inside "
+    "it. Four credits a run; offered only on plans that have it.\n"
     "- An identifier -- an id, a uuid, a page, a thread, an account -- is "
     "not something to infer. A true one comes from the context, from this "
     "thread, or from a read you just ran. Never carry one over from another "
@@ -889,7 +913,13 @@ async def _answer(
                     result = await _load_tool(organization_id, call, loaded)
                     asked_for_schema = True
                 else:
-                    result = await _tool(organization_id, call, author_id, request=text)
+                    result = await _tool(
+                        organization_id,
+                        call,
+                        author_id,
+                        request=text,
+                        thread_id=thread_id,
+                    )
                 conversation.add_tool_result(call, result)
                 if not _was_a_read(call, result):
                     reads_only = False
@@ -897,6 +927,24 @@ async def _answer(
                 # The tool it asked about is now offered with its arguments.
                 tools = await tools_for(organization_id, loaded)
             capped = reads_only and rounds >= MAX_TOOL_ROUNDS
+            if capped and decibyl_tasks.enabled():
+                # Mid-plan at the cap, and the board can carry on (D-1a):
+                # hand it the transcript and tell the person where the
+                # answer will land, instead of asking them to ask again.
+                task = await decibyl_tasks.hand_off(
+                    organization_id,
+                    messages=conversation.messages,
+                    loaded=loaded,
+                    preset=preset,
+                    thread_id=thread_id,
+                    author_id=author_id,
+                    request=text,
+                    rounds=rounds,
+                )
+                reply = client.ModelReply(
+                    text=decibyl_tasks.HANDED_OFF.format(rounds=rounds, task_id=task.id)
+                )
+                break
             if capped:
                 # Tools are being taken away because of the cap, not because
                 # a card ended the phase. Say so, or the model is handed
@@ -1180,6 +1228,17 @@ def office_tools() -> list[dict[str, Any]]:
         recall.tool_schema(),
         teach.tool_schema(),
         quiet.tool_schema(),
+        *(
+            (
+                web_tools.search_tool_schema(),
+                web_tools.fetch_tool_schema(),
+                prospects.tool_schema(),
+                records.tool_schema(),
+                skill_imports.tool_schema(),
+            )
+            if web_tools.enabled()
+            else ()
+        ),
     ]
 
 
@@ -1197,7 +1256,13 @@ async def tools_for(
     loads it, and ``loaded`` carries the schemas this thread has asked for
     so far, so a loaded tool is offered in full on every later round."""
     connected = await connected_tools.list_for_organization(organization_id)
-    return office_tools() + connected_tools.schemas(connected, loaded)
+    own = office_tools()
+    if web_tools.enabled():
+        from api.services.sandbox import code_mode
+
+        if await code_mode.allowed(organization_id):
+            own = [*own, code_mode.tool_schema()]
+    return own + connected_tools.schemas(connected, loaded)
 
 
 def _was_a_read(call: Any, result: Any) -> bool:
@@ -1222,6 +1287,11 @@ def _was_a_read(call: Any, result: Any) -> bool:
                 documents.FIND_TOOL_NAME,
                 recall.TOOL_NAME,
                 connected_tools.LOAD_TOOL_NAME,
+                web_tools.SEARCH_TOOL_NAME,
+                web_tools.FETCH_TOOL_NAME,
+                prospects.TOOL_NAME,
+                records.TOOL_NAME,
+                "run_script",
             )
         )
         and isinstance(result, dict)
@@ -1299,6 +1369,7 @@ async def _tool(
     call: Any,
     author_id: int | None = None,
     request: str = "",
+    thread_id: str | None = None,
 ) -> dict[str, Any]:
     if str(call.name or "").startswith(connected_tools.PREFIX):
         return await _app_tool(organization_id, call, request=request)
@@ -1369,6 +1440,41 @@ async def _tool(
         )
     if call.name == quiet.TOOL_NAME:
         return await quiet.for_thread(organization_id, author_id, arguments)
+    if call.name == web_tools.SEARCH_TOOL_NAME and web_tools.enabled():
+        return await web_tools.search(
+            organization_id,
+            arguments,
+            ref_id=f"decibyl:{organization_id}:{call.id or call.name}",
+        )
+    if call.name == web_tools.FETCH_TOOL_NAME and web_tools.enabled():
+        # One conversation is one run for the page cap (OP-2): a thread
+        # that has read its pages for the day answers with what it has.
+        return await web_tools.fetch(
+            organization_id,
+            arguments,
+            ref_id=f"decibyl:{organization_id}:{call.id or call.name}",
+            run_key=f"thread:{organization_id}:{thread_id or author_id or 'main'}",
+        )
+    if call.name == prospects.TOOL_NAME and web_tools.enabled():
+        return await prospects.save(organization_id, arguments)
+    if call.name == records.TOOL_NAME and web_tools.enabled():
+        return await records.for_thread(organization_id, arguments)
+    if call.name == skill_imports.TOOL_NAME and web_tools.enabled():
+        return await skill_imports.for_thread(organization_id, arguments)
+    if call.name == "run_script" and web_tools.enabled():
+        from api.services.sandbox import code_mode
+
+        if not await code_mode.allowed(organization_id):
+            return {"status": "unavailable", "reason": "scripts are not on this plan"}
+        return await code_mode.run_for_bot(
+            organization_id=organization_id,
+            code=str(arguments.get("code") or ""),
+            why=str(arguments.get("why") or ""),
+            tools=await connected_tools.list_for_organization(organization_id),
+            workflow_id=None,
+            workflow_run_id=None,
+            ref_id=f"decibyl:{organization_id}:{call.id or call.name}",
+        )
     if call.name == documents.SEND_TOOL_NAME:
         return await documents.send_for_thread(
             organization_id,

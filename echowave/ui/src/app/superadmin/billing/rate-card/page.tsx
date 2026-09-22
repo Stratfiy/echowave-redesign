@@ -584,6 +584,11 @@ const COMPONENT_NAMES: Record<string, string> = {
     telephony: "Carriage",
     stt: "Speech to text",
     llm: "Language model",
+    llm_input: "Language model · input",
+    llm_cached: "Language model · cached input",
+    llm_output: "Language model · output",
+    llm_cache_write: "Language model · cache write",
+    data: "Bought data",
     tts: "Voice",
     embedding: "Embeddings",
 };

@@ -27,6 +27,7 @@ card offering Hear it and Try it on the bot that came out.
 
 from __future__ import annotations
 
+import re
 from typing import Any, Optional
 
 from loguru import logger
@@ -34,6 +35,7 @@ from loguru import logger
 from api.db import db_client
 from api.enums import BotChannel, CallType
 from api.services.workflow import (
+    agent_web,
     brief_apps,
     connected_tools,
     schedule_from_words,
@@ -263,6 +265,17 @@ async def build(
     definition = await _attach_named_apps(
         definition, organization_id=organization_id, spec=str(args.get("spec") or "")
     )
+    # The web, when the brief names it (OP-1): a bot told to research its
+    # leads online is built holding a search, on the platform's key.
+    definition = await agent_web.attach_if_named(
+        definition,
+        organization_id=organization_id,
+        user_id=user_id,
+        spec=str(args.get("spec") or ""),
+    )
+    waiting_on = await _waiting_on(
+        organization_id=organization_id, spec=str(args.get("spec") or "")
+    )
 
     paths = extract_trigger_paths(definition)
     if paths:
@@ -282,8 +295,8 @@ async def build(
         # Only for a chat bot. Passing {"channel": "voice"} for the other
         # case would overwrite the opinionated defaults create_workflow
         # writes for a new agent with a block containing one key.
-        workflow_configurations=(
-            {"channel": channel.value} if channel is BotChannel.CHAT else None
+        workflow_configurations=_configurations(
+            channel=channel, waiting_on=waiting_on, spec=str(args.get("spec") or "")
         ),
     )
     if paths:
@@ -311,14 +324,167 @@ async def build(
     )
     if scheduled:
         note = f"{note} It runs {scheduled}, once you test it."
+    if waiting_on:
+        one = len(waiting_on) == 1
+        note = (
+            f"{note} Waiting on: {', '.join(waiting_on)} -- connect "
+            f"{'it' if one else 'them'} from the card{'' if one else 's'} "
+            f"above and the bot has {'its' if one else 'their'} tools."
+        )
 
     return {
         "workflow_id": workflow.id,
         "handle": getattr(workflow, "handle", None),
         "steps": steps,
         "runs": scheduled,
+        "waiting_on": waiting_on,
         "note": note,
     }
+
+
+#: How many connect cards one build puts on the thread. A brief naming six
+#: apps gets three cards and a sentence naming the rest.
+MAX_WAITING_CARDS = 3
+
+#: The key on a bot's configurations that says which named apps it is still
+#: waiting for, and the brief to pick their tools from once they connect.
+WAITING_KEY = "waiting_on"
+
+
+def _configurations(
+    *, channel: BotChannel, waiting_on: list[str], spec: str
+) -> dict[str, Any] | None:
+    """What the bot row carries: its channel, and what it waits on."""
+    out: dict[str, Any] = {}
+    if channel is BotChannel.CHAT:
+        out["channel"] = channel.value
+    if waiting_on:
+        out[WAITING_KEY] = {"apps": list(waiting_on), "brief": spec[:4000]}
+    return out or None
+
+
+async def attach_waiting(*, organization_id: int, app: str) -> list[str]:
+    """An app just connected: give its tools to every bot that was waiting
+    for it, and say so on the thread. Returns the bots' names.
+
+    The other half of "the build finishes before the connection does". The
+    connect card connects the app and the tool sync makes its rows; without
+    this the bot that named the app would sit with its tools missing until
+    somebody opened the editor. Never raises: a bot that cannot be reached
+    is logged, and the rest still get their tools.
+    """
+    app = (app or "").strip().lower()
+    if not app:
+        return []
+    from sqlalchemy import select
+
+    from api.db.models import WorkflowModel
+    from api.services.workflow import agent_timeline
+
+    try:
+        async with db_client.async_session() as session:
+            rows = (
+                await session.execute(
+                    select(
+                        WorkflowModel.id,
+                        WorkflowModel.name,
+                        WorkflowModel.workflow_definition,
+                        WorkflowModel.workflow_configurations,
+                    ).where(WorkflowModel.organization_id == organization_id)
+                )
+            ).all()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not read the bots waiting on {}: {}", app, exc)
+        return []
+    waiting = []
+    for row in rows:
+        config = dict(row.workflow_configurations or {})
+        pending = config.get(WAITING_KEY) or {}
+        if app in [str(a).lower() for a in (pending.get("apps") or [])]:
+            waiting.append((row, config, pending))
+    if not waiting:
+        return []
+    try:
+        tools = list(await connected_tools.list_for_organization(organization_id))
+        tools += await connected_tools.mcp_for_organization(organization_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not read the tools for org {}: {}", organization_id, exc)
+        return []
+    of_app = [t for t in tools if connected_tools.toolkit_of(t) == app]
+    done: list[str] = []
+    for row, config, pending in waiting:
+        try:
+            uuids = brief_apps.tool_uuids(str(pending.get("brief") or app), of_app)
+            definition = brief_apps.attach(dict(row.workflow_definition or {}), uuids)
+            left = [a for a in pending.get("apps") or [] if str(a).lower() != app]
+            if left:
+                config[WAITING_KEY] = {**pending, "apps": left}
+            else:
+                config.pop(WAITING_KEY, None)
+            await db_client.update_workflow(
+                row.id,
+                name=None,
+                workflow_definition=definition,
+                template_context_variables=None,
+                workflow_configurations=config,
+                organization_id=organization_id,
+            )
+        except Exception as exc:  # noqa: BLE001 - the next bot still gets its tools
+            logger.warning("Could not give {} its {} tools: {}", row.name, app, exc)
+            continue
+        done.append(row.name)
+        await agent_timeline.record_activity(
+            organization_id=organization_id,
+            summary=(
+                f"{row.name} now has {app}"
+                + (f"; still waiting on {', '.join(left)}" if left else "")
+            ),
+            workflow_id=row.id,
+            payload={"app": app, "tools": len(uuids), "waiting_on": left},
+            in_channel=False,
+        )
+    return done
+
+
+async def _waiting_on(*, organization_id: int, spec: str) -> list[str]:
+    """The apps the brief names that this workspace has not connected (D-1b).
+
+    The bot is built now, with the tools of the apps that *are* connected;
+    the rest are the "waiting on" list, and each gets a connect card on the
+    thread so the person connects it where they are rather than being sent
+    to a screen. Matched on whole words against the connector catalogue, so
+    "shopify" in the brief finds Shopify and "gmail" does not find
+    "notgmailish". Never raises: a list that cannot be read is an empty
+    list, and the bot is the deliverable.
+    """
+    text = (spec or "").lower()
+    if not text:
+        return []
+    try:
+        from api.services.integrations.composio import catalogue
+        from api.services.workflow import connector_offer
+
+        rows = await catalogue.connectors()
+        connected = {
+            connected_tools.toolkit_of(t)
+            for t in await connected_tools.list_for_organization(organization_id)
+        }
+        missing = [
+            row.slug
+            for row in rows
+            if row.slug
+            and row.slug not in connected
+            and re.search(rf"(?<![a-z0-9]){re.escape(row.slug)}(?![a-z0-9])", text)
+        ]
+        for slug in missing[:MAX_WAITING_CARDS]:
+            await connector_offer.offer(
+                organization_id=organization_id,
+                arguments={"app": slug, "why": "The bot you just built uses it."},
+            )
+        return missing
+    except Exception as exc:  # noqa: BLE001 - the bot is the deliverable
+        logger.warning("Could not work out what the built bot is waiting on: {}", exc)
+        return []
 
 
 async def _attach_named_apps(

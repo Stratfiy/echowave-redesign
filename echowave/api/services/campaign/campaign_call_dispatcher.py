@@ -94,11 +94,27 @@ class CampaignCallDispatcher:
         try:
             provider = await self.get_provider_for_campaign(campaign)
             if provider.from_numbers:
-                await rate_limiter.initialize_from_number_pool(
-                    campaign.organization_id,
-                    provider.from_numbers,
-                    telephony_configuration_id=campaign.telephony_configuration_id,
-                )
+                # Only numbers declared to the provider go in the pool (FD-2,
+                # TRAI TCCCP): an undeclared Indian number is not a caller id
+                # this campaign may use. None declared is a refusal with the
+                # reason, and an empty pool, so nothing dials.
+                from api.services.compliance import predeclaration
+
+                usable = provider.from_numbers
+                if predeclaration.enforced():
+                    try:
+                        usable = await predeclaration.allowed_from_numbers(
+                            campaign.organization_id, list(provider.from_numbers)
+                        )
+                    except predeclaration.NotPredeclared as refused:
+                        logger.error(f"Campaign {campaign_id} cannot dial: {refused}")
+                        usable = []
+                if usable:
+                    await rate_limiter.initialize_from_number_pool(
+                        campaign.organization_id,
+                        usable,
+                        telephony_configuration_id=campaign.telephony_configuration_id,
+                    )
         except Exception as e:
             logger.warning(f"Failed to initialize from_number pool: {e}")
 
@@ -381,6 +397,23 @@ class CampaignCallDispatcher:
                 raise PhoneNumberPoolExhaustedError(
                     organization_id=campaign.organization_id
                 )
+            # Belt and braces on the pool filter above: a number that reached
+            # the pool before its declaration was withdrawn is still refused.
+            from api.services.compliance import predeclaration
+
+            try:
+                await predeclaration.assert_from_number(
+                    campaign.organization_id, from_number
+                )
+            except predeclaration.NotPredeclared as refused:
+                await db_client.update_workflow_run(
+                    run_id=workflow_run.id,
+                    is_completed=True,
+                    state=WorkflowRunState.COMPLETED.value,
+                    gathered_context={"error": str(refused)},
+                )
+                await self.release_call_slot(workflow_run.id)
+                raise ValueError(str(refused)) from refused
 
             logger.info(f"Provider name: {provider.PROVIDER_NAME}")
             logger.info(f"Queued run context: {queued_run.context_variables}")

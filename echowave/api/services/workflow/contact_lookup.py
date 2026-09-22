@@ -130,9 +130,13 @@ def _line(contact: Any) -> str:
     """
     name = (getattr(contact, "name", None) or "").strip() or "Unnamed"
     phone = (
-        getattr(contact, "phone_raw", None) or getattr(contact, "phone_normalized", "")
+        getattr(contact, "phone_raw", None)
+        or getattr(contact, "phone_normalized", None)
+        or ""
     ).strip()
-    parts = [f"{name} ({phone})" if phone else name]
+    email = (getattr(contact, "email", None) or "").strip()
+    reach = ", ".join(x for x in (phone, email) if x)
+    parts = [f"{name} ({reach})" if reach else name]
     attributes = getattr(contact, "attributes", None)
     if isinstance(attributes, dict):
         for key, value in list(attributes.items())[:6]:

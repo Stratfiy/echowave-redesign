@@ -1,6 +1,6 @@
 import { BaseEdge, EdgeLabelRenderer, type EdgeProps, getSmoothStepPath } from '@xyflow/react';
 import { AlertCircle, Trash2 } from 'lucide-react';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useId, useRef, useState } from 'react';
 
 import { useWorkflow, useWorkflowOptional } from '@/app/workflow/[workflowId]/contexts/WorkflowContext';
 import { useWorkflowStore } from '@/app/workflow/[workflowId]/stores/workflowStore';
@@ -30,7 +30,12 @@ export default function CustomEdge(props: CustomEdgeProps) {
     const edges = useWorkflowStore(state => state.edges);
     const parallel = edges.filter(edge => (edge.source === source && edge.target === target) || (edge.source === target && edge.target === source)).sort((a, b) => a.id.localeCompare(b.id));
     const labelOffset = parallel.length > 1 ? (parallel.findIndex(edge => edge.id === id) - (parallel.length - 1) / 2) * 30 : 0;
-    useEffect(() => { if (open) setDraft({ ...data }); }, [open, data]);
+    // Seeded when the inspector is opened, and only then. It used to re-seed
+    // on every change of `data` identity, and opening is not the only thing
+    // that changes it: marking the graph invalid rewrites the data of every
+    // edge, so a validation pass landing while this was open threw away
+    // whatever was being typed into it.
+    const openInspector = useCallback(() => { setDraft({ ...data }); setOpen(true); }, [data]);
 
     const apply = () => {
         if (readOnly) return;
@@ -46,14 +51,14 @@ export default function CustomEdge(props: CustomEdgeProps) {
         : getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 8, offset: 20 });
     const speechType = draft?.transition_speech_type ?? 'text';
     return <>
-        <g onDoubleClick={() => setOpen(true)}>
+        <g onDoubleClick={openInspector}>
             <BaseEdge id={id} path={path} markerEnd={markerEnd} markerStart={markerStart} interactionWidth={20}
                 style={{ ...style, stroke: data?.invalid ? '#ef4444' : selected ? '#0d9488' : '#94a3b8', strokeWidth: selected ? 2 : 1.5 }} />
         </g>
         <EdgeLabelRenderer>
             <button ref={openerRef} type="button" aria-label={`Edit connection: ${data?.label || 'Condition'}`}
                 style={{ position: 'absolute', pointerEvents: 'all', transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY + labelOffset}px)` }}
-                onClick={() => setOpen(true)}
+                onClick={openInspector}
                 className={cn('nodrag nopan flex max-w-[144px] items-center gap-1 rounded-md border bg-background px-2 py-1 text-[11px] font-medium shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500', data?.invalid ? 'border-destructive text-destructive' : selected ? 'border-teal-600 text-teal-700 dark:text-teal-300' : 'border-border text-muted-foreground hover:border-teal-600')}>
                 {data?.invalid && <AlertCircle aria-label="Invalid connection" className="size-3 shrink-0" />}
                 <span className="truncate">{data?.label || 'Condition'}</span>

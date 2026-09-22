@@ -47,6 +47,10 @@ export const SERIES_DARK = [
 export const COST_COMPONENTS = [
     { key: "stt", label: "STT", slot: 0 },
     { key: "llm", label: "LLM", slot: 1 },
+    { key: "llm_input", label: "LLM input", slot: 1 },
+    { key: "llm_cached", label: "LLM cached", slot: 1 },
+    { key: "llm_output", label: "LLM output", slot: 1 },
+    { key: "llm_cache_write", label: "LLM cache write", slot: 1 },
     { key: "tts", label: "TTS", slot: 2 },
     { key: "telephony", label: "Telephony", slot: 3 },
     { key: "platform", label: "Platform fee", slot: 4 },

@@ -30,7 +30,12 @@ from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind, WorkflowRunMode
 from api.services.billing import events as billing_events
 from api.services.quota_service import authorize_workflow_run_start
-from api.services.workflow import agent_timeline, one_shot_run, unattended
+from api.services.workflow import (
+    agent_timeline,
+    one_shot_run,
+    send_approval,
+    unattended,
+)
 from api.services.workflow.text_chat_runner import default_text_chat_checkpoint
 from api.services.workflow.text_chat_session_service import (
     append_text_chat_user_message,
@@ -150,6 +155,9 @@ async def run_routine(routine_id: int) -> Optional[int]:
                 writes_allowed=unattended.writes_allowed(
                     getattr(workflow, "workflow_configurations", None)
                 ),
+                sends_are_cards=send_approval.wants_approval(
+                    getattr(workflow, "workflow_configurations", None)
+                ),
             ),
             expected_revision=text_session.revision,
         )
@@ -172,6 +180,7 @@ async def run_routine(routine_id: int) -> Optional[int]:
                 event=billing_events.ROUTINE_RUN,
                 ref_id=str(run_id),
                 note=routine["name"][:80],
+                workflow_id=workflow_id,
             )
         if not answer:
             # Ran, produced nothing. The single most important case to record:

@@ -115,7 +115,19 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ),
     (
         "Billing",
-        ("billing", "packs", "usage", "reports", "referrals", "partners", "kyc"),
+        (
+            "billing",
+            "packs",
+            "usage",
+            "reports",
+            "referrals",
+            "partners",
+            "kyc",
+            # Spend caps on the workspace or an agent (S-1), and what an
+            # agent's run costs and may not exceed (OP-5).
+            "budgets",
+            "workflow-spend",
+        ),
     ),
     # `public-trust` is the same subject read from outside: the platform's own
     # sub-processors and retention, for somebody doing a security review

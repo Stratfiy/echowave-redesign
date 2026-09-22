@@ -5,7 +5,8 @@ Consolidated from split modules for easier maintenance.
 
 import json
 import uuid
-from typing import Optional
+from datetime import datetime
+from typing import Literal, Optional
 
 from fastapi import (
     APIRouter,
@@ -17,7 +18,7 @@ from fastapi import (
 )
 from loguru import logger
 from pipecat.utils.run_context import set_current_run_id
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette.websockets import WebSocketDisconnect
 
 from api.constants import (
@@ -27,16 +28,16 @@ from api.constants import (
 from api.db import db_client
 from api.db.models import UserModel
 from api.db.workflow_run_client import WorkflowRunStateConflictError
-from api.enums import CallType, WorkflowRunMode, WorkflowRunState
+from api.enums import CallType, OrganizationRole, WorkflowRunMode, WorkflowRunState
 from api.errors.telephony_errors import TelephonyError
 from api.sdk_expose import sdk_expose
-from api.services.auth.depends import get_user
+from api.services.auth.depends import get_user, require_organization_role
 from api.services.call_concurrency import (
     CallConcurrencyLimitError,
     WorkflowRunSlotAlreadyBoundError,
     call_concurrency,
 )
-from api.services.compliance import dnd
+from api.services.compliance import dnd, predeclaration
 from api.services.configuration import key_readiness
 from api.services.kyc import service as kyc_service
 from api.services.organization_preferences import (
@@ -353,6 +354,24 @@ async def initiate_call(
         if not phone_row or not phone_row.is_active:
             raise HTTPException(status_code=400, detail="from_phone_number_not_found")
         from_number = phone_row.address_normalized
+    # The calling number must be declared to its provider for an automated
+    # call from India (FD-2). A verified test call to the account's own
+    # handset is exempt, the way the calling window is.
+    try:
+        if from_number:
+            await predeclaration.assert_from_number(
+                user.selected_organization_id,
+                from_number,
+                automated=not destination_is_verified,
+            )
+        else:
+            from_number = await predeclaration.choose(
+                user.selected_organization_id,
+                list(getattr(provider, "from_numbers", None) or []),
+                automated=not destination_is_verified,
+            )
+    except predeclaration.NotPredeclared as refused:
+        raise HTTPException(status_code=451, detail=str(refused)) from refused
 
     workflow_run_id = request.workflow_run_id
     try:
@@ -1736,3 +1755,78 @@ def _mount_provider_routers() -> None:
 
 
 _mount_provider_routers()
+
+
+# --- TRAI pre-declaration record (FD-2) ----------------------------------------
+
+
+class PredeclarationRequest(BaseModel):
+    """Record that a calling number was declared to its provider."""
+
+    number: str = Field(..., min_length=4, max_length=32)
+    status: Literal["declared", "pending", "withdrawn"] = "declared"
+    reference: Optional[str] = Field(default=None, max_length=120)
+    note: Optional[str] = Field(default=None, max_length=2000)
+    declared_at: Optional[datetime] = None
+
+
+class PredeclarationResponse(BaseModel):
+    address_normalized: str
+    status: str
+    declared_at: Optional[str] = None
+    reference: Optional[str] = None
+    note: Optional[str] = None
+    declared_by: Optional[int] = None
+
+
+class PredeclarationListResponse(BaseModel):
+    enforced: bool
+    declarations: list[PredeclarationResponse]
+
+
+_predeclaration_admin = require_organization_role(OrganizationRole.ADMIN)
+
+
+@router.get("/predeclarations", response_model=PredeclarationListResponse)
+async def list_predeclarations(
+    user: UserModel = Depends(_predeclaration_admin),
+) -> PredeclarationListResponse:
+    """The workspace's calling numbers and whether each was declared to its
+    telecom provider for automated calls (TRAI TCCCP)."""
+    rows = await predeclaration.list_declarations(user.selected_organization_id)
+    return PredeclarationListResponse(
+        enforced=predeclaration.enforced(),
+        declarations=[PredeclarationResponse(**d.as_dict()) for d in rows],
+    )
+
+
+@router.put("/predeclarations", response_model=PredeclarationResponse)
+async def record_predeclaration(
+    body: PredeclarationRequest,
+    user: UserModel = Depends(_predeclaration_admin),
+) -> PredeclarationResponse:
+    """Write or update one number's record. Declared without a date is dated
+    now. The provider does the declaring; this is the account's record of it."""
+    try:
+        row = await predeclaration.record(
+            organization_id=user.selected_organization_id,
+            number=body.number,
+            status=body.status,
+            reference=body.reference,
+            note=body.note,
+            declared_at=body.declared_at,
+            user_id=user.id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return PredeclarationResponse(**row.as_dict())
+
+
+@router.delete("/predeclarations/{number}", status_code=204)
+async def forget_predeclaration(
+    number: str, user: UserModel = Depends(_predeclaration_admin)
+) -> None:
+    if not await predeclaration.forget(
+        organization_id=user.selected_organization_id, number=number
+    ):
+        raise HTTPException(status_code=404, detail="No record for that number")

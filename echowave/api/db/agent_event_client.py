@@ -7,7 +7,7 @@ from sqlalchemy import select, tuple_, update
 
 from api.db.base_client import BaseDBClient
 from api.db.models import AgentEventModel
-from api.enums import AgentEventKind, AgentEventVisibility
+from api.enums import AgentEventActor, AgentEventKind, AgentEventVisibility
 
 #: The summary column's width. Truncated rather than refused: a sentence a
 #: little too long is a row that still reads, and a rejected insert is a hole
@@ -217,8 +217,42 @@ class AgentEventClient(BaseDBClient):
             result = await session.execute(query.limit(max(1, min(limit, 500))))
             return list(result.scalars().all())
 
+    async def thread_author(
+        self, *, organization_id: int, thread_id: Optional[str]
+    ) -> Optional[int]:
+        """Who started a Decibyl conversation: the ``author_id`` on its first
+        human line, or None when no line carries one (the conversation every
+        account had before threads, or one written before the stamp)."""
+        query = (
+            select(AgentEventModel.payload)
+            .where(
+                AgentEventModel.organization_id == organization_id,
+                AgentEventModel.workflow_id.is_(None),
+                AgentEventModel.folder_id.is_(None),
+                AgentEventModel.kind == AgentEventKind.MESSAGE.value,
+                AgentEventModel.actor == AgentEventActor.HUMAN.value,
+                AgentEventModel.thread_id.is_(None)
+                if thread_id is None
+                else AgentEventModel.thread_id == thread_id,
+            )
+            .order_by(AgentEventModel.id.asc())
+            .limit(1)
+        )
+        async with self.async_session() as session:
+            payload = await session.scalar(query)
+        try:
+            value = (payload or {}).get("author_id")
+            return int(value) if value is not None else None
+        except (TypeError, ValueError):
+            return None
+
     async def assistant_threads(
-        self, *, organization_id: int, limit: int = 50
+        self,
+        *,
+        organization_id: int,
+        limit: int = 50,
+        viewer_id: Optional[int] = None,
+        viewer_is_admin: bool = False,
     ) -> list[dict[str, Any]]:
         """Decibyl's conversations, most recently spoken in first.
 
@@ -243,6 +277,11 @@ class AgentEventClient(BaseDBClient):
         the id of its first message; the second reads those rows for a title.
         A window over the whole table to carry one summary through would scan
         rows this cannot use.
+
+        ``viewer_id`` narrows the list to the viewer's own conversations when
+        private threads are on (D-1b): a thread is the person's who wrote its
+        first line, and one with no author on record is an Admin's to see.
+        None lists everything, which is what the flag being off means.
         """
         from sqlalchemy import func
 
@@ -269,13 +308,28 @@ class AgentEventClient(BaseDBClient):
             rows = list((await session.execute(grouped)).all())
             first_ids = [r.first_id for r in rows if r.first_id is not None]
             titles: dict[int, str] = {}
+            authors: dict[int, Optional[int]] = {}
             if first_ids:
                 opening = await session.execute(
-                    select(AgentEventModel.id, AgentEventModel.summary).where(
-                        AgentEventModel.id.in_(first_ids)
-                    )
+                    select(
+                        AgentEventModel.id,
+                        AgentEventModel.summary,
+                        AgentEventModel.payload,
+                    ).where(AgentEventModel.id.in_(first_ids))
                 )
-                titles = {i: (t or "") for i, t in opening.all()}
+                for i, t, payload in opening.all():
+                    titles[i] = t or ""
+                    try:
+                        raw = (payload or {}).get("author_id")
+                        authors[i] = int(raw) if raw is not None else None
+                    except (TypeError, ValueError):
+                        authors[i] = None
+
+        def visible(first_id: Optional[int]) -> bool:
+            if viewer_id is None:
+                return True
+            author = authors.get(first_id) if first_id is not None else None
+            return author == viewer_id if author is not None else viewer_is_admin
 
         return [
             {
@@ -285,6 +339,7 @@ class AgentEventClient(BaseDBClient):
                 "title": titles.get(r.first_id, ""),
             }
             for r in rows
+            if visible(r.first_id)
         ]
 
     async def latest_event_per_workflow(

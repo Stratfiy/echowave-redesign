@@ -32,6 +32,11 @@ def _engine(*, speaks_first="agent", wait=None, is_voice=True, call_recorded=Tru
     node.speaks_first_wait_secs = wait
     node.recording_disclosure_enabled = None
     node.recording_disclosure = None
+    # This file is about the recording line and who speaks first; the AI
+    # line (FD-1) has its own tests, so it is switched off here rather than
+    # left as a MagicMock the engine would try to speak.
+    node.ai_disclosure_enabled = False
+    node.ai_disclosure = None
     node.greeting = "Hello, you have reached the clinic."
     node.greeting_type = "text"
     node.greeting_recording_id = None

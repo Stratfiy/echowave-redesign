@@ -946,9 +946,24 @@ async def list_phone_numbers(config_id: int, user: UserModel = Depends(get_user)
     await _ensure_config_belongs_to_org(config_id, user.selected_organization_id)
 
     rows = await db_client.list_phone_numbers_with_workflow_name_for_config(config_id)
-    return PhoneNumberListResponse(
-        phone_numbers=[_phone_number_to_response(r, name) for r, name in rows]
-    )
+    # The TRAI pre-declaration record beside each Indian number (FD-2).
+    from api.services.compliance import predeclaration
+
+    try:
+        declared = await predeclaration.status_by_number(user.selected_organization_id)
+    except Exception as exc:  # noqa: BLE001 - the list is the deliverable
+        logger.warning("Could not read pre-declarations: {}", exc)
+        declared = {}
+    out = []
+    for r, name in rows:
+        response = _phone_number_to_response(r, name)
+        if predeclaration.is_indian(r.address_normalized):
+            response.predeclaration_status = declared.get(
+                predeclaration.normalise(r.address_normalized) or "",
+                predeclaration.NOT_DECLARED,
+            )
+        out.append(response)
+    return PhoneNumberListResponse(phone_numbers=out)
 
 
 @router.post(

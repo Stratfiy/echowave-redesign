@@ -23,6 +23,36 @@ export function getNextNodeId(existingNodes: { id: string }[]): string {
   return String(maxId + 1);
 }
 
+/** A unique ID for a newly drawn connection.
+ *
+ * `source-target` on its own is not unique. Two steps may legitimately be
+ * joined by more than one path — each with its own condition and its own
+ * transition speech — and `CustomEdge` fans their labels apart precisely
+ * because that is a shape the editor supports. React Flow's `addEdges` appends
+ * whatever it is handed without checking, so the second such connection used
+ * to arrive carrying the first one's ID.
+ *
+ * Three things break when it does: React Flow's edge lookup keeps one of the
+ * pair, the label fan resolves every duplicate to the first row so the labels
+ * stack on top of each other, and the chat editor refuses the whole draft
+ * ("Every connection needs a unique ID") until one of them is deleted.
+ *
+ * The readable form is kept whenever it is free, so the common case — one path
+ * between two steps — reads as it always did and saved graphs keep their IDs.
+ */
+export function nextEdgeId(
+  source: string,
+  target: string,
+  existingEdges: readonly { id: string }[],
+): string {
+  const taken = new Set(existingEdges.map((edge) => edge.id));
+  const base = `${source}-${target}`;
+  if (!taken.has(base)) return base;
+  let suffix = 2;
+  while (taken.has(`${base}-${suffix}`)) suffix += 1;
+  return `${base}-${suffix}`;
+}
+
 export function debounce<T extends (...args: unknown[]) => unknown>(
   func: T,
   wait: number,

@@ -33,6 +33,7 @@ from typing import Iterable
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api import constants
 from api.db.models import PlanLimitModel
 
 #: ``None`` as a stored value means unlimited. Said once here so nobody reads
@@ -102,6 +103,23 @@ LIMITS_BY_KEY: dict[str, LimitSpec] = {spec.key: spec for spec in LIMITS}
 #: The ladder, in the order a customer climbs it. Used to find the next rung
 #: with more of a thing. Codes only; the plans themselves are rows.
 LADDER: tuple[str, ...] = ("free", "everyday", "business", "growth", "scale")
+
+#: The 21 September 2026 ladder (vault: Credits Plan). New codes beside the
+#: old rows; see ``subscription_plans.LADDER_SEED_2026_09``.
+LADDER_2026_09: tuple[str, ...] = (
+    "free",
+    "go",
+    "personal",
+    "business_v2",
+    "pro",
+    "scale_v2",
+)
+
+
+def ladder() -> tuple[str, ...]:
+    """The ladder in force, read at call time."""
+    return LADDER_2026_09 if constants.PLAN_LADDER_2026_09_ENABLED else LADDER
+
 
 #: Section 7 of the spec, one column per plan. ``None`` is unlimited. Campus
 #: Builder carries Business's caps by decision (KAN-69).
@@ -198,6 +216,109 @@ SEED: dict[str, dict[str, int | None]] = {
     },
 }
 SEED["campus"] = dict(SEED["business"])
+
+# The 21 September 2026 rungs. Members, agents, concurrency, routines and
+# voice capacity are the levers the market actually sells on; storage and
+# retention are listed for completeness. Free keeps its existing row.
+SEED["go"] = {
+    "bots": 3,
+    "team_members": 1,
+    "concurrent_calls": 0,
+    "campaign_dials_per_day": 0,
+    "routines": 3,
+    "routine_min_interval_minutes": 60,
+    "knowledge_pages": 500,
+    "single_upload_mb": 25,
+    "api_requests_per_minute": 60,
+    "webhook_retries": 5,
+    "recording_retention_days": 30,
+    "desktop_steps_per_task": 0,
+    "builder_messages": 30,
+    "builder_voice_minutes": 30,
+    "topup_balance_ceiling_credits": 20_000,
+    "chat_context_tokens": 16_000,
+}
+SEED["personal"] = {
+    "bots": 10,
+    "team_members": 1,
+    "concurrent_calls": 0,
+    "campaign_dials_per_day": 0,
+    "routines": 10,
+    "routine_min_interval_minutes": 15,
+    "knowledge_pages": 2_000,
+    "single_upload_mb": 50,
+    "api_requests_per_minute": 120,
+    "webhook_retries": 5,
+    "recording_retention_days": 90,
+    "desktop_steps_per_task": 100,
+    "builder_messages": 100,
+    "builder_voice_minutes": 100,
+    "topup_balance_ceiling_credits": 50_000,
+    "chat_context_tokens": 32_000,
+}
+SEED["business_v2"] = {
+    "bots": 30,
+    "team_members": 5,
+    "concurrent_calls": 1,
+    "campaign_dials_per_day": 500,
+    "routines": 50,
+    "routine_min_interval_minutes": 15,
+    "knowledge_pages": 5_000,
+    "single_upload_mb": 100,
+    "api_requests_per_minute": 300,
+    "webhook_retries": 10,
+    "recording_retention_days": 90,
+    "desktop_steps_per_task": 200,
+    "builder_messages": 100,
+    "builder_voice_minutes": 100,
+    "topup_balance_ceiling_credits": 100_000,
+    "chat_context_tokens": 32_000,
+}
+SEED["pro"] = {
+    "bots": 100,
+    "team_members": 15,
+    "concurrent_calls": 5,
+    "campaign_dials_per_day": 2_000,
+    "routines": UNLIMITED,
+    "routine_min_interval_minutes": 5,
+    "knowledge_pages": 20_000,
+    "single_upload_mb": 250,
+    "api_requests_per_minute": 1_000,
+    "webhook_retries": 10,
+    "recording_retention_days": 180,
+    "desktop_steps_per_task": 500,
+    "builder_messages": 300,
+    "builder_voice_minutes": 300,
+    "topup_balance_ceiling_credits": 500_000,
+    "chat_context_tokens": 64_000,
+}
+SEED["scale_v2"] = {
+    "bots": 250,
+    "team_members": 30,
+    "concurrent_calls": 10,
+    "campaign_dials_per_day": 10_000,
+    "routines": UNLIMITED,
+    "routine_min_interval_minutes": 5,
+    "knowledge_pages": 50_000,
+    "single_upload_mb": 1_024,
+    "api_requests_per_minute": 3_000,
+    "webhook_retries": 10,
+    "recording_retention_days": 365,
+    "desktop_steps_per_task": 1_000,
+    "builder_messages": UNLIMITED,
+    "builder_voice_minutes": UNLIMITED,
+    "topup_balance_ceiling_credits": UNLIMITED,
+    "chat_context_tokens": 128_000,
+}
+# Global twins carry the same caps without platform voice: bring your own
+# carrier until regional media exists.
+for _inr, _global in (
+    ("personal", "personal_global"),
+    ("business_v2", "business_global"),
+    ("pro", "pro_global"),
+    ("scale_v2", "scale_global"),
+):
+    SEED[_global] = dict(SEED[_inr], concurrent_calls=0, campaign_dials_per_day=0)
 #: The plan that existed before the ladder. Business is its successor at the
 #: same price, so it carries Business's caps for the accounts still on it.
 SEED["starter"] = dict(SEED["business"])
@@ -284,12 +405,12 @@ async def resolve(session: AsyncSession, *, plan_code: str, key: str) -> Limit:
     spec = LIMITS_BY_KEY.get(key)
     if spec is None:
         raise KeyError(f"{key!r} is not a plan limit; see plan_limits.LIMITS")
-    ladder = [code for code in LADDER]
-    table = await limits_for_plans(session, plan_codes=[*ladder, plan_code])
+    rungs = [code for code in ladder()]
+    table = await limits_for_plans(session, plan_codes=[*rungs, plan_code])
     value = table[plan_code][key]
     raise_to = None
-    start = ladder.index(plan_code) + 1 if plan_code in ladder else 0
-    for code in ladder[start:]:
+    start = rungs.index(plan_code) + 1 if plan_code in rungs else 0
+    for code in rungs[start:]:
         if _more(table[code][key], value):
             raise_to = code
             break

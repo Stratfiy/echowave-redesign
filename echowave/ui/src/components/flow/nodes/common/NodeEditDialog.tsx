@@ -105,7 +105,7 @@ export const NodeEditDialog = ({
                         )}
                     </div>
                     <DialogDescription>
-                        Edit this node. Save applies your changes to the agent definition.
+                        Apply updates your draft; use the editor Save button to keep changes.
                     </DialogDescription>
                     {nodeData.invalid && nodeData.validationMessage && (
                         <div className="mt-2 flex items-center gap-2 rounded-md bg-red-50 p-2 text-sm text-red-500 border border-red-200">
@@ -132,7 +132,7 @@ export const NodeEditDialog = ({
                             Cancel
                         </Button>
                         <Button className="bg-teal-700 text-white hover:bg-teal-800" onClick={handleSave} disabled={readOnly}>
-                            {readOnly ? "Read Only" : "Save"}
+                            {readOnly ? "Read Only" : "Apply"}
                         </Button>
                     </div>
                 </DialogFooter>
@@ -144,7 +144,7 @@ export const NodeEditDialog = ({
                     <AlertDialogHeader>
                         <AlertDialogTitle>Discard changes?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            You have unsaved changes. Are you sure you want to discard them?
+                            These edits have not been applied to your draft. Discard them?
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

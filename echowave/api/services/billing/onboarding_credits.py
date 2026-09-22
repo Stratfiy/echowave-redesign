@@ -37,12 +37,14 @@ from __future__ import annotations
 import os
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
 from loguru import logger
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api import constants
 from api.db.models import (
     AgentEventModel,
     CreditLedgerModel,
@@ -300,6 +302,146 @@ STEPS_BY_KEY: dict[str, Step] = {step.key: step for step in STEPS}
 
 assert sum(step.credits for step in STEPS) == FREE_CREDITS, "the steps must sum to Free"
 
+#: The welcome grant under the 21 September 2026 ladder: 100 credits, the
+#: same six steps, and the unspent part expires thirty days after it was
+#: granted (``expire_welcome_grants``). Today's 1,000 is ₹500 of exposure per
+#: signup, most of which is never earned; 100 is enough for one real agent and
+#: a routine, which is what the step list already asks for.
+FREE_CREDITS_2026_09 = 100
+WELCOME_GRANT_DAYS = 30
+_STEP_CREDITS_2026_09: dict[str, int] = {
+    VERIFY_EMAIL: 20,
+    FIRST_BOT: 20,
+    FIRST_CHANNEL: 15,
+    FIRST_CONVERSATION: 20,
+    FIRST_ROUTINE: 15,
+    MOVED_IN: 10,
+}
+
+
+def _resized(step: Step, credits: int) -> Step:
+    try:
+        import dataclasses
+
+        return dataclasses.replace(step, credits=credits)
+    except TypeError:
+        return step._replace(credits=credits)  # type: ignore[attr-defined]
+
+
+STEPS_2026_09: tuple[Step, ...] = tuple(
+    _resized(step, _STEP_CREDITS_2026_09[step.key]) for step in STEPS
+)
+STEPS_BY_KEY_2026_09: dict[str, Step] = {step.key: step for step in STEPS_2026_09}
+
+assert sum(step.credits for step in STEPS_2026_09) == FREE_CREDITS_2026_09
+
+
+def free_credits() -> int:
+    """The welcome grant in force, read at call time."""
+    return (
+        FREE_CREDITS_2026_09 if constants.PLAN_LADDER_2026_09_ENABLED else FREE_CREDITS
+    )
+
+
+def steps() -> tuple[Step, ...]:
+    return STEPS_2026_09 if constants.PLAN_LADDER_2026_09_ENABLED else STEPS
+
+
+def steps_by_key() -> dict[str, Step]:
+    return (
+        STEPS_BY_KEY_2026_09 if constants.PLAN_LADDER_2026_09_ENABLED else STEPS_BY_KEY
+    )
+
+
+REF_TYPE_WELCOME_EXPIRY = "welcome_expiry"
+
+
+async def expire_welcome_grants(
+    session: AsyncSession, *, now: datetime | None = None
+) -> dict[str, int]:
+    """Retire the unspent part of welcome grants older than thirty days.
+
+    Only under the 21 September 2026 ladder; the 1,000-credit grant it
+    replaces never expired and keeps not expiring. Written as the plan-expiry
+    ledger kind with its own ref type, so the statement says "this expired"
+    rather than showing an unexplained debit.
+
+    Per account, once: every welcome step row older than the cutoff is taken
+    together, what was spent since the oldest of them is subtracted (usage
+    draws the welcome balance down first, as it does a plan's), and the
+    remainder is clamped to the balance actually on the account — a top-up
+    on top of a welcome grant keeps every rupee of the top-up.
+    """
+    counters = {"considered": 0, "expired": 0, "paise": 0}
+    if not constants.PLAN_LADDER_2026_09_ENABLED:
+        return counters
+    now = now or datetime.now(UTC)
+    cutoff = now - timedelta(days=WELCOME_GRANT_DAYS)
+
+    from sqlalchemy import select
+
+    from api.services.billing.costing import current_balance_paise
+    from api.services.billing.ledger_lock import lock_organization_ledger
+    from api.services.billing.plans import _consumed_since
+
+    aged = (
+        (
+            await session.execute(
+                select(CreditLedgerModel)
+                .where(
+                    CreditLedgerModel.kind == CreditLedgerKind.TRIAL.value,
+                    CreditLedgerModel.created_at < cutoff,
+                )
+                .order_by(CreditLedgerModel.organization_id, CreditLedgerModel.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    by_org: dict[int, list[CreditLedgerModel]] = {}
+    for row in aged:
+        by_org.setdefault(int(row.organization_id), []).append(row)
+
+    for organization_id, rows in by_org.items():
+        counters["considered"] += 1
+        ids = {str(r.id) for r in rows}
+        already = await session.scalar(
+            select(CreditLedgerModel.id).where(
+                CreditLedgerModel.organization_id == organization_id,
+                CreditLedgerModel.kind == CreditLedgerKind.PLAN_EXPIRY.value,
+                CreditLedgerModel.ref_type == REF_TYPE_WELCOME_EXPIRY,
+                CreditLedgerModel.ref_id.in_(ids),
+            )
+        )
+        if already is not None:
+            continue
+        await lock_organization_ledger(session, organization_id=organization_id)
+        oldest = rows[0]
+        granted = sum(int(r.delta_paise) for r in rows)
+        consumed = await _consumed_since(session, grant=oldest)
+        balance = await current_balance_paise(session, organization_id=organization_id)
+        remaining = max(0, min(granted - consumed, balance))
+        newest = rows[-1]
+        session.add(
+            CreditLedgerModel(
+                organization_id=organization_id,
+                delta_paise=-remaining,
+                kind=CreditLedgerKind.PLAN_EXPIRY.value,
+                ref_type=REF_TYPE_WELCOME_EXPIRY,
+                ref_id=str(newest.id),
+                balance_after_paise=balance - remaining,
+                note=(
+                    f"Welcome credits expired after {WELCOME_GRANT_DAYS} days "
+                    f"({remaining // PAISE_PER_CREDIT} credits unused)"
+                ),
+            )
+        )
+        await session.flush()
+        if remaining:
+            counters["expired"] += 1
+            counters["paise"] += remaining
+    return counters
+
 
 # ---------------------------------------------------------------------------
 # Granting
@@ -326,13 +468,13 @@ async def _granted_by_step(
             select(CreditLedgerModel.ref_type, CreditLedgerModel.delta_paise).where(
                 CreditLedgerModel.organization_id == organization_id,
                 CreditLedgerModel.kind == CreditLedgerKind.TRIAL.value,
-                CreditLedgerModel.ref_type.in_([step.ref_type for step in STEPS]),
+                CreditLedgerModel.ref_type.in_([step.ref_type for step in steps()]),
             )
         )
     ).all()
     by_ref = {str(ref): int(paise) for ref, paise in rows}
     return {
-        step.key: by_ref[step.ref_type] for step in STEPS if step.ref_type in by_ref
+        step.key: by_ref[step.ref_type] for step in steps() if step.ref_type in by_ref
     }
 
 
@@ -357,7 +499,7 @@ async def grant_step(session: AsyncSession, *, organization_id: int, key: str) -
     The insert runs in a savepoint so a caller mid-transaction (the costing
     hook) keeps its own work if the row already exists.
     """
-    step = STEPS_BY_KEY[key]
+    step = steps_by_key()[key]
     if not ENABLED or not step.enabled:
         return 0
     if await _is_internal(session, organization_id):
@@ -366,7 +508,7 @@ async def grant_step(session: AsyncSession, *, organization_id: int, key: str) -
         return 0
 
     already = await _trial_granted_paise(session, organization_id)
-    amount = min(step.paise, FREE_CREDITS * PAISE_PER_CREDIT - already)
+    amount = min(step.paise, free_credits() * PAISE_PER_CREDIT - already)
     if amount <= 0:
         return 0
 
@@ -425,10 +567,10 @@ async def grant_step(session: AsyncSession, *, organization_id: int, key: str) -
 
 
 def _next_hint(key: str) -> str:
-    keys = [step.key for step in STEPS]
+    keys = [step.key for step in steps()]
     after = keys[keys.index(key) + 1 :]
     for candidate in after:
-        step = STEPS_BY_KEY[candidate]
+        step = steps_by_key()[candidate]
         if step.enabled:
             return f"Next: {step.label.lower()} for {step.credits} more."
     return "That is every free credit earned. Thank you for moving in."
@@ -440,7 +582,7 @@ async def settle(session: AsyncSession, *, organization_id: int) -> list[str]:
         return []
     paid = await _granted_by_step(session, organization_id)
     granted: list[str] = []
-    for step in STEPS:
+    for step in steps():
         if not step.enabled or step.key in paid:
             continue
         if await step.check(session, organization_id) and await grant_step(
@@ -478,10 +620,10 @@ async def settle_in_own_session(organization_id: int | None) -> list[str]:
 async def state(session: AsyncSession, *, organization_id: int) -> dict:
     """The six steps as the Home screen shows them."""
     paid = await _granted_by_step(session, organization_id)
-    steps = []
-    for step in STEPS:
+    listed = []
+    for step in steps():
         done = step.key in paid or await step.check(session, organization_id)
-        steps.append(
+        listed.append(
             {
                 "key": step.key,
                 "label": step.label,
@@ -497,11 +639,11 @@ async def state(session: AsyncSession, *, organization_id: int) -> dict:
     granted = sum(paid.values()) // PAISE_PER_CREDIT
     return {
         "enabled": ENABLED,
-        "free_credits": FREE_CREDITS,
+        "free_credits": free_credits(),
         "granted_credits": granted,
-        "remaining_credits": max(FREE_CREDITS - granted, 0),
-        "complete": all(s["done"] or not s["enabled"] for s in steps),
-        "steps": steps,
+        "remaining_credits": max(free_credits() - granted, 0),
+        "complete": all(s["done"] or not s["enabled"] for s in listed),
+        "steps": listed,
     }
 
 
@@ -514,7 +656,7 @@ async def first_routine_run_is_free(
     before it enqueues the run. The first run sees exactly one, every later
     run sees more, and a re-fired job sees the same count it saw before.
     """
-    if not ENABLED or not STEPS_BY_KEY[FIRST_ROUTINE].enabled:
+    if not ENABLED or not steps_by_key()[FIRST_ROUTINE].enabled:
         return False
     if await _is_internal(session, organization_id):
         return False

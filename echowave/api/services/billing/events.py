@@ -24,6 +24,7 @@ from loguru import logger
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api import constants
 from api.db.models import CreditLedgerModel
 from api.enums import AgentEventKind, CreditLedgerKind
 from api.services.billing.credits import PAISE_PER_CREDIT
@@ -172,6 +173,11 @@ TIMELINE_PRICES: dict[str, str] = {
 
 
 def credits_for(event: str) -> int:
+    # The builder-message fee is retired by the 21 September 2026 ladder: a
+    # builder call costs the model rate from the same allowance and nothing
+    # on top. One counter is easier to explain than two.
+    if event == BUILDER_MESSAGE and constants.PLAN_LADDER_2026_09_ENABLED:
+        return 0
     return EVENT_CREDITS[event]
 
 
@@ -291,6 +297,7 @@ async def charge(
     ref_id: str,
     quantity: int = 1,
     note: str | None = None,
+    workflow_id: int | None = None,
 ) -> int:
     """Debit one event. Returns the paise debited (0 if already done, or the
     account is internal).
@@ -298,6 +305,9 @@ async def charge(
     Keyed on ``(event, ref_id)``: a retried task, a redelivered job, a
     handler that ran twice — all find the row and write nothing. The ref is
     the event's own id (a run, a turn, a tool call), never a timestamp.
+
+    ``workflow_id`` is the bot that did the work, stamped on the ledger row
+    so its spend can be capped (S-1). None for an event nobody's agent made.
     """
     from api.services.billing.internal_accounts import is_internal
 
@@ -340,9 +350,15 @@ async def charge(
             note=f"{label} · {credits} credit{'s' if credits != 1 else ''}"
             + (f" · {note}" if note else ""),
             created_at=datetime.now(UTC),
+            workflow_id=workflow_id,
         )
     )
     await session.flush()
+    from api.services.billing import budgets
+
+    await budgets.observe_charge(
+        session, organization_id=organization_id, workflow_id=workflow_id
+    )
     return amount
 
 
@@ -353,6 +369,7 @@ async def charge_in_own_session(
     ref_id: str,
     quantity: int = 1,
     note: str | None = None,
+    workflow_id: int | None = None,
 ) -> int:
     """``charge`` from a runtime path that holds no session. Never raises: a
     charge that fails is logged loudly and the bot's work stands — the
@@ -370,6 +387,7 @@ async def charge_in_own_session(
                 ref_id=ref_id,
                 quantity=quantity,
                 note=note,
+                workflow_id=workflow_id,
             )
             await session.commit()
             return amount

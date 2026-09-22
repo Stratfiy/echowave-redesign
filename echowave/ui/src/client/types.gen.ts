@@ -1568,6 +1568,130 @@ export type BrainsResponse = {
 };
 
 /**
+ * BudgetIncidentResponse
+ */
+export type BudgetIncidentResponse = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Policy Id
+     */
+    policy_id: number;
+    /**
+     * Workflow Id
+     */
+    workflow_id: number | null;
+    /**
+     * Threshold
+     */
+    threshold: string;
+    /**
+     * Window Start
+     */
+    window_start: string;
+    /**
+     * Window End
+     */
+    window_end: string | null;
+    /**
+     * Limit Credits
+     */
+    limit_credits: number;
+    /**
+     * Observed Credits
+     */
+    observed_credits: number;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Created At
+     */
+    created_at: string | null;
+};
+
+/**
+ * BudgetPolicyRequest
+ */
+export type BudgetPolicyRequest = {
+    /**
+     * Workflow Id
+     *
+     * One agent, or null for the whole workspace
+     */
+    workflow_id?: number | null;
+    /**
+     * Window Kind
+     */
+    window_kind?: 'calendar_month' | 'lifetime';
+    /**
+     * Amount Credits
+     */
+    amount_credits: number;
+    /**
+     * Warn Percent
+     */
+    warn_percent?: number;
+    /**
+     * Hard Stop
+     */
+    hard_stop?: boolean;
+};
+
+/**
+ * BudgetPolicyResponse
+ */
+export type BudgetPolicyResponse = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Workflow Id
+     */
+    workflow_id: number | null;
+    /**
+     * Window Kind
+     */
+    window_kind: string;
+    /**
+     * Amount Credits
+     */
+    amount_credits: number;
+    /**
+     * Warn Percent
+     */
+    warn_percent: number;
+    /**
+     * Hard Stop
+     */
+    hard_stop: boolean;
+    /**
+     * Spent Credits
+     */
+    spent_credits: number;
+    /**
+     * Window Start
+     */
+    window_start: string;
+    /**
+     * Window End
+     */
+    window_end: string | null;
+    /**
+     * Exhausted
+     */
+    exhausted: boolean;
+    /**
+     * Warned
+     */
+    warned: boolean;
+};
+
+/**
  * BusinessDetailsRequest
  */
 export type BusinessDetailsRequest = {
@@ -2756,11 +2880,15 @@ export type ContactResponse = {
     /**
      * Phone Raw
      */
-    phone_raw: string;
+    phone_raw?: string | null;
     /**
      * Phone Normalized
      */
-    phone_normalized: string;
+    phone_normalized?: string | null;
+    /**
+     * Email
+     */
+    email?: string | null;
     /**
      * Name
      */
@@ -3133,7 +3261,7 @@ export type CreateToolRequest = {
      *
      * Tool category. Must match definition.type.
      */
-    category?: 'http_api' | 'end_call' | 'transfer_call' | 'calculator' | 'native' | 'integration' | 'mcp' | 'google_calendar' | 'rate_table' | 'composio';
+    category?: 'http_api' | 'end_call' | 'transfer_call' | 'calculator' | 'native' | 'integration' | 'mcp' | 'google_calendar' | 'rate_table' | 'composio' | 'web';
     /**
      * Icon
      *
@@ -3167,7 +3295,9 @@ export type CreateToolRequest = {
         type: 'google_calendar';
     } & GoogleCalendarToolDefinition) | ({
         type: 'composio';
-    } & ComposioToolDefinition);
+    } & ComposioToolDefinition) | ({
+        type: 'web';
+    } & WebToolDefinition);
 };
 
 /**
@@ -4274,6 +4404,26 @@ export type EarlyAdopterRequest = {
      * Until
      */
     until?: string | null;
+};
+
+/**
+ * EditProposalRequest
+ */
+export type EditProposalRequest = {
+    /**
+     * Workflow Id
+     */
+    workflow_id: number;
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Graph
+     */
+    graph: {
+        [key: string]: unknown;
+    };
 };
 
 /**
@@ -6028,6 +6178,10 @@ export type ImportResponse = {
      * Phone Column
      */
     phone_column?: string | null;
+    /**
+     * Email Column
+     */
+    email_column?: string | null;
     /**
      * Truncated
      */
@@ -8515,6 +8669,10 @@ export type PhoneNumberResponse = {
      */
     released_at?: string | null;
     provider_sync?: ProviderSyncStatus | null;
+    /**
+     * Predeclaration Status
+     */
+    predeclaration_status?: string | null;
 };
 
 /**
@@ -8857,6 +9015,78 @@ export type PostMessageResponse = {
      * Ambiguous
      */
     ambiguous: Array<string>;
+};
+
+/**
+ * PredeclarationListResponse
+ */
+export type PredeclarationListResponse = {
+    /**
+     * Enforced
+     */
+    enforced: boolean;
+    /**
+     * Declarations
+     */
+    declarations: Array<PredeclarationResponse>;
+};
+
+/**
+ * PredeclarationRequest
+ *
+ * Record that a calling number was declared to its provider.
+ */
+export type PredeclarationRequest = {
+    /**
+     * Number
+     */
+    number: string;
+    /**
+     * Status
+     */
+    status?: 'declared' | 'pending' | 'withdrawn';
+    /**
+     * Reference
+     */
+    reference?: string | null;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Declared At
+     */
+    declared_at?: string | null;
+};
+
+/**
+ * PredeclarationResponse
+ */
+export type PredeclarationResponse = {
+    /**
+     * Address Normalized
+     */
+    address_normalized: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Declared At
+     */
+    declared_at?: string | null;
+    /**
+     * Reference
+     */
+    reference?: string | null;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Declared By
+     */
+    declared_by?: number | null;
 };
 
 /**
@@ -11013,6 +11243,18 @@ export type SpeechmaticsSttConfiguration = {
 };
 
 /**
+ * SpendCapRequest
+ */
+export type SpendCapRequest = {
+    /**
+     * Credits Per Month
+     *
+     * The agent's monthly cap in credits, hard stop; null removes it.
+     */
+    credits_per_month?: number | null;
+};
+
+/**
  * StartCampaignRequest
  */
 export type StartCampaignRequest = {
@@ -12710,7 +12952,9 @@ export type UpdateToolRequest = {
         type: 'google_calendar';
     } & GoogleCalendarToolDefinition) | ({
         type: 'composio';
-    } & ComposioToolDefinition) | null;
+    } & ComposioToolDefinition) | ({
+        type: 'web';
+    } & WebToolDefinition) | null;
     /**
      * Status
      */
@@ -13291,6 +13535,59 @@ export type VonageConfigurationResponse = {
      * From Numbers
      */
     from_numbers: Array<string>;
+};
+
+/**
+ * WebToolConfig
+ *
+ * What an agent's web tool is kept to (OP-2). Both optional: an empty
+ * list is the whole web, and no page figure is the platform's cap.
+ */
+export type WebToolConfig = {
+    /**
+     * Allowed Domains
+     *
+     * Sites this agent may search and read, as hosts (acme.example). Empty means any site the platform's rules allow.
+     */
+    allowed_domains?: Array<string>;
+    /**
+     * Max Pages Per Run
+     *
+     * Pages one run may read; blank means the platform's cap.
+     */
+    max_pages_per_run?: number | null;
+};
+
+/**
+ * WebToolDefinition
+ *
+ * Tool definition for the built-in web tools (OP-1, OP-2).
+ *
+ * The search runs on the platform's own key and the fetch is the
+ * platform's own fetcher, so there is nothing to fill in unless the agent
+ * is to be kept to a list of sites or to fewer pages a run. One tool row
+ * gives the agent both ``web_search`` and ``web_fetch`` (search only on a
+ * voice call, where a page's worth of text has no place). Each search is
+ * charged as a tool call plus the vendor's price passed through at cost;
+ * a fetch is a tool call.
+ */
+export type WebToolDefinition = {
+    /**
+     * Schema Version
+     *
+     * Schema version.
+     */
+    schema_version?: number;
+    /**
+     * Type
+     *
+     * Tool type.
+     */
+    type: 'web';
+    /**
+     * Sites and page cap, when the agent has them.
+     */
+    config?: WebToolConfig | null;
 };
 
 /**
@@ -14736,6 +15033,128 @@ export type HandleVonageEventsWithoutRunApiV1TelephonyVonageEventsPostResponses 
      */
     200: unknown;
 };
+
+export type ListPredeclarationsApiV1TelephonyPredeclarationsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/telephony/predeclarations';
+};
+
+export type ListPredeclarationsApiV1TelephonyPredeclarationsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListPredeclarationsApiV1TelephonyPredeclarationsGetError = ListPredeclarationsApiV1TelephonyPredeclarationsGetErrors[keyof ListPredeclarationsApiV1TelephonyPredeclarationsGetErrors];
+
+export type ListPredeclarationsApiV1TelephonyPredeclarationsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PredeclarationListResponse;
+};
+
+export type ListPredeclarationsApiV1TelephonyPredeclarationsGetResponse = ListPredeclarationsApiV1TelephonyPredeclarationsGetResponses[keyof ListPredeclarationsApiV1TelephonyPredeclarationsGetResponses];
+
+export type RecordPredeclarationApiV1TelephonyPredeclarationsPutData = {
+    body: PredeclarationRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/telephony/predeclarations';
+};
+
+export type RecordPredeclarationApiV1TelephonyPredeclarationsPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RecordPredeclarationApiV1TelephonyPredeclarationsPutError = RecordPredeclarationApiV1TelephonyPredeclarationsPutErrors[keyof RecordPredeclarationApiV1TelephonyPredeclarationsPutErrors];
+
+export type RecordPredeclarationApiV1TelephonyPredeclarationsPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: PredeclarationResponse;
+};
+
+export type RecordPredeclarationApiV1TelephonyPredeclarationsPutResponse = RecordPredeclarationApiV1TelephonyPredeclarationsPutResponses[keyof RecordPredeclarationApiV1TelephonyPredeclarationsPutResponses];
+
+export type ForgetPredeclarationApiV1TelephonyPredeclarationsNumberDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Number
+         */
+        number: string;
+    };
+    query?: never;
+    url: '/api/v1/telephony/predeclarations/{number}';
+};
+
+export type ForgetPredeclarationApiV1TelephonyPredeclarationsNumberDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ForgetPredeclarationApiV1TelephonyPredeclarationsNumberDeleteError = ForgetPredeclarationApiV1TelephonyPredeclarationsNumberDeleteErrors[keyof ForgetPredeclarationApiV1TelephonyPredeclarationsNumberDeleteErrors];
+
+export type ForgetPredeclarationApiV1TelephonyPredeclarationsNumberDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type ForgetPredeclarationApiV1TelephonyPredeclarationsNumberDeleteResponse = ForgetPredeclarationApiV1TelephonyPredeclarationsNumberDeleteResponses[keyof ForgetPredeclarationApiV1TelephonyPredeclarationsNumberDeleteResponses];
 
 export type ListPlatformManagedConfigurationsApiV1AdminTelephonyConfigurationsGetData = {
     body?: never;
@@ -18009,6 +18428,49 @@ export type RevokePromoCodeApiV1AdminBillingPromoCodesPromoIdRevokePostResponses
 };
 
 export type RevokePromoCodeApiV1AdminBillingPromoCodesPromoIdRevokePostResponse = RevokePromoCodeApiV1AdminBillingPromoCodesPromoIdRevokePostResponses[keyof RevokePromoCodeApiV1AdminBillingPromoCodesPromoIdRevokePostResponses];
+
+export type EditProposalApiV1AgentBuilderEditProposalPostData = {
+    body: EditProposalRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/agent-builder/edit-proposal';
+};
+
+export type EditProposalApiV1AgentBuilderEditProposalPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EditProposalApiV1AgentBuilderEditProposalPostError = EditProposalApiV1AgentBuilderEditProposalPostErrors[keyof EditProposalApiV1AgentBuilderEditProposalPostErrors];
+
+export type EditProposalApiV1AgentBuilderEditProposalPostResponses = {
+    /**
+     * Response Edit Proposal Api V1 Agent Builder Edit Proposal Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type EditProposalApiV1AgentBuilderEditProposalPostResponse = EditProposalApiV1AgentBuilderEditProposalPostResponses[keyof EditProposalApiV1AgentBuilderEditProposalPostResponses];
 
 export type GetBuilderConfigApiV1AgentBuilderConfigGetData = {
     body?: never;
@@ -28355,6 +28817,109 @@ export type AgentReadinessApiV1WorkflowWorkflowIdReadinessGetResponses = {
 
 export type AgentReadinessApiV1WorkflowWorkflowIdReadinessGetResponse = AgentReadinessApiV1WorkflowWorkflowIdReadinessGetResponses[keyof AgentReadinessApiV1WorkflowWorkflowIdReadinessGetResponses];
 
+export type WorkflowSpendApiV1WorkflowWorkflowIdSpendGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: {
+        /**
+         * Items Per Run
+         *
+         * How many items one run handles, for the estimate.
+         */
+        items_per_run?: number;
+    };
+    url: '/api/v1/workflow/{workflow_id}/spend';
+};
+
+export type WorkflowSpendApiV1WorkflowWorkflowIdSpendGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type WorkflowSpendApiV1WorkflowWorkflowIdSpendGetError = WorkflowSpendApiV1WorkflowWorkflowIdSpendGetErrors[keyof WorkflowSpendApiV1WorkflowWorkflowIdSpendGetErrors];
+
+export type WorkflowSpendApiV1WorkflowWorkflowIdSpendGetResponses = {
+    /**
+     * Response Workflow Spend Api V1 Workflow  Workflow Id  Spend Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type WorkflowSpendApiV1WorkflowWorkflowIdSpendGetResponse = WorkflowSpendApiV1WorkflowWorkflowIdSpendGetResponses[keyof WorkflowSpendApiV1WorkflowWorkflowIdSpendGetResponses];
+
+export type SetWorkflowSpendCapApiV1WorkflowWorkflowIdSpendCapPutData = {
+    body: SpendCapRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/spend/cap';
+};
+
+export type SetWorkflowSpendCapApiV1WorkflowWorkflowIdSpendCapPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetWorkflowSpendCapApiV1WorkflowWorkflowIdSpendCapPutError = SetWorkflowSpendCapApiV1WorkflowWorkflowIdSpendCapPutErrors[keyof SetWorkflowSpendCapApiV1WorkflowWorkflowIdSpendCapPutErrors];
+
+export type SetWorkflowSpendCapApiV1WorkflowWorkflowIdSpendCapPutResponses = {
+    /**
+     * Response Set Workflow Spend Cap Api V1 Workflow  Workflow Id  Spend Cap Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetWorkflowSpendCapApiV1WorkflowWorkflowIdSpendCapPutResponse = SetWorkflowSpendCapApiV1WorkflowWorkflowIdSpendCapPutResponses[keyof SetWorkflowSpendCapApiV1WorkflowWorkflowIdSpendCapPutResponses];
+
 export type TimelineApiV1TimelineGetData = {
     body?: never;
     headers?: {
@@ -31420,6 +31985,222 @@ export type GetCallAnalyticsApiV1OrganizationsUsageCallsGetResponses = {
 };
 
 export type GetCallAnalyticsApiV1OrganizationsUsageCallsGetResponse = GetCallAnalyticsApiV1OrganizationsUsageCallsGetResponses[keyof GetCallAnalyticsApiV1OrganizationsUsageCallsGetResponses];
+
+export type ListBudgetPoliciesApiV1OrganizationsBudgetsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations/budgets';
+};
+
+export type ListBudgetPoliciesApiV1OrganizationsBudgetsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListBudgetPoliciesApiV1OrganizationsBudgetsGetError = ListBudgetPoliciesApiV1OrganizationsBudgetsGetErrors[keyof ListBudgetPoliciesApiV1OrganizationsBudgetsGetErrors];
+
+export type ListBudgetPoliciesApiV1OrganizationsBudgetsGetResponses = {
+    /**
+     * Response List Budget Policies Api V1 Organizations Budgets Get
+     *
+     * Successful Response
+     */
+    200: Array<BudgetPolicyResponse>;
+};
+
+export type ListBudgetPoliciesApiV1OrganizationsBudgetsGetResponse = ListBudgetPoliciesApiV1OrganizationsBudgetsGetResponses[keyof ListBudgetPoliciesApiV1OrganizationsBudgetsGetResponses];
+
+export type SetBudgetPolicyApiV1OrganizationsBudgetsPutData = {
+    body: BudgetPolicyRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations/budgets';
+};
+
+export type SetBudgetPolicyApiV1OrganizationsBudgetsPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetBudgetPolicyApiV1OrganizationsBudgetsPutError = SetBudgetPolicyApiV1OrganizationsBudgetsPutErrors[keyof SetBudgetPolicyApiV1OrganizationsBudgetsPutErrors];
+
+export type SetBudgetPolicyApiV1OrganizationsBudgetsPutResponses = {
+    /**
+     * Response Set Budget Policy Api V1 Organizations Budgets Put
+     *
+     * Successful Response
+     */
+    200: Array<BudgetPolicyResponse>;
+};
+
+export type SetBudgetPolicyApiV1OrganizationsBudgetsPutResponse = SetBudgetPolicyApiV1OrganizationsBudgetsPutResponses[keyof SetBudgetPolicyApiV1OrganizationsBudgetsPutResponses];
+
+export type RemoveBudgetPolicyApiV1OrganizationsBudgetsPolicyIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Policy Id
+         */
+        policy_id: number;
+    };
+    query?: never;
+    url: '/api/v1/organizations/budgets/{policy_id}';
+};
+
+export type RemoveBudgetPolicyApiV1OrganizationsBudgetsPolicyIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RemoveBudgetPolicyApiV1OrganizationsBudgetsPolicyIdDeleteError = RemoveBudgetPolicyApiV1OrganizationsBudgetsPolicyIdDeleteErrors[keyof RemoveBudgetPolicyApiV1OrganizationsBudgetsPolicyIdDeleteErrors];
+
+export type RemoveBudgetPolicyApiV1OrganizationsBudgetsPolicyIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type RemoveBudgetPolicyApiV1OrganizationsBudgetsPolicyIdDeleteResponse = RemoveBudgetPolicyApiV1OrganizationsBudgetsPolicyIdDeleteResponses[keyof RemoveBudgetPolicyApiV1OrganizationsBudgetsPolicyIdDeleteResponses];
+
+export type ListBudgetIncidentsApiV1OrganizationsBudgetsIncidentsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Open Only
+         */
+        open_only?: boolean;
+    };
+    url: '/api/v1/organizations/budgets/incidents';
+};
+
+export type ListBudgetIncidentsApiV1OrganizationsBudgetsIncidentsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListBudgetIncidentsApiV1OrganizationsBudgetsIncidentsGetError = ListBudgetIncidentsApiV1OrganizationsBudgetsIncidentsGetErrors[keyof ListBudgetIncidentsApiV1OrganizationsBudgetsIncidentsGetErrors];
+
+export type ListBudgetIncidentsApiV1OrganizationsBudgetsIncidentsGetResponses = {
+    /**
+     * Response List Budget Incidents Api V1 Organizations Budgets Incidents Get
+     *
+     * Successful Response
+     */
+    200: Array<BudgetIncidentResponse>;
+};
+
+export type ListBudgetIncidentsApiV1OrganizationsBudgetsIncidentsGetResponse = ListBudgetIncidentsApiV1OrganizationsBudgetsIncidentsGetResponses[keyof ListBudgetIncidentsApiV1OrganizationsBudgetsIncidentsGetResponses];
+
+export type DismissBudgetIncidentApiV1OrganizationsBudgetsIncidentsIncidentIdDismissPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Incident Id
+         */
+        incident_id: number;
+    };
+    query?: never;
+    url: '/api/v1/organizations/budgets/incidents/{incident_id}/dismiss';
+};
+
+export type DismissBudgetIncidentApiV1OrganizationsBudgetsIncidentsIncidentIdDismissPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DismissBudgetIncidentApiV1OrganizationsBudgetsIncidentsIncidentIdDismissPostError = DismissBudgetIncidentApiV1OrganizationsBudgetsIncidentsIncidentIdDismissPostErrors[keyof DismissBudgetIncidentApiV1OrganizationsBudgetsIncidentsIncidentIdDismissPostErrors];
+
+export type DismissBudgetIncidentApiV1OrganizationsBudgetsIncidentsIncidentIdDismissPostResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DismissBudgetIncidentApiV1OrganizationsBudgetsIncidentsIncidentIdDismissPostResponse = DismissBudgetIncidentApiV1OrganizationsBudgetsIncidentsIncidentIdDismissPostResponses[keyof DismissBudgetIncidentApiV1OrganizationsBudgetsIncidentsIncidentIdDismissPostResponses];
 
 export type GetDailyReportApiV1OrganizationsReportsDailyGetData = {
     body?: never;

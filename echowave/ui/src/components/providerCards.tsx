@@ -31,6 +31,7 @@ export const COMPONENTS = [
     { value: "stt", title: "Transcription", noun: "transcription" },
     { value: "llm", title: "Model", noun: "model" },
     { value: "tts", title: "Voice", noun: "voice" },
+    { value: "data", title: "Data", noun: "data lookups" },
     { value: "realtime", title: "Realtime", noun: "realtime" },
 ] as const;
 
@@ -85,6 +86,7 @@ const PROVIDER_LABELS: Record<string, string> = {
     assemblyai: "AssemblyAI",
     grok_realtime: "Grok Realtime",
     ultravox_realtime: "Ultravox Realtime",
+    serper: "Serper (web search)",
 };
 
 export function providerLabel(provider: string): string {

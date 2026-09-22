@@ -30,6 +30,10 @@ def _engine(
     node = MagicMock()
     node.recording_disclosure_enabled = disclosure_enabled
     node.recording_disclosure = disclosure_text
+    # The AI-identity line (FD-1) has its own tests; here it is off so the
+    # spoken text is the recording line alone.
+    node.ai_disclosure_enabled = False
+    node.ai_disclosure = None
     node.greeting = greeting
     node.greeting_type = greeting_type
     node.greeting_recording_id = None

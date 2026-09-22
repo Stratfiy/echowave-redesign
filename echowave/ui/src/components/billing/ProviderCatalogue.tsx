@@ -128,6 +128,11 @@ type ProviderEntry = {
 const COMPONENT_LABEL: Record<string, string> = {
     stt: "Speech to text",
     llm: "Language model",
+    llm_input: "Language model · input",
+    llm_cached: "Language model · cached input",
+    llm_output: "Language model · output",
+    llm_cache_write: "Language model · cache write",
+    data: "Bought data",
     tts: "Text to speech",
     embeddings: "Embeddings",
     telephony: "Telephony",
@@ -137,6 +142,7 @@ const UNITS = [
     { value: "minute", label: "per minute" },
     { value: "1k_tokens", label: "per 1k tokens" },
     { value: "1k_chars", label: "per 1k characters" },
+    { value: "each", label: "per request" },
 ];
 
 /** What a component is normally metered in, so the form pre-selects sensibly. */
@@ -144,6 +150,11 @@ const DEFAULT_UNIT: Record<string, string> = {
     stt: "minute",
     telephony: "minute",
     llm: "1k_tokens",
+    llm_input: "1k_tokens",
+    llm_cached: "1k_tokens",
+    llm_output: "1k_tokens",
+    llm_cache_write: "1k_tokens",
+    data: "each",
     tts: "1k_chars",
     embeddings: "1k_tokens",
 };

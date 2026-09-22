@@ -3,7 +3,7 @@ import { EdgeChange,NodeChange } from '@xyflow/system';
 import { create } from 'zustand';
 
 import { WorkflowError } from '@/client/types.gen';
-import { FlowEdge, FlowNode } from '@/components/flow/types';
+import { FlowEdge, FlowNode, NodeType } from '@/components/flow/types';
 import { WorkflowConfigurations } from '@/types/workflow-configurations';
 
 interface HistoryState {
@@ -162,7 +162,15 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
   // Actions
   deleteGraphElements: (nodeIds, edgeIds) => {
     const state = get();
-    const removedNodes = new Set(nodeIds);
+    // A conversation needs somewhere to begin, so the start step is not
+    // deletable. Its toolbar has always hidden Delete for that reason; the
+    // canvas keyboard reached past the toolbar, and Backspace on a selected
+    // start step left a draft with no way in. Only the steps that actually
+    // go take their connections with them, so refusing one here does not
+    // strand the edges attached to it.
+    const removedNodes = new Set(
+      nodeIds.filter(id => state.nodes.find(node => node.id === id)?.type !== NodeType.START_CALL),
+    );
     const removedEdges = new Set(edgeIds);
     set(commitGraph(state, {
       nodes: state.nodes.filter(node => !removedNodes.has(node.id)),
@@ -296,6 +304,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
   },
   deleteNode: (nodeId) => {
     const state = get();
+    if (state.nodes.find(node => node.id === nodeId)?.type === NodeType.START_CALL) return;
     set(commitGraph(state, {
       nodes: state.nodes.filter(node => node.id !== nodeId),
       edges: state.edges.filter(edge => edge.source !== nodeId && edge.target !== nodeId),

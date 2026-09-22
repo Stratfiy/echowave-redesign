@@ -29,8 +29,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db.models import ProviderRateModel
+from api.services.billing import default_rates
 from api.services.billing.default_rates import (
-    DEFAULT_RATES,
     SEED_NOTE,
     DefaultRate,
     is_seeded_note,
@@ -119,7 +119,7 @@ async def plan(
     existing = await _open_rows(session)
 
     lines: list[SeedLine] = []
-    for rate in DEFAULT_RATES:
+    for rate in default_rates.rates():
         key = (rate.provider, rate.model, rate.component.value)
         mpaise = usd_to_mpaise(rate.usd_per_unit, usd_inr=usd_inr)
         current = existing.get(key)

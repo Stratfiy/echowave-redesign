@@ -37,7 +37,16 @@ from api.services.configuration.registry import realtime_key_provider
 #: Components a platform key can serve. Telephony is deliberately absent —
 #: carrier credentials live on telephony_configurations, which already models
 #: per-account carrier accounts and the KYC that goes with them.
-CREDENTIAL_COMPONENTS = (CostComponent.STT, CostComponent.LLM, CostComponent.TTS)
+#: ``DATA`` (D-1b): the search and lookup vendors Decibyl and the agents
+#: spend our key on -- Serper first. Held here for the same reason the model
+#: keys are: one encrypted row, rotated in one place, never in an env file
+#: on the worker.
+CREDENTIAL_COMPONENTS = (
+    CostComponent.STT,
+    CostComponent.LLM,
+    CostComponent.TTS,
+    CostComponent.DATA,
+)
 
 
 #: Three or more of any character a dashboard masks a key with. Matched as a

@@ -75,6 +75,11 @@ const GROUPS = [
 const COMPONENT_LABELS: Record<string, string> = {
     stt: "Transcription",
     llm: "LLM",
+    llm_input: "LLM input",
+    llm_cached: "LLM cached input",
+    llm_output: "LLM output",
+    llm_cache_write: "LLM cache write",
+    data: "Data",
     tts: "Voice",
     telephony: "Telephony",
     platform: "Platform fee",

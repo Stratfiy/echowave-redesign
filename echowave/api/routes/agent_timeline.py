@@ -33,9 +33,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 from pydantic import BaseModel, Field
 
+from api import constants
 from api.db import db_client
 from api.db.models import UserModel
-from api.enums import AgentEventActor, AgentEventKind, OrganizationRole
+from api.enums import (
+    ORGANIZATION_ROLE_RANK,
+    AgentEventActor,
+    AgentEventKind,
+    OrganizationRole,
+)
 from api.services.auth.depends import get_user, require_organization_role
 from api.services.configuration import chat_presets
 from api.services.workflow import (
@@ -202,6 +208,9 @@ async def timeline(
         folder = await db_client.get_folder(folder_id, organization_id=organization_id)
         if not folder:
             raise HTTPException(status_code=404, detail="Folder not found")
+
+    if assistant:
+        await _assert_thread_is_theirs(user, organization_id, thread_id)
 
     rows = await db_client.agent_events(
         organization_id=organization_id,
@@ -395,6 +404,40 @@ class ThreadsResponse(BaseModel):
     threads: list[ThreadSummary]
 
 
+async def _is_admin(user: UserModel, organization_id: int) -> bool:
+    membership = await db_client.get_membership(user.id, organization_id)
+    rank = ORGANIZATION_ROLE_RANK.get(membership.role if membership else "", -1)
+    return rank >= ORGANIZATION_ROLE_RANK[OrganizationRole.ADMIN.value]
+
+
+async def _assert_thread_is_theirs(
+    user: UserModel, organization_id: int, thread_id: Optional[str]
+) -> None:
+    """A Decibyl conversation is its author's (D-1b). A thread that is not
+    theirs is answered as not found, the way a wrong tenant is: a 403 would
+    confirm the id names somebody else's chat."""
+    if not constants.DECIBYL_PRIVATE_THREADS_ENABLED:
+        return
+    author = await db_client.thread_author(
+        organization_id=organization_id, thread_id=thread_id
+    )
+    if author == user.id:
+        return
+    if author is None and await _is_admin(user, organization_id):
+        return
+    if author is None and thread_id is not None:
+        # Nobody has spoken in it yet: a new chat the client just minted.
+        first = await db_client.agent_events(
+            organization_id=organization_id,
+            assistant_thread=True,
+            thread_id=thread_id,
+            limit=1,
+        )
+        if not first:
+            return
+    raise HTTPException(status_code=404, detail="Thread not found")
+
+
 @router.get("/threads", response_model=ThreadsResponse)
 async def threads(
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
@@ -412,8 +455,12 @@ async def threads(
     if not organization_id:
         raise HTTPException(status_code=400, detail="No organization selected")
 
+    private = constants.DECIBYL_PRIVATE_THREADS_ENABLED
     rows = await db_client.assistant_threads(
-        organization_id=organization_id, limit=limit
+        organization_id=organization_id,
+        limit=limit,
+        viewer_id=user.id if private else None,
+        viewer_is_admin=await _is_admin(user, organization_id) if private else False,
     )
     return ThreadsResponse(threads=[ThreadSummary(**row) for row in rows])
 
@@ -451,6 +498,7 @@ async def post_message(
         )
 
     if body.assistant:
+        await _assert_thread_is_theirs(user, organization_id, body.thread_id)
         text, attachments, line, preset = await _what_was_said(body, organization_id)
         asked = await decibyl.ask(
             organization_id=organization_id,

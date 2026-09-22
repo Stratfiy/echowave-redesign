@@ -237,6 +237,9 @@ class _ToolDocumentRefsMixin(BaseModel):
         "speaks_first_wait_secs",
         "recording_disclosure_enabled",
         "recording_disclosure",
+        "ai_disclosure_enabled",
+        "ai_disclosure",
+        "ai_disclosure_opt_out_acknowledged",
         "prompt",
         "allow_interrupt",
         "add_global_prompt",
@@ -280,6 +283,33 @@ class _ToolDocumentRefsMixin(BaseModel):
             "display_options": DisplayOptions(
                 show={"recording_disclosure_enabled": [True]}
             ),
+        },
+        "ai_disclosure_enabled": {
+            "display_name": "Say that the caller is speaking with an AI",
+            "description": (
+                "Spoken before the greeting. Required under the EU AI Act "
+                "(Article 50) and expected on US calls since the FCC's ruling "
+                "on AI voices. Leave unset to follow the platform default (on)."
+            ),
+        },
+        "ai_disclosure": {
+            "display_name": "AI-identity wording",
+            "description": (
+                "What the agent says. Leave blank to use the platform default."
+            ),
+            "placeholder": "Hi, you're speaking with an AI assistant.",
+            "display_options": DisplayOptions(show={"ai_disclosure_enabled": [True]}),
+        },
+        "ai_disclosure_opt_out_acknowledged": {
+            "display_name": "I acknowledge where switching this off is unlawful",
+            "description": (
+                "Switching the line off is recorded in Activity with your name. "
+                "A call from an AI without saying so is unlawful in the EU (AI "
+                "Act, Article 50) and on US calls (TCPA as read by the FCC; state "
+                "bot-disclosure laws). Tick to confirm this agent's calls are "
+                "outside those duties."
+            ),
+            "display_options": DisplayOptions(show={"ai_disclosure_enabled": [False]}),
         },
         "greeting_type": {
             "display_name": "Greeting Type",
@@ -425,6 +455,16 @@ class StartCallNodeData(
     )
     recording_disclosure: Optional[str] = spec_field(
         default=None, ui_type=PropertyType.string
+    )
+    # The AI-identity line (FD-1): same shape and same reasoning as the
+    # recording disclosure above. None is the platform default, which is on;
+    # only an explicit False opts out, and that needs the acknowledgement.
+    ai_disclosure_enabled: Optional[bool] = spec_field(
+        default=None, ui_type=PropertyType.boolean
+    )
+    ai_disclosure: Optional[str] = spec_field(default=None, ui_type=PropertyType.string)
+    ai_disclosure_opt_out_acknowledged: Optional[bool] = spec_field(
+        default=None, ui_type=PropertyType.boolean
     )
     delayed_start: bool = spec_field(default=False, ui_type=PropertyType.boolean)
     delayed_start_duration: Optional[float] = spec_field(

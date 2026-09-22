@@ -151,6 +151,12 @@ function ClickToCopy({
     );
 }
 
+// A trigger's path is minted by the server when the draft is saved, so a
+// trigger that has never been saved has no URL to show yet. "Generating..."
+// said so in a way that reads like a spinner nobody need act on — it waits
+// for a save that only the person reading it can make.
+const UNSAVED_TRIGGER_HINT = "Save this draft to generate the URL.";
+
 function UrlPanel({
     endpoint,
     helperText,
@@ -171,21 +177,23 @@ function UrlPanel({
                     className="flex-1 bg-muted rounded px-2 py-1"
                 >
                     <code className="text-xs break-all">
-                        {endpoint || "Generating..."}
+                        {endpoint || UNSAVED_TRIGGER_HINT}
                     </code>
                 </ClickToCopy>
             </div>
             <p className="text-xs text-muted-foreground">{helperText}</p>
-            <p className="text-sm font-medium pt-2">Example Request</p>
-            <ClickToCopy
-                value={curl}
-                title="Click to copy curl"
-                className="block w-full bg-muted rounded"
-            >
-                <pre className="text-xs px-3 py-2 overflow-x-auto whitespace-pre-wrap">
-                    {curl || "Generating..."}
-                </pre>
-            </ClickToCopy>
+            {endpoint && <>
+                <p className="text-sm font-medium pt-2">Example Request</p>
+                <ClickToCopy
+                    value={curl}
+                    title="Click to copy curl"
+                    className="block w-full bg-muted rounded"
+                >
+                    <pre className="text-xs px-3 py-2 overflow-x-auto whitespace-pre-wrap">
+                        {curl}
+                    </pre>
+                </ClickToCopy>
+            </>}
         </div>
     );
 }
@@ -249,7 +257,7 @@ export const GenericNode = memo(({ data, selected, id, type }: GenericNodeProps)
         id,
         additionalData,
     });
-    const { saveWorkflow, tools, documents, recordings, workflowUuid, readOnly } = useWorkflow();
+    const { tools, documents, recordings, workflowUuid, readOnly } = useWorkflow();
     const { bySpecName } = useNodeSpecs();
     const { config: appConfig } = useAppConfig();
     const spec = bySpecName.get(type);
@@ -292,25 +300,30 @@ export const GenericNode = memo(({ data, selected, id, type }: GenericNodeProps)
         );
     }, [values, data, spec, propertyNames]);
 
-    const handleSave = async () => {
+    // Applies to the shared draft only. Saving to the server is the editor's
+    // Save button, the way it is for a connection and for a chat proposal —
+    // one draft, one place that writes it. While this called saveWorkflow(),
+    // opening an unrelated node and pressing Save persisted whatever else was
+    // in the draft with it, including a chat proposal nobody had accepted.
+    const handleApply = () => {
         if (!spec || readOnly) return;
         handleSaveNodeData({
             ...data,
             ...(values as Partial<FlowNodeData>),
         });
         setOpen(false);
-        await saveWorkflow();
     };
 
+    // The one place the form is seeded, and every path into the inspector —
+    // double-click, Enter, the toolbar's pencil — goes through it. This used
+    // to be an effect keyed on `data` as well, and opening is not the only
+    // thing that changes `data`: marking the graph invalid rewrites the data
+    // of every node, so a validation pass landing while the inspector was
+    // open threw away whatever was being typed into it.
     const handleOpenChange = (newOpen: boolean) => {
         if (newOpen && spec) setValues(seed());
         setOpen(newOpen);
     };
-
-    useEffect(() => {
-        if (open && spec) setValues(seed());
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [data, open]);
 
     // ── Render ──────────────────────────────────────────────────────────
     const handles =
@@ -352,7 +365,7 @@ export const GenericNode = memo(({ data, selected, id, type }: GenericNodeProps)
 
             <NodeToolbar isVisible={selected} position={Position.Top}>
                 <div className="flex gap-1">
-                    <Button aria-label={`Edit ${data.name || fallbackTitle}`} onClick={() => setOpen(true)} variant="outline" size="icon">
+                    <Button aria-label={`Edit ${data.name || fallbackTitle}`} onClick={() => handleOpenChange(true)} variant="outline" size="icon">
                         <Edit />
                     </Button>
                     {/* Start nodes can't be deleted (workflow always needs one). */}
@@ -374,7 +387,7 @@ export const GenericNode = memo(({ data, selected, id, type }: GenericNodeProps)
                 onOpenChange={handleOpenChange}
                 nodeData={data}
                 title={dialogTitle}
-                onSave={handleSave}
+                onSave={handleApply}
                 isDirty={isDirty}
                 documentationUrl={docUrl}
             >

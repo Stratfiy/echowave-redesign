@@ -524,8 +524,90 @@ WHATSAPP_MESSAGE_COST_PAISE = int(os.getenv("WHATSAPP_MESSAGE_COST_PAISE", "12")
 # what existing accounts pay, so they are a commercial decision that should be
 # taken deliberately rather than inherited by upgrading.
 ADDON_BILLING_ENABLED = os.getenv("ADDON_BILLING_ENABLED", "false").lower() == "true"
+
+# The 21 September 2026 ladder — Free, Go, Personal, Business, Pro, Scale —
+# behind a flag, because it changes what an account is offered and what a
+# welcome grant is worth. Off, and the 14 September ladder is exactly what it
+# was; on, and the new rungs land beside the old rows (never over them), the
+# old rungs are withdrawn from sale the way Starter was, the welcome grant is
+# 100 credits that expire in thirty days, and the builder-message fee is gone.
+# Read at call time, never at import, so a test can turn it either way.
+PLAN_LADDER_2026_09_ENABLED = (
+    os.getenv("PLAN_LADDER_2026_09_ENABLED", "false").lower() == "true"
+)
 BYOK_TIERED_FEE_ENABLED = (
     os.getenv("BYOK_TIERED_FEE_ENABLED", "false").lower() == "true"
+)
+
+# Slice S-1 of the two-agent pilot (21 Sept 2026, Billing Gap Audit slice 1):
+# the language-model line splits into input, cached-input and output tokens,
+# each at its vendor's own price, instead of one blended 70/30 rate. Off, and
+# every receipt is costed exactly as before against the blended ``llm`` rows;
+# on, and a run whose usage recorded the split is costed on three lines, the
+# ``data`` component (contact lookups, search, fetch bought on a platform key)
+# is metered, and the seeder writes the split rows beside the blended ones.
+# Read at call time, never at import, so a test can turn it either way.
+METERING_SPLIT_2026_09_ENABLED = (
+    os.getenv("METERING_SPLIT_2026_09_ENABLED", "false").lower() == "true"
+)
+
+# Spend caps a customer sets on a workspace or on one agent (S-1, after the
+# paperclip budget-policy shape): warn at a share of the cap, stop at the
+# cap. Off, and no policy is read anywhere -- a run authorisation costs
+# nothing extra and nothing is ever refused for a budget.
+BUDGET_POLICIES_ENABLED = (
+    os.getenv("BUDGET_POLICIES_ENABLED", "false").lower() == "true"
+)
+
+# D-1a (21 Sept 2026): Decibyl keeps working past a reply's tool-round cap.
+# Off, and a turn that hits the cap answers with what it has, as before. On,
+# and the turn hands the rest to a task on the board that runs in the
+# background under the workspace's spend cap and reports on the thread. The
+# round ceiling and the progress cadence are the two numbers that decide
+# how much one ask may spend before a person hears back.
+DECIBYL_LONG_TASKS_ENABLED = (
+    os.getenv("DECIBYL_LONG_TASKS_ENABLED", "false").lower() == "true"
+)
+DECIBYL_TASK_MAX_ROUNDS = int(os.getenv("DECIBYL_TASK_MAX_ROUNDS", "40"))
+DECIBYL_TASK_PROGRESS_EVERY = int(os.getenv("DECIBYL_TASK_PROGRESS_EVERY", "5"))
+
+# D-1b (21 Sept 2026): Decibyl's own tools beyond the workspace -- a web
+# search on the platform's key, a fetch of a page, a search over the
+# workspace's own records, and the sandbox. Off, and none is offered.
+DECIBYL_TOOLS_2026_09_ENABLED = (
+    os.getenv("DECIBYL_TOOLS_2026_09_ENABLED", "false").lower() == "true"
+)
+# The search vendor's key when no platform credential row holds one. The
+# credential store (superadmin -> provider keys, component "data") is the
+# place for it; the variable is the fallback for a deployment without one.
+SERPER_API_KEY = os.getenv("SERPER_API_KEY", "").strip()
+# A Crawl4AI server, when one is deployed; blank means pages are fetched
+# and reduced to text here, which is enough for a page that is mostly text.
+CRAWL4AI_URL = os.getenv("CRAWL4AI_URL", "").strip().rstrip("/")
+WEB_FETCH_MAX_CHARS = int(os.getenv("WEB_FETCH_MAX_CHARS", "12000"))
+
+# D-1b: a Decibyl conversation belongs to the person who started it. Off,
+# and every member of a workspace sees every conversation, as before. On,
+# and a thread is listed and read by its author; a thread with no recorded
+# author (the one every account had before threads, and anything written
+# before the author was stamped) is an Admin's to see, nobody else's.
+DECIBYL_PRIVATE_THREADS_ENABLED = (
+    os.getenv("DECIBYL_PRIVATE_THREADS_ENABLED", "false").lower() == "true"
+)
+WEB_FETCH_PER_DOMAIN_PER_MINUTE = int(
+    os.getenv("WEB_FETCH_PER_DOMAIN_PER_MINUTE", "10")
+)
+# OP-2: how many pages one run (an agent run, or one Decibyl conversation
+# in a day) may read on the platform's fetcher, whatever the model asks.
+# A run that reads its cap is told so and keeps answering with what it has.
+# An agent's web tool may set a lower figure of its own.
+WEB_FETCH_MAX_PAGES_PER_RUN = int(os.getenv("WEB_FETCH_MAX_PAGES_PER_RUN", "25"))
+# OP-5: what one script run may spend on the platform's metered tools (a
+# search on our key, a page read) from inside the box, in credits. The
+# script fee is the box; this is what the box may buy. A bot may set a
+# lower figure of its own on its configurations (script_spend_cap_credits).
+SCRIPT_EXTERNAL_SPEND_CAP_CREDITS = int(
+    os.getenv("SCRIPT_EXTERNAL_SPEND_CAP_CREDITS", "50")
 )
 
 
@@ -780,6 +862,32 @@ RECORDING_DISCLOSURE_ENABLED = (
 RECORDING_DISCLOSURE_TEXT = os.getenv(
     "RECORDING_DISCLOSURE_TEXT",
     "Just so you know, this call is recorded for quality and training purposes.",
+)
+
+# FD-1 (21 Sept 2026): the caller is told they are speaking with an AI, in
+# the agent's first turn, before the greeting -- the same shape as the
+# recording disclosure and for the same reason: omission must not switch it
+# off. EU AI Act Article 50 (in force 2 August 2026) and the FCC's ruling
+# that AI-generated voices are artificial under the TCPA both expect it.
+# Per agent, default on; switching it off is a deliberate act that names
+# the jurisdictions where that is unlawful, and lands in Activity.
+AI_DISCLOSURE_ENABLED = os.getenv("AI_DISCLOSURE_ENABLED", "true").lower() == "true"
+AI_DISCLOSURE_TEXT = os.getenv(
+    "AI_DISCLOSURE_TEXT",
+    "Hi, you're speaking with an AI assistant.",
+)
+
+# FD-2 (21 Sept 2026): TRAI's TCCCP Third Amendment (18 Sept 2026) requires
+# that a number used for automated (auto-dialler, robocall) voice calls in
+# India is pre-declared to the telecom provider. On, and an Indian calling
+# number places an automated call only once the account has recorded its
+# declaration (services/compliance/predeclaration.py); an undeclared one is
+# refused with the reason, and a verified test call to the account's own
+# handset is exempt. Off by default: switching it on refuses calls on a
+# deployment whose numbers are not yet recorded, which is a decision, not an
+# upgrade.
+TRAI_PREDECLARATION_ENFORCED = (
+    os.getenv("TRAI_PREDECLARATION_ENFORCED", "false").lower() == "true"
 )
 
 # ─── Database connection pool ────────────────────────────────────────────────

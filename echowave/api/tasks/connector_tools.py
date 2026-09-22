@@ -103,6 +103,16 @@ async def sync_missing_tools(
             failed += 1
             continue
         created += result.created
+        # A bot built before this app was connected has been waiting for it
+        # (bot_from_brief.attach_waiting): now it gets its tools.
+        try:
+            from api.services.workflow import bot_from_brief
+
+            await bot_from_brief.attach_waiting(
+                organization_id=organization_id, app=app
+            )
+        except Exception as exc:  # noqa: BLE001 - the rows are made; that is the job
+            logger.warning("Could not hand {} to the bots waiting on it: {}", app, exc)
 
     if created:
         logger.info(

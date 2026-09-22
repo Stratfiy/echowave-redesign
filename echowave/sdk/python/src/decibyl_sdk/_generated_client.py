@@ -86,11 +86,17 @@ class _GeneratedClient:
         data = self._request("GET", "/credentials/")
         return [CredentialResponse.model_validate(x) for x in data]
 
-    def list_documents(self, *, status: str | None = None, limit: int | None = None, offset: int | None = None) -> DocumentListResponseSchema:
+    def list_documents(self, *, status: str | None = None, scope: str | None = None, folder_id: int | None = None, workflow_id: int | None = None, limit: int | None = None, offset: int | None = None) -> DocumentListResponseSchema:
         """List knowledge base documents available to the authenticated organization."""
         params: dict[str, Any] = {}
         if status is not None:
             params["status"] = status
+        if scope is not None:
+            params["scope"] = scope
+        if folder_id is not None:
+            params["folder_id"] = folder_id
+        if workflow_id is not None:
+            params["workflow_id"] = workflow_id
         if limit is not None:
             params["limit"] = limit
         if offset is not None:

@@ -7,6 +7,7 @@ import {
   Pencil,
   PhoneOff,
   Plus,
+  ShieldCheck,
   Star,
   Trash2,
 } from "lucide-react";
@@ -19,6 +20,7 @@ import {
   deletePhoneNumberApiV1OrganizationsTelephonyConfigsConfigIdPhoneNumbersPhoneNumberIdDelete,
   getTelephonyConfigurationByIdApiV1OrganizationsTelephonyConfigsConfigIdGet,
   listPhoneNumbersApiV1OrganizationsTelephonyConfigsConfigIdPhoneNumbersGet,
+  recordPredeclarationApiV1TelephonyPredeclarationsPut,
   releaseNumberApiV1ManagedNumbersPhoneNumberIdReleasePost,
   setDefaultCallerIdApiV1OrganizationsTelephonyConfigsConfigIdPhoneNumbersPhoneNumberIdSetDefaultCallerPost,
   setDefaultOutboundApiV1OrganizationsTelephonyConfigsConfigIdSetDefaultOutboundPost,
@@ -155,6 +157,28 @@ export default function TelephonyConfigurationDetailPage() {
       fetchAll();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to set default caller");
+    }
+  };
+
+  // TRAI pre-declaration (FD-2): the provider does the declaring; this
+  // records that it happened, so the number may place automated calls.
+  const onMarkDeclared = async (n: PhoneNumberResponse) => {
+    const reference = window.prompt(
+      `Record that ${n.address} was declared to its telecom provider for automated calls (TRAI TCCCP). Provider reference, if any:`,
+      "",
+    );
+    if (reference === null) return;
+    try {
+      const token = await getAccessToken();
+      const res = await recordPredeclarationApiV1TelephonyPredeclarationsPut({
+        headers: { Authorization: `Bearer ${token}` },
+        body: { number: n.address_normalized, status: "declared", reference: reference || null },
+      });
+      if (res.error) throw new Error(detailFromResult(res));
+      toast.success(`${n.address} recorded as declared`);
+      fetchAll();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to record the declaration");
     }
   };
 
@@ -394,6 +418,18 @@ export default function TelephonyConfigurationDetailPage() {
                             Bought via Decibyl
                           </Badge>
                         )}
+                        {n.predeclaration_status === "declared" && (
+                          <Badge variant="secondary" className="gap-1">
+                            <ShieldCheck className="h-3 w-3" /> Declared (TRAI)
+                          </Badge>
+                        )}
+                        {n.predeclaration_status === "pending" && (
+                          <Badge variant="outline">Declaration pending (TRAI)</Badge>
+                        )}
+                        {(n.predeclaration_status === "not_declared" ||
+                          n.predeclaration_status === "withdrawn") && (
+                          <Badge variant="destructive">Not declared (TRAI)</Badge>
+                        )}
                         {n.is_default_caller_id && (
                           <Badge className="gap-1">
                             <Star className="h-3 w-3 fill-current" /> Default caller
@@ -435,6 +471,17 @@ export default function TelephonyConfigurationDetailPage() {
                             <Star className="h-4 w-4" />
                           </Button>
                         )}
+                        {n.predeclaration_status &&
+                          n.predeclaration_status !== "declared" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => onMarkDeclared(n)}
+                              title="Record that this number was declared to its provider (TRAI)"
+                            >
+                              <ShieldCheck className="h-4 w-4" />
+                            </Button>
+                          )}
                         <Button
                           variant="ghost"
                           size="sm"

@@ -62,6 +62,17 @@ describe('compact edge inspector', () => {
         expect(screen.getByLabelText('Label')).toHaveProperty('value', 'Booking');
         expect(state.updateEdge).not.toHaveBeenCalled();
     });
+    // Marking the graph invalid rewrites every edge's data. That used to
+    // re-seed an open inspector, so a validation pass landing mid-sentence
+    // took the sentence with it.
+    it('keeps edits in progress when validation rewrites the edge data', () => {
+        const { rerender } = render(<CustomEdge {...props} />); open();
+        fireEvent.change(screen.getByLabelText('Label'), { target: { value: 'Half a sentence' } });
+        rerender(<CustomEdge {...props} data={{ ...data, invalid: true, validationMessage: 'Needs a condition' }} />);
+        expect(screen.getByLabelText('Label')).toHaveProperty('value', 'Half a sentence');
+        fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+        expect(state.updateEdge.mock.calls[0][1].data).toMatchObject({ label: 'Half a sentence', validationMessage: 'Needs a condition' });
+    });
     it('deletes only through the inspector', () => {
         render(<CustomEdge {...props} />);
         expect(screen.queryByRole('button', { name: 'Delete connection' })).toBeNull(); open();

@@ -20,6 +20,10 @@ vi.mock('@/client/sdk.gen', () => ({
         .fn()
         .mockResolvedValue({ data: { ready: true, items: [] } }),
     listFoldersApiV1FolderGet: vi.fn().mockResolvedValue({ data: [] }),
+    // The spend card (OP-5) reads this; nothing back means no card, which
+    // keeps this file about the definition.
+    workflowSpendApiV1WorkflowWorkflowIdSpendGet: vi.fn().mockResolvedValue({ data: undefined }),
+    setWorkflowSpendCapApiV1WorkflowWorkflowIdSpendCapPut: vi.fn(),
 }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
 

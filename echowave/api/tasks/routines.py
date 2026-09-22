@@ -175,10 +175,32 @@ async def run_bot_trigger(_ctx, trigger_id: int, payload, event_id=None) -> None
     )
 
 
+async def db_client_task(task_id: int):
+    """The task row, without an organisation to scope it by: the queue
+    carries only the id, and the row says whose it is."""
+    from sqlalchemy import select
+
+    from api.db import db_client
+    from api.db.models import AgentTaskModel
+
+    async with db_client.async_session() as session:
+        return await session.scalar(
+            select(AgentTaskModel).where(AgentTaskModel.id == task_id)
+        )
+
+
 async def run_agent_task(_ctx, task_id: int) -> None:
     """A task on the board was handed to a bot (KAN-140 P1): run it, then
     process the run like any other."""
+    # Decibyl's own unfinished turn (D-1a) is the same conversation carried
+    # on, not a bot's run: nothing to cost afterwards.
+    from api.services.workflow import decibyl_tasks
     from api.services.workflow.tasks_board import run_task
+
+    task = await db_client_task(int(task_id))
+    if task is not None and decibyl_tasks.is_continuation(task):
+        await decibyl_tasks.continue_task(int(task_id))
+        return
 
     run_id = await run_task(int(task_id))
     if run_id is None:
