@@ -609,3 +609,80 @@ async def test_a_dialer_is_not_connected_without_the_consent_terms(monkeypatch):
         await dialer_connections.connect_dialer(request, user=object())
     assert caught.value.status_code == 400
     assert "accept" in caught.value.detail
+
+
+# --- CR-3: the coach's tool ---------------------------------------------------
+
+
+@pytest.mark.asyncio
+class TestTheTeamCallsTool:
+    async def test_it_reads_one_organizations_calls_grouped_by_caller(
+        self, async_session
+    ):
+        from api.services.dialer_import import team_calls_tool
+
+        mine = await _org(async_session, "coach-mine")
+        theirs = await _org(async_session, "coach-theirs")
+        for org, calls in (
+            (
+                mine,
+                [_call("a1"), _call("a2", agent_name=None, agent_number="9840099999")],
+            ),
+            (theirs, [_call("x1", agent_name="Someone else")]),
+        ):
+            await importer.import_window(
+                async_session,
+                await _connection(async_session, org.id),
+                SINCE,
+                UNTIL,
+                adapter=FakeAdapter(calls),
+                storage=FakeStorage(),
+                transcriber=FakeTranscriber(),
+                now=NOW,
+            )
+        result = await team_calls_tool.read(
+            async_session,
+            organization_id=mine.id,
+            arguments={"days": 7},
+            now=datetime(2026, 9, 22, 12, 0, tzinfo=timezone.utc),
+        )
+        callers = {c["caller"]: c for c in result["callers"]}
+        assert set(callers) == {"Divya", "9840099999"}
+        assert "Someone else" not in callers
+        assert callers["Divya"]["calls"][0]["transcript"] == "transcript of audio-a1"
+
+    async def test_no_calls_is_said_rather_than_invented(self, async_session):
+        from api.services.dialer_import import team_calls_tool
+
+        org = await _org(async_session, "coach-empty")
+        result = await team_calls_tool.read(
+            async_session, organization_id=org.id, arguments={"days": 99}
+        )
+        assert result["callers"] == [] and "never invent" in result["note"]
+        assert result["days"] == team_calls_tool.MAX_DAYS
+
+    async def test_the_tool_is_made_only_while_the_import_is_on(self, monkeypatch):
+        from api.services.dialer_import import team_calls_tool
+
+        monkeypatch.setattr(constants, "DIALER_IMPORT_ENABLED", False)
+        assert await team_calls_tool.ensure_tool(organization_id=1, user_id=1) is None
+
+
+def test_the_coach_is_hired_with_the_team_calls_tool():
+    from api.services.agent_templates import get_template
+
+    coach = get_template("telecaller_call_coach")
+    assert coach.needs_team_calls
+    assert "read_team_calls" in " ".join(n.prompt for n in coach.nodes)
+
+
+def test_the_dispatcher_offers_the_tool_only_while_the_import_is_on():
+    """Both branch points name it, and both check the flag, so a tool row
+    made while the import was on goes quiet when it is switched off."""
+    import inspect
+
+    from api.services.workflow import pipecat_engine_custom_tools as tools
+
+    source = inspect.getsource(tools.CustomToolManager)
+    assert source.count("team_calls_tool.is_team_calls_tool(tool)") == 2
+    assert source.count("team_calls_tool.enabled()") == 2

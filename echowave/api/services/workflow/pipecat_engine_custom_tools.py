@@ -24,6 +24,7 @@ from pipecat.utils.enums import EndTaskReason
 from api.db import db_client
 from api.enums import ToolCategory, WorkflowRunMode
 from api.schemas.tool import DEFAULT_COMPOSIO_TIMEOUT_SECS
+from api.services.dialer_import import team_calls_tool
 from api.services.integrations.composio import schema as composio_schema
 from api.services.integrations.composio.client import (
     ComposioNotConfigured,
@@ -490,6 +491,22 @@ class CustomToolManager:
                         )
                     continue
 
+                if team_calls_tool.is_team_calls_tool(tool):
+                    # Built-in read of the team's imported dialer calls
+                    # (CR-3). Offers nothing with the import switched off.
+                    if not team_calls_tool.enabled():
+                        continue
+                    func = team_calls_tool.function_schema()["function"]
+                    schemas.append(
+                        get_function_schema(
+                            func["name"],
+                            func["description"],
+                            properties=func["parameters"]["properties"],
+                            required=func["parameters"]["required"],
+                        )
+                    )
+                    continue
+
                 if tool.category == ToolCategory.CALCULATOR.value:
                     # Built-in calculator: return pre-defined schemas
                     for tool_def in get_calculator_tools():
@@ -624,6 +641,11 @@ class CustomToolManager:
                 if agent_web.is_web_tool(tool):
                     if agent_web.enabled():
                         self._register_web_handlers(tool)
+                    continue
+
+                if team_calls_tool.is_team_calls_tool(tool):
+                    if team_calls_tool.enabled():
+                        self._register_team_calls_handler()
                     continue
 
                 if tool.category == ToolCategory.CALCULATOR.value:
@@ -775,6 +797,33 @@ class CustomToolManager:
             resolver_timeout = min(max(resolver_timeout, 0.5), 5.0)
 
         return float(transfer_timeout) + resolver_timeout + 15.0
+
+    def _register_team_calls_handler(self) -> None:
+        """The team's imported calls, for this run's organization only (CR-3).
+
+        The organization comes from the run, never from the model's
+        arguments, so no prompt can read another account's calls.
+        """
+
+        async def read_team_calls(function_call_params: FunctionCallParams) -> None:
+            try:
+                organization_id = await self.get_organization_id()
+                async with db_client.async_session() as session:
+                    result = await team_calls_tool.read(
+                        session,
+                        organization_id=organization_id,
+                        arguments=function_call_params.arguments,
+                    )
+            except Exception as exc:  # noqa: BLE001 - told to the model, not raised
+                logger.warning("read_team_calls failed: {}", exc)
+                result = {"error": "The team's calls could not be read just now."}
+            await function_call_params.result_callback(result)
+
+        self._register(
+            team_calls_tool.TOOL_NAME,
+            read_team_calls,
+            kind=ToolCategory.TEAM_CALLS.value,
+        )
 
     def _register_calculator_handler(self) -> None:
         """Register the built-in calculator function with the LLM."""

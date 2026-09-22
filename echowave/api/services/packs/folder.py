@@ -314,6 +314,12 @@ def _pack_from(
     data["demo_url"] = demo_url if calling else None
     if "listed" not in data:
         data["listed"] = bool(demo_number or demo_url) if calling else True
+        # And a role that reads a switched-off feature follows its flag, as
+        # the catalogue does (``packs.call_coach``).
+        from api.services.packs.call_coach import FEATURE_GATED, feature_is_on
+
+        if data.get("slug") in FEATURE_GATED:
+            data["listed"] = feature_is_on()
     try:
         pack = AgentPack.model_validate(data)
     except ValidationError as exc:
