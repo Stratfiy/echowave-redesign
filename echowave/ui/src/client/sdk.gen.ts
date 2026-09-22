@@ -1966,6 +1966,9 @@ export const listDialerConnectionsApiV1DialerConnectionsGet = <ThrowOnError exte
  *
  * Store the dialer's credentials, after one cheap listing proves them.
  *
+ * Only with the consent terms accepted; the connection's ``created_by`` and
+ * ``created_at`` record who accepted them and when.
+ *
  * A refused credential is not stored: a connection that can never import
  * is a screen that says "connected" and a coach that stays silent. A
  * dialer we cannot reach is stored and says so; the night will retry.

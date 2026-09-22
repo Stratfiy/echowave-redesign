@@ -2711,6 +2711,12 @@ export type ConnectRequest = {
      * Label
      */
     label?: string | null;
+    /**
+     * Consent Accepted
+     *
+     * The admin has read the consent terms on the connect screen: calls are copied and transcribed, kept 30 days, and telling callers they are recorded stays the business's job.
+     */
+    consent_accepted?: boolean;
 };
 
 /**

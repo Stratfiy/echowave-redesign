@@ -42,6 +42,14 @@ class ConnectRequest(BaseModel):
         ),
     )
     label: str | None = Field(None, max_length=128)
+    consent_accepted: bool = Field(
+        False,
+        description=(
+            "The admin has read the consent terms on the connect screen: calls "
+            "are copied and transcribed, kept 30 days, and telling callers "
+            "they are recorded stays the business's job."
+        ),
+    )
 
 
 def _view(connection: connections.DialerConnection) -> dict[str, Any]:
@@ -71,10 +79,21 @@ async def connect_dialer(
 ) -> dict:
     """Store the dialer's credentials, after one cheap listing proves them.
 
+    Only with the consent terms accepted; the connection's ``created_by`` and
+    ``created_at`` record who accepted them and when.
+
     A refused credential is not stored: a connection that can never import
     is a screen that says "connected" and a coach that stays silent. A
     dialer we cannot reach is stored and says so; the night will retry.
     """
+    if not request.consent_accepted:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Read and accept how imported calls are handled before "
+                "connecting a dialer."
+            ),
+        )
     try:
         cleaned = connections.clean_credentials(request.vendor, request.credentials)
         adapter = connections.adapter_for(request.vendor)

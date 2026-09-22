@@ -595,3 +595,17 @@ def test_the_import_and_its_purge_are_scheduled():
 
     scheduled = {job.coroutine.__name__ for job in WorkerSettings.cron_jobs}
     assert {"import_dialer_calls", "purge_imported_calls"} <= scheduled
+
+
+@pytest.mark.asyncio
+async def test_a_dialer_is_not_connected_without_the_consent_terms(monkeypatch):
+    from api.routes import dialer_connections
+
+    monkeypatch.setattr(constants, "DIALER_IMPORT_ENABLED", True)
+    request = dialer_connections.ConnectRequest(
+        vendor="smartflo", credentials={"api_token": "tok"}
+    )
+    with pytest.raises(HTTPException) as caught:
+        await dialer_connections.connect_dialer(request, user=object())
+    assert caught.value.status_code == 400
+    assert "accept" in caught.value.detail
