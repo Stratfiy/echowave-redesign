@@ -8350,6 +8350,20 @@ export type OutcomesResponse = {
 };
 
 /**
+ * OutlineStep
+ */
+export type OutlineStep = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Kind
+     */
+    kind: string;
+};
+
+/**
  * OwnKeysRequest
  */
 export type OwnKeysRequest = {
@@ -9648,6 +9662,45 @@ export type ProvisionRequest = {
      * Country Code
      */
     country_code?: string;
+};
+
+/**
+ * PublicPackDetail
+ */
+export type PublicPackDetail = {
+    card: PackCard;
+    /**
+     * Template Id
+     */
+    template_id: string;
+    /**
+     * Flow
+     */
+    flow: string;
+    /**
+     * Steps
+     */
+    steps: Array<HireStep>;
+    /**
+     * Guardrails
+     */
+    guardrails: Array<string>;
+    /**
+     * Compliance Notes
+     */
+    compliance_notes: Array<string>;
+    /**
+     * Outline
+     */
+    outline: Array<OutlineStep>;
+    /**
+     * Speaks
+     */
+    speaks: boolean;
+    /**
+     * Runs
+     */
+    runs?: string | null;
 };
 
 /**
@@ -33311,6 +33364,92 @@ export type TrustApiV1PublicTrustGetResponses = {
 };
 
 export type TrustApiV1PublicTrustGetResponse = TrustApiV1PublicTrustGetResponses[keyof TrustApiV1PublicTrustGetResponses];
+
+export type PublicShelfApiV1PublicMarketplaceGetData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Q
+         *
+         * Free text
+         */
+        q?: string | null;
+        /**
+         * Job
+         */
+        job?: string | null;
+        /**
+         * Industry
+         */
+        industry?: string | null;
+        /**
+         * Language
+         */
+        language?: string | null;
+        /**
+         * Calling
+         */
+        calling?: boolean | null;
+    };
+    url: '/api/v1/public/marketplace';
+};
+
+export type PublicShelfApiV1PublicMarketplaceGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PublicShelfApiV1PublicMarketplaceGetError = PublicShelfApiV1PublicMarketplaceGetErrors[keyof PublicShelfApiV1PublicMarketplaceGetErrors];
+
+export type PublicShelfApiV1PublicMarketplaceGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ApiRoutesPacksShelfResponse;
+};
+
+export type PublicShelfApiV1PublicMarketplaceGetResponse = PublicShelfApiV1PublicMarketplaceGetResponses[keyof PublicShelfApiV1PublicMarketplaceGetResponses];
+
+export type PublicPackApiV1PublicMarketplaceSlugGetData = {
+    body?: never;
+    path: {
+        /**
+         * Slug
+         */
+        slug: string;
+    };
+    query?: never;
+    url: '/api/v1/public/marketplace/{slug}';
+};
+
+export type PublicPackApiV1PublicMarketplaceSlugGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PublicPackApiV1PublicMarketplaceSlugGetError = PublicPackApiV1PublicMarketplaceSlugGetErrors[keyof PublicPackApiV1PublicMarketplaceSlugGetErrors];
+
+export type PublicPackApiV1PublicMarketplaceSlugGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PublicPackDetail;
+};
+
+export type PublicPackApiV1PublicMarketplaceSlugGetResponse = PublicPackApiV1PublicMarketplaceSlugGetResponses[keyof PublicPackApiV1PublicMarketplaceSlugGetResponses];
 
 export type DeactivateEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenDeleteData = {
     body?: never;

@@ -108,7 +108,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     // The trust page, for the same reason: it answers a security review
     // before anybody has signed up, and a stranger was being shown a rail of
     // rooms they cannot open, under an account row that says "You".
-    !pathname.startsWith("/trust");
+    !pathname.startsWith("/trust") &&
+    // The public marketplace: browsed before an account exists.
+    !pathname.startsWith("/agents");
 
   // Only match the exact editor page /workflow/<id>, not sub-routes like /workflow/<id>/runs
   const isWorkflowEditor = /^\/workflow\/\d+$/.test(pathname);

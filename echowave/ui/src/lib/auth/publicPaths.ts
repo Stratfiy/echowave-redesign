@@ -22,6 +22,9 @@ export const PUBLIC_PATHS = [
   // `nosniff`, the browser refused to run it, and the script's `onload`
   // never fired — the share page sat on "Preparing…" forever.
   "/embed",
+  // The public marketplace: a stranger browses what can be hired before
+  // deciding to sign up. Hiring itself stays behind the account.
+  "/agents",
 ] as const;
 
 export function isPublicPath(pathname: string): boolean {
