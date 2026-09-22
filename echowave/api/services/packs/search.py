@@ -14,6 +14,7 @@ worse than a role ranked third.
 
 from __future__ import annotations
 
+import re
 from typing import Iterable, Optional
 
 from api.services.packs._base import AgentPack, Channel
@@ -52,7 +53,11 @@ def search_packs(
         score = sum(1 for term in terms if term in haystack)
         # A match on the role's own name outranks a match buried in a
         # template's prose: somebody typing "front desk" means the role.
-        if any(term in pack.name.lower() for term in terms):
+        # Whole words only: "all" is inside "call", and a substring bonus
+        # put the call coach above the front desk for "my clinic phone
+        # rings all day".
+        name_words = set(re.findall(r"[a-z0-9]+", pack.name.lower()))
+        if any(term in name_words for term in terms):
             score += 3
         if score:
             # Index keeps the shelf's own order as the tie-break, which is the
