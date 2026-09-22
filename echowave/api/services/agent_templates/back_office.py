@@ -1,4 +1,4 @@
-"""Ten back-office desks (promoted 22 Sept 2026).
+"""Back-office desks, and one scheduled report (promoted 22 Sept 2026).
 
 The second batch from the prompt pack in ``Stratfiy/decibyl``, read against
 each role's own tests (``packs/drafts/<slug>/references/tests.md`` at the
@@ -26,6 +26,7 @@ from __future__ import annotations
 from api.services.agent_templates._base import (
     AgentTemplate,
     CallDirection,
+    ScheduleShape,
     TemplateEdge,
     TemplateNode,
 )
@@ -970,7 +971,144 @@ def templates() -> tuple[AgentTemplate, ...]:
                 "ask hotel guests for a review after checkout",
             ],
         ),
+    ) + (report_generator(),)
+
+
+def report_generator() -> AgentTemplate:
+    """The one in this batch that runs on the clock rather than a message.
+
+    The draft also answered "why is this down" in chat. A scheduled run has
+    nobody to answer, so the why moved into the report: each of the three
+    biggest movers comes with the rows behind it. That is the draft's own
+    second test, passed before anybody has to ask.
+    """
+    from api.services.agent_templates.catalogue import _QUIET, _QUIET_GUARDRAILS
+
+    return AgentTemplate(
+        id="report_generator",
+        name="Daily and weekly report generator",
+        vertical="Every business that runs on a sheet or its books",
+        industry="Any business",
+        function="Do the paperwork",
+        direction=CallDirection.scheduled,
+        summary=(
+            "Builds the sales, collections, stock or attendance report from "
+            "the sheet or books on schedule, names the three numbers that "
+            "moved most and the rows behind them, and says so when it cannot."
+        ),
+        languages=["English", "Hindi"],
+        stack=_QUIET,
+        schedule_shape=ScheduleShape(
+            runs="every morning, or weekly on the day you choose",
+            typical_items_per_run=10,
+            typical_runs_per_month=22,
+        ),
+        template_variables={
+            "business_name": "The business, as the report's readers know it",
+            "data_source": "The sheet or books the figures come from",
+            "report_metrics": "The figures the report covers",
+            "report_format": "How the report should look",
+            "recipients": "Who gets it, on which channel, and which slice each sees",
+            "report_log": "The Google Sheet each run is written to",
+            "handoff_contact": "Who an odd figure or a change request goes to",
+        },
+        apps=["googlesheets", "zoho_books", "gmail"],
+        nodes=[
+            TemplateNode(
+                type="startCall",
+                name="Build the report",
+                prompt=(
+                    "You are the MIS executive for {{business_name}}. On each "
+                    "run you build the report from {{data_source}}. You only "
+                    "read it; you never change a figure in it.\n\n"
+                    "1. Pull the current figures for {{report_metrics}} and "
+                    "the same figures for the previous period.\n"
+                    "2. Name the three that changed most, with the actual "
+                    'figures before and after -- never a vague "sales are '
+                    'down".\n'
+                    "3. For each of the three, find the rows in "
+                    "{{data_source}} behind the change -- which accounts, "
+                    "orders or entries -- and cite them. If the rows only "
+                    "partly explain it, say so plainly; never fill the gap "
+                    "with a reason like a slow market.\n"
+                    "4. A figure that looks wrong is flagged, not corrected, "
+                    "not rounded, and not estimated.\n\n"
+                    "If {{data_source}} cannot be reached, or a figure is "
+                    "missing, do not build the report from older figures. "
+                    "Stale figures relabelled as today's are the one thing "
+                    "worse than no report."
+                ),
+                extract={
+                    "built": "yes, or no with the reason",
+                    "movers": "The three biggest changes, with figures",
+                },
+            ),
+            TemplateNode(
+                type="agentNode",
+                name="Send it",
+                prompt=(
+                    "Send the report in {{report_format}} to {{recipients}}, "
+                    "one message or file per recipient, at the scheduled "
+                    "time.\n\n"
+                    "Each recipient gets only the slice {{recipients}} gives "
+                    "them: a branch manager never gets the whole roll-up.\n\n"
+                    "If the report could not be built, send a short note "
+                    "instead, at the same time: that it could not be built, "
+                    "why, and that it will be retried. Never skip the send "
+                    "silently.\n\n"
+                    "Hand to {{handoff_contact}} when a figure is out of line "
+                    "with earlier periods and the rows do not explain it, or "
+                    "when somebody asks to change what the report covers or "
+                    "how it looks -- note the request, and never change "
+                    "{{report_metrics}} yourself."
+                ),
+                extract={
+                    "sent_to": "Who received it, and whether it was the report or the note"
+                },
+            ),
+            TemplateNode(
+                type="endCall",
+                name="Close",
+                prompt=(
+                    "Write the run to {{report_log}} in one row: period; "
+                    "scheduled and sent time; recipients; the three movers "
+                    "with figures; sent, or failed and why. A missed report "
+                    "has to be traceable from this row alone."
+                ),
+            ),
+        ],
+        edges=[
+            TemplateEdge(
+                source="Build the report",
+                target="Send it",
+                label="built or failed",
+                condition="The report is built, or it is known why it cannot be",
+            ),
+            TemplateEdge(
+                source="Send it",
+                target="Close",
+                label="sent",
+                condition="The report or the note has gone to every recipient",
+            ),
+        ],
+        guardrails=_QUIET_GUARDRAILS
+        + [
+            "Never send an earlier period's figures as the current one. A "
+            "failed run is reported as failed.",
+            "Never change, correct or estimate a figure in the source. Read "
+            "and report; a figure that looks wrong is flagged.",
+        ],
+        compliance_notes=[
+            "It reads the whole sheet or ledger it is pointed at. Point it "
+            "at the tabs the report needs, and set each recipient's slice, "
+            "so a branch never sees another's figures.",
+        ],
+        example_requests=[
+            "send me a daily sales report from our Google Sheet",
+            "weekly collections report every Monday on WhatsApp",
+            "a morning MIS report with what changed",
+        ],
     )
 
 
-__all__ = ["OFFICE_GUARDRAILS", "templates"]
+__all__ = ["OFFICE_GUARDRAILS", "report_generator", "templates"]

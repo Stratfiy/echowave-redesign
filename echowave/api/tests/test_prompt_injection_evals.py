@@ -436,9 +436,9 @@ class TestTheRuleReachesEveryLivePack:
         )
 
         packs = all_packs()
-        # Nine written in code; four chat desks and ten back-office desks
-        # promoted on 22 Sept 2026.
-        assert len(packs) == 23
+        # Nine written in code; four chat desks, ten back-office desks and
+        # the report generator promoted on 22 Sept 2026.
+        assert len(packs) == 24
         missing = []
         for pack in packs:
             template = get_template(pack.template_id)
