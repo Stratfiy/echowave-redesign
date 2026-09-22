@@ -8,17 +8,17 @@ import { FlowNodeData } from "@/components/flow/types";
 
 import { GenericNode } from "../nodes/GenericNode";
 
-const state = vi.hoisted(() => ({ save: vi.fn(), readOnly: false, form: vi.fn(), specs: new Map() }));
+const state = vi.hoisted(() => ({ save: vi.fn(), readOnly: false, form: vi.fn(), specs: new Map(), channel: undefined as "voice" | "chat" | undefined }));
 vi.mock("@xyflow/react", () => ({ Position: { Left: "left", Right: "right", Top: "top" }, NodeToolbar: ({ children, isVisible }: { children: React.ReactNode; isVisible: boolean }) => isVisible ? <div>{children}</div> : null }));
 vi.mock("../nodes/BaseHandle", () => ({ BaseHandle: (props: { type: string; position: string }) => <span data-testid={`${props.type}-port`} data-position={props.position} /> }));
-vi.mock("@/app/workflow/[workflowId]/contexts/WorkflowContext", () => ({ useWorkflow: () => ({ saveWorkflow: state.save, readOnly: state.readOnly, tools: [], documents: [], recordings: [] }) }));
+vi.mock("@/app/workflow/[workflowId]/contexts/WorkflowContext", () => ({ useWorkflow: () => ({ saveWorkflow: state.save, readOnly: state.readOnly, tools: [], documents: [], recordings: [], channel: state.channel }) }));
 vi.mock("@/context/AppConfigContext", () => ({ useAppConfig: () => ({ config: null }) }));
 vi.mock("@/components/flow/renderer", () => ({ useNodeSpecs: () => ({ bySpecName: state.specs }), NodeEditForm: (props: { values: Record<string, unknown> }) => { state.form(props); return <div>Inspector fields</div>; } }));
 vi.mock("../nodes/common/NodeEditDialog", () => ({ NodeEditDialog: ({ children, open, onSave }: { children: React.ReactNode; open: boolean; onSave?: () => void }) => open ? <div role="dialog"><button onClick={onSave}>Apply</button>{children}</div> : null }));
 const data: FlowNodeData = { name: "Support", prompt: "A very long instruction that belongs only in the inspector", tool_uuids: ["tool"], document_uuids: ["document"] };
 function node(type = "agentNode", extra: Partial<FlowNodeData> = {}) { return <GenericNode {...({ id: "a", type, selected: true, data: { ...data, ...extra } } as NodeProps & { type: string; data: FlowNodeData })} />; }
 beforeEach(() => {
-    state.save.mockReset(); state.form.mockReset(); state.readOnly = false;
+    state.save.mockReset(); state.form.mockReset(); state.readOnly = false; state.channel = undefined;
     state.specs = new Map(["agentNode", "startCall", "trigger"].map((name) => [name, { name, display_name: name === "agentNode" ? "Agent" : name, icon: "Bot", properties: [{ name: "name" }, { name: "prompt" }, { name: "tool_uuids", type: "tool_refs" }, { name: "document_uuids", type: "document_refs" }] }]));
     useWorkflowStore.getState().initializeWorkflow(39, "Assistant", [{ id: "a", type: "trigger", position: { x: 0, y: 0 }, data }], []);
 });
@@ -115,5 +115,33 @@ describe("compact canvas nodes", () => {
         fireEvent.keyDown(screen.getByLabelText(/Press Enter to inspect/), { key: "Enter" });
         expect(screen.getAllByText("Save this draft to generate the URL.").length).toBeGreaterThan(0);
         expect(screen.queryByText("Example Request")).toBeNull();
+    });
+});
+
+describe("the canvas speaks the channel's language", () => {
+    // Seen 22 Sept 2026: a scheduled email agent's canvas read Start Call →
+    // End Call. The types are the definition format; the words are ours.
+    beforeEach(() => {
+        state.specs = new Map([
+            ["startCall", { name: "startCall", display_name: "Start Call", icon: "Play", properties: [{ name: "name" }, { name: "prompt" }] }],
+            ["endCall", { name: "endCall", display_name: "End Call", icon: "Square", properties: [{ name: "name" }, { name: "prompt" }] }],
+        ]);
+    });
+    it("says Start Call on a phone bot, and when nobody said which", () => {
+        render(node("startCall", { name: "Answer" }));
+        expect(screen.getByText("Start Call")).toBeTruthy();
+    });
+    it("says Start and Finish off the phone", () => {
+        state.channel = "chat";
+        render(node("startCall", { name: "Find prospects" }));
+        expect(screen.getByText("Find prospects")).toBeTruthy();
+        expect(screen.getByText("Start")).toBeTruthy();
+        expect(screen.queryByText("Start Call")).toBeNull();
+    });
+    it("a node with no name of its own takes the channel's word for its kind", () => {
+        state.channel = "chat";
+        render(node("endCall", { name: "" }));
+        expect(screen.getAllByText("Finish").length).toBeGreaterThan(0);
+        expect(screen.queryByText("End Call")).toBeNull();
     });
 });

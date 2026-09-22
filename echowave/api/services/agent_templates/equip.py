@@ -20,6 +20,7 @@ from typing import Any
 
 from loguru import logger
 
+from api.enums import BotChannel
 from api.services.agent_templates._base import AgentTemplate
 from api.services.workflow import agent_web, brief_apps, connected_tools, send_approval
 
@@ -56,11 +57,23 @@ async def for_template(
 
 def configurations(
     base: dict[str, Any] | None, *, template: AgentTemplate
-) -> dict[str, Any] | None:
-    """The hire's configurations with the template's settings on them."""
-    if not template.approve_sends:
-        return base
-    return {**(base or {}), send_approval.CONFIG_KEY: True}
+) -> dict[str, Any]:
+    """The hire's configurations with the template's settings on them.
+
+    Always says which channel the bot is on. An absent ``channel`` reads as
+    voice (``workflow_configurations.channel_of``), which is the right rule
+    for rows written before the field existed and the wrong thing to rely on
+    for a new one: a scheduled email agent hired without it opened in the
+    editor as a phone bot — Start Call, End Call, Call review, a Test button
+    that dialled — on 22 September 2026.
+    """
+    out: dict[str, Any] = {
+        **(base or {}),
+        "channel": (BotChannel.VOICE if template.speaks else BotChannel.CHAT).value,
+    }
+    if template.approve_sends:
+        out[send_approval.CONFIG_KEY] = True
+    return out
 
 
 __all__ = ["configurations", "for_template"]

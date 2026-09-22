@@ -2566,6 +2566,16 @@ export type CloudonixConfigurationResponse = {
 };
 
 /**
+ * CommentWrite
+ */
+export type CommentWrite = {
+    /**
+     * Body
+     */
+    body: string;
+};
+
+/**
  * ComposioToolConfig
  *
  * Configuration for one tool on one Composio-connected app.
@@ -11498,6 +11508,32 @@ export type SyncToolsResponse = {
 };
 
 /**
+ * TaskEdit
+ */
+export type TaskEdit = {
+    /**
+     * Priority
+     */
+    priority?: string | null;
+    /**
+     * Assignee
+     */
+    assignee?: string | null;
+    /**
+     * Parent Id
+     */
+    parent_id?: number | null;
+    /**
+     * Blocked By
+     */
+    blocked_by?: Array<number> | null;
+    /**
+     * Due
+     */
+    due?: string | null;
+};
+
+/**
  * TaskStatus
  */
 export type TaskStatus = {
@@ -11531,6 +11567,22 @@ export type TaskWrite = {
      * Due
      */
     due?: string | null;
+    /**
+     * Priority
+     */
+    priority?: string | null;
+    /**
+     * Parent Id
+     */
+    parent_id?: number | null;
+    /**
+     * Blocked By
+     */
+    blocked_by?: Array<number> | null;
+    /**
+     * Backlog
+     */
+    backlog?: boolean;
 };
 
 /**
@@ -27991,6 +28043,194 @@ export type CreateTaskApiV1TasksPostResponses = {
 
 export type CreateTaskApiV1TasksPostResponse = CreateTaskApiV1TasksPostResponses[keyof CreateTaskApiV1TasksPostResponses];
 
+export type DeleteTaskApiV1TasksTaskIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: number;
+    };
+    query?: never;
+    url: '/api/v1/tasks/{task_id}';
+};
+
+export type DeleteTaskApiV1TasksTaskIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteTaskApiV1TasksTaskIdDeleteError = DeleteTaskApiV1TasksTaskIdDeleteErrors[keyof DeleteTaskApiV1TasksTaskIdDeleteErrors];
+
+export type DeleteTaskApiV1TasksTaskIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteTaskApiV1TasksTaskIdDeleteResponse = DeleteTaskApiV1TasksTaskIdDeleteResponses[keyof DeleteTaskApiV1TasksTaskIdDeleteResponses];
+
+export type GetTaskApiV1TasksTaskIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: number;
+    };
+    query?: never;
+    url: '/api/v1/tasks/{task_id}';
+};
+
+export type GetTaskApiV1TasksTaskIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetTaskApiV1TasksTaskIdGetError = GetTaskApiV1TasksTaskIdGetErrors[keyof GetTaskApiV1TasksTaskIdGetErrors];
+
+export type GetTaskApiV1TasksTaskIdGetResponses = {
+    /**
+     * Response Get Task Api V1 Tasks  Task Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetTaskApiV1TasksTaskIdGetResponse = GetTaskApiV1TasksTaskIdGetResponses[keyof GetTaskApiV1TasksTaskIdGetResponses];
+
+export type EditTaskApiV1TasksTaskIdPatchData = {
+    body: TaskEdit;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: number;
+    };
+    query?: never;
+    url: '/api/v1/tasks/{task_id}';
+};
+
+export type EditTaskApiV1TasksTaskIdPatchErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EditTaskApiV1TasksTaskIdPatchError = EditTaskApiV1TasksTaskIdPatchErrors[keyof EditTaskApiV1TasksTaskIdPatchErrors];
+
+export type EditTaskApiV1TasksTaskIdPatchResponses = {
+    /**
+     * Response Edit Task Api V1 Tasks  Task Id  Patch
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type EditTaskApiV1TasksTaskIdPatchResponse = EditTaskApiV1TasksTaskIdPatchResponses[keyof EditTaskApiV1TasksTaskIdPatchResponses];
+
+export type AddCommentApiV1TasksTaskIdCommentsPostData = {
+    body: CommentWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: number;
+    };
+    query?: never;
+    url: '/api/v1/tasks/{task_id}/comments';
+};
+
+export type AddCommentApiV1TasksTaskIdCommentsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddCommentApiV1TasksTaskIdCommentsPostError = AddCommentApiV1TasksTaskIdCommentsPostErrors[keyof AddCommentApiV1TasksTaskIdCommentsPostErrors];
+
+export type AddCommentApiV1TasksTaskIdCommentsPostResponses = {
+    /**
+     * Response Add Comment Api V1 Tasks  Task Id  Comments Post
+     *
+     * Successful Response
+     */
+    201: {
+        [key: string]: unknown;
+    };
+};
+
+export type AddCommentApiV1TasksTaskIdCommentsPostResponse = AddCommentApiV1TasksTaskIdCommentsPostResponses[keyof AddCommentApiV1TasksTaskIdCommentsPostResponses];
+
 export type SetTaskStatusApiV1TasksTaskIdStatusPostData = {
     body: TaskStatus;
     headers?: {
@@ -28038,50 +28278,6 @@ export type SetTaskStatusApiV1TasksTaskIdStatusPostResponses = {
 };
 
 export type SetTaskStatusApiV1TasksTaskIdStatusPostResponse = SetTaskStatusApiV1TasksTaskIdStatusPostResponses[keyof SetTaskStatusApiV1TasksTaskIdStatusPostResponses];
-
-export type DeleteTaskApiV1TasksTaskIdDeleteData = {
-    body?: never;
-    headers?: {
-        /**
-         * Authorization
-         */
-        authorization?: string | null;
-        /**
-         * X-Api-Key
-         */
-        'X-API-Key'?: string | null;
-    };
-    path: {
-        /**
-         * Task Id
-         */
-        task_id: number;
-    };
-    query?: never;
-    url: '/api/v1/tasks/{task_id}';
-};
-
-export type DeleteTaskApiV1TasksTaskIdDeleteErrors = {
-    /**
-     * Not found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DeleteTaskApiV1TasksTaskIdDeleteError = DeleteTaskApiV1TasksTaskIdDeleteErrors[keyof DeleteTaskApiV1TasksTaskIdDeleteErrors];
-
-export type DeleteTaskApiV1TasksTaskIdDeleteResponses = {
-    /**
-     * Successful Response
-     */
-    204: void;
-};
-
-export type DeleteTaskApiV1TasksTaskIdDeleteResponse = DeleteTaskApiV1TasksTaskIdDeleteResponses[keyof DeleteTaskApiV1TasksTaskIdDeleteResponses];
 
 export type OrganisationApiV1OrganisationGetData = {
     body?: never;

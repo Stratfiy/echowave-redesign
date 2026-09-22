@@ -46,7 +46,10 @@ RUNTIME_VARIABLES = frozenset(
     }
 )
 
-_PLACEHOLDER = re.compile(r"\{\{(\w+)\}\}")
+#: An operator placeholder: a bare name in braces. Deliberately narrow.
+#: ``{{initial_context.phone}}`` and ``{{name | fallback:Unknown}}`` are the
+#: renderer's own syntax, filled from the call, and are not this.
+PLACEHOLDER = re.compile(r"\{\{(\w+)\}\}")
 
 #: Canvas layout. The graph is laid out as a single column because these
 #: templates are short and a straight line reads correctly at a glance; the
@@ -83,7 +86,7 @@ def required_variables(template: AgentTemplate) -> list[str]:
         + [node.greeting or "" for node in template.nodes]
         + template.guardrails
     )
-    found = {name for name in _PLACEHOLDER.findall(text)} - RUNTIME_VARIABLES
+    found = {name for name in PLACEHOLDER.findall(text)} - RUNTIME_VARIABLES
     # Declared order first so the chat asks in the order the template intended,
     # then anything the prompts referenced but the template did not declare.
     declared = [key for key in template.template_variables if key in found]
@@ -100,7 +103,7 @@ def _fill(text: str, variables: dict[str, str]) -> str:
             return match.group(0)
         return variables.get(name, match.group(0))
 
-    return _PLACEHOLDER.sub(replace, text)
+    return PLACEHOLDER.sub(replace, text)
 
 
 def fill_placeholders(value: Any, variables: dict[str, str]) -> Any:

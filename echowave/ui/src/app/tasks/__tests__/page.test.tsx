@@ -18,8 +18,11 @@ const list = vi.hoisted(() => vi.fn());
 const update = vi.hoisted(() => vi.fn());
 const setActive = vi.hoisted(() => vi.fn());
 const remove = vi.hoisted(() => vi.fn());
+// The Tasks door asks the board whether it is on (TB-1); off, the schedules.
+const listTasks = vi.hoisted(() => vi.fn());
 
 vi.mock("@/client/sdk.gen", () => ({
+    listTasksApiV1TasksGet: listTasks,
     listAllRoutinesApiV1RoutinesGet: list,
     updateRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdPut: update,
     setActiveApiV1WorkflowsWorkflowIdRoutinesRoutineIdActivePost: setActive,
@@ -49,6 +52,7 @@ const routine = (over: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
     vi.clearAllMocks();
+    listTasks.mockResolvedValue({ data: { tasks: [], board: { enabled: false } } });
     list.mockResolvedValue({ data: { routines: [routine()] } });
     update.mockResolvedValue({ data: routine() });
     setActive.mockResolvedValue({ data: routine({ is_active: false }) });

@@ -152,6 +152,19 @@ export const DESK_TABS: PageTab[] = [
   { href: "/deliverables", label: "Handed over", prefix: true },
 ];
 
+/** The desk once the board is a board (TB-1): Tasks is the kanban, and the
+ *  routines that used to sit under that word get a tab of their own. The
+ *  server says whether the board is on; until it is, `DESK_TABS` stands. */
+export function deskTabs(boardEnabled: boolean): PageTab[] {
+  if (!boardEnabled) return DESK_TABS;
+  return [
+    { href: "/tasks", label: "Tasks", prefix: true, also: ["/requests"] },
+    { href: "/schedules", label: "Schedules", prefix: true },
+    { href: "/contacts", label: "Contacts", prefix: true },
+    { href: "/deliverables", label: "Handed over", prefix: true },
+  ];
+}
+
 /** The shop, as one screen with departments across the top.
  *
  *  These were four sidebar rows -- Tools, Skills, Bots, Integrations -- for

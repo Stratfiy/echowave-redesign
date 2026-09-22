@@ -6095,6 +6095,21 @@ class AgentTaskModel(Base):
 
     due_at = Column(DateTime(timezone=True), nullable=True)
     result = Column(Text, nullable=True)
+    #: TB-1, paperclip's issue shape. ``critical`` | ``high`` | ``medium`` |
+    #: ``low``; a person as the owner, beside a bot (one or the other, never
+    #: both); the parent task; the tasks this one waits on, as ids; and the
+    #: number that makes the identifier (``DCB-42``), counted per workspace.
+    priority = Column(
+        String(8), nullable=False, default="medium", server_default=text("'medium'")
+    )
+    assignee_user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    parent_id = Column(
+        Integer, ForeignKey("agent_tasks.id", ondelete="SET NULL"), nullable=True
+    )
+    blocked_by = Column(JSON, nullable=True)
+    number = Column(Integer, nullable=True)
     #: Decibyl's own unfinished work (D-1a): the transcript and tool state of
     #: a turn that hit its round cap, so the board can carry on from exactly
     #: there in the background. NULL on every task a bot or a person does.
@@ -6103,7 +6118,38 @@ class AgentTaskModel(Base):
     started_at = Column(DateTime(timezone=True), nullable=True)
     finished_at = Column(DateTime(timezone=True), nullable=True)
 
-    __table_args__ = (Index("ix_agent_tasks_org_status", "organization_id", "status"),)
+    __table_args__ = (
+        Index("ix_agent_tasks_org_status", "organization_id", "status"),
+        UniqueConstraint("organization_id", "number", name="uq_agent_tasks_org_number"),
+    )
+
+
+class AgentTaskCommentModel(Base):
+    """A line on a task's card (TB-1): a person's note, or the agent's report
+    when it hands the task over for review. The result column stays the
+    latest report; the comments are the whole conversation on the card."""
+
+    __tablename__ = "agent_task_comments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id"), nullable=False, index=True
+    )
+    task_id = Column(
+        Integer,
+        ForeignKey("agent_tasks.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    #: One of the two, or neither for a line the system wrote.
+    author_user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    author_workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="SET NULL"), nullable=True
+    )
+    body = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
 
 class OrganisationSkillDocumentModel(Base):

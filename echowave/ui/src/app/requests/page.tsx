@@ -11,6 +11,7 @@
 "use client";
 
 import { Bot, Loader2, Plus, RotateCcw, Trash2, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
@@ -56,8 +57,8 @@ const COLUMNS: { id: string; label: string; hint: string }[] = [
     // waiting for them.
     { id: "scheduled", label: "Scheduled", hint: "Filed for a date still ahead" },
     { id: "todo", label: "To do", hint: "Filed, nothing holding it" },
-    { id: "doing", label: "Doing", hint: "A bot is on it" },
-    { id: "waiting", label: "Waiting", hint: "Needs a person or a retry" },
+    { id: "in_progress", label: "In progress", hint: "A bot is on it" },
+    { id: "blocked", label: "Blocked", hint: "Needs a person or a retry" },
     { id: "done", label: "Done", hint: "With the result" },
 ];
 
@@ -76,6 +77,7 @@ function when(iso: string | null): string {
 
 export default function TasksPage() {
     const { user, loading: authLoading, redirectToLogin } = useAuth();
+    const router = useRouter();
     const hasFetched = useRef(false);
     const [tasks, setTasks] = useState<Task[]>([]);
     const [bots, setBots] = useState<BotRow[]>([]);
@@ -99,10 +101,17 @@ export default function TasksPage() {
             setError(detailFromResult(result, "Could not load the board"));
             return;
         }
-        const data = result.data as { tasks?: Task[]; bots?: BotRow[] } | undefined;
+        const data = result.data as
+            | { tasks?: Task[]; bots?: BotRow[]; board?: { enabled?: boolean } }
+            | undefined;
+        if (data?.board?.enabled) {
+            // The board is a board (TB-1): this list is the Tasks tab now.
+            router.replace("/tasks");
+            return;
+        }
         setTasks(data?.tasks ?? []);
         setBots(data?.bots ?? []);
-    }, []);
+    }, [router]);
 
     useEffect(() => {
         if (authLoading || !user || hasFetched.current) return;
@@ -164,7 +173,7 @@ export default function TasksPage() {
     const now = Date.now();
     const inColumn = (id: string) => {
         if (id === "done") {
-            return tasks.filter((t) => t.status === "done" || t.status === "could_not");
+            return tasks.filter((t) => t.status === "done" || t.status === "cancelled");
         }
         if (id === "scheduled") return tasks.filter((t) => isScheduled(t, now));
         if (id === "todo") {
@@ -267,9 +276,9 @@ export default function TasksPage() {
                                         </span>
                                         {task.from_name && <span>· from {task.from_name}</span>}
                                         {task.due_at && <span>· due {when(task.due_at)}</span>}
-                                        {task.status === "could_not" && (
+                                        {task.status === "cancelled" && (
                                             <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-900">
-                                                Could not
+                                                Cancelled
                                             </span>
                                         )}
                                     </p>
@@ -281,22 +290,22 @@ export default function TasksPage() {
                                     )}
                                     <div className="mt-3 flex flex-wrap items-center gap-1.5">
                                         {task.status === "todo" && !task.assignee_workflow_id && (
-                                            <Button size="sm" variant="outline" disabled={busy === task.id} onClick={() => void move(task, "doing")}>
+                                            <Button size="sm" variant="outline" disabled={busy === task.id} onClick={() => void move(task, "in_progress")}>
                                                 Start
                                             </Button>
                                         )}
-                                        {(task.status === "todo" || task.status === "doing" || task.status === "waiting") && !task.assignee_workflow_id && (
+                                        {(task.status === "todo" || task.status === "in_progress" || task.status === "blocked") && !task.assignee_workflow_id && (
                                             <Button size="sm" disabled={busy === task.id} onClick={() => void move(task, "done")}>
                                                 Done
                                             </Button>
                                         )}
-                                        {(task.status === "waiting" || task.status === "could_not") && task.assignee_workflow_id && (
+                                        {task.status === "blocked" && task.assignee_workflow_id && (
                                             <Button size="sm" variant="outline" disabled={busy === task.id} onClick={() => void move(task, "todo")}>
                                                 <RotateCcw className="mr-1 h-3.5 w-3.5" aria-hidden />
                                                 Run again
                                             </Button>
                                         )}
-                                        {task.status === "doing" && task.assignee_workflow_id && (
+                                        {task.status === "in_progress" && task.assignee_workflow_id && (
                                             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                                                 <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> Working
                                             </span>

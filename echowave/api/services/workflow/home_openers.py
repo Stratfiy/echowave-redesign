@@ -223,7 +223,7 @@ async def recent_questions(organization_id: int) -> list[str]:
 
 
 async def stuck_tasks(organization_id: int) -> int:
-    """Tasks a person has to do something about: waiting, or a bot could not."""
+    """Tasks a person has to do something about: blocked, or waiting for review."""
     try:
         rows = await db_client.tasks_for_organization(organization_id, limit=200)
     except Exception as exc:  # noqa: BLE001
@@ -231,7 +231,7 @@ async def stuck_tasks(organization_id: int) -> int:
             "Could not read the task board for org {}: {}", organization_id, exc
         )
         return 0
-    return sum(1 for t in rows if getattr(t, "status", "") in ("waiting", "could_not"))
+    return sum(1 for t in rows if getattr(t, "status", "") in ("blocked", "in_review"))
 
 
 async def door_answers(organization_id: int) -> dict[str, str]:

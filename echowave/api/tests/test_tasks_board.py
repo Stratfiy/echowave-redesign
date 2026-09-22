@@ -194,7 +194,7 @@ class TestFinishing:
         assert "Booked Tuesday 5 pm." in enqueue.await_args.args[3]
 
     async def test_a_task_from_a_person_tells_nobody_back(self):
-        finished = _task(status="could_not", from_workflow_id=None, result="No number")
+        finished = _task(status="blocked", from_workflow_id=None, result="No number")
         with (
             patch.object(
                 tasks_board.db_client, "update_task", AsyncMock(return_value=finished)
@@ -206,7 +206,7 @@ class TestFinishing:
             await tasks_board._finish(
                 12,
                 organization_id=7,
-                status="could_not",
+                status="blocked",
                 result="No number",
                 run_id=99,
                 from_id=None,
@@ -255,7 +255,7 @@ class TestThePersonsHalf:
             patch.object(
                 tasks_board.db_client,
                 "get_task",
-                AsyncMock(return_value=_task(status="could_not")),
+                AsyncMock(return_value=_task(status="blocked")),
             ),
             patch.object(
                 tasks_board.db_client,
@@ -350,7 +350,7 @@ class TestATaskRefusedForCreditWaits:
 
     async def test_the_office_hears_it_could_not_start(self):
         waiting = _task(
-            status="waiting", from_workflow_id=None, result="Could not start: x"
+            status="blocked", from_workflow_id=None, result="Could not start: x"
         )
         with (
             patch.object(
@@ -363,7 +363,7 @@ class TestATaskRefusedForCreditWaits:
             await tasks_board._finish(
                 12,
                 organization_id=7,
-                status="waiting",
+                status="blocked",
                 result="Could not start: x",
                 run_id=99,
                 from_id=None,

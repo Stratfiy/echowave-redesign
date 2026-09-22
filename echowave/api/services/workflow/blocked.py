@@ -121,10 +121,19 @@ def _missing_fields(fields: list[str], workflow_id: Optional[int]) -> Wall:
     )
 
 
-def _failed(workflow_id: Optional[int]) -> Wall:
+def _failed(workflow_id: Optional[int], error: Optional[str] = None) -> Wall:
+    # The error's own words, when the writer recorded them: "the model
+    # returned an error: not_found_error, model claude-x" is a thing a
+    # person can act on; "a step threw an error" is not.
+    text = " ".join(str(error or "").split())
+    says = (
+        f"A step threw an error and it stopped there: {text[:200]}"
+        if text
+        else "A step threw an error and it stopped there."
+    )
     return Wall(
         reason="failed",
-        says="A step threw an error and it stopped there.",
+        says=says,
         ways=_lettered(
             ("See what happened", _run_href(workflow_id)),
             ("Check its connections", f"/workflow/{workflow_id}/settings")
@@ -166,6 +175,6 @@ def classify(
         return _missing_fields([str(f) for f in missing if f], workflow_id)
 
     if data.get("error"):
-        return _failed(workflow_id)
+        return _failed(workflow_id, str(data.get("error")))
 
     return _unknown(workflow_id)

@@ -559,6 +559,17 @@ BUDGET_POLICIES_ENABLED = (
     os.getenv("BUDGET_POLICIES_ENABLED", "false").lower() == "true"
 )
 
+# TB-1 (22 Sept 2026): the task board is a board, on paperclip's issue
+# model. On: seven columns (backlog, todo, in_progress, in_review, done,
+# blocked, cancelled), an agent's finished task lands in review for a person
+# to sign off, a person can be the assignee, priority, an identifier per
+# workspace, parent and blocker links, comments, and the kanban screen. Off:
+# the five-column list as it was, an agent's result goes straight to done,
+# and the new fields are accepted but not offered.
+TASK_BOARD_2026_09_ENABLED = (
+    os.getenv("TASK_BOARD_2026_09_ENABLED", "false").lower() == "true"
+)
+
 # D-1a (21 Sept 2026): Decibyl keeps working past a reply's tool-round cap.
 # Off, and a turn that hits the cap answers with what it has, as before. On,
 # and the turn hands the rest to a task on the board that runs in the

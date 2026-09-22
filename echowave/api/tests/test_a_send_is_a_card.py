@@ -416,10 +416,16 @@ class TestTheProspectingTemplate:
         by_id = {n["id"]: n for n in out["nodes"]}
         assert by_id["agent-1"]["data"]["tool_uuids"] == ["web-1", "gm-1"]
         assert "tool_uuids" not in by_id["end-1"]["data"]
-        assert equip.configurations(None, template=t) == {"approve_sends": True}
+        # The hire also says which channel the bot is on (a scheduled
+        # template writes, so chat); that is its own story and test.
+        assert equip.configurations(None, template=t) == {
+            "approve_sends": True,
+            "channel": "chat",
+        }
         assert equip.configurations({"x": 1}, template=t) == {
             "x": 1,
             "approve_sends": True,
+            "channel": "chat",
         }
 
     async def test_a_template_that_needs_nothing_gets_nothing(self):
@@ -435,7 +441,10 @@ class TestTheProspectingTemplate:
             )
         ensure.assert_not_awaited()
         assert out["nodes"][0]["data"] == {}
-        assert equip.configurations({"x": 1}, template=t) == {"x": 1}
+        assert equip.configurations({"x": 1}, template=t) == {
+            "x": 1,
+            "channel": "chat",
+        }
 
     async def test_a_web_tool_that_cannot_be_made_costs_the_hire_nothing(self):
         t = get_template("outbound_prospecting")

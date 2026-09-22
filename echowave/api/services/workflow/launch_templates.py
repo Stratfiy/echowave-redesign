@@ -60,18 +60,27 @@ def _global_node() -> dict[str, Any]:
     }
 
 
-def _start(greeting: str, prompt: str) -> dict[str, Any]:
+def _start(
+    greeting: str,
+    prompt: str,
+    *,
+    name: str = "Start Call",
+    allow_interrupt: bool = True,
+) -> dict[str, Any]:
+    """The entry node. ``name`` and ``allow_interrupt`` exist for a bot that
+    is not on a phone: a template names its own start node, and interruption
+    is a fact about speech that a message does not have."""
     return {
         "id": "start-1",
         "type": "startCall",
         "position": {"x": 0, "y": 0},
         "data": {
-            "name": "Start Call",
+            "name": name,
             "is_start": True,
             "greeting": greeting,
             "greeting_type": "text",
             "prompt": prompt,
-            "allow_interrupt": True,
+            "allow_interrupt": allow_interrupt,
             "add_global_prompt": True,
         },
     }

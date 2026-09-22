@@ -151,6 +151,51 @@ def allowed_codes(taxonomy: list[dict[str, str]]) -> set[str]:
     return {entry["code"] for entry in taxonomy}
 
 
+#: A speaker label at the start of a line, with or without the timestamp the
+#: transcript writer puts in front of it.
+_SPEAKER = re.compile(
+    r"^[^\S\n]*(?:\[[^\]]*\][^\S\n]*)?"
+    r"(assistant|agent|bot|user|caller|customer|human)[^\S\n]*:",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+#: Which of those words mean the person on the other end.
+_CALLER = frozenset({"user", "caller", "customer", "human"})
+
+#: What a call nobody spoke on achieved, when the taxonomy has a word for it.
+SILENT = "no_answer"
+
+
+def nobody_spoke(transcript: str | None) -> bool:
+    """True only when the transcript *positively shows* turns and none of them
+    are the caller's.
+
+    Measured on 54 real calls (22 Sept 2026): eight had no caller turn at all
+    — the recording line and then silence, or a greeting into a dead line —
+    and the model was asked to classify them anyway. It answered three
+    different ways: five ``no_answer``, one ``not_interested``, two
+    ``unclear``. That is not a hard question and it should never have reached
+    a model.
+
+    Deliberately conservative. A transcript whose speakers cannot be parsed
+    at all returns False, because "we could not read the format" and "nobody
+    answered" are different facts and only one of them is this function's to
+    report. Better to pay for a model call than to file a wrong outcome.
+    """
+    speakers = [match.group(1).lower() for match in _SPEAKER.finditer(transcript or "")]
+    if not speakers:
+        return False
+    return not any(speaker in _CALLER for speaker in speakers)
+
+
+def silent_result(taxonomy: list[dict[str, str]]) -> str:
+    """The code for a call nobody spoke on. ``no_answer`` where the workflow
+    keeps it, ``unclear`` where somebody removed it: a code outside the
+    taxonomy would be dropped by ``coerce_result`` and land as unclear
+    anyway, with a worse audit trail."""
+    return SILENT if SILENT in allowed_codes(taxonomy) else UNCLEAR
+
+
 def coerce_result(raw: Any, taxonomy: list[dict[str, str]]) -> list[str]:
     """Turn whatever the model answered into labels this workflow allows.
 

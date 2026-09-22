@@ -60,11 +60,16 @@ class WorkflowClient(BaseDBClient):
         user_id: int,
         organization_id: int = None,
         workflow_configurations: dict | None = None,
+        is_live: bool = True,
     ) -> WorkflowModel:
+        """``is_live`` is False for an agent that is not ready to answer yet:
+        a template hired with its variables still unanswered would otherwise
+        greet a caller with the gap where the clinic's name should be."""
         async with self.async_session() as session:
             try:
                 new_workflow = WorkflowModel(
                     name=name,
+                    is_live=is_live,
                     # The address, assigned once at creation and not touched by
                     # a later rename. That is the point of storing it: an
                     # address that changed with the name would break every

@@ -58,7 +58,7 @@ from api.services.configuration.resolve import (
 from api.services.posthog_client import capture_event
 from api.services.reports import generate_workflow_report_csv
 from api.services.storage import storage_fs
-from api.services.workflow import bot_notices, setup_progress
+from api.services.workflow import bot_notices, setup_progress, unfilled
 from api.services.workflow.agent_brief import (
     AgentBrief,
     apply_brief,
@@ -269,6 +269,12 @@ async def _validate_workflow_definition(
     # May be switched off only with the acknowledgement; a draft that has it
     # off and unacknowledged does not publish.
     errors.extend(ai_disclosure.problems(workflow_definition))
+
+    # ----------- Unanswered placeholders ------------
+    # A caller heard "Namaste, ." on 20 Sept because {{clinic_name}} was never
+    # answered. The template already called these "values the operator must
+    # supply before going live"; nobody was checking.
+    errors.extend(unfilled.problems(workflow_definition))
 
     # ----------- Trigger Path Conflict Check ------------
     trigger_paths = extract_trigger_paths(workflow_definition)
