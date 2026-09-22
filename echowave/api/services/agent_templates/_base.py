@@ -201,6 +201,10 @@ BOT_FUNCTIONS: frozenset[str] = frozenset(
         "Collect payments",
         "Answer staff questions",
         "Send reminders",
+        # Added with the chat desks promoted on 22 Sept 2026: a desk that
+        # answers customers in writing is none of the six above.
+        "Answer enquiries",
+        "Handle support",
     }
 )
 

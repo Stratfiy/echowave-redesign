@@ -1433,7 +1433,16 @@ def _all() -> tuple[AgentTemplate, ...]:
                 "a bot that tells my accountant what is coming up this week",
             ],
         ),
-    )
+    ) + _promoted()
+
+
+def _promoted() -> tuple[AgentTemplate, ...]:
+    """Roles promoted from the drafts, kept in their own modules so this file
+    stops growing by a role at a time. Imported here, late, because they
+    share this file's stacks and guardrails."""
+    from api.services.agent_templates import chat_desks
+
+    return chat_desks.templates()
 
 
 def list_templates() -> tuple[AgentTemplate, ...]:
