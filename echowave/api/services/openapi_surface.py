@@ -118,6 +118,8 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
         (
             "billing",
             "packs",
+            # The same shelf read from outside, before an account exists.
+            "public-marketplace",
             "usage",
             "reports",
             "referrals",

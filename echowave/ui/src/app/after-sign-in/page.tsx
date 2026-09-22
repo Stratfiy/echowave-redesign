@@ -1,4 +1,5 @@
 import { isNextRouterError } from "next/dist/client/components/is-next-router-error";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import {
@@ -10,6 +11,7 @@ import {
   getServerAuthProvider,
   getServerUser,
 } from "@/lib/auth/server";
+import { HIRE_COOKIE, resumePath } from "@/lib/hireResume";
 import logger from "@/lib/logger";
 import { getRedirectUrl } from "@/lib/utils";
 
@@ -67,6 +69,15 @@ export default async function AfterSignInPage() {
           "[AfterSignInPage] Email not verified - redirecting to /auth/verify",
         );
         redirect("/auth/verify");
+      }
+
+      // A visitor who clicked Hire on the public marketplace before they had
+      // an account goes back to that role's hire flow, not to an empty
+      // workspace. Only a hire path is ever honoured (lib/hireResume).
+      const resume = resumePath((await cookies()).get(HIRE_COOKIE)?.value);
+      if (resume) {
+        logger.debug("[AfterSignInPage] Resuming a hire:", resume);
+        redirect(resume);
       }
 
       const countResponse = await getWorkflowCountApiV1WorkflowCountGet({
