@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi.encoders import jsonable_encoder
+from loguru import logger
 from pipecat.bus.serializers.json import JSONMessageSerializer
 from pipecat.frames.frames import (
     BotStoppedSpeakingFrame,
@@ -54,7 +55,15 @@ from api.services.workflow.squad_loader import assemble_for_run
 from api.services.workflow.workflow_graph import WorkflowGraph
 
 TEXT_CHAT_CHECKPOINT_VERSION = 1
+#: How long a turn may go with *nothing happening* before it is given up.
+#: Seen live (22 Sept 2026): a prospecting bot asked "hi" in its chat made
+#: thirteen tool calls in a minute and was cut off mid-run by an absolute
+#: sixty-second deadline, its drafts made and its events lost. A turn that
+#: keeps producing frames is a turn in progress; the clock runs on silence.
 TEXT_CHAT_TURN_TIMEOUT_SECONDS = 60.0
+#: And the ceiling no turn crosses however busy it stays, so a loop that
+#: never settles still ends.
+TEXT_CHAT_TURN_HARD_CAP_SECONDS = 900.0
 TEXT_CHAT_IDLE_SETTLE_SECONDS = 0.2
 TEXT_CHAT_INTERNAL_CANCEL_REASON = "text_chat_turn_complete"
 
@@ -218,12 +227,22 @@ class _TextChatCaptureProcessor(FrameProcessor):
         self.last_activity_at = time.monotonic()
         self.activity_count = 0
         self.events: list[dict[str, Any]] = []
+        #: What the pipeline complained about, in order. A model that
+        #: answered with an error and nothing else used to leave a turn that
+        #: looked exactly like a model that chose to say nothing.
+        self.errors: list[str] = []
         self._response_window = response_window
         self._context = context
 
     def _touch(self) -> None:
         self.last_activity_at = time.monotonic()
         self.activity_count += 1
+
+    def note_error(self, message: str) -> None:
+        text = " ".join(str(message or "").split())[:600] or "unknown error"
+        self.errors.append(text)
+        self._append_event("pipeline_error", {"message": text})
+        self._touch()
 
     def _append_event(self, event_type: str, payload: dict[str, Any]) -> None:
         self.events.append(
@@ -383,38 +402,71 @@ async def _wait_for_quiescence(
     runner_task: asyncio.Task,
     activity_marker: int,
     timeout_seconds: float = TEXT_CHAT_TURN_TIMEOUT_SECONDS,
+    hard_cap_seconds: float = TEXT_CHAT_TURN_HARD_CAP_SECONDS,
 ) -> None:
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + timeout_seconds
+    started = time.monotonic()
 
-    while loop.time() < deadline:
+    def _silence() -> float:
+        return time.monotonic() - capture_processor.last_activity_at
+
+    while True:
         if runner_task.done():
             await runner_task
             return
+
+        busy = time.monotonic() - started
+        if busy >= hard_cap_seconds:
+            raise TimeoutError(
+                f"Text chat turn still running after {int(busy)}s; stopped at the "
+                f"ceiling (active_llm_completions={response_window.active_llm_completions}, "
+                f"blocking_tool_calls={sorted(response_window.blocking_tool_call_ids)})"
+            )
 
         if (
             capture_processor.activity_count <= activity_marker
             and response_window.frontier_is_idle
         ):
+            # Nothing has started yet. Silence here is the model not
+            # answering, and it gets the same patience as silence later.
+            if busy >= timeout_seconds:
+                break
             await asyncio.sleep(0.05)
             continue
 
         if (
             response_window.frontier_is_idle
-            and (time.monotonic() - capture_processor.last_activity_at)
-            >= TEXT_CHAT_IDLE_SETTLE_SECONDS
+            and _silence() >= TEXT_CHAT_IDLE_SETTLE_SECONDS
         ):
             return
+
+        if _silence() >= timeout_seconds:
+            break
 
         await asyncio.sleep(0.05)
 
     raise TimeoutError(
-        "Timed out waiting for text chat response window to settle "
+        "Timed out waiting for text chat response window to settle: nothing "
+        f"happened for {int(timeout_seconds)}s "
         f"(pending_context_requests={response_window.pending_context_requests}, "
         f"active_llm_completions={response_window.active_llm_completions}, "
         f"active_assistant_segments={response_window.active_assistant_segments}, "
         f"blocking_tool_calls={sorted(response_window.blocking_tool_call_ids)})"
     )
+
+
+class TextChatModelError(RuntimeError):
+    """The pipeline reported an error and the turn produced nothing else."""
+
+
+def raise_if_silent_after_error(
+    response_window: _ResponseWindowState, capture_processor: _TextChatCaptureProcessor
+) -> None:
+    """A turn with no words and an error behind it is the error, not an
+    empty answer; say so, so the card and the run carry the reason."""
+    if not response_window.outputs and capture_processor.errors:
+        raise TextChatModelError(
+            f"The model returned an error: {capture_processor.errors[-1]}"
+        )
 
 
 async def execute_text_chat_pending_turn(
@@ -658,6 +710,17 @@ async def execute_text_chat_pending_turn(
     )
     runner_task = asyncio.create_task(run_pipeline_worker(task))
 
+    @task.event_handler("on_pipeline_error")
+    async def _on_pipeline_error(_task: Any, frame: Any) -> None:
+        # Pipecat fires this for every ErrorFrame; non-fatal ones are logged
+        # and the pipeline goes on. Recorded here so a turn the model
+        # answered with an error can say so instead of saying nothing.
+        message = str(getattr(frame, "error", None) or frame)
+        logger.warning(
+            "Pipeline error on text chat run {}: {}", workflow_run_id, message
+        )
+        capture_processor.note_error(message)
+
     engine.set_task(task)
     engine.set_audio_config(audio_config)
     engine.set_transport_output(_TaskQueueProxy(task.queue_frame))
@@ -715,6 +778,7 @@ async def execute_text_chat_pending_turn(
                 runner_task=runner_task,
                 activity_marker=generation_marker,
             )
+        raise_if_silent_after_error(response_window, capture_processor)
     finally:
         try:
             if not task.has_finished():
