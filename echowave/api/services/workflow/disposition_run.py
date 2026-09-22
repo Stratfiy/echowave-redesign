@@ -25,7 +25,9 @@ from api.services.workflow.disposition import (
     UNCLEAR,
     build_prompt,
     coerce_result,
+    nobody_spoke,
     parse_taxonomy,
+    silent_result,
 )
 from api.services.workflow.qa.analysis import _run_llm_inference
 from api.services.workflow.qa.llm_config import resolve_user_llm_config
@@ -52,6 +54,16 @@ async def classify_call(
         return {
             "dispositions": [UNCLEAR],
             "reason": "no_transcript",
+            "taxonomy": [entry["code"] for entry in taxonomy],
+        }
+
+    if nobody_spoke(transcript):
+        # The line opened, we said our piece, and nobody ever answered. No
+        # model is needed to read that, and asking one produced three
+        # different answers to the same trivial case across eight real calls.
+        return {
+            "dispositions": [silent_result(taxonomy)],
+            "reason": "nobody_spoke",
             "taxonomy": [entry["code"] for entry in taxonomy],
         }
 
