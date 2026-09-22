@@ -436,7 +436,8 @@ class TestTheRuleReachesEveryLivePack:
         )
 
         packs = all_packs()
-        assert len(packs) == 9
+        # Nine written in code, four chat desks promoted on 22 Sept 2026.
+        assert len(packs) == 13
         missing = []
         for pack in packs:
             template = get_template(pack.template_id)

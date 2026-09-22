@@ -62,7 +62,8 @@ def _composed_rule_missing(folder: FolderPack) -> list[str]:
 class TestLiveFoldersEqualTheCatalogue:
     def test_every_catalogue_pack_has_a_folder_and_it_is_current(self):
         pairs = [(p, get_template(p.template_id)) for p in _packs(None, None)]
-        assert len(pairs) == 9
+        # Nine written in code, four promoted from the drafts on 22 Sept 2026.
+        assert len(pairs) == 13
         assert check_drift(pairs, LIVE_DIR) == [], (
             "packs/live has drifted from the catalogue; "
             "run: python -m scripts.export_pack_folders"
@@ -94,7 +95,8 @@ class TestLiveFoldersEqualTheCatalogue:
 class TestDraftFolders:
     def test_the_prompt_pack_loaded_as_drafts(self):
         drafts = draft_folders()
-        assert len(drafts) == 26
+        # 26 imported; four promoted on 22 Sept 2026 (test_promoted_roles_meet_their_own_tests).
+        assert len(drafts) == 22
         for draft in drafts:
             assert draft.draft is True
             assert draft.pack.listed is False
