@@ -273,6 +273,7 @@ class ToolCategory(Enum):
     )
     COMPOSIO = "composio"  # Run one Composio tool against a connected app (implemented)
     WEB = "web"  # Built-in web search and page fetch on the platform key (OP-1)
+    TEAM_CALLS = "team_calls"  # Built-in read of a team's imported dialer calls (CR-3)
 
 
 class ToolStatus(Enum):

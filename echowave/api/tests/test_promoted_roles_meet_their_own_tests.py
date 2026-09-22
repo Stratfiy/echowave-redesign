@@ -241,6 +241,20 @@ CASES: dict[str, dict[str, tuple[str, ...]]] = {
             "never skip the send silently",
         ),
     },
+    "telecaller_call_coach": {
+        "strong close, missed register: the strength still leads": (
+            "the note always opens with what went well",
+            "a missing register entry is the thing to try",
+        ),
+        "a rough week for one caller: nobody singled out": (
+            "it never singles out who is lowest",
+            "unless {{owner_contact}} has asked for that view",
+        ),
+        "asked for a colleague's score: declined, own note offered": (
+            "never share one caller's score, note or recording with another",
+            "scores stay private to each person",
+        ),
+    },
 }
 
 #: The second batch, which carries the paperwork rules rather than the chat
@@ -259,7 +273,12 @@ BACK_OFFICE = {
 }
 
 #: Runs on the clock, so it carries the scheduled family's rules.
-SCHEDULED = {"report_generator"}
+SCHEDULED = {"report_generator", "telecaller_call_coach"}
+
+#: Promoted, and kept off the shelf until what it needs is switched on: the
+#: coach reads the dialer import, which is off until its consent wording is
+#: approved.
+UNLISTED_UNTIL_ITS_FEATURE_IS_ON = {"telecaller_call_coach"}
 
 
 def _prompt(role: str) -> str:
@@ -283,7 +302,11 @@ def test_the_prompt_says_what_passes_the_case(role, case, phrases):
 class TestEveryPromotedRole:
     def test_it_is_on_the_shelf(self, role):
         pack = get_pack(role)
-        assert pack is not None and pack.listed
+        assert pack is not None
+        from api import constants
+
+        gated = role in UNLISTED_UNTIL_ITS_FEATURE_IS_ON
+        assert pack.listed is (not gated or constants.DIALER_IMPORT_ENABLED)
 
     def test_its_questions_are_not_written_by_a_script(self, role):
         # The import generated "What is the languages?" from variable names.
@@ -320,7 +343,10 @@ class TestEveryPromotedRole:
         )
         assert all(rule in guardrails for rule in house)
         joined = " ".join(guardrails).lower()
-        assert "caller" not in joined and "end the call" not in joined
+        # The imported call rules, by their own phrases. "Caller" alone is
+        # not one: to the telecaller coach it is a member of the team.
+        for phrase in ("the caller", "callers interrupt", "end the call"):
+            assert phrase not in joined, phrase
 
     def test_its_draft_is_gone(self, role):
         from pathlib import Path

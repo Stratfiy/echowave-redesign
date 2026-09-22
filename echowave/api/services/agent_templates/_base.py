@@ -210,6 +210,9 @@ BOT_FUNCTIONS: frozenset[str] = frozenset(
         # from people outside the business.
         "Do the paperwork",
         "Collect documents",
+        # The telecaller coach (CR-3): it reads a human team's calls and
+        # coaches the people, which none of the headings above describe.
+        "Coach the team",
     }
 )
 
@@ -257,6 +260,9 @@ class AgentTemplate(BaseModel):
     #: apps whose tools it gets, by toolkit slug, the way a brief names them;
     #: ``approve_sends`` makes every send a card a person confirms.
     needs_web: bool = False
+    #: The team's imported dialer calls (CR-3): the telecaller coach's one
+    #: tool. Given only while the dialer import is switched on.
+    needs_team_calls: bool = False
     apps: list[str] = Field(default_factory=list)
     approve_sends: bool = False
 

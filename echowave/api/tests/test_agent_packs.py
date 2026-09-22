@@ -440,14 +440,20 @@ class TestTheShelf:
         That is a better product, not a loosened test: with no demo number
         configured at all there are still two roles somebody can hire.
         """
-        without = catalogue._packs(None)
+        from api.services.packs.call_coach import FEATURE_GATED
+
+        # A role that reads a switched-off feature follows its flag instead;
+        # its own test (test_promoted_roles_meet_their_own_tests) holds that.
+        without = [p for p in catalogue._packs(None) if p.slug not in FEATURE_GATED]
         calling = [p for p in without if is_calling(p)]
         quiet = [p for p in without if not is_calling(p)]
         assert calling and quiet, "this test needs both kinds on the shelf"
         assert all(not pack.listed for pack in calling)
         assert all(pack.listed for pack in quiet)
 
-        with_number = catalogue._packs("+911234567890")
+        with_number = [
+            p for p in catalogue._packs("+911234567890") if p.slug not in FEATURE_GATED
+        ]
         assert all(pack.listed for pack in with_number)
         assert all(
             pack.demo_number == "+911234567890"

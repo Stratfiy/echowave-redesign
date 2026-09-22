@@ -43,6 +43,17 @@ async def for_template(
                 uuids.append(uuid)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Could not give {} the web: {}", template.id, exc)
+    if template.needs_team_calls:
+        from api.services.dialer_import import team_calls_tool
+
+        try:
+            uuid = await team_calls_tool.ensure_tool(
+                organization_id=organization_id, user_id=user_id
+            )
+            if uuid:
+                uuids.append(uuid)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not give {} the team's calls: {}", template.id, exc)
     if template.apps:
         try:
             tools = list(await connected_tools.list_for_organization(organization_id))

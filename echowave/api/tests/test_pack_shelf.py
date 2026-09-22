@@ -40,6 +40,8 @@ class TestSearchNeverLosesARole:
         assert len(search_packs("a", packs=SHELF)) == len(SHELF)
 
     def test_the_words_a_real_person_uses_reach_the_right_role(self):
+        # "all" is inside "call": while the name bonus matched substrings,
+        # the telecaller call coach took the front desk's place here.
         found = search_packs("my clinic phone rings all day", packs=SHELF)
         assert found[0].slug == "front_desk_clinic"
 
@@ -334,4 +336,8 @@ class TestHowAProspectHearsIt:
             "api.services.packs.catalogue.db_client.demo_contact",
             AsyncMock(return_value=self._contact(url="https://app/talk/xyz")),
         ):
-            assert len(await catalogue.resolve_listed_packs()) == len(SHELF)
+            # Every role that can be listed is: the shelf, less a role
+            # waiting on its own feature flag (packs.call_coach).
+            assert len(await catalogue.resolve_listed_packs()) == len(
+                [p for p in SHELF if p.listed]
+            )

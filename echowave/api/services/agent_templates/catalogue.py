@@ -1440,9 +1440,9 @@ def _promoted() -> tuple[AgentTemplate, ...]:
     """Roles promoted from the drafts, kept in their own modules so this file
     stops growing by a role at a time. Imported here, late, because they
     share this file's stacks and guardrails."""
-    from api.services.agent_templates import back_office, chat_desks
+    from api.services.agent_templates import back_office, call_coach, chat_desks
 
-    return chat_desks.templates() + back_office.templates()
+    return chat_desks.templates() + back_office.templates() + (call_coach.template(),)
 
 
 def list_templates() -> tuple[AgentTemplate, ...]:
