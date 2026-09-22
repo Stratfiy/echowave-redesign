@@ -48,6 +48,7 @@ from api.constants import (
 from api.services.agent_builder import client as builder_client
 from api.services.agent_builder.client import Conversation
 from api.services.agent_builder.settings import BuilderUnavailable, resolve_model
+from api.services.billing import model_usage
 
 SOURCE_WEBHOOK = "webhook"
 #: An address per bot (KAN-138): mail to it fires the bot, the mail is the
@@ -592,14 +593,15 @@ async def compile(
     conversation = Conversation()
     conversation.add_user(_prompt(sentence, answers, source))
     try:
-        reply = await builder_client.complete(
-            provider=model.provider,
-            model=model.model,
-            api_key=model.api_key,
-            system=SYSTEM,
-            conversation=conversation,
-            tools=[COMPILE_TOOL],
-        )
+        with model_usage.labelled("trigger_compile"):
+            reply = await builder_client.complete(
+                provider=model.provider,
+                model=model.model,
+                api_key=model.api_key,
+                system=SYSTEM,
+                conversation=conversation,
+                tools=[COMPILE_TOOL],
+            )
     except builder_client.BuilderClientError as exc:
         logger.warning("Trigger compile failed on {}: {}", model.provider, exc)
         return _plain(

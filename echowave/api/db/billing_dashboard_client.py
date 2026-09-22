@@ -48,7 +48,7 @@ from api.db.models import (
     WorkflowModel,
     WorkflowRunModel,
 )
-from api.enums import CreditLedgerKind, RateUnit
+from api.enums import CostComponent, CreditLedgerKind, RateUnit
 from api.services.billing.rates import resolve_platform_rate
 from api.services.billing.rollup import IST, ist_day_bounds_utc
 
@@ -1481,6 +1481,15 @@ def _ist_period(column, granularity: str):
     return func.date_trunc(unit, func.timezone("Asia/Kolkata", column))
 
 
+#: Every cost line that is a count of tokens: the blended line written before
+#: the metering split, and the four lines it splits into. Filtering on the
+#: blended line alone made the Tokens screen read zero from the day the split
+#: was switched on (22 Sept 2026).
+_TOKEN_COMPONENTS: tuple[str, ...] = ("llm",) + tuple(
+    c.value for c in CostComponent.llm_split_components()
+)
+
+
 async def token_usage_series(
     session: AsyncSession,
     *,
@@ -1502,7 +1511,7 @@ async def token_usage_series(
     conditions = [
         WorkflowRunModel.created_at >= start_utc,
         WorkflowRunModel.created_at < end_utc,
-        CallCostItemModel.component == "llm",
+        CallCostItemModel.component.in_(_TOKEN_COMPONENTS),
     ]
     if organization_id is not None:
         conditions.append(WorkflowModel.organization_id == organization_id)
@@ -1596,7 +1605,7 @@ async def token_usage_by_model(
         # As in token_usage_series: the call's date, not the costing job's.
         WorkflowRunModel.created_at >= start_utc,
         WorkflowRunModel.created_at < end_utc,
-        CallCostItemModel.component == "llm",
+        CallCostItemModel.component.in_(_TOKEN_COMPONENTS),
     ]
     if organization_id is not None:
         conditions.append(WorkflowModel.organization_id == organization_id)

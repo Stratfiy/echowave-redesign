@@ -1053,6 +1053,50 @@ async def record_firc(
         }
 
 
+@router.get("/tokens/by-model")
+async def token_usage_report(
+    rng: RangeParams = Depends(),
+    organization_id: int | None = Query(
+        None, description="One account; omit for the platform"
+    ),
+    format: str = Query("json", pattern="^(json|csv)$"),
+):
+    """Tokens by vendor and model, split into input, cached input, cache write
+    and output, from run receipts and from direct model calls, with per-turn
+    medians by kind of work (M-1).
+
+    Measures; charges nothing. What this report says is the evidence for
+    deciding how credits charge for models.
+    """
+    from fastapi.responses import PlainTextResponse
+
+    from api.services.billing import token_report
+    from api.services.billing.rollup import ist_day_bounds_utc
+
+    start_utc, _ = ist_day_bounds_utc(rng.start)
+    _, end_utc = ist_day_bounds_utc(rng.end)
+    async with db_client.async_session() as session:
+        report = await token_report.build(
+            session, start=start_utc, end=end_utc, organization_id=organization_id
+        )
+    if format == "csv":
+        import csv
+        import io
+
+        buffer = io.StringIO()
+        csv.writer(buffer).writerows(token_report.as_csv_rows(report))
+        return PlainTextResponse(
+            buffer.getvalue(),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="tokens-{rng.start}-{rng.end}.csv"'
+                )
+            },
+        )
+    return report
+
+
 @router.get("/gstr1")
 async def gstr1_export(
     month: str = Query(..., description="YYYY-MM"),

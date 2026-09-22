@@ -32,6 +32,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
+from api.services.billing import model_usage
 from api.services.gen_ai.json_parser import parse_llm_json
 from api.services.workflow import agent_timeline, documents
 
@@ -111,14 +112,17 @@ async def extract(organization_id: int, text: str) -> dict[str, str]:
             model = await settings.resolve_model(session)
         conversation = client.Conversation()
         conversation.add_user(text)
-        reply = await client.complete(
-            provider=model.provider,
-            model=model.model,
-            api_key=model.api_key,
-            system=SYSTEM,
-            conversation=conversation,
-            tools=[],
-        )
+        with model_usage.scope(
+            organization_id=organization_id, feature="document_fields"
+        ):
+            reply = await client.complete(
+                provider=model.provider,
+                model=model.model,
+                api_key=model.api_key,
+                system=SYSTEM,
+                conversation=conversation,
+                tools=[],
+            )
         return clean(parse_llm_json(reply.text or ""))
     except Exception as exc:  # noqa: BLE001 - a document read badly is still filed
         logger.warning("Could not read fields for org {}: {}", organization_id, exc)

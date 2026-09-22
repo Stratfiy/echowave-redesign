@@ -23,6 +23,7 @@ from typing import Any
 from loguru import logger
 
 from api.db import db_client
+from api.services.billing import model_usage
 from api.services.knowledge_graph import feed
 from api.services.knowledge_graph.teach import subject_key
 
@@ -124,14 +125,17 @@ async def extract(organization_id: int, text: str) -> list[Decision]:
             model = await settings.resolve_model(session)
         conversation = client.Conversation()
         conversation.add_user(text)
-        reply = await client.complete(
-            provider=model.provider,
-            model=model.model,
-            api_key=model.api_key,
-            system=SYSTEM,
-            conversation=conversation,
-            tools=[],
-        )
+        with model_usage.scope(
+            organization_id=organization_id, feature="graph_decisions"
+        ):
+            reply = await client.complete(
+                provider=model.provider,
+                model=model.model,
+                api_key=model.api_key,
+                system=SYSTEM,
+                conversation=conversation,
+                tools=[],
+            )
         return clean(parse_llm_json(reply.text or ""))
     except Exception as exc:  # noqa: BLE001 - a decision missed is not a failure
         logger.warning("Could not read decisions for org {}: {}", organization_id, exc)

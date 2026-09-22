@@ -112,7 +112,12 @@ def to_workflow_definition(template: AgentTemplate) -> dict[str, Any]:
             )
             nodes.append(
                 _agent(
-                    node_id, node.name, node.prompt, row * _ROW, extraction=extraction
+                    node_id,
+                    node.name,
+                    node.prompt,
+                    row * _ROW,
+                    extraction=extraction,
+                    allow_interrupt=speaks,
                 )
             )
             row += 1

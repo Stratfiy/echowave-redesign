@@ -2722,6 +2722,66 @@ class CallCostItemModel(Base):
     )
 
 
+class ModelUsageModel(Base):
+    """One model call made outside a pipeline, and what it used.
+
+    ``call_cost_items`` holds what a *run* used, and every pipeline run --
+    a call, a text reply, a routine -- writes there. The builder client is
+    the other door: Decibyl's own assistant, the builder, triggers, document
+    fields, the acceptable-use check and the graph reviews all call a vendor
+    through it, over raw HTTP, with no run to hang a receipt on. Until
+    22 September 2026 none of it was recorded anywhere.
+
+    Stored as the vendor reported it, in the same four fields the pipeline
+    writes to ``usage_info["llm"]``, so ``billing.usage.llm_split_items``
+    applies one vendor rule to both. No cost column: this measures, it does
+    not bill, and a rupee figure frozen at write time would be priced
+    against whatever the rate card said that afternoon. The report prices
+    it against the rate book for the window it reads.
+
+    ``feature`` says what asked; ``unattributed`` means nobody said, and is
+    written rather than dropped so the gap shows on the report.
+    """
+
+    __tablename__ = "model_usage"
+
+    id = Column(Integer, primary_key=True, index=True)
+    # Nullable, and kept if the account goes: a platform-wide cost figure
+    # should not shrink because a customer left.
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True
+    )
+    feature = Column(
+        String(64),
+        nullable=False,
+        default="unattributed",
+        server_default="unattributed",
+    )
+    provider = Column(String(64), nullable=False)
+    model = Column(String(128), nullable=False, default="", server_default="")
+    prompt_tokens = Column(BigInteger, nullable=False, default=0, server_default="0")
+    completion_tokens = Column(
+        BigInteger, nullable=False, default=0, server_default="0"
+    )
+    cache_read_input_tokens = Column(
+        BigInteger, nullable=False, default=0, server_default="0"
+    )
+    cache_creation_input_tokens = Column(
+        BigInteger, nullable=False, default=0, server_default="0"
+    )
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        Index("ix_model_usage_created_at", "created_at"),
+        Index("ix_model_usage_org_created_at", "organization_id", "created_at"),
+    )
+
+
 class EmbeddingIngestionCostModel(Base):
     """One document's ingestion-embedding cost, alongside what it was charged.
 

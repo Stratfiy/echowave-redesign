@@ -65,6 +65,13 @@ class TestTheGraphKeepsItsOwnWords:
         start = _by_type(to_workflow_definition(t), "startCall")[0]
         assert start["data"]["allow_interrupt"] is False
 
+    def test_no_step_of_a_chat_agent_is_interruptible(self):
+        # Seen on the live deploy check, 22 Sept: the start node was fixed
+        # and "Draft one email each" still said it could be cut off.
+        t = get_template("outbound_prospecting")
+        steps = _by_type(to_workflow_definition(t), "agentNode")
+        assert steps and all(n["data"]["allow_interrupt"] is False for n in steps)
+
     def test_a_calling_agent_still_is(self):
         t = next(t for t in list_templates() if t.speaks)
         start = _by_type(to_workflow_definition(t), "startCall")[0]

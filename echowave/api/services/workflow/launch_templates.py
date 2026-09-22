@@ -93,11 +93,12 @@ def _agent(
     y: int,
     *,
     extraction: list[dict[str, str]] | None = None,
+    allow_interrupt: bool = True,
 ) -> dict[str, Any]:
     data: dict[str, Any] = {
         "name": name,
         "prompt": prompt,
-        "allow_interrupt": True,
+        "allow_interrupt": allow_interrupt,
         "add_global_prompt": True,
     }
     if extraction:

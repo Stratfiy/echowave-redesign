@@ -93,10 +93,12 @@ async def _turn(
     return turn
 
 
-async def _llm_cost(async_session, run, *, tokens, paise=1, model="gpt-4o-mini"):
+async def _llm_cost(
+    async_session, run, *, tokens, paise=1, model="gpt-4o-mini", component="llm"
+):
     item = CallCostItemModel(
         workflow_run_id=run.id,
-        component="llm",
+        component=component,
         provider="openai",
         model=model,
         units=tokens,
@@ -276,6 +278,36 @@ class TestTokenEfficiency:
         assert row["tokens"] == 10_000
         assert row["paise_per_1k_tokens"] == 5.0
         assert row["tokens_per_call"] == 10_000
+
+    async def test_split_lines_are_tokens_too(self, async_session):
+        """Found 22 Sept 2026. Since the metering split, a turn's tokens are
+        written as llm_input, llm_cached, llm_output and llm_cache_write,
+        never as the blended llm line -- and both token queries filtered on
+        the blended line alone, so this screen read zero for every new call.
+        """
+        _, workflow = await _org(async_session, "split")
+        run = await _run(async_session, workflow, seconds=60)
+        for component, tokens in (
+            ("llm_input", 700),
+            ("llm_cached", 200),
+            ("llm_output", 100),
+        ):
+            await _llm_cost(
+                async_session,
+                run,
+                tokens=tokens,
+                model="gpt-split",
+                component=component,
+            )
+
+        start, end = _wide()
+        series = await dash.token_usage_series(
+            async_session, start=start, end=end, granularity="month"
+        )
+        assert sum(r["tokens"] for r in series) >= 1000
+        rows = await dash.token_usage_by_model(async_session, start=start, end=end)
+        row = next(r for r in rows if r["model"] == "gpt-split")
+        assert row["tokens"] == 1000
 
     async def test_an_unknown_granularity_is_refused(self, async_session):
         with pytest.raises(ValueError):
