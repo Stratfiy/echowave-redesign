@@ -21,6 +21,7 @@ from api.schemas.workflow_recording import (
 )
 from api.sdk_expose import sdk_expose
 from api.services.auth.depends import get_user
+from api.services.billing import model_usage
 from api.services.gen_ai.transcription import (
     TranscriptionError,
     build_transcription_service,
@@ -354,4 +355,15 @@ async def transcribe_audio(
             status_code=500, detail="Failed to transcribe audio"
         ) from exc
 
+    # Measured, never billed here: until 23 Sept an upload transcribed on the
+    # account's (or our) STT key was recorded nowhere, so D-1 could not see it.
+    with model_usage.scope(
+        organization_id=user.selected_organization_id,
+        feature="recording_transcription",
+    ):
+        await model_usage.record_audio(
+            provider=model_usage.provider_of(service),
+            model=transcription.model or service.get_model_id(),
+            seconds=transcription.duration_seconds,
+        )
     return transcription.as_response()

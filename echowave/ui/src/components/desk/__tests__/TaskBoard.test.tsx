@@ -166,6 +166,20 @@ describe("labels on the board", () => {
     });
 });
 
+describe("sub-task progress", () => {
+    it("shows how far a parent's sub-tasks have got, on the list and the board", () => {
+        const parent = task({ id: 1, number: 1, identifier: "DEC-1", title: "Open the Adyar branch" });
+        const done = task({ id: 2, number: 2, identifier: "DEC-2", title: "Sign the lease", parent_id: 1, status: "done" });
+        const open = task({ id: 3, number: 3, identifier: "DEC-3", title: "Hire a receptionist", parent_id: 1 });
+        render(<TaskBoard initial={payload([parent, done, open])} tabs={tabs} />);
+        const row = screen.getByText("Open the Adyar branch").closest("li")!;
+        expect(within(row).getByRole("progressbar", { name: "Sub-tasks done" }).getAttribute("aria-valuenow")).toBe("1");
+        expect(within(row).getByText("1/2")).toBeTruthy();
+        toBoard();
+        expect(within(screen.getByTestId("task-1")).getByText("1/2")).toBeTruthy();
+    });
+});
+
 describe("the inbox", () => {
     const mine = task({ id: 1, number: 1, identifier: "DEC-1", title: "Approve the refund", assignee_workflow_id: null, assignee_name: null, assignee_user_id: 42, assignee_user_name: "Nithish" });
     const review = task({ id: 2, number: 2, identifier: "DEC-2", title: "Report waiting", status: "in_review", result: "Done it." });

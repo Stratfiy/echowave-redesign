@@ -413,8 +413,26 @@
   --brand-chip-border: #494d64;
   --brand-chip-fg: #cad3f5;
   --brand-card: #24273a;
-  --shell-gradient-top: #4a4616;
-  --shell-gradient-bottom: #0a1423;
+  /* Macchiato's mantle into its crust: the frame recedes behind the base
+     panel rather than tinting it olive. */
+  --shell-gradient-top: #1e2030;
+  --shell-gradient-bottom: #181926;
+  /* Ink buttons turn over: light fill, dark text. */
+  --cta: #cad3f5;
+  --cta-foreground: #24273a;
+  /* The pale washes behind badges and banners, as dark washes. */
+  --tint-flame: #3d2f3e;
+  --tint-amber: #3d3632;
+  --tint-sand: #363a4f;
+  --tint-slate: #363a4f;
+  --color-soft-mint: #2e3f3a;
+  --glass-fill: rgba(36, 39, 58, 0.72);
+  --glass-fill-strong: #1e2030;
+  --glass-edge: #494d64;
+  --glass-accent-fill: #c6a0f6;
+  --glass-accent-fg: #24273a;
+  --glass-amber-edge: #5b4b33;
+  --glass-amber-fg: #eed49f;
   --shell-ink: #cad3f5;
   --rail-foreground: #cad3f5;
   --rail-accent: rgba(202, 211, 245, 0.14);
@@ -428,10 +446,9 @@
   --sidebar-border: rgba(202, 211, 245, 0.14);
 }
 
-/* The .dark block that stood here is gone: the app is light-only by request.
-   Removing it rather than leaving it unreferenced matters — `.dark` was still
-   togglable from the sidebar, and a half-maintained second palette is how a
-   screen ends up shipping with unreadable text nobody looked at. */
+/* Dark is chosen in Settings → Appearance (light, dark or follow the
+   system). Every token a screen reads has a dark value above; a new token
+   added to :root without one is caught by darkPalette.test.ts. */
 
 @layer base {
   * {

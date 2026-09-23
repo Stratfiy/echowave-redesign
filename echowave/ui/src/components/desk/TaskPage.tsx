@@ -32,8 +32,8 @@ import { detailFromResult } from "@/lib/apiError";
 import { cn } from "@/lib/utils";
 
 import { LiveDot, NewTaskDialog, StatusDot } from "./TaskBoard";
-import { LabelChip, LabelPicker, MentionTextarea } from "./TaskInputs";
-import { type BoardPayload, COLUMNS, type Comment, isLive, ownerValue, parseWaitsOn, type Task, when } from "./tasks";
+import { LabelChip, LabelPicker, MentionTextarea, SubtaskProgress } from "./TaskInputs";
+import { type BoardPayload, COLUMNS, type Comment, isLive, ownerValue, parseWaitsOn, subtaskProgress, type Task, when } from "./tasks";
 
 type Detail = Task & { comments?: Comment[]; subtasks?: Task[] };
 
@@ -93,6 +93,8 @@ export function TaskPage({ taskId }: { taskId: number }) {
     const priorities = board.board?.priorities ?? ["critical", "high", "medium", "low"];
     const knownLabels = board.board?.labels ?? [];
     const parent = task.parent_id ? tasks.find((t) => t.id === task.parent_id) : null;
+    const subs = task.subtasks ?? [];
+    const subProgress = subtaskProgress(task, subs);
     const blockers = task.blocked_by.map((id) => tasks.find((t) => t.id === id)).filter(Boolean) as Task[];
 
     const run = async <T,>(call: () => Promise<{ error?: unknown } & T>, failure: string) => {
@@ -188,7 +190,10 @@ export function TaskPage({ taskId }: { taskId: number }) {
 
                     <section aria-label="Sub-tasks">
                         <div className="flex items-center justify-between">
-                            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Sub-tasks</h2>
+                            <h2 className="flex items-center gap-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                Sub-tasks
+                                {subProgress && <SubtaskProgress {...subProgress} className="normal-case tracking-normal" />}
+                            </h2>
                             <Button size="sm" variant="ghost" onClick={() => setAddingSub(true)}>
                                 <Plus className="mr-1 h-3.5 w-3.5" aria-hidden /> Add sub-task
                             </Button>

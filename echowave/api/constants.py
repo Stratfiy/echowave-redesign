@@ -584,6 +584,11 @@ WORKSPACE_ROLES_ENABLED = (
     os.getenv("WORKSPACE_ROLES_ENABLED", "false").lower() == "true"
 )
 
+# The shell (23 Sept 2026): one sidebar with every destination on it -- no
+# screens hidden in the profile menu -- and Settings → Appearance with light,
+# dark and follow-the-system. Display only; off until the founder has tried it.
+SHELL_2026_09_ENABLED = os.getenv("SHELL_2026_09_ENABLED", "false").lower() == "true"
+
 # G-1 (23 Sept 2026): the agent graph shows what starts the agent as its
 # first card, and which steps the last run reached. Read-only; off until the
 # founder has looked at it.

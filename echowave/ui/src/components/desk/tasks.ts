@@ -213,3 +213,14 @@ export function insertMention(text: string, start: number, caret: number, handle
     const after = text.slice(caret).replace(/^[\w-]*/, "");
     return { text: text.slice(0, start) + inserted + after, caret: start + inserted.length };
 }
+
+// --- sub-task progress (TB-3) ------------------------------------------------
+
+/** How far a parent's sub-tasks have got: done out of those still meant to be
+ *  done. A cancelled sub-task leaves the count rather than holding the bar
+ *  short forever; null when the task has none. */
+export function subtaskProgress(task: Task, tasks: Task[]): { done: number; total: number } | null {
+    const children = tasks.filter((t) => t.parent_id === task.id && t.status !== "cancelled");
+    if (children.length === 0) return null;
+    return { done: children.filter((t) => t.status === "done").length, total: children.length };
+}

@@ -13,6 +13,26 @@ import { cn } from "@/lib/utils";
 
 import { type BotRef, insertMention, labelTone, mentionAt, mentionChoices } from "./tasks";
 
+/** "3 of 5" and a thin bar: how far a parent task's sub-tasks have got. */
+export function SubtaskProgress({ done, total, className }: { done: number; total: number; className?: string }) {
+    const pct = total ? Math.round((done / total) * 100) : 0;
+    return (
+        <span className={cn("inline-flex items-center gap-1.5 text-xs text-muted-foreground", className)} title={`${done} of ${total} sub-tasks done`}>
+            <span
+                role="progressbar"
+                aria-label="Sub-tasks done"
+                aria-valuemin={0}
+                aria-valuemax={total}
+                aria-valuenow={done}
+                className="relative inline-block h-1.5 w-12 overflow-hidden rounded-full bg-muted"
+            >
+                <span className="absolute inset-y-0 left-0 rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
+            </span>
+            {done}/{total}
+        </span>
+    );
+}
+
 export function LabelChip({ label, onRemove }: { label: string; onRemove?: () => void }) {
     return (
         <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium", labelTone(label))}>

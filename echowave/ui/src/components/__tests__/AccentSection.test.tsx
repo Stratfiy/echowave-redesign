@@ -24,13 +24,19 @@ describe("the accent picker", () => {
         render(<AccentSection />);
         fireEvent.click(screen.getByRole("radio", { name: "Indigo" }));
 
-        expect(document.documentElement.style.getPropertyValue("--ring")).toBe("#4f46e5");
+        // Written as a stylesheet with a light and a dark rule, never inline:
+        // inline beat the dark palette.
+        const sheet = document.getElementById("decibyl-accent")?.textContent ?? "";
+        expect(sheet).toContain("--ring:#4f46e5");
         // The token that carries text gets the deep half, never the bright one.
-        expect(document.documentElement.style.getPropertyValue("--brand-blue")).toBe("#4338ca");
+        expect(sheet).toContain("--brand-blue:#4338ca");
+        expect(sheet).toContain(":root.dark{");
+        expect(document.documentElement.style.getPropertyValue("--ring")).toBe("");
 
         const stored = JSON.parse(window.localStorage.getItem("decibyl.accent") ?? "{}");
         expect(stored.id).toBe("indigo");
         expect(stored.vars["--ring"]).toBe("#4f46e5");
+        expect(stored.css).toContain(":root.dark{");
     });
 
     it("offers the presets and no custom picker", () => {

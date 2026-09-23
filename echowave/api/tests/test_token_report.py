@@ -168,3 +168,53 @@ def test_the_report_is_a_superadmin_route():
         "_require_staff_role" in getattr(d.dependency, "__qualname__", "")
         for d in route.router.dependencies
     )
+
+
+@pytest.mark.asyncio
+async def test_transcription_is_reported_in_minutes_not_as_token_calls(
+    db_session, async_session
+):
+    """Until 23 Sept a transcribed upload was recorded nowhere. Now it is a
+    row with audio seconds, reported on its own -- and never counted as a
+    direct token call with no tokens in it."""
+    with model_usage.scope(organization_id=None, feature="recording_transcription"):
+        await model_usage.record_audio(provider="deepgram", model="nova-3", seconds=90)
+        # A vendor that reports no length is still counted.
+        await model_usage.record_audio(
+            provider="deepgram", model="nova-3", seconds=None
+        )
+    with model_usage.scope(organization_id=None, feature="dialer_import"):
+        await model_usage.record_audio(provider="sarvam", model="saarika", seconds=30)
+    now = datetime.now(UTC)
+    report = await token_report.build(
+        async_session, start=now - timedelta(hours=1), end=now + timedelta(hours=1)
+    )
+    audio = {(a["feature"], a["provider"]): a for a in report["audio"]}
+    upload = audio[("recording_transcription", "deepgram")]
+    assert (
+        upload["calls"],
+        upload["audio_seconds"],
+        upload["calls_without_length"],
+    ) == (
+        2,
+        90.0,
+        1,
+    )
+    assert audio[("dialer_import", "sarvam")]["audio_seconds"] == 30.0
+    assert not any(l["provider"] in ("deepgram", "sarvam") for l in report["by_model"])
+
+
+def test_a_transcription_service_is_named_by_its_vendor():
+    class DeepgramTranscriptionService:
+        pass
+
+    assert model_usage.provider_of(DeepgramTranscriptionService()) == "deepgram"
+
+
+def test_the_upload_route_records_what_it_transcribed():
+    import inspect
+
+    from api.routes import workflow_recording
+
+    source = inspect.getsource(workflow_recording.transcribe_audio)
+    assert "record_audio" in source and "recording_transcription" in source

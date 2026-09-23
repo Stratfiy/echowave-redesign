@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Iterable
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db.models import CallCostItemModel, ModelUsageModel, WorkflowRunModel
@@ -75,6 +75,10 @@ _VOICE_MODES = frozenset(
         "stasis",
     }
 )
+
+
+#: Features whose model_usage rows are transcription (seconds, not tokens).
+AUDIO_FEATURES = ("recording_transcription", "dialer_import")
 
 
 def work_kind(mode: str | None) -> str:
@@ -300,10 +304,37 @@ async def build(
         ModelUsageModel.completion_tokens,
         ModelUsageModel.cache_read_input_tokens,
         ModelUsageModel.cache_creation_input_tokens,
-    ).where(ModelUsageModel.created_at >= start, ModelUsageModel.created_at < end)
+    ).where(
+        ModelUsageModel.created_at >= start,
+        ModelUsageModel.created_at < end,
+        # A transcription row carries seconds, not tokens; it is reported
+        # below on its own, never as a token call with nothing in it.
+        ModelUsageModel.audio_seconds == 0,
+        ~ModelUsageModel.feature.in_(AUDIO_FEATURES),
+    )
+    audio_q = (
+        select(
+            ModelUsageModel.feature,
+            ModelUsageModel.provider,
+            ModelUsageModel.model,
+            func.count(ModelUsageModel.id),
+            func.coalesce(func.sum(ModelUsageModel.audio_seconds), 0),
+            func.count(ModelUsageModel.id).filter(ModelUsageModel.audio_seconds == 0),
+        )
+        .where(
+            ModelUsageModel.created_at >= start,
+            ModelUsageModel.created_at < end,
+            (ModelUsageModel.audio_seconds > 0)
+            | ModelUsageModel.feature.in_(AUDIO_FEATURES),
+        )
+        .group_by(
+            ModelUsageModel.feature, ModelUsageModel.provider, ModelUsageModel.model
+        )
+    )
     if organization_id is not None:
         run_q = run_q.where(WorkflowRunModel.organization_id == organization_id)
         direct_q = direct_q.where(ModelUsageModel.organization_id == organization_id)
+        audio_q = audio_q.where(ModelUsageModel.organization_id == organization_id)
 
     run_rows = (await session.execute(run_q)).all()
     direct_rows = (await session.execute(direct_q)).all()
@@ -321,6 +352,19 @@ async def build(
                     rates[(component, provider, m)] = rate
 
     report = summarise(run_rows=run_rows, direct_rows=direct_rows, rates=rates)
+    report["audio"] = [
+        {
+            "feature": feature,
+            "provider": provider,
+            "model": model,
+            "calls": int(calls),
+            "audio_seconds": round(float(seconds or 0), 1),
+            "calls_without_length": int(unknown),
+        }
+        for feature, provider, model, calls, seconds, unknown in (
+            await session.execute(audio_q)
+        ).all()
+    ]
     report["window"] = {"start": start.isoformat(), "end": end.isoformat()}
     report["organization_id"] = organization_id
     return report
