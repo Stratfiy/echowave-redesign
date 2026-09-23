@@ -114,7 +114,7 @@ def _packs(
     return (
         AgentPack(
             slug="front_desk_clinic",
-            name="Front Desk Bot",
+            name="Front Desk Agent",
             job="Answer the phone",
             summary="Answers every call, books the appointment, and hands anything clinical to a person.",
             publisher=DECIBYL,
@@ -149,7 +149,7 @@ def _packs(
         ),
         AgentPack(
             slug="order_confirmation",
-            name="Order Confirmation Bot",
+            name="Order Confirmation Agent",
             job="Confirm orders before they ship",
             summary="Rings every COD order before dispatch and confirms the customer still wants it.",
             publisher=DECIBYL,
@@ -188,7 +188,7 @@ def _packs(
         ),
         AgentPack(
             slug="payment_reminder",
-            name="Payment Reminder Bot",
+            name="Payment Reminder Agent",
             job="Chase what is owed",
             summary="Calls before the due date, takes the promise to pay, and never calls outside legal hours.",
             publisher=DECIBYL,
@@ -213,7 +213,7 @@ def _packs(
         ),
         AgentPack(
             slug="lead_qualifier",
-            name="Lead Qualifier Bot",
+            name="Lead Qualifier Agent",
             job="Qualify new enquiries",
             summary="Calls a new lead within minutes, finds out what they actually want, and books the visit.",
             publisher=DECIBYL,
@@ -239,7 +239,7 @@ def _packs(
         ),
         AgentPack(
             slug="admissions_desk",
-            name="Admissions Bot",
+            name="Admissions Agent",
             job="Follow up on admissions",
             summary="Calls every enquiry back, answers fees and batches, and books the counselling slot.",
             publisher=DECIBYL,
@@ -272,7 +272,7 @@ def _packs(
         ),
         AgentPack(
             slug="reservations_desk",
-            name="Reservations Bot",
+            name="Reservations Agent",
             job="Answer the phone",
             summary="Takes the booking, holds the table, and stops the phone ringing through service.",
             publisher=DECIBYL,
@@ -313,7 +313,7 @@ def _packs(
         # add a vertical.
         AgentPack(
             slug="internal_knowledge",
-            name="Internal Knowledge Bot",
+            name="Internal Knowledge Agent",
             job="Answer the team's questions",
             summary=(
                 "Answers your staff from your own documents, and says when the "
@@ -421,7 +421,7 @@ def _packs(
         ),
         AgentPack(
             slug="compliance_reminder",
-            name="Compliance Reminder Bot",
+            name="Compliance Reminder Agent",
             job="Watch what falls due",
             summary=(
                 "Runs every morning, checks what is coming due, and tells the "

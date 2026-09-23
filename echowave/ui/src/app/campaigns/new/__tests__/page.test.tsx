@@ -40,11 +40,11 @@ beforeEach(() => {
 });
 
 describe("the campaign form", () => {
-    it("asks for a bot, not a workflow", async () => {
+    it("asks for an agent, not a workflow", async () => {
         listConfigs.mockResolvedValue({ data: { configurations: [] } });
         render(<NewCampaignPage />);
         await waitFor(() => expect(screen.getByText("Get a number")).toBeTruthy());
-        expect(screen.getByText("Bot")).toBeTruthy();
+        expect(screen.getByText("Agent")).toBeTruthy();
         expect(screen.queryByText(/workflow/i)).toBeNull();
         expect(screen.queryByText(/telephony configuration/i)).toBeNull();
     });

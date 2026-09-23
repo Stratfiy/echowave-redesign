@@ -100,7 +100,7 @@ export function BotResults({ workflowId }: { workflowId: number }) {
                     <p className="text-sm text-muted-foreground">Counting…</p>
                 ) : !board ? (
                     <p className="text-sm text-muted-foreground">
-                        This bot could not be found.
+                        This agent could not be found.
                     </p>
                 ) : board.runs === 0 ? (
                     <p className="text-sm text-muted-foreground">
@@ -147,7 +147,7 @@ export function BotResults({ workflowId }: { workflowId: number }) {
                         {!board.configured && (
                             <p className="mt-1 text-xs text-muted-foreground">
                                 These are the default outcomes — nobody has said what a
-                                win is for this bot yet.
+                                win is for this agent yet.
                             </p>
                         )}
                     </>

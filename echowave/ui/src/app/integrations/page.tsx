@@ -351,7 +351,7 @@ function IntegrationsScreen() {
         const ok = await confirm({
             title: `Disconnect ${row.provider}?`,
             description:
-                "Every stored key for this provider is deleted, and any bot slot it was covering stops working on the next call. You will need the original keys to reconnect.",
+                "Every stored key for this provider is deleted, and any agent slot it was covering stops working on the next call. You will need the original keys to reconnect.",
             confirmLabel: "Disconnect provider",
             destructive: true,
         });

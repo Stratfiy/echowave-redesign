@@ -350,7 +350,7 @@ export function PlanSection({
                     <>
                       Text only: WhatsApp, email and web chat.
                       <span className="block text-xs text-muted-foreground">
-                        No phone line. Move to Business to put a bot on a
+                        No phone line. Move to Business to put an agent on a
                         number.
                       </span>
                     </>

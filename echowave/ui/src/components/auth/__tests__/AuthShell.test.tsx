@@ -14,10 +14,10 @@ describe("the door a stranger arrives at", () => {
                 <p>form</p>
             </AuthShell>,
         );
-        const pitch = screen.getByText(/bots answer the phone/i);
+        const pitch = screen.getByText(/agents answer the phone/i);
         expect(pitch.textContent).toMatch(/WhatsApp/);
         expect(pitch.textContent).toMatch(/hand back what they/i);
-        expect(screen.getByRole("heading").textContent).toMatch(/A bot for every job/);
+        expect(screen.getByRole("heading").textContent).toMatch(/An agent for every job/);
     });
 
     it("carries none of the mauve the product dropped", () => {
@@ -38,7 +38,7 @@ describe("the door a stranger arrives at", () => {
                 <p>form</p>
             </AuthShell>,
         );
-        const pitch = screen.getByText(/bots answer the phone/i);
+        const pitch = screen.getByText(/agents answer the phone/i);
         expect(pitch.textContent).toMatch(/Hindi, Tamil, Telugu/);
     });
 

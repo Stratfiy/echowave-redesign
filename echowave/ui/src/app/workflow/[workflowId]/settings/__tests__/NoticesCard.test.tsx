@@ -25,7 +25,7 @@ const OFFER = {
         {
             kind: "needs_attention",
             label: "It needs attention",
-            when: "The bot has stopped and cannot carry on by itself.",
+            when: "The agent has stopped and cannot carry on by itself.",
             default: true,
         },
         {
@@ -45,7 +45,7 @@ beforeEach(() => {
     write.mockResolvedValue({ data: OFFER });
 });
 
-describe("what a bot tells you", () => {
+describe("what an agent tells you", () => {
     it("offers what the server says it can emit, not a list written here", async () => {
         render(<NoticesCard workflowId={35} />);
         expect(await screen.findByText("It needs attention")).toBeTruthy();

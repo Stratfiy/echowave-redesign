@@ -441,7 +441,7 @@ class PipecatEngine:
                 self._skills_block = skill_context.block(installed, installed) or ""
             except Exception as exc:  # noqa: BLE001 - the call must go on
                 logger.warning(
-                    "Could not read this bot's skills; it goes on without them: {}",
+                    "Could not read this agent's skills; it goes on without them: {}",
                     exc,
                 )
                 self._skills_block = ""
@@ -1691,7 +1691,7 @@ class PipecatEngine:
             ]
             return self_edit.steps_block({"nodes": nodes})
         except Exception as exc:  # noqa: BLE001 - a missing block is not a failed turn
-            logger.warning("Could not list this bot's steps: {}", exc)
+            logger.warning("Could not list this agent's steps: {}", exc)
             return ""
 
     async def _propose_edit_handler(self, function_call_params) -> None:

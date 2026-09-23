@@ -1,11 +1,11 @@
 ---
 title: "Triggers"
-description: "Ring a bot from an outside system: write a sentence, get a webhook address or an email address"
+description: "Ring an agent from an outside system: write a sentence, get a webhook address or an email address"
 ---
 
-A **trigger** lets an outside system start a bot. An order is placed, a payment fails, a form is submitted — the system that saw it posts the event to the trigger's address, and the bot does one job with it and reports in its thread.
+A **trigger** lets an outside system start an agent. An order is placed, a payment fails, a form is submitted — the system that saw it posts the event to the trigger's address, and the agent does one job with it and reports in its thread.
 
-A trigger rings the bot one of two ways: a **webhook** a system POSTs to, or an **email address** you forward mail to. Same sentence, same run, same price; pick the one the sending system can reach.
+A trigger rings the agent one of two ways: a **webhook** a system POSTs to, or an **email address** you forward mail to. Same sentence, same run, same price; pick the one the sending system can reach.
 
 You do not write the webhook. You write a sentence.
 
@@ -13,11 +13,11 @@ You do not write the webhook. You write a sentence.
 
 ## Setting one up
 
-Open the bot, then **Triggers**. Choose **Webhook** or **Email**, then type what should happen and when:
+Open the agent, then **Triggers**. Choose **Webhook** or **Email**, then type what should happen and when:
 
 > When a Shopify order over Rs 5,000 comes in, check stock and message the customer
 
-Press **Work it out**. Decibyl turns the sentence into a plan: a name, the fields the event should carry, the condition under which the bot acts, and what the bot is told each time. If the sentence leaves out something the plan needs — which field holds the amount, what counts as "big" — you are asked, and nothing is saved until you answer. It never fails on the sentence.
+Press **Work it out**. Decibyl turns the sentence into a plan: a name, the fields the event should carry, the condition under which the agent acts, and what the agent is told each time. If the sentence leaves out something the plan needs — which field holds the amount, what counts as "big" — you are asked, and nothing is saved until you answer. It never fails on the sentence.
 
 Save a **webhook** trigger and it gets a **web address** and a **secret**. Paste the address into the sending system's webhook settings and send the secret with it, either as the `X-Trigger-Secret` header or, for senders that cannot set headers, as `?key=` on the address.
 
@@ -25,17 +25,17 @@ Save an **email** trigger and it gets an **email address** instead — see [By e
 
 The channel is fixed when you save. To switch, delete the trigger and make a new one.
 
-Every bot can have up to 10 triggers.
+Every agent can have up to 10 triggers.
 
 ---
 
 ## What the sender gets back
 
-The address always answers quickly and, wherever it can, with `202 Accepted`. The bot runs in the background: a sender left waiting on the bot would time out and retry, and a retry is a second run.
+The address always answers quickly and, wherever it can, with `202 Accepted`. The agent runs in the background: a sender left waiting on the agent would time out and retry, and a retry is a second run.
 
 | Reply | Meaning |
 |---|---|
-| `202` `accepted` | The bot is acting on it. |
+| `202` `accepted` | The agent is acting on it. |
 | `202` `filtered` | The event did not match the trigger's condition. Nothing ran, nothing was charged. |
 | `202` `duplicate` | An event with this id was already delivered in the last day. Nothing ran again. |
 | `202` `paused` | The trigger is switched off. Nothing ran. |
@@ -45,27 +45,27 @@ The address always answers quickly and, wherever it can, with `202 Accepted`. Th
 
 Send an event id as the `X-Event-Id` header, or as `event_id` or `id` in the body, and a redelivery will not become a second run.
 
-The body may be JSON (an object or an array), form-encoded, or plain text. It is shown to the bot as it arrived, up to about 6,000 characters.
+The body may be JSON (an object or an array), form-encoded, or plain text. It is shown to the agent as it arrived, up to about 6,000 characters.
 
 ---
 
 ## When a field is missing
 
-If an event arrives without a field the plan marked as required, the bot is not refused the event and the sender is not sent an error. The bot is told what is missing and, if it cannot do the job without it, asks the team on a **decision card** in the thread. Answer the card and the bot carries on.
+If an event arrives without a field the plan marked as required, the agent is not refused the event and the sender is not sent an error. The agent is told what is missing and, if it cannot do the job without it, asks the team on a **decision card** in the thread. Answer the card and the agent carries on.
 
 ---
 
 ## Trying it
 
-Each trigger card has **Try it with a sample event**: paste a sample JSON body and press **Fire once**. It is the real run, on the published bot, and it tells you before running whether the sample would have matched the condition.
+Each trigger card has **Try it with a sample event**: paste a sample JSON body and press **Fire once**. It is the real run, on the published agent, and it tells you before running whether the sample would have matched the condition.
 
 ---
 
 ## By email
 
-An **email** trigger has an address of its own, like `a1b2c3d4-…@in.decibyl.ai`. Mail sent to it fires the bot, with the subject and body as the event. Use it when the system that should ring the bot can send email but not a webhook — a supplier who emails purchase orders, a form tool that only emails responses, an alerting service with an email destination.
+An **email** trigger has an address of its own, like `a1b2c3d4-…@in.decibyl.ai`. Mail sent to it fires the agent, with the subject and body as the event. Use it when the system that should ring the agent can send email but not a webhook — a supplier who emails purchase orders, a form tool that only emails responses, an alerting service with an email destination.
 
-Copy the address from the trigger card, or set it as a forwarding address on an inbox you already receive to, so everything that lands there reaches the bot.
+Copy the address from the trigger card, or set it as a forwarding address on an inbox you already receive to, so everything that lands there reaches the agent.
 
 The condition is written against the mail's fields: `from`, `subject` and `text` (the plain-text body). For example, *only when the subject contains "invoice"* becomes a condition on `subject`.
 
@@ -73,19 +73,19 @@ The same promises hold as for a webhook:
 
 | Reply | Meaning |
 |---|---|
-| `accepted` | The bot is acting on the message. |
+| `accepted` | The agent is acting on the message. |
 | `filtered` | The message did not match the condition. Nothing ran, nothing was charged. |
 | `duplicate` | A message with this id already arrived in the last day. Nothing ran again. |
 | `paused` | The trigger is switched off. |
 | `unknown_address` | No email trigger has that address. |
 
-A resent message with the same `Message-Id` does not become a second run, and the body is shown to the bot up to about 6,000 characters. An email trigger has no secret and no `X-Trigger-Secret`: the unguessable address is the credential, and the mail provider handoff is authenticated separately.
+A resent message with the same `Message-Id` does not become a second run, and the body is shown to the agent up to about 6,000 characters. An email trigger has no secret and no `X-Trigger-Secret`: the unguessable address is the credential, and the mail provider handoff is authenticated separately.
 
 ---
 
 ## Price
 
-One credit per event the bot acts on, whether it arrived by webhook or email. Events the condition ignores are free. See [Billing](/account/billing/).
+One credit per event the agent acts on, whether it arrived by webhook or email. Events the condition ignores are free. See [Billing](/account/billing/).
 
 ---
 

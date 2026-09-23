@@ -67,7 +67,7 @@ beforeEach(() => {
 });
 
 describe("BotAnalytics", () => {
-    it("asks for this bot's numbers, not the account's", async () => {
+    it("asks for this agent's numbers, not the account's", async () => {
         render(<BotAnalytics workflowId={42} />);
         await waitFor(() => expect(analytics).toHaveBeenCalled());
         expect(analytics.mock.calls[0][0]).toEqual({

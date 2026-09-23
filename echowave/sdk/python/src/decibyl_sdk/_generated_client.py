@@ -46,7 +46,7 @@ class _GeneratedClient:
 
     def create_workflow(self, *, body: CreateWorkflowRequest) -> WorkflowResponse:
         """Create a new workflow from a workflow definition."""
-        data = self._request("POST", "/workflow/create/definition", json=body.model_dump(mode="json", exclude_none=True))
+        data = self._request("POST", "/workflows/create/definition", json=body.model_dump(mode="json", exclude_none=True))
         return WorkflowResponse.model_validate(data)
 
     def get_extraction_library(self, catalog: str) -> ExtractionLibraryResponse:
@@ -73,7 +73,7 @@ class _GeneratedClient:
 
     def get_workflow(self, workflow_id: int) -> WorkflowResponse:
         """Get a single workflow by ID (returns draft if one exists, else published)."""
-        data = self._request("GET", f"/workflow/fetch/{workflow_id}")
+        data = self._request("GET", f"/workflows/fetch/{workflow_id}")
         return WorkflowResponse.model_validate(data)
 
     def list_contact_lists(self) -> list[ContactListResponse]:
@@ -138,7 +138,7 @@ class _GeneratedClient:
         params: dict[str, Any] = {}
         if status is not None:
             params["status"] = status
-        data = self._request("GET", "/workflow/fetch", params=params)
+        data = self._request("GET", "/workflows/fetch", params=params)
         return [WorkflowListResponse.model_validate(x) for x in data]
 
     def test_phone_call(self, *, body: InitiateCallRequest) -> Any:
@@ -147,5 +147,5 @@ class _GeneratedClient:
 
     def update_workflow(self, workflow_id: int, *, body: UpdateWorkflowRequest) -> WorkflowResponse:
         """Update a workflow's name and/or definition. Saves as a new draft."""
-        data = self._request("PUT", f"/workflow/{workflow_id}", json=body.model_dump(mode="json", exclude_none=True))
+        data = self._request("PUT", f"/workflows/{workflow_id}", json=body.model_dump(mode="json", exclude_none=True))
         return WorkflowResponse.model_validate(data)

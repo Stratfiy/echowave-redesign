@@ -106,7 +106,7 @@ def templates_block() -> str:
     from api.services.agent_builder.assemble import required_variables
     from api.services.agent_templates import list_templates
 
-    lines = ["## Templates a new bot can be built from"]
+    lines = ["## Templates a new agent can be built from"]
     for template in list_templates():
         needs = required_variables(template)
         asks = ", ".join(
@@ -146,7 +146,7 @@ def test_tool_schema() -> dict[str, Any]:
     return {
         "name": TEST_TOOL_NAME,
         "description": (
-            "Offer to test a bot, when a person asks to hear, try or test one. "
+            "Offer to test an agent, when a person asks to hear, try or test one. "
             "'hear' is a real call in the browser; 'try' is a text chat. Both "
             "are marked TEST and never reach a customer. You will not see the "
             "result in this turn; say the test is ready on the card and end."
@@ -156,7 +156,7 @@ def test_tool_schema() -> dict[str, Any]:
             "properties": {
                 "bot": {
                     "type": "string",
-                    "description": "The bot, by @handle or name.",
+                    "description": "The agent, by @handle or name.",
                 },
                 "how": {
                     "type": "string",
@@ -210,7 +210,7 @@ async def offer_test(
     if bot is None:
         return {
             "status": "not_offered",
-            "reason": f"No bot called {wanted!r} here; use its exact @handle.",
+            "reason": f"No agent called {wanted!r} here; use its exact @handle.",
         }
     verb = "Hear" if how == HEAR else "Try"
     line = f"{verb} {bot.name}" + (f": {brief}" if brief else "")
@@ -249,10 +249,10 @@ def check_tool_schema() -> dict[str, Any]:
     return {
         "name": CHECK_TOOL_NAME,
         "description": (
-            "Check a bot: a scripted caller plays the scenario over text and "
+            "Check an agent: a scripted caller plays the scenario over text and "
             "a judge grades the transcript. Use when a person asks to check, "
-            "verify or make sure a bot handles something, and offer it before "
-            "an edit lands on a live bot. Marked TEST; reaches no customer. "
+            "verify or make sure an agent handles something, and offer it before "
+            "an edit lands on a live agent. Marked TEST; reaches no customer. "
             "You will not see the verdict in this turn; say the check is "
             "running and the result will appear on this thread, then end."
         ),
@@ -261,7 +261,7 @@ def check_tool_schema() -> dict[str, Any]:
             "properties": {
                 "bot": {
                     "type": "string",
-                    "description": "The bot, by @handle or name.",
+                    "description": "The agent, by @handle or name.",
                 },
                 "brief": {
                     "type": "string",
@@ -274,12 +274,12 @@ def check_tool_schema() -> dict[str, Any]:
                 "must_say": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Phrases the bot must say, if any.",
+                    "description": "Phrases the agent must say, if any.",
                 },
                 "must_not_say": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Phrases the bot must not say, if any.",
+                    "description": "Phrases the agent must not say, if any.",
                 },
             },
             "required": ["bot", "brief"],
@@ -307,7 +307,7 @@ async def check_bot(
     if bot is None:
         return {
             "status": "not_checked",
-            "reason": f"No bot called {wanted!r} here; use its exact @handle.",
+            "reason": f"No agent called {wanted!r} here; use its exact @handle.",
         }
     must_say = [
         str(p).strip() for p in (arguments.get("must_say") or []) if str(p).strip()
@@ -379,7 +379,7 @@ async def post_check_result(result: Any) -> None:
         workflow = await db_client.get_workflow(
             result.workflow_id, organization_id=organization_id
         )
-        bot_name = getattr(workflow, "name", None) or "the bot"
+        bot_name = getattr(workflow, "name", None) or "the agent"
         handle = getattr(workflow, "handle", None)
         case = None
         async with db_client.async_session() as session:
@@ -435,13 +435,13 @@ def edit_tool_schema() -> dict[str, Any]:
     properties = dict(self_edit.tool_properties())
     properties["bot"] = {
         "type": "string",
-        "description": "The bot to change, by @handle or name.",
+        "description": "The agent to change, by @handle or name.",
     }
     return {
         "name": self_edit.TOOL_NAME,
         "description": (
-            "Propose a change to one bot's behaviour, when a person asks. "
-            "Name the bot, the step (from its steps in the context; 'Rules' "
+            "Propose a change to one agent's behaviour, when a person asks. "
+            "Name the agent, the step (from its steps in the context; 'Rules' "
             "for what applies on every step) and the complete new prompt. "
             "Say in one line why. It becomes a draft with a diff card on "
             "this thread; a person publishes it. Say you have proposed it "
@@ -466,7 +466,7 @@ async def propose_edit(
     if bot is None:
         return {
             "status": "not_proposed",
-            "reason": f"No bot called {wanted!r} here; use its exact @handle.",
+            "reason": f"No agent called {wanted!r} here; use its exact @handle.",
         }
     result = await self_edit.propose(
         organization_id=organization_id,

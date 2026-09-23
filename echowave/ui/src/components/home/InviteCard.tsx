@@ -46,7 +46,7 @@ type Referrals = {
 
 function shareText(link: string, credits: number): string {
   return (
-    `I use Decibyl to run bots for my business — phone, WhatsApp and routines. ` +
+    `I use Decibyl to run agents for my business — phone, WhatsApp and routines. ` +
     `Sign up with my link and we both get ${credits.toLocaleString("en-IN")} free credits on your first payment: ${link}`
   );
 }

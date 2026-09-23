@@ -66,7 +66,7 @@ export default function DeliverablesPage() {
             ]);
             if (cancelled) return;
             if (feed.error || !feed.data) {
-                setError("Could not read what your bots have handed over.");
+                setError("Could not read what your agents have handed over.");
                 setEvents([]);
             } else {
                 setEvents(feed.data.events ?? []);
@@ -85,7 +85,7 @@ export default function DeliverablesPage() {
             <PageHeader
                 tabs={DESK_TABS}
                 title="Handed over"
-                description="What your bots produced, sorted or could not do — every bot, newest first."
+                description="What your agents produced, sorted or could not do — every agent, newest first."
             />
             <PageBody className="max-w-3xl space-y-6">
                 {events === null && (
@@ -106,7 +106,7 @@ export default function DeliverablesPage() {
                     <div>
                         <p className="text-sm font-medium">Nothing handed over yet.</p>
                         <p className="mt-1 text-sm text-muted-foreground">
-                            When a bot files an outcome, produces a file, or stops and
+                            When an agent files an outcome, produces a file, or stops and
                             needs you, it lands here as well as in its own thread.
                         </p>
                     </div>
@@ -123,7 +123,7 @@ export default function DeliverablesPage() {
                                 const Icon = tone?.icon ?? FileText;
                                 const who =
                                     (event.workflow_id != null && names[event.workflow_id]) ||
-                                    "A bot";
+                                    "An agent";
                                 const href =
                                     event.workflow_id != null && event.workflow_run_id != null
                                         ? `/workflow/${event.workflow_id}/run/${event.workflow_run_id}`

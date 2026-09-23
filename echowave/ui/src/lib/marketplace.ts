@@ -121,21 +121,12 @@ export function filterBots(templates: BotTemplate[], filter: BotFilter): BotTemp
 }
 
 /**
- * A colour per shelf, from a fixed palette, chosen by name so the same
- * shelf is the same colour on every visit and any shelf the catalogue adds
- * tomorrow gets one without a code change. Text tokens carry the text; the
- * colour is the tile behind an icon.
+ * The tile behind a shelf's icon. Neutral, the way Buzz's directory is: the
+ * icon says what the shelf is, and a rainbow of pastel tiles said nothing
+ * but "colour". One tone, from the theme, so it follows light, dark and
+ * whichever theme is chosen.
  */
-const TONES = [
-    "bg-sky-100 text-sky-800",
-    "bg-violet-100 text-violet-800",
-    "bg-emerald-100 text-emerald-800",
-    "bg-amber-100 text-amber-800",
-    "bg-rose-100 text-rose-800",
-    "bg-teal-100 text-teal-800",
-    "bg-indigo-100 text-indigo-800",
-    "bg-orange-100 text-orange-800",
-] as const;
+const TONES = ["bg-muted text-foreground"] as const;
 
 export function toneFor(name: string): string {
     let hash = 0;

@@ -653,7 +653,7 @@ export default function BillingPage() {
       <PageHeader
         tabs={BILLING_TABS}
         title="Billing"
-        description="Decibyl is prepaid. Your bots run while there is credit on the account."
+        description="Decibyl is prepaid. Your agents run while there is credit on the account."
       />
       <PageBody>{body}</PageBody>
     </>

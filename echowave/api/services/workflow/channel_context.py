@@ -89,10 +89,10 @@ TRUNCATED_NOTE = "(earlier messages in this channel are not shown)"
 #: what has already been settled.
 FOLD_SYSTEM_PROMPT = (
     "You maintain a running summary of a workplace channel where people and AI "
-    "bots talk. You will be given the summary so far and the messages since. "
+    "agents talk. You will be given the summary so far and the messages since. "
     "Write the new summary: fold the messages into it. Keep every decision, "
     "every correction (a later message overrides an earlier one), every task a "
-    "bot reported doing or failing to do, and every open request nobody has "
+    "agent reported doing or failing to do, and every open request nobody has "
     "answered. Drop pleasantries and repetition. Write plainly, in the past "
     "tense, in at most 12 short lines. Output only the summary."
 )
@@ -112,7 +112,7 @@ def _speaker(event: Any, names: Mapping[int, str]) -> str:
     workflow_id = getattr(event, "workflow_id", None)
     if workflow_id is not None and workflow_id in names:
         return names[workflow_id]
-    return "Another bot"
+    return "Another agent"
 
 
 def _line(event: Any, names: Mapping[int, str]) -> Optional[str]:
@@ -177,9 +177,9 @@ def render(
         "WHAT HAS BEEN SAID IN THIS CHANNEL.",
         "This is the conversation in the channel you are answering in. Use it "
         "the way a colleague who has been reading along would: it tells you "
-        "what has already been asked, what another bot has already done, and "
+        "what has already been asked, what another agent has already done, and "
         "what anybody has corrected. A later message outranks an earlier one. "
-        "Do not repeat work another bot has already reported here.",
+        "Do not repeat work another agent has already reported here.",
     ]
     if summary:
         parts.append("Earlier in this channel, in summary:\n" + summary)
@@ -273,7 +273,9 @@ async def recent_bot_thread(
         )
         names = await _names_for(organization_id)
     except Exception as exc:  # noqa: BLE001 - context is an improvement, not a dependency
-        logger.warning("Could not read bot {} thread for context: {}", workflow_id, exc)
+        logger.warning(
+            "Could not read agent {} thread for context: {}", workflow_id, exc
+        )
         return None
     return render(rows, names, max_chars=max_chars, max_events=max_events)
 

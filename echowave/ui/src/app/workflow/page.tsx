@@ -139,7 +139,7 @@ async function WorkflowList() {
                 {archivedWorkflows.length > 0 && (
                     <p className="mb-8 text-sm text-muted-foreground">
                         {archivedWorkflows.length}{" "}
-                        {archivedWorkflows.length === 1 ? "bot is" : "bots are"} archived.{" "}
+                        {archivedWorkflows.length === 1 ? "agent is" : "agents are"} archived.{" "}
                         <Link href="/workflow/archived" className="underline underline-offset-4 hover:text-foreground">
                             See them
                         </Link>
@@ -204,7 +204,7 @@ export default function WorkflowPage() {
     return (
         <>
             <PageHeader
-                title="Your bots"
+                title="Your agents"
                 description="Each one does a job — on the phone, on WhatsApp, or on a schedule."
                 tabs={BOTS_TABS}
                 actions={

@@ -178,11 +178,11 @@ const FEATURED = 5;
 
 /** What the composer opens with when somebody would rather describe the
  *  bot than pick one. Decibyl builds it from the sentence. */
-export const DESCRIBE_PROMPT = "Build me a bot that ";
+export const DESCRIBE_PROMPT = "Build me an agent that ";
 
 function steps(voice: boolean): { id: Step; title: string; hint: string }[] {
     return [
-        { id: "pick", title: "Pick a bot", hint: "Each one already does the job" },
+        { id: "pick", title: "Pick an agent", hint: "Each one already does the job" },
         { id: "name", title: "Name it", hint: "Name, business, opening line" },
         voice
             ? { id: "hear", title: "Hear it", hint: "A real call, in the browser or to your phone" }
@@ -356,7 +356,7 @@ export function FirstAgentJourney() {
         });
         setBusy(false);
         if (response.error) {
-            const message = detailFromResult(response, "Could not create the bot.");
+            const message = detailFromResult(response, "Could not create the agent.");
             logger.error(`First agent create failed: ${message}`);
             posthog.capture(PostHogEvent.FIRST_AGENT_CREATE_FAILED, {
                 template_id: template.id,
@@ -367,7 +367,7 @@ export function FirstAgentJourney() {
         }
         const created = response.data as { id?: number } | undefined;
         if (created?.id == null) {
-            setError("The bot was created but could not be opened. It is in your list.");
+            setError("The agent was created but could not be opened. It is in your list.");
             return;
         }
         setWorkflowId(created.id);
@@ -390,7 +390,7 @@ export function FirstAgentJourney() {
         writeSaved(null);
     };
 
-    const displayName = agentName.trim() || template?.name || "Your bot";
+    const displayName = agentName.trim() || template?.name || "Your agent";
 
     return (
         <div className="min-h-screen px-4 py-6 sm:px-8">
@@ -496,10 +496,10 @@ function JourneyRail({
             </Link>
             <h1 className="mt-8 text-xl font-semibold leading-snug">
                 {step === "ready"
-                    ? "Your first bot is live."
+                    ? "Your first agent is live."
                     : firstName
-                      ? `Hi ${firstName}, let's build your first bot.`
-                      : "Let's build your first bot."}
+                      ? `Hi ${firstName}, let's build your first agent.`
+                      : "Let's build your first agent."}
             </h1>
 
             <ol className="mt-8 space-y-5" aria-label="Steps">
@@ -560,7 +560,7 @@ const TILE_COLOURS = [
     "bg-amber-100 text-amber-900",
     "bg-emerald-100 text-emerald-900",
     "bg-sky-100 text-sky-900",
-    "bg-violet-100 text-violet-900",
+    "bg-stone-100 text-stone-900",
     "bg-teal-100 text-teal-900",
 ];
 
@@ -612,7 +612,7 @@ function PickStep({
         <div className="space-y-6">
             <header className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                    <h2 className="text-2xl font-semibold tracking-tight">Pick a bot</h2>
+                    <h2 className="text-2xl font-semibold tracking-tight">Pick an agent</h2>
                     <p className="mt-1 text-sm text-muted-foreground">
                         Each one already does the job. Add one to your team, name it, and try it in a minute.
                     </p>
@@ -621,7 +621,7 @@ function PickStep({
                     href="/marketplace"
                     className="inline-flex items-center gap-1 text-sm font-medium text-[var(--accent-brand)] underline-offset-4 hover:underline"
                 >
-                    More bots
+                    More agents
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Link>
             </header>
@@ -634,10 +634,10 @@ function PickStep({
                 </div>
             ) : featured.length === 0 ? (
                 <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-                    No bots are available on this deployment. Describe yours instead.
+                    No agents are available on this deployment. Describe yours instead.
                 </div>
             ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" role="radiogroup" aria-label="Bots">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" role="radiogroup" aria-label="Agents">
                     {featured.map((t) => {
                         const active = t.id === selected;
                         return (
@@ -721,7 +721,7 @@ function PickStep({
                             <span className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
                                 <Sparkles className="h-5 w-5" aria-hidden="true" />
                             </span>
-                            <span className="mt-3 block font-semibold">Describe your bot</span>
+                            <span className="mt-3 block font-semibold">Describe your agent</span>
                             <span className="mt-1 block text-sm text-muted-foreground">
                                 Not on the shelf? Tell Decibyl what it should do, in your words, and it builds one.
                             </span>
@@ -761,9 +761,9 @@ function PickStep({
                 </div>
                 <span className="text-xs text-muted-foreground">
                     {voiceId
-                        ? "Your bot will answer in the voice you just heard."
+                        ? "Your agent will answer in the voice you just heard."
                         : voice
-                          ? "Change it on the bot whenever you like."
+                          ? "Change it on the agent whenever you like."
                           : "Press a voice on a card to hear it and choose it."}
                 </span>
             </div>
@@ -778,7 +778,7 @@ function PickStep({
                         <>
                             Pick one to continue, or{" "}
                             <Link href="/marketplace" className="underline underline-offset-4 hover:text-foreground">
-                                see every bot
+                                see every agent
                             </Link>
                             .
                         </>
@@ -843,7 +843,7 @@ function NameStep({
 
             <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                    <Label htmlFor="first-bot-name">Bot name</Label>
+                    <Label htmlFor="first-bot-name">Agent name</Label>
                     <Input
                         id="first-bot-name"
                         value={agentName}

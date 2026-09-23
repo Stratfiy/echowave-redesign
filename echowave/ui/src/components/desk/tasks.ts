@@ -170,7 +170,7 @@ const LABEL_TONES = [
     "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100",
     "bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100",
     "bg-rose-100 text-rose-900 dark:bg-rose-900/40 dark:text-rose-100",
-    "bg-violet-100 text-violet-900 dark:bg-violet-900/40 dark:text-violet-100",
+    "bg-stone-200 text-stone-900 dark:bg-stone-700/60 dark:text-stone-100",
     "bg-teal-100 text-teal-900 dark:bg-teal-900/40 dark:text-teal-100",
     "bg-orange-100 text-orange-900 dark:bg-orange-900/40 dark:text-orange-100",
     "bg-slate-200 text-slate-900 dark:bg-slate-700/60 dark:text-slate-100",

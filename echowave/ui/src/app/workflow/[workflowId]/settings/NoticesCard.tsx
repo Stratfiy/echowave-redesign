@@ -54,7 +54,7 @@ export function NoticesCard({ workflowId }: { workflowId: number }) {
             });
             if (cancelled) return;
             if (response.error || !response.data) {
-                setError("Could not read what this bot tells you.");
+                setError("Could not read what this agent tells you.");
             } else {
                 const body = response.data as unknown as {
                     offered: Offer[];
@@ -103,7 +103,7 @@ export function NoticesCard({ workflowId }: { workflowId: number }) {
                     Tell me when
                 </CardTitle>
                 <CardDescription>
-                    What this bot rings the bell for. The rest still lands in its
+                    What this agent rings the bell for. The rest still lands in its
                     thread — this is only what is worth interrupting you for.
                 </CardDescription>
             </CardHeader>

@@ -79,7 +79,7 @@ import { DEFAULT_TAB, isTabId, type TabId, TABS } from "./tabs";
 // Constants
 // ---------------------------------------------------------------------------
 
-const DEFAULT_VOICEMAIL_SYSTEM_PROMPT = `You are a voicemail detection classifier for an OUTBOUND calling system. A bot has called a phone number and you need to determine if a human answered or if the call went to voicemail based on the provided text.
+const DEFAULT_VOICEMAIL_SYSTEM_PROMPT = `You are a voicemail detection classifier for an OUTBOUND calling system. An agent has called a phone number and you need to determine if a human answered or if the call went to voicemail based on the provided text.
 
 HUMAN ANSWERED - LIVE CONVERSATION (respond "CONVERSATION"):
 - Personal greetings: "Hello?", "Hi", "Yeah?", "John speaking"
@@ -374,12 +374,12 @@ function GeneralSection({
             <CardContent className="space-y-6">
                 {/* Agent Name */}
                 <div className="space-y-2">
-                    <Label htmlFor="workflow_name" className="text-sm font-medium">Bot name</Label>
+                    <Label htmlFor="workflow_name" className="text-sm font-medium">Agent name</Label>
                     <Input
                         id="workflow_name"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        placeholder="Enter Bot name"
+                        placeholder="Enter Agent name"
                     />
                 </div>
 
@@ -413,7 +413,7 @@ function GeneralSection({
                     <FallbackChain
                         label="Transcriber"
                         kind="stt"
-                        description="A transcriber that fails leaves the bot unable to hear, so it waits through a caller who is already talking."
+                        description="A transcriber that fails leaves the agent unable to hear, so it waits through a caller who is already talking."
                         schemas={modelConfigurationDefaults?.byok?.pipeline?.stt}
                         value={fallbackStt}
                         onChange={setFallbackStt}
@@ -540,7 +540,7 @@ function GeneralSection({
                     <p className="text-xs text-muted-foreground">
                         {recordingConfig.enabled
                             ? "On. Recordings follow the retention period set on the Privacy page."
-                            : "Off. No audio is written for this bot's calls, so call review has the transcript only."}
+                            : "Off. No audio is written for this agent's calls, so call review has the transcript only."}
                     </p>
                 </div>
 
@@ -834,7 +834,7 @@ function ArgumentsEditor({
                                               collects,
                                           ) as string,
                                       )
-                                    : "Leave blank, or pick from what this bot collects"
+                                    : "Leave blank, or pick from what this agent collects"
                             }
                             value={values[parameter.name] ?? ""}
                             onChange={(e) => set(parameter.name, e.target.value)}
@@ -849,7 +849,7 @@ function ArgumentsEditor({
                                     set(parameter.name, variableToken(e.target.value))
                                 }
                             >
-                                <option value="">Use a value this bot collects…</option>
+                                <option value="">Use a value this agent collects…</option>
                                 {collects.map((name) => (
                                     <option key={name} value={name}>
                                         {name}
@@ -1353,7 +1353,7 @@ function VoicemailSection({
                                     checked={useWorkflowLlm}
                                     onCheckedChange={setUseWorkflowLlm}
                                 />
-                                <Label htmlFor="voicemail-use-workflow-llm">Use the bot&apos;s model</Label>
+                                <Label htmlFor="voicemail-use-workflow-llm">Use the agent&apos;s model</Label>
                                 <Label className="ml-2 text-xs text-muted-foreground">
                                     Use the LLM configured in your account settings.
                                 </Label>
@@ -1423,9 +1423,9 @@ function AgentUuidSection({ workflowUuid }: { workflowUuid: string }) {
     const handleCopy = async () => {
         try {
             await navigator.clipboard.writeText(workflowUuid);
-            toast.success("Bot UUID copied");
+            toast.success("Agent UUID copied");
         } catch {
-            toast.error("Failed to copy Bot UUID");
+            toast.error("Failed to copy Agent UUID");
         }
     };
 

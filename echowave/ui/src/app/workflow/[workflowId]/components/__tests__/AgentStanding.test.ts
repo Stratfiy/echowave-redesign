@@ -30,7 +30,7 @@ function item(patch: Partial<ReadinessItem>): ReadinessItem {
     return { app: "gmail", label: "Gmail", status: "ok", needed_by: [], recent_failures: 0, connectable: true, ...patch };
 }
 
-describe("a bot's standing", () => {
+describe("an agent's standing", () => {
     it("says paused before it says anything else", () => {
         // A paused bot is not failing and not idle -- it was switched off,
         // and that is the answer to "why is nothing happening".
@@ -41,12 +41,12 @@ describe("a bot's standing", () => {
         expect(standing(member({ tone: "failing", calls: 4 })).label).toBe("Failing");
     });
 
-    it("separates a quiet day from a bot that has never run", () => {
+    it("separates a quiet day from an agent that has never run", () => {
         expect(standing(member({ calls: 0 })).label).toBe("On, nothing today");
         expect(standing(null).label).toBe("Not started yet");
     });
 
-    it("counts a bot that took calls as working", () => {
+    it("counts an agent that took calls as working", () => {
         expect(standing(member({ calls: 3, answered: 3 })).tone).toBe("good");
     });
 });

@@ -163,13 +163,13 @@ async def attach_if_named(
     try:
         uuid = await ensure_tool(organization_id=organization_id, user_id=user_id)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Could not give the built bot the web: {}", exc)
+        logger.warning("Could not give the built agent the web: {}", exc)
         return definition_
     if not uuid:
         return definition_
     from api.services.workflow import brief_apps
 
-    logger.info("Built bot gets the web: its brief names it")
+    logger.info("Built agent gets the web: its brief names it")
     return brief_apps.attach(definition_, [uuid])
 
 

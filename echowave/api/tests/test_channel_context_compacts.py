@@ -75,7 +75,7 @@ class TestRendering:
         out = cc.render(
             [_row(1, actor="agent", workflow_id=42, summary="did x")], NAMES
         )
-        assert "Another bot: did x" in out
+        assert "Another agent: did x" in out
 
     def test_a_pasted_document_is_cut_to_its_gist(self):
         out = cc.render([_row(1, "x" * (cc.MAX_LINE * 3))], NAMES)

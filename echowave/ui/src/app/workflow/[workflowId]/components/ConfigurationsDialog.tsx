@@ -127,7 +127,7 @@ export const ConfigurationsDialog = ({
                     {/* Workflow Name Section */}
                     <div className="space-y-4">
                         <div>
-                            <h3 className="text-sm font-semibold mb-1">Bot name</h3>
+                            <h3 className="text-sm font-semibold mb-1">Agent name</h3>
                             <p className="text-xs text-muted-foreground">
                                 The name of your agent
                             </p>
@@ -141,7 +141,7 @@ export const ConfigurationsDialog = ({
                                 type="text"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                placeholder="Enter Bot name"
+                                placeholder="Enter Agent name"
                             />
                         </div>
                     </div>
@@ -308,7 +308,7 @@ export const ConfigurationsDialog = ({
                                     }}
                                 />
                                 <p className="text-xs text-muted-foreground">
-                                    Number of transcribed words needed to interrupt while the bot is speaking. Default: {DEFAULT_TURN_START_MIN_WORDS}
+                                    Number of transcribed words needed to interrupt while the agent is speaking. Default: {DEFAULT_TURN_START_MIN_WORDS}
                                 </p>
                             </div>
                         )}
@@ -333,7 +333,7 @@ export const ConfigurationsDialog = ({
                                     }}
                                 />
                                 <p className="text-xs text-muted-foreground">
-                                    Seconds to pause bot audio while waiting for transcript confirmation. Default: {DEFAULT_PROVISIONAL_VAD_PAUSE_SECS}
+                                    Seconds to pause agent audio while waiting for transcript confirmation. Default: {DEFAULT_PROVISIONAL_VAD_PAUSE_SECS}
                                 </p>
                             </div>
                         )}

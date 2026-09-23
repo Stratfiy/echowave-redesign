@@ -126,7 +126,7 @@ decibyl:
       at cost; a page read is a tool call. The workspace's spend cap applies to the run.
     example_requests:
     - find new customers for my business and email them
-    - a bot that prospects dental clinics in Chennai and drafts outreach
+    - an agent that prospects dental clinics in Chennai and drafts outreach
     - outbound lead generation with approval before each email
     - cold email prospecting from my own gmail
     template_variables:

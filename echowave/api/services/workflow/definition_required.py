@@ -31,7 +31,7 @@ class NoDefinition(Exception):
         self.name = name
         who = f"'{name}'" if name else f"id {workflow_id}"
         super().__init__(
-            f"Bot {who} has no published version to run. "
+            f"Agent {who} has no published version to run. "
             "Open it and publish it, then try again."
         )
 

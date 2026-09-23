@@ -102,7 +102,7 @@ const STATUS_META: Record<
     },
     forwarded: {
         label: "With the operator",
-        tone: "bg-violet-500/12 text-violet-700 dark:text-violet-300",
+        tone: "bg-sky-500/12 text-sky-700 dark:text-sky-300",
         icon: <ArrowRight className="h-3 w-3" />,
     },
     carrier_approved: {

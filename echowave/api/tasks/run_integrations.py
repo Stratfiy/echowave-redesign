@@ -582,7 +582,7 @@ async def run_integrations_post_workflow_run(_ctx, workflow_run_id: int):
                     workflow_run_id=workflow_run_id,
                     agent_name=workflow_run.workflow.name
                     if workflow_run.workflow
-                    else "the bot",
+                    else "the agent",
                     transcript=format_transcript(
                         build_conversation_structure(
                             (workflow_run.logs or {}).get(

@@ -172,7 +172,7 @@ def templates() -> tuple[AgentTemplate, ...]:
             ],
             example_requests=[
                 "answer customer questions on my website and WhatsApp",
-                "a bot that captures leads from WhatsApp enquiries",
+                "an agent that captures leads from WhatsApp enquiries",
                 "reply to product and price enquiries from our catalogue",
             ],
         ),
@@ -384,7 +384,7 @@ def templates() -> tuple[AgentTemplate, ...]:
             example_requests=[
                 "reply to my 99acres and MagicBricks enquiries on WhatsApp",
                 "send the brochure and qualify property leads",
-                "a bot for my real estate listings",
+                "an agent for my real estate listings",
             ],
         ),
         _desk(
@@ -486,7 +486,7 @@ def templates() -> tuple[AgentTemplate, ...]:
             example_requests=[
                 "triage support tickets and route them to the right team",
                 "answer common support questions from our help docs",
-                "a first-response bot for our helpdesk",
+                "a first-response agent for our helpdesk",
             ],
         ),
     )

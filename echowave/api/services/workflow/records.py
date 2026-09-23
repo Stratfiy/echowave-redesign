@@ -31,7 +31,7 @@ def tool_schema() -> dict[str, Any]:
         "name": TOOL_NAME,
         "description": (
             "Search this workspace's own records: contacts (name or number), "
-            "documents (by name), calls (recent runs, by bot or caller) and "
+            "documents (by name), calls (recent runs, by agent or caller) and "
             "outcomes (what calls achieved). Runs now, costs nothing, reads "
             "only this workspace. Use it when the context does not already "
             "carry the rows -- a list, a count, a date range -- and say what "
@@ -47,7 +47,7 @@ def tool_schema() -> dict[str, Any]:
                 },
                 "query": {
                     "type": "string",
-                    "description": "Words to match: a name, a number, a file name, a bot.",
+                    "description": "Words to match: a name, a number, a file name, an agent.",
                 },
                 "days": {
                     "type": "integer",

@@ -57,7 +57,7 @@ export const CALLS_TABS: PageTab[] = [
  *  section at the foot of a long page, which is indistinguishable from
  *  not existing: people archived a bot and could not find it again. */
 export const BOTS_TABS: PageTab[] = [
-  { href: "/workflow", label: "Bots" },
+  { href: "/workflow", label: "Agents" },
   { href: "/workflow/archived", label: "Archived" },
 ];
 
@@ -177,7 +177,7 @@ export function deskTabs(boardEnabled: boolean): PageTab[] {
  *  screen the one remaining row lands on. Then what a bot can do, how it can
  *  be taught to do it, and the systems it reaches. */
 export const MARKETPLACE_TABS: PageTab[] = [
-  { href: "/marketplace", label: "Bots" },
+  { href: "/marketplace", label: "Agents" },
   { href: "/marketplace/tools", label: "Tools" },
   { href: "/marketplace/skills", label: "Skills" },
   { href: "/marketplace/integrations", label: "Integrations" },

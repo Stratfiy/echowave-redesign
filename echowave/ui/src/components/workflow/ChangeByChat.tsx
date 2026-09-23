@@ -61,7 +61,7 @@ export function ChangeByChat({
                     <SheetTitle>Change {name}</SheetTitle>
                     <SheetDescription>
                         Say what it should do differently. Changes are saved as a draft —
-                        the live bot keeps answering exactly as it does now until you
+                        the live agent keeps answering exactly as it does now until you
                         publish.
                     </SheetDescription>
                 </SheetHeader>
@@ -69,7 +69,7 @@ export function ChangeByChat({
                     <AgentBuilderPanel
                         heading={false}
                         showSuggestions={false}
-                        prefill={{ text: `I want to change my bot "${name}". `, nonce: 1 }}
+                        prefill={{ text: `I want to change my agent "${name}". `, nonce: 1 }}
                         onActions={(actions) => {
                             if (actions.some((action) => REVISING.has(action))) {
                                 onRevised();

@@ -35,7 +35,7 @@ export function DeployAgentPicker({
                         onValueChange={(value) => onSelect(Number(value))}
                     >
                         <SelectTrigger id="deploy-agent" className="max-w-md">
-                            <SelectValue placeholder="Choose a bot" />
+                            <SelectValue placeholder="Choose an agent" />
                         </SelectTrigger>
                         <SelectContent>
                             {agents.map((agent) => (
@@ -48,7 +48,7 @@ export function DeployAgentPicker({
                 </div>
                 {selected && (
                     <Button variant="outline" asChild>
-                        <Link href={`/workflow/${selected.id}`}>Edit this bot</Link>
+                        <Link href={`/workflow/${selected.id}`}>Edit this agent</Link>
                     </Button>
                 )}
             </CardContent>

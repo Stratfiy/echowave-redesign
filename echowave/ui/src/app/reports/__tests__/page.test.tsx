@@ -74,7 +74,7 @@ describe("the day Analytics sent it to", () => {
         expect(daily.mock.calls[0][0].query.date).toBe("2026-09-14");
     });
 
-    it("opens the bot in the URL too", async () => {
+    it("opens the agent in the URL too", async () => {
         query.value = "date=2026-09-14&workflow_id=7";
         preferences.mockResolvedValue({ data: { timezone: "Asia/Kolkata" } });
         render(<ReportsPage />);

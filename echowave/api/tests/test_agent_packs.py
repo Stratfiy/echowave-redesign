@@ -471,7 +471,7 @@ class TestTheShelf:
         assert all(pack.listed for pack in listed_packs())
 
     def test_get_pack_is_by_slug_and_says_nothing_for_an_unknown_one(self):
-        assert get_pack("front_desk_clinic").name == "Front Desk Bot"
+        assert get_pack("front_desk_clinic").name == "Front Desk Agent"
         assert get_pack("nope") is None
 
     def test_every_calling_pack_asks_who_to_transfer_to(self):

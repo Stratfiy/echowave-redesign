@@ -28,7 +28,7 @@ const NO_CREDIT = {
 };
 
 describe("BlockedCard", () => {
-    it("keeps the bot's own words above the explanation", () => {
+    it("keeps the agent's own words above the explanation", () => {
         render(<BlockedCard wall={NO_CREDIT} summary="Morning summary could not run" />);
         expect(screen.getByText("Morning summary could not run")).toBeTruthy();
     });

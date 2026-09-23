@@ -139,7 +139,7 @@ export function ShareAgentDialog({ workflowId }: { workflowId: number }) {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Share this bot</DialogTitle>
+            <DialogTitle>Share this agent</DialogTitle>
             <DialogDescription>
               Anyone with the link can talk to the agent in their browser, no account. Calls are
               recorded and paid from your credits, so the link has a daily limit and an expiry.

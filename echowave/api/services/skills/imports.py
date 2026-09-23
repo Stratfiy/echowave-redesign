@@ -56,7 +56,7 @@ MAX_FILES = 400
 #: roles is a shelf nobody can read; the person names what they want.
 MAX_INSTALL = 60
 TIMEOUT_SECS = 30.0
-USER_AGENT = "DecibylBot/1.0 (+https://decibyl.ai/bot)"
+USER_AGENT = "DecibylBot/1.0 (+https://decibyl.ai/agent)"
 
 _SLUG_STRIP = re.compile(r"[^a-z0-9]+")
 
@@ -347,8 +347,8 @@ def tool_schema() -> dict[str, Any]:
             "'owner/repo', a repository page, or a folder in it. Reads the "
             "repository now and proposes a card listing what it would "
             "install; nothing installs until a person confirms. Installed "
-            "skills go on the shelf for review; a bot runs one only once "
-            "somebody has put it on that bot."
+            "skills go on the shelf for review; an agent runs one only once "
+            "somebody has put it on that agent."
         ),
         "parameters": {
             "type": "object",

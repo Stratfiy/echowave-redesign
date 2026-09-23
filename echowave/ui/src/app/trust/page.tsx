@@ -108,7 +108,7 @@ export default function TrustPage() {
             </p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight">Trust</h1>
             <p className="mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
-                Bots answer your phone, so this page is about the recording of
+                Agents answer your phone, so this page is about the recording of
                 somebody&apos;s voice and what it says. Everything below is read
                 from the running system rather than written down beside it, so a
                 vendor cannot be added without this page saying so.
@@ -235,7 +235,7 @@ export default function TrustPage() {
                                 className="font-medium text-foreground underline underline-offset-4"
                                 href="https://decibyl.ai/legal/terms"
                             >
-                                Terms, including what a bot may not be used for
+                                Terms, including what an agent may not be used for
                             </a>
                             <a
                                 className="font-medium text-foreground underline underline-offset-4"

@@ -258,7 +258,7 @@ STEPS: tuple[Step, ...] = (
     ),
     Step(
         FIRST_BOT,
-        "Build your first bot",
+        "Build your first agent",
         150,
         "Describe the job in the box above, or pick one from the marketplace.",
         "/start",

@@ -87,7 +87,7 @@ describe("first-agent journey", () => {
     it("goes template → name → hear → ready, reporting every step", async () => {
         render(<FirstAgentJourney />);
         expect(await screen.findByText("Clinic front desk")).toBeTruthy();
-        expect(screen.getByText("Hi Nithish, let's build your first bot.")).toBeTruthy();
+        expect(screen.getByText("Hi Nithish, let's build your first agent.")).toBeTruthy();
         expect(events()).toContain("first_agent_started");
 
         // Nothing chosen yet: continue is off.
@@ -101,7 +101,7 @@ describe("first-agent journey", () => {
         // Name step asks the template's own question and shows its greeting.
         const clinic = await screen.findByLabelText("Name of the clinic");
         fireEvent.change(clinic, { target: { value: "City Clinic" } });
-        fireEvent.change(screen.getByLabelText("Bot name"), { target: { value: "Asha" } });
+        fireEvent.change(screen.getByLabelText("Agent name"), { target: { value: "Asha" } });
         expect((screen.getByLabelText("Opening line") as HTMLTextAreaElement).value).toBe(
             "Namaste, {{clinic_name}}.",
         );
@@ -195,10 +195,10 @@ describe("first-agent journey", () => {
         fireEvent.click(await screen.findByRole("button", { name: /continue/i }));
         expect(await screen.findByRole("alert")).toBeTruthy();
         expect(events()).toContain("first_agent_create_failed");
-        expect(screen.getByLabelText("Bot name")).toBeTruthy();
+        expect(screen.getByLabelText("Agent name")).toBeTruthy();
     });
 
-    it("shows five bots and the rest are a link away", async () => {
+    it("shows five agents and the rest are a link away", async () => {
         render(<FirstAgentJourney />);
         await screen.findByText("Clinic front desk");
         expect(screen.getAllByRole("radio").length).toBeLessThanOrEqual(5);
@@ -206,17 +206,17 @@ describe("first-agent journey", () => {
 
     it("shows the team like a roster: Hire on a card goes straight to naming, and More agents opens the shelf", async () => {
         render(<FirstAgentJourney />);
-        expect(await screen.findByRole("heading", { name: "Pick a bot" })).toBeTruthy();
-        expect(screen.getByRole("link", { name: /More bots/ }).getAttribute("href")).toBe("/marketplace");
+        expect(await screen.findByRole("heading", { name: "Pick an agent" })).toBeTruthy();
+        expect(screen.getByRole("link", { name: /More agents/ }).getAttribute("href")).toBe("/marketplace");
         fireEvent.click(screen.getByRole("button", { name: "Add Clinic front desk to team" }));
         expect(await screen.findByLabelText("Name of the clinic")).toBeTruthy();
     });
 
-    it("Describe your bot opens Decibyl's thread with the sentence started", async () => {
+    it("Describe your agent opens Decibyl's thread with the sentence started", async () => {
         render(<FirstAgentJourney />);
         await screen.findByText("Clinic front desk");
-        fireEvent.click(screen.getByRole("button", { name: /describe your bot/i }));
-        expect(push).toHaveBeenCalledWith(`/overview?say=${encodeURIComponent("Build me a bot that ")}`);
+        fireEvent.click(screen.getByRole("button", { name: /describe your agent/i }));
+        expect(push).toHaveBeenCalledWith(`/overview?say=${encodeURIComponent("Build me an agent that ")}`);
         expect(events()).toContain("first_agent_scratch_chosen");
     });
 });

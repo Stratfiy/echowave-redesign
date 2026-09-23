@@ -257,7 +257,7 @@ export default function ReportsPage() {
               <SelectValue placeholder="Select workflow" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All bots</SelectItem>
+              <SelectItem value="all">All agents</SelectItem>
               {workflows.map((workflow) => (
                 <SelectItem key={workflow.id} value={workflow.id.toString()}>
                   {workflow.name}

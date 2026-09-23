@@ -223,13 +223,13 @@ function TriggerWebhookUrls({ endpoints }: { endpoints: TriggerEndpoints }) {
                 <TabsContent value="test">
                     <UrlPanel
                         endpoint={endpoints.test}
-                        helperText="Runs the latest draft, falling back to the published bot when no draft exists."
+                        helperText="Runs the latest draft, falling back to the published agent when no draft exists."
                     />
                 </TabsContent>
                 <TabsContent value="production">
                     <UrlPanel
                         endpoint={endpoints.production}
-                        helperText="Runs the published bot."
+                        helperText="Runs the published agent."
                     />
                 </TabsContent>
             </Tabs>

@@ -109,7 +109,7 @@ export default function NewCampaignPage() {
             }
         } catch (error) {
             console.error('Failed to fetch workflows:', error);
-            toast.error('Could not load your bots');
+            toast.error('Could not load your agents');
         } finally {
             setIsLoadingWorkflows(false);
         }
@@ -358,7 +358,7 @@ export default function NewCampaignPage() {
                     Back to Campaigns
                 </Button>
                 <h1 className="text-3xl font-bold mb-2">Create New Campaign</h1>
-                <p className="text-muted-foreground">Point a bot at a list of numbers and it calls each one.</p>
+                <p className="text-muted-foreground">Point an agent at a list of numbers and it calls each one.</p>
             </div>
 
             <Card>
@@ -386,23 +386,23 @@ export default function NewCampaignPage() {
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="workflow">Bot</Label>
+                                <Label htmlFor="workflow">Agent</Label>
                                 <Select
                                     value={selectedWorkflowId}
                                     onValueChange={setSelectedWorkflowId}
                                     required
                                 >
                                     <SelectTrigger id="workflow">
-                                        <SelectValue placeholder="Choose a bot" />
+                                        <SelectValue placeholder="Choose an agent" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {isLoadingWorkflows ? (
                                             <SelectItem value="loading" disabled>
-                                                Loading bots…
+                                                Loading agents…
                                             </SelectItem>
                                         ) : workflows.length === 0 ? (
                                             <SelectItem value="none" disabled>
-                                                No bots yet
+                                                No agents yet
                                             </SelectItem>
                                         ) : (
                                             workflows.map((workflow) => (
@@ -417,7 +417,7 @@ export default function NewCampaignPage() {
                                     </SelectContent>
                                 </Select>
                                 <p className="text-sm text-muted-foreground">
-                                    The bot that makes each call.
+                                    The agent that makes each call.
                                 </p>
                             </div>
 

@@ -71,7 +71,7 @@ describe("BotResults", () => {
         board.mockResolvedValue({ data: [entry({ configured: false })], error: undefined });
         render(<BotResults workflowId={7} />);
         expect(
-            await screen.findByText(/nobody has said what a win is for this bot yet/),
+            await screen.findByText(/nobody has said what a win is for this agent yet/),
         ).toBeTruthy();
     });
 

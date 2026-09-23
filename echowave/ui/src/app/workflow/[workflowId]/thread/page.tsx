@@ -56,13 +56,13 @@ export default function BotChatPage({
         refreshStream.current = refresh;
     }, []);
 
-    const botName = name || 'this bot';
+    const botName = name || 'this agent';
 
     return (
         <div className="flex h-full flex-col">
             <AgentHeader
                 workflowId={id}
-                name={name || 'Bot'}
+                name={name || 'Agent'}
                 actions={
                     <>
                         {/* Who this bot is -- skills, knowledge, memory, brains
@@ -113,7 +113,7 @@ export default function BotChatPage({
                 </div>
                 {aboutOpen && (
                     <AuxiliaryPanel
-                        label="About this bot"
+                        label="About this agent"
                         onClose={() => setAboutOpen(false)}
                         // The panel's own action, opposite the control that
                         // puts it away -- the shape Refero catalogues and the

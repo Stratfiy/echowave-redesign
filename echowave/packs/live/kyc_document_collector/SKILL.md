@@ -129,7 +129,7 @@ decibyl:
     example_requests:
     - collect KYC documents from loan applicants on WhatsApp
     - chase applicants for PAN, Aadhaar and bank statements
-    - a bot that tells us when a loan file is document-complete
+    - an agent that tells us when a loan file is document-complete
     template_variables:
       nbfc_name: The lender, as applicants know it
       loan_document_checklist: The documents needed, by loan type

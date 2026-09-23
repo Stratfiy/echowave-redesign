@@ -163,7 +163,7 @@ async def post_event(
         if sent >= EVENT_WEBHOOK_HOURLY_CAP:
             logger.warning(
                 "Event webhook for org {} withheld: {} sent in the last hour "
-                "(cap {}); {} on bot {} not posted",
+                "(cap {}); {} on agent {} not posted",
                 organization_id,
                 sent,
                 EVENT_WEBHOOK_HOURLY_CAP,
@@ -276,6 +276,6 @@ async def send_test(
         return True
     except Exception as exc:  # noqa: BLE001 - the answer is the boolean
         logger.warning(
-            "Could not queue a webhook test for bot {}: {}", workflow_id, exc
+            "Could not queue a webhook test for agent {}: {}", workflow_id, exc
         )
         return False

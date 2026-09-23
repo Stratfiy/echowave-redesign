@@ -60,7 +60,7 @@ export default function DemoAgentPage() {
         setLoading(true);
         const result = await readDemoAgentApiV1AdminTelephonyDemoAgentGet({});
         if (result.error) {
-            setError(detailFromResult(result, "Failed to read the demo bot"));
+            setError(detailFromResult(result, "Failed to read the demo agent"));
         } else {
             setError(null);
             setContact((result.data as DemoContact) ?? {});
@@ -86,7 +86,7 @@ export default function DemoAgentPage() {
         // 409s this route raises — a paused or archived agent — only surface if
         // the error is checked explicitly.
         if (result.error) {
-            setSaveError(detailFromResult(result, "Could not change the demo bot"));
+            setSaveError(detailFromResult(result, "Could not change the demo agent"));
         } else {
             setAgentId("");
             await load();
@@ -102,7 +102,7 @@ export default function DemoAgentPage() {
             <div>
                 <h1 className="text-2xl font-semibold">Demo agent</h1>
                 <p className="mt-1 text-sm text-muted-foreground">
-                    The agent a prospect hears before adding a bot. Until one is set,
+                    The agent a prospect hears before adding an agent. Until one is set,
                     every role that makes or takes calls stays unlisted on the shelf.
                 </p>
             </div>
@@ -210,7 +210,7 @@ export default function DemoAgentPage() {
             </div>
 
             <div className="space-y-2 rounded-lg border border-border bg-card p-4">
-                <Label htmlFor="bot-id">Bot id</Label>
+                <Label htmlFor="bot-id">Agent id</Label>
                 <div className="flex flex-wrap items-center gap-2">
                     <Input
                         id="bot-id"

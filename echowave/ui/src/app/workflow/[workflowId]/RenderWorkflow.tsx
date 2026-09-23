@@ -793,7 +793,7 @@ function RenderWorkflow({
                         </div>
 
                         {isTesterRailOpen && (
-                            <AuxiliaryPanel label="Test this bot" className="hidden xl:flex">
+                            <AuxiliaryPanel label="Test this agent" className="hidden xl:flex">
                                 <WorkflowTesterPanel
                                     workflowId={workflowId}
                                     channel={channel}

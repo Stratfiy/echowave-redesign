@@ -198,7 +198,7 @@ async def provide(
                 organization_id=organization_id,
                 user_id=user_id,
                 name=attempt,
-                description="Added from a bot's secure form",
+                description="Added from an agent's secure form",
                 credential_type=str(credential_type),
                 credential_data=data,
             )

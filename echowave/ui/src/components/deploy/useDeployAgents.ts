@@ -39,7 +39,7 @@ export function useDeployAgents(requestedAgent: string | null) {
             // An empty picker after a network failure reads as "you have no
             // agents", which is a different and far more alarming thing than
             // "we could not reach the server".
-            setLoadError("Could not load your bots. Reload to try again.");
+            setLoadError("Could not load your agents. Reload to try again.");
             setAgents([]);
         }
     }, []);

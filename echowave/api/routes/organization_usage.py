@@ -593,8 +593,8 @@ async def get_call_analytics(
     workflow_id: Optional[int] = Query(
         None,
         description=(
-            "Limit every figure to one bot, for that bot's own Analytics tab. "
-            "Adds `daily_runs` and `tokens`, which are only meaningful per bot."
+            "Limit every figure to one agent, for that agent's own Analytics tab. "
+            "Adds `daily_runs` and `tokens`, which are only meaningful per agent."
         ),
     ),
     user: UserModel = Depends(get_user),

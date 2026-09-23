@@ -45,7 +45,7 @@ export function BotNotices({ workflowId }: { workflowId: number }) {
         // unchecked result renders an empty list for a request that failed --
         // which reads as "this bot can tell you nothing".
         if (result.error) {
-            setError(detailFromResult(result, "Could not read what this bot tells you"));
+            setError(detailFromResult(result, "Could not read what this agent tells you"));
             return;
         }
         setError(null);
@@ -95,7 +95,7 @@ export function BotNotices({ workflowId }: { workflowId: number }) {
             <div>
                 <h2 className="text-base font-semibold">Tell me when</h2>
                 <p className="text-sm text-muted-foreground">
-                    What this bot puts in your notifications. Everything it does is on
+                    What this agent puts in your notifications. Everything it does is on
                     its History either way — this is only what interrupts you.
                 </p>
             </div>
@@ -143,7 +143,7 @@ export function BotNotices({ workflowId }: { workflowId: number }) {
                     // Said out loud, because an empty list is a real choice and
                     // looks identical to a screen that failed to load one.
                     <span className="text-xs text-muted-foreground">
-                        This bot will not notify you about anything.
+                        This agent will not notify you about anything.
                     </span>
                 ) : null}
             </div>

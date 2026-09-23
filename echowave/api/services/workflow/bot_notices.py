@@ -63,7 +63,7 @@ CATALOGUE: tuple[Notice, ...] = (
     Notice(
         AgentEventKind.NEEDS_ATTENTION,
         "It needs attention",
-        "The bot has stopped and cannot carry on by itself.",
+        "The agent has stopped and cannot carry on by itself.",
         True,
     ),
     Notice(
@@ -105,7 +105,7 @@ CATALOGUE: tuple[Notice, ...] = (
     Notice(
         AgentEventKind.OUTCOME_FILED,
         "A call was sorted",
-        "Every classified call. Busy on a bot that takes many.",
+        "Every classified call. Busy on an agent that takes many.",
         False,
     ),
 )

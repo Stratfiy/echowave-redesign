@@ -112,12 +112,12 @@ export function CreateWorkflowButton() {
             <DialogTrigger asChild>
                 <Button disabled={isCreating}>
                     <PlusIcon className="w-4 h-4" />
-                    {isCreating ? 'Creating...' : 'New bot'}
+                    {isCreating ? 'Creating...' : 'New agent'}
                 </Button>
             </DialogTrigger>
             <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle>New bot</DialogTitle>
+                    <DialogTitle>New agent</DialogTitle>
                     <DialogDescription>
                         Pick the one closest to your business. Everything about it is
                         editable afterwards, so the nearest match beats the right answer.
@@ -142,7 +142,7 @@ export function CreateWorkflowButton() {
                                 Describe what you want instead
                             </span>
                             <span className="block text-xs text-muted-foreground">
-                                For a trade we have no ready-made bot for. A few questions,
+                                For a trade we have no ready-made agent for. A few questions,
                                 then we write it.
                             </span>
                         </span>

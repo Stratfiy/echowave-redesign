@@ -19,7 +19,7 @@ Examine the conversation carefully and identify which of the following tags appl
 - DEAD_AIR - Unusually long silences in the conversation (use the timestamps to judge)
 - USER_REQUESTING_FEATURE - The user asks for something the assistant can't fulfill
 - ASSISTANT_LACKS_EMPATHY - The assistant ignores the user's personal situation or emotional state and continues pitching or pushing the agenda.
-- USER_DETECTS_AI - The user suspects or identifies that they are talking to an AI/robot/bot rather than a real human.
+- USER_DETECTS_AI - The user suspects or identifies that they are talking to an AI/robot/agent rather than a real human.
 
 ## Call metrics (pre-computed)
 

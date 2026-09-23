@@ -674,7 +674,7 @@ export default function PlansPage() {
                                         setDraft({ ...draft, voiceAllowed: e.target.checked })
                                     }
                                 />
-                                Bots may use the phone
+                                Agents may use the phone
                             </label>
                             <label className="flex items-center gap-2 text-sm">
                                 <input

@@ -677,7 +677,7 @@ SECTIONS: list[Section] = [
             Kpi(
                 "activation",
                 "Activation",
-                "First bot run within 7 days ÷ signups",
+                "First agent run within 7 days ÷ signups",
                 "ratio",
                 flow=_activation,
             ),

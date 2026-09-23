@@ -55,7 +55,7 @@ async def _owned_workflow(workflow_id: int, organization_id: int):
         workflow_id, organization_id=organization_id
     )
     if workflow is None:
-        raise HTTPException(status_code=404, detail="No such bot here")
+        raise HTTPException(status_code=404, detail="No such agent here")
     return workflow
 
 
@@ -189,7 +189,7 @@ async def delete_event_webhook(
         workflow_id, organization_id=organization_id
     )
     if not gone:
-        raise HTTPException(status_code=404, detail="This bot has no webhook")
+        raise HTTPException(status_code=404, detail="This agent has no webhook")
 
 
 class EventWebhookTestResponse(BaseModel):
@@ -218,7 +218,7 @@ async def test_event_webhook(
         workflow_id, organization_id=organization_id
     )
     if row is None:
-        raise HTTPException(status_code=404, detail="This bot has no webhook")
+        raise HTTPException(status_code=404, detail="This agent has no webhook")
 
     sent = await bot_event_webhook.send_test(
         organization_id=organization_id,

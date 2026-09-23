@@ -93,7 +93,7 @@ def assert_workflow_may_take_calls(workflow) -> None:
     if is_chat(getattr(workflow, "workflow_configurations", None)):
         raise AgentNotTakingCalls(
             f"Agent {getattr(workflow, 'id', '?')} answers in writing, not on "
-            "the phone. Point this number at a voice bot, or change this one's "
+            "the phone. Point this number at a voice agent, or change this one's "
             "channel in its settings.",
             reason="agent_is_chat_only",
         )

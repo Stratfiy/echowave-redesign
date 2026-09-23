@@ -112,7 +112,7 @@ class TestTheContext:
             ],
             "today",
         )
-        assert block.startswith("Team today: 2 bots, 1 live now, 9 calls, 7 answered")
+        assert block.startswith("Team today: 2 agents, 1 live now, 9 calls, 7 answered")
         # Busiest first, paused said plainly.
         assert block.index("Front desk") < block.index("Quiet")
         assert "- Quiet: paused now; today: 1 calls" in block
@@ -294,7 +294,7 @@ class TestAnswering:
             ),
         ):
             context = await decibyl.build_context(7, "when do we open?")
-        assert "Team today: 0 bots" in context
+        assert "Team today: 0 agents" in context
         assert "- Opening hours: 9 to 6" in context
         assert "Nothing in the knowledge base matches that." in context
 

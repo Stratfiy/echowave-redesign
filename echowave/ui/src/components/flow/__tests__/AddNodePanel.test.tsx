@@ -10,7 +10,7 @@ import { NodeType } from '../types';
 const { specs } = vi.hoisted(() => ({
     specs: [
         { name: 'trigger', display_name: 'Incoming message', description: 'Start when a message arrives', category: 'trigger', icon: 'MessageSquare', properties: [], graph_constraints: { max_instances: 1 } },
-        { name: 'agentNode', display_name: 'Agent', description: 'Answer using connected knowledge', category: 'call_node', icon: 'Bot', properties: [] },
+        { name: 'agentNode', display_name: 'Agent', description: 'Answer using connected knowledge', category: 'call_node', icon: 'Agent', properties: [] },
         { name: 'webhook', display_name: 'Webhook', description: 'Send a request to an external app', category: 'integration', icon: 'Webhook', properties: [] },
     ] satisfies NodeSpec[],
 }));

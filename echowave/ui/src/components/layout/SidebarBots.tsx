@@ -105,8 +105,8 @@ export function SidebarBots({ collapsed }: { collapsed: boolean }) {
         <span>Direct messages</span>
         <Link
           href="/start"
-          aria-label="Add a bot"
-          title="Add a bot"
+          aria-label="Add an agent"
+          title="Add an agent"
           className="rounded p-0.5 hover:bg-sidebar-accent hover:text-sidebar-foreground"
         >
           <Plus aria-hidden="true" className="h-3.5 w-3.5" />

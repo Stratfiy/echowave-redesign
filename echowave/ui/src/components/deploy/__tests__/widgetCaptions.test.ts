@@ -153,7 +153,7 @@ describe("live captions", () => {
         vi.unstubAllGlobals();
     });
 
-    it("joins the bot's sentences into the one turn that spoke them", () => {
+    it("joins the agent's sentences into the one turn that spoke them", () => {
         send("rtf-bot-text", { text: "Sorry to hear that." });
         send("rtf-bot-text", { text: "Is it not opening, or not locking?" });
 
@@ -163,7 +163,7 @@ describe("live captions", () => {
         expect(captions[0].role).toBe("bot");
     });
 
-    it("starts a new line once the bot has stopped speaking", () => {
+    it("starts a new line once the agent has stopped speaking", () => {
         send("rtf-bot-text", { text: "One moment." });
         send("rtf-bot-stopped-speaking");
         send("rtf-bot-text", { text: "Right, I have it." });

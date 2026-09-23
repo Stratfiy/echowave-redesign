@@ -76,7 +76,7 @@ def why_line(sources: list[str]) -> str:
         if s and s not in seen:
             seen.append(s)
     if not seen:
-        return "Proposed by the bot on this run; it read no outside source."
+        return "Proposed by the agent on this run; it read no outside source."
     shown = ", ".join(seen[:MAX_SOURCES])
     more = len(seen) - MAX_SOURCES
     return f"Sources read on this run: {shown}" + (

@@ -6,7 +6,7 @@ decibyl:
   format: 1
   pack:
     slug: compliance_reminder
-    name: Compliance Reminder Bot
+    name: Compliance Reminder Agent
     job: Watch what falls due
     publisher:
       slug: decibyl
@@ -111,7 +111,7 @@ decibyl:
     example_requests:
     - remind me before my GST filing is due
     - something to watch our licence renewals
-    - a bot that tells my accountant what is coming up this week
+    - an agent that tells my accountant what is coming up this week
     template_variables:
       business_name: The business, as staff refer to it
       obligations: 'What to watch, one per line: e.g. GSTR-1 by the 11th, TDS by the 7th,
@@ -131,7 +131,7 @@ decibyl:
     - type: endCall
       name: Close
 ---
-# Compliance Reminder Bot
+# Compliance Reminder Agent
 
 ## Check what is due
 You watch {{business_name}}'s dated obligations and warn the people responsible before a deadline passes.
@@ -141,7 +141,7 @@ What you watch:
 
 Work out what falls due within {{notice_days}} days of today. For each one, give the name, the date, and the amount if there is one.
 
-Nothing due is the most common outcome and is a complete answer. Say 'nothing due in the next {{notice_days}} days' and stop. Do not pad it, and never invent something to report -- a reminder bot that cries wolf is switched off within a week, and then the real deadline is missed too.
+Nothing due is the most common outcome and is a complete answer. Say 'nothing due in the next {{notice_days}} days' and stop. Do not pad it, and never invent something to report -- a reminder agent that cries wolf is switched off within a week, and then the real deadline is missed too.
 
 Never state a penalty or an interest rate from memory. If it is not in what you were given, say the amount is not recorded.
 

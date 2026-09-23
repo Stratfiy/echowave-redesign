@@ -65,7 +65,7 @@ export function botIcon(name: string): LucideIcon {
 /** Catppuccin's accents, the palette the rest of the frame is built from.
  *  Eight, so a roster of the size anybody actually runs rarely repeats. */
 const TONES = [
-    "text-[#8839ef] bg-[#8839ef]/12", // mauve
+    "text-slate-700 bg-slate-500/12", // slate
     "text-[#1e66f5] bg-[#1e66f5]/12", // blue
     "text-[#179299] bg-[#179299]/12", // teal
     "text-[#fe640b] bg-[#fe640b]/12", // peach

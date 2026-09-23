@@ -216,7 +216,7 @@ export default function MemoryPage() {
         <>
             <PageHeader
                 title="Decibyl"
-                description="Your team's assistant. Ask what happened, or build a new bot."
+                description="Your team's assistant. Ask what happened, or build a new agent."
                 tabs={TABS}
                 actions={
                     <>

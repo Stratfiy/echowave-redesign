@@ -82,7 +82,7 @@ def teammates_line(roster: list[dict]) -> str:
         for b in roster
     )
     return (
-        f"Bots in this channel with you: {names}. To hand something to one of "
+        f"Agents in this channel with you: {names}. To hand something to one of "
         "them, address it by its @handle in your reply; it will answer here."
     )
 

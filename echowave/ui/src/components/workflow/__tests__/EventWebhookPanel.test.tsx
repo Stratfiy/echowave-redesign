@@ -33,13 +33,13 @@ const OFFERED = [
     {
         kind: "outcome_filed",
         label: "It finished a job",
-        when: "when a bot files an outcome",
+        when: "when an agent files an outcome",
         default: true,
     },
     {
         kind: "needs_attention",
         label: "It is stuck",
-        when: "when a bot needs somebody",
+        when: "when an agent needs somebody",
         default: true,
     },
 ];
@@ -65,7 +65,7 @@ describe("the event webhook panel", () => {
     it("offers the events the server says exist, in words", async () => {
         render(<EventWebhookPanel workflowId={7} />);
         expect(await screen.findByText("It finished a job")).toBeTruthy();
-        expect(screen.getByText("when a bot needs somebody")).toBeTruthy();
+        expect(screen.getByText("when an agent needs somebody")).toBeTruthy();
     });
 
     it("saves the URL and the ticked events", async () => {

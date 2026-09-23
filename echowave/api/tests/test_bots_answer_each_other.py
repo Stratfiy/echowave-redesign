@@ -16,7 +16,7 @@ MOD = "api.services.workflow.channel_reply"
 def _roster():
     return [
         SimpleNamespace(id=3, name="Front desk", handle="front", folder_id=5),
-        SimpleNamespace(id=4, name="Sales bot", handle="sales", folder_id=5),
+        SimpleNamespace(id=4, name="Sales agent", handle="sales", folder_id=5),
         SimpleNamespace(id=9, name="Elsewhere", handle="else", folder_id=6),
     ]
 
@@ -24,9 +24,9 @@ def _roster():
 class TestWhatABotIsTold:
     def test_names_the_others_here_by_handle(self):
         line = channel_reply.teammates_line(
-            [{"id": 4, "handle": "sales", "name": "Sales bot"}]
+            [{"id": 4, "handle": "sales", "name": "Sales agent"}]
         )
-        assert "@sales (Sales bot)" in line
+        assert "@sales (Sales agent)" in line
         assert channel_reply.teammates_line([]) == ""
 
 
@@ -96,7 +96,7 @@ class TestHandingOn:
         )
         assert run_id == 11
         # The bot was told who is here.
-        assert "@sales (Sales bot)" in appended.await_args.kwargs["user_text"]
+        assert "@sales (Sales agent)" in appended.await_args.kwargs["user_text"]
         # The reply row says who it asked, and the teammate is queued.
         reply = [
             c for c in record.await_args_list if c.kwargs.get("kind") == "message"
@@ -128,5 +128,5 @@ class TestHandingOn:
         _, appended, _, enqueue = await self._reply(
             "Over to @sales.", hop=0, folder_id=None
         )
-        assert "Bots in this channel" not in appended.await_args.kwargs["user_text"]
+        assert "Agents in this channel" not in appended.await_args.kwargs["user_text"]
         assert not enqueue.await_count

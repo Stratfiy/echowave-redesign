@@ -69,7 +69,7 @@ export default function FilesPage() {
                 }
                 description={
                     <>
-                        What every bot here reads: your price list, policies, FAQs. Drop a file into a channel or a bot&apos;s chat to give it to just them.{" "}
+                        What every agent here reads: your price list, policies, FAQs. Drop a file into a channel or an agent&apos;s chat to give it to just them.{" "}
                         <a href="https://docs.decibyl.ai/voice-agent/knowledge-base" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline">
                             Learn more <ExternalLink className="h-3 w-3" />
                         </a>
@@ -87,7 +87,7 @@ export default function FilesPage() {
                 <CardHeader>
                     <CardTitle>Documents</CardTitle>
                     <CardDescription>
-                        The knowledge base is read by every bot. A file given to a channel or a bot is read there only. Library files are read by the steps that name them.
+                        The knowledge base is read by every agent. A file given to a channel or an agent is read there only. Library files are read by the steps that name them.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -100,7 +100,7 @@ export default function FilesPage() {
                     <DialogHeader>
                         <DialogTitle>Add to the knowledge base</DialogTitle>
                         <DialogDescription>
-                            Every bot in this workspace will be able to answer from it.
+                            Every agent in this workspace will be able to answer from it.
                         </DialogDescription>
                     </DialogHeader>
                     <DocumentUpload onUploadSuccess={handleUploadSuccess} target={{ scope: 'org' }} />

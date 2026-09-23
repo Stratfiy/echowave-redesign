@@ -62,7 +62,7 @@ _STOPWORDS = frozenset(
     his her its out any all one two some more most been being not but
     you i'm ive dont doesnt cant wont call calls called calling send sent
     text message messages number numbers contact contacts customer customers
-    client clients name names phone bot bots agent agents today yesterday
+    client clients name names phone agent agents agent agents today yesterday
     tomorrow week month year please tell show find give know knows anything
     everything something someone anyone whats what's who's whos
     """.split()

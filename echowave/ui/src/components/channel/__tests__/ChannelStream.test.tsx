@@ -63,7 +63,7 @@ describe('what it asks for', () => {
         expect(timeline.mock.calls[0][0].query.workflow_id).toBeUndefined();
     });
 
-    it("a bot's own chat by workflow", async () => {
+    it("an agent's own chat by workflow", async () => {
         timeline.mockResolvedValue({ data: { events: [], next_before_at: null, next_before_id: null } });
         render(<ChannelStream workflowId={3} botNames={{ 3: 'Front desk' }} />);
         await waitFor(() => expect(timeline).toHaveBeenCalled());
@@ -218,7 +218,7 @@ describe('runs of the same thing fold into one line', () => {
     });
 });
 
-describe('a bot that was asked shows as thinking', () => {
+describe('an agent that was asked shows as thinking', () => {
     it('until a row of its own arrives', async () => {
         timeline.mockResolvedValue({ data: { events: [], next_before_at: null, next_before_id: null } });
         const since = new Date(Date.now() - 1000).toISOString();
@@ -255,7 +255,7 @@ describe('a bot that was asked shows as thinking', () => {
     }, 10000);
 });
 
-describe('a proposed change to the bot', () => {
+describe('a proposed change to the agent', () => {
     it('is a card with the diff on the thread', async () => {
         timeline.mockResolvedValue({
             data: {
@@ -305,7 +305,7 @@ describe('a message in an Indian script can be translated', () => {
 });
 
 describe('a proposed action', () => {
-    it('is a card with Confirm on the thread, attributed to the bot', async () => {
+    it('is a card with Confirm on the thread, attributed to the agent', async () => {
         timeline.mockResolvedValue({
             data: {
                 events: [
@@ -327,7 +327,7 @@ describe('a proposed action', () => {
     });
 });
 
-describe('what the bot read on the way', () => {
+describe('what the agent read on the way', () => {
     it('is a muted one-liner, folded when several run together, and does not end thinking', async () => {
         const since = new Date(Date.now() - 5_000).toISOString();
         const reading = (id: number, summary: string, secondsAfter: number) =>
@@ -413,7 +413,7 @@ describe('the thread carries its own next steps', () => {
         );
     });
 
-    it('shows none on a bot\'s own chat', async () => {
+    it('shows none on an agent\'s own chat', async () => {
         // These are the workspace's questions, and Decibyl is who answers.
         reply();
         chips.mockResolvedValue({

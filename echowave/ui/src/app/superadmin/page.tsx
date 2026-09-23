@@ -285,9 +285,9 @@ export default function SuperadminPage() {
                             to this screen has no way to find that out. */}
                         <Card>
                             <CardHeader>
-                                <CardTitle>Demo bot</CardTitle>
+                                <CardTitle>Demo agent</CardTitle>
                                 <CardDescription>
-                                    The agent a prospect hears before adding a bot.
+                                    The agent a prospect hears before adding an agent.
                                     Until one is set, every calling role stays unlisted.
                                 </CardDescription>
                             </CardHeader>

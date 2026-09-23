@@ -114,7 +114,7 @@ class StartCall(TypedNode):
     """
     Switching the line off is recorded in Activity with your name. A call
     from an AI without saying so is unlawful in the EU (AI Act, Article 50)
-    and on US calls (TCPA as read by the FCC; state bot-disclosure laws).
+    and on US calls (TCPA as read by the FCC; state agent-disclosure laws).
     Tick to confirm this agent's calls are outside those duties.
     """
 

@@ -15,7 +15,7 @@ import {
 
 const bot = (over: Partial<BotTemplate>): BotTemplate => ({
     id: "x",
-    name: "Bot",
+    name: "Agent",
     vertical: "Healthcare — clinics",
     industry: "Healthcare",
     function: "Answer calls",
@@ -50,7 +50,7 @@ describe("filing", () => {
         ]);
     });
 
-    it("a bot with no function is filed under Other, not dropped", () => {
+    it("an agent with no function is filed under Other, not dropped", () => {
         expect(functions([bot({ function: "" })])).toEqual([{ name: "Other", count: 1 }]);
     });
 });

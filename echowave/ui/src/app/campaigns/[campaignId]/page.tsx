@@ -630,7 +630,7 @@ export default function CampaignDetailPage() {
                     <CardContent>
                         <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <dt className="text-sm font-medium">Bot</dt>
+                                <dt className="text-sm font-medium">Agent</dt>
                                 <dd className="mt-1">
                                     <button
                                         onClick={handleWorkflowClick}

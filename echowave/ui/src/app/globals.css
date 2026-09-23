@@ -153,64 +153,62 @@
      under it should get out of the way.
      Not pure white, because cards are, and the floor has to be the darker of
      the two or every panel edge disappears. */
-  --background: #eff1f5;
-  --foreground: #4c4f69;
+  --background: #ffffff;
+  --foreground: #24292e;
   /* Cards are solid white with a real edge. They were translucent, which is
      what made every panel read hazy — a card you can faintly see through has
      no boundary, and a screen of them has no structure. Opaque plus a hairline
      border plus the faintest lift is the whole effect. */
-  --card: #eff1f5;
-  --card-foreground: #4c4f69;
-  --popover: #eff1f5;
-  --popover-foreground: #4c4f69;
+  --card: #ffffff;
+  --card-foreground: #24292e;
+  --popover: #f5f5f5;
+  --popover-foreground: #24292e;
 
   /* The committed action. Deep coral, white text, 5.55:1 — this is the button
      you press, and the colour that emphasised text on white is allowed to be.
      Used sparingly: one per surface, or it stops earning attention. */
-  --primary: #8839ef;
-  --primary-foreground: #eff1f5;
-  --primary-pressed: #7a2fd8;
+  --primary: #24292e;
+  --primary-foreground: #ffffff;
+  --primary-pressed: #505458;
 
   /* The brand accent. Bright coral, for fills, active states, icon accents and
      the focus ring. Never body text — see the ratios above. */
-  --accent-brand: #8839ef;
-  --accent-brand-soft: rgba(136, 57, 239, 0.10);
-  --accent-brand-tint: #ece0fb;
-  /* The one gradient, coral into tangerine. It sits on top of the floor
-     as a wash behind a screen or a hero panel; it never sits behind text
-     smaller than a display size. */
-  --brand-gradient: linear-gradient(135deg, #8839ef 0%, #ea76cb 100%);
+  --accent-brand: #24292e;
+  --accent-brand-soft: rgba(36, 41, 46, 0.08);
+  --accent-brand-tint: #f0f0f0;
+  /* Buzz's sidebar gradient, for anything that wants the brand wash. */
+  --brand-gradient: linear-gradient(to bottom, #e6e6b6 0%, #c4d0da 100%);
   /* Gradient end only — see the note above. Never a fill behind text. */
-  --brand-pink: #ea76cb;
+  --brand-pink: #6e7781;
 
-  --secondary: #ccd0da;
-  --secondary-foreground: #4c4f69;
-  --muted: #ccd0da;
+  --secondary: #f0f0f0;
+  --secondary-foreground: #24292e;
+  --muted: #f0f0f0;
   /* Fog is 4.74:1 on white but only 4.35:1 on the paper surface. Muted text
      sitting on #f5f5f5 uses steel instead — see --muted-foreground-on-paper. */
-  --muted-foreground: #5c5f77;
-  --muted-foreground-on-paper: #4c4f69;
+  --muted-foreground: #596169;
+  --muted-foreground-on-paper: #596169;
   /* Hover and selected rows. Neutral, not coral: something you merely hovered
      must not look like the thing you chose. */
-  --accent: #ccd0da;
-  --accent-foreground: #4c4f69;
+  --accent: #f0f0f0;
+  --accent-foreground: #24292e;
 
   /* Destructive stays a true red, well clear of the coral in both lightness
      and saturation. The two are neighbours on the wheel, so the separation has
      to come from value — a delete button reads darker and hotter than a save
      button rather than merely differently hued. */
-  --destructive: #d20f39;
-  --destructive-foreground: #eff1f5;
-  --warning: #df8e1d;
-  --success: #40a02b;
+  --destructive: #d73a49;
+  --destructive-foreground: #ffffff;
+  --warning: #9a6700;
+  --success: #28a745;
 
   /* The structural line. Used more than any other value in the system. */
-  --border: #bcc0cc;
+  --border: #e5e5e6;
   /* Inputs carry a stronger edge than cards do — the reference makes this a
      signature: a field should look like something you are meant to fill in,
      not like a container that happens to be empty. */
-  --input: #bcc0cc;
-  --ring: #8839ef;
+  --input: #e5e5e6;
+  --ring: #24292e;
 
   /* --brand-* are consumed by call sites written when the brand was blue. They
      are aliases onto the correct tokens, NOT a second palette.
@@ -223,19 +221,19 @@
      only read very slightly deeper for the change. The bright coral is still
      available as --accent-brand, for the fills and active states where nothing
      has to be read off it. */
-  --brand-blue: #7a2fd8;
-  --brand-blue-hover: #6b26c0;
+  --brand-blue: #24292e;
+  --brand-blue-hover: #5b5f62;
   /* Button fills no longer read this alias — every pressable fill is
      --primary (ink). What remains on it is link text and tints. */
-  --brand-blue-soft: rgba(136, 57, 239, 0.10);
-  --brand-blue-glow: rgba(136, 57, 239, 0.14);
-  --brand-panel: #eff1f5;
-  --brand-heading: #4c4f69;
-  --brand-body: #5c5f77;
-  --brand-chip: #ccd0da;
-  --brand-chip-border: #bcc0cc;
-  --brand-chip-fg: #4c4f69;
-  --brand-card: #eff1f5;
+  --brand-blue-soft: rgba(36, 41, 46, 0.08);
+  --brand-blue-glow: rgba(36, 41, 46, 0.12);
+  --brand-panel: #ffffff;
+  --brand-heading: #24292e;
+  --brand-body: #596169;
+  --brand-chip: #f0f0f0;
+  --brand-chip-border: #e5e5e6;
+  --brand-chip-fg: #24292e;
+  --brand-card: #ffffff;
   --brand-amber: #df8e1d;
 
   /* Supporting accents, for pill tags and small feature marks. One accent per
@@ -243,20 +241,21 @@
   --color-tangerine: #fe640b;
   --color-lavender: #7287fd;
   --color-vivid-green: #40a02b;
-  --color-soft-mint: #dcf3d6;
+  --color-soft-mint: #e1f3e5;
 
   /* Tint washes. Small badge backgrounds and feature highlights only — never
      a large surface. */
-  --tint-flame: #f7e0e5;
-  --tint-amber: #f7ecd9;
-  --tint-sand: #e6e9ef;
-  --tint-slate: #e6e9ef;
+  --tint-flame: #fae7e9;
+  --tint-amber: #f1eadb;
+  --tint-sand: #f0f0f0;
+  --tint-slate: #f0f0f0;
 
-  --chart-1: #8839ef;
-  --chart-2: #04a5e5;
-  --chart-3: #40a02b;
-  --chart-4: #df8e1d;
-  --chart-5: #ea76cb;
+  /* GitHub's own data colours: charts are where colour carries meaning. */
+  --chart-1: #0969da;
+  --chart-2: #1a7f37;
+  --chart-3: #9a6700;
+  --chart-4: #cf222e;
+  --chart-5: #6e7781;
 
   /* Sidebar is white like the canvas; the hairline is what separates them.
      That is the border-first philosophy applied to the shell itself. */
@@ -275,12 +274,12 @@
    * accent survives on the brand mark, the active row and the unread dot. */
   --shell-gradient-top: #e6e6b6;
   --shell-gradient-bottom: #c4d0da;
-  --shell-ink: #4c4f69;
+  --shell-ink: #24292e;
   --rail: transparent;
-  --rail-foreground: var(--shell-ink);
-  --rail-accent: rgba(46, 42, 51, 0.12);
-  --rail-accent-foreground: var(--shell-ink);
-  --rail-border: rgba(46, 42, 51, 0.12);
+  --rail-foreground: #24292e;
+  --rail-accent: rgba(36, 41, 46, 0.08);
+  --rail-accent-foreground: #24292e;
+  --rail-border: rgba(36, 41, 46, 0.12);
 
   /* The panel is dark, like the rail: option B of 15 Sept.
    *
@@ -298,17 +297,17 @@
    * uses --sidebar-foreground at 70%, never --muted-foreground, which is a
    * grey mixed for white and vanishes here. */
   --sidebar: transparent;
-  --sidebar-foreground: var(--shell-ink);
-  --sidebar-primary: #8839ef;
+  --sidebar-foreground: #24292e;
+  --sidebar-primary: #24292e;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: rgba(46, 42, 51, 0.08);
-  --sidebar-accent-foreground: var(--shell-ink);
-  --sidebar-border: rgba(46, 42, 51, 0.12);
-  --sidebar-ring: #e15b53;
+  --sidebar-accent: rgba(255, 255, 255, 0.6);
+  --sidebar-accent-foreground: #24292e;
+  --sidebar-border: rgba(36, 41, 46, 0.12);
+  --sidebar-ring: #24292e;
 
   /* --cta predates --primary and is used on a handful of CTAs. Both point at
      the same deep coral, so the two vocabularies cannot drift apart onscreen. */
-  --cta: #171717;
+  --cta: #24292e;
   --cta-foreground: #ffffff;
 
   /* Elevation, used sparingly. A card gets a hairline border and the faintest
@@ -359,91 +358,97 @@
   /* Retired treatments, kept as aliases so their call sites degrade to flat
      white rather than breaking. */
   --brand-imprint: none;
-  --glass-fill: rgba(255, 253, 249, 0.72);
+  --glass-fill: rgba(255, 255, 255, 0.72);
   --glass-fill-strong: #ffffff;
-  --glass-edge: #e4e7eb;
+  --glass-edge: #e5e5e6;
   --glass-glow-blue: transparent;
   --glass-glow-amber: transparent;
   --glass-glow-deep: transparent;
   --glass-shadow: none;
   --glass-shadow-clay: none;
   --glass-shadow-clay-hover: var(--shadow-sm);
-  --glass-accent-fill: #ab3f38;
+  --glass-accent-fill: #24292e;
   --glass-accent-fg: #ffffff;
-  --glass-amber-fill: var(--tint-amber);
-  --glass-amber-edge: #F2E3CB;
-  --glass-amber-fg: #7A4A05;
+  --glass-amber-fill: #f1eadb;
+  --glass-amber-edge: #e1d1b3;
+  --glass-amber-fg: #744d00;
 }
 
-/* Dark is Catppuccin Macchiato, the mode Buzz ships beside Latte. Only the
-   tokens are restated; every component reads them, so nothing else changes. */
+/* The default theme, as Buzz's own: GitHub Light here and GitHub Dark below,
+   neutral accent, Buzz's sidebar gradient. Generated by lib/themes.ts
+   (themeTokens) and checked against it by themes.test.ts -- change a colour
+   there, not here. Other themes are applied over these by a stylesheet. */
 .dark {
-  --background: #24273a;
-  --foreground: #cad3f5;
-  --card: #24273a;
-  --card-foreground: #cad3f5;
-  --popover: #24273a;
-  --popover-foreground: #cad3f5;
-  --primary: #c6a0f6;
-  --primary-foreground: #24273a;
-  --primary-pressed: #b48ae8;
-  --secondary: #363a4f;
-  --secondary-foreground: #cad3f5;
-  --muted: #363a4f;
-  --muted-foreground: #b8c0e0;
-  --muted-foreground-on-paper: #b8c0e0;
-  --accent: #363a4f;
-  --accent-foreground: #cad3f5;
-  --destructive: #ed8796;
-  --destructive-foreground: #24273a;
-  --warning: #eed49f;
-  --success: #a6da95;
-  --border: #494d64;
-  --input: #494d64;
-  --ring: #c6a0f6;
-  --accent-brand: #c6a0f6;
-  --accent-brand-soft: rgba(198, 160, 246, 0.14);
-  --accent-brand-tint: #35304a;
-  --brand-blue: #c6a0f6;
-  --brand-blue-hover: #d3b5f8;
-  --brand-panel: #24273a;
-  --brand-heading: #cad3f5;
-  --brand-body: #b8c0e0;
-  --brand-chip: #363a4f;
-  --brand-chip-border: #494d64;
-  --brand-chip-fg: #cad3f5;
-  --brand-card: #24273a;
+  --background: #24292e;
+  --foreground: #e1e4e8;
+  --card: #24292e;
+  --card-foreground: #e1e4e8;
+  --popover: #2d3236;
+  --popover-foreground: #e1e4e8;
+  --primary: #e1e4e8;
+  --primary-foreground: #24292e;
+  --primary-pressed: #bbbfc3;
+  --secondary: #31363b;
+  --secondary-foreground: #e1e4e8;
+  --muted: #31363b;
+  --muted-foreground: #8e959d;
+  --muted-foreground-on-paper: #8e959d;
+  --accent: #31363b;
+  --accent-foreground: #e1e4e8;
+  --destructive: #ea4a5a;
+  --destructive-foreground: #24292e;
+  --warning: #d29922;
+  --success: #34d058;
+  --border: #40454a;
+  --input: #40454a;
+  --ring: #e1e4e8;
+  --accent-brand: #e1e4e8;
+  --accent-brand-soft: rgba(225, 228, 232, 0.08);
+  --accent-brand-tint: #31363b;
+  --brand-blue: #e1e4e8;
+  --brand-blue-hover: #b2b5ba;
+  --brand-panel: #24292e;
+  --brand-heading: #e1e4e8;
+  --brand-body: #8e959d;
+  --brand-chip: #31363b;
+  --brand-chip-border: #40454a;
+  --brand-chip-fg: #e1e4e8;
+  --brand-card: #24292e;
   /* Macchiato's mantle into its crust: the frame recedes behind the base
      panel rather than tinting it olive. */
-  --shell-gradient-top: #1e2030;
-  --shell-gradient-bottom: #181926;
+  --shell-gradient-top: #4a4616;
+  --shell-gradient-bottom: #0a1423;
   /* Ink buttons turn over: light fill, dark text. */
-  --cta: #cad3f5;
-  --cta-foreground: #24273a;
+  --cta: #e1e4e8;
+  --cta-foreground: #24292e;
   /* The pale washes behind badges and banners, as dark washes. */
-  --tint-flame: #3d2f3e;
-  --tint-amber: #3d3632;
-  --tint-sand: #363a4f;
-  --tint-slate: #363a4f;
-  --color-soft-mint: #2e3f3a;
-  --glass-fill: rgba(36, 39, 58, 0.72);
-  --glass-fill-strong: #1e2030;
-  --glass-edge: #494d64;
-  --glass-accent-fill: #c6a0f6;
-  --glass-accent-fg: #24273a;
-  --glass-amber-edge: #5b4b33;
-  --glass-amber-fg: #eed49f;
-  --shell-ink: #cad3f5;
-  --rail-foreground: #cad3f5;
-  --rail-accent: rgba(202, 211, 245, 0.14);
-  --rail-accent-foreground: #cad3f5;
-  --rail-border: rgba(202, 211, 245, 0.14);
-  --sidebar-foreground: #cad3f5;
-  --sidebar-primary: #c6a0f6;
-  --sidebar-primary-foreground: #24273a;
-  --sidebar-accent: rgba(202, 211, 245, 0.10);
-  --sidebar-accent-foreground: #cad3f5;
-  --sidebar-border: rgba(202, 211, 245, 0.14);
+  --tint-flame: #3c2d33;
+  --tint-amber: #3c392c;
+  --tint-sand: #31363b;
+  --tint-slate: #31363b;
+  --color-soft-mint: #264034;
+  --glass-fill: rgba(36, 41, 46, 0.72);
+  --glass-fill-strong: #24292e;
+  --glass-edge: #40454a;
+  --glass-accent-fill: #e1e4e8;
+  --glass-accent-fg: #24292e;
+  --glass-amber-edge: #584b2a;
+  --glass-amber-fg: #e0b864;
+  --shell-ink: #e1e4e8;
+  --rail-foreground: #e1e4e8;
+  --rail-accent: rgba(225, 228, 232, 0.14);
+  --rail-accent-foreground: #e1e4e8;
+  --rail-border: rgba(225, 228, 232, 0.12);
+  --sidebar-foreground: #e1e4e8;
+  --sidebar-primary: #e1e4e8;
+  --sidebar-primary-foreground: #171a1d;
+  --sidebar-accent: rgba(255, 255, 255, 0.16);
+  --sidebar-accent-foreground: #e1e4e8;
+  --sidebar-border: rgba(225, 228, 232, 0.12);
+  --brand-blue-soft: rgba(225, 228, 232, 0.08);
+  --brand-blue-glow: rgba(225, 228, 232, 0.12);
+  --sidebar-ring: #e1e4e8;
+  --glass-amber-fill: #3c392c;
 }
 
 /* Dark is chosen in Settings → Appearance (light, dark or follow the

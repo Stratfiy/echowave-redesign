@@ -50,7 +50,7 @@ export default function AgentSetupPage() {
       path: { workflow_id: workflowId },
     });
     if (res.error || !res.data) {
-      toast.error(detailFromResult(res, "Could not load this bot's setup"));
+      toast.error(detailFromResult(res, "Could not load this agent's setup"));
       return;
     }
     setName(res.data.workflow_name);

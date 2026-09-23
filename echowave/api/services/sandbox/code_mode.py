@@ -56,7 +56,7 @@ DESCRIPTION = (
     "when a routine would otherwise need more than about ten tool calls. "
     f"Limits: {protocol.DEFAULT_MAX_CALLS} tool calls and "
     f"{protocol.DEFAULT_TIMEOUT_SECONDS // 60} minutes; no network; nothing "
-    "outside the tools you already have. On a bot that has the web tool, "
+    "outside the tools you already have. On an agent that has the web tool, "
     "tools.call('web_search', query=...) and tools.call('web_fetch', url=...) "
     "work too, each priced as usual and capped per run."
 )
@@ -279,7 +279,7 @@ async def run_for_bot(
         if tool is None:
             return {
                 "status": "error",
-                "error": f"no tool called {name!r} on this bot; the tools are: "
+                "error": f"no tool called {name!r} on this agent; the tools are: "
                 + ", ".join(known),
             }
         config = (tool.definition or {}).get("config") or {}

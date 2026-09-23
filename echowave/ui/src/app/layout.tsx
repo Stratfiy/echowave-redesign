@@ -15,8 +15,8 @@ import { AppConfigProvider } from "@/context/AppConfigContext";
 import { OnboardingProvider } from "@/context/OnboardingContext";
 import { OrgConfigProvider } from "@/context/OrgConfigContext";
 import { TelephonyConfigWarningsProvider } from "@/context/TelephonyConfigWarningsContext";
-import { ACCENT_BOOT_SCRIPT } from "@/lib/accent";
 import { AuthProvider } from "@/lib/auth";
+import { THEME_BOOT_SCRIPT } from "@/lib/themes";
 
 // Lato, self-hosted by next/font at build time rather than fetched from a CDN
 // at runtime — a restricted deployment has no egress to fonts.gstatic.com, and
@@ -50,7 +50,7 @@ const appMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Decibyl — AI teammates for Indian businesses",
   description:
-    "Add a bot for a job — answering the phone, confirming orders, chasing payments, answering from your own documents. Self-hostable, BYOK, MCP-native.",
+    "Add an agent for a job — answering the phone, confirming orders, chasing payments, answering from your own documents. Self-hostable, BYOK, MCP-native.",
 };
 
 export default function RootLayout({
@@ -70,16 +70,11 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        {/* The anti-flash script that used to live here restored a stored 'dark'
-            class before hydration. The app is light-only now, so it would only
-            reintroduce a theme nothing styles — and a stale localStorage entry
-            from a previous visit would have kept doing so indefinitely.
-
-            The accent is a different matter: it is a real preference, and
-            restoring it after hydration would repaint every link and focus
-            ring a beat late. This runs before first paint and only replays
-            what the settings screen already computed — see lib/accent.ts. */}
-        <script dangerouslySetInnerHTML={{ __html: ACCENT_BOOT_SCRIPT }} />
+        {/* Before first paint: a chosen theme (Settings → Appearance) goes
+            back on, and the accent colour older builds stored -- the purple
+            -- is cleared. The default theme needs nothing; it is globals.css.
+            See lib/themes.ts. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
       </head>
       <body className="antialiased">
         {/* Light unless the person chose otherwise in Settings → Appearance.

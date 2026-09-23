@@ -48,7 +48,7 @@ export default function WorkflowDetailPage() {
                 // their bot had been deleted when the request had simply
                 // failed. A refusal now says what it was.
                 if (response.error) {
-                    setError(detailFromResult(response, 'This bot could not be loaded'));
+                    setError(detailFromResult(response, 'This agent could not be loaded'));
                     return;
                 }
                 const workflow = response.data;

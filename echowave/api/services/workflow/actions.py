@@ -44,9 +44,9 @@ from api.services.workflow import agent_timeline
 
 TOOL_NAME = "propose_action"
 DESCRIPTION = (
-    "Propose to do one of the things you are allowed to do: turn a bot on "
+    "Propose to do one of the things you are allowed to do: turn an agent on "
     "or off, call back a caller the business missed, forget one of the "
-    "facts in your memory when a person asks you to, or create a new bot "
+    "facts in your memory when a person asks you to, or create a new agent "
     "from a template with the answers it needs. Nothing happens "
     "until a person on the team confirms on the card, and they can undo it "
     "for a few seconds after. Say in one line why. You will not know the "
@@ -124,13 +124,13 @@ def tool_properties() -> dict[str, Any]:
             "type": "string",
             "enum": list(ACTIONS),
             "description": (
-                "'turn_bot_on' or 'turn_bot_off' for a bot's live switch; "
+                "'turn_bot_on' or 'turn_bot_off' for an agent's live switch; "
                 "'return_missed_call' to ring back a caller from the missed "
                 "calls in your context; 'forget_fact' to drop one remembered "
                 "fact, named by its key; 'forget_everything' to delete all "
                 "the business has taught its workers -- only when the person "
                 "asks for everything to be forgotten or deleted, never for "
-                "one fact; 'create_bot' to build a new bot from one of the "
+                "one fact; 'create_bot' to build a new agent from one of the "
                 "templates in your context."
             ),
         },
@@ -141,7 +141,7 @@ def tool_properties() -> dict[str, Any]:
         "name": {
             "type": "string",
             "description": (
-                "For create_bot: what to call the bot, in the person's words, "
+                "For create_bot: what to call the agent, in the person's words, "
                 "e.g. 'Narayani Dental front desk'."
             ),
         },
@@ -157,7 +157,7 @@ def tool_properties() -> dict[str, Any]:
         "bot": {
             "type": "string",
             "description": (
-                "The bot, by name or @handle, for turn_bot_on and turn_bot_off. "
+                "The agent, by name or @handle, for turn_bot_on and turn_bot_off. "
                 "Leave empty to mean yourself."
             ),
         },
@@ -313,8 +313,8 @@ async def resolve(
             ),
             "why": why,
             "effect": (
-                "Puts them on the Skills shelf for review. No bot runs one "
-                "until a person puts it on that bot."
+                "Puts them on the Skills shelf for review. No agent runs one "
+                "until a person puts it on that agent."
             ),
             "reversible": True,
             "state": PROPOSED,
@@ -362,17 +362,19 @@ async def resolve(
             )
             bot = _match_bot(wanted, list(roster))
             if bot is None:
-                raise ActionError(f"No bot called {wanted!r} here; use its exact name.")
+                raise ActionError(
+                    f"No agent called {wanted!r} here; use its exact name."
+                )
             target_id, target_name = bot.id, bot.name
         elif workflow_id is not None:
             bot = await db_client.get_workflow(
                 workflow_id, organization_id=organization_id
             )
             if bot is None:
-                raise ActionError("This bot no longer exists.")
+                raise ActionError("This agent no longer exists.")
             target_id, target_name = bot.id, bot.name
         else:
-            raise ActionError("Say which bot.")
+            raise ActionError("Say which agent.")
         on = action == TURN_BOT_ON
         return {
             "action": action,
@@ -399,7 +401,7 @@ async def resolve(
                 "Say which template, by its id from the templates in your context."
             )
         if not name:
-            raise ActionError("Say what to call the bot.")
+            raise ActionError("Say what to call the agent.")
         try:
             built = assemble(template, name=name, variables=variables)
         except AssemblyError as exc:
@@ -755,7 +757,7 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
                 organization_id=organization_id,
             )
         except ValueError as exc:
-            raise ActionError("That bot no longer exists.") from exc
+            raise ActionError("That agent no longer exists.") from exc
         return f"{args.get('bot_name', 'The bot')} is now {'on' if args['is_live'] else 'off'}."
     if action == FORGET_EVERYTHING:
         from api.services.knowledge_graph import export
@@ -782,7 +784,7 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
 
         user_id = int(((payload.get("confirmed") or {}).get("by")) or 0)
         if not user_id:
-            raise ActionError("Nobody confirmed this, so nobody owns the bot.")
+            raise ActionError("Nobody confirmed this, so nobody owns the agent.")
         result = await builder_tools._create_agent(
             organization_id=organization_id,
             user_id=user_id,
@@ -805,7 +807,7 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
                 "open_url": result.get("open_url"),
             }
         )
-        who = f"@{handle}" if handle else result.get("name", "the bot")
+        who = f"@{handle}" if handle else result.get("name", "the agent")
         return (
             f"Created {result.get('name', 'the bot')} ({who}). Hear it or try it "
             "from this card; it needs a number before it can take real calls."
@@ -842,7 +844,7 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
 
         user_id = int(((payload.get("confirmed") or {}).get("by")) or 0)
         if not user_id:
-            raise ActionError("Nobody confirmed this, so nobody owns the bot.")
+            raise ActionError("Nobody confirmed this, so nobody owns the agent.")
         try:
             built = await bot_from_brief.build(
                 organization_id=organization_id, user_id=user_id, args=args
@@ -852,9 +854,9 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
         except Exception as exc:  # noqa: BLE001
             # Generation reaches an outside service. A failure is said on the
             # card rather than raised at somebody waiting on a reply.
-            logger.warning("Could not build a bot from the spec: {}", exc)
+            logger.warning("Could not build an agent from the spec: {}", exc)
             raise ActionError(
-                "The bot could not be built from that spec just now."
+                "The agent could not be built from that spec just now."
             ) from exc
         payload.setdefault("result", {}).update(
             {"workflow_id": built["workflow_id"], "handle": built.get("handle")}
@@ -953,7 +955,7 @@ async def _reverse(organization_id: int, payload: dict[str, Any]) -> None:
                 organization_id=organization_id,
             )
         except ValueError as exc:
-            raise ActionError("That bot no longer exists.") from exc
+            raise ActionError("That agent no longer exists.") from exc
         return
     if action == FORGET_FACT:
         if not await db_client.set_organisation_fact_status(

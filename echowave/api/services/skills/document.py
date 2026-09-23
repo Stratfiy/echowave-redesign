@@ -124,7 +124,7 @@ _CONCERNS: tuple[tuple[re.Pattern[str], str, str], ...] = (
     (
         re.compile(r"\b(?:you are|your name is|you're)\b", re.IGNORECASE),
         "identity",
-        "Tries to set who the bot is. The bot's persona is separate and wins, "
+        "Tries to set who the agent is. The agent's persona is separate and wins, "
         "so this will not take effect -- but it means the skill was written "
         "for a different assistant.",
     ),
@@ -166,7 +166,7 @@ _CONCERNS: tuple[tuple[re.Pattern[str], str, str], ...] = (
         ),
         "bulk-data",
         "Refers to the whole customer list. Worth checking against what this "
-        "bot is meant to do on one call.",
+        "agent is meant to do on one call.",
     ),
 )
 
@@ -249,7 +249,7 @@ def parse(text: str, *, source: str = "SKILL.md") -> PortableSkill:
         # A skill with no description is a skill that never fires, which is
         # the silent kind of broken.
         raise SkillParseError(
-            f"{source} has no description. It is what tells the bot when to "
+            f"{source} has no description. It is what tells the agent when to "
             "use the skill, so without it the skill never runs."
         )
     if len(description) > MAX_DESCRIPTION:

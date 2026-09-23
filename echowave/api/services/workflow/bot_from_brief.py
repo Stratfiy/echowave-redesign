@@ -77,8 +77,8 @@ MIN_BRIEF_CHARS = 80
 MAX_NAME_CHARS = 80
 
 DESCRIPTION = (
-    "Build a bot from a written specification -- a document somebody "
-    "attached, or a flow they described in detail: the steps, what the bot "
+    "Build an agent from a written specification -- a document somebody "
+    "attached, or a flow they described in detail: the steps, what the agent "
     "asks, what it checks, when it escalates. Use this INSTEAD of "
     "propose_action/create_bot whenever what they want is not one of the "
     "templates in your context, which is most real specs. Pass the spec "
@@ -98,13 +98,13 @@ def tool_schema() -> dict[str, Any]:
             "properties": {
                 "name": {
                     "type": "string",
-                    "description": "What to call the bot, as the team would say it.",
+                    "description": "What to call the agent, as the team would say it.",
                 },
                 "channel": {
                     "type": "string",
                     "enum": list(CHANNELS),
                     "description": (
-                        "'voice' for a bot on the phone, 'chat' for one that "
+                        "'voice' for an agent on the phone, 'chat' for one that "
                         "answers in writing. Default 'voice'."
                     ),
                 },
@@ -112,9 +112,9 @@ def tool_schema() -> dict[str, Any]:
                     "type": "string",
                     "enum": list(CALL_TYPES),
                     "description": (
-                        "Only for a voice bot: 'inbound' when people call the "
-                        "business, 'outbound' when the bot rings them first. "
-                        "Leave it out for a chat bot -- it has no direction."
+                        "Only for a voice agent: 'inbound' when people call the "
+                        "business, 'outbound' when the agent rings them first. "
+                        "Leave it out for a chat agent -- it has no direction."
                     ),
                 },
                 "use_case": {
@@ -132,7 +132,7 @@ def tool_schema() -> dict[str, Any]:
                 "why": {
                     "type": "string",
                     "description": (
-                        "One line on why this bot, for the person confirming "
+                        "One line on why this agent, for the person confirming "
                         "it: what they said or sent that this is built from. "
                         "They are approving something that cannot be switched "
                         "back off, so say what it is for."
@@ -156,7 +156,7 @@ def resolve(arguments: dict[str, Any]) -> dict[str, Any]:
     job builds from. Nothing is generated here -- see the module docstring."""
     name = str(arguments.get("name") or "").strip()[:MAX_NAME_CHARS]
     if not name:
-        raise BriefError("Say what to call the bot.")
+        raise BriefError("Say what to call the agent.")
     channel = str(arguments.get("channel") or BotChannel.VOICE.value).strip().lower()
     if channel not in CHANNELS:
         raise BriefError(
@@ -177,7 +177,7 @@ def resolve(arguments: dict[str, Any]) -> dict[str, Any]:
     if len(spec) < MIN_BRIEF_CHARS:
         raise BriefError(
             "That is not enough of a spec to build from. Give the steps the "
-            "bot should follow, in their words."
+            "agent should follow, in their words."
         )
     spec = spec[:MAX_BRIEF_CHARS]
     use_case = str(arguments.get("use_case") or "").strip()[:120] or name
@@ -284,7 +284,7 @@ async def build(
         except Exception as exc:  # noqa: BLE001
             # A clash is somebody else's live trigger, not a reason to lose
             # the bot: it is created without them and the paths are said.
-            logger.warning("Trigger paths unavailable for the built bot: {}", exc)
+            logger.warning("Trigger paths unavailable for the built agent: {}", exc)
             paths = []
 
     workflow = await db_client.create_workflow(
@@ -307,7 +307,7 @@ async def build(
                 trigger_paths=paths,
             )
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Could not claim trigger paths for the built bot: {}", exc)
+            logger.warning("Could not claim trigger paths for the built agent: {}", exc)
 
     steps = len((definition or {}).get("nodes") or [])
     note = f"Built {workflow.name} — {steps} step{'' if steps == 1 else 's'}."
@@ -329,7 +329,7 @@ async def build(
         note = (
             f"{note} Waiting on: {', '.join(waiting_on)} -- connect "
             f"{'it' if one else 'them'} from the card{'' if one else 's'} "
-            f"above and the bot has {'its' if one else 'their'} tools."
+            f"above and the agent has {'its' if one else 'their'} tools."
         )
 
     return {
@@ -394,7 +394,7 @@ async def attach_waiting(*, organization_id: int, app: str) -> list[str]:
                 )
             ).all()
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Could not read the bots waiting on {}: {}", app, exc)
+        logger.warning("Could not read the agents waiting on {}: {}", app, exc)
         return []
     waiting = []
     for row in rows:
@@ -479,11 +479,11 @@ async def _waiting_on(*, organization_id: int, spec: str) -> list[str]:
         for slug in missing[:MAX_WAITING_CARDS]:
             await connector_offer.offer(
                 organization_id=organization_id,
-                arguments={"app": slug, "why": "The bot you just built uses it."},
+                arguments={"app": slug, "why": "The agent you just built uses it."},
             )
         return missing
     except Exception as exc:  # noqa: BLE001 - the bot is the deliverable
-        logger.warning("Could not work out what the built bot is waiting on: {}", exc)
+        logger.warning("Could not work out what the built agent is waiting on: {}", exc)
         return []
 
 
@@ -505,10 +505,12 @@ async def _attach_named_apps(
         tools += await connected_tools.mcp_for_organization(organization_id)
         uuids = brief_apps.tool_uuids(spec, tools)
         if uuids:
-            logger.info("Built bot gets {} tool(s) from its brief", len(uuids))
+            logger.info("Built agent gets {} tool(s) from its brief", len(uuids))
         return brief_apps.attach(definition, uuids)
     except Exception as exc:  # noqa: BLE001 - the bot is the deliverable
-        logger.warning("Could not give the built bot the apps its brief named: {}", exc)
+        logger.warning(
+            "Could not give the built agent the apps its brief named: {}", exc
+        )
         return definition
 
 

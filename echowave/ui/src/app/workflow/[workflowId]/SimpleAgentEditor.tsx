@@ -38,7 +38,7 @@ export function SimpleAgentEditor({
     readOnly = false,
     header,
     workflowId,
-    name = "this bot",
+    name = "this agent",
 }: {
     nodes: FlowNode[];
     onNodesChange: (next: FlowNode[]) => void;
@@ -73,7 +73,7 @@ export function SimpleAgentEditor({
 
             <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h2 className="text-lg font-semibold">This bot</h2>
+                    <h2 className="text-lg font-semibold">This agent</h2>
                     <p className="text-sm text-muted-foreground">
                         One agent, one job. It answers, it does the thing, it hangs up.
                     </p>
@@ -98,7 +98,7 @@ export function SimpleAgentEditor({
                     className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 px-4 py-3 text-sm"
                 >
                     <span>
-                        The chat saved a new draft of this bot. Reload to see it — nothing
+                        The chat saved a new draft of this agent. Reload to see it — nothing
                         is live until you publish.
                     </span>
                     <Button size="sm" variant="outline" onClick={() => window.location.reload()}>

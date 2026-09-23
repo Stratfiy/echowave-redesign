@@ -43,14 +43,14 @@ beforeEach(() => {
     workflows.mockResolvedValue({ data: [{ id: 3, name: "Quote desk", handle: null }] });
 });
 
-describe("what the bots handed over", () => {
+describe("what the agents handed over", () => {
     it("asks for the deliverables, not the whole feed", async () => {
         render(<DeliverablesPage />);
         await waitFor(() => expect(timeline).toHaveBeenCalled());
         expect(timeline.mock.calls[0][0].query.deliverables_only).toBe(true);
     });
 
-    it("names the bot that produced it, and opens the call it came from", async () => {
+    it("names the agent that produced it, and opens the call it came from", async () => {
         render(<DeliverablesPage />);
         expect(await screen.findByText("Quote desk")).toBeTruthy();
         const link = screen.getByText("Quote for Meera, ₹4,200");
@@ -73,7 +73,7 @@ describe("what the bots handed over", () => {
         expect(await screen.findByText("quote.pdf")).toBeTruthy();
     });
 
-    it("says so when a bot has handed over nothing yet", async () => {
+    it("says so when an agent has handed over nothing yet", async () => {
         timeline.mockResolvedValue({ data: { events: [] } });
         render(<DeliverablesPage />);
         expect(await screen.findByText("Nothing handed over yet.")).toBeTruthy();

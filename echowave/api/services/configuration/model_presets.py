@@ -70,7 +70,7 @@ MODEL_PRESETS: tuple[ModelPreset, ...] = (
     ModelPreset(
         slug="natural",
         label="Natural",
-        blurb="The most natural Indian voice, Hindi and English. For calls that must not sound like a bot.",
+        blurb="The most natural Indian voice, Hindi and English. For calls that must not sound like an agent.",
         tts_tier="natural",
         llm_tier="lite",
     ),

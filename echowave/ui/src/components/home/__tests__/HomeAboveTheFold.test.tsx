@@ -98,7 +98,7 @@ describe("home is Decibyl's thread", () => {
                 headline,
                 suggestions: [],
                 openers: [
-                    { kind: "asked_before", text: "Which bots took calls today?" },
+                    { kind: "asked_before", text: "Which agents took calls today?" },
                     { kind: "missed_calls", text: "Call back the 3 people who rang and got nobody" },
                     { kind: "time", text: "What happened since yesterday?" },
                 ],
@@ -107,12 +107,12 @@ describe("home is Decibyl's thread", () => {
         });
         api.post.mockResolvedValue({ data: { asked: [], unknown: [], ambiguous: [] } });
         render(<HomeAboveTheFold />);
-        expect(await screen.findByRole("button", { name: "Which bots took calls today?" })).toBeTruthy();
+        expect(await screen.findByRole("button", { name: "Which agents took calls today?" })).toBeTruthy();
         expect(screen.getByRole("button", { name: /Call back the 3 people/ })).toBeTruthy();
         expect(screen.queryByRole("button", { name: "What happened this week?" })).toBeNull();
-        fireEvent.click(screen.getByRole("button", { name: "Which bots took calls today?" }));
+        fireEvent.click(screen.getByRole("button", { name: "Which agents took calls today?" }));
         await waitFor(() => expect(api.post).toHaveBeenCalled());
-        expect(api.post.mock.calls[0][0].body).toEqual({ assistant: true, thread_id: null, text: "Which bots took calls today?" });
+        expect(api.post.mock.calls[0][0].body).toEqual({ assistant: true, thread_id: null, text: "Which agents took calls today?" });
     });
 
     it("a brand-new account gets the first jobs for its business from the server", async () => {

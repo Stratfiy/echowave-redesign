@@ -2,7 +2,6 @@
 
 import { ExternalLink } from "lucide-react";
 
-import { AccentSection } from "@/components/AccentSection";
 import { CredentialsSection } from "@/components/CredentialsSection";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { MCPSection } from "@/components/MCPSection";
@@ -50,20 +49,20 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{shell ? "Appearance" : "Theme"}</CardTitle>
-            <CardDescription>
-              {shell
-                ? "Light, dark, or whatever this device is set to, and the accent colour on top."
-                : "The colour of the frame: rail, panel and top bar, and the links and active states inside."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {shell && <ThemeModeSection />}
-            <AccentSection />
-          </CardContent>
-        </Card>
+        {shell && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Appearance</CardTitle>
+              <CardDescription>
+                Light, dark, or whatever this device is set to -- and, if you
+                want one, a theme. Saved on this device.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ThemeModeSection />
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>
@@ -115,7 +114,7 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle>Telemetry</CardTitle>
             <CardDescription>
-              Configure Langfuse tracing for calls your bots take.{" "}
+              Configure Langfuse tracing for calls your agents take.{" "}
               <a
                 href="https://docs.decibyl.ai/configurations/tracing"
                 target="_blank"

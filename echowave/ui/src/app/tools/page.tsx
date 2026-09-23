@@ -287,7 +287,7 @@ export default function ToolsPage() {
         const ok = await confirm({
             title: "Archive this tool?",
             description:
-                "Workflows that call it will stop being able to. You can still see it in your history; it just will not be offered to a bot again.",
+                "Workflows that call it will stop being able to. You can still see it in your history; it just will not be offered to an agent again.",
             confirmLabel: "Archive tool",
             destructive: true,
         });
@@ -398,9 +398,9 @@ export default function ToolsPage() {
             title="Your tools"
             description={
                 <>
-                    Tools you have built or added: one action a bot can take
+                    Tools you have built or added: one action an agent can take
                     mid-call — look something up, book, send. Made once, given
-                    to any bot. For ready-made ones, see{" "}
+                    to any agent. For ready-made ones, see{" "}
                     <Link href="/marketplace/tools" className="underline">
                         the Marketplace
                     </Link>
@@ -429,7 +429,7 @@ export default function ToolsPage() {
                                         {activeTools.length === 1 ? "1 tool" : `${activeTools.length} tools`}
                                     </CardTitle>
                                     <CardDescription>
-                                        Built here, and on any bot you hand them to.
+                                        Built here, and on any agent you hand them to.
                                     </CardDescription>
                                 </div>
                                 <div className="flex gap-2">

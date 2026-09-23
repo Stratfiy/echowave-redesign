@@ -377,7 +377,7 @@ COMPILE_TOOL: dict[str, Any] = {
             "filter": {
                 "type": "array",
                 "description": (
-                    "Conditions that must all hold for the bot to act. Empty "
+                    "Conditions that must all hold for the agent to act. Empty "
                     "means act on every event."
                 ),
                 "items": {
@@ -393,9 +393,9 @@ COMPILE_TOOL: dict[str, Any] = {
             "instruction": {
                 "type": "string",
                 "description": (
-                    "What the bot should do each time, in the second person, "
+                    "What the agent should do each time, in the second person, "
                     "referring to event fields by name. The event's JSON is "
-                    "shown to the bot alongside this."
+                    "shown to the agent alongside this."
                 ),
             },
             "questions": {
@@ -587,7 +587,7 @@ async def compile(
         return _plain(
             sentence,
             "No builder model is set up, so the sentence is used as-is. "
-            "The bot will act on every event.",
+            "The agent will act on every event.",
         )
 
     conversation = Conversation()
@@ -607,7 +607,7 @@ async def compile(
         return _plain(
             sentence,
             "The model could not be reached, so the sentence is used as-is. "
-            "The bot will act on every event.",
+            "The agent will act on every event.",
         )
     call = next((c for c in reply.tool_calls if c.name == COMPILE_TOOL_NAME), None)
     if call is None:

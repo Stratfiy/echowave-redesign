@@ -107,7 +107,7 @@ class TestWhatDecibylIsTold:
         block = connected_tools.apps_block(
             [composio("GMAIL_FETCH_EMAILS")], mcp_servers=["Zerodha Kite"]
         )
-        assert "bot" in block.lower()
+        assert "agent" in block.lower()
 
     def test_no_mcp_servers_leaves_the_block_alone(self):
         plain = connected_tools.apps_block([composio("GMAIL_FETCH_EMAILS")])

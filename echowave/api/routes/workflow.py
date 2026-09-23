@@ -1830,7 +1830,7 @@ async def set_bot_notices(
         # is about.
         raise HTTPException(
             status_code=400,
-            detail=f"This bot cannot notify on: {', '.join(sorted(set(unknown)))}",
+            detail=f"This agent cannot notify on: {', '.join(sorted(set(unknown)))}",
         )
 
     draft = await db_client.get_draft_version(workflow_id)

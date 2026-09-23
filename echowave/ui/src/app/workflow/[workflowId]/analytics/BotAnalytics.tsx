@@ -129,7 +129,7 @@ export function BotAnalytics({ workflowId }: { workflowId: number }) {
                 <div>
                     <h2 className="text-lg font-semibold">What it has been doing</h2>
                     <p className="text-sm text-muted-foreground">
-                        This bot only. Nothing here is the account&apos;s total.
+                        This agent only. Nothing here is the account&apos;s total.
                     </p>
                 </div>
                 <div className="flex gap-2" role="group" aria-label="Period">
@@ -181,7 +181,7 @@ export function BotAnalytics({ workflowId }: { workflowId: number }) {
                 loading={loading}
                 error={error}
                 isEmpty={daily.every((row) => row.runs === 0)}
-                emptyMessage="This bot has not run in this window."
+                emptyMessage="This agent has not run in this window."
             >
                 <ResponsiveContainer width="100%" height={260}>
                     <BarChart data={daily.map((row) => ({ ...row, label: dayLabel(row.day) }))}>
@@ -199,7 +199,7 @@ export function BotAnalytics({ workflowId }: { workflowId: number }) {
 
             <ChartCard
                 title="Tokens its brains used"
-                description="What the models read and wrote for this bot, by model."
+                description="What the models read and wrote for this agent, by model."
                 loading={loading}
                 error={error}
                 isEmpty={!tokens || tokens.total_tokens === 0}

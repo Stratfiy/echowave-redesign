@@ -19,7 +19,7 @@ const data: FlowNodeData = { name: "Support", prompt: "A very long instruction t
 function node(type = "agentNode", extra: Partial<FlowNodeData> = {}) { return <GenericNode {...({ id: "a", type, selected: true, data: { ...data, ...extra } } as NodeProps & { type: string; data: FlowNodeData })} />; }
 beforeEach(() => {
     state.save.mockReset(); state.form.mockReset(); state.readOnly = false; state.channel = undefined;
-    state.specs = new Map(["agentNode", "startCall", "trigger"].map((name) => [name, { name, display_name: name === "agentNode" ? "Agent" : name, icon: "Bot", properties: [{ name: "name" }, { name: "prompt" }, { name: "tool_uuids", type: "tool_refs" }, { name: "document_uuids", type: "document_refs" }] }]));
+    state.specs = new Map(["agentNode", "startCall", "trigger"].map((name) => [name, { name, display_name: name === "agentNode" ? "Agent" : name, icon: "Agent", properties: [{ name: "name" }, { name: "prompt" }, { name: "tool_uuids", type: "tool_refs" }, { name: "document_uuids", type: "document_refs" }] }]));
     useWorkflowStore.getState().initializeWorkflow(39, "Assistant", [{ id: "a", type: "trigger", position: { x: 0, y: 0 }, data }], []);
 });
 describe("compact canvas nodes", () => {
@@ -127,7 +127,7 @@ describe("the canvas speaks the channel's language", () => {
             ["endCall", { name: "endCall", display_name: "End Call", icon: "Square", properties: [{ name: "name" }, { name: "prompt" }] }],
         ]);
     });
-    it("says Start Call on a phone bot, and when nobody said which", () => {
+    it("says Start Call on a phone agent, and when nobody said which", () => {
         render(node("startCall", { name: "Answer" }));
         expect(screen.getByText("Start Call")).toBeTruthy();
     });

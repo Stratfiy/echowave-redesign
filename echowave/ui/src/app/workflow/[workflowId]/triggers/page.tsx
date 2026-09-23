@@ -112,7 +112,7 @@ export default function AgentTriggersPage() {
                 path: { workflow_id: workflowId },
             });
             if (workflowResult.error) {
-                setError(detailFromResult(workflowResult, "Could not load this bot"));
+                setError(detailFromResult(workflowResult, "Could not load this agent"));
                 setLoading(false);
                 return;
             }
@@ -243,7 +243,7 @@ export default function AgentTriggersPage() {
             const note =
                 (result.data?.detail ?? "") +
                 (missing.length
-                    ? ` The sample is missing: ${missing.join(", ")} — the bot will ask.`
+                    ? ` The sample is missing: ${missing.join(", ")} — the agent will ask.`
                     : "");
             setTestNote((n) => ({ ...n, [trigger.id]: note }));
         },
@@ -262,7 +262,7 @@ export default function AgentTriggersPage() {
             <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
                 <h2 className="text-lg font-semibold">Triggers</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                    What rings this bot from outside. Say when it should act and
+                    What rings this agent from outside. Say when it should act and
                     what it should do; you get a web address to paste into the
                     system that sees the event. One credit per event it acts on;
                     events it ignores are free.
@@ -300,7 +300,7 @@ export default function AgentTriggersPage() {
                         </div>
                         <p className="mt-1.5 text-xs text-muted-foreground">
                             {source === "email"
-                                ? "You get an email address. Forward mail to it and the bot acts on the message."
+                                ? "You get an email address. Forward mail to it and the agent acts on the message."
                                 : "You get a web address. The system that sees the event POSTs to it."}
                         </p>
                         <Textarea
@@ -473,7 +473,7 @@ export default function AgentTriggersPage() {
                                             </div>
                                             <p className="text-muted-foreground">
                                                 Forward mail here, or set it as a forwarding
-                                                address on your inbox. The bot reads the
+                                                address on your inbox. The agent reads the
                                                 subject and body of each message.
                                             </p>
                                         </div>

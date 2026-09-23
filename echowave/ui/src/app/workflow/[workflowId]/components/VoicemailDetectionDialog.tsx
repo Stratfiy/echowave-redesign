@@ -21,7 +21,7 @@ import {
 } from "@/types/workflow-configurations";
 
 // Must match VoicemailDetector.DEFAULT_SYSTEM_PROMPT in pipecat
-const DEFAULT_VOICEMAIL_SYSTEM_PROMPT = `You are a voicemail detection classifier for an OUTBOUND calling system. A bot has called a phone number and you need to determine if a human answered or if the call went to voicemail based on the provided text.
+const DEFAULT_VOICEMAIL_SYSTEM_PROMPT = `You are a voicemail detection classifier for an OUTBOUND calling system. An agent has called a phone number and you need to determine if a human answered or if the call went to voicemail based on the provided text.
 
 HUMAN ANSWERED - LIVE CONVERSATION (respond "CONVERSATION"):
 - Personal greetings: "Hello?", "Hi", "Yeah?", "John speaking"
@@ -139,7 +139,7 @@ export const VoicemailDetectionDialog = ({
                                         checked={useWorkflowLlm}
                                         onCheckedChange={setUseWorkflowLlm}
                                     />
-                                    <Label htmlFor="voicemail-use-workflow-llm">Use the bot&apos;s model</Label>
+                                    <Label htmlFor="voicemail-use-workflow-llm">Use the agent&apos;s model</Label>
                                     <Label className="text-xs text-muted-foreground ml-2">
                                         Use the LLM configured in your account settings.
                                     </Label>

@@ -99,7 +99,7 @@ export default function CampaignsPage() {
         <>
             <PageHeader
                 title="Campaigns"
-                description="Point a bot at a contact list and it works through the calls."
+                description="Point an agent at a contact list and it works through the calls."
                 actions={
                     <Button onClick={handleCreateCampaign}>
                         <Plus className="h-4 w-4 mr-2" />
@@ -129,7 +129,7 @@ export default function CampaignsPage() {
                                         <TableRow>
                                             <TableHead>ID</TableHead>
                                             <TableHead>Name</TableHead>
-                                            <TableHead>Bot</TableHead>
+                                            <TableHead>Agent</TableHead>
                                             <TableHead>State</TableHead>
                                             <TableHead>Progress</TableHead>
                                             <TableHead>Created</TableHead>
@@ -176,7 +176,7 @@ export default function CampaignsPage() {
                             <EmptyState
                                 icon={Megaphone}
                                 title="No campaigns yet"
-                                description="Point a bot at a list and it works through it — pacing the dials, retrying no-answers and skipping anyone on do-not-call."
+                                description="Point an agent at a list and it works through it — pacing the dials, retrying no-answers and skipping anyone on do-not-call."
                                 action={
                                     <Button onClick={handleCreateCampaign}>
                                         <Plus className="h-4 w-4 mr-2" />

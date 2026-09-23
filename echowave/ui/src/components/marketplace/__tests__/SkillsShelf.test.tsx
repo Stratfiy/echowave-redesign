@@ -61,13 +61,13 @@ beforeEach(() => {
 
 const openPicker = async () => {
     render(<SkillsShelf query="" />);
-    const add = await screen.findByLabelText("Add Chase an unpaid invoice to a bot");
+    const add = await screen.findByLabelText("Add Chase an unpaid invoice to an agent");
     await waitFor(() => expect(api.workflows).toHaveBeenCalled());
     fireEvent.click(add);
 };
 
 describe("SkillsShelf", () => {
-    it("ticks only the bots that already have the skill when nobody sent you", async () => {
+    it("ticks only the agents that already have the skill when nobody sent you", async () => {
         await openPicker();
         const reception = await screen.findByRole("checkbox", { name: "Reception" });
         expect(reception.getAttribute("aria-checked")).toBe("true");
@@ -76,7 +76,7 @@ describe("SkillsShelf", () => {
         ).toBe("false");
     });
 
-    it("pre-ticks the bot named by ?for and saves it alongside the rest", async () => {
+    it("pre-ticks the agent named by ?for and saves it alongside the rest", async () => {
         params.value = "for=7";
         await openPicker();
         const collections = await screen.findByRole("checkbox", { name: "Collections" });
@@ -89,7 +89,7 @@ describe("SkillsShelf", () => {
         );
     });
 
-    it("does not tick a bot twice when it already has the skill", async () => {
+    it("does not tick an agent twice when it already has the skill", async () => {
         params.value = "for=3";
         await openPicker();
         fireEvent.click(await screen.findByRole("button", { name: "Save" }));

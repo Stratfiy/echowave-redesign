@@ -55,11 +55,11 @@ beforeEach(() => {
 
 async function openDialog() {
     render(<CreateWorkflowButton />);
-    fireEvent.click(screen.getByRole("button", { name: /New bot/ }));
+    fireEvent.click(screen.getByRole("button", { name: /New agent/ }));
 }
 
-describe("the new-bot picker", () => {
-    it("leads with the ready-made bots, named by the business they are for", async () => {
+describe("the new-agent picker", () => {
+    it("leads with the ready-made agents, named by the business they are for", async () => {
         await openDialog();
         expect(await screen.findByText("Dental clinic front desk")).toBeTruthy();
     });
@@ -91,7 +91,7 @@ describe("the new-bot picker", () => {
         await waitFor(() => expect(push).toHaveBeenCalledWith("/workflow/create"));
     });
 
-    it("opens the bot a template made, rather than dropping the reader back on the list", async () => {
+    it("opens the agent a template made, rather than dropping the reader back on the list", async () => {
         post.mockResolvedValue({ data: { id: 42 }, error: undefined });
         await openDialog();
         fireEvent.click(await screen.findByText("Dental clinic front desk"));
@@ -105,9 +105,9 @@ describe("the new-bot picker", () => {
         await waitFor(() => expect(push).toHaveBeenCalledWith("/workflow/7"));
     });
 
-    it("does not say Create Bot with a chevron any more", async () => {
+    it("does not say Create Agent with a chevron any more", async () => {
         render(<CreateWorkflowButton />);
-        expect(screen.queryByText("Create Bot")).toBeNull();
-        expect(screen.getByRole("button", { name: /New bot/ })).toBeTruthy();
+        expect(screen.queryByText("Create Agent")).toBeNull();
+        expect(screen.getByRole("button", { name: /New agent/ })).toBeTruthy();
     });
 });

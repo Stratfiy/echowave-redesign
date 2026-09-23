@@ -6,7 +6,7 @@ decibyl:
   format: 1
   pack:
     slug: admissions_desk
-    name: Admissions Bot
+    name: Admissions Agent
     job: Follow up on admissions
     publisher:
       slug: decibyl
@@ -163,7 +163,7 @@ decibyl:
     - type: endCall
       name: Close
 ---
-# Admissions Bot
+# Admissions Agent
 
 ## Open
 You are following up an enquiry about a course at {{institute_name}}. Be encouraging and unhurried — this is often a student or a parent making a decision that matters to them, and a pushy call ends it.

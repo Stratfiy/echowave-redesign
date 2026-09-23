@@ -85,13 +85,13 @@ beforeEach(() => {
     api.connectors.mockResolvedValue({ data: CATALOGUE });
 });
 
-describe("the bot shelf", () => {
-    it("files bots by industry and by function, and a card hires one", async () => {
+describe("the agent shelf", () => {
+    it("files agents by industry and by function, and a card hires one", async () => {
         render(<MarketplaceScreen kind="bots" />);
         expect(await screen.findByText("Clinic front desk")).toBeTruthy();
         // Industry tiles and function pills, each with its count.
-        expect(screen.getByRole("button", { name: /Healthcare\s*1 bot/ })).toBeTruthy();
-        expect(screen.getByRole("button", { name: /Lending\s*1 bot/ })).toBeTruthy();
+        expect(screen.getByRole("button", { name: /Healthcare\s*1 agent/ })).toBeTruthy();
+        expect(screen.getByRole("button", { name: /Lending\s*1 agent/ })).toBeTruthy();
         expect(screen.getByRole("button", { name: "Collect payments · 1" })).toBeTruthy();
         // Add goes to the first-agent flow with the template chosen.
         expect(
@@ -102,7 +102,7 @@ describe("the bot shelf", () => {
     it("an industry tile filters the rows, and pressing it again clears", async () => {
         render(<MarketplaceScreen kind="bots" />);
         await screen.findByText("Clinic front desk");
-        const tile = screen.getByRole("button", { name: /Lending\s*1 bot/ });
+        const tile = screen.getByRole("button", { name: /Lending\s*1 agent/ });
         fireEvent.click(tile);
         expect(screen.queryByText("Clinic front desk")).toBeNull();
         expect(screen.getByText("Loan payment reminder")).toBeTruthy();
@@ -114,7 +114,7 @@ describe("the bot shelf", () => {
     it("search narrows the shelf", async () => {
         render(<MarketplaceScreen kind="bots" />);
         await screen.findByText("Clinic front desk");
-        fireEvent.change(screen.getByLabelText("Find a bot"), { target: { value: "borrowers" } });
+        fireEvent.change(screen.getByLabelText("Find an agent"), { target: { value: "borrowers" } });
         expect(screen.queryByText("Clinic front desk")).toBeNull();
         expect(screen.getByText("Loan payment reminder")).toBeTruthy();
     });

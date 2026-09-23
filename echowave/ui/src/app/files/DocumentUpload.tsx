@@ -197,7 +197,7 @@ export default function DocumentUpload({
 
         {/* Retrieval mode selection */}
         <div className="space-y-3">
-          <Label className="text-sm font-medium">How should the bot use this document?</Label>
+          <Label className="text-sm font-medium">How should the agent use this document?</Label>
           <RadioGroup value={retrievalMode} onValueChange={setRetrievalMode}>
             <label
               htmlFor="full_document"
