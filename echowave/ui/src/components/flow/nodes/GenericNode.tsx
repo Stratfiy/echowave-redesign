@@ -308,8 +308,12 @@ export const GenericNode = memo(({ data, selected, id, type }: GenericNodeProps)
     // in the draft with it, including a chat proposal nobody had accepted.
     const handleApply = () => {
         if (!spec || readOnly) return;
+        // What the canvas decorates a node with (the last run, the apps it
+        // uses) is display only; it must not ride an edit into the draft.
+        const { apps: _apps, last_run: _lastRun, runtime_active: _running, ...stored } = data;
+        void _apps; void _lastRun; void _running;
         handleSaveNodeData({
-            ...data,
+            ...stored,
             ...(values as Partial<FlowNodeData>),
         });
         setOpen(false);
@@ -356,6 +360,17 @@ export const GenericNode = memo(({ data, selected, id, type }: GenericNodeProps)
                     <div className="min-w-0 flex-1">
                         <NodeHeaderTitle title={data.name || fallbackTitle}>{data.name || fallbackTitle}</NodeHeaderTitle>
                         <p className="mt-1 truncate text-[11px] text-muted-foreground">{fallbackTitle}</p>
+                        {(data.apps?.length || data.last_run) ? (
+                            <div className="mt-1.5 flex items-center gap-1.5">
+                                {data.apps?.map((app) => (
+                                    <span key={app.slug} title={app.name} aria-label={app.name} className="inline-flex h-4 w-4 items-center justify-center overflow-hidden rounded bg-muted text-[9px] font-semibold uppercase">
+                                        {app.logo ? <img src={app.logo} alt="" className="h-4 w-4 object-contain" /> : app.name.charAt(0)}
+                                    </span>
+                                ))}
+                                {data.last_run === "reached" && <span className="text-[10px] text-emerald-700 dark:text-emerald-400">Reached last run</span>}
+                                {data.last_run === "missed" && <span className="text-[10px] text-muted-foreground">Not reached last run</span>}
+                            </div>
+                        ) : null}
                     </div>
                     {data.invalid ? <AlertCircle aria-label="Needs attention" className="h-4 w-4 shrink-0 text-destructive" />
                         : data.runtime_active ? <span aria-label="Running" className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-teal-500" />

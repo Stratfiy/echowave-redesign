@@ -7,6 +7,11 @@ import { WorkflowEditorHeader } from "../WorkflowEditorHeader";
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("@/components/ui/sidebar", () => ({ useSidebar: () => ({ toggleSidebar: vi.fn() }) }));
 vi.mock("@/client/sdk.gen", () => ({ duplicateWorkflowEndpointApiV1WorkflowWorkflowIdDuplicatePost: vi.fn(), publishWorkflowApiV1WorkflowWorkflowIdPublishPost: vi.fn() }));
+// Workspace roles (MP-2) are asked about over the network; off here, and
+// their menu item is tested at the bottom of this file.
+const roles = vi.hoisted(() => ({ available: false }));
+vi.mock("@/lib/workspaceRoles", () => ({ useWorkspaceRolesAvailable: () => roles.available }));
+vi.mock("@/components/workflow/SaveAsRoleDialog", () => ({ SaveAsRoleDialog: ({ open }: { open: boolean }) => (open ? <div>Save as a workspace role</div> : null) }));
 const props = () => ({ workflowName: "Clinic front desk and appointments", isDirty: false, workflowValidationErrors: [], rfInstance: { current: null }, workflowId: 39, saveWorkflow: vi.fn().mockResolvedValue(undefined), user: { id: "u" }, onPhoneCallClick: vi.fn(), onTestAgentClick: vi.fn(), onHistoryClick: vi.fn(), activeVersionLabel: "v2 (Draft)", isViewingHistoricalVersion: false, onBackToDraft: vi.fn(), hasDraft: true, onPublished: vi.fn(), renameWorkflow: vi.fn().mockResolvedValue(undefined) });
 function openMore() { fireEvent.pointerDown(screen.getByRole("button", { name: "More agent actions" }), { button: 0, ctrlKey: false, pointerType: "mouse" }); }
 describe("responsive editor actions", () => {
@@ -39,5 +44,30 @@ describe("responsive editor actions", () => {
         fireEvent.click(screen.getByRole("button", { name: "Back to Draft" }));
         expect(p.onBackToDraft).toHaveBeenCalledOnce();
         openMore(); expect(screen.queryByRole("menuitem", { name: "Phone Call" })).toBeNull();
+    });
+});
+
+describe("saving an agent as a workspace role (MP-2)", () => {
+    it("is offered only while workspace roles are on, and opens the save dialog", async () => {
+        roles.available = false;
+        const { unmount } = render(<WorkflowEditorHeader {...props()} />);
+        openMore();
+        expect(screen.queryByText("Save as workspace role")).toBeNull();
+        unmount();
+
+        roles.available = true;
+        render(<WorkflowEditorHeader {...props()} />);
+        openMore();
+        fireEvent.click(await screen.findByText("Save as workspace role"));
+        expect(await screen.findByText("Save as a workspace role")).toBeTruthy();
+        roles.available = false;
+    });
+
+    it("is not offered on a historical version", () => {
+        roles.available = true;
+        render(<WorkflowEditorHeader {...props()} isViewingHistoricalVersion />);
+        openMore();
+        expect(screen.queryByText("Save as workspace role")).toBeNull();
+        roles.available = false;
     });
 });

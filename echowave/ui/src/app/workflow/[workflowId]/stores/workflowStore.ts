@@ -115,6 +115,9 @@ export function graphSnapshot(nodes: FlowNode[], edges: FlowEdge[]): string {
       delete data.invalid;
       delete data.validationMessage;
       delete data.runtime_active;
+      // G-1 decoration (lib/graphExtras): shown on the canvas, never saved.
+      delete data.apps;
+      delete data.last_run;
       delete data.selected_through_edge;
       delete data.hovered_through_edge;
       copy.data = data;

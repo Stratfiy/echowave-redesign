@@ -2883,6 +2883,55 @@ class ImportedCallModel(Base):
     )
 
 
+class WorkspaceRoleModel(Base):
+    """A customised agent, saved as one of the workspace's own roles (MP-2).
+
+    A snapshot, not a link: the agent it came from can be edited or deleted
+    and the role stays what was saved. It is private to the organization
+    that saved it -- nothing lists it anywhere else -- until an admin shares
+    it (MP-3): ``share_token_hash`` is the sha256 of a link's token, the
+    token itself shown once and never stored, the way invitations work.
+
+    A copy made from a shared link or into another workspace records where
+    it came from in ``source_role_id``, and carries a definition with the
+    first workspace's tools, documents, recordings and credentials removed
+    -- ``needs`` lists what the new workspace has to connect instead.
+    """
+
+    __tablename__ = "workspace_roles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    name = Column(String(128), nullable=False)
+    summary = Column(Text, nullable=True)
+    definition = Column(JSON, nullable=False)
+    configurations = Column(JSON, nullable=True)
+    #: The shelf template the source agent was hired from, if any.
+    template_id = Column(String(128), nullable=True)
+    source_workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="SET NULL"), nullable=True
+    )
+    source_role_id = Column(
+        Integer, ForeignKey("workspace_roles.id", ondelete="SET NULL"), nullable=True
+    )
+    #: What a copy from another workspace still has to connect: node name and
+    #: the kind of reference that was removed.
+    needs = Column(JSON, nullable=True)
+    share_token_hash = Column(String(64), nullable=True, unique=True)
+    shared_at = Column(DateTime(timezone=True), nullable=True)
+    created_by = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (Index("ix_workspace_roles_organization", "organization_id"),)
+
+
 class EmbeddingIngestionCostModel(Base):
     """One document's ingestion-embedding cost, alongside what it was charged.
 
