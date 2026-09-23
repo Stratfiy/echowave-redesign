@@ -22176,6 +22176,102 @@ export type InstallSharedRoleApiV1WorkspaceRolesSharedTokenInstallPostResponses 
     200: unknown;
 };
 
+export type AgentStartsApiV1AgentGraphWorkflowIdStartsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/agent-graph/{workflow_id}/starts';
+};
+
+export type AgentStartsApiV1AgentGraphWorkflowIdStartsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AgentStartsApiV1AgentGraphWorkflowIdStartsGetError = AgentStartsApiV1AgentGraphWorkflowIdStartsGetErrors[keyof AgentStartsApiV1AgentGraphWorkflowIdStartsGetErrors];
+
+export type AgentStartsApiV1AgentGraphWorkflowIdStartsGetResponses = {
+    /**
+     * Response Agent Starts Api V1 Agent Graph  Workflow Id  Starts Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type AgentStartsApiV1AgentGraphWorkflowIdStartsGetResponse = AgentStartsApiV1AgentGraphWorkflowIdStartsGetResponses[keyof AgentStartsApiV1AgentGraphWorkflowIdStartsGetResponses];
+
+export type AgentLastRunApiV1AgentGraphWorkflowIdLastRunGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/agent-graph/{workflow_id}/last-run';
+};
+
+export type AgentLastRunApiV1AgentGraphWorkflowIdLastRunGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AgentLastRunApiV1AgentGraphWorkflowIdLastRunGetError = AgentLastRunApiV1AgentGraphWorkflowIdLastRunGetErrors[keyof AgentLastRunApiV1AgentGraphWorkflowIdLastRunGetErrors];
+
+export type AgentLastRunApiV1AgentGraphWorkflowIdLastRunGetResponses = {
+    /**
+     * Response Agent Last Run Api V1 Agent Graph  Workflow Id  Last Run Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type AgentLastRunApiV1AgentGraphWorkflowIdLastRunGetResponse = AgentLastRunApiV1AgentGraphWorkflowIdLastRunGetResponses[keyof AgentLastRunApiV1AgentGraphWorkflowIdLastRunGetResponses];
+
 export type GetBalanceApiV1BillingBalanceGetData = {
     body?: never;
     headers?: {

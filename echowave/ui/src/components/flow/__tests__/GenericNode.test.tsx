@@ -145,3 +145,25 @@ describe("the canvas speaks the channel's language", () => {
         expect(screen.queryByText("End Call")).toBeNull();
     });
 });
+
+describe("the last run and the apps a step uses (G-1)", () => {
+    it("shows whether the last run reached a step, and its apps", () => {
+        render(node("agentNode", { last_run: "reached", apps: [{ slug: "googlesheets", name: "Google Sheets", logo: null }] }));
+        expect(screen.getByText("Reached last run")).toBeTruthy();
+        expect(screen.getByLabelText("Google Sheets")).toBeTruthy();
+    });
+    it("says when the last run did not reach it", () => {
+        render(node("agentNode", { last_run: "missed" }));
+        expect(screen.getByText("Not reached last run")).toBeTruthy();
+    });
+    it("does not carry what the canvas shows into the saved draft", () => {
+        render(node("agentNode", { last_run: "reached", apps: [{ slug: "x", name: "X", logo: null }], runtime_active: true }));
+        fireEvent.keyDown(screen.getByLabelText(/Press Enter to inspect/), { key: "Enter" });
+        fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+        const saved = useWorkflowStore.getState().nodes[0].data as Record<string, unknown>;
+        expect(saved.last_run).toBeUndefined();
+        expect(saved.apps).toBeUndefined();
+        expect(saved.runtime_active).toBeUndefined();
+    });
+});
+

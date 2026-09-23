@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { createWorkflowDraftApiV1WorkflowWorkflowIdCreateDraftPost, getWorkflowVersionsApiV1WorkflowWorkflowIdVersionsGet, listDocumentsApiV1KnowledgeBaseDocumentsGet, listRecordingsApiV1WorkflowRecordingsGet, listToolsApiV1ToolsGet, restoreWorkflowVersionApiV1WorkflowWorkflowIdVersionsVersionIdRestorePost } from '@/client';
 import type { DocumentResponseSchema, RecordingResponseSchema, ToolResponse } from '@/client/types.gen';
 import { channelOf } from "@/components/flow/channelWords";
+import { StartsCard } from "@/components/flow/nodes/StartsCard";
 import { useNodeSpecs } from "@/components/flow/renderer";
 import { FlowEdge, FlowNode, NodeType } from "@/components/flow/types";
 import { AuxiliaryPanel } from '@/components/layout/AuxiliaryPanel';
@@ -26,6 +27,7 @@ import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { GraphEditChat } from "@/components/workflow/GraphEditChat";
 import { useOnboarding } from '@/context/OnboardingContext';
+import { decorate, isGraphExtra, useAppLogos, useGraphExtras } from "@/lib/graphExtras";
 import { WorkflowConfigurations } from '@/types/workflow-configurations';
 
 import AddNodePanel from "../../../components/flow/AddNodePanel";
@@ -207,9 +209,13 @@ function RenderWorkflow({
             ...nodes.map((node) => node.type),
             ...(initialFlow?.nodes ?? []).map((node) => node.type),
         ])).sort());
-    const nodeTypes = useMemo(() => Object.fromEntries(
-        (JSON.parse(nodeTypeNames) as string[]).map(typeName => [typeName, GenericNode]),
-    ), [nodeTypeNames]);
+    const nodeTypes = useMemo(() => ({
+        ...Object.fromEntries(
+            (JSON.parse(nodeTypeNames) as string[]).map(typeName => [typeName, GenericNode]),
+        ),
+        // G-1: the display-only "Starts when" card.
+        startsCard: StartsCard,
+    }), [nodeTypeNames]);
 
     // Derive hasDraft from the current version status
     const hasDraft = currentVersionStatus === "draft";
@@ -461,7 +467,7 @@ function RenderWorkflow({
         type: "custom"
     }), []);
 
-    const displayNodes = useMemo(
+    const runtimeNodes = useMemo(
         () =>
             nodes.map((node) =>
                 node.id === activeRuntimeNodeId
@@ -475,6 +481,27 @@ function RenderWorkflow({
                     : node,
             ),
         [activeRuntimeNodeId, nodes],
+    );
+
+    // G-1: what starts the agent, the last run's path and each step's apps.
+    // Decoration only -- null while the feature is off, and then the graph is
+    // exactly the nodes above.
+    const graphExtras = useGraphExtras(workflowId);
+    const appLogos = useAppLogos(graphExtras !== null);
+    const decorated = useMemo(
+        () => decorate(runtimeNodes, edges, graphExtras, tools, appLogos),
+        [runtimeNodes, edges, graphExtras, tools, appLogos],
+    );
+    const displayNodes = decorated.nodes as typeof runtimeNodes;
+    const displayEdges = decorated.edges as typeof edges;
+    // The decoration's own nodes and edge never reach the store.
+    const handleNodesChange = useCallback<typeof onNodesChange>(
+        (changes) => onNodesChange(changes.filter((change) => !("id" in change) || !isGraphExtra(change.id))),
+        [onNodesChange],
+    );
+    const handleEdgesChange = useCallback<typeof onEdgesChange>(
+        (changes) => onEdgesChange(changes.filter((change) => !("id" in change) || !isGraphExtra(change.id))),
+        [onEdgesChange],
     );
 
     const handleRuntimeNodeTransition = useCallback(
@@ -623,9 +650,9 @@ function RenderWorkflow({
                                 className="bg-slate-50 dark:bg-slate-950"
                                 key={activeVersionId ?? 'current'}
                                 nodes={displayNodes}
-                                edges={edges}
-                                onNodesChange={onNodesChange}
-                                onEdgesChange={onEdgesChange}
+                                edges={displayEdges}
+                                onNodesChange={handleNodesChange}
+                                onEdgesChange={handleEdgesChange}
                                 nodeTypes={nodeTypes}
                                 edgeTypes={edgeTypes}
                                 onConnect={isViewingHistoricalVersion ? undefined : onConnect}

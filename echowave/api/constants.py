@@ -584,6 +584,13 @@ WORKSPACE_ROLES_ENABLED = (
     os.getenv("WORKSPACE_ROLES_ENABLED", "false").lower() == "true"
 )
 
+# G-1 (23 Sept 2026): the agent graph shows what starts the agent as its
+# first card, and which steps the last run reached. Read-only; off until the
+# founder has looked at it.
+AGENT_GRAPH_EXTRAS_ENABLED = (
+    os.getenv("AGENT_GRAPH_EXTRAS_ENABLED", "false").lower() == "true"
+)
+
 # D-1a (21 Sept 2026): Decibyl keeps working past a reply's tool-round cap.
 # Off, and a turn that hits the cap answers with what it has, as before. On,
 # and the turn hands the rest to a task on the board that runs in the

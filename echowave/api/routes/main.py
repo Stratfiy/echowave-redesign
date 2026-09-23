@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from api.routes.admin_kpis import router as admin_kpis_router
 from api.routes.agent_builder import router as agent_builder_router
+from api.routes.agent_graph import router as agent_graph_router
 from api.routes.agent_options import router as agent_options_router
 from api.routes.agent_stream import router as agent_stream_router
 from api.routes.agent_templates import router as agent_templates_router
@@ -114,6 +115,7 @@ router.include_router(platform_credentials_router)
 router.include_router(provider_keys_router)
 router.include_router(dialer_connections_router)
 router.include_router(workspace_roles_router)
+router.include_router(agent_graph_router)
 router.include_router(payments_router)
 router.include_router(privacy_router)
 router.include_router(notifications_router)

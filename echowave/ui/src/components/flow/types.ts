@@ -18,6 +18,10 @@ export type FlowNodeData = {
     selected_through_edge?: boolean;
     hovered_through_edge?: boolean;
     runtime_active?: boolean;
+    /** G-1, display only: the apps this step's tools act on, and whether
+     *  the last run reached it. Set by lib/graphExtras.decorate, never saved. */
+    apps?: { slug: string; name: string; logo: string | null }[];
+    last_run?: "reached" | "missed";
     allow_interrupt?: boolean;
     extraction_enabled?: boolean;
     extraction_prompt?: string;
