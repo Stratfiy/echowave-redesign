@@ -18,8 +18,8 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from api import constants
 from api.enums import ToolCategory, ToolStatus
+from api.services import features
 
 TOOL_NAME = "read_team_calls"
 DISPLAY_NAME = "Team calls"
@@ -33,7 +33,7 @@ MAX_TRANSCRIPT_CHARS = 6000
 
 
 def enabled() -> bool:
-    return bool(constants.DIALER_IMPORT_ENABLED)
+    return features.is_on("dialer_import")
 
 
 def is_team_calls_tool(tool: Any) -> bool:

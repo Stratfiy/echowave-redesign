@@ -22,12 +22,11 @@ from urllib.parse import urljoin
 import httpx
 
 from api.services.dialer_import._base import (
-    MAX_RECORDING_BYTES,
-    TIMEOUT,
-    DialerAuthError,
     DialerCall,
-    DialerError,
     as_int,
+    client_for,
+    download,
+    raise_for,
 )
 from api.services.dialer_import.times import format_ist, parse_ist
 
@@ -38,10 +37,6 @@ DEFAULT_SUBDOMAIN = "api.exotel.com"
 PAGE_SIZE = 100
 #: A day of a busy team is a few hundred calls; this bounds a runaway listing.
 MAX_PAGES = 50
-
-
-def secret_of(credentials: dict) -> str:
-    return credentials["api_token"]
 
 
 def _base(credentials: dict) -> str:
@@ -92,9 +87,7 @@ async def list_calls(
         "details": "true",
     }
     calls: list[DialerCall] = []
-    own = client is None
-    client = client or httpx.AsyncClient(timeout=TIMEOUT)
-    try:
+    async with client_for(client) as client:
         for _ in range(MAX_PAGES):
             if not url:
                 break
@@ -105,40 +98,26 @@ async def list_calls(
             next_uri = (body.get("Metadata") or {}).get("NextPageUri")
             url = urljoin(base, next_uri) if next_uri else None
             params = None  # the next-page URI carries the filters
-    finally:
-        if own:
-            await client.aclose()
     return calls
 
 
 async def fetch_recording(
     credentials: dict, call: DialerCall, *, client: httpx.AsyncClient | None = None
 ) -> bytes:
-    if not call.recording_url:
-        raise DialerError("This call has no recording.")
-    own = client is None
-    client = client or httpx.AsyncClient(timeout=TIMEOUT, follow_redirects=True)
-    try:
-        response = await client.get(call.recording_url, auth=_auth(credentials))
-    finally:
-        if own:
-            await client.aclose()
-    _raise_for(response)
-    if len(response.content) > MAX_RECORDING_BYTES:
-        raise DialerError("The recording is too long to import.")
-    return response.content
+    return await download(
+        call, client=client, check=_raise_for, auth=_auth(credentials)
+    )
 
 
 def _raise_for(response: httpx.Response) -> None:
-    if response.status_code in (401, 403):
-        raise DialerAuthError(
-            "Exotel refused the API key and token. Check them on Exotel's API "
+    raise_for(
+        response,
+        dialer="Exotel",
+        refused=(
+            "the API key and token. Check them on Exotel's API "
             "settings page and connect again."
-        )
-    if response.status_code >= 400:
-        raise DialerError(
-            f"Exotel answered {response.status_code}. It will be tried again tonight."
-        )
+        ),
+    )
 
 
-__all__ = ["FIELDS", "VENDOR", "fetch_recording", "list_calls", "secret_of"]
+__all__ = ["FIELDS", "VENDOR", "fetch_recording", "list_calls"]

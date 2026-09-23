@@ -25,6 +25,9 @@ interface AppConfig {
     backendStatus: BackendStatus;
     backendUrl: string;
     backendMessage: string | null;
+    // Switched-off features by name (api/services/features.py); read with
+    // useFeature from @/lib/features.
+    features: Record<string, boolean>;
 }
 
 interface AppConfigContextType {
@@ -44,6 +47,7 @@ const defaultConfig: AppConfig = {
     backendApiEndpoint: null,
     backendStatus: 'unreachable',
     backendUrl: process.env.NEXT_PUBLIC_BACKEND_URL || 'unknown',
+    features: {},
     backendMessage: process.env.NEXT_PUBLIC_BACKEND_URL
         ? `Unable to verify backend health at ${process.env.NEXT_PUBLIC_BACKEND_URL}.`
         : 'Unable to verify backend health.',
@@ -94,6 +98,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
                 forceTurnRelay: Boolean(data.forceTurnRelay),
                 tunnelUrl: typeof data.tunnelUrl === 'string' ? data.tunnelUrl : null,
                 backendApiEndpoint,
+                features: data.features && typeof data.features === 'object' ? data.features : {},
                 backendStatus,
                 backendUrl,
                 backendMessage: typeof backend.message === 'string' && backend.message.length > 0

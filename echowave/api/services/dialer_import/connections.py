@@ -22,6 +22,7 @@ from api.services.configuration.organization_credentials import (
     _cipher,
 )
 from api.services.dialer_import import exotel, smartflo
+from api.services.refused import Refused
 
 ADAPTERS = {exotel.VENDOR: exotel, smartflo.VENDOR: smartflo}
 
@@ -29,7 +30,7 @@ CONNECTED = "connected"
 NEEDS_ATTENTION = "needs_attention"
 
 
-class ConnectionError_(ValueError):
+class DialerConnectionError(Refused):
     """A connection could not be made. The message is for the business."""
 
 
@@ -60,7 +61,7 @@ def adapter_for(vendor: str):
     try:
         return ADAPTERS[vendor]
     except KeyError:
-        raise ConnectionError_(
+        raise DialerConnectionError(
             f"{vendor!r} is not a dialer we can connect yet. Exotel and Tata "
             "Smartflo are."
         ) from None
@@ -73,7 +74,7 @@ def clean_credentials(vendor: str, credentials: dict) -> dict:
     for field in adapter.FIELDS:
         value = str(credentials.get(field) or "").strip()
         if not value and not (vendor == exotel.VENDOR and field == "subdomain"):
-            raise ConnectionError_(f"{field.replace('_', ' ')} is missing.")
+            raise DialerConnectionError(f"{field.replace('_', ' ')} is missing.")
         if value:
             cleaned[field] = value
     return cleaned
@@ -92,13 +93,13 @@ async def create(
     try:
         ciphertext = _cipher().encrypt(json.dumps(cleaned).encode()).decode()
     except OrganizationCredentialError as exc:
-        raise ConnectionError_(str(exc)) from exc
+        raise DialerConnectionError(str(exc)) from exc
     row = DialerConnectionModel(
         organization_id=organization_id,
         vendor=vendor,
         label=(label or "").strip() or None,
         encrypted_credentials=ciphertext,
-        key_last_four=adapter_for(vendor).secret_of(cleaned)[-4:],
+        key_last_four=cleaned["api_token"][-4:],
         status=CONNECTED,
         created_by=actor_user_id,
     )
@@ -163,7 +164,7 @@ __all__ = [
     "ADAPTERS",
     "CONNECTED",
     "NEEDS_ATTENTION",
-    "ConnectionError_",
+    "DialerConnectionError",
     "DialerConnection",
     "adapter_for",
     "clean_credentials",

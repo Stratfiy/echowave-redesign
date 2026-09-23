@@ -34,6 +34,8 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: api.push }) }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
 vi.mock("@/components/ConfirmDialog", () => ({ useConfirm: () => ({ confirm: api.confirm, dialog: null }) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }));
+const flag = vi.hoisted(() => ({ on: true }));
+vi.mock("@/lib/features", () => ({ useFeature: () => flag.on }));
 
 import { WorkspaceRolesShelf } from "../WorkspaceRolesShelf";
 
@@ -51,6 +53,7 @@ const ROLE = {
 
 beforeEach(() => {
     vi.clearAllMocks();
+    flag.on = true;
     api.list.mockResolvedValue(ok({ roles: [ROLE] }));
     api.orgs.mockResolvedValue(
         ok([
@@ -122,9 +125,11 @@ describe("the workspace's own roles", () => {
     });
 });
 
-it("renders nothing while workspace roles are switched off", async () => {
-    api.list.mockResolvedValue({ data: undefined, error: { detail: "Not Found" }, response: { status: 404 } });
+it("renders nothing, and asks for nothing, while workspace roles are switched off", async () => {
+    flag.on = false;
     const { container } = render(<WorkspaceRolesShelf />);
-    await waitFor(() => expect(api.list).toHaveBeenCalled());
+    await Promise.resolve();
     expect(container.textContent).toBe("");
+    expect(api.list).not.toHaveBeenCalled();
+    expect(api.orgs).not.toHaveBeenCalled();
 });

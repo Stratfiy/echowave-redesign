@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/popover";
 import { useSidebar } from "@/components/ui/sidebar";
 import { SaveAsRoleDialog } from "@/components/workflow/SaveAsRoleDialog";
-import { useWorkspaceRolesAvailable } from "@/lib/workspaceRoles";
+import { useFeature } from "@/lib/features";
 
 interface WorkflowEditorHeaderProps {
     workflowName: string;
@@ -80,7 +80,7 @@ export const WorkflowEditorHeader = ({
     const [savingWorkflow, setSavingWorkflow] = useState(false);
     const [duplicating, setDuplicating] = useState(false);
     // MP-2: offered only while workspace roles are switched on.
-    const rolesAvailable = useWorkspaceRolesAvailable();
+    const rolesAvailable = useFeature("workspace_roles");
     const [savingRole, setSavingRole] = useState(false);
     const [publishing, setPublishing] = useState(false);
     // One discriminated-union state instead of (isEditingName, nameDraft,

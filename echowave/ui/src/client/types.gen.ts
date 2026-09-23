@@ -5829,6 +5829,12 @@ export type HealthResponse = {
      * Stack Publishable Client Key
      */
     stack_publishable_client_key?: string | null;
+    /**
+     * Features
+     */
+    features?: {
+        [key: string]: boolean;
+    };
 };
 
 /**

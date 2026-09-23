@@ -1,14 +1,13 @@
 """The telecaller call coach's shelf entry (CR-3).
 
-Listed only while the dialer import is switched on: listed before, it could
-be hired and would sit reading an empty list of calls. It goes on the shelf
-by itself when DIALER_IMPORT_ENABLED is turned on, which waits on the
-founder approving the connect screen's consent wording.
+``requires_feature="dialer_import"``: listed only while the dialer import is
+on -- listed before, it could be hired and would sit reading an empty list
+of calls. It goes on the shelf by itself when the import is switched on,
+which waits on the founder approving the connect screen's consent wording.
 """
 
 from __future__ import annotations
 
-from api import constants
 from api.services.packs._base import (
     AgentPack,
     Channel,
@@ -66,17 +65,9 @@ def packs(publisher) -> tuple[AgentPack, ...]:
             # Integrations -> Dialer, and the calls reach the coach through
             # its built-in tool, not an app.
             required_connectors=[_WHATSAPP, _SHEET],
-            listed=feature_is_on(),
+            requires_feature="dialer_import",
         ),
     )
 
 
-#: Roles listed only while the feature they read is switched on.
-FEATURE_GATED = frozenset({"telecaller_call_coach"})
-
-
-def feature_is_on() -> bool:
-    return bool(constants.DIALER_IMPORT_ENABLED)
-
-
-__all__ = ["FEATURE_GATED", "feature_is_on", "packs"]
+__all__ = ["packs"]

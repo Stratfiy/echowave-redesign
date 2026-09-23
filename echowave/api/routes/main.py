@@ -82,6 +82,7 @@ from api.routes.workflow_recording import router as workflow_recording_router
 from api.routes.workflow_spend import router as workflow_spend_router
 from api.routes.workflow_text_chat import router as workflow_text_chat_router
 from api.routes.workspace_roles import router as workspace_roles_router
+from api.services import features
 from api.services.integrations import all_routers
 
 # No tag here on purpose. A parent tag is merged onto every child route, so
@@ -193,6 +194,9 @@ class HealthResponse(BaseModel):
     # be baked into the browser bundle at build time. Both are public values.
     stack_project_id: str | None = None
     stack_publishable_client_key: str | None = None
+    # Which switched-off features are on (services/features.py). The UI reads
+    # them here, once at start-up, instead of calling each feature's route.
+    features: dict[str, bool] = {}
 
 
 @router.get("/health", response_model=HealthResponse, tags=["health"])
@@ -233,6 +237,7 @@ async def health() -> HealthResponse:
         auth_provider=AUTH_PROVIDER,
         turn_enabled=bool(TURN_SECRET),
         force_turn_relay=FORCE_TURN_RELAY,
+        features=features.public(),
         signup_enabled=ENABLE_SIGNUP,
         stack_project_id=STACK_AUTH_PROJECT_ID if is_stack else None,
         stack_publishable_client_key=(

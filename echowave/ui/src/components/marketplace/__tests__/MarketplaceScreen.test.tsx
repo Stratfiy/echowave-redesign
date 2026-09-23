@@ -19,7 +19,6 @@ vi.mock("@/client/sdk.gen", () => ({
     startConnectingApiV1ConnectorsSlugConnectPost: api.connect,
     // The workspace's own roles (MP-2), switched off here; their shelf has
     // its own tests in WorkspaceRolesShelf.test.tsx.
-    listWorkspaceRolesApiV1WorkspaceRolesGet: vi.fn().mockResolvedValue({ response: { status: 404 } }),
     listMyOrganizationsApiV1OrganizationsMineGet: vi.fn().mockResolvedValue({ data: [] }),
 }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));

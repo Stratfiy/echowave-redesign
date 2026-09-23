@@ -9,6 +9,8 @@ import type { ToolResponse } from "@/client/types.gen";
 
 import { appsOf, decorate, isGraphExtra, STARTS_EDGE_ID, STARTS_NODE_ID, type StepApp } from "../graphExtras";
 
+const byId = (tools: ToolResponse[]) => new Map(tools.map((t) => [t.tool_uuid, t]));
+
 const node = (id: string, type: string, name: string, extra: Record<string, unknown> = {}) => ({
     id,
     type,
@@ -80,7 +82,7 @@ describe("decorating the graph", () => {
 
 describe("a step's apps", () => {
     it("names the apps its tools act on, with a logo where one is known", () => {
-        expect(appsOf(["t-cal", "t-sheet", "t-http"], TOOLS, LOGOS)).toEqual([
+        expect(appsOf(["t-cal", "t-sheet", "t-http"], byId(TOOLS), LOGOS)).toEqual([
             { slug: "googlecalendar", name: "googlecalendar", logo: null },
             { slug: "googlesheets", name: "Google Sheets", logo: "https://logo/sheets.png" },
         ]);
@@ -88,6 +90,6 @@ describe("a step's apps", () => {
 
     it("shows at most three, each once", () => {
         const many = ["a", "b", "c", "d", "e"].map((s) => tool(`t-${s}`, "composio", s));
-        expect(appsOf([...many.map((t) => t.tool_uuid), "t-a"], many, new Map())).toHaveLength(3);
+        expect(appsOf([...many.map((t) => t.tool_uuid), "t-a"], byId(many), new Map())).toHaveLength(3);
     });
 });

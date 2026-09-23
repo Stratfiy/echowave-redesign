@@ -54,6 +54,7 @@ decibyl:
       label: Google Sheets
       used_for: Writing one row per conversation, so nothing depends on memory.
       required: false
+    requires_feature: dialer_import
   template:
     id: telecaller_call_coach
     name: Human telecaller call coach

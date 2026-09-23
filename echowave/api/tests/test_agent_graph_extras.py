@@ -221,10 +221,14 @@ class TestTheLastRun:
 
 def test_the_routes_are_hidden_while_the_flag_is_off(monkeypatch):
     from api.routes import agent_graph
+    from api.services import features
 
     monkeypatch.setattr(constants, "AGENT_GRAPH_EXTRAS_ENABLED", False)
     with pytest.raises(HTTPException) as caught:
-        agent_graph._enabled()
+        features.require("agent_graph_extras")()
     assert caught.value.status_code == 404
     for route in agent_graph.router.routes:
-        assert any(d.call is agent_graph._enabled for d in route.dependant.dependencies)
+        assert any(
+            getattr(d.call, "feature", None) == "agent_graph_extras"
+            for d in route.dependant.dependencies
+        ), route.path

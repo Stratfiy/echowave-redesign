@@ -25,7 +25,6 @@ lookup of a role by id alone.
 from __future__ import annotations
 
 import copy
-import hashlib
 import re
 import secrets
 from datetime import datetime, timezone
@@ -34,7 +33,6 @@ from typing import Any
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api import constants
 from api.db.models import (
     OrganizationMembershipModel,
     WorkflowDefinitionModel,
@@ -42,6 +40,13 @@ from api.db.models import (
     WorkspaceRoleModel,
 )
 from api.enums import ORGANIZATION_ROLE_RANK, OrganizationRole
+from api.services import features
+from api.services.organizations.invitations import hash_token
+from api.services.refused import Refused
+from api.services.workflow.duplicate import (
+    extract_trigger_paths,
+    regenerate_trigger_uuids,
+)
 
 #: Node-data keys that name another row of the first workspace.
 _WORKSPACE_REF = re.compile(r"(_uuids?|recording_id)$")
@@ -60,12 +65,12 @@ _KINDS = {
 }
 
 
-class RoleError(ValueError):
+class RoleError(Refused):
     """Something the person asked for cannot be done. The message says why."""
 
 
 def enabled() -> bool:
-    return bool(constants.WORKSPACE_ROLES_ENABLED)
+    return features.is_on("workspace_roles")
 
 
 def portable(
@@ -123,6 +128,7 @@ async def _latest_definition(
             WorkflowDefinitionModel.status == "draft",
         )
         .order_by(WorkflowDefinitionModel.id.desc())
+        .limit(1)
     )
     if draft is not None:
         return draft
@@ -234,18 +240,13 @@ async def hire(
     still needs something connected: an agent whose steps lost their tools
     on the way across would answer with half its job.
     """
-    from api.services.workflow.duplicate import (
-        _extract_trigger_paths,
-        _regenerate_trigger_uuids,
-    )
-
     role = await _get(session, organization_id=organization_id, role_id=role_id)
     if db is None:
         from api.db import db_client as db
     context = {"__workspace_role_id": role.id}
     if role.template_id:
         context["__template_id"] = role.template_id
-    definition = _regenerate_trigger_uuids(copy.deepcopy(role.definition))
+    definition = regenerate_trigger_uuids(copy.deepcopy(role.definition))
     configurations = copy.deepcopy(role.configurations) if role.configurations else None
     workflow = await db.create_workflow(
         name=(agent_name or role.name).strip()[:128],
@@ -263,7 +264,7 @@ async def hire(
         workflow_configurations=configurations,
         organization_id=organization_id,
     )
-    trigger_paths = _extract_trigger_paths(definition)
+    trigger_paths = extract_trigger_paths(definition)
     if trigger_paths:
         await db.sync_triggers_for_workflow(
             workflow_id=workflow.id,
@@ -281,16 +282,12 @@ async def hire(
 # --- MP-3: sharing --------------------------------------------------------------
 
 
-def _hash(token: str) -> str:
-    return hashlib.sha256(token.encode()).hexdigest()
-
-
 async def share(session: AsyncSession, *, organization_id: int, role_id: int) -> str:
     """A new share link's token, shown once. Sharing again replaces the
     last link, so an old one stops working."""
     role = await _get(session, organization_id=organization_id, role_id=role_id)
     token = f"role_{secrets.token_urlsafe(24)}"
-    role.share_token_hash = _hash(token)
+    role.share_token_hash = hash_token(token)
     role.shared_at = datetime.now(timezone.utc)
     await session.flush()
     return token
@@ -308,7 +305,7 @@ async def _by_token(session: AsyncSession, token: str) -> WorkspaceRoleModel:
         raise RoleError("That link is not a shared role.")
     role = await session.scalar(
         select(WorkspaceRoleModel).where(
-            WorkspaceRoleModel.share_token_hash == _hash(token)
+            WorkspaceRoleModel.share_token_hash == hash_token(token)
         )
     )
     if role is None:

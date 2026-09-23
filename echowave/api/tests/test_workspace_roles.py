@@ -404,15 +404,17 @@ class TestCopyingIntoAClientsWorkspace:
 
 def test_every_route_is_hidden_while_the_flag_is_off(monkeypatch):
     from api.routes import workspace_roles as routes
+    from api.services import features
 
     monkeypatch.setattr(constants, "WORKSPACE_ROLES_ENABLED", False)
     with pytest.raises(HTTPException) as caught:
-        routes._enabled()
+        features.require("workspace_roles")()
     assert caught.value.status_code == 404
     for route in routes.router.routes:
-        assert any(d.call is routes._enabled for d in route.dependant.dependencies), (
-            route.path
-        )
+        assert any(
+            getattr(d.call, "feature", None) == "workspace_roles"
+            for d in route.dependant.dependencies
+        ), route.path
 
 
 def test_sharing_outside_the_workspace_is_an_admins():

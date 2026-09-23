@@ -19,12 +19,11 @@ from datetime import datetime
 import httpx
 
 from api.services.dialer_import._base import (
-    MAX_RECORDING_BYTES,
-    TIMEOUT,
-    DialerAuthError,
     DialerCall,
-    DialerError,
     as_int,
+    client_for,
+    download,
+    raise_for,
 )
 from api.services.dialer_import.times import format_ist, parse_ist
 
@@ -33,10 +32,6 @@ FIELDS = ("api_token",)
 BASE_URL = "https://api-smartflo.tatateleservices.com"
 PAGE_SIZE = 100
 MAX_PAGES = 50
-
-
-def secret_of(credentials: dict) -> str:
-    return credentials["api_token"]
 
 
 def _headers(credentials: dict) -> dict[str, str]:
@@ -70,9 +65,7 @@ async def list_calls(
     client: httpx.AsyncClient | None = None,
 ) -> list[DialerCall]:
     calls: list[DialerCall] = []
-    own = client is None
-    client = client or httpx.AsyncClient(timeout=TIMEOUT)
-    try:
+    async with client_for(client) as client:
         for page in range(1, MAX_PAGES + 1):
             response = await client.get(
                 f"{BASE_URL}/v1/call/records",
@@ -90,40 +83,26 @@ async def list_calls(
             calls += [_parse(r) for r in results if r.get("call_id") or r.get("id")]
             if not results or page * PAGE_SIZE >= as_int(body.get("count")):
                 break
-    finally:
-        if own:
-            await client.aclose()
     return calls
 
 
 async def fetch_recording(
     credentials: dict, call: DialerCall, *, client: httpx.AsyncClient | None = None
 ) -> bytes:
-    if not call.recording_url:
-        raise DialerError("This call has no recording.")
-    own = client is None
-    client = client or httpx.AsyncClient(timeout=TIMEOUT, follow_redirects=True)
-    try:
-        response = await client.get(call.recording_url, headers=_headers(credentials))
-    finally:
-        if own:
-            await client.aclose()
-    _raise_for(response)
-    if len(response.content) > MAX_RECORDING_BYTES:
-        raise DialerError("The recording is too long to import.")
-    return response.content
+    return await download(
+        call, client=client, check=_raise_for, headers=_headers(credentials)
+    )
 
 
 def _raise_for(response: httpx.Response) -> None:
-    if response.status_code in (401, 403):
-        raise DialerAuthError(
-            "Smartflo refused the API token -- it may have expired. Generate a "
+    raise_for(
+        response,
+        dialer="Smartflo",
+        refused=(
+            "the API token -- it may have expired. Generate a "
             "new token in the Smartflo portal and connect again."
-        )
-    if response.status_code >= 400:
-        raise DialerError(
-            f"Smartflo answered {response.status_code}. It will be tried again tonight."
-        )
+        ),
+    )
 
 
-__all__ = ["FIELDS", "VENDOR", "fetch_recording", "list_calls", "secret_of"]
+__all__ = ["FIELDS", "VENDOR", "fetch_recording", "list_calls"]

@@ -24,7 +24,6 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api import constants
 from api.db.models import (
     AgentRoutineModel,
     BotTriggerModel,
@@ -34,6 +33,7 @@ from api.db.models import (
     WorkflowModel,
     WorkflowRunModel,
 )
+from api.services import features
 
 NODE_TRANSITION = "rtf-node-transition"
 #: Campaigns that can still start a call.
@@ -41,7 +41,7 @@ _LIVE_CAMPAIGN = ("created", "syncing", "running", "paused")
 
 
 def enabled() -> bool:
-    return bool(constants.AGENT_GRAPH_EXTRAS_ENABLED)
+    return features.is_on("agent_graph_extras")
 
 
 async def _owned(session: AsyncSession, organization_id: int, workflow_id: int) -> bool:
@@ -160,10 +160,10 @@ async def starts(
     return found
 
 
-def _visited(run: WorkflowRunModel) -> tuple[list[str], list[str]]:
+def _visited(events, nodes_visited) -> tuple[list[str], list[str]]:
     ids: list[str] = []
     names: list[str] = []
-    for event in (run.logs or {}).get("realtime_feedback_events") or []:
+    for event in events or []:
         if not isinstance(event, dict) or event.get("type") != NODE_TRANSITION:
             continue
         payload = event.get("payload") or {}
@@ -176,7 +176,7 @@ def _visited(run: WorkflowRunModel) -> tuple[list[str], list[str]]:
                 ids.append(str(node_id))
             if name and str(name) not in names:
                 names.append(str(name))
-    for name in (run.gathered_context or {}).get("nodes_visited") or []:
+    for name in nodes_visited or []:
         if name and str(name) not in names:
             names.append(str(name))
     return ids, names
@@ -189,18 +189,27 @@ async def last_run(
     none yet; None if the agent is not this organization's."""
     if not await _owned(session, organization_id, workflow_id):
         return None
-    run = await session.scalar(
-        select(WorkflowRunModel)
-        .where(
-            WorkflowRunModel.workflow_id == workflow_id,
-            WorkflowRunModel.is_completed.is_(True),
+    # Only the two JSON paths the canvas reads: a run's logs hold the whole
+    # transcript and every event, which is far more than a path of steps.
+    run = (
+        await session.execute(
+            select(
+                WorkflowRunModel.id,
+                WorkflowRunModel.created_at,
+                WorkflowRunModel.logs["realtime_feedback_events"].label("events"),
+                WorkflowRunModel.gathered_context["nodes_visited"].label("visited"),
+            )
+            .where(
+                WorkflowRunModel.workflow_id == workflow_id,
+                WorkflowRunModel.is_completed.is_(True),
+            )
+            .order_by(WorkflowRunModel.created_at.desc(), WorkflowRunModel.id.desc())
+            .limit(1)
         )
-        .order_by(WorkflowRunModel.created_at.desc(), WorkflowRunModel.id.desc())
-        .limit(1)
-    )
+    ).first()
     if run is None:
         return {"run": None}
-    ids, names = _visited(run)
+    ids, names = _visited(run.events, run.visited)
     return {
         "run": {
             "id": run.id,

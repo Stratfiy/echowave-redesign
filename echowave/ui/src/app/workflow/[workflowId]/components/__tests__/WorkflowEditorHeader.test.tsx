@@ -10,7 +10,7 @@ vi.mock("@/client/sdk.gen", () => ({ duplicateWorkflowEndpointApiV1WorkflowWorkf
 // Workspace roles (MP-2) are asked about over the network; off here, and
 // their menu item is tested at the bottom of this file.
 const roles = vi.hoisted(() => ({ available: false }));
-vi.mock("@/lib/workspaceRoles", () => ({ useWorkspaceRolesAvailable: () => roles.available }));
+vi.mock("@/lib/features", () => ({ useFeature: () => roles.available }));
 vi.mock("@/components/workflow/SaveAsRoleDialog", () => ({ SaveAsRoleDialog: ({ open }: { open: boolean }) => (open ? <div>Save as a workspace role</div> : null) }));
 const props = () => ({ workflowName: "Clinic front desk and appointments", isDirty: false, workflowValidationErrors: [], rfInstance: { current: null }, workflowId: 39, saveWorkflow: vi.fn().mockResolvedValue(undefined), user: { id: "u" }, onPhoneCallClick: vi.fn(), onTestAgentClick: vi.fn(), onHistoryClick: vi.fn(), activeVersionLabel: "v2 (Draft)", isViewingHistoricalVersion: false, onBackToDraft: vi.fn(), hasDraft: true, onPublished: vi.fn(), renameWorkflow: vi.fn().mockResolvedValue(undefined) });
 function openMore() { fireEvent.pointerDown(screen.getByRole("button", { name: "More agent actions" }), { button: 0, ctrlKey: false, pointerType: "mouse" }); }

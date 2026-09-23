@@ -18,7 +18,6 @@ vi.mock("@/client/sdk.gen", () => ({
     deleteToolApiV1ToolsToolUuidDelete: vi.fn(),
     unarchiveToolApiV1ToolsToolUuidUnarchivePost: vi.fn(),
     // The Integrations tab strip asks whether the dialer import is on.
-    listDialerConnectionsApiV1DialerConnectionsGet: vi.fn().mockResolvedValue({ response: { status: 404 } }),
 }));
 vi.mock("@/lib/auth", () => ({
     useAuth: () => ({

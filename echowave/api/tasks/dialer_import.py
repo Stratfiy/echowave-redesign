@@ -10,15 +10,15 @@ off -- not even the listing, which would spend the business's API quota.
 from loguru import logger
 from sqlalchemy import select
 
-from api import constants
 from api.db import db_client
 from api.db.models import DialerConnectionModel
+from api.services import features
 from api.services.dialer_import import importer
 from api.services.dialer_import.times import last_two_days_ist
 
 
 async def import_dialer_calls(_ctx) -> None:
-    if not constants.DIALER_IMPORT_ENABLED:
+    if not features.is_on("dialer_import"):
         return
     async with db_client.async_session() as session:
         ids = list(await session.scalars(select(DialerConnectionModel.id)))
