@@ -6320,6 +6320,9 @@ class AgentTaskModel(Base):
     )
     blocked_by = Column(JSON, nullable=True)
     number = Column(Integer, nullable=True)
+    #: TB-3: a task's labels, as a list of short strings. A label is only a
+    #: word; the board's set of labels is whatever its tasks carry.
+    labels = Column(JSON, nullable=True)
     #: Decibyl's own unfinished work (D-1a): the transcript and tool state of
     #: a turn that hit its round cap, so the board can carry on from exactly
     #: there in the background. NULL on every task a bot or a person does.

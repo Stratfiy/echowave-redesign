@@ -32,6 +32,8 @@ class TaskWrite(BaseModel):
     priority: str | None = Field(default=None, max_length=8)
     parent_id: int | None = None
     blocked_by: list[int] | None = None
+    #: TB-3: short words to sort the board by.
+    labels: list[str] | None = Field(default=None, max_length=32)
     #: File it into the backlog rather than to do (TB-1).
     backlog: bool = False
 
@@ -44,6 +46,7 @@ class TaskEdit(BaseModel):
     parent_id: int | None = None
     blocked_by: list[int] | None = None
     due: str | None = Field(default=None, max_length=40)
+    labels: list[str] | None = Field(default=None, max_length=32)
 
     model_config = ConfigDict(extra="forbid")
 
@@ -116,6 +119,8 @@ async def list_tasks(user: Annotated[UserModel, Depends(get_user)]) -> dict[str,
             "enabled": enabled,
             "priorities": list(tasks_board.PRIORITIES),
             "prefix": ctx["prefix"],
+            # TB-3: every label on the board, for the filter and the picker.
+            "labels": tasks_board.board_labels(rows),
             "people": [
                 {"id": user_id, "name": name} for user_id, name in ctx["people"].items()
             ],

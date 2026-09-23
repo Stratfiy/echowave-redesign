@@ -26,12 +26,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { detailFromResult } from "@/lib/apiError";
 import { cn } from "@/lib/utils";
 
+import { LabelChip, LabelPicker } from "./TaskInputs";
 import {
     type BoardPayload,
     type BotRef,
     COLUMNS,
     type GroupBy,
     groupTasks,
+    hasLabel,
     type Inbox,
     INBOXES,
     inInbox,
@@ -85,6 +87,7 @@ export function TaskBoard({ initial, tabs }: Props) {
     const [query, setQuery] = useState("");
     const [owner, setOwner] = useState("all");
     const [priority, setPriority] = useState("all");
+    const [label, setLabel] = useState("all");
     const [creating, setCreating] = useState(false);
     const [dragging, setDragging] = useState<number | null>(null);
     const [over, setOver] = useState<string | null>(null);
@@ -94,6 +97,7 @@ export function TaskBoard({ initial, tabs }: Props) {
     const people = payload.board?.people ?? [];
     const priorities = payload.board?.priorities ?? ["critical", "high", "medium", "low"];
     const me = payload.board?.me ?? null;
+    const labels = payload.board?.labels ?? [];
     const anyLive = tasks.some(isLive);
 
     const reload = useCallback(async () => {
@@ -129,6 +133,7 @@ export function TaskBoard({ initial, tabs }: Props) {
     const visible = tasks.filter((t) => {
         if (!inInbox(t, inbox, me) || !matches(t, query)) return false;
         if (priority !== "all" && t.priority !== priority) return false;
+        if (label !== "all" && !hasLabel(t, label)) return false;
         if (owner === "all") return true;
         if (owner === "team") return !t.assignee_workflow_id && !t.assignee_user_id;
         if (owner.startsWith("bot:")) return t.assignee_workflow_id === Number(owner.slice(4));
@@ -209,6 +214,14 @@ export function TaskBoard({ initial, tabs }: Props) {
                                 <option key={`fp${p}`} value={p}>{p}</option>
                             ))}
                         </select>
+                        {labels.length > 0 && (
+                            <select aria-label="Filter by label" className={SELECT} value={label} onChange={(e) => setLabel(e.target.value)}>
+                                <option value="all">Any label</option>
+                                {labels.map((l) => (
+                                    <option key={`fl${l}`} value={l}>{l}</option>
+                                ))}
+                            </select>
+                        )}
                         {view === "list" && (
                             <select aria-label="Group by" className={SELECT} value={groupBy} onChange={(e) => setGroupBy(e.target.value as GroupBy)}>
                                 <option value="status">Group: status</option>
@@ -272,6 +285,7 @@ export function TaskBoard({ initial, tabs }: Props) {
                     bots={bots}
                     people={people}
                     priorities={priorities}
+                    knownLabels={labels}
                     onClose={() => setCreating(false)}
                     onFiled={async () => {
                         setCreating(false);
@@ -306,6 +320,11 @@ function TaskList({ tasks, groupBy, onOpen }: { tasks: Task[]; groupBy: GroupBy;
                                         <StatusDot status={task.status} />
                                         <span className="w-16 shrink-0 font-mono text-xs text-muted-foreground">{task.identifier}</span>
                                         <span className="min-w-0 flex-1 truncate">{task.title}</span>
+                                        <span className="hidden gap-1 sm:inline-flex">
+                                            {(task.labels ?? []).slice(0, 3).map((l) => (
+                                                <LabelChip key={l} label={l} />
+                                            ))}
+                                        </span>
                                         {isLive(task) && <LiveDot />}
                                         {(task.comment_count ?? 0) > 0 && (
                                             <span className="hidden items-center gap-1 text-xs text-muted-foreground sm:inline-flex">
@@ -344,6 +363,13 @@ function TaskCard({ task, busy, onOpen, onDragStart }: { task: Task; busy: boole
                         {isLive(task) && <LiveDot />}
                     </p>
                     <p className="mt-1 font-medium leading-snug">{task.title}</p>
+                    {(task.labels ?? []).length > 0 && (
+                        <p className="mt-1 flex flex-wrap gap-1">
+                            {task.labels!.map((l) => (
+                                <LabelChip key={l} label={l} />
+                            ))}
+                        </p>
+                    )}
                     <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                         <span className="inline-flex items-center gap-1">
                             <Icon className="h-3 w-3" aria-hidden />
@@ -372,6 +398,7 @@ export function NewTaskDialog({
     bots,
     people,
     priorities,
+    knownLabels = [],
     parentId,
     onClose,
     onFiled,
@@ -379,6 +406,7 @@ export function NewTaskDialog({
     bots: BotRef[];
     people: Person[];
     priorities: string[];
+    knownLabels?: string[];
     parentId?: number;
     onClose: () => void;
     onFiled: () => Promise<void> | void;
@@ -389,6 +417,7 @@ export function NewTaskDialog({
     const [priority, setPriority] = useState("medium");
     const [due, setDue] = useState("");
     const [backlog, setBacklog] = useState(false);
+    const [taskLabels, setTaskLabels] = useState<string[]>([]);
     const [filing, setFiling] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -397,7 +426,16 @@ export function NewTaskDialog({
         setFiling(true);
         setError(null);
         const result = await createTaskApiV1TasksPost({
-            body: { title, brief, assignee, priority, due: due || null, backlog, ...(parentId ? { parent_id: parentId } : {}) },
+            body: {
+                title,
+                brief,
+                assignee,
+                priority,
+                due: due || null,
+                backlog,
+                ...(taskLabels.length ? { labels: taskLabels } : {}),
+                ...(parentId ? { parent_id: parentId } : {}),
+            },
         });
         setFiling(false);
         if (result.error) {
@@ -446,6 +484,10 @@ export function NewTaskDialog({
                     <div>
                         <Label htmlFor="task-due">Due</Label>
                         <Input id="task-due" className="mt-1" placeholder="in 3 days" value={due} onChange={(e) => setDue(e.target.value)} />
+                    </div>
+                    <div className="sm:col-span-3">
+                        <Label htmlFor="task-labels">Labels</Label>
+                        <LabelPicker id="task-labels" value={taskLabels} known={knownLabels} onChange={setTaskLabels} />
                     </div>
                 </div>
                 {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
