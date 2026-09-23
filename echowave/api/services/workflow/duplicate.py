@@ -12,7 +12,7 @@ from api.services.storage import get_storage_for_backend, storage_fs
 from api.services.workflow import definition_required
 
 
-def _extract_trigger_paths(workflow_definition: dict) -> list[str]:
+def extract_trigger_paths(workflow_definition: dict) -> list[str]:
     """Extract trigger UUIDs from workflow definition."""
     if not workflow_definition:
         return []
@@ -26,7 +26,7 @@ def _extract_trigger_paths(workflow_definition: dict) -> list[str]:
     return trigger_paths
 
 
-def _regenerate_trigger_uuids(workflow_definition: dict) -> dict:
+def regenerate_trigger_uuids(workflow_definition: dict) -> dict:
     """Regenerate UUIDs for all trigger nodes to avoid conflicts."""
     if not workflow_definition:
         return workflow_definition
@@ -77,7 +77,7 @@ async def duplicate_workflow(
 
     # 3. Regenerate trigger UUIDs to avoid conflicts
     if workflow_definition:
-        workflow_definition = _regenerate_trigger_uuids(workflow_definition)
+        workflow_definition = regenerate_trigger_uuids(workflow_definition)
 
     # 4. Create the new workflow
     new_name = f"{source.name} - Duplicate"
@@ -127,7 +127,7 @@ async def duplicate_workflow(
 
     # 6. Sync triggers for the new workflow
     if workflow_definition:
-        trigger_paths = _extract_trigger_paths(workflow_definition)
+        trigger_paths = extract_trigger_paths(workflow_definition)
         if trigger_paths:
             await db_client.sync_triggers_for_workflow(
                 workflow_id=new_workflow.id,

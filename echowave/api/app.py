@@ -163,6 +163,15 @@ app = FastAPI(
 # operations are enforced by their routers and are not described to the
 # world. See services/openapi_surface.py.
 from api.services import openapi_surface  # noqa: E402
+from api.services.refused import Refused  # noqa: E402
+
+
+@app.exception_handler(Refused)
+async def _refused(_request, exc: Refused):
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(status_code=400, content={"detail": str(exc)})
+
 
 openapi_surface.install(app)
 

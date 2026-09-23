@@ -266,9 +266,9 @@ class TestTheVault:
         )
 
     async def test_a_missing_field_or_an_unknown_dialer_is_refused_plainly(self):
-        with pytest.raises(connections.ConnectionError_, match="account sid"):
+        with pytest.raises(connections.DialerConnectionError, match="account sid"):
             connections.clean_credentials("exotel", {"api_key": "k", "api_token": "t"})
-        with pytest.raises(connections.ConnectionError_, match="Exotel and Tata"):
+        with pytest.raises(connections.DialerConnectionError, match="Exotel and Tata"):
             connections.clean_credentials("knowlarity", {})
         # Exotel's subdomain is optional: most accounts are on the default.
         assert "subdomain" not in connections.clean_credentials(
@@ -565,15 +565,16 @@ class TestTheNightlyImport:
 
 def test_every_route_is_hidden_while_the_flag_is_off(monkeypatch):
     from api.routes import dialer_connections
+    from api.services import features
 
     monkeypatch.setattr(constants, "DIALER_IMPORT_ENABLED", False)
     with pytest.raises(HTTPException) as caught:
-        dialer_connections._enabled()
+        features.require("dialer_import")()
     assert caught.value.status_code == 404
     for route in dialer_connections.router.routes:
         assert any(
-            dep.call is dialer_connections._enabled
-            for dep in route.dependant.dependencies
+            getattr(d.call, "feature", None) == "dialer_import"
+            for d in route.dependant.dependencies
         ), route.path
 
 

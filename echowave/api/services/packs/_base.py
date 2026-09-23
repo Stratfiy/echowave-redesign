@@ -207,7 +207,22 @@ class AgentPack(BaseModel):
     #: are the shelf; unlisted ones are still hirable by their own publisher.
     listed: bool = True
 
+    #: A switched-off feature this role cannot work without
+    #: (``services/features.FLAGS``). While it is off the role is not listed,
+    #: whatever ``listed`` says -- the telecaller coach, say, has no calls to
+    #: read until the dialer import is on.
+    requires_feature: Optional[str] = None
+
     model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def _off_while_its_feature_is(self) -> "AgentPack":
+        if self.requires_feature:
+            from api.services import features
+
+            if not features.is_on(self.requires_feature):
+                object.__setattr__(self, "listed", False)
+        return self
 
     @model_validator(mode="after")
     def _coherent(self) -> "AgentPack":

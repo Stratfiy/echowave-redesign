@@ -11,21 +11,21 @@ from fastapi import APIRouter, Depends, HTTPException
 from api.db import db_client
 from api.db.models import UserModel
 from api.enums import OrganizationRole
+from api.services import features
 from api.services.auth.depends import require_organization_role
 from api.services.workflow import graph_extras
 
-router = APIRouter(prefix="/agent-graph", tags=["agent-graph"])
-
-
-def _enabled() -> None:
-    if not graph_extras.enabled():
-        raise HTTPException(status_code=404, detail="Not Found")
+router = APIRouter(
+    prefix="/agent-graph",
+    tags=["agent-graph"],
+    dependencies=[Depends(features.require("agent_graph_extras"))],
+)
 
 
 _member = require_organization_role(OrganizationRole.MEMBER)
 
 
-@router.get("/{workflow_id}/starts", dependencies=[Depends(_enabled)])
+@router.get("/{workflow_id}/starts")
 async def agent_starts(
     workflow_id: int, user: UserModel = Depends(_member)
 ) -> dict[str, Any]:
@@ -40,7 +40,7 @@ async def agent_starts(
     return {"starts": found}
 
 
-@router.get("/{workflow_id}/last-run", dependencies=[Depends(_enabled)])
+@router.get("/{workflow_id}/last-run")
 async def agent_last_run(
     workflow_id: int, user: UserModel = Depends(_member)
 ) -> dict[str, Any]:

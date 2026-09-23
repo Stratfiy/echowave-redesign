@@ -2,7 +2,7 @@
 
 import { Copy, Link2, Loader2, Trash2, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
+import { useFeature } from "@/lib/features";
 import { describeNeeds, type WorkspaceRole } from "@/lib/workspaceRoles";
 
 /**
@@ -29,45 +30,46 @@ import { describeNeeds, type WorkspaceRole } from "@/lib/workspaceRoles";
  * (MP-3) lives on each card -- a link shown once, and a copy into another
  * workspace this person belongs to.
  *
- * Renders nothing while the feature is switched off (the route is a 404).
+ * Renders nothing, and asks for nothing, while the feature is switched off.
  */
 export function WorkspaceRolesShelf() {
     const router = useRouter();
     const { user, loading: authLoading } = useAuth();
     const hasFetched = useRef(false);
     const [roles, setRoles] = useState<WorkspaceRole[] | null>(null);
-    const [off, setOff] = useState(false);
+    const on = useFeature("workspace_roles");
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState<number | null>(null);
     const [links, setLinks] = useState<Record<number, string>>({});
     const [others, setOthers] = useState<UserOrganizationResponse[]>([]);
     const { confirm, dialog } = useConfirm();
 
-    const load = useCallback(async () => {
-        const result = await listWorkspaceRolesApiV1WorkspaceRolesGet();
-        if (result.error) {
-            if (result.response?.status === 404) {
-                setOff(true);
+    useEffect(() => {
+        if (!on || authLoading || !user || hasFetched.current) return;
+        hasFetched.current = true;
+        void (async () => {
+            const [result, orgs] = await Promise.all([
+                listWorkspaceRolesApiV1WorkspaceRolesGet(),
+                listMyOrganizationsApiV1OrganizationsMineGet(),
+            ]);
+            if (result.error) {
+                setError(detailFromResult(result, "Your workspace's roles could not be loaded"));
+                setRoles([]);
                 return;
             }
-            setError(detailFromResult(result, "Your workspace's roles could not be loaded"));
-            setRoles([]);
-            return;
-        }
-        setRoles(((result.data as { roles?: WorkspaceRole[] })?.roles) ?? []);
-        const orgs = await listMyOrganizationsApiV1OrganizationsMineGet();
-        if (!orgs.error && Array.isArray(orgs.data)) {
-            setOthers((orgs.data as UserOrganizationResponse[]).filter((o) => !o.is_selected));
-        }
-    }, []);
+            setRoles(((result.data as { roles?: WorkspaceRole[] })?.roles) ?? []);
+            if (!orgs.error && Array.isArray(orgs.data)) {
+                setOthers((orgs.data as UserOrganizationResponse[]).filter((o) => !o.is_selected));
+            }
+        })();
+    }, [on, authLoading, user]);
 
-    useEffect(() => {
-        if (authLoading || !user || hasFetched.current) return;
-        hasFetched.current = true;
-        void load();
-    }, [authLoading, user, load]);
+    if (!on || roles === null) return null;
 
-    if (off || roles === null) return null;
+    const patch = (id: number, change: Partial<WorkspaceRole> | null) =>
+        setRoles((prev) =>
+            (prev ?? []).flatMap((r) => (r.id !== id ? [r] : change === null ? [] : [{ ...r, ...change }])),
+        );
 
     const hire = async (role: WorkspaceRole) => {
         setBusy(role.id);
@@ -96,7 +98,7 @@ export function WorkspaceRolesShelf() {
         }
         const url = (result.data as { url?: string })?.url ?? "";
         setLinks((prev) => ({ ...prev, [role.id]: url }));
-        await load();
+        patch(role.id, { shared: true });
     };
 
     const unshare = async (role: WorkspaceRole) => {
@@ -112,7 +114,7 @@ export function WorkspaceRolesShelf() {
             delete next[role.id];
             return next;
         });
-        await load();
+        patch(role.id, { shared: false });
     };
 
     const copyTo = async (role: WorkspaceRole, organizationId: number, name: string) => {
@@ -144,7 +146,7 @@ export function WorkspaceRolesShelf() {
             setError(detailFromResult(result, "Could not delete that role"));
             return;
         }
-        await load();
+        patch(role.id, null);
     };
 
     return (

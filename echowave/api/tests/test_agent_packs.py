@@ -440,11 +440,9 @@ class TestTheShelf:
         That is a better product, not a loosened test: with no demo number
         configured at all there are still two roles somebody can hire.
         """
-        from api.services.packs.call_coach import FEATURE_GATED
-
         # A role that reads a switched-off feature follows its flag instead;
-        # its own test (test_promoted_roles_meet_their_own_tests) holds that.
-        without = [p for p in catalogue._packs(None) if p.slug not in FEATURE_GATED]
+        # test_a_pack_waiting_on_a_feature_is_listed_only_when_it_is_on holds that.
+        without = [p for p in catalogue._packs(None) if not p.requires_feature]
         calling = [p for p in without if is_calling(p)]
         quiet = [p for p in without if not is_calling(p)]
         assert calling and quiet, "this test needs both kinds on the shelf"
@@ -452,7 +450,7 @@ class TestTheShelf:
         assert all(pack.listed for pack in quiet)
 
         with_number = [
-            p for p in catalogue._packs("+911234567890") if p.slug not in FEATURE_GATED
+            p for p in catalogue._packs("+911234567890") if not p.requires_feature
         ]
         assert all(pack.listed for pack in with_number)
         assert all(
@@ -522,3 +520,35 @@ class TestTheShelf:
         shelf = catalogue._packs("+911234567890")
         assert jobs(shelf)[0] == "Answer the phone"
         assert len(jobs(shelf)) == len({pack.job for pack in shelf})
+
+
+class TestAPackWaitingOnAFeature:
+    def test_a_pack_waiting_on_a_feature_is_listed_only_when_it_is_on(
+        self, monkeypatch
+    ):
+        from api import constants
+
+        def quiet(**kw):
+            return _pack(
+                channels=[Channel.SCHEDULED],
+                template_id="compliance_reminder",
+                demo_number=None,
+                requires_feature="dialer_import",
+                **kw,
+            )
+
+        monkeypatch.setattr(constants, "DIALER_IMPORT_ENABLED", False)
+        assert quiet().listed is False
+        monkeypatch.setattr(constants, "DIALER_IMPORT_ENABLED", True)
+        assert quiet().listed is True
+        # Switching a feature on never lists a pack its publisher unlisted.
+        assert quiet(listed=False).listed is False
+
+    def test_an_unknown_feature_is_refused(self):
+        with pytest.raises((ValidationError, KeyError)):
+            _pack(
+                channels=[Channel.SCHEDULED],
+                template_id="compliance_reminder",
+                demo_number=None,
+                requires_feature="no_such_feature",
+            )

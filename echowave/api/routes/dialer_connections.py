@@ -13,20 +13,19 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from api import constants
 from api.db import db_client
 from api.db.models import UserModel
 from api.enums import OrganizationRole
+from api.services import features
 from api.services.auth.depends import require_organization_role
 from api.services.dialer_import import connections, importer
 from api.services.dialer_import._base import DialerAuthError, DialerError
 
-router = APIRouter(prefix="/dialer-connections", tags=["dialer-connections"])
-
-
-def _enabled() -> None:
-    if not constants.DIALER_IMPORT_ENABLED:
-        raise HTTPException(status_code=404, detail="Not Found")
+router = APIRouter(
+    prefix="/dialer-connections",
+    tags=["dialer-connections"],
+    dependencies=[Depends(features.require("dialer_import"))],
+)
 
 
 _admin = require_organization_role(OrganizationRole.ADMIN)
@@ -64,7 +63,7 @@ def _view(connection: connections.DialerConnection) -> dict[str, Any]:
     }
 
 
-@router.get("", dependencies=[Depends(_enabled)])
+@router.get("")
 async def list_dialer_connections(user: UserModel = Depends(_admin)) -> dict:
     async with db_client.async_session() as session:
         found = await connections.list_for(
@@ -73,7 +72,7 @@ async def list_dialer_connections(user: UserModel = Depends(_admin)) -> dict:
     return {"connections": [_view(c) for c in found]}
 
 
-@router.post("", dependencies=[Depends(_enabled)])
+@router.post("")
 async def connect_dialer(
     request: ConnectRequest, user: UserModel = Depends(_admin)
 ) -> dict:
@@ -94,11 +93,8 @@ async def connect_dialer(
                 "connecting a dialer."
             ),
         )
-    try:
-        cleaned = connections.clean_credentials(request.vendor, request.credentials)
-        adapter = connections.adapter_for(request.vendor)
-    except connections.ConnectionError_ as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    cleaned = connections.clean_credentials(request.vendor, request.credentials)
+    adapter = connections.adapter_for(request.vendor)
 
     warning = None
     until = datetime.now(timezone.utc)
@@ -110,22 +106,19 @@ async def connect_dialer(
         warning = exc.message
 
     async with db_client.async_session() as session:
-        try:
-            connection = await connections.create(
-                session,
-                organization_id=user.selected_organization_id,
-                actor_user_id=user.id,
-                vendor=request.vendor,
-                credentials=cleaned,
-                label=request.label,
-            )
-        except connections.ConnectionError_ as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        connection = await connections.create(
+            session,
+            organization_id=user.selected_organization_id,
+            actor_user_id=user.id,
+            vendor=request.vendor,
+            credentials=cleaned,
+            label=request.label,
+        )
         await session.commit()
     return {"connection": _view(connection), "unverified": warning}
 
 
-@router.delete("/{connection_id}", dependencies=[Depends(_enabled)])
+@router.delete("/{connection_id}")
 async def disconnect_dialer(connection_id: int, user: UserModel = Depends(_admin)):
     async with db_client.async_session() as session:
         removed = await connections.remove(
@@ -139,7 +132,7 @@ async def disconnect_dialer(connection_id: int, user: UserModel = Depends(_admin
     return {"removed": True}
 
 
-@router.get("/calls", dependencies=[Depends(_enabled)])
+@router.get("/calls")
 async def list_imported_calls(days: int = 7, user: UserModel = Depends(_admin)):
     """What was imported, newest last, for checking the import worked."""
     since = datetime.now(timezone.utc) - timedelta(days=max(1, min(days, 30)))

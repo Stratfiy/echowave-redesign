@@ -76,9 +76,9 @@ DEFAULT_PRIORITY = "medium"
 
 
 def enabled() -> bool:
-    from api import constants
+    from api.services import features
 
-    return bool(constants.TASK_BOARD_2026_09_ENABLED)
+    return features.is_on("task_board")
 
 
 def landing_status(answer: str) -> str:

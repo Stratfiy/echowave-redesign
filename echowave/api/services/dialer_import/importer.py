@@ -140,8 +140,9 @@ async def import_window(
             if not await storage.acreate_file_from_bytes(key, audio):
                 raise DialerError("The recording could not be stored.")
             row.recording_key = key
-            service = transcriber or await _transcriber(connection.organization_id)
-            transcription = await service.transcribe(
+            if transcriber is None:  # built once, and only if a call needs it
+                transcriber = await _transcriber(connection.organization_id)
+            transcription = await transcriber.transcribe(
                 audio, filename="call.mp3", content_type="audio/mpeg", language=""
             )
             row.transcript = transcription.transcript

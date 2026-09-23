@@ -5,8 +5,8 @@
  * which steps its last run reached, and the apps each step acts on.
  *
  * All of it is decoration: `decorate` returns new display nodes and edges
- * and never touches the store, so nothing here is ever saved. The routes
- * are a 404 while AGENT_GRAPH_EXTRAS_ENABLED is off, and then the graph is
+ * and never touches the store, so nothing here is ever saved. While
+ * AGENT_GRAPH_EXTRAS_ENABLED is off nothing is asked for, and the graph is
  * exactly what it was.
  */
 
@@ -20,6 +20,7 @@ import {
 } from "@/client/sdk.gen";
 import type { ConnectorResponse, ToolResponse } from "@/client/types.gen";
 import { useAuth } from "@/lib/auth";
+import { useFeature } from "@/lib/features";
 
 export const STARTS_NODE_ID = "__graph_starts";
 export const STARTS_EDGE_ID = "__graph_starts_edge";
@@ -56,15 +57,18 @@ const STEP_TYPES = new Set(["startCall", "agentNode", "endCall"]);
 
 export function useGraphExtras(workflowId: number): GraphExtras | null {
     const { user, loading } = useAuth();
+    const on = useFeature("agent_graph_extras");
     const [extras, setExtras] = useState<GraphExtras | null>(null);
     useEffect(() => {
-        if (loading || !user) return;
+        if (!on || loading || !user) return;
         let live = true;
         void (async () => {
-            const starts = await agentStartsApiV1AgentGraphWorkflowIdStartsGet({ path: { workflow_id: workflowId } });
+            const path = { workflow_id: workflowId };
+            const [starts, run] = await Promise.all([
+                agentStartsApiV1AgentGraphWorkflowIdStartsGet({ path }),
+                agentLastRunApiV1AgentGraphWorkflowIdLastRunGet({ path }),
+            ]);
             if (!live || starts.error) return;
-            const run = await agentLastRunApiV1AgentGraphWorkflowIdLastRunGet({ path: { workflow_id: workflowId } });
-            if (!live) return;
             setExtras({
                 starts: ((starts.data as { starts?: Start[] })?.starts) ?? [],
                 lastRun: run.error ? null : ((run.data as { run?: LastRun | null })?.run ?? null),
@@ -73,7 +77,7 @@ export function useGraphExtras(workflowId: number): GraphExtras | null {
         return () => {
             live = false;
         };
-    }, [loading, user, workflowId]);
+    }, [on, loading, user, workflowId]);
     return extras;
 }
 
@@ -118,10 +122,9 @@ function appSlugOf(tool: ToolResponse): string | null {
 /** Up to three apps a step's tools act on, named even without a logo. */
 export function appsOf(
     toolUuids: string[] | undefined,
-    tools: ToolResponse[],
+    byId: Map<string, ToolResponse>,
     known: Map<string, StepApp>,
 ): StepApp[] {
-    const byId = new Map(tools.map((t) => [t.tool_uuid, t]));
     const slugs: string[] = [];
     for (const uuid of toolUuids ?? []) {
         const tool = byId.get(uuid);
@@ -142,9 +145,10 @@ export function decorate<N extends Node, E extends Edge>(
     const run = extras.lastRun;
     const ids = new Set(run?.visited_ids ?? []);
     const names = new Set(run?.visited_names ?? []);
+    const toolsById = new Map((tools ?? []).map((t) => [t.tool_uuid, t]));
     const decorated: Node[] = nodes.map((node) => {
         const data = node.data as { name?: string; tool_uuids?: string[] };
-        const apps = appsOf(data.tool_uuids, tools ?? [], known);
+        const apps = appsOf(data.tool_uuids, toolsById, known);
         const step = STEP_TYPES.has(node.type ?? "");
         const lastRun =
             run && step ? (ids.has(node.id) || (data.name && names.has(data.name)) ? "reached" : "missed") : undefined;

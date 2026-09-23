@@ -275,11 +275,6 @@ BACK_OFFICE = {
 #: Runs on the clock, so it carries the scheduled family's rules.
 SCHEDULED = {"report_generator", "telecaller_call_coach"}
 
-#: Promoted, and kept off the shelf until what it needs is switched on: the
-#: coach reads the dialer import, which is off until its consent wording is
-#: approved.
-UNLISTED_UNTIL_ITS_FEATURE_IS_ON = {"telecaller_call_coach"}
-
 
 def _prompt(role: str) -> str:
     template = get_template(role)
@@ -303,10 +298,12 @@ class TestEveryPromotedRole:
     def test_it_is_on_the_shelf(self, role):
         pack = get_pack(role)
         assert pack is not None
-        from api import constants
+        from api.services import features
 
-        gated = role in UNLISTED_UNTIL_ITS_FEATURE_IS_ON
-        assert pack.listed is (not gated or constants.DIALER_IMPORT_ENABLED)
+        # A role waiting on a switched-off feature (the call coach reads the
+        # dialer import) is listed exactly when that feature is on.
+        gated = pack.requires_feature
+        assert pack.listed is (not gated or features.is_on(gated))
 
     def test_its_questions_are_not_written_by_a_script(self, role):
         # The import generated "What is the languages?" from variable names.
