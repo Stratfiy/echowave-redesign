@@ -216,6 +216,11 @@ def public_spec(app: FastAPI) -> dict[str, Any]:
             for tag in tags
             if not str(tag.get("name", "")).lower().startswith(INTERNAL_TAG_PREFIXES)
         ]
+    # One spelling per resource: /workflows, not /workflow beside it. The
+    # app serves both (services/api_paths.py); the reference shows this one.
+    from api.services.api_paths import pluralise_spec
+
+    pluralise_spec(spec)
     spec["x-tagGroups"] = [
         {"name": name, "tags": list(members)} for name, members in TAG_GROUPS
     ]

@@ -72,7 +72,7 @@ export const collections = {
     }),
     schema: docsSchema({
       // A reference page names the operation it documents ("POST
-      // /api/v1/workflow/create/definition"); the ApiMethod component renders
+      // /api/v1/workflows/create/definition"); the ApiMethod component renders
       // its arguments, response and errors from the checked-in spec. See
       // src/remark/inject-components.mjs.
       extend: z.object({ openapi: z.string().optional() }),

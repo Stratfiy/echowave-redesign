@@ -50,7 +50,7 @@ agent will pull the phone number instead, which is far harder to undo.
 ## Through the API
 
 ```bash
-curl -X PUT https://<your-host>/api/v1/workflow/42/live \
+curl -X PUT https://<your-host>/api/v1/workflows/42/live \
   -H "Authorization: Bearer $DECIBYL_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"is_live": false}'
