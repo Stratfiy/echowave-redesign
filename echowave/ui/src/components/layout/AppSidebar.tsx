@@ -374,7 +374,7 @@ export function AppSidebar() {
                   isCollapsed && "flex-none justify-center px-0",
                 )}
               >
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-sidebar-border bg-white/60 text-xs font-medium text-sidebar-foreground">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-sidebar-border bg-background/60 text-xs font-medium text-sidebar-foreground">
                   {initials}
                 </span>
                 {!isCollapsed && (

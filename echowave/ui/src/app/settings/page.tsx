@@ -10,6 +10,7 @@ import { MfaSection } from "@/components/MfaSection";
 import { OrganizationMembersSection } from "@/components/OrganizationMembersSection";
 import { OrganizationPreferencesSection } from "@/components/OrganizationPreferencesSection";
 import { TelemetrySection } from "@/components/TelemetrySection";
+import { ThemeModeSection } from "@/components/ThemeModeSection";
 import {
   Card,
   CardContent,
@@ -18,8 +19,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { UnsavedChangesProvider } from "@/context/UnsavedChangesContext";
+import { useFeature } from "@/lib/features";
 
 export default function SettingsPage() {
+  const shell = useFeature("shell");
   // Several cards on this page hold editable state — preferences, telemetry
   // credentials — and until this wrapper existed, clicking away from a
   // half-filled form discarded it without a word. The provider is the same one
@@ -49,12 +52,15 @@ export default function SettingsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Theme</CardTitle>
+            <CardTitle>{shell ? "Appearance" : "Theme"}</CardTitle>
             <CardDescription>
-              The colour of the frame: rail, panel and top bar, and the links and active states inside.
+              {shell
+                ? "Light, dark, or whatever this device is set to, and the accent colour on top."
+                : "The colour of the frame: rail, panel and top bar, and the links and active states inside."}
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-6">
+            {shell && <ThemeModeSection />}
             <AccentSection />
           </CardContent>
         </Card>

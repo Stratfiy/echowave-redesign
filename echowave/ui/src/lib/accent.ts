@@ -203,6 +203,54 @@ export function accentVariables(accent: Accent): Record<string, string> {
 }
 
 /**
+ * The same accent on the dark palette (Catppuccin Macchiato, globals.css).
+ *
+ * On a dark ground the rule turns over: text needs the *lighter* half, and
+ * a tint is the colour pulled toward the ground rather than toward white.
+ * Reusing the light map there is what painted a pale lavender hero with
+ * pale text on it -- a light tint the dark stylesheet could not override.
+ */
+export function accentDarkVariables(accent: Accent): Record<string, string> {
+  const lifted = tint(accent.bright, 0.3);
+  return {
+    "--sidebar-primary": lifted,
+    "--sidebar-primary-foreground": "#24273a",
+    "--accent-brand": lifted,
+    "--accent-brand-soft": withAlpha(accent.bright, 0.16),
+    "--accent-brand-tint": shade(accent.bright, 0.28),
+    "--ring": lifted,
+    "--sidebar-ring": lifted,
+    "--brand-blue": tint(accent.bright, 0.4),
+    "--brand-blue-hover": tint(accent.bright, 0.55),
+    "--brand-blue-soft": withAlpha(accent.bright, 0.16),
+    "--brand-blue-glow": withAlpha(accent.bright, 0.22),
+  };
+}
+
+/** The id of the <style> element an accent is written into. */
+export const ACCENT_STYLE_ID = "decibyl-accent";
+
+function declarations(vars: Record<string, string>): string {
+  return Object.entries(vars)
+    .filter(([name]) => /^--[\w-]+$/.test(name))
+    .map(([name, value]) => `${name}:${String(value).replace(/[;{}<>]/g, "")}`)
+    .join(";");
+}
+
+/**
+ * The accent as a stylesheet: one rule for light, one for dark.
+ *
+ * A stylesheet, not inline styles on :root. Inline styles beat every rule,
+ * the `.dark` palette included, so an accent written inline kept its light
+ * tints in dark mode. `:root:not(.dark)` and `:root.dark` each outrank the
+ * plain `:root` and `.dark` blocks in globals.css, and neither outranks the
+ * other, so the mode decides.
+ */
+export function accentCss(accent: Accent): string {
+  return `:root:not(.dark){${declarations(accentVariables(accent))}}:root.dark{${declarations(accentDarkVariables(accent))}}`;
+}
+
+/**
  * Variables an older build wrote and this one no longer sets.
  *
  * A stored accent is replayed verbatim on every load, so dropping a name
@@ -226,11 +274,18 @@ export const RETIRED_ACCENT_VARIABLES = [
 /** Write the accent onto the document. No-op outside a browser. */
 export function applyAccent(accent: Accent): void {
   if (typeof document === "undefined") return;
+  // Clear what older builds wrote inline: inline beats the stylesheet below.
   const style = document.documentElement.style;
-  for (const name of RETIRED_ACCENT_VARIABLES) style.removeProperty(name);
-  for (const [name, value] of Object.entries(accentVariables(accent))) {
-    style.setProperty(name, value);
+  for (const name of [...RETIRED_ACCENT_VARIABLES, ...Object.keys(accentVariables(accent))]) {
+    style.removeProperty(name);
   }
+  let sheet = document.getElementById(ACCENT_STYLE_ID);
+  if (!sheet) {
+    sheet = document.createElement("style");
+    sheet.id = ACCENT_STYLE_ID;
+    document.head.appendChild(sheet);
+  }
+  sheet.textContent = accentCss(accent);
 }
 
 /**
@@ -246,6 +301,8 @@ export function applyAccent(accent: Accent): void {
 interface StoredAccent {
   id: string;
   vars: Record<string, string>;
+  /** Both rules, light and dark, as `accentCss` writes them. */
+  css?: string;
 }
 
 export function readStoredAccent(): string | null {
@@ -266,7 +323,11 @@ export function readStoredAccent(): string | null {
 
 export function storeAccent(accent: Accent): void {
   try {
-    const payload: StoredAccent = { id: accent.id, vars: accentVariables(accent) };
+    const payload: StoredAccent = {
+      id: accent.id,
+      vars: accentVariables(accent),
+      css: accentCss(accent),
+    };
     window.localStorage.setItem(ACCENT_STORAGE_KEY, JSON.stringify(payload));
   } catch {
     /* see readStoredAccent */
@@ -284,10 +345,10 @@ export function storeAccent(accent: Accent): void {
 export const ACCENT_BOOT_SCRIPT = `(function(){try{
 var raw=localStorage.getItem(${JSON.stringify(ACCENT_STORAGE_KEY)});
 if(!raw||raw[0]!=="{")return;
-var vars=(JSON.parse(raw)||{}).vars;
-if(!vars)return;
-var s=document.documentElement.style;
-var dead=${JSON.stringify(RETIRED_ACCENT_VARIABLES)};
-for(var i=0;i<dead.length;i++)s.removeProperty(dead[i]);
-for(var k in vars){if(k.indexOf("--")===0&&dead.indexOf(k)<0)s.setProperty(k,vars[k]);}
+var stored=JSON.parse(raw)||{};
+var css=stored.css;
+if(!css&&stored.vars){var d=[];for(var k in stored.vars){if(/^--[\\w-]+$/.test(k))d.push(k+":"+String(stored.vars[k]).replace(/[;{}<>]/g,""));}css=":root:not(.dark){"+d.join(";")+"}";}
+if(typeof css!=="string"||/<\\//.test(css))return;
+var el=document.createElement("style");el.id=${JSON.stringify(ACCENT_STYLE_ID)};el.textContent=css;
+document.head.appendChild(el);
 }catch(e){}})();`;

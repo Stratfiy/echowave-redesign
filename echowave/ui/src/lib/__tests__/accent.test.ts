@@ -10,8 +10,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   ACCENT_BOOT_SCRIPT,
+  accentCss,
+  accentDarkVariables,
   ACCENTS,
   accentVariables,
+  applyAccent,
   contrastOnWhite,
   deepen,
   DEFAULT_ACCENT_ID,
@@ -137,20 +140,30 @@ describe("accentVariables", () => {
   });
 });
 
+const sheetText = () => document.getElementById("decibyl-accent")?.textContent ?? "";
+const clearSheet = () => document.getElementById("decibyl-accent")?.remove();
+
 describe("the anti-flash boot script", () => {
-  it("applies stored variables to the document", () => {
+  it("writes the stored accent as a stylesheet, not inline", () => {
+    clearSheet();
     const indigo = ACCENTS.find((accent) => accent.id === "indigo")!;
-    const stored = { id: "indigo", vars: accentVariables(indigo) };
+    const stored = { id: "indigo", vars: accentVariables(indigo), css: accentCss(indigo) };
     window.localStorage.setItem("decibyl.accent", JSON.stringify(stored));
 
     eval(ACCENT_BOOT_SCRIPT);
-    expect(document.documentElement.style.getPropertyValue("--ring")).toBe("#4f46e5");
+    expect(sheetText()).toContain(":root:not(.dark){");
+    expect(sheetText()).toContain("--ring:#4f46e5");
+    expect(sheetText()).toContain(":root.dark{");
+    // Inline would beat the dark palette; nothing is written there.
+    expect(document.documentElement.style.getPropertyValue("--ring")).toBe("");
     window.localStorage.removeItem("decibyl.accent");
+    clearSheet();
   });
 
-  it("drops a frame colour an older build stored", () => {
-    // The shape localStorage still holds on every machine that ran the old
-    // build: the accent map with the eleven frame variables in it.
+  it("still restores what an older build stored, for light only", () => {
+    // The shape localStorage still holds on machines that ran an older build:
+    // the light map, possibly with the retired frame variables in it.
+    clearSheet();
     const indigo = ACCENTS.find((accent) => accent.id === "indigo")!;
     const stored = {
       id: "indigo",
@@ -159,22 +172,43 @@ describe("the anti-flash boot script", () => {
     window.localStorage.setItem("decibyl.accent", JSON.stringify(stored));
 
     eval(ACCENT_BOOT_SCRIPT);
-    const style = document.documentElement.style;
-    expect(style.getPropertyValue("--sidebar")).toBe("");
-    expect(style.getPropertyValue("--rail")).toBe("");
-    expect(style.getPropertyValue("--ring")).toBe("#4f46e5");
+    expect(sheetText()).toContain(":root:not(.dark){");
+    expect(sheetText()).toContain("--ring:#4f46e5");
+    expect(sheetText()).not.toContain(":root.dark");
     window.localStorage.removeItem("decibyl.accent");
+    clearSheet();
   });
 
   it("does nothing at all when storage is empty or malformed", () => {
-    document.documentElement.style.removeProperty("--ring");
-    for (const raw of ["", "coral", "{", '{"id":"indigo"}']) {
+    clearSheet();
+    for (const raw of ["", "coral", "{", '{"id":"indigo"}', '{"css":"</style><script>"}']) {
       if (raw) window.localStorage.setItem("decibyl.accent", raw);
       else window.localStorage.removeItem("decibyl.accent");
 
       expect(() => eval(ACCENT_BOOT_SCRIPT)).not.toThrow();
-      expect(document.documentElement.style.getPropertyValue("--ring")).toBe("");
+      expect(sheetText()).toBe("");
     }
     window.localStorage.removeItem("decibyl.accent");
+  });
+});
+
+describe("the accent in dark mode", () => {
+  it("lifts text and ring colours for a dark ground, and tints toward it", () => {
+    for (const accent of ACCENTS) {
+      const dark = accentDarkVariables(accent);
+      // The text-carrying token reads on the Macchiato ground, #24273a.
+      expect(contrastOnWhite(dark["--brand-blue"]), accent.id).toBeLessThan(contrastOnWhite(accent.deep));
+      // The tint is a dark surface, not a pale wash.
+      expect(contrastOnWhite(dark["--accent-brand-tint"]), accent.id).toBeGreaterThan(7);
+    }
+  });
+
+  it("applies as a stylesheet and clears anything an older build wrote inline", () => {
+    const indigo = ACCENTS.find((accent) => accent.id === "indigo")!;
+    document.documentElement.style.setProperty("--ring", "#123456");
+    applyAccent(indigo);
+    expect(document.documentElement.style.getPropertyValue("--ring")).toBe("");
+    expect(sheetText()).toBe(accentCss(indigo));
+    clearSheet();
   });
 });

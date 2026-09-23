@@ -714,7 +714,7 @@ function RenderWorkflow({
                                                 size="icon"
                                                 aria-label="Zoom in"
                                                 onClick={() => rfInstance.current?.zoomIn()}
-                                                className="bg-white shadow-sm hover:shadow-md h-8 w-8"
+                                                className="bg-card shadow-sm hover:shadow-md h-8 w-8"
                                             >
                                                 <Plus className="h-4 w-4" />
                                             </Button>
@@ -731,7 +731,7 @@ function RenderWorkflow({
                                                 size="icon"
                                                 aria-label="Zoom out"
                                                 onClick={() => rfInstance.current?.zoomOut()}
-                                                className="bg-white shadow-sm hover:shadow-md h-8 w-8"
+                                                className="bg-card shadow-sm hover:shadow-md h-8 w-8"
                                             >
                                                 <Minus className="h-4 w-4" />
                                             </Button>
@@ -748,7 +748,7 @@ function RenderWorkflow({
                                                 size="icon"
                                                 aria-label="Fit all nodes"
                                                 onClick={() => rfInstance.current?.fitView({ padding: 0.15, maxZoom: 1 })}
-                                                className="bg-white shadow-sm hover:shadow-md h-8 w-8"
+                                                className="bg-card shadow-sm hover:shadow-md h-8 w-8"
                                             >
                                                 <Maximize2 className="h-4 w-4" />
                                             </Button>
@@ -770,7 +770,7 @@ function RenderWorkflow({
                                                         const current = useWorkflowStore.getState();
                                                         current.applyGraphProposal(workflowId, graphSnapshot(current.nodes, current.edges), layoutNodes(current.nodes, current.edges, 'LR', rfInstance), current.edges);
                                                     }}
-                                                    className="bg-white shadow-sm hover:shadow-md h-8 w-8"
+                                                    className="bg-card shadow-sm hover:shadow-md h-8 w-8"
                                                 >
                                                     <BrushCleaning className="h-4 w-4" />
                                                 </Button>

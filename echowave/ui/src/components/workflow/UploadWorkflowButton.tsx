@@ -106,7 +106,7 @@ export function UploadWorkflowButton() {
                         onDragLeave={handleDragLeave}
                     >
                         <Upload className="w-8 h-8 mx-auto mb-4 text-gray-400" />
-                        <p className="text-sm text-gray-600 mb-4">
+                        <p className="text-sm text-muted-foreground mb-4">
                             Drag and drop your Workflow JSON File here, or Click to Select
                         </p>
                         <input

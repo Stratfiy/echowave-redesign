@@ -82,13 +82,14 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: ACCENT_BOOT_SCRIPT }} />
       </head>
       <body className="antialiased">
-        {/* forcedTheme keeps the provider mounted — every consumer of useTheme
-            still resolves — while guaranteeing the .dark class is never set. */}
+        {/* Light unless the person chose otherwise in Settings → Appearance.
+            Its own storage key, so a "theme" value the retired sidebar toggle
+            left behind is never replayed as a surprise dark mode. */}
         <ThemeProvider
           attribute="class"
-          forcedTheme="light"
           defaultTheme="light"
-          enableSystem={false}
+          enableSystem
+          storageKey="decibyl.theme"
           disableTransitionOnChange
         >
           <SentryErrorBoundary>

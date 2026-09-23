@@ -131,7 +131,7 @@ function GlobalSearch() {
         onKeyDown={onKeyDown}
         placeholder="Search pages…"
         aria-label="Search pages"
-        className="h-7 rounded-md border-transparent bg-white/55 pl-9 pr-3 text-sm text-rail-foreground shadow-none placeholder:text-rail-foreground/60 focus-visible:border-[var(--accent-brand)] focus-visible:bg-white/85"
+        className="h-7 rounded-md border-transparent bg-background/55 pl-9 pr-3 text-sm text-rail-foreground shadow-none placeholder:text-rail-foreground/60 focus-visible:border-[var(--accent-brand)] focus-visible:bg-white/85"
       />
       {open && query.trim() !== "" && (
         <div className="absolute left-0 right-0 top-9 z-50 overflow-hidden rounded-xl border border-border bg-popover py-1 shadow-[var(--shadow-raised)]">

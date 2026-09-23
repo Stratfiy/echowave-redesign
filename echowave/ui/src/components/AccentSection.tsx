@@ -18,6 +18,7 @@ import {
   type Accent,
   ACCENTS,
   applyAccent,
+  DEFAULT_ACCENT_ID,
   readStoredAccent,
   resolveAccent,
   storeAccent,
@@ -72,8 +73,8 @@ export function AccentSection() {
         })}
       </div>
 
-      {accent.id !== "coral" ? (
-        <Button type="button" variant="ghost" size="sm" onClick={() => choose(ACCENTS[0])}>
+      {accent.id !== DEFAULT_ACCENT_ID ? (
+        <Button type="button" variant="ghost" size="sm" onClick={() => choose(resolveAccent(DEFAULT_ACCENT_ID))}>
           Reset
         </Button>
       ) : null}
