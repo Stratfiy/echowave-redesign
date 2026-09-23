@@ -21211,6 +21211,49 @@ export type ReadProviderBalancesApiV1AdminProviderKeysBalancesGetResponses = {
 
 export type ReadProviderBalancesApiV1AdminProviderKeysBalancesGetResponse = ReadProviderBalancesApiV1AdminProviderKeysBalancesGetResponses[keyof ReadProviderBalancesApiV1AdminProviderKeysBalancesGetResponses];
 
+export type ReadVoiceFailuresApiV1AdminProviderKeysVoiceFailuresGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/provider-keys/voice-failures';
+};
+
+export type ReadVoiceFailuresApiV1AdminProviderKeysVoiceFailuresGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadVoiceFailuresApiV1AdminProviderKeysVoiceFailuresGetError = ReadVoiceFailuresApiV1AdminProviderKeysVoiceFailuresGetErrors[keyof ReadVoiceFailuresApiV1AdminProviderKeysVoiceFailuresGetErrors];
+
+export type ReadVoiceFailuresApiV1AdminProviderKeysVoiceFailuresGetResponses = {
+    /**
+     * Response Read Voice Failures Api V1 Admin Provider Keys Voice Failures Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ReadVoiceFailuresApiV1AdminProviderKeysVoiceFailuresGetResponse = ReadVoiceFailuresApiV1AdminProviderKeysVoiceFailuresGetResponses[keyof ReadVoiceFailuresApiV1AdminProviderKeysVoiceFailuresGetResponses];
+
 export type DiscoverModelsApiV1AdminProviderKeysModelsGetData = {
     body?: never;
     headers?: {

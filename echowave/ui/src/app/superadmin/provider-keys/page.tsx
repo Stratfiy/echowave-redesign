@@ -61,6 +61,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { VoiceFailures } from "@/components/VoiceFailures";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
@@ -442,6 +443,7 @@ function ProviderKeysScreen() {
                     </div>
                 )}
 
+                <VoiceFailures />
                 <ProviderBalances />
 
                 {catalogue.length > 0 && (

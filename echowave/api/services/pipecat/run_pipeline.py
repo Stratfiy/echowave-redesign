@@ -18,6 +18,7 @@ from api.schemas.workflow_configurations import (
     DEFAULT_USER_SPEECH_TIMEOUT,
     MAX_CALL_DURATION_SECONDS,
 )
+from api.services import features
 from api.services.call_concurrency import call_concurrency
 from api.services.configuration.registry import ServiceProviders
 from api.services.integrations import (
@@ -94,6 +95,7 @@ from api.services.pipecat.tracing_config import (
 )
 from api.services.pipecat.transcript_log_coordinator import TranscriptLogCoordinator
 from api.services.pipecat.transport_setup import create_webrtc_transport
+from api.services.pipecat.voice_watch import VoiceSilenceWatch
 from api.services.pipecat.worker_runner import run_pipeline_worker
 from api.services.pipecat.ws_sender_registry import get_ws_sender
 from api.services.posthog_client import capture_event
@@ -152,6 +154,18 @@ def _resolve_user_turn_stop_timeout(
     if uses_external_turns:
         return EXTERNAL_TURN_USER_STOP_TIMEOUT
     return DEFAULT_USER_TURN_STOP_TIMEOUT
+
+
+def _create_voice_watch(user_config, workflow_run_id):
+    """The silent-voice check, while its switch is on. See voice_watch.py."""
+    if not features.is_on("voice_watch"):
+        return None
+    tts = getattr(user_config, "tts", None)
+    return VoiceSilenceWatch(
+        provider=str(getattr(tts, "provider", None) or "unknown"),
+        model=getattr(tts, "model", None),
+        run_id=workflow_run_id,
+    )
 
 
 def _create_interruption_backoff(run_configs: dict):
@@ -1572,6 +1586,7 @@ async def _run_pipeline_impl(
             interruption_backoff=_create_interruption_backoff(run_configs),
             end_call_phrase_watcher=end_call_phrase_watcher,
             backchannel=backchannel,
+            voice_watch=_create_voice_watch(user_config, workflow_run_id),
         )
 
     # Create pipeline task with audio configuration

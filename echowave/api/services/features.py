@@ -28,6 +28,7 @@ FLAGS: dict[str, str] = {
     "workspace_roles": "WORKSPACE_ROLES_ENABLED",
     "agent_graph_extras": "AGENT_GRAPH_EXTRAS_ENABLED",
     "shell": "SHELL_2026_09_ENABLED",
+    "voice_watch": "VOICE_WATCH_ENABLED",
 }
 
 
