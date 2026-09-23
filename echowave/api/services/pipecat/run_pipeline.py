@@ -95,7 +95,7 @@ from api.services.pipecat.tracing_config import (
 )
 from api.services.pipecat.transcript_log_coordinator import TranscriptLogCoordinator
 from api.services.pipecat.transport_setup import create_webrtc_transport
-from api.services.pipecat.voice_watch import VoiceSilenceWatch
+from api.services.pipecat.voice_watch import Voice, VoiceSilenceWatch
 from api.services.pipecat.worker_runner import run_pipeline_worker
 from api.services.pipecat.ws_sender_registry import get_ws_sender
 from api.services.posthog_client import capture_event
@@ -110,6 +110,7 @@ from pipecat.audio.turn.smart_turn.base_smart_turn import SmartTurnParams
 from pipecat.audio.turn.smart_turn.local_smart_turn_v3 import LocalSmartTurnAnalyzerV3
 from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.extensions.voicemail.voicemail_detector import VoicemailDetector
+from pipecat.pipeline.service_switcher import ServiceSwitcher
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.aggregators.llm_response_universal import (
     LLMAssistantAggregatorParams,
@@ -156,15 +157,30 @@ def _resolve_user_turn_stop_timeout(
     return DEFAULT_USER_TURN_STOP_TIMEOUT
 
 
-def _create_voice_watch(user_config, workflow_run_id):
-    """The silent-voice check, while its switch is on. See voice_watch.py."""
+def _create_voice_watch(user_config, workflow_run_id, tts=None):
+    """The silent-voice check, while its switch is on. See voice_watch.py.
+
+    ``tts`` is what the pipeline speaks through: the voice itself, or a
+    switcher around it and its backups, whose services are in the order of
+    ``[user_config.tts, *user_config.fallback_tts]``.
+    """
     if not features.is_on("voice_watch"):
         return None
-    tts = getattr(user_config, "tts", None)
+    primary = getattr(user_config, "tts", None)
+    backups = [
+        Voice(
+            provider=str(getattr(section, "provider", None) or "unknown"),
+            model=getattr(section, "model", None),
+        )
+        for section in getattr(user_config, "fallback_tts", None) or []
+    ]
+    switcher = tts if isinstance(tts, ServiceSwitcher) and backups else None
     return VoiceSilenceWatch(
-        provider=str(getattr(tts, "provider", None) or "unknown"),
-        model=getattr(tts, "model", None),
+        provider=str(getattr(primary, "provider", None) or "unknown"),
+        model=getattr(primary, "model", None),
         run_id=workflow_run_id,
+        switcher=switcher,
+        backups=backups if switcher is not None else None,
     )
 
 
@@ -1586,7 +1602,7 @@ async def _run_pipeline_impl(
             interruption_backoff=_create_interruption_backoff(run_configs),
             end_call_phrase_watcher=end_call_phrase_watcher,
             backchannel=backchannel,
-            voice_watch=_create_voice_watch(user_config, workflow_run_id),
+            voice_watch=_create_voice_watch(user_config, workflow_run_id, tts),
         )
 
     # Create pipeline task with audio configuration

@@ -209,7 +209,7 @@ class TestTheSwitch:
         )
         watch = _create_voice_watch(config, 7)
         assert isinstance(watch, VoiceSilenceWatch)
-        assert watch._provider == "elevenlabs"
+        assert watch.voice.provider == "elevenlabs"
 
     def test_it_sits_directly_after_the_voice(self):
         from unittest.mock import MagicMock
@@ -366,3 +366,143 @@ class TestInARealPipeline:
         assert any(isinstance(f, TTSAudioRawFrame) for f in down)
         assert not [f for f in up if isinstance(f, ErrorFrame)]
         assert recorded == []
+
+
+class TestFailingOverToABackupVoice:
+    """An agent with a backup voice keeps talking: the silent one is dropped,
+    and what it swallowed is said again by the backup."""
+
+    @staticmethod
+    def _voices():
+        from pipecat.pipeline.service_switcher import (
+            ServiceSwitcher,
+            ServiceSwitcherStrategyFailover,
+        )
+        from pipecat.tests.mock_tts_service import MockTTSService
+
+        class SilentVoice(MockTTSService):
+            async def run_tts(self, text, context_id):
+                self.received_texts.append(text)
+                return
+                yield
+
+        dead = SilentVoice(pause_frame_processing=False, name="dead")
+        backup = MockTTSService(
+            pause_frame_processing=False, mock_audio_duration_ms=100, name="backup"
+        )
+        switcher = ServiceSwitcher(
+            services=[dead, backup], strategy_type=ServiceSwitcherStrategyFailover
+        )
+        return dead, backup, switcher
+
+    @pytest.mark.asyncio
+    async def test_the_backup_says_the_greeting_and_the_call_goes_on(self, recorded):
+        from pipecat.frames.frames import ErrorFrame, TTSSpeakFrame
+        from pipecat.pipeline.pipeline import Pipeline
+        from pipecat.tests.utils import SleepFrame, run_test
+
+        from api.services.pipecat.voice_watch import Voice
+
+        dead, backup, switcher = self._voices()
+        watch = VoiceSilenceWatch(
+            provider="elevenlabs",
+            model="flash",
+            run_id=411,
+            seconds=0.5,
+            switcher=switcher,
+            backups=[Voice("cartesia", "sonic")],
+        )
+
+        down, up = await run_test(
+            Pipeline([switcher, watch]),
+            frames_to_send=[
+                TTSSpeakFrame(text="Hello, Kriti Labs support."),
+                SleepFrame(1.5),
+            ],
+        )
+
+        assert dead.received_texts == ["Hello, Kriti Labs support."]
+        assert any("Kriti Labs" in t for t in backup.received_texts), (
+            "the backup said what the dead voice swallowed"
+        )
+        assert any(isinstance(f, TTSAudioRawFrame) for f in down)
+        assert not [f for f in up if isinstance(f, ErrorFrame) and f.fatal]
+        assert recorded == [{"provider": "elevenlabs", "model": "flash", "run_id": 411}]
+        assert watch.voice == Voice("cartesia", "sonic")
+
+    @pytest.mark.asyncio
+    async def test_when_the_backup_is_silent_too_the_call_ends(self, recorded):
+        from pipecat.frames.frames import ErrorFrame, TTSSpeakFrame
+        from pipecat.pipeline.pipeline import Pipeline
+        from pipecat.pipeline.service_switcher import (
+            ServiceSwitcher,
+            ServiceSwitcherStrategyFailover,
+        )
+        from pipecat.tests.mock_tts_service import MockTTSService
+        from pipecat.tests.utils import SleepFrame, run_test
+
+        from api.services.pipecat.voice_watch import Voice
+
+        class SilentVoice(MockTTSService):
+            async def run_tts(self, text, context_id):
+                return
+                yield
+
+        switcher = ServiceSwitcher(
+            services=[
+                SilentVoice(pause_frame_processing=False, name="a"),
+                SilentVoice(pause_frame_processing=False, name="b"),
+            ],
+            strategy_type=ServiceSwitcherStrategyFailover,
+        )
+        watch = VoiceSilenceWatch(
+            provider="a",
+            model=None,
+            run_id=1,
+            seconds=0.4,
+            switcher=switcher,
+            backups=[Voice("b")],
+        )
+
+        _, up = await run_test(
+            Pipeline([switcher, watch]),
+            frames_to_send=[TTSSpeakFrame(text="Hello."), SleepFrame(1.5)],
+        )
+
+        assert [r["provider"] for r in recorded] == ["a", "b"]
+        assert [f for f in up if isinstance(f, ErrorFrame) and f.fatal]
+
+
+class TestTheSwitchWithBackups:
+    def test_the_watch_is_given_the_switcher_and_the_backup_names(self, monkeypatch):
+        from types import SimpleNamespace
+
+        from api.services.pipecat.run_pipeline import _create_voice_watch
+        from api.services.pipecat.voice_watch import Voice
+
+        _, _, switcher = TestFailingOverToABackupVoice._voices()
+        monkeypatch.setattr(constants, "VOICE_WATCH_ENABLED", True)
+        config = SimpleNamespace(
+            tts=SimpleNamespace(provider="elevenlabs", model="flash"),
+            fallback_tts=[SimpleNamespace(provider="cartesia", model="sonic")],
+        )
+
+        watch = _create_voice_watch(config, 7, switcher)
+
+        assert watch._switcher is switcher
+        assert watch._voices == [
+            Voice("elevenlabs", "flash"),
+            Voice("cartesia", "sonic"),
+        ]
+
+    def test_no_backups_means_no_switcher(self, monkeypatch):
+        from types import SimpleNamespace
+
+        from api.services.pipecat.run_pipeline import _create_voice_watch
+
+        monkeypatch.setattr(constants, "VOICE_WATCH_ENABLED", True)
+        config = SimpleNamespace(tts=SimpleNamespace(provider="elevenlabs", model=None))
+
+        watch = _create_voice_watch(config, 7, object())
+
+        assert watch._switcher is None
