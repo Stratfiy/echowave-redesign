@@ -19,6 +19,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db.models import DialerConnectionModel, ImportedCallModel
+from api.services.billing import model_usage
 from api.services.dialer_import import connections
 from api.services.dialer_import._base import (
     DialerAuthError,
@@ -145,6 +146,14 @@ async def import_window(
             transcription = await transcriber.transcribe(
                 audio, filename="call.mp3", content_type="audio/mpeg", language=""
             )
+            with model_usage.scope(
+                organization_id=connection.organization_id, feature="dialer_import"
+            ):
+                await model_usage.record_audio(
+                    provider=model_usage.provider_of(transcriber),
+                    model=transcription.model or "",
+                    seconds=transcription.duration_seconds or call.duration_seconds,
+                )
             row.transcript = transcription.transcript
             row.transcription_model = transcription.model
             row.status = "transcribed"

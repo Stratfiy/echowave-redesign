@@ -26,7 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { detailFromResult } from "@/lib/apiError";
 import { cn } from "@/lib/utils";
 
-import { LabelChip, LabelPicker } from "./TaskInputs";
+import { LabelChip, LabelPicker, SubtaskProgress } from "./TaskInputs";
 import {
     type BoardPayload,
     type BotRef,
@@ -43,6 +43,7 @@ import {
     type Person,
     PRIORITY_CLASS,
     statusLabel,
+    subtaskProgress,
     type Task,
     when,
 } from "./tasks";
@@ -233,7 +234,7 @@ export function TaskBoard({ initial, tabs }: Props) {
                     </div>
 
                     {view === "list" ? (
-                        <TaskList tasks={visible} groupBy={groupBy} onOpen={open} />
+                        <TaskList tasks={visible} all={tasks} groupBy={groupBy} onOpen={open} />
                     ) : (
                         <div className="mt-4 grid gap-3 overflow-x-auto md:grid-cols-4 xl:grid-cols-7">
                             {COLUMNS.map((column) => {
@@ -262,6 +263,7 @@ export function TaskBoard({ initial, tabs }: Props) {
                                                 <TaskCard
                                                     key={task.id}
                                                     task={task}
+                                                    progress={subtaskProgress(task, tasks)}
                                                     busy={busy === task.id}
                                                     onOpen={() => open(task)}
                                                     onDragStart={(e) => {
@@ -297,7 +299,7 @@ export function TaskBoard({ initial, tabs }: Props) {
     );
 }
 
-function TaskList({ tasks, groupBy, onOpen }: { tasks: Task[]; groupBy: GroupBy; onOpen: (t: Task) => void }) {
+function TaskList({ tasks, all, groupBy, onOpen }: { tasks: Task[]; all: Task[]; groupBy: GroupBy; onOpen: (t: Task) => void }) {
     if (tasks.length === 0) return <p className="mt-6 text-sm text-muted-foreground">Nothing here.</p>;
     return (
         <div className="mt-4 space-y-5" role="table" aria-label="Tasks">
@@ -314,6 +316,7 @@ function TaskList({ tasks, groupBy, onOpen }: { tasks: Task[]; groupBy: GroupBy;
                         {group.tasks.map((task) => {
                             const who = ownerOf(task);
                             const Icon = who.icon;
+                            const progress = subtaskProgress(task, all);
                             return (
                                 <li key={task.id} role="row">
                                     <button type="button" onClick={() => onOpen(task)} className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-muted/50">
@@ -326,6 +329,7 @@ function TaskList({ tasks, groupBy, onOpen }: { tasks: Task[]; groupBy: GroupBy;
                                             ))}
                                         </span>
                                         {isLive(task) && <LiveDot />}
+                                        {progress && <SubtaskProgress {...progress} />}
                                         {(task.comment_count ?? 0) > 0 && (
                                             <span className="hidden items-center gap-1 text-xs text-muted-foreground sm:inline-flex">
                                                 <MessageSquare className="h-3 w-3" aria-hidden />
@@ -349,7 +353,19 @@ function TaskList({ tasks, groupBy, onOpen }: { tasks: Task[]; groupBy: GroupBy;
     );
 }
 
-function TaskCard({ task, busy, onOpen, onDragStart }: { task: Task; busy: boolean; onOpen: () => void; onDragStart: (e: React.DragEvent) => void }) {
+function TaskCard({
+    task,
+    progress,
+    busy,
+    onOpen,
+    onDragStart,
+}: {
+    task: Task;
+    progress: { done: number; total: number } | null;
+    busy: boolean;
+    onOpen: () => void;
+    onDragStart: (e: React.DragEvent) => void;
+}) {
     const owner = ownerOf(task);
     const Icon = owner.icon;
     return (
@@ -377,6 +393,7 @@ function TaskCard({ task, busy, onOpen, onDragStart }: { task: Task; busy: boole
                         </span>
                         {task.due_at && <span>· due {when(task.due_at)}</span>}
                         {task.blocked_by.length > 0 && <span>· waits on {task.blocked_by.length}</span>}
+                        {progress && <SubtaskProgress {...progress} />}
                         {(task.comment_count ?? 0) > 0 && (
                             <span className="inline-flex items-center gap-1">
                                 <MessageSquare className="h-3 w-3" aria-hidden />

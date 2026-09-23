@@ -53,7 +53,18 @@ type Report = {
     by_work: Work[];
     totals: { vendor_cost_paise: number; tokens: number; direct_calls: number; unattributed_calls: number };
     not_metered: string[];
+    /** Transcription, measured in audio rather than tokens. */
+    audio?: { feature: string; provider: string; model: string; calls: number; audio_seconds: number; calls_without_length: number }[];
 };
+
+const AUDIO_LABEL: Record<string, string> = {
+    recording_transcription: "Uploaded recordings",
+    dialer_import: "Imported dialer calls",
+};
+
+function minutes(seconds: number): string {
+    return `${formatNumber(Math.round((seconds / 60) * 10) / 10)} min`;
+}
 
 function compact(value: number): string {
     if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
@@ -225,6 +236,34 @@ export function VendorSplit() {
                             })}
                         </TableBody>
                     </Table>
+                    {(data.audio ?? []).length > 0 && (
+                        <div className="mt-6">
+                            <h3 className="text-sm font-semibold">Transcription</h3>
+                            <p className="text-xs text-muted-foreground">Audio turned into text, measured in minutes, not tokens.</p>
+                            <Table aria-label="Transcription">
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Work</TableHead>
+                                        <TableHead>Vendor and model</TableHead>
+                                        <TableHead className="text-right">Files</TableHead>
+                                        <TableHead className="text-right">Audio</TableHead>
+                                        <TableHead className="text-right">Length unknown</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {data.audio!.map((row) => (
+                                        <TableRow key={`${row.feature}-${row.provider}-${row.model}`}>
+                                            <TableCell className="font-medium">{AUDIO_LABEL[row.feature] ?? row.feature}</TableCell>
+                                            <TableCell>{row.provider} {row.model}</TableCell>
+                                            <TableCell className="text-right tabular-nums">{formatNumber(row.calls)}</TableCell>
+                                            <TableCell className="text-right tabular-nums">{minutes(row.audio_seconds)}</TableCell>
+                                            <TableCell className="text-right tabular-nums">{formatNumber(row.calls_without_length)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    )}
                     {data.not_metered.length > 0 && (
                         <p className="mt-4 text-xs text-muted-foreground">
                             Not metered yet: {data.not_metered.join("; ")}.

@@ -98,4 +98,47 @@ async def record(*, provider: str, model: str, usage: dict[str, Any] | None) -> 
         )
 
 
-__all__ = ["FIELDS", "UNATTRIBUTED", "current", "labelled", "record", "scope"]
+async def record_audio(*, provider: str, model: str, seconds: float | None) -> None:
+    """One transcription's audio, attributed to whatever scope is open.
+
+    Written even when the vendor did not say how long the audio was, with
+    0 seconds: the call happened, and a count of calls with unknown length
+    is still a number D-1 can use, where a skipped row is not."""
+    organization_id, feature = current()
+    try:
+        audio = max(float(seconds or 0), 0.0)
+    except (TypeError, ValueError):
+        audio = 0.0
+    try:
+        await _write(
+            {
+                "organization_id": organization_id,
+                "feature": feature,
+                "provider": provider,
+                "model": (model or "")[:128],
+                "audio_seconds": audio,
+            }
+        )
+    except Exception as exc:  # noqa: BLE001 - measurement never costs the reply
+        logger.warning(
+            "Could not record transcription usage for {}/{}: {}", provider, model, exc
+        )
+
+
+def provider_of(service: Any) -> str:
+    """A transcription service's vendor, from its class name:
+    ``DeepgramTranscriptionService`` is ``deepgram``."""
+    name = type(service).__name__.removesuffix("TranscriptionService")
+    return (name or "unknown").lower()[:64]
+
+
+__all__ = [
+    "FIELDS",
+    "UNATTRIBUTED",
+    "current",
+    "labelled",
+    "provider_of",
+    "record",
+    "record_audio",
+    "scope",
+]

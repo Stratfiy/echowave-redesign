@@ -84,3 +84,19 @@ describe("@mentions", () => {
         expect(insertMention("@b", 0, 2, "billing")).toEqual({ text: "@billing ", caret: 9 });
     });
 });
+
+describe("sub-task progress", () => {
+    it("counts done out of the sub-tasks still meant to be done", async () => {
+        const { subtaskProgress } = await import("../tasks");
+        const parent = t({ id: 1 });
+        const all = [
+            parent,
+            t({ id: 2, parent_id: 1, status: "done" }),
+            t({ id: 3, parent_id: 1, status: "todo" }),
+            t({ id: 4, parent_id: 1, status: "cancelled" }),
+            t({ id: 5, parent_id: 9, status: "done" }),
+        ];
+        expect(subtaskProgress(parent, all)).toEqual({ done: 1, total: 2 });
+        expect(subtaskProgress(t({ id: 2 }), all)).toBeNull();
+    });
+});
