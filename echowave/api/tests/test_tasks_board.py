@@ -371,3 +371,151 @@ class TestATaskRefusedForCreditWaits:
                 title="Say hello",
             )
         assert "could not start the task" in record.await_args.kwargs["summary"]
+
+
+# --- TB-2: the checkout, the mention, the card's activity -----------------------
+
+
+@pytest.mark.asyncio
+class TestTheCheckout:
+    async def test_a_task_someone_else_took_is_not_run_twice(self):
+        row = _task(organization_id=7)
+
+        class _Session:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def get(self, model, task_id):
+                return row
+
+        with (
+            patch.object(tasks_board.db_client, "async_session", lambda: _Session()),
+            patch.object(
+                tasks_board.db_client,
+                "get_all_workflows_for_listing",
+                AsyncMock(return_value=[]),
+            ),
+            patch.object(
+                tasks_board.db_client, "update_task", AsyncMock(return_value=None)
+            ) as update,
+            patch.object(
+                tasks_board.db_client, "create_workflow_run", AsyncMock()
+            ) as create_run,
+        ):
+            assert await tasks_board.run_task(12) is None
+        assert update.await_args.kwargs["unless_status"] == (
+            tasks_board.IN_PROGRESS,
+            *tasks_board.TERMINAL,
+        )
+        create_run.assert_not_awaited()
+
+    async def test_the_checkout_is_a_locked_conditional_update(self, async_session):
+        """Against the real table: a running task cannot be claimed again."""
+        import contextlib
+
+        from api.db import db_client
+        from api.db.models import AgentTaskModel, OrganizationModel
+
+        @contextlib.asynccontextmanager
+        async def _same():
+            yield async_session
+
+        org = OrganizationModel(provider_id="tb2-checkout")
+        async_session.add(org)
+        await async_session.flush()
+        task = AgentTaskModel(
+            organization_id=org.id, title="Call back", brief="", status="todo"
+        )
+        async_session.add(task)
+        await async_session.commit()
+
+        claim = dict(
+            organization_id=org.id,
+            status="in_progress",
+            unless_status=("in_progress", "done", "cancelled"),
+        )
+        with patch.object(db_client, "async_session", _same):
+            first = await db_client.update_task(task.id, **claim)
+            second = await db_client.update_task(task.id, **claim)
+        assert first is not None and first.started_at is not None
+        assert second is None
+
+
+class TestTheRunReadsTheCard:
+    def test_the_card_s_lines_come_after_the_brief(self):
+        text = tasks_board.run_message(
+            title="Chase invoice",
+            brief="INV-9, Kriti Labs",
+            asker="the team",
+            thread=["- a person: @billing they paid half, chase the rest"],
+        )
+        assert text.index("INV-9") < text.index("they paid half")
+
+    def test_a_card_with_no_lines_reads_as_it_always_did(self):
+        assert tasks_board.run_message(
+            title="t", brief="b", asker="a"
+        ) == tasks_board.run_message(title="t", brief="b", asker="a", thread=[])
+
+
+@pytest.mark.asyncio
+class TestAMentionWakesABot:
+    ROSTER = [
+        SimpleNamespace(id=3, name="Billing", handle="billing"),
+        SimpleNamespace(id=4, name="Sales", handle="sales"),
+    ]
+
+    async def _say(self, body, *, status="in_review"):
+        task = _task(status=status, assignee_workflow_id=None)
+        with (
+            patch.object(
+                tasks_board.db_client, "get_task", AsyncMock(return_value=task)
+            ),
+            patch.object(
+                tasks_board.db_client,
+                "add_task_comment",
+                AsyncMock(
+                    return_value=SimpleNamespace(
+                        id=1,
+                        task_id=task.id,
+                        body=body,
+                        author_user_id=42,
+                        author_workflow_id=None,
+                        created_at=None,
+                    )
+                ),
+            ) as add,
+            patch.object(
+                tasks_board.db_client,
+                "get_all_workflows_for_listing",
+                AsyncMock(return_value=self.ROSTER),
+            ),
+            patch.object(tasks_board.db_client, "update_task", AsyncMock()) as update,
+            patch("api.tasks.arq.enqueue_job", AsyncMock()) as enqueue,
+        ):
+            out = await tasks_board.comment(
+                organization_id=7, task_id=task.id, body=body, user_id=42
+            )
+        return out, update, enqueue, add
+
+    async def test_naming_a_bot_hands_it_the_card_and_runs_it(self):
+        out, update, enqueue, add = await self._say("@billing can you chase this?")
+        assert out["woke"] == "@billing"
+        fields = update.await_args.kwargs
+        assert fields["assignee_workflow_id"] == 3
+        assert fields["status"] == tasks_board.TODO
+        enqueue.assert_awaited_once()
+        assert "Handed to @billing" in add.await_args_list[-1].kwargs["body"]
+
+    async def test_an_email_address_is_not_a_mention(self):
+        out, update, enqueue, _ = await self._say("mail billing@kriti.in")
+        assert out["woke"] is None
+        update.assert_not_awaited()
+        enqueue.assert_not_awaited()
+
+    async def test_a_running_card_is_left_to_the_bot_on_it(self):
+        out, update, enqueue, _ = await self._say("@sales fyi", status="in_progress")
+        assert out["woke"] is None
+        enqueue.assert_not_awaited()

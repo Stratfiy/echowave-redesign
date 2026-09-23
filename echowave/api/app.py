@@ -225,6 +225,12 @@ def _add_rate_limit_middleware() -> None:
 
 _add_rate_limit_middleware()
 
+# Outermost, so everything behind it -- the rate limit included -- sees the
+# route's own path. See services/api_paths.py.
+from api.services.api_paths import PluralPaths  # noqa: E402
+
+app.add_middleware(PluralPaths, routes_of=lambda: app.routes)
+
 api_router = APIRouter()
 
 # include subrouters here

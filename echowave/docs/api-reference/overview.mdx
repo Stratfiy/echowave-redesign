@@ -22,7 +22,7 @@ The current API version is `v1`. The version is included in the URL path.
 All request bodies must be sent as JSON with the `Content-Type: application/json` header.
 
 ```bash
-curl -X POST https://api.decibyl.ai/api/v1/workflow/create/definition \
+curl -X POST https://api.decibyl.ai/api/v1/workflows/create/definition \
   -H "Content-Type: application/json" \
   -H "X-API-Key: dcb_your_api_key" \
   -d '{"name": "My Agent", "workflow_definition": {}}'
