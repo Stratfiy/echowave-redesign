@@ -10,6 +10,7 @@ exfiltrate every provider key on the platform from a single compromised staff
 session.
 """
 
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -17,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from api.db import db_client
 from api.db.models import UserModel
+from api.services import features, voice_failures
 from api.services.auth.depends import get_superuser
 from api.services.configuration import (
     credential_validation,
@@ -263,6 +265,32 @@ async def read_provider_balances() -> dict[str, Any]:
         # client so the "N accounts need attention" badge and the hourly alert
         # cannot disagree about what counts.
         "needs_attention": sum(1 for b in balances if b.needs_attention),
+    }
+
+
+@router.get("/voice-failures", dependencies=[Depends(features.require("voice_watch"))])
+async def read_voice_failures() -> dict[str, Any]:
+    """Voice providers that went quiet on real calls in the last day.
+
+    The third question this screen answers, and the one the other two cannot:
+    a key can pass ``/recheck`` and its account can show credit on
+    ``/balances`` while the vendor still refuses to synthesise -- which is
+    exactly how ElevenLabs failed on 23 Sept 2026. Only a call sees that, so
+    this reads what calls reported (``services/voice_failures``).
+    """
+    failures = await voice_failures.recent()
+    return {
+        "failures": [
+            {
+                "provider": f.provider,
+                "count": f.count,
+                "last_at": datetime.fromtimestamp(f.last_at, UTC).isoformat(),
+                "last_run_id": f.last_run_id,
+                "last_model": f.last_model,
+            }
+            for f in failures
+        ],
+        "window_hours": voice_failures.WINDOW_SECONDS // 3600,
     }
 
 

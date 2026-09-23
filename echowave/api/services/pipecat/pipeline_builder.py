@@ -44,6 +44,7 @@ def build_pipeline(
     interruption_backoff=None,
     end_call_phrase_watcher=None,
     backchannel=None,
+    voice_watch=None,
 ):
     """Build the main pipeline with all components.
 
@@ -151,6 +152,9 @@ def build_pipeline(
             # settings frame is immediately ahead of the text it describes.
             *([spoken_language_follower] if spoken_language_follower else []),
             tts,  # TTS
+            # Directly after the voice, so it sees what the voice emits:
+            # synthesis starting, and whether any sound follows.
+            *([voice_watch] if voice_watch else []),
             transport.output(),  # Transport bot output
             audio_buffer,  # AudioBufferProcessor - records both input and output audio
             assistant_context_aggregator,  # Assistant spoken responses

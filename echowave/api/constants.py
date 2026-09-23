@@ -596,6 +596,13 @@ AGENT_GRAPH_EXTRAS_ENABLED = (
     os.getenv("AGENT_GRAPH_EXTRAS_ENABLED", "false").lower() == "true"
 )
 
+# V-1 (23 Sept 2026): notice a voice that has gone quiet. When text goes to
+# the voice provider and no audio comes back, end the call with the reason
+# instead of leaving the caller in silence, and show the failure on
+# Superadmin -> Provider keys. Found the hard way: for a day ElevenLabs refused
+# every request from our key without an error, and every call was silent.
+VOICE_WATCH_ENABLED = os.getenv("VOICE_WATCH_ENABLED", "false").lower() == "true"
+
 # D-1a (21 Sept 2026): Decibyl keeps working past a reply's tool-round cap.
 # Off, and a turn that hits the cap answers with what it has, as before. On,
 # and the turn hands the rest to a task on the board that runs in the
