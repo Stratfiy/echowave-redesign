@@ -1,0 +1,49 @@
+/**
+ * The shell's sidebar (SHELL_2026_09_ENABLED): every destination on it.
+ *
+ * Before it, ten screens were reachable only from the profile menu. The test
+ * that matters is the first: a new nav item placed nowhere fails here, rather
+ * than shipping as a screen nobody can find -- the silent-absence shape,
+ * applied to navigation.
+ */
+import { describe, expect, it } from "vitest";
+
+import { getVisibleNavSections, SHELL_MANAGE, shellUrls, STAFF_SECTION, visibleShellManage } from "../navigation";
+
+const ALL = { isStaff: true, isOrganizationAdmin: true, isSuperadmin: true };
+const MEMBER = { isStaff: false, isOrganizationAdmin: false };
+
+describe("the shell sidebar", () => {
+    it("puts every non-staff destination on the sidebar", () => {
+        const staff = new Set(STAFF_SECTION.items.map((i) => i.url));
+        const onSidebar = new Set(shellUrls());
+        const missing = getVisibleNavSections(ALL)
+            .flatMap((s) => s.items)
+            .filter((i) => !staff.has(i.url) && !onSidebar.has(i.url))
+            .map((i) => `${i.title} (${i.url})`);
+        expect(missing).toEqual([]);
+    });
+
+    it("never lists one destination twice", () => {
+        const urls = shellUrls();
+        expect(new Set(urls).size).toBe(urls.length);
+    });
+
+    it("points only at destinations that exist", () => {
+        const known = new Set(getVisibleNavSections(ALL).flatMap((s) => s.items.map((i) => i.url)));
+        for (const url of shellUrls()) expect(known.has(url), url).toBe(true);
+    });
+
+    it("keeps Manage to five entries", () => {
+        expect(SHELL_MANAGE.map((e) => e.title)).toEqual(["Marketplace", "Apps & tools", "Deploy", "Billing", "Settings"]);
+    });
+
+    it("shows a member the whole of it -- nothing here is admin-only today", () => {
+        expect(visibleShellManage(getVisibleNavSections(MEMBER))).toEqual(SHELL_MANAGE);
+    });
+
+    it("drops a page a role hides, and a group left with nothing", () => {
+        const sections = [{ items: [{ title: "Billing", url: "/billing", icon: SHELL_MANAGE[0].icon }] }];
+        expect(visibleShellManage(sections).map((e) => e.title)).toEqual(["Billing"]);
+    });
+});

@@ -6,6 +6,7 @@ import {
   Bot,
   CalendarClock,
   ChartColumnBig,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Database,
@@ -18,7 +19,7 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import posthog from "posthog-js";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { OrganizationSwitcher } from "@/components/layout/OrganizationSwitcher";
 import { SidebarBots } from "@/components/layout/SidebarBots";
@@ -56,6 +57,7 @@ import { useTelephonyConfigWarnings } from "@/context/TelephonyConfigWarningsCon
 import { useAccessRoles } from "@/hooks/useAccessRoles";
 import { useLatestReleaseVersion } from "@/hooks/useLatestReleaseVersion";
 import { useAuth } from "@/lib/auth";
+import { useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 import {
@@ -64,7 +66,10 @@ import {
   getVisibleNavSections,
   NAV_CONTEXTS,
   type NavContextId,
+  type ShellEntry,
   type SidebarNavItem,
+  STAFF_SECTION,
+  visibleShellManage,
 } from "./navigation";
 
 const TELEPHONY_WARNING_COPY = "Action required";
@@ -140,14 +145,23 @@ export function AppSidebar() {
   });
   const activeUrl = getActiveNavUrl(pathname, navSections);
 
+  // The shell puts every destination on the sidebar itself; the profile menu
+  // keeps only what is about the person -- and, for staff, the staff screens.
+  const shell = useFeature("shell");
+  const staffUrls = new Set(STAFF_SECTION.items.map((item) => item.url));
   const accountGroups = PERSONAL_CONTEXTS.map((id) => ({
     id,
     title: NAV_CONTEXTS.find((context) => context.id === id)!.title,
     items: getContextSections(id, navSections).flatMap((section) => section.items)
-      .filter((item) => !PINNED_ROWS.some((row) => row.url === item.url)),
-  }));
-  const activityLinks = getContextSections("activity", navSections)
-    .flatMap((section) => section.items).filter((item) => item.url !== "/usage");
+      .filter((item) => !PINNED_ROWS.some((row) => row.url === item.url))
+      .filter((item) => !shell || staffUrls.has(item.url)),
+  })).map((group) => (shell && group.id === "account" ? { ...group, title: "Staff" } : group));
+  const activityLinks = shell
+    ? []
+    : getContextSections("activity", navSections)
+        .flatMap((section) => section.items).filter((item) => item.url !== "/usage");
+  const manage = shell ? visibleShellManage(navSections) : [];
+  const navItemByUrl = new Map(navSections.flatMap((section) => section.items).map((item) => [item.url, item]));
   const activeLinkRef = useRef<HTMLAnchorElement | null>(null);
   useEffect(() => {
     activeLinkRef.current?.scrollIntoView({ block: "nearest" });
@@ -346,7 +360,13 @@ export function AppSidebar() {
 
         <nav aria-label="Workspace" data-rail="" className="px-1 pt-1">
           <SidebarMenu>
-            {PINNED_ROWS.map((item) => <SidebarMenuItem key={item.url}><SidebarLink item={item} /></SidebarMenuItem>)}
+            {PINNED_ROWS.map((item) => (
+              <SidebarMenuItem key={item.url}>
+                {/* The row opens a page titled Calls that lists calls; the
+                    shell names it for what is there. */}
+                <SidebarLink item={shell && item.url === "/usage" ? { ...item, title: "Calls" } : item} />
+              </SidebarMenuItem>
+            ))}
           </SidebarMenu>
         </nav>
         <div className={cn("min-w-0 flex-1 overflow-y-auto px-1 py-1", isCollapsed && "hidden")}
@@ -359,6 +379,27 @@ export function AppSidebar() {
           <SidebarBots collapsed={isCollapsed} />
         </div>
       </SidebarContent>
+
+      {manage.length > 0 && (
+        <nav aria-label="Manage" className={cn("border-t border-sidebar-border px-1 pt-1", isCollapsed && "border-t-0")}>
+          {!isCollapsed && <p className="px-2 py-1 text-xs text-sidebar-foreground/60">Manage</p>}
+          <SidebarMenu>
+            {manage.map((entry) => (
+              <ManageEntry
+                key={entry.title}
+                entry={entry}
+                activeUrl={activeUrl}
+                collapsed={isCollapsed}
+                render={(item) => <SidebarLink item={item} />}
+                itemFor={(url, title) => {
+                  const item = navItemByUrl.get(url);
+                  return { ...(item ?? { url, icon: entry.icon }), title } as SidebarNavItem;
+                }}
+              />
+            ))}
+          </SidebarMenu>
+        </nav>
+      )}
 
       {/* The foot is the person, as Buzz's profile card: who is signed in,
           the setup call, the fold. It stays put when the panel scrolls. */}
@@ -424,5 +465,69 @@ export function AppSidebar() {
 
       <SidebarRail />
     </Sidebar>
+  );
+}
+
+
+/**
+ * One entry of the Manage group: a link, or a group that opens to its pages.
+ * A group opens by itself when you are on one of its pages, so the page you
+ * are on is always visible on the sidebar.
+ */
+function ManageEntry({
+  entry,
+  activeUrl,
+  collapsed,
+  render,
+  itemFor,
+}: {
+  entry: ShellEntry;
+  activeUrl: string | undefined;
+  collapsed: boolean;
+  render: (item: SidebarNavItem) => React.ReactNode;
+  itemFor: (url: string, title: string) => SidebarNavItem;
+}) {
+  const children = entry.children ?? [];
+  const inside = children.some((child) => child.url === activeUrl);
+  const [open, setOpen] = useState(inside);
+  useEffect(() => {
+    if (inside) setOpen(true);
+  }, [inside]);
+
+  if (entry.url) {
+    return <SidebarMenuItem>{render({ ...itemFor(entry.url, entry.title), icon: entry.icon })}</SidebarMenuItem>;
+  }
+  // Folded to icons, a group is its first page.
+  if (collapsed) {
+    return <SidebarMenuItem>{render({ ...itemFor(children[0].url, entry.title), icon: entry.icon })}</SidebarMenuItem>;
+  }
+  const Icon = entry.icon;
+  return (
+    <SidebarMenuItem>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className={cn(
+          "flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-sidebar-foreground/85 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+          inside && "font-semibold",
+        )}
+      >
+        <Icon className="h-4 w-4 shrink-0 text-sidebar-foreground/70" aria-hidden />
+        <span className="min-w-0 flex-1 truncate">{entry.title}</span>
+        <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform", !open && "-rotate-90")} aria-hidden />
+      </button>
+      {open && (
+        // Padding on a wrapper rather than a margin on the list: the list is
+        // full-width, so a margin pushed the highlighted row past the edge.
+        <div className="mt-0.5 pl-3">
+          <SidebarMenu className="border-l border-sidebar-border pl-2">
+            {children.map((child) => (
+              <SidebarMenuItem key={child.url}>{render(itemFor(child.url, child.title))}</SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </div>
+      )}
+    </SidebarMenuItem>
   );
 }

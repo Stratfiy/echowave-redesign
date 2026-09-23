@@ -6,10 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 
 import { AppSidebar } from "../AppSidebar";
-const state = vi.hoisted(() => ({ pathname: "/overview", staff: false, admin: false, staffRole: "", mobile: false }));
+const state = vi.hoisted(() => ({ pathname: "/overview", staff: false, admin: false, staffRole: "", mobile: false, shell: false }));
 vi.mock("next/navigation", () => ({ usePathname: () => state.pathname, useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ provider: "local", logout: vi.fn() }) }));
-vi.mock("@/context/AppConfigContext", () => ({ useAppConfig: () => ({ config: null }) }));
+vi.mock("@/context/AppConfigContext", () => ({ useAppConfig: () => ({ config: state.shell ? { features: { shell: true } } : null }) }));
 vi.mock("@/context/TelephonyConfigWarningsContext", () => ({ useTelephonyConfigWarnings: () => ({}) }));
 vi.mock("@/hooks/useAccessRoles", () => ({ useAccessRoles: () => ({ isStaff: state.staff, isOrganizationAdmin: state.admin, staffRole: state.staffRole }) }));
 vi.mock("@/hooks/useLatestReleaseVersion", () => ({ useLatestReleaseVersion: () => ({}) }));
@@ -20,7 +20,7 @@ vi.mock("@/components/layout/SidebarBots", () => ({ SidebarBots: () => <Link hre
 afterEach(cleanup);
 beforeEach(() => {
   localStorage.clear();
-  Object.assign(state, { pathname: "/overview", staff: false, admin: false, staffRole: "", mobile: false });
+  Object.assign(state, { pathname: "/overview", staff: false, admin: false, staffRole: "", mobile: false, shell: false });
   Element.prototype.scrollIntoView = vi.fn();
   window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() });
 });
@@ -89,5 +89,51 @@ describe("stable workspace sidebar", () => {
     openAccount();
     expect(screen.getByRole("menuitem", { name: "Review queue" }).getAttribute("href")).toBe("/superadmin/verification");
     expect(screen.queryByRole("menuitem", { name: "Staff console" })).toBeNull();
+  });
+});
+
+describe("the shell sidebar (SHELL_2026_09_ENABLED)", () => {
+  beforeEach(() => {
+    state.shell = true;
+  });
+
+  it("shows every destination on the sidebar, none hidden in the profile menu", () => {
+    mount();
+    const manage = screen.getByRole("navigation", { name: "Manage" });
+    for (const name of ["Marketplace", "Apps & tools", "Billing"]) {
+      expect(within(manage).getByRole("link", { name }).hasAttribute("href")).toBe(true);
+    }
+    // Groups open to their pages.
+    fireEvent.click(within(manage).getByRole("button", { name: "Deploy" }));
+    for (const name of ["Phone numbers", "Campaigns", "Web widget", "API keys", "Webhooks & triggers"]) {
+      expect(within(manage).getByRole("link", { name })).toBeTruthy();
+    }
+    openAccount();
+    expect(screen.queryByRole("menuitem", { name: "Marketplace" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Billing" })).toBeNull();
+  });
+
+  it("opens the group of the page you are on, with that page marked", () => {
+    state.pathname = "/do-not-call";
+    mount();
+    const manage = screen.getByRole("navigation", { name: "Manage" });
+    expect(within(manage).getByRole("button", { name: "Settings" }).getAttribute("aria-expanded")).toBe("true");
+    expect(within(manage).getByRole("link", { name: "Compliance" }).getAttribute("aria-current")).toBe("page");
+    expect(within(manage).getByRole("button", { name: "Deploy" }).getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("names the calls row for what it opens, and drops the one-row heading", () => {
+    mount();
+    const nav = screen.getByRole("navigation", { name: "Workspace" });
+    expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual(["Decibyl", "Tasks", "Agents", "Knowledge", "Calls"]);
+    expect(screen.queryByText("Activity tools")).toBeNull();
+  });
+
+  it("keeps the staff screens in the profile menu for staff", () => {
+    state.staff = true;
+    state.staffRole = "support";
+    mount();
+    openAccount();
+    expect(screen.getByRole("menuitem", { name: "Review queue" }).getAttribute("href")).toBe("/superadmin/verification");
   });
 });

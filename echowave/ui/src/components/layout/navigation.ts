@@ -12,6 +12,7 @@ import {
   Megaphone,
   Phone,
   PhoneCall,
+  Rocket,
   Settings,
   Shield,
   ShieldCheck,
@@ -611,4 +612,80 @@ export function getContextSections(
       items: section.items.filter(item => contextIdForUrl(item.url) === contextId),
     }))
     .filter(section => section.items.length > 0);
+}
+
+
+/* ------------------------------------------------------------------------ *
+ * The shell (SHELL_2026_09_ENABLED)
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Everyday work, always on the sidebar: the same five rows as before.
+ */
+export const SHELL_WORK_URLS = ["/overview", "/tasks", "/workflow", "/files", "/usage"] as const;
+
+export type ShellEntry = {
+  title: string;
+  icon: LucideIcon;
+  /** A single destination... */
+  url?: string;
+  /** ...or a group that opens to several, each with the label it has there. */
+  children?: { url: string; title: string }[];
+};
+
+/**
+ * Everything else, in one short "Manage" group at the foot of the sidebar.
+ *
+ * Before this, ten destinations -- the Marketplace, phone numbers, billing,
+ * settings among them -- were reachable only from the profile menu, under
+ * headings (Marketplace, Setup, Account) that appeared nowhere else, and the
+ * visible sidebar had an "Activity tools" heading over one row. Five entries,
+ * two of which open, put every screen on the sidebar without making it long.
+ *
+ * Urls, never copies of items: titles, icons, roles and the active match all
+ * still come from NAV_SECTIONS, and `every destination is on the sidebar` in
+ * the tests fails if a new nav item is placed nowhere.
+ */
+export const SHELL_MANAGE: ShellEntry[] = [
+  { title: "Marketplace", icon: ShoppingBag, url: "/marketplace" },
+  { title: "Apps & tools", icon: KeyRound, url: "/tools" },
+  {
+    title: "Deploy",
+    icon: Rocket,
+    children: [
+      { url: "/telephony-configurations", title: "Phone numbers" },
+      { url: "/campaigns", title: "Campaigns" },
+      { url: "/deploy/web-widget", title: "Web widget" },
+      { url: "/api-keys", title: "API keys" },
+      { url: "/deploy/connect", title: "Webhooks & triggers" },
+    ],
+  },
+  { title: "Billing", icon: Wallet, url: "/billing" },
+  {
+    title: "Settings",
+    icon: Settings,
+    children: [
+      { url: "/settings", title: "General" },
+      { url: "/privacy", title: "Compliance" },
+    ],
+  },
+];
+
+/** SHELL_MANAGE as this person may see it: an entry or child whose nav item
+ *  their role hides is dropped, and a group left empty goes with it. */
+export function visibleShellManage(sections: SidebarNavSection[]): ShellEntry[] {
+  const visible = new Set(sections.flatMap((s) => s.items.map((i) => i.url)));
+  return SHELL_MANAGE.flatMap((entry) => {
+    if (entry.url) return visible.has(entry.url) ? [entry] : [];
+    const children = (entry.children ?? []).filter((c) => visible.has(c.url));
+    return children.length ? [{ ...entry, children }] : [];
+  });
+}
+
+/** Every url the shell sidebar reaches, work rows and Manage together. */
+export function shellUrls(): string[] {
+  return [
+    ...SHELL_WORK_URLS,
+    ...SHELL_MANAGE.flatMap((e) => (e.url ? [e.url] : (e.children ?? []).map((c) => c.url))),
+  ];
 }
