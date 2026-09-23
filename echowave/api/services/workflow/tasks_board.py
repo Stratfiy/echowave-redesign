@@ -88,6 +88,47 @@ def status_label(status: str | None) -> str:
     return STATUS_LABELS.get(status or "", status or "nowhere")
 
 
+#: Labels (TB-3): at most this many on a task, each at most this long.
+MAX_LABELS = 8
+MAX_LABEL = 24
+
+
+def clean_labels(value: Any) -> list[str] | None:
+    """A task's labels as given: trimmed, spaces collapsed, the first
+    spelling of each kept (case-insensitive), empty ones dropped. Refuses
+    too many or too long rather than cutting one short."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = value.split(",")
+    if not isinstance(value, list):
+        raise TaskError("Labels are a list of words.")
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in value:
+        label = " ".join(str(raw).split())
+        if not label:
+            continue
+        if len(label) > MAX_LABEL:
+            raise TaskError(f"A label is at most {MAX_LABEL} characters: {label!r}.")
+        if label.casefold() in seen:
+            continue
+        seen.add(label.casefold())
+        out.append(label)
+    if len(out) > MAX_LABELS:
+        raise TaskError(f"At most {MAX_LABELS} labels on a task.")
+    return out or None
+
+
+def board_labels(tasks: list[Any]) -> list[str]:
+    """Every label on the board, once, in the spelling first seen, sorted."""
+    found: dict[str, str] = {}
+    for task in tasks:
+        for label in getattr(task, "labels", None) or []:
+            found.setdefault(str(label).casefold(), str(label))
+    return sorted(found.values(), key=str.casefold)
+
+
 PRIORITIES = ("critical", "high", "medium", "low")
 DEFAULT_PRIORITY = "medium"
 
@@ -266,6 +307,7 @@ def as_dict(
         "blocked_by": [int(x) for x in blocked_by]
         if isinstance(blocked_by, list)
         else [],
+        "labels": [str(x) for x in (getattr(task, "labels", None) or [])],
         "comment_count": comment_count,
         "from_workflow_id": task.from_workflow_id,
         "from_name": names.get(task.from_workflow_id)
@@ -378,6 +420,7 @@ async def create(
         assignee_user_id=assignee_user_id,
         parent_id=_int_or_none(arguments.get("parent_id")),
         blocked_by=_ids(arguments.get("blocked_by")),
+        labels=clean_labels(arguments.get("labels")),
         status=BACKLOG if arguments.get("backlog") and enabled() else TODO,
     )
 
@@ -904,7 +947,7 @@ async def set_status(
 
 # --- the card's fields and comments (TB-1) ----------------------------------
 
-EDITABLE = ("priority", "assignee", "parent_id", "blocked_by", "due")
+EDITABLE = ("priority", "assignee", "parent_id", "blocked_by", "due", "labels")
 
 
 async def edit(
@@ -954,6 +997,8 @@ async def edit(
     if "blocked_by" in changes:
         ids = _ids(changes["blocked_by"]) or []
         fields["blocked_by"] = [i for i in ids if i != task_id] or None
+    if "labels" in changes:
+        fields["labels"] = clean_labels(changes["labels"])
     if "due" in changes:
         fields["due_at"] = parse_due(changes["due"]) if changes["due"] else None
     if not fields:

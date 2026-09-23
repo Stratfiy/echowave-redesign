@@ -42,3 +42,45 @@ it("reads waits-on in any of the ways a person writes it", () => {
     const tasks = [t({ id: 50, number: 12 }), t({ id: 51, number: 14 })];
     expect(parseWaitsOn("DEC-12, #14 99", tasks)).toEqual([50, 51, 99]);
 });
+
+describe("labels", () => {
+    it("give the same word the same colour whatever its case", async () => {
+        const { labelTone } = await import("../tasks");
+        expect(labelTone("Billing")).toBe(labelTone("billing"));
+    });
+
+    it("match a filter case-insensitively, and are searched", async () => {
+        const { hasLabel, matches } = await import("../tasks");
+        expect(hasLabel(t({ labels: ["VIP"] }), "vip")).toBe(true);
+        expect(hasLabel(t({}), "vip")).toBe(false);
+        expect(matches(t({ labels: ["follow-up"] }), "follow")).toBe(true);
+    });
+});
+
+describe("@mentions", () => {
+    it("find the word being typed at the caret, and not an email address", async () => {
+        const { mentionAt } = await import("../tasks");
+        expect(mentionAt("ask @bil", 8)).toEqual({ start: 4, query: "bil" });
+        expect(mentionAt("@", 1)).toEqual({ start: 0, query: "" });
+        expect(mentionAt("mail a@bil", 10)).toBeNull();
+        expect(mentionAt("ask @bil then", 13)).toBeNull();
+    });
+
+    it("offer handles that start with the query first, then ones that contain it", async () => {
+        const { mentionChoices } = await import("../tasks");
+        const bots = [
+            { id: 1, name: "Chase payments", handle: "collections" },
+            { id: 2, name: "Billing", handle: "billing" },
+            { id: 3, name: "No handle", handle: null },
+        ];
+        expect(mentionChoices(bots, "bil").map((b) => b.id)).toEqual([2]);
+        expect(mentionChoices(bots, "ll").map((b) => b.id)).toEqual([1, 2]);
+        expect(mentionChoices(bots, "").map((b) => b.id)).toEqual([1, 2]);
+    });
+
+    it("write the handle in place of the partial word", async () => {
+        const { insertMention } = await import("../tasks");
+        expect(insertMention("hi @bi there", 3, 6, "billing")).toEqual({ text: "hi @billing  there", caret: 12 });
+        expect(insertMention("@b", 0, 2, "billing")).toEqual({ text: "@billing ", caret: 9 });
+    });
+});

@@ -22,6 +22,7 @@ export type Task = {
     assignee_user_name: string | null;
     parent_id: number | null;
     blocked_by: number[];
+    labels?: string[];
     comment_count: number | null;
     created_by: number | null;
     due_at: string | null;
@@ -53,6 +54,7 @@ export type BoardPayload = {
         priorities?: string[];
         prefix?: string;
         people?: Person[];
+        labels?: string[];
         me?: number;
     };
 };
@@ -147,7 +149,7 @@ export function groupTasks(tasks: Task[], by: GroupBy): { key: string; label: st
 export function matches(task: Task, query: string): boolean {
     const q = query.trim().toLowerCase();
     if (!q) return true;
-    return [task.identifier, task.title, task.brief, task.assignee_name, task.assignee_user_name]
+    return [task.identifier, task.title, task.brief, task.assignee_name, task.assignee_user_name, ...(task.labels ?? [])]
         .filter(Boolean)
         .some((s) => String(s).toLowerCase().includes(q));
 }
@@ -159,4 +161,55 @@ export function parseWaitsOn(text: string, tasks: Task[]): number[] {
         .map((s) => Number(s.replace(/^\D+-?/, "")))
         .filter((n) => Number.isFinite(n) && n > 0)
         .map((n) => tasks.find((t) => t.number === n)?.id ?? n);
+}
+
+// --- labels (TB-3) ---------------------------------------------------------
+
+const LABEL_TONES = [
+    "bg-sky-100 text-sky-900 dark:bg-sky-900/40 dark:text-sky-100",
+    "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100",
+    "bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100",
+    "bg-rose-100 text-rose-900 dark:bg-rose-900/40 dark:text-rose-100",
+    "bg-violet-100 text-violet-900 dark:bg-violet-900/40 dark:text-violet-100",
+    "bg-teal-100 text-teal-900 dark:bg-teal-900/40 dark:text-teal-100",
+    "bg-orange-100 text-orange-900 dark:bg-orange-900/40 dark:text-orange-100",
+    "bg-slate-200 text-slate-900 dark:bg-slate-700/60 dark:text-slate-100",
+];
+
+/** A label's colour: the same word is the same colour everywhere, whatever
+ *  its case, with no colour to store or pick. */
+export function labelTone(label: string): string {
+    let h = 0;
+    for (const ch of label.toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return LABEL_TONES[h % LABEL_TONES.length];
+}
+
+export const hasLabel = (task: Task, label: string) =>
+    (task.labels ?? []).some((l) => l.toLowerCase() === label.toLowerCase());
+
+// --- @mentions (TB-3) ------------------------------------------------------
+
+/** The @word being typed at the caret, if any: where it starts and what has
+ *  been typed after the @. An @ inside a word (an email address) is not one. */
+export function mentionAt(text: string, caret: number): { start: number; query: string } | null {
+    const before = text.slice(0, caret);
+    const match = /(^|[^\w.@])@([\w-]{0,40})$/.exec(before);
+    if (!match) return null;
+    return { start: caret - match[2].length - 1, query: match[2] };
+}
+
+/** Bots whose handle or name starts with, then contains, what was typed. */
+export function mentionChoices(bots: BotRef[], query: string, limit = 6): BotRef[] {
+    const q = query.toLowerCase();
+    const handled = bots.filter((b) => b.handle);
+    const starts = handled.filter((b) => b.handle!.toLowerCase().startsWith(q) || b.name.toLowerCase().startsWith(q));
+    const contains = handled.filter((b) => !starts.includes(b) && (b.handle!.toLowerCase().includes(q) || b.name.toLowerCase().includes(q)));
+    return [...starts, ...contains].slice(0, limit);
+}
+
+/** The text with the @word at ``start`` replaced by the chosen handle. */
+export function insertMention(text: string, start: number, caret: number, handle: string): { text: string; caret: number } {
+    const inserted = `@${handle} `;
+    const after = text.slice(caret).replace(/^[\w-]*/, "");
+    return { text: text.slice(0, start) + inserted + after, caret: start + inserted.length };
 }

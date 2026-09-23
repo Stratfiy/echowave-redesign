@@ -115,6 +115,29 @@ describe("a task's own page", () => {
         expect(api.create.mock.calls[0][0].body.parent_id).toBe(12);
     });
 
+    it("offers an agent's handle as @ is typed and sends the finished line", async () => {
+        render(<TaskPage taskId={12} />);
+        const box = (await screen.findByLabelText("Add to the thread")) as HTMLTextAreaElement;
+        fireEvent.change(box, { target: { value: "@ret", selectionStart: 4 } });
+        fireEvent.keyDown(box, { key: "Enter" });
+        expect(box.value).toBe("@retention ");
+        fireEvent.change(box, { target: { value: "@retention try Wednesday", selectionStart: 24 } });
+        fireEvent.click(screen.getByRole("button", { name: "Send" }));
+        await waitFor(() => expect(api.comment).toHaveBeenCalled());
+        expect(api.comment.mock.calls[0][0].body).toEqual({ body: "@retention try Wednesday" });
+    });
+
+    it("adds a label from the properties column", async () => {
+        api.edit.mockResolvedValue(ok({}));
+        const { container } = render(<TaskPage taskId={12} />);
+        await screen.findByRole("region", { name: "Thread" });
+        const input = container.querySelector("#task-labels") as HTMLInputElement;
+        fireEvent.change(input, { target: { value: "urgent" } });
+        fireEvent.keyDown(input, { key: "Enter" });
+        await waitFor(() => expect(api.edit).toHaveBeenCalled());
+        expect(api.edit.mock.calls[0][0]).toEqual({ path: { task_id: 12 }, body: { labels: ["urgent"] } });
+    });
+
     it("links to the run the agent did it in", async () => {
         render(<TaskPage taskId={12} />);
         const link = await screen.findByRole("link", { name: /agent's run/ });

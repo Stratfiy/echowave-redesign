@@ -136,6 +136,36 @@ describe("the list", () => {
     });
 });
 
+describe("labels on the board", () => {
+    it("show on a row and narrow the list by one", () => {
+        const tagged = task({ id: 2, number: 2, identifier: "DEC-2", title: "Chase the invoice", labels: ["Billing"] });
+        const withLabels = { ...payload([task(), tagged]), board: { ...payload([]).board, labels: ["Billing"] } };
+        render(<TaskBoard initial={withLabels} tabs={tabs} />);
+        const row = screen.getByText("Chase the invoice").closest("li")!;
+        expect(within(row).getByText("Billing")).toBeTruthy();
+        fireEvent.change(screen.getByLabelText("Filter by label"), { target: { value: "Billing" } });
+        expect(screen.getByText("Chase the invoice")).toBeTruthy();
+        expect(screen.queryByText("Follow up Mrs Lakshmi")).toBeNull();
+    });
+
+    it("are filed with a new task", async () => {
+        render(<TaskBoard initial={payload([])} tabs={tabs} />);
+        fireEvent.click(screen.getByRole("button", { name: /new task/i }));
+        fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Renew lease" } });
+        const labels = screen.getByLabelText("Labels");
+        fireEvent.change(labels, { target: { value: "admin" } });
+        fireEvent.keyDown(labels, { key: "Enter" });
+        fireEvent.click(screen.getByRole("button", { name: /file it/i }));
+        await waitFor(() => expect(create).toHaveBeenCalled());
+        expect(create.mock.calls[0][0].body.labels).toEqual(["admin"]);
+    });
+
+    it("offer no label filter while the board has none", () => {
+        render(<TaskBoard initial={payload([task()])} tabs={tabs} />);
+        expect(screen.queryByLabelText("Filter by label")).toBeNull();
+    });
+});
+
 describe("the inbox", () => {
     const mine = task({ id: 1, number: 1, identifier: "DEC-1", title: "Approve the refund", assignee_workflow_id: null, assignee_name: null, assignee_user_id: 42, assignee_user_name: "Nithish" });
     const review = task({ id: 2, number: 2, identifier: "DEC-2", title: "Report waiting", status: "in_review", result: "Done it." });

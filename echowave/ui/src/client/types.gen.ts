@@ -11658,6 +11658,10 @@ export type TaskEdit = {
      * Due
      */
     due?: string | null;
+    /**
+     * Labels
+     */
+    labels?: Array<string> | null;
 };
 
 /**
@@ -11706,6 +11710,10 @@ export type TaskWrite = {
      * Blocked By
      */
     blocked_by?: Array<number> | null;
+    /**
+     * Labels
+     */
+    labels?: Array<string> | null;
     /**
      * Backlog
      */

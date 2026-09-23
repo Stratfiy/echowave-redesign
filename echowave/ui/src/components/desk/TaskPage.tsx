@@ -28,11 +28,11 @@ import SpinLoader from "@/components/SpinLoader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { detailFromResult } from "@/lib/apiError";
 import { cn } from "@/lib/utils";
 
 import { LiveDot, NewTaskDialog, StatusDot } from "./TaskBoard";
+import { LabelChip, LabelPicker, MentionTextarea } from "./TaskInputs";
 import { type BoardPayload, COLUMNS, type Comment, isLive, ownerValue, parseWaitsOn, type Task, when } from "./tasks";
 
 type Detail = Task & { comments?: Comment[]; subtasks?: Task[] };
@@ -91,6 +91,7 @@ export function TaskPage({ taskId }: { taskId: number }) {
     const bots = board.bots ?? [];
     const people = board.board?.people ?? [];
     const priorities = board.board?.priorities ?? ["critical", "high", "medium", "low"];
+    const knownLabels = board.board?.labels ?? [];
     const parent = task.parent_id ? tasks.find((t) => t.id === task.parent_id) : null;
     const blockers = task.blocked_by.map((id) => tasks.find((t) => t.id === id)).filter(Boolean) as Task[];
 
@@ -146,6 +147,13 @@ export function TaskPage({ taskId }: { taskId: number }) {
                 {task.title}
                 {live && <LiveDot />}
             </h1>
+            {(task.labels ?? []).length > 0 && (
+                <p className="mt-2 flex flex-wrap gap-1">
+                    {task.labels!.map((l) => (
+                        <LabelChip key={l} label={l} />
+                    ))}
+                </p>
+            )}
             {error && (
                 <p role="alert" className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                     {error}
@@ -228,18 +236,17 @@ export function TaskPage({ taskId }: { taskId: number }) {
                             {task.finished_at && <li className="text-xs text-muted-foreground">Finished · {when(task.finished_at)}</li>}
                         </ol>
                         <div className="mt-3 space-y-2">
-                            <Textarea
+                            <MentionTextarea
                                 aria-label="Add to the thread"
                                 rows={3}
-                                placeholder="Add a line. Name an agent (@handle) to hand it the task and run it now."
+                                placeholder="Add a line. Type @ to hand the task to an agent and run it now."
                                 value={line}
-                                onChange={(e) => setLine(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void say();
-                                }}
+                                onChange={setLine}
+                                bots={bots}
+                                onSubmit={() => void say()}
                             />
                             <div className="flex items-center justify-between gap-2">
-                                <p className="text-xs text-muted-foreground">{bots.filter((b) => b.handle).slice(0, 4).map((b) => `@${b.handle}`).join("  ")}</p>
+                                <p className="text-xs text-muted-foreground">Ctrl+Enter sends</p>
                                 <Button size="sm" disabled={saving || !line.trim()} onClick={() => void say()}>
                                     {saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
                                     Send
@@ -277,6 +284,10 @@ export function TaskPage({ taskId }: { taskId: number }) {
                                 <option key={`b${b.id}`} value={b.handle ? `@${b.handle}` : b.name}>{b.handle ? `@${b.handle}` : b.name}</option>
                             ))}
                         </select>
+                    </div>
+                    <div>
+                        <Label htmlFor="task-labels">Labels</Label>
+                        <LabelPicker id="task-labels" value={task.labels ?? []} known={knownLabels} disabled={saving} onChange={(labels) => void edit({ labels })} />
                     </div>
                     <div>
                         <Label htmlFor="task-parent">Part of</Label>
@@ -324,6 +335,7 @@ export function TaskPage({ taskId }: { taskId: number }) {
                     bots={bots}
                     people={people}
                     priorities={priorities}
+                    knownLabels={knownLabels}
                     parentId={task.id}
                     onClose={() => setAddingSub(false)}
                     onFiled={async () => {

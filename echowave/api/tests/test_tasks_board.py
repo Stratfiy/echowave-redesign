@@ -519,3 +519,77 @@ class TestAMentionWakesABot:
         out, update, enqueue, _ = await self._say("@sales fyi", status="in_progress")
         assert out["woke"] is None
         enqueue.assert_not_awaited()
+
+
+# --- TB-3: labels -------------------------------------------------------------
+
+
+class TestLabels:
+    def test_they_are_trimmed_deduplicated_and_kept_as_first_written(self):
+        assert tasks_board.clean_labels(
+            ["  Billing ", "billing", "VIP  client", ""]
+        ) == [
+            "Billing",
+            "VIP client",
+        ]
+
+    def test_a_comma_list_is_read_too(self):
+        assert tasks_board.clean_labels("urgent, follow-up") == ["urgent", "follow-up"]
+
+    def test_none_and_empty_mean_no_labels(self):
+        assert tasks_board.clean_labels(None) is None
+        assert tasks_board.clean_labels([" ", ""]) is None
+
+    def test_too_long_or_too_many_is_refused_not_cut(self):
+        with pytest.raises(tasks_board.TaskError, match="at most 24"):
+            tasks_board.clean_labels(["x" * 25])
+        with pytest.raises(tasks_board.TaskError, match="At most 8"):
+            tasks_board.clean_labels([f"l{i}" for i in range(9)])
+
+    def test_the_board_lists_each_label_once(self):
+        tasks = [
+            _task(labels=["Billing", "urgent"]),
+            _task(labels=["billing"]),
+            _task(labels=None),
+        ]
+        assert tasks_board.board_labels(tasks) == ["Billing", "urgent"]
+
+    def test_a_card_carries_its_labels(self):
+        assert tasks_board.as_dict(_task(labels=["urgent"]))["labels"] == ["urgent"]
+        assert tasks_board.as_dict(_task())["labels"] == []
+
+    @pytest.mark.asyncio
+    async def test_editing_labels_writes_the_cleaned_list(self):
+        with (
+            patch.object(
+                tasks_board.db_client, "get_task", AsyncMock(return_value=_task())
+            ),
+            patch.object(
+                tasks_board.db_client,
+                "update_task",
+                AsyncMock(return_value=_task(labels=["urgent"])),
+            ) as update,
+        ):
+            out = await tasks_board.edit(
+                organization_id=7,
+                task_id=12,
+                changes={"labels": ["urgent", "Urgent"]},
+                user_id=42,
+            )
+        assert update.await_args.kwargs["labels"] == ["urgent"]
+        assert out["labels"] == ["urgent"]
+
+    @pytest.mark.asyncio
+    async def test_the_column_exists_and_round_trips(self, async_session):
+        from api.db.models import AgentTaskModel, OrganizationModel
+
+        org = OrganizationModel(provider_id="tb3-labels")
+        async_session.add(org)
+        await async_session.flush()
+        task = AgentTaskModel(
+            organization_id=org.id, title="t", brief="", labels=["urgent"]
+        )
+        async_session.add(task)
+        await async_session.flush()
+        await async_session.refresh(task)
+        assert task.labels == ["urgent"]
