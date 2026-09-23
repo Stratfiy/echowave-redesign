@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { useAppConfig } from "@/context/AppConfigContext";
 import { LeadFormsProvider } from "@/context/LeadFormsContext";
-import { applyAccent, readStoredAccent, resolveAccent, storeAccent } from "@/lib/accent";
+import { applyTheme, readStoredTheme } from "@/lib/themes";
 
 import { AppSidebar } from "./AppSidebar";
 import { TopBar } from "./TopBar";
@@ -67,13 +67,11 @@ interface AppLayoutProps {
  * render: the server has no cookie, and a first render that disagreed with
  * it would be a hydration mismatch on every page.
  */
-/** The theme, applied on arrival and re-stored in its current shape, so a
- *  choice made under an older build gets the rail and panel tokens too. */
+/** The chosen theme, applied on arrival -- and whatever accent colour an
+ *  older build stored (the purple) cleared for good. */
 function ThemeRestorer() {
   useEffect(() => {
-    const accent = resolveAccent(readStoredAccent());
-    applyAccent(accent);
-    storeAccent(accent);
+    applyTheme(readStoredTheme(), { store: false });
   }, []);
   return null;
 }

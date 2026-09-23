@@ -58,7 +58,7 @@ export function StatusDot({ status }: { status: string }) {
         backlog: "border-dashed border-muted-foreground",
         todo: "border-muted-foreground",
         in_progress: "border-amber-500 bg-amber-500/30",
-        in_review: "border-violet-500 bg-violet-500/30",
+        in_review: "border-sky-600 bg-sky-600/30",
         done: "border-emerald-600 bg-emerald-600",
         blocked: "border-red-500 bg-red-500/30",
         cancelled: "border-muted-foreground bg-muted-foreground/40",

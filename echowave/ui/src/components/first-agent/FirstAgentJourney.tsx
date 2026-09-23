@@ -560,7 +560,7 @@ const TILE_COLOURS = [
     "bg-amber-100 text-amber-900",
     "bg-emerald-100 text-emerald-900",
     "bg-sky-100 text-sky-900",
-    "bg-violet-100 text-violet-900",
+    "bg-stone-100 text-stone-900",
     "bg-teal-100 text-teal-900",
 ];
 

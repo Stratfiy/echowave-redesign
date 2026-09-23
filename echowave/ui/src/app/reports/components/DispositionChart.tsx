@@ -27,7 +27,7 @@ const COLORS = [
   '#3b82f6', // blue-500
   '#10b981', // emerald-500
   '#f59e0b', // amber-500
-  '#8b5cf6', // violet-500
+  '#0e7490', // cyan-700
   '#ef4444', // red-500
   '#6b7280', // gray-500 for "Other"
 ];
