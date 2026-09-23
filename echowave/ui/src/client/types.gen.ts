@@ -2987,6 +2987,16 @@ export type Contributor = {
 };
 
 /**
+ * CopyRequest
+ */
+export type CopyRequest = {
+    /**
+     * Organization Id
+     */
+    organization_id: number;
+};
+
+/**
  * CostByOutcomeItem
  */
 export type CostByOutcomeItem = {
@@ -5819,6 +5829,16 @@ export type HealthResponse = {
      * Stack Publishable Client Key
      */
     stack_publishable_client_key?: string | null;
+};
+
+/**
+ * HireRequest
+ */
+export type HireRequest = {
+    /**
+     * Agent Name
+     */
+    agent_name?: string | null;
 };
 
 /**
@@ -10663,6 +10683,24 @@ export type SarvamTtsConfiguration = {
      * Speech speed multiplier.
      */
     speed?: number;
+};
+
+/**
+ * SaveRequest
+ */
+export type SaveRequest = {
+    /**
+     * Workflow Id
+     */
+    workflow_id: number;
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Summary
+     */
+    summary?: string | null;
 };
 
 /**
@@ -21737,6 +21775,401 @@ export type ListImportedCallsApiV1DialerConnectionsCallsGetErrors = {
 export type ListImportedCallsApiV1DialerConnectionsCallsGetError = ListImportedCallsApiV1DialerConnectionsCallsGetErrors[keyof ListImportedCallsApiV1DialerConnectionsCallsGetErrors];
 
 export type ListImportedCallsApiV1DialerConnectionsCallsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ListWorkspaceRolesApiV1WorkspaceRolesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/workspace-roles';
+};
+
+export type ListWorkspaceRolesApiV1WorkspaceRolesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListWorkspaceRolesApiV1WorkspaceRolesGetError = ListWorkspaceRolesApiV1WorkspaceRolesGetErrors[keyof ListWorkspaceRolesApiV1WorkspaceRolesGetErrors];
+
+export type ListWorkspaceRolesApiV1WorkspaceRolesGetResponses = {
+    /**
+     * Response List Workspace Roles Api V1 Workspace Roles Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListWorkspaceRolesApiV1WorkspaceRolesGetResponse = ListWorkspaceRolesApiV1WorkspaceRolesGetResponses[keyof ListWorkspaceRolesApiV1WorkspaceRolesGetResponses];
+
+export type SaveWorkspaceRoleApiV1WorkspaceRolesPostData = {
+    body: SaveRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/workspace-roles';
+};
+
+export type SaveWorkspaceRoleApiV1WorkspaceRolesPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveWorkspaceRoleApiV1WorkspaceRolesPostError = SaveWorkspaceRoleApiV1WorkspaceRolesPostErrors[keyof SaveWorkspaceRoleApiV1WorkspaceRolesPostErrors];
+
+export type SaveWorkspaceRoleApiV1WorkspaceRolesPostResponses = {
+    /**
+     * Response Save Workspace Role Api V1 Workspace Roles Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SaveWorkspaceRoleApiV1WorkspaceRolesPostResponse = SaveWorkspaceRoleApiV1WorkspaceRolesPostResponses[keyof SaveWorkspaceRoleApiV1WorkspaceRolesPostResponses];
+
+export type DeleteWorkspaceRoleApiV1WorkspaceRolesRoleIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Role Id
+         */
+        role_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workspace-roles/{role_id}';
+};
+
+export type DeleteWorkspaceRoleApiV1WorkspaceRolesRoleIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteWorkspaceRoleApiV1WorkspaceRolesRoleIdDeleteError = DeleteWorkspaceRoleApiV1WorkspaceRolesRoleIdDeleteErrors[keyof DeleteWorkspaceRoleApiV1WorkspaceRolesRoleIdDeleteErrors];
+
+export type DeleteWorkspaceRoleApiV1WorkspaceRolesRoleIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type HireWorkspaceRoleApiV1WorkspaceRolesRoleIdHirePostData = {
+    /**
+     * Request
+     */
+    body?: HireRequest | null;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Role Id
+         */
+        role_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workspace-roles/{role_id}/hire';
+};
+
+export type HireWorkspaceRoleApiV1WorkspaceRolesRoleIdHirePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type HireWorkspaceRoleApiV1WorkspaceRolesRoleIdHirePostError = HireWorkspaceRoleApiV1WorkspaceRolesRoleIdHirePostErrors[keyof HireWorkspaceRoleApiV1WorkspaceRolesRoleIdHirePostErrors];
+
+export type HireWorkspaceRoleApiV1WorkspaceRolesRoleIdHirePostResponses = {
+    /**
+     * Response Hire Workspace Role Api V1 Workspace Roles  Role Id  Hire Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type HireWorkspaceRoleApiV1WorkspaceRolesRoleIdHirePostResponse = HireWorkspaceRoleApiV1WorkspaceRolesRoleIdHirePostResponses[keyof HireWorkspaceRoleApiV1WorkspaceRolesRoleIdHirePostResponses];
+
+export type UnshareWorkspaceRoleApiV1WorkspaceRolesRoleIdShareDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Role Id
+         */
+        role_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workspace-roles/{role_id}/share';
+};
+
+export type UnshareWorkspaceRoleApiV1WorkspaceRolesRoleIdShareDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UnshareWorkspaceRoleApiV1WorkspaceRolesRoleIdShareDeleteError = UnshareWorkspaceRoleApiV1WorkspaceRolesRoleIdShareDeleteErrors[keyof UnshareWorkspaceRoleApiV1WorkspaceRolesRoleIdShareDeleteErrors];
+
+export type UnshareWorkspaceRoleApiV1WorkspaceRolesRoleIdShareDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ShareWorkspaceRoleApiV1WorkspaceRolesRoleIdSharePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Role Id
+         */
+        role_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workspace-roles/{role_id}/share';
+};
+
+export type ShareWorkspaceRoleApiV1WorkspaceRolesRoleIdSharePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ShareWorkspaceRoleApiV1WorkspaceRolesRoleIdSharePostError = ShareWorkspaceRoleApiV1WorkspaceRolesRoleIdSharePostErrors[keyof ShareWorkspaceRoleApiV1WorkspaceRolesRoleIdSharePostErrors];
+
+export type ShareWorkspaceRoleApiV1WorkspaceRolesRoleIdSharePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type CopyWorkspaceRoleApiV1WorkspaceRolesRoleIdCopyToPostData = {
+    body: CopyRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Role Id
+         */
+        role_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workspace-roles/{role_id}/copy-to';
+};
+
+export type CopyWorkspaceRoleApiV1WorkspaceRolesRoleIdCopyToPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CopyWorkspaceRoleApiV1WorkspaceRolesRoleIdCopyToPostError = CopyWorkspaceRoleApiV1WorkspaceRolesRoleIdCopyToPostErrors[keyof CopyWorkspaceRoleApiV1WorkspaceRolesRoleIdCopyToPostErrors];
+
+export type CopyWorkspaceRoleApiV1WorkspaceRolesRoleIdCopyToPostResponses = {
+    /**
+     * Response Copy Workspace Role Api V1 Workspace Roles  Role Id  Copy To Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CopyWorkspaceRoleApiV1WorkspaceRolesRoleIdCopyToPostResponse = CopyWorkspaceRoleApiV1WorkspaceRolesRoleIdCopyToPostResponses[keyof CopyWorkspaceRoleApiV1WorkspaceRolesRoleIdCopyToPostResponses];
+
+export type PreviewSharedRoleApiV1WorkspaceRolesSharedTokenGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Token
+         */
+        token: string;
+    };
+    query?: never;
+    url: '/api/v1/workspace-roles/shared/{token}';
+};
+
+export type PreviewSharedRoleApiV1WorkspaceRolesSharedTokenGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PreviewSharedRoleApiV1WorkspaceRolesSharedTokenGetError = PreviewSharedRoleApiV1WorkspaceRolesSharedTokenGetErrors[keyof PreviewSharedRoleApiV1WorkspaceRolesSharedTokenGetErrors];
+
+export type PreviewSharedRoleApiV1WorkspaceRolesSharedTokenGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type InstallSharedRoleApiV1WorkspaceRolesSharedTokenInstallPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Token
+         */
+        token: string;
+    };
+    query?: never;
+    url: '/api/v1/workspace-roles/shared/{token}/install';
+};
+
+export type InstallSharedRoleApiV1WorkspaceRolesSharedTokenInstallPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type InstallSharedRoleApiV1WorkspaceRolesSharedTokenInstallPostError = InstallSharedRoleApiV1WorkspaceRolesSharedTokenInstallPostErrors[keyof InstallSharedRoleApiV1WorkspaceRolesSharedTokenInstallPostErrors];
+
+export type InstallSharedRoleApiV1WorkspaceRolesSharedTokenInstallPostResponses = {
     /**
      * Successful Response
      */

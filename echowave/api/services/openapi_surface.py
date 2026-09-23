@@ -45,6 +45,8 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "bots",
             "agent-builder",
             "agent-templates",
+            # A workspace's own saved roles, and sharing them (MP-2, MP-3).
+            "workspace-roles",
             "agent-options",
             "agent-timeline",
             "workflow-text-chat",

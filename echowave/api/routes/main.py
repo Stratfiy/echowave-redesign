@@ -80,6 +80,7 @@ from api.routes.workflow_outcomes import router as workflow_outcomes_router
 from api.routes.workflow_recording import router as workflow_recording_router
 from api.routes.workflow_spend import router as workflow_spend_router
 from api.routes.workflow_text_chat import router as workflow_text_chat_router
+from api.routes.workspace_roles import router as workspace_roles_router
 from api.services.integrations import all_routers
 
 # No tag here on purpose. A parent tag is merged onto every child route, so
@@ -112,6 +113,7 @@ router.include_router(organization_members_router)
 router.include_router(platform_credentials_router)
 router.include_router(provider_keys_router)
 router.include_router(dialer_connections_router)
+router.include_router(workspace_roles_router)
 router.include_router(payments_router)
 router.include_router(privacy_router)
 router.include_router(notifications_router)

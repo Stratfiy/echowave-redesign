@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactFlowInstance } from "@xyflow/react";
-import { AlertCircle, ArrowLeft, Bot, Clipboard, Copy, Download, Eye, History, LoaderCircle, Menu, MoreVertical, Pencil, Phone, Rocket } from "lucide-react";
+import { AlertCircle, ArrowLeft, BookmarkPlus, Bot, Clipboard, Copy, Download, Eye, History, LoaderCircle, Menu, MoreVertical, Pencil, Phone, Rocket } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -26,6 +26,8 @@ import {
     PopoverTrigger,
 } from "@/components/ui/popover";
 import { useSidebar } from "@/components/ui/sidebar";
+import { SaveAsRoleDialog } from "@/components/workflow/SaveAsRoleDialog";
+import { useWorkspaceRolesAvailable } from "@/lib/workspaceRoles";
 
 interface WorkflowEditorHeaderProps {
     workflowName: string;
@@ -77,6 +79,9 @@ export const WorkflowEditorHeader = ({
     const { toggleSidebar } = useSidebar();
     const [savingWorkflow, setSavingWorkflow] = useState(false);
     const [duplicating, setDuplicating] = useState(false);
+    // MP-2: offered only while workspace roles are switched on.
+    const rolesAvailable = useWorkspaceRolesAvailable();
+    const [savingRole, setSavingRole] = useState(false);
     const [publishing, setPublishing] = useState(false);
     // One discriminated-union state instead of (isEditingName, nameDraft,
     // nameError, isRenaming): they're not independent — error and saving are
@@ -490,6 +495,15 @@ export const WorkflowEditorHeader = ({
                             )}
                             {duplicating ? "Duplicating..." : "Duplicate Workflow"}
                         </DropdownMenuItem>
+                        {rolesAvailable && !isViewingHistoricalVersion && (
+                            <DropdownMenuItem
+                                onClick={() => setSavingRole(true)}
+                                className="text-foreground hover:bg-accent cursor-pointer"
+                            >
+                                <BookmarkPlus className="w-4 h-4 mr-2" />
+                                Save as workspace role
+                            </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem
                             onClick={handleDownloadWorkflow}
                             className="text-foreground hover:bg-accent cursor-pointer"
@@ -507,6 +521,14 @@ export const WorkflowEditorHeader = ({
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
+                {rolesAvailable && (
+                    <SaveAsRoleDialog
+                        workflowId={workflowId}
+                        agentName={workflowName}
+                        open={savingRole}
+                        onOpenChange={setSavingRole}
+                    />
+                )}
             </div>
         </div>
     );
