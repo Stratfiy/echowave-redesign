@@ -69,19 +69,30 @@ class AgentTaskClient(BaseDBClient):
             return task
 
     async def update_task(
-        self, task_id: int, *, organization_id: int, **fields: Any
+        self,
+        task_id: int,
+        *,
+        organization_id: int,
+        unless_status: Sequence[str] = (),
+        **fields: Any,
     ) -> AgentTaskModel | None:
         """Change fields. A status of ``in_progress`` stamps ``started_at``;
-        a terminal status stamps ``finished_at``."""
+        a terminal status stamps ``finished_at``.
+
+        ``unless_status`` makes it a checkout (TB-2): the row is locked, and
+        left alone -- None is returned -- if it is already in one of those
+        statuses. Two workers picking up the same task cannot both start it.
+        """
         async with self.async_session() as session:
-            result = await session.execute(
-                select(AgentTaskModel).where(
-                    AgentTaskModel.id == task_id,
-                    AgentTaskModel.organization_id == organization_id,
-                )
+            query = select(AgentTaskModel).where(
+                AgentTaskModel.id == task_id,
+                AgentTaskModel.organization_id == organization_id,
             )
+            if unless_status:
+                query = query.with_for_update()
+            result = await session.execute(query)
             task = result.scalar_one_or_none()
-            if task is None:
+            if task is None or task.status in unless_status:
                 return None
             for key, value in fields.items():
                 setattr(task, key, value)
@@ -109,6 +120,20 @@ class AgentTaskClient(BaseDBClient):
             await session.delete(task)
             await session.commit()
             return True
+
+    async def subtasks_of(
+        self, task_id: int, *, organization_id: int
+    ) -> list[AgentTaskModel]:
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(AgentTaskModel)
+                .where(
+                    AgentTaskModel.parent_id == task_id,
+                    AgentTaskModel.organization_id == organization_id,
+                )
+                .order_by(AgentTaskModel.id)
+            )
+            return list(result.scalars().all())
 
     # --- comments (TB-1) ---------------------------------------------------
 

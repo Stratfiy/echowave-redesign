@@ -166,7 +166,7 @@ class TestEveryOneShotRunnerCloses:
                 AsyncMock(return_value=roster),
             ),
             patch.object(
-                tasks_board.db_client, "update_task", AsyncMock(return_value=None)
+                tasks_board.db_client, "update_task", AsyncMock(return_value=row)
             ),
             patch.object(
                 tasks_board.db_client,

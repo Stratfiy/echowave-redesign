@@ -30,6 +30,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
+import { useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 type Task = {
@@ -75,7 +76,7 @@ function when(iso: string | null): string {
     return d.toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
-export default function TasksPage() {
+function LegacyRequests() {
     const { user, loading: authLoading, redirectToLogin } = useAuth();
     const router = useRouter();
     const hasFetched = useRef(false);
@@ -333,4 +334,16 @@ export default function TasksPage() {
         </div>
         </>
     );
+}
+
+/** Retired by TB-2: with the board on, a request is a task on the board, and
+ *  this door leads there. Until the flag is on the old list stands. */
+export default function RequestsPage() {
+    const router = useRouter();
+    const board = useFeature("task_board");
+    useEffect(() => {
+        if (board) router.replace("/tasks");
+    }, [board, router]);
+    if (board) return <SpinLoader />;
+    return <LegacyRequests />;
 }

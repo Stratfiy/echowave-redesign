@@ -36,6 +36,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
+from api.services.refused import Refused
 from api.services.workflow import agent_timeline, one_shot_run
 
 TOOL_NAME = "create_task"
@@ -70,6 +71,22 @@ NEEDS_A_PERSON = (BLOCKED, IN_REVIEW)
 DOING = IN_PROGRESS
 WAITING = BLOCKED
 COULD_NOT = BLOCKED
+
+#: The words a person sees for each column.
+STATUS_LABELS = {
+    BACKLOG: "Backlog",
+    TODO: "To do",
+    IN_PROGRESS: "In progress",
+    IN_REVIEW: "In review",
+    DONE: "Done",
+    BLOCKED: "Blocked",
+    CANCELLED: "Cancelled",
+}
+
+
+def status_label(status: str | None) -> str:
+    return STATUS_LABELS.get(status or "", status or "nowhere")
+
 
 PRIORITIES = ("critical", "high", "medium", "low")
 DEFAULT_PRIORITY = "medium"
@@ -169,7 +186,7 @@ def tool_schema() -> dict[str, Any]:
     }
 
 
-class TaskError(ValueError):
+class TaskError(Refused):
     """The board cannot take that; the message says why, for the screen."""
 
 
@@ -435,13 +452,21 @@ async def create(
 # --- doing ------------------------------------------------------------------
 
 
-def run_message(*, title: str, brief: str, asker: str) -> str:
+def run_message(
+    *, title: str, brief: str, asker: str, thread: list[str] | None = None
+) -> str:
+    said = (
+        ["What has been said on the card since, oldest first:", *thread, ""]
+        if thread
+        else []
+    )
     return "\n".join(
         [
             f"A task from {asker}: {title}",
             "",
             brief,
             "",
+            *said,
             (
                 "Do it now with what you have and your tools. Reply with the "
                 "result as you would report it to a colleague: what you did, "
@@ -524,6 +549,36 @@ def _tool_calls_in(turns: list[dict[str, Any]]) -> int:
     return count
 
 
+#: How much of a card's conversation a run is given: the latest lines, so a
+#: long card does not crowd out the brief.
+THREAD_FOR_RUN = 12
+
+
+async def _thread_for_run(
+    task_id: int, organization_id: int, names: dict[int, str]
+) -> list[str]:
+    """The card's lines as a run should read them: who said what. A task
+    somebody mentioned a bot on is run with that mention in front of it."""
+    try:
+        rows = await db_client.comments_for_task(
+            task_id, organization_id=organization_id
+        )
+    except Exception as exc:  # noqa: BLE001 -- the brief alone still runs
+        logger.warning("Task {}: could not read its card: {}", task_id, exc)
+        return []
+    lines = []
+    for row in list(rows)[-THREAD_FOR_RUN:]:
+        who = (
+            names.get(row.author_workflow_id, "an agent")
+            if row.author_workflow_id
+            else "a person"
+            if row.author_user_id
+            else "the board"
+        )
+        lines.append(f"- {who}: {row.body}")
+    return lines
+
+
 async def run_task(task_id: int) -> int | None:
     """The assignee does the task as one text turn. Never raises."""
     from pipecat.utils.run_context import set_current_run_id
@@ -558,7 +613,20 @@ async def run_task(task_id: int) -> int | None:
     asker = f"@{handles.get(from_id) or names.get(from_id)}" if from_id else "the team"
     assignee_name = names.get(assignee_id, "the bot")
 
-    await db_client.update_task(task_id, organization_id=organization_id, status=DOING)
+    # The checkout (TB-2): whoever moves it to in progress first runs it. A
+    # second pick-up -- a double enqueue, a person pressing Run again while
+    # it runs -- finds it taken and stands down, and a finished or cancelled
+    # task is never started by a stale job.
+    claimed = await db_client.update_task(
+        task_id,
+        organization_id=organization_id,
+        status=DOING,
+        unless_status=(DOING, *TERMINAL),
+    )
+    if claimed is None:
+        logger.info("Task {} is already taken or finished; not running it", task_id)
+        return None
+    thread = await _thread_for_run(task_id, organization_id, names)
     run_id: int | None = None
     try:
         workflow_run = await db_client.create_workflow_run(
@@ -615,7 +683,7 @@ async def run_task(task_id: int) -> int | None:
             run_id=run_id,
             text_session=text_session,
             user_text=run_message(
-                title=task["title"], brief=task["brief"], asker=asker
+                title=task["title"], brief=task["brief"], asker=asker, thread=thread
             ),
             expected_revision=text_session.revision,
         )
@@ -777,12 +845,23 @@ async def set_status(
     status: str,
     result: str | None,
     user_id: int,
+    actor_name: str | None = None,
 ) -> dict[str, Any]:
     if status not in (STATUSES if enabled() else LEGACY_STATUSES):
         raise TaskError("Not a column on this board.")
     task = await db_client.get_task(task_id, organization_id=organization_id)
     if task is None:
         raise TaskError("That task is not here.")
+    if actor_name and task.status != status and enabled():
+        # The card's activity (TB-2): who moved it, as a line the board wrote.
+        await db_client.add_task_comment(
+            organization_id=organization_id,
+            task_id=task_id,
+            body=(
+                f"{actor_name} moved this from {status_label(task.status)} "
+                f"to {status_label(status)}."
+            ),
+        )
     fields: dict[str, Any] = {"status": status}
     if result is not None:
         fields["result"] = result.strip()[:MAX_RESULT]
@@ -907,7 +986,54 @@ async def comment(
         body=text,
         author_user_id=user_id,
     )
-    return comment_dict(row)
+    out = comment_dict(row)
+    out["woke"] = await _wake_mentioned(task, text, organization_id=organization_id)
+    return out
+
+
+_MENTION = re.compile(r"(?<![\w.])@([A-Za-z0-9][\w-]{0,79})")
+
+
+async def _wake_mentioned(task: Any, text: str, *, organization_id: int) -> str | None:
+    """@naming a bot on a card wakes it (TB-2, paperclip's mention).
+
+    The first bot named takes the card and runs it now, with the card's
+    conversation -- this line included -- in front of it. Nothing happens
+    to a card that is running (the bot is on it) or cancelled; a person who
+    names the bot on a finished card is asking it to look again.
+    """
+    handles = _MENTION.findall(text)
+    if not handles or task.status in (DOING, CANCELLED):
+        return None
+    roster = list(
+        await db_client.get_all_workflows_for_listing(organization_id=organization_id)
+    )
+    bot = next(
+        (b for b in (_match_bot(h, roster) for h in handles) if b is not None), None
+    )
+    if bot is None:
+        return None
+    await db_client.update_task(
+        task.id,
+        organization_id=organization_id,
+        assignee_workflow_id=bot.id,
+        assignee_user_id=None,
+        status=TODO,
+    )
+    name = f"@{getattr(bot, 'handle', None) or bot.name}"
+    await db_client.add_task_comment(
+        organization_id=organization_id,
+        task_id=task.id,
+        body=f"Handed to {name}, who is on it now.",
+    )
+    from api.tasks.arq import enqueue_job
+    from api.tasks.function_names import FunctionNames
+
+    try:
+        await enqueue_job(FunctionNames.RUN_AGENT_TASK, task.id)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Task {}: could not wake {}: {}", task.id, name, exc)
+    return name
 
 
 def comment_dict(

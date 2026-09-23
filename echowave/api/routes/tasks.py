@@ -172,6 +172,12 @@ async def get_task(
     out["comments"] = [
         tasks_board.comment_dict(c, ctx["names"], ctx["people"]) for c in comments
     ]
+    # TB-2: the card's own sub-tasks, so its page can list and add them.
+    subtasks = await db_client.subtasks_of(task_id, organization_id=organization_id)
+    out["subtasks"] = [
+        tasks_board.as_dict(t, ctx["names"], people=ctx["people"], prefix=ctx["prefix"])
+        for t in subtasks
+    ]
     return out
 
 
@@ -180,15 +186,12 @@ async def edit_task(
     task_id: int, body: TaskEdit, user: Annotated[UserModel, Depends(get_user)]
 ) -> dict[str, Any]:
     organization_id = _organization_id(user)
-    try:
-        await tasks_board.edit(
-            organization_id=organization_id,
-            task_id=task_id,
-            changes=body.model_dump(exclude_unset=True),
-            user_id=user.id,
-        )
-    except tasks_board.TaskError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    await tasks_board.edit(
+        organization_id=organization_id,
+        task_id=task_id,
+        changes=body.model_dump(exclude_unset=True),
+        user_id=user.id,
+    )
     task = await db_client.get_task(task_id, organization_id=organization_id)
     ctx = await _context(organization_id)
     return tasks_board.as_dict(
@@ -201,15 +204,12 @@ async def add_comment(
     task_id: int, body: CommentWrite, user: Annotated[UserModel, Depends(get_user)]
 ) -> dict[str, Any]:
     organization_id = _organization_id(user)
-    try:
-        out = await tasks_board.comment(
-            organization_id=organization_id,
-            task_id=task_id,
-            body=body.body,
-            user_id=user.id,
-        )
-    except tasks_board.TaskError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    out = await tasks_board.comment(
+        organization_id=organization_id,
+        task_id=task_id,
+        body=body.body,
+        user_id=user.id,
+    )
     ctx = await _context(organization_id)
     out["author_name"] = ctx["people"].get(user.id)
     return out
@@ -220,16 +220,14 @@ async def set_task_status(
     task_id: int, body: TaskStatus, user: Annotated[UserModel, Depends(get_user)]
 ) -> dict[str, Any]:
     organization_id = _organization_id(user)
-    try:
-        return await tasks_board.set_status(
-            organization_id=organization_id,
-            task_id=task_id,
-            status=body.status,
-            result=body.result,
-            user_id=user.id,
-        )
-    except tasks_board.TaskError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return await tasks_board.set_status(
+        organization_id=organization_id,
+        task_id=task_id,
+        status=body.status,
+        result=body.result,
+        user_id=user.id,
+        actor_name=_person_name(user),
+    )
 
 
 @router.delete("/{task_id}", status_code=204)

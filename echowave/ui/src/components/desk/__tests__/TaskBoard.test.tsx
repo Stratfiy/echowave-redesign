@@ -1,11 +1,12 @@
 /**
- * The board is a board (TB-1).
+ * The board is a board (TB-1), and reads like paperclip's (TB-2).
  *
- * Seven columns from paperclip's issue model; a card dragged to a column is
- * one status call; the review column carries the agent's report and a
- * person signs it off from the card; the filters narrow the board without
- * asking the server; the Tasks door opens on the board only when the server
- * says it is on.
+ * It opens as a list grouped by status, with an inbox beside it -- Mine,
+ * Needs me, All tasks; the board view has the seven columns and a card
+ * dragged to one is one status call; a task opens on its own page; a new
+ * task is a button, not a standing form; a bot at work shows a live dot;
+ * the filters narrow without asking the server; the Tasks door opens on the
+ * board only when the server says it is on.
  */
 
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -35,6 +36,8 @@ vi.mock("@/client/sdk.gen", () => ({
     deleteRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdDelete: vi.fn(),
 }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: 42 }, loading: false }) }));
+const push = vi.hoisted(() => vi.fn());
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push, replace: vi.fn() }), usePathname: () => "/tasks" }));
 
 import TasksPage from "@/app/tasks/page";
 
@@ -91,9 +94,74 @@ beforeEach(() => {
     routines.mockResolvedValue({ data: { routines: [] } });
 });
 
-describe("the board", () => {
+const toBoard = () => fireEvent.click(screen.getByRole("button", { name: "Board" }));
+
+describe("the list", () => {
+    it("opens as a list grouped by status", () => {
+        const done = task({ id: 2, number: 2, identifier: "DEC-2", title: "Sent the quote", status: "done" });
+        render(<TaskBoard initial={payload([task(), done])} tabs={tabs} />);
+        expect(screen.getByRole("table", { name: "Tasks" })).toBeTruthy();
+        expect(within(screen.getByRole("region", { name: "To do" })).getByText("Follow up Mrs Lakshmi")).toBeTruthy();
+        expect(within(screen.getByRole("region", { name: "Done" })).getByText("Sent the quote")).toBeTruthy();
+        expect(screen.queryByTestId("column-todo")).toBeNull();
+    });
+
+    it("regroups by priority without asking the server", () => {
+        render(<TaskBoard initial={payload([task({ priority: "high" })])} tabs={tabs} />);
+        fireEvent.change(screen.getByLabelText("Group by"), { target: { value: "priority" } });
+        expect(within(screen.getByRole("region", { name: "High" })).getByText("Follow up Mrs Lakshmi")).toBeTruthy();
+        expect(list).not.toHaveBeenCalled();
+    });
+
+    it("opens a task on its own page", () => {
+        render(<TaskBoard initial={payload([task()])} tabs={tabs} />);
+        fireEvent.click(screen.getByText("Follow up Mrs Lakshmi"));
+        expect(push).toHaveBeenCalledWith("/tasks/12");
+    });
+
+    it("shows a live dot while an agent works a task, and not otherwise", () => {
+        const live = task({ status: "in_progress" });
+        const { rerender } = render(<TaskBoard initial={payload([live])} tabs={tabs} />);
+        expect(screen.getByLabelText("An agent is working on it")).toBeTruthy();
+        rerender(<TaskBoard key="b" initial={payload([task({ status: "in_progress", assignee_workflow_id: null, assignee_name: null })])} tabs={tabs} />);
+        expect(screen.queryByLabelText("An agent is working on it")).toBeNull();
+    });
+
+    it("searches titles and identifiers", () => {
+        const other = task({ id: 2, number: 7, identifier: "DEC-7", title: "Renew the lease" });
+        render(<TaskBoard initial={payload([task(), other])} tabs={tabs} />);
+        fireEvent.change(screen.getByLabelText("Search tasks"), { target: { value: "dec-7" } });
+        expect(screen.getByText("Renew the lease")).toBeTruthy();
+        expect(screen.queryByText("Follow up Mrs Lakshmi")).toBeNull();
+    });
+});
+
+describe("the inbox", () => {
+    const mine = task({ id: 1, number: 1, identifier: "DEC-1", title: "Approve the refund", assignee_workflow_id: null, assignee_name: null, assignee_user_id: 42, assignee_user_name: "Nithish" });
+    const review = task({ id: 2, number: 2, identifier: "DEC-2", title: "Report waiting", status: "in_review", result: "Done it." });
+    const other = task({ id: 3, number: 3, identifier: "DEC-3", title: "Someone else's" });
+
+    it("counts and narrows to what is mine and what needs me", () => {
+        render(<TaskBoard initial={payload([mine, review, other])} tabs={tabs} />);
+        const inbox = screen.getByRole("navigation", { name: "Inbox" });
+        expect(within(inbox).getByRole("button", { name: /Mine\s*1/ })).toBeTruthy();
+        expect(within(inbox).getByRole("button", { name: /Needs me\s*1/ })).toBeTruthy();
+        expect(within(inbox).getByRole("button", { name: /All tasks\s*3/ })).toBeTruthy();
+
+        fireEvent.click(within(inbox).getByRole("button", { name: /Needs me/ }));
+        expect(screen.getByText("Report waiting")).toBeTruthy();
+        expect(screen.queryByText("Approve the refund")).toBeNull();
+
+        fireEvent.click(within(inbox).getByRole("button", { name: /^Mine/ }));
+        expect(screen.getByText("Approve the refund")).toBeTruthy();
+        expect(screen.queryByText("Someone else's")).toBeNull();
+    });
+});
+
+describe("the board view", () => {
     it("has paperclip's seven columns", () => {
         render(<TaskBoard initial={payload([task()])} tabs={tabs} />);
+        toBoard();
         for (const label of ["Backlog", "To do", "In progress", "In review", "Done", "Blocked", "Cancelled"]) {
             expect(screen.getByRole("region", { name: label })).toBeTruthy();
         }
@@ -103,6 +171,7 @@ describe("the board", () => {
 
     it("moves a dropped card with one status call", async () => {
         render(<TaskBoard initial={payload([task()])} tabs={tabs} />);
+        toBoard();
         const card = screen.getByTestId("task-12");
         const data = { setData: vi.fn(), getData: vi.fn(() => "12") };
         fireEvent.dragStart(card, { dataTransfer: data });
@@ -113,67 +182,59 @@ describe("the board", () => {
         expect(setStatus.mock.calls[0][0]).toEqual({ path: { task_id: 12 }, body: { status: "in_progress" } });
     });
 
-    it("shows the report in review and signs it off from the card", async () => {
+    it("shows the agent's report on a card in review", () => {
         const reviewed = task({ status: "in_review", result: "Booked Tuesday 5 pm." });
-        list.mockResolvedValue({ data: payload([reviewed]) });
-        getOne.mockResolvedValue({
-            data: { ...reviewed, comments: [{ id: 1, body: "Booked Tuesday 5 pm.", author_name: "Retention", author_workflow_id: 4, author_user_id: null, created_at: null }] },
-        });
         render(<TaskBoard initial={payload([reviewed])} tabs={tabs} />);
-        const column = screen.getByTestId("column-in_review");
-        expect(within(column).getByText("Booked Tuesday 5 pm.")).toBeTruthy();
-        fireEvent.click(within(column).getByText("Follow up Mrs Lakshmi"));
-        await screen.findByText("On the card");
-        fireEvent.click(screen.getByRole("button", { name: "Sign off" }));
-        await waitFor(() => expect(setStatus).toHaveBeenCalled());
-        expect(setStatus.mock.calls[0][0].body).toEqual({ status: "done" });
+        toBoard();
+        expect(within(screen.getByTestId("column-in_review")).getByText("Booked Tuesday 5 pm.")).toBeTruthy();
     });
 
-    it("files a task for a person with a priority", async () => {
-        const { container } = render(<TaskBoard initial={payload([])} tabs={tabs} />);
-        fireEvent.change(screen.getByLabelText("New task"), { target: { value: "Approve the refund" } });
-        fireEvent.change(container.querySelector("#task-assignee")!, { target: { value: "user:42" } });
-        fireEvent.change(container.querySelector("#task-priority")!, { target: { value: "high" } });
+    it("narrows by owner without asking the server", () => {
+        const teams = task({ id: 1, number: 1, identifier: "DEC-1", title: "The team's", assignee_workflow_id: null, assignee_name: null });
+        const theirs = task({ id: 2, number: 2, identifier: "DEC-2", title: "Theirs" });
+        render(<TaskBoard initial={payload([teams, theirs])} tabs={tabs} />);
+        toBoard();
+        fireEvent.change(screen.getByLabelText("Filter by owner"), { target: { value: "bot:4" } });
+        expect(screen.queryByText("The team's")).toBeNull();
+        expect(screen.getByText("Theirs")).toBeTruthy();
+        expect(list).not.toHaveBeenCalled();
+    });
+});
+
+describe("a new task", () => {
+    it("is a button, not a form standing over the board", () => {
+        render(<TaskBoard initial={payload([])} tabs={tabs} />);
+        expect(screen.queryByLabelText("Title")).toBeNull();
+        fireEvent.click(screen.getByRole("button", { name: /new task/i }));
+        expect(screen.getByLabelText("Title")).toBeTruthy();
+    });
+
+    it("files one for a person with a priority", async () => {
+        render(<TaskBoard initial={payload([])} tabs={tabs} />);
+        fireEvent.click(screen.getByRole("button", { name: /new task/i }));
+        fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Approve the refund" } });
+        fireEvent.change(screen.getByLabelText("Owner"), { target: { value: "user:42" } });
+        fireEvent.change(screen.getByLabelText("Priority"), { target: { value: "high" } });
         fireEvent.click(screen.getByRole("button", { name: /file it/i }));
         await waitFor(() => expect(create).toHaveBeenCalled());
         const body = create.mock.calls[0][0].body;
         expect(body.assignee).toBe("user:42");
         expect(body.priority).toBe("high");
         expect(body.backlog).toBe(false);
-    });
-
-    it("narrows by owner and by who filed it without asking the server", () => {
-        const mine = task({ id: 1, number: 1, identifier: "DEC-1", title: "Mine", created_by: 42, assignee_workflow_id: null, assignee_name: null });
-        const theirs = task({ id: 2, number: 2, identifier: "DEC-2", title: "Theirs", created_by: 7 });
-        render(<TaskBoard initial={payload([mine, theirs])} tabs={tabs} />);
-        fireEvent.change(screen.getByLabelText("Filter by owner"), { target: { value: "bot:4" } });
-        expect(screen.queryByText("Mine")).toBeNull();
-        expect(screen.getByText("Theirs")).toBeTruthy();
-        fireEvent.change(screen.getByLabelText("Filter by owner"), { target: { value: "all" } });
-        fireEvent.click(screen.getByLabelText("Filed by me"));
-        expect(screen.getByText("Mine")).toBeTruthy();
-        expect(screen.queryByText("Theirs")).toBeNull();
-        expect(list).not.toHaveBeenCalled();
-    });
-
-    it("keeps the list as a toggle", () => {
-        render(<TaskBoard initial={payload([task()])} tabs={tabs} />);
-        fireEvent.click(screen.getByRole("button", { name: "List" }));
-        expect(screen.getByRole("table")).toBeTruthy();
-        expect(screen.queryByTestId("column-todo")).toBeNull();
+        expect(body.parent_id).toBeUndefined();
     });
 });
 
 describe("the Tasks door", () => {
     it("opens on the board when the server says it is on", async () => {
         render(<TasksPage />);
-        expect(await screen.findByTestId("column-in_review")).toBeTruthy();
+        expect(await screen.findByRole("navigation", { name: "Inbox" })).toBeTruthy();
     });
 
     it("opens on the schedules when it is off", async () => {
         list.mockResolvedValue({ data: { tasks: [], board: { enabled: false } } });
         render(<TasksPage />);
         await waitFor(() => expect(routines).toHaveBeenCalled());
-        expect(screen.queryByTestId("column-in_review")).toBeNull();
+        expect(screen.queryByRole("navigation", { name: "Inbox" })).toBeNull();
     });
 });
