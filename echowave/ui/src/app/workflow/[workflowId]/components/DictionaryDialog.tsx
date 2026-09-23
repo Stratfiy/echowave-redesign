@@ -45,7 +45,7 @@ export const DictionaryDialog = ({
                 <DialogHeader>
                     <DialogTitle>Dictionary</DialogTitle>
                     <DialogDescription>
-                    Add any specific words that you would want the bot to actively listen for. The bot learns your
+                    Add any specific words that you would want the agent to actively listen for. The agent learns your
                     unique words and names. Add expected words and phrases, company jargon, named entities, or industry-specific lingo. <br/>
                     Example: billing department, tretinoin etc. <br/>
                     (May incur extra cost depending on provider)

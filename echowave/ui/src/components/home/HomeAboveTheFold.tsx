@@ -79,7 +79,7 @@ function partOfDay(now: Date): string {
  * different totals for "today" minutes apart.
  */
 function summarise(headline: Headline, span: string): string {
-  if (headline.agents === 0) return "Let's put your first bot to work.";
+  if (headline.agents === 0) return "Let's put your first agent to work.";
   const parts: string[] = [];
   if (headline.calls > 0) {
     parts.push(
@@ -90,13 +90,13 @@ function summarise(headline: Headline, span: string): string {
   }
   if (parts.length === 0) {
     return headline.live === 0
-      ? "No bot is taking calls right now."
+      ? "No agent is taking calls right now."
       : `Nothing has come in ${span === "today" ? "yet today" : span}.`;
   }
   const sentence = `${parts.join(", ")}.`;
   if (headline.needs_attention > 0) {
     return `${sentence} ${headline.needs_attention} ${
-      headline.needs_attention === 1 ? "bot needs" : "bots need"
+      headline.needs_attention === 1 ? "agent needs" : "agents need"
     } you.`;
   }
   return sentence;
@@ -273,8 +273,8 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
           {greeting}
           {firstName ? `, ${firstName}` : ""}.{" "}
           {brandNew
-            ? "Say hi, or tell me one thing you'd love off your plate this week. I'll set up a bot for it and you can hear it in a minute."
-            : `${headline ? summarise(headline, span) : ""} I know your bots, your numbers and your company's documents.`}
+            ? "Say hi, or tell me one thing you'd love off your plate this week. I'll set up an agent for it and you can hear it in a minute."
+            : `${headline ? summarise(headline, span) : ""} I know your agents, your numbers and your company's documents.`}
         </p>
         <div
           className="mt-4 flex w-full max-w-lg flex-col gap-2"

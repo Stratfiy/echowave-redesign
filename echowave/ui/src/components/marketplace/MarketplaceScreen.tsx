@@ -50,20 +50,20 @@ export type ShelfKind = "bots" | "tools" | "integrations" | "skills";
 
 const HERO: Record<ShelfKind, { title: string; blurb: string }> = {
     skills: {
-        title: "Teach a bot how your business does it.",
+        title: "Teach an agent how your business does it.",
         blurb: "A skill is a procedure, not a button: how to chase an invoice, what to check before promising a date.",
     },
     bots: {
-        title: "A bot for every job, ready the day you add it.",
+        title: "An agent for every job, ready the day you add it.",
         blurb: "Pick one for your industry or for the job, hear it on a call, then put it on a number.",
     },
     tools: {
-        title: "The things a bot can do, ready to hand it.",
+        title: "The things an agent can do, ready to hand it.",
         blurb: "A tool is one action during a call or a chat: look up an order, book a slot, raise a ticket.",
     },
     integrations: {
-        title: "Every system you already run, in your bots' hands.",
-        blurb: "Connect the apps your business lives in and every bot can read from and write to them.",
+        title: "Every system you already run, in your agents' hands.",
+        blurb: "Connect the apps your business lives in and every agent can read from and write to them.",
     },
 };
 
@@ -234,7 +234,7 @@ function BotsShelf({ query }: { query: string }) {
         return (
             <Card>
                 <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                    The bot shelf could not be loaded. This is us, not you.
+                    The agent shelf could not be loaded. This is us, not you.
                 </CardContent>
             </Card>
         );
@@ -250,7 +250,7 @@ function BotsShelf({ query }: { query: string }) {
                             key={shelf.name}
                             name={shelf.name}
                             count={shelf.count}
-                            noun="bot"
+                            noun="agent"
                             icon={industryIcon(shelf.name)}
                             selected={industry === shelf.name}
                             onSelect={() => setIndustry((cur) => (cur === shelf.name ? null : shelf.name))}
@@ -289,13 +289,13 @@ function BotsShelf({ query }: { query: string }) {
                     {industry || fn
                         ? [industry, fn].filter(Boolean).join(" · ")
                         : query.trim()
-                          ? `Bots matching “${query.trim()}”`
-                          : "All bots"}
+                          ? `Agents matching “${query.trim()}”`
+                          : "All agents"}
                 </SectionTitle>
                 {shown.length === 0 ? (
                     <Card>
                         <CardContent className="space-y-2 py-8 text-center">
-                            <p className="text-sm">No bot on this shelf yet.</p>
+                            <p className="text-sm">No agent on this shelf yet.</p>
                             <p className="text-xs text-muted-foreground">
                                 Describe the job on{" "}
                                 <Link href="/overview" className="underline">
@@ -476,7 +476,7 @@ function ToolsShelf({ query }: { query: string }) {
                     <div>
                         <p className="text-sm font-medium">Something your own systems do?</p>
                         <p className="text-xs text-muted-foreground">
-                            Any HTTP endpoint you already have becomes a tool a bot can call mid-conversation.
+                            Any HTTP endpoint you already have becomes a tool an agent can call mid-conversation.
                         </p>
                     </div>
                     <Button asChild size="sm" variant="outline">
@@ -692,14 +692,14 @@ function IntegrationsShelf({ query }: { query: string }) {
 
 const SEARCH: Record<ShelfKind, { label: string; placeholder: string }> = {
     skills: { label: "Find a skill", placeholder: "Find a skill by the job it describes…" },
-    bots: { label: "Find a bot", placeholder: "Find a bot by industry, job or name…" },
+    bots: { label: "Find an agent", placeholder: "Find an agent by industry, job or name…" },
     tools: { label: "Find a tool", placeholder: "Find a tool by what it does or the app it uses…" },
     integrations: { label: "Find an app", placeholder: "Find an app or a service you already use…" },
 };
 
 const TITLE: Record<ShelfKind, string> = {
     tools: "Tools",
-    bots: "Bots",
+    bots: "Agents",
     integrations: "Integrations",
     skills: "Skills",
 };

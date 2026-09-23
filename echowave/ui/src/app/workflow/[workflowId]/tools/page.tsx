@@ -79,7 +79,7 @@ export default function AgentToolsPage() {
             ]);
 
             if (workflowResult.error) {
-                setError(detailFromResult(workflowResult, "Could not load this bot"));
+                setError(detailFromResult(workflowResult, "Could not load this agent"));
                 setLoading(false);
                 return;
             }

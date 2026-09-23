@@ -44,7 +44,7 @@ export abstract class _GeneratedClient {
 
     /** Create a new workflow from a workflow definition. */
     async createWorkflow(opts: { body: CreateWorkflowRequest }): Promise<WorkflowResponse> {
-        return this.request<WorkflowResponse>("POST", "/workflow/create/definition", { json: opts.body });
+        return this.request<WorkflowResponse>("POST", "/workflows/create/definition", { json: opts.body });
     }
 
     /** Ready-made extractions for a catalog named by a node property's renderer_options.library.catalog. */
@@ -72,7 +72,7 @@ export abstract class _GeneratedClient {
 
     /** Get a single workflow by ID (returns draft if one exists, else published). */
     async getWorkflow(workflowId: number): Promise<WorkflowResponse> {
-        return this.request<WorkflowResponse>("GET", `/workflow/fetch/${workflowId}`);
+        return this.request<WorkflowResponse>("GET", `/workflows/fetch/${workflowId}`);
     }
 
     /** List the organization's contact lists. */
@@ -128,7 +128,7 @@ export abstract class _GeneratedClient {
         const params: Record<string, unknown> = {
             ...(opts.status !== undefined ? { "status": opts.status } : {}),
         };
-        return this.request<WorkflowListResponse[]>("GET", "/workflow/fetch", { params });
+        return this.request<WorkflowListResponse[]>("GET", "/workflows/fetch", { params });
     }
 
     /** Place a test call from a workflow to a phone number. */
@@ -138,6 +138,6 @@ export abstract class _GeneratedClient {
 
     /** Update a workflow's name and/or definition. Saves as a new draft. */
     async updateWorkflow(workflowId: number, opts: { body: UpdateWorkflowRequest }): Promise<WorkflowResponse> {
-        return this.request<WorkflowResponse>("PUT", `/workflow/${workflowId}`, { json: opts.body });
+        return this.request<WorkflowResponse>("PUT", `/workflows/${workflowId}`, { json: opts.body });
     }
 }

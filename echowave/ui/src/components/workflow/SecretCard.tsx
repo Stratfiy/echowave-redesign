@@ -109,7 +109,7 @@ export function SecretCard({
                 >
                     <p className="text-xs text-muted-foreground">
                         Typed here, stored in Credentials. It never appears in this chat and the
-                        bot only receives its id.
+                        agent only receives its id.
                     </p>
                     {fields.map((field) => {
                         const id = `secret-${event.id}-${field.key}`;

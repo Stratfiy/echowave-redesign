@@ -30,13 +30,13 @@ class KnowledgeScopeFields(BaseModel):
     scope: str = Field(
         default="library",
         description=(
-            "library: read only by a node that names it. org: every bot in the "
-            "organisation. channel: the bots answering in folder_id. bot: the "
-            "one bot in workflow_id."
+            "library: read only by a node that names it. org: every agent in the "
+            "organisation. channel: the agents answering in folder_id. agent: the "
+            "one agent in workflow_id."
         ),
     )
     folder_id: Optional[int] = Field(default=None, description="For scope=channel.")
-    workflow_id: Optional[int] = Field(default=None, description="For scope=bot.")
+    workflow_id: Optional[int] = Field(default=None, description="For scope=agent.")
 
 
 class ProcessDocumentRequestSchema(KnowledgeScopeFields):

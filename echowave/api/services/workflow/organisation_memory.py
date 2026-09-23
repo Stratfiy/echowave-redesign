@@ -251,7 +251,7 @@ async def recall_for_bot(
             workflow_id=workflow_id,
         )
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Could not recall memory for bot {}: {}", workflow_id, exc)
+        logger.warning("Could not recall memory for agent {}: {}", workflow_id, exc)
         return {}
 
     # The organisation's rows first so a bot's own overwrite them, matching

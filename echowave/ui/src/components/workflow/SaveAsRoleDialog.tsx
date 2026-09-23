@@ -50,7 +50,7 @@ export function SaveAsRoleDialog({
             setError(detailFromResult(result, "Could not save this agent as a role"));
             return;
         }
-        toast.success("Saved as one of your workspace's roles. Hire it again from Marketplace → Bots.");
+        toast.success("Saved as one of your workspace's roles. Hire it again from Marketplace → Agents.");
         onOpenChange(false);
     };
 

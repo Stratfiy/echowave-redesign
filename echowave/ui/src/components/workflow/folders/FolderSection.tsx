@@ -202,10 +202,10 @@ export function FolderSection({
                         ) : (
                             <div className="rounded-lg border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
                                 {isArchived
-                                    ? 'No archived bots.'
+                                    ? 'No archived agents.'
                                     : isFolder
-                                      ? 'This channel is empty. Use “Move to channel” on a bot to add it here.'
-                                      : 'No uncategorized bots.'}
+                                      ? 'This channel is empty. Use “Move to channel” on an agent to add it here.'
+                                      : 'No uncategorized agents.'}
                             </div>
                         )}
                     </div>

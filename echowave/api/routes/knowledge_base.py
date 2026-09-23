@@ -220,13 +220,13 @@ async def _checked_scope(
     if scope == KnowledgeScope.BOT.value:
         if request.workflow_id is None:
             raise HTTPException(
-                status_code=422, detail="A bot document needs workflow_id"
+                status_code=422, detail="An agent document needs workflow_id"
             )
         workflow = await db_client.get_workflow(
             request.workflow_id, organization_id=organization_id
         )
         if workflow is None:
-            raise HTTPException(status_code=404, detail="No such bot")
+            raise HTTPException(status_code=404, detail="No such agent")
         return scope, None, request.workflow_id
     return scope, None, None
 
@@ -432,7 +432,7 @@ async def list_documents(
         Query(description="Filter by processing status"),
     ] = None,
     scope: Annotated[
-        Optional[str], Query(description="library | org | channel | bot")
+        Optional[str], Query(description="library | org | channel | agent")
     ] = None,
     folder_id: Annotated[Optional[int], Query()] = None,
     workflow_id: Annotated[Optional[int], Query()] = None,

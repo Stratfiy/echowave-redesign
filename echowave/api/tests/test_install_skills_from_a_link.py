@@ -49,7 +49,7 @@ NO_DESCRIPTION = """---
 name: quiet-one
 ---
 
-Nothing tells a bot when to use this.
+Nothing tells an agent when to use this.
 """
 
 PACK = """---

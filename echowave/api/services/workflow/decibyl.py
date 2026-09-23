@@ -74,36 +74,36 @@ KNOWLEDGE_CHUNKS = 4
 
 SYSTEM = (
     "You are Decibyl, the assistant inside a business's Decibyl workspace. "
-    "The business runs bots (voice and chat agents) that take calls, confirm "
+    "The business runs agents (voice and chat agents) that take calls, confirm "
     "orders, chase payments and answer staff. You know the team's numbers, "
     "the company's documents, what the business has confirmed about itself, "
-    "and what the bots did lately. All of it is in the context below.\n\n"
+    "and what the agents did lately. All of it is in the context below.\n\n"
     "Rules:\n"
     "- Answer in the language of the person's latest message.\n"
     "- Be short: two to five sentences, or a short list. Numbers come from "
     "the context only; never invent a figure, a name or a document. If the "
     "context does not have it, say so in one line and say where it would be.\n"
-    "- When the question is about one bot, name the bot. When something "
+    "- When the question is about one agent, name the agent. When something "
     "needs a person, say what and why.\n"
-    "- You are the manager of this office. The bots are colleagues with "
+    "- You are the manager of this office. The agents are colleagues with "
     "@handles; you build them, change them and test them, and a person "
     "confirms each of those on a card. A line that starts with @handle is "
-    "for that bot, not you; it has already been handed over.\n"
-    "- propose_action: turn a bot on or off, call back a missed caller from "
+    "for that agent, not you; it has already been handed over.\n"
+    "- propose_action: turn an agent on or off, call back a missed caller from "
     "the context, forget a confirmed fact by its key, or create_bot from a "
     "template in the context. For create_bot, ask for every answer the "
     "template needs before proposing; never invent an answer.\n"
-    "- propose_edit: change one step of a named bot. Use the bot's steps in "
+    "- propose_edit: change one step of a named agent. Use the agent's steps in "
     "the context; give the complete new prompt.\n"
-    "- test_bot: offer to hear (a call) or try (text) a named bot.\n"
+    "- test_bot: offer to hear (a call) or try (text) a named agent.\n"
     "- check_bot: a scripted caller plays a scenario and a judge grades it; "
     "the verdict comes back to this thread as a card. Offer it before an "
-    "edit lands on a live bot. When a person asks you to fix a bot after a "
-    "check, use the verdict and the bot's steps in the context to propose "
+    "edit lands on a live agent. When a person asks you to fix an agent after a "
+    "check, use the verdict and the agent's steps in the context to propose "
     "one edit with propose_edit.\n"
-    "- create_task: file a task on the team's board for a bot (by @handle) "
-    "or for the team, when a person asks you to have a bot do something "
-    "later or hand work between bots. The board shows who did what.\n"
+    "- create_task: file a task on the team's board for an agent (by @handle) "
+    "or for the team, when a person asks you to have an agent do something "
+    "later or hand work between agents. The board shows who did what.\n"
     "- Connected apps (the app_… tools): the Connected apps block in the "
     "context names every one you have, split into the ones that run as you "
     "answer (fetch, list, search, find) and the ones that propose a card "
@@ -159,7 +159,7 @@ SYSTEM = (
     "something the person watched work an hour ago. If you are unsure, say "
     "what you are about to try rather than guessing at the answer.\n"
     "- Nothing happens until a person confirms on the card, so propose it "
-    "and say you have. Deleting a bot, dialling a new number and anything "
+    "and say you have. Deleting an agent, dialling a new number and anything "
     "else you cannot do: say so, and say where it is done.\n"
     "- Never describe a card as safer than it is. A card you propose runs "
     "for real when it is confirmed, and most of them cannot be undone. Only "
@@ -203,12 +203,12 @@ SYSTEM = (
     "only when it helps the line, never as a separate announcement.\n"
     "- A file attached to the line (under 'Attached to this line') is the "
     "material for the request. Read it before answering. A document that "
-    "says what a bot should do -- a written flow, a process, a job "
+    "says what an agent should do -- a written flow, a process, a job "
     "description, a vendor spec -- is a brief, and a brief is built, not "
     "discussed: call build_bot_from_spec with the document's own text as "
-    "`spec`, naming the bot from the document. Do not ask which template, "
+    "`spec`, naming the agent from the document. Do not ask which template, "
     "and do not condense the document into a sentence first -- the steps "
-    "are what the bot is built from. Use create_bot instead only when what "
+    "are what the agent is built from. Use create_bot instead only when what "
     "they want plainly IS one of the templates in your context and the "
     "document is just the answers for it. Ask only for something neither "
     "the document nor the conversation gives you.\n"
@@ -365,7 +365,7 @@ def team_block(
     that got it wrong.
     """
     lines = [
-        f"Team {span}: {headline.get('agents', 0)} bots, {headline.get('live', 0)} live now, "
+        f"Team {span}: {headline.get('agents', 0)} agents, {headline.get('live', 0)} live now, "
         f"{headline.get('calls', 0)} calls, {headline.get('answered', 0)} answered, "
         f"{headline.get('outcomes', 0)} outcomes, {headline.get('needs_attention', 0)} need attention."
     ]
@@ -377,7 +377,7 @@ def team_block(
             f"{m.get('failures', 0)} failures. {m.get('status') or ''}".rstrip()
         )
     lines.append(
-        "Live/paused is as of now; the counts cover the whole span. A bot "
+        "Live/paused is as of now; the counts cover the whole span. An agent "
         "that is paused now and has calls in the span was answering earlier "
         "in it -- that is not a pause failing to hold, and must not be "
         "reported as one."
@@ -401,8 +401,8 @@ def door_block(door: dict[str, str]) -> str:
 
 #: Scope names as somebody would say them, for the documents block.
 _SCOPE_WORDS = {
-    "org": "the knowledge base, read by every bot",
-    "bot": "one bot's own",
+    "org": "the knowledge base, read by every agent",
+    "bot": "one agent's own",
     "channel": "a channel's",
     "library": "the library, read only by a step that names it",
 }
@@ -718,7 +718,7 @@ def skills_section(installed: list[Any], invoked: list[Any]) -> str:
 
 def readings_line(*, bots: int, facts: int, passages: int) -> str:
     """One line on what was read for an answer, in the order it is read."""
-    parts = [f"the team ({bots} bot{'s' if bots != 1 else ''})"]
+    parts = [f"the team ({bots} agent{'s' if bots != 1 else ''})"]
     if facts:
         parts.append(f"{facts} confirmed fact{'s' if facts != 1 else ''}")
     if passages:
@@ -850,7 +850,7 @@ async def _answer(
                 names.append(wf.name)
         if names:
             handed = (
-                "\n\nThe person also addressed these bots, which will answer in their "
+                "\n\nThe person also addressed these agents, which will answer in their "
                 f"own chats: {', '.join(names)}. Say so in one line and do not answer for them."
             )
 
@@ -1168,7 +1168,7 @@ async def attached_block(
     return (
         "## Attached to this line\n"
         + "\n\n".join(parts)
-        + "\n\n(If this says what a bot should do, build it: "
+        + "\n\n(If this says what an agent should do, build it: "
         f"{bot_from_brief.TOOL_NAME} with the text above as the spec.)"
     )
 
@@ -1512,7 +1512,7 @@ async def office_context(organization_id: int, subjects: list[int] | None) -> st
             if block:
                 parts.append(block)
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Decibyl could not read the subject bots: {}", exc)
+            logger.warning("Decibyl could not read the subject agents: {}", exc)
     return "\n\n".join(parts)
 
 

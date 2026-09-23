@@ -253,7 +253,7 @@ export function WorkflowTable({
 
             if (response.data) {
                 toast.success(
-                    nextLive ? 'Bot is taking calls' : 'Bot paused — it will not answer',
+                    nextLive ? 'Agent is taking calls' : 'Agent paused — it will not answer',
                 );
                 startTransition(() => {
                     router.refresh();
@@ -262,11 +262,11 @@ export function WorkflowTable({
                 throw new Error('No data in response');
             }
         } catch (error) {
-            console.error('Error changing whether the bot takes calls:', error);
+            console.error('Error changing whether the agent takes calls:', error);
             toast.error(
                 nextLive
-                    ? 'Could not start the bot'
-                    : 'Could not pause the bot — it is still taking calls',
+                    ? 'Could not start the agent'
+                    : 'Could not pause the agent — it is still taking calls',
             );
             setPendingLive((current) => {
                 const next = { ...current };
@@ -284,17 +284,17 @@ export function WorkflowTable({
                 body: { folder_id: folderId },
             });
             if (response.error) {
-                throw new Error('Failed to move bot');
+                throw new Error('Failed to move agent');
             }
             toast.success(
-                folderId === null ? 'Moved to Uncategorized' : 'Bot moved',
+                folderId === null ? 'Moved to Uncategorized' : 'Agent moved',
             );
             startTransition(() => {
                 router.refresh();
             });
         } catch (error) {
             console.error('Error moving workflow:', error);
-            toast.error('Failed to move bot');
+            toast.error('Failed to move agent');
         } finally {
             setMovingWorkflowId(null);
         }
@@ -306,7 +306,7 @@ export function WorkflowTable({
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead className="font-semibold">Bot</TableHead>
+                            <TableHead className="font-semibold">Agent</TableHead>
                             {/* What it has been doing, not when it was made. A
                               * creation date and a database id tell an owner
                               * nothing; this column is the reason to open the

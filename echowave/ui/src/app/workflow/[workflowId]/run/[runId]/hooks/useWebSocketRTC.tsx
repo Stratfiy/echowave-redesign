@@ -417,7 +417,7 @@ export const useWebSocketRTC = ({ workflowId, workflowRunId, accessToken, initia
                                 setFeedbackMessages(prev => [...prev, {
                                     id: `interrupt-warning-${Date.now()}`,
                                     type: 'interrupt-warning',
-                                    text: 'Interruption is disabled for this step. The bot will finish speaking before processing your input. You can enable interruption in the workflow editor.',
+                                    text: 'Interruption is disabled for this step. The agent will finish speaking before processing your input. You can enable interruption in the workflow editor.',
                                     timestamp: new Date().toISOString(),
                                 }]);
                             }

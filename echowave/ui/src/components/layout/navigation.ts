@@ -180,12 +180,12 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
           // "bots" first: it is what the rail used to say and what most
           // people still type. A rename that makes a destination unsearchable
           // is a rename that loses it.
-          "agents", "agent", "your bots",
+          "agents", "agent", "your agents",
           "bot",
           "team",
           "bots",
           "workflow",
-          "voice bot",
+          "voice agent",
           "builder",
           "canvas",
           "flow",
@@ -390,7 +390,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         activePaths: ["/reports", "/review", "/analytics", "/missed-calls"],
         icon: PhoneCall,
         keywords: [
-          "bot runs",
+          "agent runs",
           "call logs",
           "history",
           "logs",

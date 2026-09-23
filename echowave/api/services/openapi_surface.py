@@ -40,7 +40,7 @@ INTERNAL_PATH_PREFIXES = ("/api/v1/admin/", "/api/v1/superuser/")
 #: in no group fails CI, so a new router is placed rather than lost.
 TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
-        "Bots",
+        "Agents",
         (
             "bots",
             "agent-builder",

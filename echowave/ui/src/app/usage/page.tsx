@@ -87,12 +87,12 @@ const buildAgentFilterAttributes = (
 
         return {
             ...attribute,
-            label: 'Bot',
+            label: 'Agent',
             type: 'numberSelect',
             config: {
                 ...attribute.config,
-                placeholder: 'Select a bot',
-                numberSelectLabel: 'Bot',
+                placeholder: 'Select an agent',
+                numberSelectLabel: 'Agent',
                 ...(agentOptions || isLoadingAgentOptions
                     ? {
                         numberSelectOptions: agentOptions ?? [],
@@ -245,7 +245,7 @@ export default function UsagePage() {
                 },
             });
             if (response.error) {
-                throw new Error(detailFromResult(response, 'Failed to load bots'));
+                throw new Error(detailFromResult(response, 'Failed to load agents'));
             }
 
             const options = [...(response.data ?? [])]
@@ -253,12 +253,12 @@ export default function UsagePage() {
                     a.name.localeCompare(b.name) || a.id - b.id
                 ))
                 .map((workflow: WorkflowSummaryResponse) => ({
-                    label: `${workflow.name || 'Untitled Bot'} (#${workflow.id})`,
+                    label: `${workflow.name || 'Untitled Agent'} (#${workflow.id})`,
                     value: workflow.id,
                 }));
             setAgentFilterOptions(options);
         } catch (error) {
-            console.error('Failed to fetch bot filter options:', error);
+            console.error('Failed to fetch agent filter options:', error);
             setAgentFilterOptions(null);
         } finally {
             setIsLoadingAgentFilterOptions(false);
@@ -470,7 +470,7 @@ export default function UsagePage() {
         <PageHeader
             tabs={CALLS_TABS}
             title="Calls"
-            description="Every call your bots have taken or made, with its recording, transcript and outcome."
+            description="Every call your agents have taken or made, with its recording, transcript and outcome."
             actions={
                         <div className="flex items-center gap-2">
                             <Globe className="h-4 w-4 text-muted-foreground" />
@@ -612,7 +612,7 @@ export default function UsagePage() {
                                         <TableHeader>
                                             <TableRow className="bg-muted/50">
                                                 <TableHead className="font-semibold">Run ID</TableHead>
-                                                <TableHead className="font-semibold">Bot</TableHead>
+                                                <TableHead className="font-semibold">Agent</TableHead>
                                                 <TableHead className="font-semibold">Call Type</TableHead>
                                                 <TableHead className="font-semibold">Phone Number</TableHead>
                                                 <TableHead className="font-semibold">Disposition</TableHead>
@@ -757,10 +757,10 @@ export default function UsagePage() {
                                 <EmptyState
                                     icon={PhoneCall}
                                     title="No calls yet"
-                                    description="Every call a bot takes or makes lands here, with its recording, transcript and outcome. Make one to see it."
+                                    description="Every call an agent takes or makes lands here, with its recording, transcript and outcome. Make one to see it."
                                     action={
                                         <Button asChild size="sm">
-                                            <Link href="/workflow">Go to your bots</Link>
+                                            <Link href="/workflow">Go to your agents</Link>
                                         </Button>
                                     }
                                 />

@@ -68,7 +68,7 @@ export function EventWebhookPanel({ workflowId }: { workflowId: number }) {
         // unchecked result renders an empty form for a request that failed --
         // which reads as "this bot has no webhook".
         if (hook.error) {
-            setError(detailFromResult(hook, "Could not read where this bot posts"));
+            setError(detailFromResult(hook, "Could not read where this agent posts"));
             return;
         }
         if (!notices.error) setOffered(notices.data?.offered ?? []);
@@ -140,7 +140,7 @@ export function EventWebhookPanel({ workflowId }: { workflowId: number }) {
     };
 
     const remove = async () => {
-        if (!window.confirm("Stop sending this bot's events out?")) return;
+        if (!window.confirm("Stop sending this agent's events out?")) return;
         setBusy(true);
         setError(null);
         const result = await deleteEventWebhookApiV1WorkflowsWorkflowIdEventWebhookDelete({
@@ -155,7 +155,7 @@ export function EventWebhookPanel({ workflowId }: { workflowId: number }) {
         setUrl("");
         setKinds(new Set());
         setSecret(null);
-        setNote("Removed. This bot posts nothing out now.");
+        setNote("Removed. This agent posts nothing out now.");
     };
 
     if (loading) return null;
@@ -165,7 +165,7 @@ export function EventWebhookPanel({ workflowId }: { workflowId: number }) {
             <div>
                 <h2 className="text-base font-semibold">Send its events somewhere</h2>
                 <p className="text-sm text-muted-foreground">
-                    Paste a URL from n8n, Zapier or your own server. When this bot files
+                    Paste a URL from n8n, Zapier or your own server. When this agent files
                     an outcome or gets stuck, it POSTs there.
                 </p>
             </div>

@@ -274,7 +274,7 @@ export function RoutinesPanel({ workflowId }: { workflowId: number }) {
                 <div>
                     <h2 className="text-base font-semibold">On a schedule</h2>
                     <p className="text-sm text-muted-foreground">
-                        What this bot does on its own, without anybody asking. It follows
+                        What this agent does on its own, without anybody asking. It follows
                         your opening hours.
                     </p>
                 </div>
@@ -527,7 +527,7 @@ export function RoutinesPanel({ workflowId }: { workflowId: number }) {
 
             {routines.length === 0 && !adding && !failed ? (
                 <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-                    Nothing scheduled. A routine is the bot doing its job without being
+                    Nothing scheduled. A routine is the agent doing its job without being
                     asked: a morning summary, an end-of-day sweep, a Monday chase.
                 </p>
             ) : null}

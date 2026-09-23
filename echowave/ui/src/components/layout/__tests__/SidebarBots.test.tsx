@@ -44,7 +44,7 @@ beforeEach(() => {
     teamStatus.mockResolvedValue({ data: { hours: 24, members: [member(1, "Front desk"), member(2, "Quote desk")] } });
 });
 
-describe("the bots in the rail", () => {
+describe("the agents in the rail", () => {
     it.each(["/workflow/1", "/workflow/1/settings", "/workflow/10/thread"])("does not select a DM on %s", async (path) => {
         route.pathname = path;
         render(<SidebarBots collapsed={false} />);
@@ -84,12 +84,12 @@ describe("the bots in the rail", () => {
     });
 
     it("caps the list and says how many are not shown", async () => {
-        const many = Array.from({ length: RAIL_LIMIT + 3 }, (_, i) => member(i + 1, `Bot ${i + 1}`));
+        const many = Array.from({ length: RAIL_LIMIT + 3 }, (_, i) => member(i + 1, `Agent ${i + 1}`));
         teamStatus.mockResolvedValue({ data: { hours: 24, members: many } });
         render(<SidebarBots collapsed={false} />);
 
-        await screen.findByRole("link", { name: /Bot 1$/ });
-        expect(screen.queryByRole("link", { name: new RegExp(`Bot ${RAIL_LIMIT + 1}$`) })).toBeNull();
+        await screen.findByRole("link", { name: /Agent 1$/ });
+        expect(screen.queryByRole("link", { name: new RegExp(`Agent ${RAIL_LIMIT + 1}$`) })).toBeNull();
         const more = screen.getByRole("link", { name: /3 more/ });
         expect(more.getAttribute("href")).toBe("/workflow");
     });
@@ -99,13 +99,13 @@ describe("the bots in the rail", () => {
         expect(container.textContent).toBe("");
     });
 
-    it("still offers to hire on an account with no bots", async () => {
+    it("still offers to hire on an account with no agents", async () => {
         // The heading and its plus stay: a fresh account needs the door to
         // its first bot more than a full one needs the ninth row.
         teamStatus.mockResolvedValue({ data: { hours: 24, members: [] } });
         render(<SidebarBots collapsed={false} />);
         await waitFor(() => expect(teamStatus).toHaveBeenCalled());
-        expect(screen.getByLabelText("Add a bot").getAttribute("href")).toBe("/start");
+        expect(screen.getByLabelText("Add an agent").getAttribute("href")).toBe("/start");
         expect(screen.queryByRole("link", { name: /Front desk/ })).toBeNull();
     });
 
@@ -114,7 +114,7 @@ describe("the bots in the rail", () => {
         render(<SidebarBots collapsed={false} />);
         await waitFor(() => expect(teamStatus).toHaveBeenCalled());
         // No rows and no error; the door is still there.
-        expect(screen.getByLabelText("Add a bot")).toBeTruthy();
+        expect(screen.getByLabelText("Add an agent")).toBeTruthy();
         expect(screen.queryByRole("link", { name: /Front desk/ })).toBeNull();
     });
 });
@@ -174,10 +174,10 @@ describe("the last line and the unread dot", () => {
         await waitFor(() => expect(screen.getByText("Direct messages")).toBeTruthy());
         expect(screen.queryByRole("link", { name: "Direct messages" })).toBeNull();
         // The plus stays: it is the door a fresh account needs.
-        expect(screen.getByLabelText("Add a bot")).toBeTruthy();
+        expect(screen.getByLabelText("Add an agent")).toBeTruthy();
     });
 
-    it("lights the dot for a bot with news since it was last opened here", async () => {
+    it("lights the dot for an agent with news since it was last opened here", async () => {
         localStorage.setItem(
             "decibyl.bot-seen",
             JSON.stringify({ "1": "2026-09-14T07:00:00Z", "2": "2026-09-14T05:00:00Z" }),

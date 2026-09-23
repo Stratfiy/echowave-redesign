@@ -25,7 +25,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/workflow/create/definition": {
+    "/api/v1/workflows/create/definition": {
         parameters: {
             query?: never;
             header?: never;
@@ -49,7 +49,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/workflow/fetch": {
+    "/api/v1/workflows/fetch": {
         parameters: {
             query?: never;
             header?: never;
@@ -72,7 +72,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/workflow/fetch/{workflow_id}": {
+    "/api/v1/workflows/fetch/{workflow_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -95,7 +95,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/workflow/{workflow_id}": {
+    "/api/v1/workflows/{workflow_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -2533,7 +2533,7 @@ export interface operations {
             query?: {
                 /** @description Filter by processing status */
                 status?: string | null;
-                /** @description library | org | channel | bot */
+                /** @description library | org | channel | agent */
                 scope?: string | null;
                 folder_id?: number | null;
                 workflow_id?: number | null;

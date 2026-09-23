@@ -374,7 +374,7 @@ async def memory(
             workflow_id, organization_id=organization_id
         )
         if workflow is None:
-            raise HTTPException(status_code=404, detail="No such bot here")
+            raise HTTPException(status_code=404, detail="No such agent here")
     if folder_id is not None:
         folder = await db_client.get_folder(folder_id, organization_id=organization_id)
         if folder is None:
@@ -494,7 +494,7 @@ async def post_message(
     if places != 1:
         raise HTTPException(
             status_code=422,
-            detail="Say it in a channel, to a bot, or to Decibyl, one of the three",
+            detail="Say it in a channel, to an agent, or to Decibyl, one of the three",
         )
 
     if body.assistant:
@@ -656,7 +656,7 @@ async def _post_direct_message(
         body.workflow_id, organization_id=organization_id
     )
     if workflow is None:
-        raise HTTPException(status_code=404, detail="No such bot")
+        raise HTTPException(status_code=404, detail="No such agent")
     text, attachments, line, preset = await _what_was_said(body, organization_id)
 
     await agent_timeline.record(

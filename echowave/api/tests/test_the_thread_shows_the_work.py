@@ -44,10 +44,10 @@ class TestTheLine:
     def test_decibyls_readings_read_as_one_sentence(self):
         assert (
             decibyl.readings_line(bots=2, facts=0, passages=0)
-            == "Read the team (2 bots)"
+            == "Read the team (2 agents)"
         )
         assert decibyl.readings_line(bots=1, facts=1, passages=3) == (
-            "Read the team (1 bot), 1 confirmed fact and 3 passages from Company knowledge"
+            "Read the team (1 agent), 1 confirmed fact and 3 passages from Company knowledge"
         )
 
 
@@ -127,7 +127,7 @@ class TestTheRowsArrive:
         ):
             await decibyl.build_context(7, "hello")
         assert activity.await_args.kwargs["summary"] == (
-            "Read the team (0 bots), 1 confirmed fact and 1 passage from Company knowledge"
+            "Read the team (0 agents), 1 confirmed fact and 1 passage from Company knowledge"
         )
 
     async def test_readings_are_on_the_thread_but_not_in_the_models_history(self):
@@ -143,7 +143,7 @@ class TestTheRowsArrive:
                 kind="activity",
                 actor=AgentEventActor.AGENT.value,
                 payload={},
-                summary="Read the team (2 bots)",
+                summary="Read the team (2 agents)",
             ),
         ]
         with patch(

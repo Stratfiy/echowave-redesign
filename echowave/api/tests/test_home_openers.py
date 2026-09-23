@@ -42,11 +42,14 @@ class TestAnAccountWithALife:
     def test_what_they_asked_last_comes_first(self):
         cards = home_openers.build(
             members=BOTS,
-            recent_questions=["Which bots took calls today?", "Draft a reply to Meera"],
+            recent_questions=[
+                "Which agents took calls today?",
+                "Draft a reply to Meera",
+            ],
             now=TUESDAY_AFTERNOON,
         )
         assert [c["text"] for c in cards[:2]] == [
-            "Which bots took calls today?",
+            "Which agents took calls today?",
             "Draft a reply to Meera",
         ]
         assert cards[0]["kind"] == "asked_before"
@@ -230,7 +233,7 @@ class TestDecibylKnowsTheFiles:
         ]
         block = decibyl.documents_block(rows, {3: "Front desk"})
         assert "rates.pdf: Front desk's own" in block
-        assert "policy.docx: the knowledge base, read by every bot" in block
+        assert "policy.docx: the knowledge base, read by every agent" in block
         assert "huge.pdf: the library" in block
         assert "(still being read)" in block
 

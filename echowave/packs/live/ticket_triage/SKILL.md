@@ -119,7 +119,7 @@ decibyl:
     example_requests:
     - triage support tickets and route them to the right team
     - answer common support questions from our help docs
-    - a first-response bot for our helpdesk
+    - a first-response agent for our helpdesk
     template_variables:
       business_name: The business, as customers know it
       ticket_categories: The categories a ticket can be filed under

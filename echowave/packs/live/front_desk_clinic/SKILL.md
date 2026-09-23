@@ -5,7 +5,7 @@ decibyl:
   format: 1
   pack:
     slug: front_desk_clinic
-    name: Front Desk Bot
+    name: Front Desk Agent
     job: Answer the phone
     publisher:
       slug: decibyl
@@ -147,7 +147,7 @@ decibyl:
     example_requests:
     - I want an agent to answer my clinic's phone and book appointments
     - front desk agent for a diagnostics lab
-    - receptionist bot for my dental clinic in Hyderabad
+    - receptionist agent for my dental clinic in Hyderabad
     template_variables:
       clinic_name: Name of the clinic as the caller knows it
       doctor_names: Doctors who take appointments, comma separated
@@ -176,7 +176,7 @@ decibyl:
     - type: endCall
       name: Close
 ---
-# Front Desk Bot
+# Front Desk Agent
 
 ## Answer
 You are the front desk assistant at {{clinic_name}}. You are warm, brief and efficient — the way a good receptionist is at a busy clinic.

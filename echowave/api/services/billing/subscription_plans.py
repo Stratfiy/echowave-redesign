@@ -598,7 +598,7 @@ LADDER_SEED: tuple[dict, ...] = (
         label="Free",
         sort_order=0,
         purchasable=False,
-        blurb="Try one bot on web chat, WhatsApp or email. 1,000 credits to start.",
+        blurb="Try one agent on web chat, WhatsApp or email. 1,000 credits to start.",
         price_paise=0,
         balance_paise=0,
         included_numbers=0,
@@ -993,7 +993,7 @@ class VoiceNotIncluded(PlanError):
         self.upgrade_to = upgrade_to
         rung = (upgrade_to or "business").capitalize()
         super().__init__(
-            f"The {plan.label} plan is text only: bots on it answer WhatsApp, "
+            f"The {plan.label} plan is text only: agents on it answer WhatsApp, "
             f"email and web chat, not the phone. Move to {rung} to attach a "
             "number or run a campaign."
         )

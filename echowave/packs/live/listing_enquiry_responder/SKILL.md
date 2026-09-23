@@ -112,7 +112,7 @@ decibyl:
     example_requests:
     - reply to my 99acres and MagicBricks enquiries on WhatsApp
     - send the brochure and qualify property leads
-    - a bot for my real estate listings
+    - an agent for my real estate listings
     template_variables:
       business_name: The firm, as enquirers know it
       qualification_criteria: What makes a lead hot, warm or cold

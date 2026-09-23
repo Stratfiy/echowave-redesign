@@ -10,7 +10,7 @@ import { BotAvatar, botIcon, botTone } from "../BotAvatar";
 
 afterEach(cleanup);
 
-describe("a bot's face", () => {
+describe("an agent's face", () => {
     it("reads the job out of the name", () => {
         // A name in this product is almost always the job.
         expect(botIcon("Front desk").displayName).toBe("Headset");
@@ -22,7 +22,8 @@ describe("a bot's face", () => {
 
     it("says so plainly when the name says nothing", () => {
         // Honest: we do not know what "Bot 3" does either.
-        expect(botIcon("Bot 3").displayName).toBe("Bot");
+        // The lucide icon's own name, not copy.
+        expect(botIcon("Agent 3").displayName).toBe("Bot");
         expect(botIcon("").displayName).toBe("Bot");
     });
 

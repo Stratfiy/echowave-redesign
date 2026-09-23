@@ -39,8 +39,8 @@ beforeEach(() => {
     setStatus.mockReset();
 });
 
-describe('a bot list', () => {
-    it("asks for the bot's scope and marks its own facts", async () => {
+describe('an agent list', () => {
+    it("asks for the agent's scope and marks its own facts", async () => {
         read.mockResolvedValue({
             data: { facts: [fact({}), fact({ id: 2, key: 'Language', value: 'Hindi', workflow_id: 3 })], gaps: [] },
         });

@@ -64,7 +64,7 @@ class TestTheAccountsSchedule:
                 route.db_client,
                 "get_workflow_by_id",
                 AsyncMock(
-                    side_effect=lambda wid: SimpleNamespace(id=wid, name=f"Bot {wid}")
+                    side_effect=lambda wid: SimpleNamespace(id=wid, name=f"Agent {wid}")
                 ),
             ),
         ):

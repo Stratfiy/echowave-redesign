@@ -41,7 +41,7 @@ def tool_schema() -> dict[str, Any]:
         "name": TOOL_NAME,
         "description": (
             "Ask the business's memory what was said or done, by whom and "
-            "when: on calls the bots took, on this thread, and in documents "
+            "when: on calls the agents took, on this thread, and in documents "
             "that arrived on WhatsApp or email. Use it for questions about a "
             'person, a supplier, a promise, a decision or a reason ("what did '
             'Ravi say about the payment", "why did we pick that vendor"). '

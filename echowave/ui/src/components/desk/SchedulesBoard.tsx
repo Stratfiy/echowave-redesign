@@ -193,9 +193,9 @@ export function SchedulesBoard({ tabs = DESK_TABS }: Props) {
                     // one and an empty list that only says "none" is a dead end.
                     <Card>
                         <CardContent className="p-6 text-sm text-muted-foreground">
-                            Nothing is scheduled yet. Open a bot, go to its Triggers
+                            Nothing is scheduled yet. Open an agent, go to its Triggers
                             tab and add one under On a schedule — it runs on that
-                            bot&apos;s prompt and tools, so that is where it is set up.
+                            agent&apos;s prompt and tools, so that is where it is set up.
                         </CardContent>
                     </Card>
                 ) : (
@@ -222,7 +222,7 @@ export function SchedulesBoard({ tabs = DESK_TABS }: Props) {
                                             {/* The bot, because a time with no name
                                                 beside it is not an answer. */}
                                             <span className="text-sm text-muted-foreground">
-                                                {r.workflow_name ?? "bot deleted"}
+                                                {r.workflow_name ?? "agent deleted"}
                                             </span>
                                         </div>
                                         {r.schedule_summary && (

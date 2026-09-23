@@ -371,7 +371,7 @@ export function ChannelStream({
     // Decibyl proposes the edit. The card only knows it asked.
     const [fixing, setFixing] = useState<number | null>(null);
     const askToFix = async (event: TimelineEvent, check: CheckResult) => {
-        const who = check.handle ? `@${check.handle}` : check.bot_name ?? 'the bot';
+        const who = check.handle ? `@${check.handle}` : check.bot_name ?? 'the agent';
         const text = `Fix ${who} after the check: ${check.verdict || check.brief || 'it did not handle the caller'}`;
         setFixing(event.id);
         const response = await postMessageApiV1TimelineMessagePost({
@@ -427,7 +427,7 @@ export function ChannelStream({
         : workflowId != null
           ? { workflow_id: workflowId }
           : { folder_id: folderId };
-    const fallbackName = assistant ? assistantName : 'A bot';
+    const fallbackName = assistant ? assistantName : 'An agent';
     // Whether the reader is at the bottom. Scrolling them back down while they
     // are reading something further up is worse than a missed new message.
     const pinned = useRef(true);
@@ -615,7 +615,7 @@ export function ChannelStream({
                         {workflowId != null ? 'Nothing yet.' : 'This channel is quiet.'}
                     </p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                        Say something, or address a bot by its handle to ask it
+                        Say something, or address an agent by its handle to ask it
                         for something.
                     </p>
                 </div>

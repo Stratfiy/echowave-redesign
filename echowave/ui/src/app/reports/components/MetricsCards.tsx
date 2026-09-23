@@ -20,7 +20,7 @@ export function MetricsCards({ metrics }: MetricsCardsProps) {
         <CardContent>
           <div className="text-2xl font-bold">{metrics.total_runs.toLocaleString()}</div>
           <p className="text-xs text-muted-foreground">
-            Every call the bots took or made
+            Every call the agents took or made
           </p>
         </CardContent>
       </Card>

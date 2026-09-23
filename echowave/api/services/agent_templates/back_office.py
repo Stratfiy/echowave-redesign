@@ -374,7 +374,7 @@ def templates() -> tuple[AgentTemplate, ...]:
             example_requests=[
                 "collect KYC documents from loan applicants on WhatsApp",
                 "chase applicants for PAN, Aadhaar and bank statements",
-                "a bot that tells us when a loan file is document-complete",
+                "an agent that tells us when a loan file is document-complete",
             ],
         ),
         _desk(
@@ -714,7 +714,7 @@ def templates() -> tuple[AgentTemplate, ...]:
             example_requests=[
                 "send me approve or reject cards for leave and discount requests",
                 "route purchase approvals to the owner on WhatsApp",
-                "a bot that collects refund requests and asks me to approve",
+                "an agent that collects refund requests and asks me to approve",
             ],
         ),
         _desk(

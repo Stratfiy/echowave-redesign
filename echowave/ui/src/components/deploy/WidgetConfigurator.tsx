@@ -72,7 +72,7 @@ export function WidgetConfigurator({
     const [saveError, setSaveError] = useState<string | null>(null);
     const [embedMode, setEmbedMode] = useState<"floating" | "inline" | "headless">("floating");
     const [position, setPosition] = useState("bottom-right");
-    const [buttonText, setButtonText] = useState("Talk to Bot");
+    const [buttonText, setButtonText] = useState("Talk to Agent");
     const [buttonColor, setButtonColor] = useState("#10b981");
     const [callToActionText, setCallToActionText] = useState("Click to start voice conversation");
     // Whether the visitor may type instead of talk. Off by default: turning it
@@ -113,7 +113,7 @@ export function WidgetConfigurator({
                     const settings = response.data.settings as Record<string, string>;
                     setEmbedMode((settings.embedMode as "floating" | "inline" | "headless") || "floating");
                     setPosition(settings.position || "bottom-right");
-                    setButtonText(settings.buttonText || "Talk to Bot");
+                    setButtonText(settings.buttonText || "Talk to Agent");
                     setButtonColor(settings.buttonColor || "#10b981");
                     setCallToActionText(settings.callToActionText || "Click to start voice conversation");
                     setEnableText(
@@ -324,7 +324,7 @@ export function WidgetConfigurator({
                             <div className="space-y-0.5">
                                 <Label htmlFor="embed-enabled">Widget switched on</Label>
                                 <p className="text-sm text-muted-foreground">
-                                    Lets this bot be added to a website you own
+                                    Lets this agent be added to a website you own
                                 </p>
                             </div>
                             <Switch
@@ -464,7 +464,7 @@ export function WidgetConfigurator({
                                                     id="button-text"
                                                     value={buttonText}
                                                     onChange={(e) => setButtonText(e.target.value)}
-                                                    placeholder="Talk to Bot"
+                                                    placeholder="Talk to Agent"
                                                     maxLength={40}
                                                 />
                                             </div>
@@ -545,7 +545,7 @@ export function WidgetConfigurator({
                                                 ) : (
                                                     <Mic className="h-4 w-4" />
                                                 )}
-                                                {buttonText || "Talk to Bot"}
+                                                {buttonText || "Talk to Agent"}
                                             </button>
                                         </div>
                                     ) : (
@@ -656,7 +656,7 @@ document.getElementById('talk-btn').addEventListener('click', () => {
 
   return (
     <div className="my-8">
-      <h2>Talk to Our Bot</h2>
+      <h2>Talk to Our Agent</h2>
       <div id="decibyl-inline-container" className="min-h-[400px]">
         {/* Widget renders here */}
       </div>
@@ -840,7 +840,7 @@ document.getElementById('talk-btn').addEventListener('click', () => {
                                                     id="post-call-body"
                                                     value={postCallBody}
                                                     onChange={(e) => setPostCallBody(e.target.value)}
-                                                    placeholder="That was a Decibyl bot. Build your own in a couple of minutes."
+                                                    placeholder="That was a Decibyl agent. Build your own in a couple of minutes."
                                                     maxLength={200}
                                                 />
                                             </div>
@@ -908,7 +908,7 @@ document.getElementById('talk-btn').addEventListener('click', () => {
                                                         </p>
                                                         <p className="mt-1.5 text-[13px] leading-relaxed text-gray-600">
                                                             {postCallBody ||
-                                                                "That was a Decibyl bot. Build your own in a couple of minutes."}
+                                                                "That was a Decibyl agent. Build your own in a couple of minutes."}
                                                         </p>
                                                         <span
                                                             className="mt-3 inline-block rounded-full px-4 py-2 text-[13px] font-semibold text-white"

@@ -116,7 +116,7 @@ decibyl:
     example_requests:
     - send me approve or reject cards for leave and discount requests
     - route purchase approvals to the owner on WhatsApp
-    - a bot that collects refund requests and asks me to approve
+    - an agent that collects refund requests and asks me to approve
     template_variables:
       business_name: The business, as staff refer to it
       owner_contact: Who decides, and where the cards go

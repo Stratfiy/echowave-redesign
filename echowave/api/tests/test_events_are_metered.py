@@ -226,7 +226,7 @@ class TestACharge:
             organization_id=org.id,
             event=events.KNOWLEDGE_ANSWER,
             ref_id="336:turn_abc",
-            note="Sales bot in a channel",
+            note="Sales agent in a channel",
         )
         assert paise == 100
         rows = await _rows(async_session, org)

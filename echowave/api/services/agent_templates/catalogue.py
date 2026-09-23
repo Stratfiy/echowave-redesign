@@ -319,7 +319,7 @@ def _all() -> tuple[AgentTemplate, ...]:
             example_requests=[
                 "I want an agent to answer my clinic's phone and book appointments",
                 "front desk agent for a diagnostics lab",
-                "receptionist bot for my dental clinic in Hyderabad",
+                "receptionist agent for my dental clinic in Hyderabad",
             ],
         ),
         # ------------------------------------------------------------------
@@ -1123,7 +1123,7 @@ def _all() -> tuple[AgentTemplate, ...]:
                 "internal -- margins, supplier names, escalation rules.",
             ],
             example_requests=[
-                "a bot that answers my team's questions from our policy documents",
+                "an agent that answers my team's questions from our policy documents",
                 "internal helpdesk for my staff",
                 "something my shop floor can ask about the return policy",
             ],
@@ -1291,7 +1291,7 @@ def _all() -> tuple[AgentTemplate, ...]:
             ],
             example_requests=[
                 "find new customers for my business and email them",
-                "a bot that prospects dental clinics in Chennai and drafts outreach",
+                "an agent that prospects dental clinics in Chennai and drafts outreach",
                 "outbound lead generation with approval before each email",
                 "cold email prospecting from my own gmail",
             ],
@@ -1341,7 +1341,7 @@ def _all() -> tuple[AgentTemplate, ...]:
                         "Nothing due is the most common outcome and is a "
                         "complete answer. Say 'nothing due in the next "
                         "{{notice_days}} days' and stop. Do not pad it, and "
-                        "never invent something to report -- a reminder bot "
+                        "never invent something to report -- a reminder agent "
                         "that cries wolf is switched off within a week, and "
                         "then the real deadline is missed too.\n\n"
                         "Never state a penalty or an interest rate from "
@@ -1430,7 +1430,7 @@ def _all() -> tuple[AgentTemplate, ...]:
             example_requests=[
                 "remind me before my GST filing is due",
                 "something to watch our licence renewals",
-                "a bot that tells my accountant what is coming up this week",
+                "an agent that tells my accountant what is coming up this week",
             ],
         ),
     ) + _promoted()

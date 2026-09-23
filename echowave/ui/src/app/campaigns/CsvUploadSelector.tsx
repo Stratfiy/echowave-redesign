@@ -120,7 +120,7 @@ export default function CsvUploadSelector({ onFileUploaded, selectedFileName }: 
       </div>
       <p className="text-sm text-muted-foreground">
         One row per person, with a phone_number column. The other columns are
-        handed to the bot, so it can use a name or a due amount on the call. <br/>
+        handed to the agent, so it can use a name or a due amount on the call. <br/>
         Max 10MB.
       </p>
     </div>

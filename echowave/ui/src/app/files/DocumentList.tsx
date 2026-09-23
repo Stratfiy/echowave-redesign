@@ -122,7 +122,7 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
     const ok = await confirm({
       title: `Delete "${filename}"?`,
       description:
-        "The file and everything indexed from it are removed. Bots that were answering from it will stop being able to. This cannot be undone.",
+        "The file and everything indexed from it are removed. Agents that were answering from it will stop being able to. This cannot be undone.",
       confirmLabel: "Delete file",
       destructive: true,
     });
@@ -187,11 +187,11 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
   const whoReads = (doc: DocumentResponseSchema): string => {
     switch (doc.scope) {
       case 'org':
-        return 'Every bot';
+        return 'Every agent';
       case 'channel':
         return 'One channel';
       case 'bot':
-        return 'One bot';
+        return 'One agent';
       default:
         return 'Steps that name it';
     }
@@ -332,7 +332,7 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
           <EmptyState
             icon={FileText}
             title="No documents yet"
-            description="Upload your price list, policy or FAQ and the bot can answer from it during a call, in its own words."
+            description="Upload your price list, policy or FAQ and the agent can answer from it during a call, in its own words."
           />
         )
       ) : (
@@ -354,7 +354,7 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
                       <Badge
                         variant="outline"
                         className="text-xs border-amber-500/40 text-amber-700 dark:text-amber-500"
-                        title="Embedded with a model your organization no longer uses. The bot cannot retrieve from this document until it is re-ingested."
+                        title="Embedded with a model your organization no longer uses. The agent cannot retrieve from this document until it is re-ingested."
                       >
                         Needs re-ingesting
                       </Badge>

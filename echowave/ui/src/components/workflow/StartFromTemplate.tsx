@@ -93,7 +93,7 @@ function VoiceChoice({
             </div>
             <span className="text-xs text-muted-foreground">
                 {value
-                    ? "You can change this on the bot afterwards."
+                    ? "You can change this on the agent afterwards."
                     : "Leave unset to use your workspace default."}
             </span>
         </div>
@@ -166,7 +166,7 @@ export function StartFromTemplate({
         const created = response.data as { id?: number } | undefined;
         if (created?.id == null) {
             setCreating(null);
-            setError("The bot was created but we could not open it. It is in your list.");
+            setError("The agent was created but we could not open it. It is in your list.");
             return;
         }
         router.push(`/workflow/${created.id}`);
@@ -177,7 +177,7 @@ export function StartFromTemplate({
     return (
         <div className={framed ? "space-y-6" : "mt-4"}>
             <div className={framed ? "rounded-lg border bg-muted/20 p-4" : undefined}>
-            <h3 className="mb-1 text-sm font-medium">Start from a ready-made bot</h3>
+            <h3 className="mb-1 text-sm font-medium">Start from a ready-made agent</h3>
             <p className="mb-3 text-sm text-muted-foreground">
                 Each one is a working agent for that business. Open it, change what you
                 need, and put it on a number.

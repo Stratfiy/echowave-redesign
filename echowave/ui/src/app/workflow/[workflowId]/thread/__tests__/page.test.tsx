@@ -21,7 +21,7 @@ vi.mock("@/components/channel/ChannelStream", () => ({ ChannelStream: () => <div
 vi.mock("@/components/channel/ChannelComposer", () => ({ ChannelComposer: () => <div data-testid="composer" /> }));
 vi.mock("@/app/workflow/[workflowId]/components/AboutPanel", () => ({ AboutPanel: () => <div /> }));
 vi.mock("@/app/workflow/[workflowId]/components/AgentTabs", () => ({
-    AgentTabs: () => <nav aria-label="Bot tabs" />,
+    AgentTabs: () => <nav aria-label="Agent tabs" />,
 }));
 
 import BotChatPage from "../page";
@@ -33,7 +33,7 @@ const params = Object.assign(Promise.resolve({ workflowId: "7" }), {
     value: { workflowId: "7" },
 }) as unknown as Promise<{ workflowId: string }>;
 
-describe("the bot's chat", () => {
+describe("the agent's chat", () => {
     it("keeps About, Test and Share in the header, off the tab strip's row", async () => {
         render(
             <React.Suspense fallback={null}>
@@ -45,7 +45,7 @@ describe("the bot's chat", () => {
         expect(within(bar).getByRole("link", { name: /Test/ })).toBeTruthy();
         expect(within(bar).getByRole("link", { name: /Share/ })).toBeTruthy();
 
-        const tabs = screen.getByRole("navigation", { name: "Bot tabs" });
+        const tabs = screen.getByRole("navigation", { name: "Agent tabs" });
         expect(bar.contains(tabs)).toBe(false);
         // The strip is a direct child of the page column, so it gets the whole row.
         expect(tabs.parentElement).toBe(bar.parentElement);

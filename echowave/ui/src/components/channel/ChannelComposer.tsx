@@ -420,7 +420,7 @@ export function ChannelComposer({
         }
         if (ambiguous.length) {
             said.push(
-                `More than one bot here answers to ${ambiguous
+                `More than one agent here answers to ${ambiguous
                     .map((h) => `@${h}`)
                     .join(', ')}, so none of them was asked.`,
             );
@@ -449,7 +449,7 @@ export function ChannelComposer({
                 {suggestions.length > 0 && (
                     <ul
                         role="listbox"
-                        aria-label={tag?.kind === 'channel' ? 'Channels' : 'Bots in this channel'}
+                        aria-label={tag?.kind === 'channel' ? 'Channels' : 'Agents in this channel'}
                         className="absolute bottom-full mb-1 w-full max-w-sm overflow-hidden rounded-md border border-border bg-popover shadow-md"
                     >
                         {suggestions.map((choice, index) => (
@@ -592,7 +592,7 @@ export function ChannelComposer({
                         placeholder={
                             workflowId != null
                                 ? `Message ${channelName}`
-                                : `Message #${channelName} — @ a bot to ask it for something`
+                                : `Message #${channelName} — @ an agent to ask it for something`
                         }
                         className="relative max-h-40 min-h-[28px] w-full resize-none border-0 bg-transparent px-1 py-1 text-sm text-transparent caret-foreground outline-none"
                         onChange={(event) => {
@@ -684,8 +684,8 @@ export function ChannelComposer({
                         type="button"
                         variant="ghost"
                         size="icon"
-                        aria-label="Mention a bot"
-                        title="Mention a bot"
+                        aria-label="Mention an agent"
+                        title="Mention an agent"
                         className="shrink-0 text-muted-foreground"
                         onMouseDown={(event) => {
                             event.preventDefault();

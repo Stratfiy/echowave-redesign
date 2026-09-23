@@ -40,7 +40,7 @@ vi.mock('@/lib/uploadKnowledge', async (importOriginal) => ({
 
 const BOTS = [
     { id: 1, name: 'Narayani Dental front desk', handle: 'front' },
-    { id: 2, name: 'Sales bot', handle: 'sales' },
+    { id: 2, name: 'Sales agent', handle: 'sales' },
     { id: 3, name: 'Supplier chaser', handle: null },
 ];
 
@@ -149,7 +149,7 @@ describe('a file is a message', () => {
     });
 });
 
-describe('the handle a bot answers to', () => {
+describe('the handle an agent answers to', () => {
     it('is the stored one when there is one', () => {
         expect(handleOf(BOTS[0])).toBe('front');
     });
@@ -187,12 +187,12 @@ describe('where a mention starts', () => {
 });
 
 describe('offering the roster', () => {
-    it('suggests the bots in this channel as you type', async () => {
+    it('suggests the agents in this channel as you type', async () => {
         composer();
         const box = screen.getByLabelText('Message clinic');
         fireEvent.change(box, { target: { value: '@f' } });
         expect(await screen.findByText('Narayani Dental front desk')).toBeTruthy();
-        expect(screen.queryByText('Sales bot')).toBeNull();
+        expect(screen.queryByText('Sales agent')).toBeNull();
     });
 
     it('completes to the handle, not to the display name', async () => {
@@ -203,7 +203,7 @@ describe('offering the roster', () => {
         await waitFor(() => expect(box.value).toBe('@front '));
     });
 
-    it('offers a handle-less bot the address its name implies', async () => {
+    it('offers a handle-less agent the address its name implies', async () => {
         composer();
         const box = screen.getByLabelText('Message clinic');
         fireEvent.change(box, { target: { value: '@supp' } });
@@ -214,12 +214,12 @@ describe('offering the roster', () => {
 describe('the @ button', () => {
     it('types an @ and opens the roster', async () => {
         composer();
-        fireEvent.mouseDown(screen.getByLabelText('Mention a bot'));
+        fireEvent.mouseDown(screen.getByLabelText('Mention an agent'));
         const box = screen.getByLabelText('Message clinic') as HTMLTextAreaElement;
         await waitFor(() => expect(box.value).toBe('@'));
         // The roster opens on the empty fragment: every bot in the channel.
         expect(await screen.findByText('Narayani Dental front desk')).toBeTruthy();
-        expect(screen.getByText('Sales bot')).toBeTruthy();
+        expect(screen.getByText('Sales agent')).toBeTruthy();
     });
 
     it('puts a space first when the caret is mid-word', async () => {
@@ -227,7 +227,7 @@ describe('the @ button', () => {
         const box = screen.getByLabelText('Message clinic') as HTMLTextAreaElement;
         fireEvent.change(box, { target: { value: 'ask' } });
         box.setSelectionRange(3, 3);
-        fireEvent.mouseDown(screen.getByLabelText('Mention a bot'));
+        fireEvent.mouseDown(screen.getByLabelText('Mention an agent'));
         // "ask@" would not be a mention by the server's rule; "ask @" is.
         await waitFor(() => expect(box.value).toBe('ask @'));
     });
@@ -262,14 +262,14 @@ describe('sending', () => {
         });
         composer();
         fireEvent.change(screen.getByLabelText('Message clinic'), {
-            target: { value: '@op-bot chase it' },
+            target: { value: '@op-agent chase it' },
         });
         fireEvent.click(screen.getByLabelText('Send'));
         const said = await screen.findByRole('status');
         expect(said.textContent).toContain('@op-bot');
     });
 
-    it('says so when two bots answer to the same handle', async () => {
+    it('says so when two agents answer to the same handle', async () => {
         post.mockResolvedValue({
             data: { asked: [], unknown: [], ambiguous: ['sales'] },
         });
@@ -311,11 +311,11 @@ describe('sending', () => {
     });
 });
 
-describe("on a bot's own chat", () => {
-    it('sends to the bot, with nobody to mention', async () => {
+describe("on an agent's own chat", () => {
+    it('sends to the agent, with nobody to mention', async () => {
         post.mockResolvedValue({ data: { asked: [3], unknown: [], ambiguous: [] } });
         render(<ChannelComposer workflowId={3} bots={[]} channelName="Front desk" />);
-        expect(screen.queryByLabelText('Mention a bot')).toBeNull();
+        expect(screen.queryByLabelText('Mention an agent')).toBeNull();
         const box = screen.getByLabelText('Message Front desk');
         fireEvent.change(box, { target: { value: 'Book Meera at 4' } });
         fireEvent.keyDown(box, { key: 'Enter' });
@@ -431,10 +431,10 @@ describe('the memory meter', () => {
 
 describe('words already in the box', () => {
     it('opens with the sentence started and the caret at its end', async () => {
-        render(<ChannelComposer assistant bots={[]} channelName="Decibyl" initialText="Build me a bot that " />);
+        render(<ChannelComposer assistant bots={[]} channelName="Decibyl" initialText="Build me an agent that " />);
         const box = screen.getByRole('textbox') as HTMLTextAreaElement;
-        expect(box.value).toBe('Build me a bot that ');
-        expect(box.selectionStart).toBe('Build me a bot that '.length);
+        expect(box.value).toBe('Build me an agent that ');
+        expect(box.selectionStart).toBe('Build me an agent that '.length);
         expect(document.activeElement).toBe(box);
     });
 });

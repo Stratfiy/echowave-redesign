@@ -5,7 +5,7 @@ decibyl:
   format: 1
   pack:
     slug: order_confirmation
-    name: Order Confirmation Bot
+    name: Order Confirmation Agent
     job: Confirm orders before they ship
     publisher:
       slug: decibyl
@@ -132,7 +132,7 @@ decibyl:
     - type: endCall
       name: Close
 ---
-# Order Confirmation Bot
+# Order Confirmation Agent
 
 ## Confirm order
 This is a short confirmation call and it should stay short. The whole call is one question.

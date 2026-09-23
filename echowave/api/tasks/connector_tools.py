@@ -112,7 +112,9 @@ async def sync_missing_tools(
                 organization_id=organization_id, app=app
             )
         except Exception as exc:  # noqa: BLE001 - the rows are made; that is the job
-            logger.warning("Could not hand {} to the bots waiting on it: {}", app, exc)
+            logger.warning(
+                "Could not hand {} to the agents waiting on it: {}", app, exc
+            )
 
     if created:
         logger.info(

@@ -27,19 +27,19 @@ const open = (onRevised = vi.fn()) => {
 };
 
 describe("ChangeByChat", () => {
-    it("opens the chat on the bot it was pressed from", () => {
+    it("opens the chat on the agent it was pressed from", () => {
         open();
         expect(screen.getByTestId("builder")).toBeTruthy();
         const props = panel.mock.calls.at(-1)?.[0] as { prefill?: { text: string } };
         expect(props.prefill?.text).toContain("Clinic front desk");
     });
 
-    it("says the live bot is untouched until somebody publishes", () => {
+    it("says the live agent is untouched until somebody publishes", () => {
         open();
-        expect(screen.getByText(/live bot keeps answering/)).toBeTruthy();
+        expect(screen.getByText(/live agent keeps answering/)).toBeTruthy();
     });
 
-    it("does not offer to build a second bot while changing this one", () => {
+    it("does not offer to build a second agent while changing this one", () => {
         open();
         const props = panel.mock.calls.at(-1)?.[0] as {
             showSuggestions?: boolean;

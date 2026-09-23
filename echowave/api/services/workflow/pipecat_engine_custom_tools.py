@@ -1165,7 +1165,7 @@ class CustomToolManager:
             # sends mail at 8am.
             if is_write and await self._writes_are_gated():
                 logger.warning(
-                    "Refused {} on an unattended run: writes are off for this bot",
+                    "Refused {} on an unattended run: writes are off for this agent",
                     function_name,
                 )
                 await function_call_params.result_callback(

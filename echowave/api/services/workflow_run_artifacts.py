@@ -92,10 +92,10 @@ async def upload_workflow_run_artifacts(
     if bot_audio_wav:
         bot_recording_url = f"recordings/{workflow_run_id}/bot.wav"
         logger.info(
-            f"Uploading bot audio to {storage_backend.name} - workflow_run_id: {workflow_run_id}"
+            f"Uploading agent audio to {storage_backend.name} - workflow_run_id: {workflow_run_id}"
         )
         if await _upload_bytes(
-            workflow_run_id, bot_audio_wav, bot_recording_url, "bot audio"
+            workflow_run_id, bot_audio_wav, bot_recording_url, "agent audio"
         ):
             recordings_metadata["bot"] = _recording_metadata(
                 bot_recording_url, storage_backend.value, "bot"

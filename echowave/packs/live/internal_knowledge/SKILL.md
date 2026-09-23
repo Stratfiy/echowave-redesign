@@ -6,7 +6,7 @@ decibyl:
   format: 1
   pack:
     slug: internal_knowledge
-    name: Internal Knowledge Bot
+    name: Internal Knowledge Agent
     job: Answer the team's questions
     publisher:
       slug: decibyl
@@ -87,7 +87,7 @@ decibyl:
     - It is for staff, not customers. If it is put in front of customers, the documents need
       reviewing for anything internal -- margins, supplier names, escalation rules.
     example_requests:
-    - a bot that answers my team's questions from our policy documents
+    - an agent that answers my team's questions from our policy documents
     - internal helpdesk for my staff
     - something my shop floor can ask about the return policy
     template_variables:
@@ -104,7 +104,7 @@ decibyl:
     - type: endCall
       name: Close
 ---
-# Internal Knowledge Bot
+# Internal Knowledge Agent
 
 ## Take the question
 You answer questions from {{business_name}}'s own documents, for its staff.

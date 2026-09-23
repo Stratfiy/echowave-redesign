@@ -181,17 +181,17 @@ export const TURN_START_STRATEGY_OPTIONS: Array<{
     {
         value: 'min_words',
         label: 'Minimum words',
-        description: 'Wait for a minimum number of transcribed words before interrupting bot speech.',
+        description: 'Wait for a minimum number of transcribed words before interrupting agent speech.',
     },
     {
         value: 'provisional_vad',
         label: 'Provisional VAD',
-        description: 'Pause bot audio on voice activity, then confirm the interruption with transcription.',
+        description: 'Pause agent audio on voice activity, then confirm the interruption with transcription.',
     },
     {
         value: 'vad',
         label: 'Voice activity only',
-        description: 'Interrupt on any sound loud enough to read as speech. Fastest to react and the least discriminating — a cough or background talk will stop the bot. Use only if your transcriber emits no interim results.',
+        description: 'Interrupt on any sound loud enough to read as speech. Fastest to react and the least discriminating — a cough or background talk will stop the agent. Use only if your transcriber emits no interim results.',
     },
 ];
 

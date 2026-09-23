@@ -122,25 +122,25 @@ function getRunOutcome(run: WorkflowRunResponse | null): RunOutcome {
 
 const RUN_OUTCOME_COPY: Record<RunOutcome, { title: string; description: string; badgeClass: string }> = {
     completed: {
-        title: "Bot Run Completed",
+        title: "Agent Run Completed",
         description:
             "This run finished. You can preview or download the transcript and recording.",
         badgeClass: "bg-emerald-500/20",
     },
     degraded: {
-        title: "Bot Run Completed With Errors",
+        title: "Agent Run Completed With Errors",
         description:
             "The conversation happened, but a service reported an error during the call. The provider's own message is below, along with the transcript and recording.",
         badgeClass: "bg-amber-500/20",
     },
     silent: {
-        title: "Bot Run Ended Without a Conversation",
+        title: "Agent Run Ended Without a Conversation",
         description:
             "This run finished, but neither side said anything — there are no turns to show. Check the error below, if there is one, and the metrics for where it stopped.",
         badgeClass: "bg-amber-500/20",
     },
     failed: {
-        title: "Bot Run Failed",
+        title: "Agent Run Failed",
         description:
             "This run ended on a pipeline error before it could finish. The cause is below, in the provider's own words.",
         badgeClass: "bg-destructive/20",
@@ -548,7 +548,7 @@ function SplitTracksSection({
                             variant="outline"
                             size="sm"
                             aria-pressed={botTrackActive}
-                            aria-label={playbackMode === 'bot' ? 'Play both tracks' : 'Play bot track only'}
+                            aria-label={playbackMode === 'bot' ? 'Play both tracks' : 'Play agent track only'}
                             onClick={() => handleTrackButtonClick('bot')}
                             className={cn(
                                 'gap-1.5',
@@ -558,7 +558,7 @@ function SplitTracksSection({
                             )}
                         >
                             <Bot className="h-4 w-4" />
-                            Bot
+                            Agent
                         </Button>
                     </div>
                     <div className="flex items-center gap-2">
@@ -580,7 +580,7 @@ function SplitTracksSection({
                             className="gap-2"
                         >
                             <Download className="h-4 w-4" />
-                            Bot
+                            Agent
                         </Button>
                     </div>
                 </div>
@@ -640,7 +640,7 @@ function RunMetricsSection({
             <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 <MetricCard label="Duration" value={formatDuration(costInfo?.call_duration_seconds)} />
                 <MetricCard label="User Turns" value={String(metrics.userTurns)} />
-                <MetricCard label="Bot Turns" value={String(metrics.botTurns)} />
+                <MetricCard label="Agent Turns" value={String(metrics.botTurns)} />
                 <MetricCard label="Tool Calls" value={String(metrics.toolCalls)} />
                 <MetricCard label="Nodes Visited" value={String(metrics.visitedNodes)} />
             </CardContent>
@@ -819,7 +819,7 @@ export default function WorkflowRunPage() {
                                     </div>
                                 )}
                                 <div className="flex flex-wrap gap-2 pt-1">
-                                    <CopyDebugIdButton label="Bot ID" value={workflowId} />
+                                    <CopyDebugIdButton label="Agent ID" value={workflowId} />
                                     <CopyDebugIdButton label="Run ID" value={runId} />
                                 </div>
                                 <div className="flex min-w-0 items-center gap-4 pt-1">
@@ -991,7 +991,7 @@ export default function WorkflowRunPage() {
                     tooltipKey="customize_workflow"
                     title='Customize Your Workflow'
                     targetRef={customizeButtonRef}
-                    message="Edit the graph to change how this bot behaves, add new steps, or change the conversation."
+                    message="Edit the graph to change how this agent behaves, add new steps, or change the conversation."
                     showNext={false}
                 />
             )}

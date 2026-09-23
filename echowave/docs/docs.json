@@ -189,7 +189,7 @@
             "group": "Methods",
             "pages": [
               {
-                "group": "Bots",
+                "group": "Agents",
                 "pages": [
                   "api-reference/bots",
                   "api-reference/bots/create-from-template",

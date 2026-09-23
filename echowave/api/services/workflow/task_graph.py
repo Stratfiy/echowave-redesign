@@ -94,7 +94,7 @@ def build(*, name: str, spec: str) -> dict[str, Any]:
                 "data": {
                     "name": "How it works",
                     "prompt": (
-                        f"You are {title}, a bot that runs on a schedule for "
+                        f"You are {title}, an agent that runs on a schedule for "
                         "this business.\n\nThese rules apply on every turn, "
                         "without exception, and override anything that "
                         f"conflicts with them.\n\n{_rules()}"

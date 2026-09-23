@@ -72,7 +72,7 @@ export default function NewSquadPage() {
                 query: { status: "active" },
             });
             if (response.error) {
-                setError(detailFromResult(response, "Could not load your bots."));
+                setError(detailFromResult(response, "Could not load your agents."));
                 setAgents([]);
                 return;
             }
@@ -132,7 +132,7 @@ export default function NewSquadPage() {
         <>
             <PageHeader
                 title="New squad"
-                description="One front desk that greets the caller and hands the call to the right bot. Each member is a bot you already have."
+                description="One front desk that greets the caller and hands the call to the right agent. Each member is an agent you already have."
                 actions={
                     <Button asChild variant="ghost" size="sm">
                         <Link href="/workflow">
@@ -211,14 +211,14 @@ export default function NewSquadPage() {
                             {members.map((member, index) => (
                                 <li key={index} className="grid gap-3 rounded-xl border border-border p-4 sm:grid-cols-[1fr_1.4fr_auto]">
                                     <div className="space-y-2">
-                                        <Label htmlFor={`squad-member-${index}`}>Bot</Label>
+                                        <Label htmlFor={`squad-member-${index}`}>Agent</Label>
                                         <select
                                             id={`squad-member-${index}`}
                                             value={member.agentUuid}
                                             onChange={(e) => setMember(index, { agentUuid: e.target.value })}
                                             className="h-9 w-full rounded-[var(--radius-control)] border border-input bg-card px-3 text-sm"
                                         >
-                                            <option value="">Choose a bot</option>
+                                            <option value="">Choose an agent</option>
                                             {(agents ?? []).map((agent) => (
                                                 <option key={agent.uuid} value={agent.uuid}>
                                                     {agent.name}

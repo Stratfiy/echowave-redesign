@@ -1296,7 +1296,7 @@ async def _script_runs_check(
             reference=reference,
             remedy=(
                 "Set SANDBOX_SECRET and pull python:3.12-slim on the host, then "
-                "run one script from a bot on Everyday or above."
+                "run one script from an agent on Everyday or above."
             ),
         )
     if calls_this_month > allowance:

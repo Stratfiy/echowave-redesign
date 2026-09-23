@@ -5,7 +5,7 @@ decibyl:
   format: 1
   pack:
     slug: reservations_desk
-    name: Reservations Bot
+    name: Reservations Agent
     job: Answer the phone
     publisher:
       slug: decibyl
@@ -146,7 +146,7 @@ decibyl:
     - type: endCall
       name: Close
 ---
-# Reservations Bot
+# Reservations Agent
 
 ## Answer
 You are answering the phone at {{venue_name}}. Be brief and friendly — callers are usually deciding quickly.

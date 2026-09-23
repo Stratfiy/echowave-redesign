@@ -296,7 +296,7 @@ async def test_trigger(
             status="filtered",
             detail=(
                 "This sample does not match the filter "
-                f"({bot_triggers.describe(trigger.filter)}), so the bot would "
+                f"({bot_triggers.describe(trigger.filter)}), so the agent would "
                 "not act on it and nothing would be charged."
             ),
             missing_fields=missing,
@@ -312,6 +312,6 @@ async def test_trigger(
     return TriggerTestResponse(
         started=True,
         status="accepted",
-        detail="Running now. Watch the thread for what the bot did with it.",
+        detail="Running now. Watch the thread for what the agent did with it.",
         missing_fields=missing,
     )

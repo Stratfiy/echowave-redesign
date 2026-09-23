@@ -9252,7 +9252,7 @@ export type ProcessDocumentRequestSchema = {
     /**
      * Scope
      *
-     * library: read only by a node that names it. org: every bot in the organisation. channel: the bots answering in folder_id. bot: the one bot in workflow_id.
+     * library: read only by a node that names it. org: every agent in the organisation. channel: the agents answering in folder_id. agent: the one agent in workflow_id.
      */
     scope?: string;
     /**
@@ -9264,7 +9264,7 @@ export type ProcessDocumentRequestSchema = {
     /**
      * Workflow Id
      *
-     * For scope=bot.
+     * For scope=agent.
      */
     workflow_id?: number | null;
     /**
@@ -33005,7 +33005,7 @@ export type GetCallAnalyticsApiV1OrganizationsUsageCallsGetData = {
         /**
          * Workflow Id
          *
-         * Limit every figure to one bot, for that bot's own Analytics tab. Adds `daily_runs` and `tokens`, which are only meaningful per bot.
+         * Limit every figure to one agent, for that agent's own Analytics tab. Adds `daily_runs` and `tokens`, which are only meaningful per agent.
          */
         workflow_id?: number | null;
     };
@@ -34784,7 +34784,7 @@ export type ListDocumentsApiV1KnowledgeBaseDocumentsGetData = {
         /**
          * Scope
          *
-         * library | org | channel | bot
+         * library | org | channel | agent
          */
         scope?: string | null;
         /**

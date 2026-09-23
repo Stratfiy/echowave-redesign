@@ -17,13 +17,13 @@ import { MemoryList } from "@/components/memory/MemoryList";
 const READS = [
     "The team's numbers: calls, answers, outcomes, who needs attention, today or this week.",
     "What the business has confirmed about itself, below.",
-    "What every bot did lately: calls ended, outcomes filed, hand-offs, failures.",
+    "What every agent did lately: calls ended, outcomes filed, hand-offs, failures.",
     "Missed calls nobody has returned.",
     "The knowledge base, the passages and contacts that match the question.",
 ];
 
 const PROPOSES = [
-    "Turn a bot on or off",
+    "Turn an agent on or off",
     "Call a missed caller back",
     "Forget a fact from memory",
 ];
@@ -85,7 +85,7 @@ export function DecibylAbout() {
                     Memory
                 </h3>
                 <p className="mb-2 text-sm text-muted-foreground">
-                    What the business has confirmed. Every bot reads it. Forget a line here,
+                    What the business has confirmed. Every agent reads it. Forget a line here,
                     or say &quot;forget our Saturday hours&quot; in the thread.{" "}
                     <a href="/overview/memory" className="underline">
                         See it as a graph

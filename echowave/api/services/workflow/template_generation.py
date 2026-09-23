@@ -243,7 +243,7 @@ async def generate_workflow_definition(
     itself falls back to, not a lesser path.
     """
     if channel is BotChannel.CHAT:
-        logger.info("Chat bot requested; MPS returns call graphs, building locally.")
+        logger.info("Chat agent requested; MPS returns call graphs, building locally.")
         return build_starter_workflow(
             call_type, use_case, activity_description, channel=channel
         )

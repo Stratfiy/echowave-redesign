@@ -65,7 +65,7 @@ function WebWidgetScreen() {
         <div>
             <PageHeader
                 title="Web widget"
-                description="Put a voice bot on your website. Visitors click and talk to it — no phone number involved."
+                description="Put a voice agent on your website. Visitors click and talk to it — no phone number involved."
                 actions={
                     <Button variant="outline" asChild>
                         <a
@@ -87,15 +87,15 @@ function WebWidgetScreen() {
                         <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
                             <Rocket className="h-8 w-8 text-muted-foreground" />
                             <div>
-                                <p className="font-medium">No bots yet</p>
+                                <p className="font-medium">No agents yet</p>
                                 <p className="mt-1 text-sm text-muted-foreground">
                                     {loadError ??
-                                        "A widget puts one of your bots on your website, so there needs to be one first. It takes a couple of minutes."}
+                                        "A widget puts one of your agents on your website, so there needs to be one first. It takes a couple of minutes."}
                                 </p>
                             </div>
                             {!loadError && (
                                 <Button asChild className="mt-1">
-                                    <Link href="/start">Create a bot</Link>
+                                    <Link href="/start">Create an agent</Link>
                                 </Button>
                             )}
                         </CardContent>
@@ -105,7 +105,7 @@ function WebWidgetScreen() {
                         <DeployAgentPicker
                             agents={agents}
                             selected={selected}
-                            label="Which bot answers"
+                            label="Which agent answers"
                             onSelect={(id) => {
                                 setSelectedId(id);
                                 // Keep the URL honest, so a reload and a shared

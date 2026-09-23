@@ -27,7 +27,7 @@ const OFFER = {
         {
             kind: "needs_attention",
             label: "It needs attention",
-            when: "The bot has stopped and cannot carry on by itself.",
+            when: "The agent has stopped and cannot carry on by itself.",
             default: true,
         },
         {
@@ -52,11 +52,11 @@ describe("BotNotices", () => {
         render(<BotNotices workflowId={7} />);
         expect(await screen.findByText("It needs attention")).toBeTruthy();
         expect(
-            screen.getByText("The bot has stopped and cannot carry on by itself."),
+            screen.getByText("The agent has stopped and cannot carry on by itself."),
         ).toBeTruthy();
     });
 
-    it("shows what the bot is already set to", async () => {
+    it("shows what the agent is already set to", async () => {
         render(<BotNotices workflowId={7} />);
         await screen.findByText("It needs attention");
         const boxes = screen.getAllByRole("checkbox") as HTMLInputElement[];
@@ -82,7 +82,7 @@ describe("BotNotices", () => {
         fireEvent.click(screen.getByRole("button", { name: /Save/ }));
         await waitFor(() =>
             expect(
-                screen.getByText("This bot will not notify you about anything."),
+                screen.getByText("This agent will not notify you about anything."),
             ).toBeTruthy(),
         );
     });
@@ -93,7 +93,7 @@ describe("BotNotices", () => {
         get.mockResolvedValue({ data: { ...OFFER, selected: [] }, error: undefined });
         render(<BotNotices workflowId={7} />);
         expect(
-            await screen.findByText("This bot will not notify you about anything."),
+            await screen.findByText("This agent will not notify you about anything."),
         ).toBeTruthy();
     });
 

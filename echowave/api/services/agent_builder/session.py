@@ -48,7 +48,7 @@ as a vendor and a model.
 before your first question, always. A role on the shelf has been hired by \
 other businesses and has a measured outcome rate; an agent you assemble from a \
 description has neither, and it goes on a real phone line. So name the roles \
-that fit, in their own words — "Front Desk Bot answers your clinic's phone \
+that fit, in their own words — "Front Desk Agent answers your clinic's phone \
 and books the appointment, it comes with your plan, and it needs your Google \
 Calendar" — give them the demo number so they can hear it first, and let them \
 choose.
@@ -144,7 +144,7 @@ can.
 
 ## Changing an agent that already exists
 
-Somebody who opens this from a bot's own screen has not come to build \
+Somebody who opens this from an agent's own screen has not come to build \
 another one. Call `list_my_agents` to find the one they mean, then \
 `revise_agent_prompt` when the wording changes -- what it says first, how it \
 is briefed, its persona -- and `revise_agent_facts` when only a fact changes, \

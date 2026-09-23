@@ -64,7 +64,7 @@ export default function ChannelPage() {
                 setName(here?.name ?? 'Channel');
             }
             if (workflows.error) {
-                setError(detailFromResult(workflows, 'Could not load the bots here'));
+                setError(detailFromResult(workflows, 'Could not load the agents here'));
             } else {
                 setBots(
                     (workflows.data ?? [])
@@ -106,7 +106,7 @@ export default function ChannelPage() {
                             {loading ? (
                                 'Loading…'
                             ) : bots.length === 0 ? (
-                                'No bots in this channel yet — move one here from Bots to ask it for things.'
+                                'No agents in this channel yet — move one here from Agents to ask it for things.'
                             ) : (
                                 <>
                                     <Bot aria-hidden className="h-3.5 w-3.5" />
@@ -129,7 +129,7 @@ export default function ChannelPage() {
                         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
                     >
                         <ArrowLeft className="h-4 w-4" />
-                        All bots
+                        All agents
                     </Link>
                 </div>
             </header>

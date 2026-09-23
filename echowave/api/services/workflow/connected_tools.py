@@ -431,9 +431,9 @@ def apps_block(
         names = ", ".join(sorted(mcp_servers))
         by_a_bot = (
             f" {names} {'is' if len(mcp_servers) == 1 else 'are'} connected "
-            "through its own server. You cannot call it yourself, and a bot "
+            "through its own server. You cannot call it yourself, and an agent "
             "built with it can. Say it is connected and offer to build or "
-            "change a bot that uses it; never say it is not connected here, "
+            "change an agent that uses it; never say it is not connected here, "
             "and never offer a connect card for it."
         )
 

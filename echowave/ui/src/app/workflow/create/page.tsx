@@ -343,7 +343,7 @@ export default function CreateWorkflowPage() {
 
     const create = async () => {
         if (!user) {
-            setError("You must be signed in to create a bot.");
+            setError("You must be signed in to create an agent.");
             return;
         }
         setIsLoading(true);
@@ -395,7 +395,7 @@ export default function CreateWorkflowPage() {
         });
 
         if (response.error) {
-            setError(detailFromResult(response, "Could not create the bot."));
+            setError(detailFromResult(response, "Could not create the agent."));
             setIsLoading(false);
             return;
         }
@@ -561,7 +561,7 @@ export default function CreateWorkflowPage() {
 
                         <div className="grid gap-4 sm:grid-cols-2">
                             <Field
-                                label="Bot name"
+                                label="Agent name"
                                 hint="What it calls itself on the call."
                             >
                                 <Input
@@ -584,7 +584,7 @@ export default function CreateWorkflowPage() {
                                     </SelectContent>
                                 </Select>
                             </Field>
-                            <Field label="Bot designation">
+                            <Field label="Agent designation">
                                 <Input
                                     value={designation}
                                     onChange={(e) => setDesignation(e.target.value)}
@@ -602,7 +602,7 @@ export default function CreateWorkflowPage() {
 
                         <Field
                             label="Company description"
-                            hint="One line. It is what the bot says when a caller asks who you are."
+                            hint="One line. It is what the agent says when a caller asks who you are."
                         >
                             <Textarea
                                 value={companyDescription}
@@ -615,7 +615,7 @@ export default function CreateWorkflowPage() {
                         <Field
                             label="Languages"
                             required
-                            hint="The first is the primary. The bot follows whichever the caller uses."
+                            hint="The first is the primary. The agent follows whichever the caller uses."
                         >
                             <div className="flex flex-wrap gap-2">
                                 {LANGUAGES.map((language) => {
@@ -653,7 +653,7 @@ export default function CreateWorkflowPage() {
                         {channel === "voice" && (
                             <Field
                                 label="Voice"
-                                hint="What the caller hears. Changeable later without rebuilding the bot."
+                                hint="What the caller hears. Changeable later without rebuilding the agent."
                             >
                                 {!options ? (
                                     <span className="text-sm text-muted-foreground">
@@ -796,7 +796,7 @@ export default function CreateWorkflowPage() {
 
                         <Field
                             label="Welcome message"
-                            hint="Spoken word for word, so write it as it should sound. Use {{variable_name}} for anything that changes per call. Leave it empty and the bot opens in its own words."
+                            hint="Spoken word for word, so write it as it should sound. Use {{variable_name}} for anything that changes per call. Leave it empty and the agent opens in its own words."
                         >
                             <Textarea
                                 value={welcome}
@@ -832,7 +832,7 @@ export default function CreateWorkflowPage() {
 
                         <Field
                             label="Conversation flow"
-                            hint="Numbered steps. The generated bot gets one node per step, which is what makes a call you can read afterwards."
+                            hint="Numbered steps. The generated agent gets one node per step, which is what makes a call you can read afterwards."
                         >
                             <Textarea
                                 value={flow}
@@ -859,7 +859,7 @@ export default function CreateWorkflowPage() {
 
                         <Field
                             label="Closing line"
-                            hint="Spoken word for word before the bot hangs up."
+                            hint="Spoken word for word before the agent hangs up."
                         >
                             <Textarea
                                 value={closingLine}
@@ -945,7 +945,7 @@ export default function CreateWorkflowPage() {
                     <div className="flex flex-col items-center gap-4">
                         <Loader2 className="h-10 w-10 animate-spin text-primary" />
                         <div className="text-center">
-                            <p className="font-medium">Building your bot</p>
+                            <p className="font-medium">Building your agent</p>
                             <p className="mt-1 text-sm text-muted-foreground">
                                 Turning the brief into a conversation flow. A few seconds.
                             </p>

@@ -88,7 +88,7 @@ async def read_skill(
     names = await shelf._bot_names(organization_id)
     if found.slug in have:
         card["on_bots"] = [
-            {"id": wid, "name": names.get(wid, "a bot")}
+            {"id": wid, "name": names.get(wid, "an agent")}
             for wid in have[found.slug].on_bots
         ]
     return SkillDetail(**card, body=found.skill.body)
@@ -158,7 +158,7 @@ async def skills_on_workflow(
         workflow_id, organization_id=organization_id
     )
     if workflow is None:
-        raise HTTPException(status_code=404, detail="No such bot here")
+        raise HTTPException(status_code=404, detail="No such agent here")
     slugs = await shelf.for_workflow(organization_id, workflow_id)
     return WorkflowSkillsResponse(
         slugs=slugs,

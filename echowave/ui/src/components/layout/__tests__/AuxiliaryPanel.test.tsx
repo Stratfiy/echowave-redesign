@@ -41,7 +41,7 @@ describe("the panel never squeezes the pane beside it", () => {
 
 describe("the panel beside the thread", () => {
     it("opens at its default width and can be dragged", () => {
-        render(<AuxiliaryPanel label="About this bot">body</AuxiliaryPanel>);
+        render(<AuxiliaryPanel label="About this agent">body</AuxiliaryPanel>);
         const panel = screen.getByTestId("auxiliary-panel");
         expect(panel.style.width).toBe(`${AUX_DEFAULT_WIDTH_PX}px`);
         expect(screen.getByTestId("auxiliary-panel-resize")).toBeTruthy();
@@ -49,7 +49,7 @@ describe("the panel beside the thread", () => {
 
     it("reopens at the width the reader last chose", () => {
         window.localStorage.setItem("decibyl.auxiliaryPanel.width", "520");
-        render(<AuxiliaryPanel label="About this bot">body</AuxiliaryPanel>);
+        render(<AuxiliaryPanel label="About this agent">body</AuxiliaryPanel>);
         expect(screen.getByTestId("auxiliary-panel").style.width).toBe("520px");
     });
 
@@ -57,7 +57,7 @@ describe("the panel beside the thread", () => {
         // Not a device test: below twice the minimum there is nowhere for the
         // thread to sit beside it, so a strip would be two screens on one.
         widen(AUX_SINGLE_PANE_BELOW_PX - 1);
-        render(<AuxiliaryPanel label="About this bot">body</AuxiliaryPanel>);
+        render(<AuxiliaryPanel label="About this agent">body</AuxiliaryPanel>);
         const panel = screen.getByTestId("auxiliary-panel");
         expect(panel.className).toContain("fixed");
         expect(panel.style.width).toBe("");
@@ -72,27 +72,27 @@ describe("the panel beside the thread", () => {
         // action sits opposite.
         render(
             <AuxiliaryPanel
-                label="About this bot"
+                label="About this agent"
                 onClose={() => {}}
                 action={<button type="button">Edit</button>}
             >
                 body
             </AuxiliaryPanel>,
         );
-        expect(screen.getByText("About this bot")).toBeTruthy();
-        expect(screen.getByRole("button", { name: "Close About this bot" })).toBeTruthy();
+        expect(screen.getByText("About this agent")).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Close About this agent" })).toBeTruthy();
         expect(screen.getByRole("button", { name: "Edit" })).toBeTruthy();
     });
 
     it("has no close control when there is nothing to close to", () => {
-        render(<AuxiliaryPanel label="Test this bot">body</AuxiliaryPanel>);
+        render(<AuxiliaryPanel label="Test this agent">body</AuxiliaryPanel>);
         expect(screen.queryByRole("button", { name: /^Close/ })).toBeNull();
-        expect(screen.getByText("Test this bot")).toBeTruthy();
+        expect(screen.getByText("Test this agent")).toBeTruthy();
     });
 
     it("survives storage it cannot read", () => {
         window.localStorage.setItem("decibyl.auxiliaryPanel.width", "not-a-number");
-        render(<AuxiliaryPanel label="About this bot">body</AuxiliaryPanel>);
+        render(<AuxiliaryPanel label="About this agent">body</AuxiliaryPanel>);
         expect(screen.getByTestId("auxiliary-panel").style.width).toBe(`${AUX_DEFAULT_WIDTH_PX}px`);
     });
 });

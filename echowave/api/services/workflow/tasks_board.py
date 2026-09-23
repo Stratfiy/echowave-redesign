@@ -41,9 +41,9 @@ from api.services.workflow import agent_timeline, one_shot_run
 
 TOOL_NAME = "create_task"
 DESCRIPTION = (
-    "File a task on the team's board for a colleague bot (by @handle) or for "
+    "File a task on the team's board for a colleague agent (by @handle) or for "
     "the team (assignee 'team'), when a job is theirs rather than yours: a "
-    "follow-up in three days, a record another bot keeps, a check a person "
+    "follow-up in three days, a record another agent keeps, a check a person "
     "must make. Give a short title and a brief they can act on without you. "
     "You will not get the result in this turn; say you have filed it and "
     "end your reply. Never file a task to yourself."
@@ -201,7 +201,7 @@ def tool_properties() -> dict[str, Any]:
         },
         "assignee": {
             "type": "string",
-            "description": "A bot's @handle, or 'team' for a person.",
+            "description": "An agent's @handle, or 'team' for a person.",
         },
         "due": {
             "type": "string",
@@ -388,7 +388,7 @@ async def create(
         if assignee is None:
             return {
                 "status": "not_filed",
-                "reason": f"No bot called {wanted!r} here; use its exact @handle, or 'team'.",
+                "reason": f"No agent called {wanted!r} here; use its exact @handle, or 'team'.",
             }
         if from_workflow_id is not None and assignee.id == from_workflow_id:
             return {
@@ -654,7 +654,7 @@ async def run_task(task_id: int) -> int | None:
     names = {w.id: w.name for w in roster}
     handles = {w.id: getattr(w, "handle", None) for w in roster}
     asker = f"@{handles.get(from_id) or names.get(from_id)}" if from_id else "the team"
-    assignee_name = names.get(assignee_id, "the bot")
+    assignee_name = names.get(assignee_id, "the agent")
 
     # The checkout (TB-2): whoever moves it to in progress first runs it. A
     # second pick-up -- a double enqueue, a person pressing Run again while
@@ -986,7 +986,7 @@ async def edit(
             )
             bot = _match_bot(wanted, roster)
             if bot is None:
-                raise TaskError(f"No bot called {wanted!r} here.")
+                raise TaskError(f"No agent called {wanted!r} here.")
             fields["assignee_workflow_id"] = bot.id
             fields["assignee_user_id"] = None
     if "parent_id" in changes:

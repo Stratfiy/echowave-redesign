@@ -144,8 +144,8 @@ export function HireExpertModal({ open, onOpenChange, source, onOpenEnterprise }
       onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}
       icon={Sparkles}
       eyebrow="Done-for-you"
-      title="Let us build your voice bot"
-      description="Building good voice bots is nuanced. Tell us what you need and we'll take it end-to-end."
+      title="Let us build your voice agent"
+      description="Building good voice agents is nuanced. Tell us what you need and we'll take it end-to-end."
       primary={{ label: "Submit", onClick: handleSubmit, disabled: !canSubmit, loading: submitting }}
       secondary={{ label: "Cancel", onClick: () => onOpenChange(false), disabled: submitting }}
       helper={
@@ -183,7 +183,7 @@ export function HireExpertModal({ open, onOpenChange, source, onOpenEnterprise }
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="hire-goal">What do you want the voice bot to do?</Label>
+          <Label htmlFor="hire-goal">What do you want the voice agent to do?</Label>
           <Textarea
             id="hire-goal"
             value={agentGoal}

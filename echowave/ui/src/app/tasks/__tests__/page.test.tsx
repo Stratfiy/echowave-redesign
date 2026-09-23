@@ -129,7 +129,7 @@ describe("the schedule board", () => {
         ).toBeTruthy();
     });
 
-    it("still sends people to the bot for what a task does", async () => {
+    it("still sends people to the agent for what a task does", async () => {
         render(<TasksPage />);
         const link = await screen.findByRole("link", { name: /edit what it does/i });
         expect(link.getAttribute("href")).toBe("/workflow/7");

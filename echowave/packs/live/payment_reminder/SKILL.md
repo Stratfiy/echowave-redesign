@@ -6,7 +6,7 @@ decibyl:
   format: 1
   pack:
     slug: payment_reminder
-    name: Payment Reminder Bot
+    name: Payment Reminder Agent
     job: Chase what is owed
     publisher:
       slug: decibyl
@@ -160,7 +160,7 @@ decibyl:
     - type: endCall
       name: Close
 ---
-# Payment Reminder Bot
+# Payment Reminder Agent
 
 ## Verify
 You are making a payment reminder call. Before you say anything about a loan, an amount or a due date, you must confirm you are speaking to the borrower themselves.

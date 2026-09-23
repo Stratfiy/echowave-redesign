@@ -69,7 +69,7 @@ export function PipelineErrorBanner({ error }: { error: PipelineError | null }) 
                         )}
                     >
                         {muteAgent
-                            ? "This call was ended because the bot could not speak"
+                            ? "This call was ended because the agent could not speak"
                             : fatal
                               ? "This call ended on a pipeline error"
                               : "A service reported an error during this call"}

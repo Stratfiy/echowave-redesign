@@ -223,7 +223,7 @@ export function TranscriberPanel({ config, onChange }: PanelProps) {
 
             <Setting
                 title="Where the caller is"
-                blurb="How loud and how clearly a sound must be speech before the bot treats it as the caller starting to talk. On a crowded line this stops the next table interrupting the bot mid-sentence."
+                blurb="How loud and how clearly a sound must be speech before the agent treats it as the caller starting to talk. On a crowded line this stops the next table interrupting the agent mid-sentence."
                 control={
                     <Select
                         value={config.caller_environment ?? "normal"}
@@ -407,7 +407,7 @@ export function TranscriberPanel({ config, onChange }: PanelProps) {
                         step={0.1}
                         value={config.interruption_backoff_secs ?? 0}
                         onValueChange={(v) => onChange({ interruption_backoff_secs: v })}
-                        hint="Before the bot speaks again after the caller cuts in. 0 turns it off."
+                        hint="Before the agent speaks again after the caller cuts in. 0 turns it off."
                     />
                 </Setting>
                 <Setting
@@ -454,7 +454,7 @@ export function BrainPanel({ config, onChange, tuning, onTuning }: PanelProps) {
                     step={TEMPERATURE_RANGE.step}
                     value={tuning.temperature ?? 0.7}
                     onValueChange={(v) => onTuning({ temperature: v })}
-                    hint="Precise on the left, creative on the right. 0.5 to 0.7 suits a phone bot that must not invent."
+                    hint="Precise on the left, creative on the right. 0.5 to 0.7 suits a phone agent that must not invent."
                 />
             </Setting>
 
@@ -476,16 +476,16 @@ export function BrainPanel({ config, onChange, tuning, onTuning }: PanelProps) {
             />
 
             <Setting
-                title="Let the bot end the call"
+                title="Let the agent end the call"
                 blurb={
                     config.agent_can_end_call
-                        ? "The bot can hang up when there is nothing left to do — nobody on the line, the caller finished, or a wrong number."
-                        : "Off. Only the caller's own goodbye ends a call, so a bot talking to an empty line keeps talking."
+                        ? "The agent can hang up when there is nothing left to do — nobody on the line, the caller finished, or a wrong number."
+                        : "Off. Only the caller's own goodbye ends a call, so an agent talking to an empty line keeps talking."
                 }
                 control={
                     <Switch
                         id="bot-can-end-call"
-                        aria-label="Let the bot end the call"
+                        aria-label="Let the agent end the call"
                         checked={config.agent_can_end_call ?? false}
                         onCheckedChange={(v) => onChange({ agent_can_end_call: v })}
                     />
@@ -546,7 +546,7 @@ export function BrainPanel({ config, onChange, tuning, onTuning }: PanelProps) {
             <Advanced open={advancedTouched}>
                 <Setting
                     title="Max tokens"
-                    blurb="Ceiling on one reply. Too low cuts a sentence off mid-way, which sounds like the bot hung up."
+                    blurb="Ceiling on one reply. Too low cuts a sentence off mid-way, which sounds like the agent hung up."
                 >
                     <Input
                         id="max_tokens"
@@ -662,7 +662,7 @@ export function VoicePanel({ workflowId, config, onChange, tuning, onTuning }: P
                 title="Background sound"
                 blurb={
                     ambient.enabled
-                        ? "Room tone behind the bot, so silence does not sound like a dropped line."
+                        ? "Room tone behind the agent, so silence does not sound like a dropped line."
                         : "Off. The caller hears the voice against silence."
                 }
                 control={

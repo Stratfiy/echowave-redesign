@@ -204,7 +204,7 @@ export const usageFilterAttributes = createFilterAttributes(
       label: "Run ID",
     },
     workflowId: {
-      label: "Bot ID",
+      label: "Agent ID",
     },
     dateRange: {
       label: "Date Range",

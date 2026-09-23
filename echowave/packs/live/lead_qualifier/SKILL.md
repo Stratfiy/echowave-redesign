@@ -6,7 +6,7 @@ decibyl:
   format: 1
   pack:
     slug: lead_qualifier
-    name: Lead Qualifier Bot
+    name: Lead Qualifier Agent
     job: Qualify new enquiries
     publisher:
       slug: decibyl
@@ -157,7 +157,7 @@ decibyl:
     - type: endCall
       name: Close
 ---
-# Lead Qualifier Bot
+# Lead Qualifier Agent
 
 ## Open
 You are calling someone who enquired about {{project_name}} very recently. They asked to be contacted, so you are expected — but they may not remember, so remind them briefly and without pressure.

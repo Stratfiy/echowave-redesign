@@ -176,7 +176,7 @@ async def propose(
 
     workflow = await db_client.get_workflow_by_id(workflow_id)
     if workflow is None:
-        return {"status": "not_proposed", "reason": "This bot could not be found."}
+        return {"status": "not_proposed", "reason": "This agent could not be found."}
     # The legacy column tracks the draft when there is one and the published
     # version otherwise -- see save_workflow_draft -- so it is the base an
     # edit should start from either way.
@@ -258,7 +258,7 @@ async def settle(
     # names the bot. Org-scoped either way: the event was fetched by org.
     workflow_id = event.workflow_id or payload.get("workflow_id")
     if workflow_id is None:
-        raise EditError("That change belongs to no bot.")
+        raise EditError("That change belongs to no agent.")
     workflow_id = int(workflow_id)
 
     try:

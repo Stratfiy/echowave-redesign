@@ -93,7 +93,7 @@ LIMITS: tuple[LimitSpec, ...] = (
         "Chat memory",
         "tokens",
         False,
-        "How much of a conversation a bot keeps in mind when it replies. "
+        "How much of a conversation an agent keeps in mind when it replies. "
         "Every reply carries this much, so it is a cost as well as a feature.",
     ),
 )

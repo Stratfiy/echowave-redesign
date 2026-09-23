@@ -113,10 +113,10 @@ function SkillRow({
                     className="rounded-full"
                     disabled={busy}
                     onClick={onAdd}
-                    aria-label={`Add ${skill.title} to a bot`}
+                    aria-label={`Add ${skill.title} to an agent`}
                 >
                     <Plus className="mr-1 h-3 w-3" aria-hidden="true" />
-                    Add to bot
+                    Add to agent
                 </Button>
                 {onRemove ? (
                     <Button
@@ -377,13 +377,13 @@ export function SkillsShelf({ query }: { query: string }) {
                     <DialogHeader>
                         <DialogTitle>Add {picking?.title} to</DialogTitle>
                         <DialogDescription>
-                            Tick every bot that should follow this procedure. Unticking one takes
-                            it off that bot.
+                            Tick every agent that should follow this procedure. Unticking one takes
+                            it off that agent.
                         </DialogDescription>
                     </DialogHeader>
                     {bots.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
-                            You have no bots yet. Add one first and this becomes a tick.
+                            You have no agents yet. Add one first and this becomes a tick.
                         </p>
                     ) : (
                         <div className="max-h-72 space-y-1 overflow-y-auto">
@@ -441,7 +441,7 @@ export function SkillsShelf({ query }: { query: string }) {
                     <DialogHeader>
                         <DialogTitle>{reading?.title}</DialogTitle>
                         <DialogDescription>
-                            What a bot taught this skill reads, word for word.
+                            What an agent taught this skill reads, word for word.
                         </DialogDescription>
                     </DialogHeader>
                     {reading?.body === null ? (

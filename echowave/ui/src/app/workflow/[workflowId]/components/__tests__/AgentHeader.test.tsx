@@ -13,7 +13,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 import { AgentHeader } from "../AgentHeader";
 
-describe("the bot header", () => {
+describe("the agent header", () => {
     it("carries the actions it is given, beside the name", () => {
         render(<AgentHeader workflowId={7} name="Front desk" actions={<button>About</button>} />);
         const bar = screen.getByRole("banner");

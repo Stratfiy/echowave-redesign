@@ -215,7 +215,7 @@ class TestABotAnsweringInAChannel:
                 "api.services.workflow.channel_reply.db_client.get_workflow_by_id",
                 AsyncMock(
                     return_value=SimpleNamespace(
-                        id=7, organization_id=42, name="Ops bot"
+                        id=7, organization_id=42, name="Ops agent"
                     )
                 ),
             ),
@@ -235,6 +235,6 @@ class TestABotAnsweringInAChannel:
         ):
             assert await channel_reply.answer_in_channel(7, 3, "hello") is None
 
-        assert recorded, "a bot that could not answer said nothing at all"
+        assert recorded, "an agent that could not answer said nothing at all"
         assert recorded[0]["folder_id"] == 3
         assert "no credit" in recorded[0]["summary"]

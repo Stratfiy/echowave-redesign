@@ -66,7 +66,7 @@ interface Estimate {
  * agent using the knowledge base or post-call QA.
  */
 const GROUPS = [
-    { key: "bot", label: "Bot cost", colour: "#1baf7a" },
+    { key: "bot", label: "Agent cost", colour: "#1baf7a" },
     { key: "telephony", label: "Telephony", colour: "#eb6834" },
     { key: "platform", label: "Platform", colour: "#2a78d6" },
     { key: "addon", label: "Features", colour: "#8b5cf6" },

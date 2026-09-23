@@ -147,7 +147,7 @@ function AppTools({ connector }: { connector: ConnectorResponse }) {
                     {note && <p className="text-xs text-emerald-700">{note}</p>}
                     {tools !== null && tools.length === 0 && !error && (
                         <p className="text-xs text-muted-foreground">
-                            This app brings no tools a bot can be given.
+                            This app brings no tools an agent can be given.
                         </p>
                     )}
                     <ul className="space-y-0.5" data-testid="connector-tool-list">

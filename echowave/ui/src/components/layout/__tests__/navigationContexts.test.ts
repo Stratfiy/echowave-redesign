@@ -79,7 +79,7 @@ describe("the rail's contexts", () => {
     }
   });
 
-  it("keeps Home as the first context and the bots' door", () => {
+  it("keeps Home as the first context and the agents' door", () => {
     expect(NAV_CONTEXTS[0].id).toBe("home");
     expect(NAV_CONTEXTS[0].urls).toContain("/workflow");
   });

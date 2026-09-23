@@ -161,7 +161,7 @@ export default function DoNotCallPage() {
     const ok = await confirm({
       title: `Allow calls to ${phoneNumber} again?`,
       description:
-        "This number opted out of being contacted. Removing it from the Do Not Call list means campaigns and bots will dial it again. Only do this if you have a record of them asking to be contacted.",
+        "This number opted out of being contacted. Removing it from the Do Not Call list means campaigns and agents will dial it again. Only do this if you have a record of them asking to be contacted.",
       confirmLabel: "Remove from list",
       destructive: true,
     });

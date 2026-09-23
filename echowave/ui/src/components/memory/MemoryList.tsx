@@ -102,7 +102,7 @@ export function MemoryList({
                             )}
                             {fact.workflow_id != null && !gone && (
                                 <span className="shrink-0 rounded-full border border-border px-1.5 text-[10px] text-muted-foreground">
-                                    {botName ? `${botName} only` : 'this bot'}
+                                    {botName ? `${botName} only` : 'this agent'}
                                 </span>
                             )}
                             {gone ? (

@@ -58,7 +58,7 @@ const COLUMNS: { id: string; label: string; hint: string }[] = [
     // waiting for them.
     { id: "scheduled", label: "Scheduled", hint: "Filed for a date still ahead" },
     { id: "todo", label: "To do", hint: "Filed, nothing holding it" },
-    { id: "in_progress", label: "In progress", hint: "A bot is on it" },
+    { id: "in_progress", label: "In progress", hint: "An agent is on it" },
     { id: "blocked", label: "Blocked", hint: "Needs a person or a retry" },
     { id: "done", label: "Done", hint: "With the result" },
 ];
@@ -189,7 +189,7 @@ function LegacyRequests() {
             conversation, and neither belongs inside the assistant's thread. */}
         <PageHeader
             title="Requests"
-            description="What the bots and the team have been handed, and what came of it. A bot files a task for a colleague or for you; you file one for a bot or for the team."
+            description="What the agents and the team have been handed, and what came of it. An agent files a task for a colleague or for you; you file one for an agent or for the team."
             tabs={DESK_TABS}
         />
         <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">

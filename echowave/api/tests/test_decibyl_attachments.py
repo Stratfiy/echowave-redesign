@@ -143,7 +143,7 @@ def _transcript(user: str, agent: str) -> list[dict]:
 @pytest.mark.asyncio
 class TestEvalScenarios:
     async def test_decibyl_builds_from_attached_document(self):
-        ask = "build a bot for this"
+        ask = "build an agent for this"
         seen: dict = {}
 
         async def stream(**kwargs):

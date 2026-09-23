@@ -170,7 +170,7 @@ async def _rows(session, *, when):
             workflow_id=wf.id,
             kind=AgentEventKind.ACTION_PROPOSED.value,
             actor=AgentEventActor.AGENT.value,
-            summary="Turn bot off",
+            summary="Turn agent off",
             payload={"action": "turn_bot_off", "state": "done"},
             visibility="always",
             at=when,

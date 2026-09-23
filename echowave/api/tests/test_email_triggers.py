@@ -213,7 +213,7 @@ class TestTheInboundRoute:
             _trigger(),
             json={
                 "to": f"{UUID}@in.decibyl.ai",
-                "from": f"Orders bot <{UUID}@in.decibyl.ai>",
+                "from": f"Orders agent <{UUID}@in.decibyl.ai>",
                 "subject": "Re: Order 91",
                 "text": "Noted, thanks.",
                 "message-id": "<reply-1@x>",

@@ -110,7 +110,7 @@ export function NewChatDialog({ open, onOpenChange }: { open: boolean; onOpenCha
                 <DialogHeader>
                     <DialogTitle>New chat</DialogTitle>
                     <DialogDescription>
-                        One bot opens its chat. Two or more make a group, where they answer you and each other.
+                        One agent opens its chat. Two or more make a group, where they answer you and each other.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="relative">
@@ -118,13 +118,13 @@ export function NewChatDialog({ open, onOpenChange }: { open: boolean; onOpenCha
                     <Input
                         autoFocus
                         aria-label="To"
-                        placeholder="To: search bots"
+                        placeholder="To: search agents"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         className="pl-9"
                     />
                 </div>
-                <ul className="max-h-64 divide-y divide-border overflow-y-auto rounded-md border border-border" aria-label="Bots">
+                <ul className="max-h-64 divide-y divide-border overflow-y-auto rounded-md border border-border" aria-label="Agents">
                     {matches.map((bot) => {
                         const on = picked.some((b) => b.id === bot.id);
                         return (
@@ -142,7 +142,7 @@ export function NewChatDialog({ open, onOpenChange }: { open: boolean; onOpenCha
                             </li>
                         );
                     })}
-                    {matches.length === 0 && <li className="px-3 py-3 text-sm text-muted-foreground">No bot called that.</li>}
+                    {matches.length === 0 && <li className="px-3 py-3 text-sm text-muted-foreground">No agent called that.</li>}
                 </ul>
                 {picked.length >= 2 && (
                     <div className="space-y-1">

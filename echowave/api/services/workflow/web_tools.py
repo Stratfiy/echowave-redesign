@@ -53,7 +53,7 @@ SEARCH_PROVIDER = "serper"
 SEARCH_KIND = "search"
 SERPER_URL = "https://google.serper.dev/search"
 
-USER_AGENT = "DecibylBot/1.0 (+https://decibyl.ai/bot)"
+USER_AGENT = "DecibylBot/1.0 (+https://decibyl.ai/agent)"
 TIMEOUT_SECS = 20.0
 MAX_RESULTS = 10
 MAX_BODY_BYTES = 2_000_000
@@ -683,7 +683,7 @@ async def fetch(
             if not await _robots_allow(url, http):
                 return {
                     "status": "refused",
-                    "reason": f"{host} asks not to be read by bots on that page (robots.txt).",
+                    "reason": f"{host} asks not to be read by agents on that page (robots.txt).",
                 }
             reduced = await _via_crawl4ai(url, http)
             if reduced is None:

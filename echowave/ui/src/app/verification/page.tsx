@@ -281,7 +281,7 @@ export default function VerificationPage() {
                         </Link>
                         . Indian regulation requires the licensed telecom
                         operator to verify every business using a phone number.
-                        Testing your bot in the browser needs none of this.
+                        Testing your agent in the browser needs none of this.
                     </>
                 }
             />

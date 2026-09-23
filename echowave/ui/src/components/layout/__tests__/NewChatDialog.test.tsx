@@ -24,17 +24,17 @@ beforeEach(() => {
     createFolder.mockReset();
     move.mockReset();
     push.mockReset();
-    list.mockResolvedValue({ data: [{ id: 3, name: 'Front desk' }, { id: 4, name: 'Sales bot' }] });
+    list.mockResolvedValue({ data: [{ id: 3, name: 'Front desk' }, { id: 4, name: 'Sales agent' }] });
 });
 
 describe('the group name', () => {
-    it('is the bots, joined', () => {
-        expect(groupName([{ id: 3, name: 'Front desk' }, { id: 4, name: 'Sales bot' }])).toBe('Front desk, Sales bot');
+    it('is the agents, joined', () => {
+        expect(groupName([{ id: 3, name: 'Front desk' }, { id: 4, name: 'Sales agent' }])).toBe('Front desk, Sales agent');
     });
 });
 
 describe('starting a chat', () => {
-    it('one bot opens its chat', async () => {
+    it('one agent opens its chat', async () => {
         render(<NewChatDialog open onOpenChange={() => {}} />);
         fireEvent.click(await screen.findByText('Front desk'));
         fireEvent.click(screen.getByRole('button', { name: 'Open chat' }));
@@ -42,25 +42,25 @@ describe('starting a chat', () => {
         expect(createFolder).not.toHaveBeenCalled();
     });
 
-    it('two bots make a group: a channel named for them, with both moved in', async () => {
-        createFolder.mockResolvedValue({ data: { id: 9, name: 'Front desk, Sales bot' } });
+    it('two agents make a group: a channel named for them, with both moved in', async () => {
+        createFolder.mockResolvedValue({ data: { id: 9, name: 'Front desk, Sales agent' } });
         move.mockResolvedValue({ data: {} });
         render(<NewChatDialog open onOpenChange={() => {}} />);
         fireEvent.click(await screen.findByText('Front desk'));
-        fireEvent.click(screen.getByText('Sales bot'));
+        fireEvent.click(screen.getByText('Sales agent'));
         fireEvent.click(screen.getByRole('button', { name: /Create group chat/ }));
-        await waitFor(() => expect(createFolder).toHaveBeenCalledWith({ body: { name: 'Front desk, Sales bot' } }));
+        await waitFor(() => expect(createFolder).toHaveBeenCalledWith({ body: { name: 'Front desk, Sales agent' } }));
         await waitFor(() => expect(move).toHaveBeenCalledTimes(2));
         expect(move.mock.calls.map((c) => c[0].path.workflow_id).sort()).toEqual([3, 4]);
         expect(move.mock.calls[0][0].body).toEqual({ folder_id: 9 });
         await waitFor(() => expect(push).toHaveBeenCalledWith('/channels/9'));
     });
 
-    it('searches the bots', async () => {
+    it('searches the agents', async () => {
         render(<NewChatDialog open onOpenChange={() => {}} />);
         await screen.findByText('Front desk');
         fireEvent.change(screen.getByLabelText('To'), { target: { value: 'sales' } });
         expect(screen.queryByText('Front desk')).toBeNull();
-        expect(screen.getByText('Sales bot')).toBeTruthy();
+        expect(screen.getByText('Sales agent')).toBeTruthy();
     });
 });

@@ -62,7 +62,7 @@ async def shelf(organization_id: int) -> dict[str, Any]:
         card = skill.as_card()
         if slug in have:
             card["on_bots"] = [
-                {"id": wid, "name": names.get(wid, "a bot")}
+                {"id": wid, "name": names.get(wid, "an agent")}
                 for wid in have[slug].on_bots
             ]
             cards_installed.append(card)
@@ -83,7 +83,7 @@ async def _bot_names(organization_id: int) -> dict[int, str]:
             organization_id=organization_id
         )
     except Exception as exc:  # noqa: BLE001 - a name is a nicety
-        logger.warning("Could not read bot names for the skills shelf: {}", exc)
+        logger.warning("Could not read agent names for the skills shelf: {}", exc)
         return {}
     return {row.id: row.name for row in rows}
 
@@ -130,7 +130,7 @@ async def set_bots(
         raise SkillError(f"There is no skill called {slug!r}.")
     wanted = list(dict.fromkeys(int(w) for w in workflow_ids))
     if len(wanted) > MAX_PER_BOT * 50:
-        raise SkillError("That is more bots than this account has.")
+        raise SkillError("That is more agents than this account has.")
 
     mine = {
         row.id
@@ -140,7 +140,7 @@ async def set_bots(
     }
     unknown = [w for w in wanted if w not in mine]
     if unknown:
-        raise SkillError("One of those bots is not in this workspace.")
+        raise SkillError("One of those agents is not in this workspace.")
 
     for workflow_id in wanted:
         count = await db_client.count_skills_on_workflow(
@@ -151,7 +151,7 @@ async def set_bots(
         )
         if slug not in {r.slug for r in already} and count >= MAX_PER_BOT:
             raise SkillError(
-                f"A bot can carry {MAX_PER_BOT} skills. Take one off first."
+                f"An agent can carry {MAX_PER_BOT} skills. Take one off first."
             )
 
     await db_client.set_skill_bots(
@@ -195,6 +195,6 @@ async def prompt_for_workflow(
     if not blocks:
         return ""
     return (
-        "The procedures this bot has been taught. Follow them when the "
+        "The procedures this agent has been taught. Follow them when the "
         "situation they describe comes up.\n\n" + "\n\n".join(blocks)
     )

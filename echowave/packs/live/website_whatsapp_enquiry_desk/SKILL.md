@@ -98,7 +98,7 @@ decibyl:
       they are kept (DPDP Act 2023).
     example_requests:
     - answer customer questions on my website and WhatsApp
-    - a bot that captures leads from WhatsApp enquiries
+    - an agent that captures leads from WhatsApp enquiries
     - reply to product and price enquiries from our catalogue
     template_variables:
       business_name: The business, as customers know it

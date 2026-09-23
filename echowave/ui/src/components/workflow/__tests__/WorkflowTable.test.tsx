@@ -77,15 +77,15 @@ beforeEach(() => {
     });
 });
 
-describe("the bot list", () => {
-    it("says what each bot has been doing, and names its last action", async () => {
+describe("the agent list", () => {
+    it("says what each agent has been doing, and names its last action", async () => {
         render(<WorkflowTable workflows={WORKFLOWS} showArchived={false} />);
 
         expect(await screen.findByText("9 calls, 6 answered, 4 bookings")).toBeTruthy();
         expect(screen.getByText(/Booked an appointment · Cal\.com/)).toBeTruthy();
     });
 
-    it("shows a dash for a bot the roster has nothing on, rather than an empty cell", async () => {
+    it("shows a dash for an agent the roster has nothing on, rather than an empty cell", async () => {
         render(<WorkflowTable workflows={WORKFLOWS} showArchived={false} />);
         await screen.findByText("9 calls, 6 answered, 4 bookings");
         // Workflow-4597 is in the list but in neither response, so it gets a
@@ -115,12 +115,12 @@ describe("the bot list", () => {
         expect(screen.getByText("Last 24 hours")).toBeTruthy();
     });
 
-    it("shows the denominator, so a failing classifier does not read as an idle bot", async () => {
+    it("shows the denominator, so a failing classifier does not read as an idle agent", async () => {
         render(<WorkflowTable workflows={WORKFLOWS} showArchived={false} />);
         expect(await screen.findByText(/of 11 sorted/)).toBeTruthy();
     });
 
-    it("marks a bot still on the default outcomes", async () => {
+    it("marks an agent still on the default outcomes", async () => {
         outcomeBoard.mockResolvedValue({
             data: [
                 {
@@ -165,7 +165,7 @@ describe("the bot list", () => {
         expect(await screen.findByText("Narayani Dental front desk")).toBeTruthy();
     });
 
-    it("keeps every bot on screen when the roster request fails", async () => {
+    it("keeps every agent on screen when the roster request fails", async () => {
         teamStatus.mockRejectedValue(new Error("network"));
         render(<WorkflowTable workflows={WORKFLOWS} showArchived={false} />);
 

@@ -114,7 +114,7 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle>Telemetry</CardTitle>
             <CardDescription>
-              Configure Langfuse tracing for calls your bots take.{" "}
+              Configure Langfuse tracing for calls your agents take.{" "}
               <a
                 href="https://docs.decibyl.ai/configurations/tracing"
                 target="_blank"

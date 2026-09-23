@@ -379,7 +379,7 @@ export default function TelephonyConfigurationDetailPage() {
                   <TableHead>Type</TableHead>
                   <TableHead>Label</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Answering bot</TableHead>
+                  <TableHead>Answering agent</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>

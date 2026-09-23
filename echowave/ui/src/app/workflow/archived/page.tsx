@@ -56,9 +56,9 @@ async function ArchivedList() {
                     <CardContent className="space-y-2 py-10 text-center">
                         <p className="text-sm">Nothing is archived.</p>
                         <p className="text-xs text-muted-foreground">
-                            Archiving a bot from{" "}
+                            Archiving an agent from{" "}
                             <Link href="/workflow" className="underline underline-offset-4">
-                                Your bots
+                                Your agents
                             </Link>{" "}
                             stops it working and files it here. Nothing is deleted, and its
                             calls stay on the record.
@@ -73,7 +73,7 @@ async function ArchivedList() {
         logger.error(`Error fetching archived workflows: ${err}`);
         return (
             <p className="text-sm text-destructive">
-                The archived bots could not be loaded. This is us, not you.
+                The archived agents could not be loaded. This is us, not you.
             </p>
         );
     }
@@ -83,8 +83,8 @@ export default function ArchivedWorkflowsPage() {
     return (
         <>
             <PageHeader
-                title="Your bots"
-                description="Archived bots take no calls and cost nothing. Restore one and it picks up where it was."
+                title="Your agents"
+                description="Archived agents take no calls and cost nothing. Restore one and it picks up where it was."
                 tabs={BOTS_TABS}
             />
             <Suspense

@@ -17,7 +17,7 @@ export const CHAT_PRESETS: ChatPreset[] = [
 ];
 
 /** null is "the bot's own brain", which is what nothing chosen means. */
-export const OWN_BRAIN = { slug: '', label: 'Bot’s own', blurb: 'Whatever this bot is set up with.' };
+export const OWN_BRAIN = { slug: '', label: 'Agent’s own', blurb: 'Whatever this agent is set up with.' };
 
 /** One model under "More models": `model:<vendor>/<model>` and its name. */
 export type BrainModel = { slug: string; label: string };
