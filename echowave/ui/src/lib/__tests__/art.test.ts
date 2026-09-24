@@ -130,3 +130,15 @@ describe("3D art", () => {
         }
     });
 });
+
+describe("the roles on today's shelf", () => {
+    it("gives outreach its megaphone, not a telephone", () => {
+        expect(jobArt("Outbound Prospecting")).toBe("megaphone");
+    });
+
+    it("gives every industry on the shelf a picture of its own, not the fallback cube", () => {
+        for (const industry of ["Manufacturing", "Financial services", "Recruitment and HR"]) {
+            expect(industryArt(industry)).not.toBe("cube");
+        }
+    });
+});

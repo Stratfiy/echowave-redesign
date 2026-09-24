@@ -60,6 +60,9 @@ export function art3d(name: ArtName): string {
  *  ("answer staff questions" is the knowledge base, not the front desk),
  *  and the words after it only apply when the job list said nothing. */
 const BY_JOB: [RegExp, ArtName][] = [
+    // Before the call rule: "Outbound Prospecting" is email outreach, and
+    // "outbound" would otherwise give it a telephone.
+    [/prospect|outreach/i, "megaphone"],
     [/knowledge|staff question|faq/i, "folder"],
     [/voice note/i, "mic"],
     [/data entry/i, "computer"],
@@ -82,7 +85,7 @@ const BY_JOB: [RegExp, ArtName][] = [
     [/survey|feedback|form|checklist|audit/i, "notebook"],
     [/chat|whatsapp|message|enquiry|inquiry|lead/i, "chat-bubble"],
     // Only when nothing above matched.
-    [/prospect|outreach|sales|customer/i, "megaphone"],
+    [/sales|customer/i, "megaphone"],
     [/document/i, "shield"],
     [/report|summary/i, "target"],
     [/\bbill/i, "credit-card"],
@@ -110,6 +113,9 @@ const BY_INDUSTRY: Record<string, ArtName> = {
     "Any business": "rocket",
     "Retail and D2C": "gift",
     Logistics: "travel",
+    Manufacturing: "tools",
+    "Financial services": "rupee",
+    "Recruitment and HR": "target",
 };
 
 /** The picture for a marketplace industry shelf. */
