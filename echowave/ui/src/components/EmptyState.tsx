@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * What a screen says when it has nothing to show.
  *
@@ -16,13 +18,20 @@
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { ArtImage } from "@/components/art/Art3D";
+import type { ArtName } from "@/lib/art";
+import { useFeature } from "@/lib/features";
+
 export function EmptyState({
     icon: Icon,
+    art,
     title,
     description,
     action,
 }: {
     icon?: LucideIcon;
+    /** A 3D picture in place of the icon, with the shell feature on. */
+    art?: ArtName;
     /** What is true, in a few words. Not "No data". */
     title: string;
     /** Why it is worth doing, or what to change. One sentence. */
@@ -30,9 +39,12 @@ export function EmptyState({
     /** The next step, when there is one worth naming. */
     action?: ReactNode;
 }) {
+    const shell = useFeature("shell");
+    const picture = shell && art ? art : null;
     return (
         <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
-            {Icon && (
+            {picture && <ArtImage name={picture} size={88} className="mb-4 drop-shadow-md" />}
+            {!picture && Icon && (
                 <div className="mb-4 rounded-full bg-muted p-3">
                     <Icon className="h-5 w-5 text-muted-foreground" />
                 </div>

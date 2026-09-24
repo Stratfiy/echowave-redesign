@@ -34,6 +34,9 @@ import {
     Wallet,
 } from "lucide-react";
 
+import { ArtImage } from "@/components/art/Art3D";
+import { jobArt } from "@/lib/art";
+import { useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 /** Name fragment to icon, first match wins. Ordered most specific first:
@@ -83,24 +86,40 @@ export function botTone(id: number | string): string {
 }
 
 const SIZES = {
-    sm: { box: "h-6 w-6 rounded-md", glyph: "h-3.5 w-3.5" },
-    md: { box: "h-8 w-8 rounded-lg", glyph: "h-4 w-4" },
-    lg: { box: "h-12 w-12 rounded-xl", glyph: "h-6 w-6" },
+    sm: { box: "h-6 w-6 rounded-md", glyph: "h-3.5 w-3.5", picture: 20 },
+    md: { box: "h-8 w-8 rounded-lg", glyph: "h-4 w-4", picture: 26 },
+    lg: { box: "h-12 w-12 rounded-xl", glyph: "h-6 w-6", picture: 40 },
 } as const;
 
 export function BotAvatar({
     id,
     name,
     size = "sm",
+    art = false,
     className,
 }: {
     id: number | string;
     name: string;
     size?: keyof typeof SIZES;
+    /** Draw the job as a 3D picture on a soft tile instead of an icon.
+     *  Only with the shell feature on; without it, the icon as before. */
+    art?: boolean;
     className?: string;
 }) {
+    const shell = useFeature("shell");
     const Icon = botIcon(name);
-    const { box, glyph } = SIZES[size];
+    const { box, glyph, picture } = SIZES[size];
+    if (art && shell) {
+        return (
+            <span
+                aria-hidden="true"
+                data-testid="bot-art"
+                className={cn("flex shrink-0 items-center justify-center bg-muted", box, className)}
+            >
+                <ArtImage name={jobArt(name)} size={picture} />
+            </span>
+        );
+    }
     return (
         <span
             aria-hidden="true"

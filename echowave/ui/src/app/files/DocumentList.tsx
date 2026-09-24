@@ -331,6 +331,7 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
         ) : (
           <EmptyState
             icon={FileText}
+            art="folder"
             title="No documents yet"
             description="Upload your price list, policy or FAQ and the agent can answer from it during a call, in its own words."
           />

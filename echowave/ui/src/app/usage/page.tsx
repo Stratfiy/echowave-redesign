@@ -756,6 +756,7 @@ export default function UsagePage() {
                             ) : (
                                 <EmptyState
                                     icon={PhoneCall}
+                                    art="call-ringing"
                                     title="No calls yet"
                                     description="Every call an agent takes or makes lands here, with its recording, transcript and outcome. Make one to see it."
                                     action={

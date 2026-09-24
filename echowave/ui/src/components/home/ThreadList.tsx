@@ -76,11 +76,17 @@ export function ThreadList({
     const fresh = current !== null && !threads.some((t) => t.thread_id === current);
 
     return (
-        <div className="flex shrink-0 flex-wrap items-center gap-2 px-4 pb-2 sm:px-6" data-testid="thread-list">
+        // One row that scrolls sideways, never a wrapping block: with twenty
+        // chats a wrapped list grew taller than the conversation on a phone
+        // and pushed the composer up into the middle of the screen.
+        <div
+            className="flex shrink-0 flex-nowrap items-center gap-2 overflow-x-auto px-4 pb-2 [scrollbar-width:none] sm:px-6 [&::-webkit-scrollbar]:hidden"
+            data-testid="thread-list"
+        >
             <button
                 type="button"
                 onClick={onNew}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-sm font-medium hover:bg-muted/40"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-sm font-medium hover:bg-muted/40"
             >
                 <MessageSquarePlus aria-hidden className="h-3.5 w-3.5" />
                 New chat
@@ -88,7 +94,7 @@ export function ThreadList({
             {fresh && (
                 <span
                     aria-current="true"
-                    className="rounded-full bg-foreground px-3 py-1 text-sm text-background"
+                    className="shrink-0 rounded-full bg-foreground px-3 py-1 text-sm text-background"
                 >
                     New chat
                 </span>
@@ -104,8 +110,8 @@ export function ThreadList({
                         title={`${thread.messages} messages · ${ago(thread.last_at)}`}
                         className={
                             active
-                                ? "max-w-[16rem] truncate rounded-full bg-foreground px-3 py-1 text-sm text-background"
-                                : "max-w-[16rem] truncate rounded-full border border-border bg-card px-3 py-1 text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                                ? "max-w-[16rem] shrink-0 truncate rounded-full bg-foreground px-3 py-1 text-sm text-background"
+                                : "max-w-[16rem] shrink-0 truncate rounded-full border border-border bg-card px-3 py-1 text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground"
                         }
                     >
                         {titleOf(thread)}

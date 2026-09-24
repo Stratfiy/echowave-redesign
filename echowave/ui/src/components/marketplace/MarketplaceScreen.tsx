@@ -21,6 +21,7 @@ import { useEffect, useMemo, useState } from "react";
 import { client } from "@/client/client.gen";
 import { getToolLibraryApiV1ToolLibraryGet, listConnectorsApiV1ConnectorsGet } from "@/client/sdk.gen";
 import type { ConnectorGroupResponse, ConnectorResponse, LibraryTool } from "@/client/types.gen";
+import { ArtImage } from "@/components/art/Art3D";
 import { ConnectorLogo, ConnectorRow } from "@/components/integrations/ConnectorRow";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { MARKETPLACE_TABS } from "@/components/layout/SectionTabs";
@@ -29,7 +30,9 @@ import { WorkspaceRolesShelf } from "@/components/marketplace/WorkspaceRolesShel
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { type ArtName, industryArt, jobArt } from "@/lib/art";
 import { useAuth } from "@/lib/auth";
+import { useFeature } from "@/lib/features";
 import {
     type BotTemplate,
     DIRECTION_LABELS,
@@ -67,9 +70,19 @@ const HERO: Record<ShelfKind, { title: string; blurb: string }> = {
     },
 };
 
+/** The hero's pictures, on wide screens: a few of the jobs on the shelf,
+ *  staggered so they read as a scene rather than a row of buttons. */
+const HERO_ART: { name: ArtName; size: number; className: string }[] = [
+    { name: "chat-bubble", size: 68, className: "left-0 top-9" },
+    { name: "rocket", size: 92, className: "left-[62px] top-0" },
+    { name: "calender", size: 64, className: "left-[146px] top-11" },
+    { name: "headphone", size: 72, className: "left-[70px] top-[86px]" },
+];
+
 function Hero({ kind }: { kind: ShelfKind }) {
-    return (
-        <div className="rounded-2xl bg-[var(--accent-brand-tint)] px-6 py-8 sm:px-10 sm:py-10">
+    const shell = useFeature("shell");
+    const words = (
+        <>
             <p className="text-xs font-semibold uppercase tracking-wider text-brand-blue">
                 Decibyl Marketplace
             </p>
@@ -77,6 +90,24 @@ function Hero({ kind }: { kind: ShelfKind }) {
                 {HERO[kind].title}
             </h2>
             <p className="mt-2 max-w-xl text-sm text-muted-foreground">{HERO[kind].blurb}</p>
+        </>
+    );
+    if (!shell) {
+        return <div className="rounded-2xl bg-[var(--accent-brand-tint)] px-6 py-8 sm:px-10 sm:py-10">{words}</div>;
+    }
+    return (
+        <div className="flex items-center justify-between gap-6 overflow-hidden rounded-2xl bg-[var(--accent-brand-tint)] px-6 py-8 sm:px-10 sm:py-10">
+            <div className="min-w-0">{words}</div>
+            <div aria-hidden="true" data-testid="hero-art" className="relative mr-2 hidden h-[160px] w-[212px] shrink-0 md:block">
+                {HERO_ART.map((art) => (
+                    <ArtImage
+                        key={art.name}
+                        name={art.name}
+                        size={art.size}
+                        className={cn("absolute drop-shadow-md", art.className)}
+                    />
+                ))}
+            </div>
         </div>
     );
 }
@@ -87,6 +118,7 @@ function CategoryCard({
     count,
     noun,
     icon: Icon,
+    art,
     selected,
     onSelect,
 }: {
@@ -94,6 +126,8 @@ function CategoryCard({
     count: number;
     noun: string;
     icon: React.ComponentType<{ className?: string }>;
+    /** A 3D picture in place of the icon (shell only; the caller decides). */
+    art?: ArtName;
     selected: boolean;
     onSelect: () => void;
 }) {
@@ -107,14 +141,20 @@ function CategoryCard({
                 selected ? "border-brand-blue ring-1 ring-brand-blue" : "border-border",
             )}
         >
-            <span
-                className={cn(
-                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
-                    toneFor(name),
-                )}
-            >
-                <Icon className="h-5 w-5" />
-            </span>
+            {art ? (
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+                    <ArtImage name={art} size={34} />
+                </span>
+            ) : (
+                <span
+                    className={cn(
+                        "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
+                        toneFor(name),
+                    )}
+                >
+                    <Icon className="h-5 w-5" />
+                </span>
+            )}
             <span className="min-w-0">
                 <span className="block truncate text-sm font-medium">{name}</span>
                 <span className="block text-xs text-muted-foreground">
@@ -139,21 +179,38 @@ function Chip({ name, tone }: { name: string; tone?: string }) {
 }
 
 function BotCard({ template }: { template: BotTemplate }) {
+    const shell = useFeature("shell");
     const industry = industryOf(template);
     const fn = functionOf(template);
     const Icon = industryIcon(industry);
     return (
-        <Card className="flex h-full flex-col">
+        <Card className={cn("flex h-full flex-col", shell && "overflow-hidden")}>
+            {shell && (
+                // The job, as a picture, before any words: a shelf of cards
+                // that all opened on a line of grey text read as a form.
+                <div
+                    data-testid="role-art"
+                    className="flex h-24 items-center justify-center border-b border-border/60 bg-gradient-to-b from-muted to-background"
+                >
+                    <ArtImage
+                        name={jobArt(`${template.name} ${fn}`)}
+                        size={72}
+                        className="drop-shadow-md"
+                    />
+                </div>
+            )}
             <CardContent className="flex flex-1 flex-col gap-3 p-4">
                 <div className="flex items-start gap-3">
-                    <span
-                        className={cn(
-                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
-                            toneFor(industry),
-                        )}
-                    >
-                        <Icon className="h-5 w-5" />
-                    </span>
+                    {!shell && (
+                        <span
+                            className={cn(
+                                "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
+                                toneFor(industry),
+                            )}
+                        >
+                            <Icon className="h-5 w-5" />
+                        </span>
+                    )}
                     <div className="min-w-0">
                         <h3 className="truncate text-sm font-semibold">{template.name}</h3>
                         <p className="text-xs text-muted-foreground">
@@ -170,7 +227,7 @@ function BotCard({ template }: { template: BotTemplate }) {
                 </div>
                 <p className="line-clamp-3 text-xs text-muted-foreground">{template.summary}</p>
                 <div className="mt-auto pt-1">
-                    <Button asChild size="sm" className="w-full">
+                    <Button asChild size="sm" variant={shell ? "outline" : "default"} className="w-full">
                         <Link href={hireHref(template.id)}>
                             Add {template.name}
                             <ArrowRight className="ml-1 h-3 w-3" />
@@ -192,6 +249,7 @@ function SectionTitle({ children, action }: { children: React.ReactNode; action?
 }
 
 function BotsShelf({ query }: { query: string }) {
+    const shell = useFeature("shell");
     const { user, loading: authLoading } = useAuth();
     const [templates, setTemplates] = useState<BotTemplate[] | null>(null);
     const [failed, setFailed] = useState(false);
@@ -252,6 +310,7 @@ function BotsShelf({ query }: { query: string }) {
                             count={shelf.count}
                             noun="agent"
                             icon={industryIcon(shelf.name)}
+                            art={shell ? industryArt(shelf.name) : undefined}
                             selected={industry === shelf.name}
                             onSelect={() => setIndustry((cur) => (cur === shelf.name ? null : shelf.name))}
                         />
