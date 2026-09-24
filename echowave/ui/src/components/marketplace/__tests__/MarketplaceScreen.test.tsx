@@ -21,6 +21,8 @@ vi.mock("@/client/sdk.gen", () => ({
     // its own tests in WorkspaceRolesShelf.test.tsx.
     listMyOrganizationsApiV1OrganizationsMineGet: vi.fn().mockResolvedValue({ data: [] }),
 }));
+const flags = vi.hoisted(() => ({ shell: false }));
+vi.mock("@/lib/features", () => ({ useFeature: (name: string) => name === "shell" && flags.shell }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
 vi.mock("next/navigation", () => ({
     usePathname: () => "/marketplace",
@@ -77,6 +79,7 @@ const CATALOGUE = {
 };
 
 beforeEach(() => {
+    flags.shell = false;
     api.get.mockReset();
     api.connectors.mockReset();
     api.library.mockReset();
@@ -97,6 +100,27 @@ describe("the agent shelf", () => {
         expect(
             screen.getByRole("link", { name: /Add Clinic front desk/ }).getAttribute("href"),
         ).toBe("/start?template=clinic_appointment");
+    });
+
+    it("draws the jobs as pictures with the shell on, and not with it off", async () => {
+        const { unmount } = render(<MarketplaceScreen kind="bots" />);
+        await screen.findByText("Clinic front desk");
+        expect(screen.queryAllByTestId("role-art")).toHaveLength(0);
+        expect(screen.queryByTestId("hero-art")).toBeNull();
+        expect(document.querySelector('img[src^="/art/3d/"]')).toBeNull();
+        unmount();
+
+        flags.shell = true;
+        render(<MarketplaceScreen kind="bots" />);
+        await screen.findByText("Clinic front desk");
+        const strips = screen.getAllByTestId("role-art");
+        expect(strips).toHaveLength(2);
+        expect(strips[0].querySelector("img")?.getAttribute("src")).toBe("/art/3d/notify-heart.webp");
+        expect(strips[1].querySelector("img")?.getAttribute("src")).toBe("/art/3d/wallet.webp");
+        expect(screen.getByTestId("hero-art").querySelectorAll("img")).toHaveLength(4);
+        // The industry tiles carry their picture instead of the icon.
+        const tile = screen.getByRole("button", { name: /Lending\s*1 agent/ });
+        expect(tile.querySelector("img")?.getAttribute("src")).toBe("/art/3d/money-bag.webp");
     });
 
     it("an industry tile filters the rows, and pressing it again clears", async () => {

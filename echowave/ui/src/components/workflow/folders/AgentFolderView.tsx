@@ -4,8 +4,11 @@ import Link from 'next/link';
 import { useRef, useState } from 'react';
 
 import type { FolderResponse, WorkflowListResponse } from '@/client/types.gen';
+import { ArtImage } from '@/components/art/Art3D';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { jobArt } from '@/lib/art';
+import { useFeature } from '@/lib/features';
 
 import { AgentIdentityCard } from '../AgentIdentityCard';
 import { WorkflowTable } from '../WorkflowTable';
@@ -21,6 +24,7 @@ interface AgentFolderViewProps {
  * Agent cards open a profile; the list retains existing folder management.
  */
 export function AgentFolderView({ workflows, folders }: AgentFolderViewProps) {
+    const shell = useFeature('shell');
     const [view, setView] = useState<'cards' | 'list'>('cards');
     const [selectedId, setSelectedId] = useState<number | null>(null);
     const profileOpener = useRef<HTMLElement | null>(null);
@@ -41,6 +45,7 @@ export function AgentFolderView({ workflows, folders }: AgentFolderViewProps) {
                             ariaLabel={`View ${agent.name}`}
                             dataTestId={`agent-card-${agent.id}`}
                             label={agent.name}
+                            avatar={shell ? <ArtImage name={jobArt(agent.name)} size={88} className="drop-shadow-sm" /> : undefined}
                             subtitle={agent.handle ? `@${agent.handle}` : `${agent.total_runs ?? 0} runs`}
                             statusBadge={<span className="text-xs text-muted-foreground">{agent.is_live === false ? 'Paused' : agent.is_live === true ? 'Enabled' : 'Status unavailable'}</span>}
                             onClick={(event) => { profileOpener.current = event.currentTarget; setSelectedId(agent.id); }}

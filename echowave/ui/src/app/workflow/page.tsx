@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 
 import { getWorkflowsApiV1WorkflowFetchGet, listFoldersApiV1FolderGet } from '@/client/sdk.gen';
 import type { FolderResponse, WorkflowListResponse } from '@/client/types.gen';
+import { Art3D } from '@/components/art/Art3D';
 import { PageBody, PageHeader } from '@/components/layout/PageHeader';
 import { BOTS_TABS } from '@/components/layout/SectionTabs';
 import { Button } from '@/components/ui/button';
@@ -92,6 +93,7 @@ async function WorkflowList() {
                     ) : (
                         <Card>
                             <CardContent className="p-8">
+                                <Art3D name="rocket" size={88} className="mx-auto mb-3 block drop-shadow-md" />
                                 <p className="text-center text-muted-foreground">
                                     No agents yet.
                                 </p>

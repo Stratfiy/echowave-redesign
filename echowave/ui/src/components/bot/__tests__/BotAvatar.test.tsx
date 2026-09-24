@@ -4,11 +4,17 @@
 
 import { cleanup, render, screen } from "@testing-library/react";
 import React from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const flags = vi.hoisted(() => ({ shell: false }));
+vi.mock("@/lib/features", () => ({ useFeature: (name: string) => name === "shell" && flags.shell }));
 
 import { BotAvatar, botIcon, botTone } from "../BotAvatar";
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    flags.shell = false;
+});
 
 describe("an agent's face", () => {
     it("reads the job out of the name", () => {
@@ -41,5 +47,26 @@ describe("an agent's face", () => {
         const { container } = render(<BotAvatar id={1} name="Front desk" />);
         expect(container.querySelector('[aria-hidden="true"]')).toBeTruthy();
         expect(screen.queryByText("Front desk")).toBeNull();
+    });
+
+    it("draws the job as a 3D picture when asked, with the shell on", () => {
+        flags.shell = true;
+        const { container } = render(<BotAvatar id={1} name="Payment reminders" size="md" art />);
+        const img = container.querySelector("img");
+        expect(img?.getAttribute("src")).toBe("/art/3d/wallet.webp");
+        expect(img?.getAttribute("alt")).toBe("");
+        expect(container.querySelector("svg")).toBeNull();
+    });
+
+    it("keeps the icon with the shell off, even when asked for art", () => {
+        const { container } = render(<BotAvatar id={1} name="Payment reminders" size="md" art />);
+        expect(container.querySelector("img")).toBeNull();
+        expect(container.querySelector("svg")).toBeTruthy();
+    });
+
+    it("keeps the icon when not asked for art, shell or no shell", () => {
+        flags.shell = true;
+        const { container } = render(<BotAvatar id={1} name="Payment reminders" />);
+        expect(container.querySelector("img")).toBeNull();
     });
 });

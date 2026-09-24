@@ -25,10 +25,13 @@ import {
   teamHomeApiV1TeamHomeGet,
 } from "@/client/sdk.gen";
 import type { Headline, Opener, Suggestion } from "@/client/types.gen";
+import { ArtImage } from "@/components/art/Art3D";
 import { type ChannelBot, ChannelComposer } from "@/components/channel/ChannelComposer";
 import { ChannelStream } from "@/components/channel/ChannelStream";
 import { ThreadList } from "@/components/home/ThreadList";
+import { jobArt } from "@/lib/art";
 import { useAuth } from "@/lib/auth";
+import { useFeature } from "@/lib/features";
 
 /** The fallback when the server sends no cards of its own: the two
  *  questions an owner arrives with. The server's cards (`openers` on the
@@ -135,6 +138,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
     since: string;
     bots: number[];
   } | null>(null);
+  const shell = useFeature("shell");
   const [sendingOpener, setSendingOpener] = useState<string | null>(null);
   // How many rows the thread holds. Until it is known, nothing is drawn
   // above the thread: a greeting that appears and then jumps away as the
@@ -260,12 +264,25 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
                 screen. */}
       {rows === 0 && (
       <div className="flex shrink-0 flex-col items-center overflow-y-auto px-2 pt-2 text-center">
-        <div
-          aria-hidden="true"
-          className="flex h-16 w-16 items-center justify-center rounded-2xl bg-rail text-3xl font-semibold text-rail-foreground"
-        >
-          d
-        </div>
+        {shell ? (
+          // The real mark, on a round tile with a soft grey halo: the
+          // greeting's face, where a lone lowercase "d" used to stand.
+          <div
+            aria-hidden="true"
+            data-testid="decibyl-mark"
+            className="mt-1.5 flex h-[72px] w-[72px] items-center justify-center rounded-full border border-border bg-card shadow-[0_0_0_6px_var(--muted),0_10px_30px_-8px_rgba(0,0,0,0.25)]"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/decibyl-mark.svg" alt="" width={56} height={56} className="h-14 w-14" />
+          </div>
+        ) : (
+          <div
+            aria-hidden="true"
+            className="flex h-16 w-16 items-center justify-center rounded-2xl bg-rail text-3xl font-semibold text-rail-foreground"
+          >
+            d
+          </div>
+        )}
         <h2 className="mt-4 text-2xl font-bold tracking-tight">
           Hi, I&apos;m Decibyl!
         </h2>
@@ -296,10 +313,14 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
                 onClick={() => void sendOpener(text)}
                 className="group flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left text-[15px] font-medium shadow-[var(--shadow-card)] transition-colors hover:bg-muted/40 disabled:opacity-60"
               >
-                <Icon
-                  aria-hidden="true"
-                  className="h-4 w-4 shrink-0 text-muted-foreground"
-                />
+                {shell ? (
+                  <ArtImage name={jobArt(text, "sphere")} size={28} />
+                ) : (
+                  <Icon
+                    aria-hidden="true"
+                    className="h-4 w-4 shrink-0 text-muted-foreground"
+                  />
+                )}
                 <span className="min-w-0 flex-1 truncate">
                   {sendingOpener === text ? "Asking…" : text}
                 </span>

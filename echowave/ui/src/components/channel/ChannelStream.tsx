@@ -37,6 +37,7 @@ import {
     translateTextApiV1TranslatePost,
 } from '@/client/sdk.gen';
 import type { ThreadChip, TimelineEvent } from '@/client/types.gen';
+import { Art3D } from '@/components/art/Art3D';
 import { BotAvatar } from '@/components/bot/BotAvatar';
 import { BlockedCard } from '@/components/channel/BlockedCard';
 import { tagTokens } from '@/components/channel/ChannelComposer';
@@ -611,6 +612,7 @@ export function ChannelStream({
 
             {inOrder.length === 0 && !error && (
                 <div className="py-10">
+                    {workflowId == null && !assistant && <Art3D name="chat-bubble" size={88} className="mb-3 drop-shadow-md" />}
                     <p className="text-sm font-medium">
                         {workflowId != null ? 'Nothing yet.' : 'This channel is quiet.'}
                     </p>
