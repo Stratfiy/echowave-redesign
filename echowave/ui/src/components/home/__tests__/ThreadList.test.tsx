@@ -83,3 +83,15 @@ describe("words for a chat", () => {
         expect(ago("2026-09-14T18:00:00Z", now)).toBe("3d ago");
     });
 });
+
+describe("the chat list's shape", () => {
+    it("is one row that scrolls sideways, so it cannot push the composer up the screen", async () => {
+        render(<ThreadList current={null} onPick={() => {}} onNew={() => {}} />);
+        await screen.findByRole("button", { name: "Hi" });
+        const row = screen.getByTestId("thread-list");
+        expect(row.className).toContain("flex-nowrap");
+        expect(row.className).toContain("overflow-x-auto");
+        expect(row.className.split(" ")).not.toContain("flex-wrap");
+        for (const button of row.querySelectorAll("button")) expect(button.className).toContain("shrink-0");
+    });
+});
