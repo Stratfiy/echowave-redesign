@@ -146,7 +146,10 @@ def shape_of(
             continue
         writes += 1
         if (
-            events.tool_call_event(connected_tools.toolkit_of(tool))
+            events.tool_call_event(
+                connected_tools.toolkit_of(tool),
+                connected_tools.slug_of(tool) or getattr(tool, "name", None),
+            )
             == events.TOOL_CALL_PREMIUM
         ):
             premium += 1
@@ -268,6 +271,16 @@ def estimate(
         f"{PAGES_PER_ITEM} page reads, {TURNS_PER_ITEM} turns and "
         f"{WRITES_PER_ITEM} send each. Measured figures replace these after the replay."
     )
+    from api.services.billing import exchange
+
+    if exchange.enabled():
+        # The figures above are the exchange table's (events.credits_for);
+        # this says what they leave out.
+        notes.append(
+            f"Priced on the {exchange.VERSION} rate card. Each credit includes "
+            f"{float(exchange.INCLUDED_MODEL_PAISE_PER_CREDIT):.1f} paise of AI model "
+            "cost; a long or premium-model turn adds credits for the rest."
+        )
     return Estimate(
         items_per_run=items,
         lines=lines,

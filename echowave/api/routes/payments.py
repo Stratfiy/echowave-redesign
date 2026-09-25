@@ -286,6 +286,39 @@ async def get_balance(user: UserModel = Depends(get_user)) -> dict[str, Any]:
     }
 
 
+class RateCardLine(BaseModel):
+    key: str
+    label: str
+    #: None for a line priced by formula (a premium model's tokens).
+    credits: int | None
+    unit: str
+    notes: str
+    #: The multiple the figure is set against: compute, pass_through, market.
+    basis: str
+
+
+class RateCardResponse(BaseModel):
+    #: Whether the 25 September charge rule is in force (D-1).
+    enabled: bool
+    version: str
+    effective_from: str
+    paise_per_credit: int
+    #: AI model cost, in paise, each credit includes; None with the rule off.
+    included_model_paise_per_credit: float | None
+    #: What a premium model's tokens are sold at, times cost; None when off.
+    premium_model_multiplier: float | None
+    lines: list[RateCardLine]
+
+
+@router.get("/rate-card", response_model=RateCardResponse)
+async def get_rate_card(user: UserModel = Depends(get_user)) -> RateCardResponse:
+    """What things cost in credits: the exchange table while the charge rule
+    is on, today's figures while it is off. Any member may read it."""
+    from api.services.billing import exchange
+
+    return RateCardResponse(**exchange.rate_card())
+
+
 @router.post("/topup")
 async def create_topup(
     request: TopupRequest, user: UserModel = Depends(get_user)

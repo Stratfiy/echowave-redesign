@@ -181,6 +181,7 @@ async def run_routine(routine_id: int) -> Optional[int]:
                 ref_id=str(run_id),
                 note=routine["name"][:80],
                 workflow_id=workflow_id,
+                usage=billing_events.turn_usages(text_session),
             )
         if not answer:
             # Ran, produced nothing. The single most important case to record:

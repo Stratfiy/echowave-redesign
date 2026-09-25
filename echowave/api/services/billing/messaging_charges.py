@@ -17,11 +17,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api import constants
 from api.db.models import CreditLedgerModel
 from api.enums import CreditLedgerKind
+from api.services.billing.credits import PAISE_PER_CREDIT
 
 REF_TYPE = "whatsapp_message"
 
+#: Meta's template categories (D-1). ``service`` is a message inside a
+#: conversation that carries an AI reply, which the reply's credit covers.
+UTILITY = "utility"
+AUTHENTICATION = "authentication"
+MARKETING = "marketing"
+SERVICE = "service"
 
-def price_paise() -> int:
+
+def price_paise(category: str | None = None) -> int:
+    """What one platform message costs. Off the charge rule, one price for
+    every message; on it (D-1), the exchange figure for its category, an
+    unknown category being a utility template."""
+    from api.services.billing import exchange
+
+    if exchange.enabled():
+        return exchange.whatsapp_credits(category) * PAISE_PER_CREDIT
     return max(0, int(constants.WHATSAPP_MESSAGE_PRICE_PAISE))
 
 
@@ -47,13 +62,14 @@ async def debit_message(
     message_id: str,
     workflow_run_id: int | None = None,
     node_name: str = "",
+    category: str | None = None,
 ) -> int:
     """Charge one sent message. Returns the paise debited (0 if already done).
 
     Keyed on the provider's message id, so a post-call task re-run after a
     crash between the send and this write debits nothing a second time.
     """
-    charge = price_paise()
+    charge = price_paise(category)
     if charge <= 0 or not message_id:
         return 0
     existing = await session.scalar(

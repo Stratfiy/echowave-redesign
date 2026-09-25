@@ -906,6 +906,8 @@ async def post_embed_text_message(
         ref_id=f"{run_id}:{(last_turn or {}).get('id') or 'turn'}",
         note="Share link chat",
         workflow_id=embed_token.workflow_id,
+        # One turn of a longer session: this turn's model usage only (D-1).
+        usage=billing_events.turn_usages(text_session, last_only=True),
     )
 
     session_data = normalize_text_chat_session_data(text_session.session_data)

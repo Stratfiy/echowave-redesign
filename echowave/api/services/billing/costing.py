@@ -87,6 +87,15 @@ async def _bundle_flat_rate_mpaise(
         )
         if row is None:
             return None
+        # D-1: one rate on every plan -- 12 credits a minute, 18 on a premium
+        # voice -- in place of the per-plan rates, the volume tiers and the
+        # overage premium below. Still only on a bundle sold at a flat rate.
+        from api.services.billing import exchange
+
+        if exchange.enabled():
+            if getattr(row, "list_paise_per_minute", None) is None:
+                return None
+            return charge_rule_voice_paise(run.usage_info) * MPAISE_PER_PAISE
         # The account's plan picks its rate: 12/11/10 credits a minute on
         # Business, Growth and Scale (KAN-54). Starter pays Business's.
         from api.services.billing import subscription_plans
@@ -133,6 +142,28 @@ async def _bundle_flat_rate_mpaise(
             "Could not resolve a bundle flat rate for run {}: {}", run.id, exc
         )
         return None
+
+
+def charge_rule_voice_paise(usage_info: dict | None) -> int:
+    """A voice minute under the charge rule (D-1), in paise: the standard
+    rate, or the premium one when the call's voice came from a premium TTS
+    vendor on our key. A voice on the customer's own key is the standard
+    rate -- the dear part is theirs to pay."""
+    from api.services.billing import exchange
+    from api.services.billing.credits import PAISE_PER_CREDIT
+    from api.services.billing.usage import (
+        key_sources_from_usage_info,
+        provider_from_processor,
+    )
+
+    info = usage_info if isinstance(usage_info, dict) else {}
+    tts = info.get("tts") if isinstance(info.get("tts"), dict) else {}
+    providers = (
+        []
+        if key_sources_from_usage_info(info).get("tts") == "byok"
+        else [provider_from_processor(key.partition("|||")[0]) for key in tts]
+    )
+    return exchange.voice_credits_per_minute(providers) * PAISE_PER_CREDIT
 
 
 async def _matched_preset_slug(

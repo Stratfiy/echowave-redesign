@@ -551,6 +551,18 @@ METERING_SPLIT_2026_09_ENABLED = (
     os.getenv("METERING_SPLIT_2026_09_ENABLED", "false").lower() == "true"
 )
 
+# D-1, the charge rule of 25 Sept 2026 (services/billing/exchange.py). On:
+# the exchange table is the price list -- a knowledge answer is 1, a write
+# into a system of record 2 (reads 1), WhatsApp by template category, one
+# voice rate on every plan (12, or 18 on a premium voice), transcription 2 a
+# minute, and a text event includes 1,500 standard-model tokens with a
+# premium model's tokens charged on the same row. Off: every charge exactly
+# as before. Read at call time, never at import, so a test can turn it
+# either way.
+CHARGE_RULE_2026_09_ENABLED = (
+    os.getenv("CHARGE_RULE_2026_09_ENABLED", "false").lower() == "true"
+)
+
 # Spend caps a customer sets on a workspace or on one agent (S-1, after the
 # paperclip budget-policy shape): warn at a share of the cap, stop at the
 # cap. Off, and no policy is read anywhere -- a run authorisation costs

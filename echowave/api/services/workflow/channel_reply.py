@@ -250,12 +250,15 @@ async def answer_in_channel(
         # -- the model ran -- and skipped for internal accounts inside.
         last_turn = billing_events.last_turn_of(text_session)
         event = billing_events.event_for_turn(last_turn)
-        await billing_events.charge_in_own_session(
+        charged_paise = await billing_events.charge_in_own_session(
             organization_id=organization_id,
             event=event,
             ref_id=f"{run_id}:{(last_turn or {}).get('id') or 'turn'}",
             note=f"{name} in {'a channel' if folder_id is not None else 'chat'}",
             workflow_id=workflow_id,
+            # The run is this reply: every turn's model usage is its model
+            # line under the charge rule (D-1); ignored with the rule off.
+            usage=billing_events.turn_usages(text_session),
         )
         if not answer:
             # The single most important case to record. A bot that ran and
@@ -297,7 +300,7 @@ async def answer_in_channel(
                 # What this reply cost, on the row itself, so the thread can
                 # say "2 credits" without re-deriving whether it read the
                 # documents.
-                "credits": billing_events.credits_for(event),
+                "credits": billing_events.stamped_credits(event, charged_paise),
                 "billed_as": event,
             },
         )

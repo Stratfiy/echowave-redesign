@@ -1,6 +1,7 @@
 """API routes for workflow recording operations."""
 
 from typing import Annotated, Optional
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from loguru import logger
@@ -366,4 +367,14 @@ async def transcribe_audio(
             model=transcription.model or service.get_model_id(),
             seconds=transcription.duration_seconds,
         )
+    # Billed only under the charge rule (D-1): 2 credits a minute, rounded up
+    # per file, 1 credit minimum. Never raises.
+    from api.services.billing import events as billing_events
+
+    await billing_events.charge_transcription(
+        organization_id=user.selected_organization_id,
+        ref_id=f"upload:{uuid4().hex}",
+        seconds=transcription.duration_seconds,
+        note=file.filename or "Uploaded recording",
+    )
     return transcription.as_response()

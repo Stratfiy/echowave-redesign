@@ -137,6 +137,7 @@ async def run_trigger(
             ref_id=str(run_id),
             note=trigger["name"][:80],
             workflow_id=workflow_id,
+            usage=billing_events.turn_usages(text_session),
         )
         try:
             await db_client.mark_bot_trigger_fired(trigger_id)

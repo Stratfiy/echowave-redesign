@@ -654,7 +654,12 @@ async def run_integrations_post_workflow_run(_ctx, workflow_run_id: int):
 
 
 async def _charge_platform_message(
-    *, organization_id: int, workflow_run_id: int, node_name: str, message_id: str
+    *,
+    organization_id: int,
+    workflow_run_id: int,
+    node_name: str,
+    message_id: str,
+    category: str | None = None,
 ) -> int:
     """Debit the account for one message on the platform sender. Never raises:
     a charge that fails is logged and the message, already sent, stands."""
@@ -668,6 +673,7 @@ async def _charge_platform_message(
                 message_id=message_id,
                 workflow_run_id=workflow_run_id,
                 node_name=node_name,
+                category=category,
             )
             await session.commit()
             return charged
@@ -786,6 +792,9 @@ async def _send_follow_up_messages(
                     workflow_run_id=workflow_run_id,
                     node_name=sms_node.data.name,
                     message_id=result.message_id,
+                    # A follow-up is a utility template unless the node says
+                    # it is marketing (D-1); read only by the charge rule.
+                    category=(node.get("data") or {}).get("template_category"),
                 )
             results.append(entry)
 
