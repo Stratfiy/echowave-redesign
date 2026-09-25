@@ -21,17 +21,21 @@ estimate read their credit figures from here while the flag is on, the rate
 card endpoint serves it, and a test fails when a shipped figure disagrees
 with it.
 
-**Token allowance.** A text event (a reply, a knowledge answer, a trigger,
-task or routine turn) includes ``STANDARD_TOKENS_PER_EVENT`` tokens on a
-standard-tier model (``STANDARD_MODELS``). Tokens past that on a standard
-model, and every token on any other model, are charged as extra credits on
-the *same* ledger row -- one row, one rounding:
-``ceil(token_cost_paise * M_COMPUTE / 50)``. The token cost is the vendor
-cost the turn's recorded usage prices to in the rate book, the same resolver
-the run's receipt is costed with. No rate on file, or anything else going
-wrong, charges the event credit alone: a reply is never refused over a
-model line. A BYOK model (``key_sources.llm == "byok"``) never has a model
-line, and a voice minute never adds tokens.
+**Model allowance.** Every event's credits include the model cost those
+credits pay for at ``M_COMPUTE``: 50 / 3.4 = 14.7 paise of vendor cost per
+credit (``INCLUDED_MODEL_PAISE_PER_CREDIT``). A reply on a cheap model sits
+inside it and costs its 1 credit; model cost past it, on any model, is
+charged as extra credits on the *same* ledger row -- one row, one rounding:
+``ceil(excess_cost_paise * M_COMPUTE / 50)``. The allowance is money, not a
+token count, on purpose: a token count sized for the dearest cheap model
+overcharges the cheapest by ten times, and one sized for the cheapest gives
+the dearest away. Money is fair to both and holds the margin on every model.
+The cost is what the turn's recorded usage prices to in the rate book, the
+same resolver the run's receipt is costed with. No rate on file, or anything
+else going wrong, charges the event credit alone: a reply is never refused
+over a model line. A BYOK model (``key_sources.llm == "byok"``) produces no
+usage item and so never has a model line, and a voice minute never adds
+tokens.
 """
 
 from __future__ import annotations
@@ -63,18 +67,14 @@ M_PASS_THROUGH = 1.7
 #: Premium-model tokens are sold at the compute multiple.
 PREMIUM_MODEL_MULTIPLIER = M_COMPUTE
 
-#: Tokens (prompt + completion) a text event includes on a standard model.
-#:
-#: 1,500, not the 12,000 first proposed. A credit sold at ``M_COMPUTE``
-#: covers 50 / 3.4 = 14.7 paise of cost. The dearest standard model in the
-#: rate book (Gemini 3.5 Flash-Lite, $0.30 in / $2.50 out per million, $0.96
-#: at the book's 70/30 blend) costs 0.0092 paise a token, so the credit
-#: covers 1,596 of its tokens; 12,000 would cost 110.6 paise, 7.5x what the
-#: credit covers. GPT-4.1 mini (the Smart tier) covers 2,015 and Sarvam 105B
-#: (Everyday) 3,466. A test holds the allowance under the dearest standard
-#: model's blended price; if a standard model's price rises past it, lower
-#: this number rather than the multiplier.
-STANDARD_TOKENS_PER_EVENT = 1_500
+#: Vendor model cost one credit includes, in paise: what a credit sold at
+#: ``M_COMPUTE`` pays for. An event of N credits includes N times this.
+#: (A token allowance of 1,500 was tried first; real turns carry a system
+#: prompt, tools and memory at 6-16k tokens, so it charged 2-4 credits for a
+#: plain reply on the cheapest model. See the module docstring.)
+INCLUDED_MODEL_PAISE_PER_CREDIT: Fraction = Fraction(PAISE_PER_CREDIT) / Fraction(
+    str(M_COMPUTE)
+)
 
 #: Tokens a reply is assumed to use when the picker estimates a model's
 #: price per reply before anything has run.
@@ -174,7 +174,7 @@ EXCHANGE_TABLE: tuple[ExchangeLine, ...] = (
         "Text reply (chat, email, web, WhatsApp)",
         1,
         "per reply",
-        f"Includes {STANDARD_TOKENS_PER_EVENT:,} tokens on a standard model.",
+        "Includes the AI model cost of a normal reply; longer or premium-model work adds credits.",
         COMPUTE,
     ),
     ExchangeLine(
@@ -472,29 +472,21 @@ class ModelTokens:
 def model_line_credits(
     entries: Iterable[ModelTokens],
     *,
-    allowance: int = STANDARD_TOKENS_PER_EVENT,
+    event_credits: int = 1,
 ) -> int:
-    """Extra credits for an event's model tokens. Pure.
+    """Extra credits for an event's model cost. Pure.
 
-    Standard-model tokens are included up to ``allowance`` across the event;
-    past it, the excess share of their cost is charged. Premium-model tokens
-    are charged in full. One rounding, at the end.
+    The event's own credits include ``event_credits`` times
+    ``INCLUDED_MODEL_PAISE_PER_CREDIT`` of model cost, on any model; the rest
+    is charged at ``M_COMPUTE``. One rounding, at the end.
     """
-    std_tokens = 0
-    std_cost = Fraction(0)
-    premium_cost = Fraction(0)
-    for entry in entries:
-        if entry.tokens <= 0 and entry.cost_paise <= 0:
-            continue
-        if is_standard_model(entry.model):
-            std_tokens += max(entry.tokens, 0)
-            std_cost += entry.cost_paise
-        else:
-            premium_cost += entry.cost_paise
-    charged = premium_cost
-    if std_tokens > allowance and std_tokens > 0:
-        charged += std_cost * Fraction(std_tokens - allowance, std_tokens)
-    return credits_for_cost(charged, PREMIUM_MODEL_MULTIPLIER)
+    total = sum(
+        (entry.cost_paise for entry in entries if entry.cost_paise > 0), Fraction(0)
+    )
+    included = INCLUDED_MODEL_PAISE_PER_CREDIT * max(int(event_credits), 0)
+    return credits_for_cost(
+        max(total - included, Fraction(0)), PREMIUM_MODEL_MULTIPLIER
+    )
 
 
 def _llm_components() -> set[str]:
@@ -556,27 +548,28 @@ async def model_tokens_of(
 
 
 async def model_credits(
-    session, usages: Iterable[dict[str, Any] | None], *, at: datetime | None = None
+    session,
+    usages: Iterable[dict[str, Any] | None],
+    *,
+    event_credits: int = 1,
+    at: datetime | None = None,
 ) -> int:
     """The model line for an event, in credits. Never raises: anything that
     goes wrong charges the event credit alone."""
     try:
-        return model_line_credits(await model_tokens_of(session, usages, at=at))
+        return model_line_credits(
+            await model_tokens_of(session, usages, at=at), event_credits=event_credits
+        )
     except Exception as exc:  # noqa: BLE001 - never fail a reply on this
         logger.warning("Could not price the model line: {}", exc)
         return 0
 
 
 def estimated_reply_credits(provider: str, model: str) -> int:
-    """Credits a reply on this model is expected to cost, for the picker.
-
-    1 on a standard model (``TOKENS_PER_REPLY_ESTIMATE`` sits inside the
-    allowance); on a premium one, 1 plus that many tokens at the rate book's
-    blended list price times ``M_COMPUTE``.
-    """
+    """Credits a reply on this model is expected to cost, for the picker:
+    the reply's credit plus the model line for ``TOKENS_PER_REPLY_ESTIMATE``
+    tokens at the rate book's blended list price."""
     reply = CREDITS[TEXT_REPLY]
-    if is_standard_model(model):
-        return reply
     from api.services.billing import default_rates
 
     prices = {(p.provider, p.model): p for p in default_rates.LLM_MODEL_PRICES}
@@ -594,7 +587,9 @@ def estimated_reply_credits(provider: str, model: str) -> int:
         * Fraction(str(default_rates.REFERENCE_USD_INR))
         * 100
     )
-    return reply + credits_for_cost(cost_paise, PREMIUM_MODEL_MULTIPLIER)
+    return reply + model_line_credits(
+        [ModelTokens(model, TOKENS_PER_REPLY_ESTIMATE, cost_paise)], event_credits=reply
+    )
 
 
 #: The version of the figures in force before this table: KAN-47.
@@ -617,7 +612,9 @@ def published() -> dict[str, Any]:
         "version": VERSION,
         "effective_from": EFFECTIVE_FROM.isoformat(),
         "paise_per_credit": PAISE_PER_CREDIT,
-        "standard_tokens_per_event": STANDARD_TOKENS_PER_EVENT,
+        "included_model_paise_per_credit": round(
+            float(INCLUDED_MODEL_PAISE_PER_CREDIT), 2
+        ),
         "premium_model_multiplier": PREMIUM_MODEL_MULTIPLIER,
         "lines": lines,
     }
@@ -655,7 +652,7 @@ def todays_card() -> dict[str, Any]:
         "version": PREVIOUS_VERSION,
         "effective_from": PREVIOUS_VERSION,
         "paise_per_credit": PAISE_PER_CREDIT,
-        "standard_tokens_per_event": None,
+        "included_model_paise_per_credit": None,
         "premium_model_multiplier": None,
         "lines": lines,
     }
@@ -675,7 +672,7 @@ __all__ = [
     "PREMIUM_MODEL_MULTIPLIER",
     "PREMIUM_VOICE_PROVIDERS",
     "STANDARD_MODELS",
-    "STANDARD_TOKENS_PER_EVENT",
+    "INCLUDED_MODEL_PAISE_PER_CREDIT",
     "VERSION",
     "ExchangeLine",
     "ModelTokens",

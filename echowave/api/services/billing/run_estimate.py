@@ -277,9 +277,9 @@ def estimate(
         # The figures above are the exchange table's (events.credits_for);
         # this says what they leave out.
         notes.append(
-            f"Priced on the {exchange.VERSION} rate card. Each turn includes "
-            f"{exchange.STANDARD_TOKENS_PER_EVENT:,} tokens on a standard model; "
-            "a premium model adds its tokens on top."
+            f"Priced on the {exchange.VERSION} rate card. Each credit includes "
+            f"{float(exchange.INCLUDED_MODEL_PAISE_PER_CREDIT):.1f} paise of AI model "
+            "cost; a long or premium-model turn adds credits for the rest."
         )
     return Estimate(
         items_per_run=items,

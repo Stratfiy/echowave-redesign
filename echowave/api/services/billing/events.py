@@ -405,7 +405,9 @@ async def charge(
         amount = max(0, int(credits)) * PAISE_PER_CREDIT
     model_credits = 0
     if rule and usage and event in exchange.TOKEN_EVENTS:
-        model_credits = await exchange.model_credits(session, usage)
+        model_credits = await exchange.model_credits(
+            session, usage, event_credits=amount // PAISE_PER_CREDIT
+        )
     # Under the organisation's ledger lock (KAN-44): the balance read and the
     # row that records balance_after_paise happen with nothing in between.
     from api.services.billing.ledger_lock import lock_organization_ledger

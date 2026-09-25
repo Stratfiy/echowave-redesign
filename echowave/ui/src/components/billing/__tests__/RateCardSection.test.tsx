@@ -16,10 +16,10 @@ const CARD = {
     version: "2026-09-25",
     effective_from: "2026-09-25",
     paise_per_credit: 50,
-    standard_tokens_per_event: 1500,
+    included_model_paise_per_credit: 14.71,
     premium_model_multiplier: 3.4,
     lines: [
-        { key: "text_reply", label: "Text reply", credits: 1, unit: "per reply", notes: "Includes 1,500 tokens.", basis: "compute" },
+        { key: "text_reply", label: "Text reply", credits: 1, unit: "per reply", notes: "Includes the AI model cost of a normal reply.", basis: "compute" },
         { key: "voice_minute", label: "Voice minute, standard voice", credits: 12, unit: "per minute", notes: "", basis: "market" },
         { key: "premium_model_tokens", label: "Premium model", credits: null, unit: "per event", notes: "x 3.4", basis: "compute" },
     ],

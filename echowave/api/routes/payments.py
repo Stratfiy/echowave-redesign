@@ -303,8 +303,8 @@ class RateCardResponse(BaseModel):
     version: str
     effective_from: str
     paise_per_credit: int
-    #: Tokens a text event includes on a standard model; None with the rule off.
-    standard_tokens_per_event: int | None
+    #: AI model cost, in paise, each credit includes; None with the rule off.
+    included_model_paise_per_credit: float | None
     #: What a premium model's tokens are sold at, times cost; None when off.
     premium_model_multiplier: float | None
     lines: list[RateCardLine]

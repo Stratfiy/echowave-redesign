@@ -9818,9 +9818,9 @@ export type RateCardResponse = {
      */
     paise_per_credit: number;
     /**
-     * Standard Tokens Per Event
+     * Included Model Paise Per Credit
      */
-    standard_tokens_per_event: number | null;
+    included_model_paise_per_credit: number | null;
     /**
      * Premium Model Multiplier
      */

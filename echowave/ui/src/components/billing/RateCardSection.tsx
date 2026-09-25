@@ -81,8 +81,8 @@ export function RateCardSection() {
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
                 1 credit = ₹{rupees}.
-                {card?.standard_tokens_per_event
-                    ? ` A reply includes ${integers.format(card.standard_tokens_per_event)} tokens on a standard model; a premium model adds its tokens at ${card.premium_model_multiplier}× their cost.`
+                {card?.included_model_paise_per_credit
+                    ? " A normal reply's AI cost is included in its credit. A long conversation or a premium model adds credits for the rest."
                     : ""}
             </p>
             {failed && (

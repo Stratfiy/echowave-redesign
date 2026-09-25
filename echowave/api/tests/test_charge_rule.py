@@ -172,37 +172,24 @@ class TestTheMargins:
             >= exchange.VOICE_MANAGED_STACK_PAISE_PER_MINUTE + tts_paise
         )
 
-    def test_the_allowance_fits_inside_one_credit_at_compute(self):
-        """The allowance on the dearest standard model in the book, at the
-        book's own input/output blend, costs no more than a credit covers at
-        M_COMPUTE. (12,000 tokens, the figure first proposed, cost 110.6
-        paise on Gemini 3.5 Flash-Lite against the 14.7 a credit covers.)"""
-        priced = [
-            p
-            for p in default_rates.LLM_MODEL_PRICES
-            if p.model and exchange.is_standard_model(p.model)
-        ]
-        assert {p.model for p in priced} >= {
-            "gpt-4.1-mini",
-            "gemini-3.5-flash-lite",
-            "sarvam-105b-conversations",
-        }
-        share = default_rates.LLM_INPUT_SHARE
-        dearest = max(
-            p.input_per_million * share + p.output_per_million * (1 - share)
-            for p in priced
+    def test_the_allowance_is_what_a_credit_pays_for(self):
+        """Each credit includes the model cost it covers at M_COMPUTE, and
+        no more: that is what holds the 65% floor on every model."""
+        assert (
+            exchange.INCLUDED_MODEL_PAISE_PER_CREDIT * Fraction(str(exchange.M_COMPUTE))
+            == PAISE_PER_CREDIT
         )
-        worst_paise = (
-            dearest
-            * exchange.STANDARD_TOKENS_PER_EVENT
-            / 1_000_000
-            * default_rates.REFERENCE_USD_INR
-            * 100
+
+    def test_a_real_agent_turn_on_the_cheapest_model_is_one_credit(self):
+        """The case that sank the token allowance: a 16k-token turn (system
+        prompt, tools, memory) on gpt-5-nano costs about 6 paise and must
+        stay a 1-credit reply."""
+        assert (
+            exchange.model_line_credits(
+                [exchange.ModelTokens("gpt-5-nano", 16_000, Fraction(6))]
+            )
+            == 0
         )
-        assert worst_paise <= PAISE_PER_CREDIT / exchange.M_COMPUTE
-        assert exchange.STANDARD_TOKENS_PER_EVENT == 1_500
-        # The picker's per-reply estimate sits inside the allowance.
-        assert exchange.TOKENS_PER_REPLY_ESTIMATE <= exchange.STANDARD_TOKENS_PER_EVENT
 
 
 class TestReadsAndWrites:
@@ -276,43 +263,43 @@ class TestTheModelLine:
     def _t(self, model, tokens, paise):
         return exchange.ModelTokens(model, tokens, Fraction(str(paise)))
 
-    def test_standard_within_the_allowance_is_included(self):
-        assert exchange.model_line_credits([self._t("gpt-4.1-mini", 1_500, 11)]) == 0
+    def test_cost_inside_the_credit_is_included(self):
+        # 14 paise of model cost fits inside the 14.7 a credit covers.
+        assert exchange.model_line_credits([self._t("gpt-4.1-mini", 6_000, 14)]) == 0
 
-    def test_standard_past_the_allowance_pays_the_excess_share(self):
-        # 3,000 tokens costing 20 paise: half is past the allowance, 10 paise,
-        # x3.4 = 34 paise -> 1 credit.
-        assert exchange.model_line_credits([self._t("gpt-4.1-mini", 3_000, 20)]) == 1
-        # 15,000 tokens at 100 paise: 90 paise past, x3.4 = 306 -> 7 credits.
-        assert exchange.model_line_credits([self._t("gpt-4.1-mini", 15_000, 100)]) == 7
+    def test_cost_past_the_credit_pays_the_excess(self):
+        # 42 paise (a 16k turn on gpt-4.1-mini): 27.3 past, x3.4 = 92.8 -> 2.
+        assert exchange.model_line_credits([self._t("gpt-4.1-mini", 16_000, 42)]) == 2
 
-    def test_every_premium_token_is_charged(self):
-        assert exchange.model_line_credits([self._t("claude-opus-5", 1_000, 1)]) == 1
-        # 190 paise x 3.4 = 646 -> 13 credits.
-        assert exchange.model_line_credits([self._t("gpt-5", 5_000, 190)]) == 13
+    def test_a_premium_reply(self):
+        # 190 paise on gpt-5: 175.3 past, x3.4 = 596 -> 12, so 13 in all.
+        assert exchange.model_line_credits([self._t("gpt-5", 5_000, 190)]) == 12
+
+    def test_a_bigger_event_includes_more(self):
+        # A routine is 2 credits, so it includes 29.4 paise.
+        assert (
+            exchange.model_line_credits(
+                [self._t("gpt-4.1-mini", 10_000, 29)], event_credits=2
+            )
+            == 0
+        )
 
     def test_one_rounding_across_models(self):
         assert (
             exchange.model_line_credits(
-                [self._t("gpt-5", 100, 7), self._t("claude-sonnet-5", 100, 7)]
+                [self._t("gpt-5", 100, 10), self._t("claude-sonnet-5", 100, 10)]
             )
             == 1
         )
 
-    def test_a_dated_snapshot_is_its_model(self):
+    def test_nothing_recorded_is_nothing_charged(self):
+        assert exchange.model_line_credits([]) == 0
+
+    def test_standard_models_are_recognised(self):
         assert exchange.is_standard_model("gpt-4.1-mini-2025-04-14")
         assert exchange.is_standard_model("models/gemini-2.5-flash-lite")
         assert not exchange.is_standard_model("gpt-4.1")
         assert not exchange.is_standard_model("")
-
-    def test_the_picker_estimate(self):
-        assert exchange.estimated_reply_credits("openai", "gpt-4.1-mini") == 1
-        assert exchange.estimated_reply_credits("sarvam", "sarvam-105b") == 1
-        # 1,400 tokens of Opus 5 at $11/M blended: 147.8 paise x 3.4 = 502.6
-        # -> 11 credits, plus the reply.
-        assert exchange.estimated_reply_credits("anthropic", "claude-opus-5") == 12
-        # GPT-5 at $3.875/M blended: 52.1 paise x 3.4 = 177.1 -> 4, plus 1.
-        assert exchange.estimated_reply_credits("openai", "gpt-5") == 5
 
 
 class TestTranscription:
@@ -417,11 +404,11 @@ class TestACharge:
                 note="Sales in chat",
                 usage=[_usage()],
             )
-        assert paise == 14 * 50
+        assert paise == 13 * 50
         rows = await _rows(async_session, org)
         assert len(rows) == 1
-        assert rows[0].delta_paise == -700
-        assert rows[0].note == "Text reply · 1 credit + 13 model · Sales in chat"
+        assert rows[0].delta_paise == -650
+        assert rows[0].note == "Text reply · 1 credit + 12 model · Sales in chat"
 
     async def test_a_knowledge_answer_is_one_credit(
         self, db_session, async_session, rule_on
@@ -504,7 +491,7 @@ class TestACharge:
             ref_id="77",
             usage=[_usage()],
         )
-        assert paise == (2 + 13) * 50
+        assert paise == (2 + 11) * 50
 
     async def test_off_the_usage_is_ignored(self, db_session, async_session, rule_off):
         org = await _org(async_session, "rule-off")
@@ -610,10 +597,10 @@ class TestThePicker:
         assert by_slug["everyday"]["reply_credits"] == 1
         assert by_slug["smart"]["reply_credits"] == 1
         # Deep is GPT-4.1: $3.80/M blended, 51.1 paise x 3.4 -> 4, plus 1.
-        assert by_slug["deep"]["reply_credits"] == 5
+        assert by_slug["deep"]["reply_credits"] == 4
         models = {m["slug"]: m for m in menu["vendors"][0]["models"]}
         assert models["model:openai/gpt-5-mini"]["reply_credits"] == 1
-        assert models["model:openai/gpt-5"]["reply_credits"] == 5
+        assert models["model:openai/gpt-5"]["reply_credits"] == 4
 
     async def test_off_the_menu_is_unchanged(self, rule_off):
         from api.services.configuration import chat_presets
@@ -652,7 +639,7 @@ class TestTheRateCard:
         assert body["version"] == "2026-09-25"
         assert body["enabled"] is True
         assert body["paise_per_credit"] == 50
-        assert body["standard_tokens_per_event"] == 1_500
+        assert body["included_model_paise_per_credit"] == 14.71
         assert body["premium_model_multiplier"] == 3.4
         figures = {line["key"]: line["credits"] for line in body["lines"]}
         assert figures["knowledge_answer"] == 1
@@ -666,5 +653,5 @@ class TestTheRateCard:
         figures = {line["key"]: line["credits"] for line in body["lines"]}
         assert figures["knowledge_answer"] == 2
         assert figures["tool_call_premium"] == 3
-        assert body["standard_tokens_per_event"] is None
+        assert body["included_model_paise_per_credit"] is None
         assert body["premium_model_multiplier"] is None
