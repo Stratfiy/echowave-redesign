@@ -48,7 +48,10 @@ import {
     OWN_BRAIN,
     rememberedPreset,
     rememberPreset,
+    replyCostLabel,
+    replyCredits,
 } from '@/lib/chatPresets';
+import { useFeature } from '@/lib/features';
 import { hasIndicScript } from '@/lib/indic';
 import {
     ACCEPTED_FILE_TYPES,
@@ -214,6 +217,11 @@ export function ChannelComposer({
     // holds a key for. Decibyl's own thread gets the vendors its client
     // can drive; a bot's chat gets every vendor in the catalogue.
     const [vendors, setVendors] = useState<BrainVendor[]>([]);
+    // What a reply costs on each choice (D-1), shown only under the charge
+    // rule; the API sends the figures only then too.
+    const chargeRule = useFeature('charge_rule');
+    const [costs, setCosts] = useState<Record<string, number>>({});
+    const costOf = (slug: string) => (chargeRule ? replyCostLabel(costs[slug]) : null);
     useEffect(() => {
         let cancelled = false;
         void (async () => {
@@ -221,6 +229,7 @@ export function ChannelComposer({
                 const response = await brainsApiV1TimelineBrainsGet({ query: { assistant } });
                 if (cancelled || response.error || !response.data) return;
                 setVendors(response.data.vendors ?? []);
+                setCosts(replyCredits(response.data.presets ?? [], response.data.vendors ?? []));
             } catch {
                 // No catalogue: the three words still work.
             }
@@ -795,6 +804,9 @@ export function ChannelComposer({
                                     <span className="flex flex-col">
                                         <span className="text-sm">{option.label}</span>
                                         <span className="text-xs text-muted-foreground">{option.blurb}</span>
+                                        {costOf(option.slug) && (
+                                            <span className="text-[11px] text-muted-foreground">{costOf(option.slug)}</span>
+                                        )}
                                     </span>
                                 </DropdownMenuItem>
                             ))}
@@ -822,6 +834,11 @@ export function ChannelComposer({
                                                                 )}
                                                             />
                                                             <span className="text-sm">{model.label}</span>
+                                                            {costOf(model.slug) && (
+                                                                <span className="ml-auto text-[11px] text-muted-foreground">
+                                                                    {costOf(model.slug)}
+                                                                </span>
+                                                            )}
                                                         </DropdownMenuItem>
                                                     ))}
                                                 </div>

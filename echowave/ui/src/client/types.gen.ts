@@ -1515,6 +1515,10 @@ export type BrainModel = {
      * Label
      */
     label: string;
+    /**
+     * Reply Credits
+     */
+    reply_credits?: number | null;
 };
 
 /**
@@ -1533,6 +1537,10 @@ export type BrainPreset = {
      * Blurb
      */
     blurb: string;
+    /**
+     * Reply Credits
+     */
+    reply_credits?: number | null;
 };
 
 /**
@@ -9757,6 +9765,70 @@ export type PublicPackDetail = {
      * Runs
      */
     runs?: string | null;
+};
+
+/**
+ * RateCardLine
+ */
+export type RateCardLine = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Credits
+     */
+    credits: number | null;
+    /**
+     * Unit
+     */
+    unit: string;
+    /**
+     * Notes
+     */
+    notes: string;
+    /**
+     * Basis
+     */
+    basis: string;
+};
+
+/**
+ * RateCardResponse
+ */
+export type RateCardResponse = {
+    /**
+     * Enabled
+     */
+    enabled: boolean;
+    /**
+     * Version
+     */
+    version: string;
+    /**
+     * Effective From
+     */
+    effective_from: string;
+    /**
+     * Paise Per Credit
+     */
+    paise_per_credit: number;
+    /**
+     * Standard Tokens Per Event
+     */
+    standard_tokens_per_event: number | null;
+    /**
+     * Premium Model Multiplier
+     */
+    premium_model_multiplier: number | null;
+    /**
+     * Lines
+     */
+    lines: Array<RateCardLine>;
 };
 
 /**
@@ -22371,6 +22443,45 @@ export type GetBalanceApiV1BillingBalanceGetResponses = {
 };
 
 export type GetBalanceApiV1BillingBalanceGetResponse = GetBalanceApiV1BillingBalanceGetResponses[keyof GetBalanceApiV1BillingBalanceGetResponses];
+
+export type GetRateCardApiV1BillingRateCardGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/billing/rate-card';
+};
+
+export type GetRateCardApiV1BillingRateCardGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetRateCardApiV1BillingRateCardGetError = GetRateCardApiV1BillingRateCardGetErrors[keyof GetRateCardApiV1BillingRateCardGetErrors];
+
+export type GetRateCardApiV1BillingRateCardGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: RateCardResponse;
+};
+
+export type GetRateCardApiV1BillingRateCardGetResponse = GetRateCardApiV1BillingRateCardGetResponses[keyof GetRateCardApiV1BillingRateCardGetResponses];
 
 export type CreateTopupApiV1BillingTopupPostData = {
     body: TopupRequest;

@@ -761,6 +761,7 @@ async def run_task(task_id: int) -> int | None:
             ref_id=str(run_id),
             note=task["title"][:80],
             workflow_id=assignee_id,
+            usage=billing_events.turn_usages(text_session),
         )
         await _finish(
             task_id,

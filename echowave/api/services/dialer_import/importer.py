@@ -154,6 +154,16 @@ async def import_window(
                     model=transcription.model or "",
                     seconds=transcription.duration_seconds or call.duration_seconds,
                 )
+            # Billed only under the charge rule (D-1), keyed on the call so a
+            # re-import charges once. Never raises.
+            from api.services.billing import events as billing_events
+
+            await billing_events.charge_transcription(
+                organization_id=connection.organization_id,
+                ref_id=f"dialer:{connection.id}:{call.external_id}",
+                seconds=transcription.duration_seconds or call.duration_seconds,
+                note=f"Imported {connection.vendor} call",
+            )
             row.transcript = transcription.transcript
             row.transcription_model = transcription.model
             row.status = "transcribed"

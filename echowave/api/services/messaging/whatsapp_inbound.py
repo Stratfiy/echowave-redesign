@@ -404,6 +404,9 @@ async def reply(*, organization_id: int, to: str, body: str) -> None:
                 organization_id=organization_id,
                 message_id=result.message_id or f"reply:{to}:{hash(body)}",
                 node_name="Decibyl",
+                # An AI reply inside the conversation: its own credit covers
+                # the message under the charge rule (D-1).
+                category=messaging_charges.SERVICE,
             )
             await session.commit()
     except Exception as exc:  # noqa: BLE001

@@ -183,7 +183,7 @@ async def menu(session, *, vendors: Optional[list[str]] = None) -> dict[str, Any
 
     keyed = set((await platform_credentials.managed_providers(session)).get("llm", []))
     allowed = keyed if vendors is None else keyed & set(vendors)
-    return {
+    menu = {
         "presets": [
             {"slug": p.slug, "label": p.label, "blurb": p.blurb} for p in CHAT_PRESETS
         ],
@@ -203,6 +203,32 @@ async def menu(session, *, vendors: Optional[list[str]] = None) -> dict[str, Any
             if vendor.id in allowed
         ],
     }
+    _price_menu(menu)
+    return menu
+
+
+def _price_menu(menu: dict[str, Any]) -> None:
+    """What a reply costs on each choice, under the charge rule (D-1): 1 on
+    a standard model, more on a premium one. Nothing is added with the rule
+    off, so the menu is exactly what it was."""
+    from api.services.billing import exchange
+
+    if not exchange.enabled():
+        return
+    from api.services.configuration import managed_tiers
+
+    for preset in menu["presets"]:
+        upstream = managed_tiers.resolve(
+            "llm", PRESETS_BY_SLUG[preset["slug"]].llm_tier
+        )
+        preset["reply_credits"] = exchange.estimated_reply_credits(
+            upstream.provider, upstream.model
+        )
+    for vendor in menu["vendors"]:
+        for model in vendor["models"]:
+            pair = named_model(model["slug"])
+            if pair is not None:
+                model["reply_credits"] = exchange.estimated_reply_credits(*pair)
 
 
 #: What ``session_data`` carries it under.

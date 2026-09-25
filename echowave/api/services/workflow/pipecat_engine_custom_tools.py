@@ -1231,6 +1231,7 @@ class CustomToolManager:
                     toolkit=_tool_app_slug(tool),
                     tool_call_id=getattr(function_call_params, "tool_call_id", None),
                     function_name=function_name,
+                    action=tool_slug,
                 )
             except ComposioNotConfigured as e:
                 # Our deployment, not the caller's problem -- but the agent has
@@ -1251,7 +1252,12 @@ class CustomToolManager:
         return composio_handler
 
     async def _charge_tool_call(
-        self, *, toolkit: Optional[str], tool_call_id: Optional[str], function_name: str
+        self,
+        *,
+        toolkit: Optional[str],
+        tool_call_id: Optional[str],
+        function_name: str,
+        action: Optional[str] = None,
     ) -> None:
         from api.services.billing import events as billing_events
 
@@ -1260,7 +1266,9 @@ class CustomToolManager:
         ref = f"{run_id or 'run'}:{tool_call_id or function_name}"
         await billing_events.charge_in_own_session(
             organization_id=context.get("organization_id"),
-            event=billing_events.tool_call_event(toolkit),
+            # Under the charge rule (D-1) a system of record is premium only
+            # for a write; the action's slug (or the function name) says which.
+            event=billing_events.tool_call_event(toolkit, action or function_name),
             ref_id=ref,
             note=f"{function_name} via {toolkit or 'connector'}",
             workflow_id=context.get("workflow_id"),

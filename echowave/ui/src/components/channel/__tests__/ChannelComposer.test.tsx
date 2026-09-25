@@ -32,6 +32,8 @@ vi.mock('@/client/sdk.gen', () => ({
     brainsApiV1TimelineBrainsGet: brains,
     memoryApiV1TimelineMemoryGet: memory,
 }));
+const flags = vi.hoisted(() => ({ charge_rule: false }));
+vi.mock('@/lib/features', () => ({ useFeature: (name: string) => Boolean((flags as Record<string, boolean>)[name]) }));
 const upload = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/uploadKnowledge', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@/lib/uploadKnowledge')>()),
@@ -386,6 +388,30 @@ describe('the brain menu', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Send' }));
         await waitFor(() => expect(post).toHaveBeenCalled());
         expect(post.mock.calls[0][0].body.preset).toBe('model:anthropic/claude-sonnet-5');
+    });
+
+    it('says what a reply costs on each choice under the charge rule', async () => {
+        flags.charge_rule = true;
+        brains.mockResolvedValue({
+            data: {
+                presets: [
+                    { slug: 'everyday', label: 'Everyday', blurb: '', reply_credits: 1 },
+                    { slug: 'deep', label: 'Deep', blurb: '', reply_credits: 5 },
+                ],
+                vendors: [
+                    { id: 'openai', label: 'OpenAI', models: [{ slug: 'model:openai/gpt-5', label: 'GPT-5', reply_credits: 5 }] },
+                ],
+            },
+        });
+        try {
+            composer();
+            await waitFor(() => expect(brains).toHaveBeenCalled());
+            fireEvent.keyDown(screen.getByRole('button', { name: 'Brain for this message' }), { key: 'Enter' });
+            expect(await screen.findByText('1 cr/reply')).toBeTruthy();
+            expect(screen.getByText('≈5 cr/reply')).toBeTruthy();
+        } finally {
+            flags.charge_rule = false;
+        }
     });
 
     it('asks Decibyl\'s thread for its own menu', async () => {

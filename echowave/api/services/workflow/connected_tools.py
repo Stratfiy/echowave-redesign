@@ -557,7 +557,9 @@ async def execute(
 
         await billing_events.charge_in_own_session(
             organization_id=organization_id,
-            event=billing_events.tool_call_event(toolkit_of(tool)),
+            event=billing_events.tool_call_event(
+                toolkit_of(tool), slug or getattr(tool, "name", None)
+            ),
             ref_id=ref_id,
             note=f"{tool.name} via {toolkit_of(tool) or 'connector'} (Decibyl)",
         )

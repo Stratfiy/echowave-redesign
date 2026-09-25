@@ -305,6 +305,9 @@ class PostMessageResponse(BaseModel):
 class BrainModel(BaseModel):
     slug: str
     label: str
+    #: What a reply on this model is expected to cost, in credits. Only
+    #: under the charge rule (D-1); absent otherwise.
+    reply_credits: Optional[int] = None
 
 
 class BrainVendor(BaseModel):
@@ -317,6 +320,8 @@ class BrainPreset(BaseModel):
     slug: str
     label: str
     blurb: str
+    #: As on ``BrainModel``.
+    reply_credits: Optional[int] = None
 
 
 class BrainsResponse(BaseModel):

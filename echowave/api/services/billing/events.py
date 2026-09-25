@@ -49,6 +49,9 @@ BUILDER_MESSAGE = "builder_message"
 NUMBER_VERIFICATION = "number_verification"
 #: Sarvam translate or transliterate, per 100 characters rounded up (KAN-104).
 TRANSLATION = "translation"
+#: Transcribing an uploaded recording or an imported dialer call (D-1). Only
+#: charged while the charge rule is on; its figure lives in ``exchange``.
+TRANSCRIPTION = "transcription_minute"
 #: The unit a translation is billed in.
 TRANSLATION_CHARS_PER_CREDIT = 100
 FREE_NUMBER_VERIFICATIONS = 2
@@ -82,6 +85,7 @@ EVENT_LABELS: dict[str, str] = {
     BUILDER_MESSAGE: "Builder message past the allowance",
     NUMBER_VERIFICATION: "Number verification past the first two",
     TRANSLATION: "Translation",
+    TRANSCRIPTION: "Transcription",
 }
 
 #: Connector toolkit slugs billed at the premium rate. ``PREMIUM_CONNECTORS=
@@ -178,20 +182,41 @@ def credits_for(event: str) -> int:
     # on top. One counter is easier to explain than two.
     if event == BUILDER_MESSAGE and constants.PLAN_LADDER_2026_09_ENABLED:
         return 0
+    # D-1: with the charge rule on, the exchange table is the price list.
+    # ``EVENT_CREDITS`` stays the table the flag-off world charges from.
+    from api.services.billing import exchange
+
+    if exchange.enabled() and event in exchange.CREDITS:
+        return exchange.CREDITS[event]
     return EVENT_CREDITS[event]
+
+
+def is_metered(event: str) -> bool:
+    """Whether ``charge`` accepts this event. Transcription is metered only
+    while the charge rule is on."""
+    from api.services.billing import exchange
+
+    return event in EVENT_CREDITS or (exchange.enabled() and event == TRANSCRIPTION)
 
 
 def paise_for(event: str, quantity: int = 1) -> int:
     return credits_for(event) * PAISE_PER_CREDIT * max(1, int(quantity))
 
 
-def tool_call_event(toolkit: str | None) -> str:
-    """Which tool-call rate a connector is billed at."""
-    return (
-        TOOL_CALL_PREMIUM
-        if (toolkit or "").strip().lower() in PREMIUM_CONNECTORS
-        else TOOL_CALL
-    )
+def tool_call_event(toolkit: str | None, action: str | None = None) -> str:
+    """Which tool-call rate a connector is billed at.
+
+    Off the charge rule, the connector alone decides. On it (D-1), only a
+    *write* into a system of record is premium: ``action`` is the action or
+    tool name, classified by ``exchange.is_write_action``; a read, or a name
+    that says neither, is an ordinary call.
+    """
+    from api.services.billing import exchange
+
+    premium = (toolkit or "").strip().lower() in PREMIUM_CONNECTORS
+    if premium and exchange.enabled():
+        premium = exchange.is_write_action(action)
+    return TOOL_CALL_PREMIUM if premium else TOOL_CALL
 
 
 def turn_used_knowledge(turn: dict | None) -> bool:
@@ -260,6 +285,39 @@ def last_turn_of(text_session) -> dict | None:
     return last if isinstance(last, dict) else None
 
 
+def turn_usages(text_session, *, last_only: bool = False) -> list[dict]:
+    """The model usage each completed turn of a text session recorded, for
+    the model line (D-1). ``last_only`` for an event that is one turn of a
+    longer session (a share-link reply); otherwise every turn of the run,
+    which is what a channel reply, a trigger, a task or a routine is.
+    Defensive for the same reason as ``last_turn_of``."""
+    data = getattr(text_session, "session_data", None)
+    if not isinstance(data, dict):
+        return []
+    turns = data.get("turns")
+    if not isinstance(turns, list):
+        return []
+    if last_only:
+        turns = turns[-1:]
+    return [
+        turn["usage"]
+        for turn in turns
+        if isinstance(turn, dict) and isinstance(turn.get("usage"), dict)
+    ]
+
+
+def stamped_credits(event: str, charged_paise: int) -> int:
+    """What a reply's timeline row says it cost. The event's figure, or --
+    under the charge rule, when a model line was added -- what the ledger
+    row actually took."""
+    from api.services.billing import exchange
+
+    figure = credits_for(event)
+    if exchange.enabled() and charged_paise > figure * PAISE_PER_CREDIT:
+        return charged_paise // PAISE_PER_CREDIT
+    return figure
+
+
 def timeline_price(kind: str, payload: dict | None = None) -> dict:
     """What a timeline row cost, for the screen: ``{"credits": n}`` or
     ``{"included": True}``.
@@ -275,6 +333,10 @@ def timeline_price(kind: str, payload: dict | None = None) -> dict:
     price = TIMELINE_PRICES.get(kind, INCLUDED)
     if price == INCLUDED:
         return {"credits": 0, "included": True}
+    from api.services.billing import exchange
+
+    if exchange.enabled():
+        return {"credits": credits_for(price), "included": False}
     return {"credits": EVENT_CREDITS[price], "included": False}
 
 
@@ -298,9 +360,17 @@ async def charge(
     quantity: int = 1,
     note: str | None = None,
     workflow_id: int | None = None,
+    usage: list[dict | None] | None = None,
+    credits: int | None = None,
 ) -> int:
     """Debit one event. Returns the paise debited (0 if already done, or the
     account is internal).
+
+    With the charge rule on (D-1), ``usage`` is the model usage the event's
+    turns recorded; a text event includes the standard-model allowance and
+    anything past it, or any premium model's tokens, is added to this same
+    row as extra credits. ``credits`` prices an event measured rather than
+    counted (a transcription's minutes). Both are ignored with the rule off.
 
     Keyed on ``(event, ref_id)``: a retried task, a redelivered job, a
     handler that ran twice — all find the row and write nothing. The ref is
@@ -309,9 +379,10 @@ async def charge(
     ``workflow_id`` is the bot that did the work, stamped on the ledger row
     so its spend can be capped (S-1). None for an event nobody's agent made.
     """
+    from api.services.billing import exchange
     from api.services.billing.internal_accounts import is_internal
 
-    if event not in EVENT_CREDITS:
+    if not is_metered(event):
         raise KeyError(f"{event!r} is not a metered event; see events.EVENT_CREDITS")
     if not ref_id:
         return 0
@@ -329,16 +400,27 @@ async def charge(
         logger.debug("{} {} already debited", event, ref_id)
         return 0
     amount = paise_for(event, quantity)
+    rule = exchange.enabled()
+    if rule and credits is not None:
+        amount = max(0, int(credits)) * PAISE_PER_CREDIT
+    model_credits = 0
+    if rule and usage and event in exchange.TOKEN_EVENTS:
+        model_credits = await exchange.model_credits(session, usage)
     # Under the organisation's ledger lock (KAN-44): the balance read and the
     # row that records balance_after_paise happen with nothing in between.
     from api.services.billing.ledger_lock import lock_organization_ledger
 
     await lock_organization_ledger(session, organization_id=organization_id)
     balance = await _balance_paise(session, organization_id=organization_id)
-    credits = amount // PAISE_PER_CREDIT
+    event_credits = amount // PAISE_PER_CREDIT
     label = EVENT_LABELS[event]
     if quantity > 1:
         label += f" ×{quantity}"
+    priced = f"{event_credits} credit{'s' if event_credits != 1 else ''}"
+    if model_credits:
+        # One row, one rounding: the event and its model line together.
+        priced += f" + {model_credits} model"
+        amount += model_credits * PAISE_PER_CREDIT
     session.add(
         CreditLedgerModel(
             organization_id=organization_id,
@@ -347,8 +429,7 @@ async def charge(
             ref_type=event,
             ref_id=ref_id[:64],
             balance_after_paise=balance - amount,
-            note=f"{label} · {credits} credit{'s' if credits != 1 else ''}"
-            + (f" · {note}" if note else ""),
+            note=f"{label} · {priced}" + (f" · {note}" if note else ""),
             created_at=datetime.now(UTC),
             workflow_id=workflow_id,
         )
@@ -362,6 +443,29 @@ async def charge(
     return amount
 
 
+async def charge_transcription(
+    *,
+    organization_id: int | None,
+    ref_id: str,
+    seconds: float | int | None,
+    note: str | None = None,
+) -> int:
+    """Charge one transcribed file (D-1): 2 credits a minute, rounded up per
+    file, 1 credit minimum. Nothing while the charge rule is off -- the
+    transcription was measured, never billed, before it. Never raises."""
+    from api.services.billing import exchange
+
+    if not exchange.enabled():
+        return 0
+    return await charge_in_own_session(
+        organization_id=organization_id,
+        event=TRANSCRIPTION,
+        ref_id=ref_id,
+        credits=exchange.transcription_credits(seconds),
+        note=note,
+    )
+
+
 async def charge_in_own_session(
     *,
     organization_id: int | None,
@@ -370,6 +474,8 @@ async def charge_in_own_session(
     quantity: int = 1,
     note: str | None = None,
     workflow_id: int | None = None,
+    usage: list[dict | None] | None = None,
+    credits: int | None = None,
 ) -> int:
     """``charge`` from a runtime path that holds no session. Never raises: a
     charge that fails is logged loudly and the bot's work stands — the
@@ -388,6 +494,8 @@ async def charge_in_own_session(
                 quantity=quantity,
                 note=note,
                 workflow_id=workflow_id,
+                usage=usage,
+                credits=credits,
             )
             await session.commit()
             return amount

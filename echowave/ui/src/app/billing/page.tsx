@@ -49,6 +49,7 @@ import {
 } from "@/client/sdk.gen";
 import { AutoTopupSection } from "@/components/billing/AutoTopupSection";
 import { PlanSection } from "@/components/billing/PlanSection";
+import { RateCardSection, RunwayLine } from "@/components/billing/RateCardSection";
 import { InviteCard } from "@/components/home/InviteCard";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { BILLING_TABS } from "@/components/layout/SectionTabs";
@@ -791,6 +792,8 @@ export default function BillingPage() {
         >
           {formatCredits(balancePaise)}
         </div>
+        {/* D-1: the balance in things a person recognises. Flag-gated. */}
+        <RunwayLine balancePaise={balancePaise} />
         {balance &&
           (balance.plan_credits ?? 0) + (balance.topup_credits ?? 0) > 0 && (
             <p className="mt-1 text-sm text-muted-foreground">
@@ -817,6 +820,8 @@ export default function BillingPage() {
           </p>
         )}
       </section>
+
+      <RateCardSection />
 
       <PlanSection
         onSubscribed={() => void refresh()}

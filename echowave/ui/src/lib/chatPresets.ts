@@ -19,8 +19,10 @@ export const CHAT_PRESETS: ChatPreset[] = [
 /** null is "the bot's own brain", which is what nothing chosen means. */
 export const OWN_BRAIN = { slug: '', label: 'Agent’s own', blurb: 'Whatever this agent is set up with.' };
 
-/** One model under "More models": `model:<vendor>/<model>` and its name. */
-export type BrainModel = { slug: string; label: string };
+/** One model under "More models": `model:<vendor>/<model>` and its name.
+ *  `reply_credits` is what a reply on it is expected to cost, sent only
+ *  under the charge rule (D-1). */
+export type BrainModel = { slug: string; label: string; reply_credits?: number | null };
 /** A vendor's shelf, as the API sends it (only vendors with a key). */
 export type BrainVendor = { id: string; label: string; models: BrainModel[] };
 
@@ -38,6 +40,31 @@ export function labelFor(slug: string, vendors: BrainVendor[] = []): string {
     if (slug === 'advanced') return 'Advanced';
     if (slug.startsWith('model:')) return slug.slice('model:'.length).split('/')[1] ?? slug;
     return slug;
+}
+
+/** What a reply costs on a choice, for the picker (D-1): "1 cr/reply" on a
+ *  standard model, "≈N cr/reply" on a premium one whose tokens are
+ *  estimated. Null when the API sent no figure. */
+export function replyCostLabel(credits: number | null | undefined): string | null {
+    if (credits === null || credits === undefined || !Number.isFinite(credits)) return null;
+    return credits <= 1 ? `${Math.max(0, credits)} cr/reply` : `≈${credits} cr/reply`;
+}
+
+/** Slug → expected credits per reply, from the menu the API sent. */
+export function replyCredits(
+    presets: { slug: string; reply_credits?: number | null }[] = [],
+    vendors: BrainVendor[] = [],
+): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (const preset of presets) {
+        if (typeof preset.reply_credits === 'number') out[preset.slug] = preset.reply_credits;
+    }
+    for (const vendor of vendors) {
+        for (const model of vendor.models) {
+            if (typeof model.reply_credits === 'number') out[model.slug] = model.reply_credits;
+        }
+    }
+    return out;
 }
 
 /** 3200 → "3.2k", 16000 → "16k", 800 → "800". The meter, not an invoice. */
