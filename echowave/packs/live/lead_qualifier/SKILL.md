@@ -7,7 +7,7 @@ decibyl:
   pack:
     slug: lead_qualifier
     name: Lead Qualifier Agent
-    job: Qualify new enquiries
+    job: Tele-sales executive
     publisher:
       slug: decibyl
       name: Decibyl

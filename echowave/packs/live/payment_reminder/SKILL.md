@@ -7,7 +7,7 @@ decibyl:
   pack:
     slug: payment_reminder
     name: Payment Reminder Agent
-    job: Chase what is owed
+    job: Collections executive
     publisher:
       slug: decibyl
       name: Decibyl

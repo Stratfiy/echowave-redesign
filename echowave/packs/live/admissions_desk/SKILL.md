@@ -7,7 +7,7 @@ decibyl:
   pack:
     slug: admissions_desk
     name: Admissions Agent
-    job: Follow up on admissions
+    job: Admissions counsellor
     publisher:
       slug: decibyl
       name: Decibyl

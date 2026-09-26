@@ -518,7 +518,7 @@ class TestTheShelf:
         """Not alphabetical. The shelf is ordered by what we want somebody to
         hire first, and answering the phone is the wedge."""
         shelf = catalogue._packs("+911234567890")
-        assert jobs(shelf)[0] == "Answer the phone"
+        assert jobs(shelf)[0] == "Front office executive"
         assert len(jobs(shelf)) == len({pack.job for pack in shelf})
 
 

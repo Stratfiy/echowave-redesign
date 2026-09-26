@@ -6,7 +6,7 @@ decibyl:
   pack:
     slug: front_desk_clinic
     name: Front Desk Agent
-    job: Answer the phone
+    job: Front office executive
     publisher:
       slug: decibyl
       name: Decibyl

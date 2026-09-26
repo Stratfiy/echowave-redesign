@@ -7,7 +7,7 @@ decibyl:
   pack:
     slug: compliance_reminder
     name: Compliance Reminder Agent
-    job: Watch what falls due
+    job: Compliance executive
     publisher:
       slug: decibyl
       name: Decibyl

@@ -7,7 +7,7 @@ decibyl:
   pack:
     slug: internal_knowledge
     name: Internal Knowledge Agent
-    job: Answer the team's questions
+    job: Knowledge assistant
     publisher:
       slug: decibyl
       name: Decibyl
