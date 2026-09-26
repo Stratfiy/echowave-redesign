@@ -100,7 +100,9 @@ async def get_agent_template(
 ) -> dict[str, Any]:
     """One template in full, including prompts, guardrails and stack."""
     template = get_template(template_id)
-    if template is None:
+    # A template waiting on a switched-off feature does not exist from
+    # outside, as it is off the gallery (``list_templates``).
+    if template is None or not template.available:
         raise HTTPException(status_code=404, detail="Template not found")
 
     return {
@@ -194,7 +196,9 @@ async def create_from_template(
         raise HTTPException(status_code=400, detail="No organization selected")
 
     template = get_template(template_id)
-    if template is None:
+    # A template waiting on a switched-off feature does not exist from
+    # outside, as it is off the gallery (``list_templates``).
+    if template is None or not template.available:
         raise HTTPException(status_code=404, detail="Template not found")
 
     try:

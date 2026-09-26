@@ -61,6 +61,15 @@ async def for_template(
             uuids += brief_apps.tool_uuids(" ".join(template.apps), tools)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Could not give {} its apps: {}", template.id, exc)
+    # The document tools are not attached here: the engine offers them to
+    # every text and channel run while ``procurement_docs`` is on, and to
+    # none while it is off. A documents template is off the gallery then
+    # (``AgentTemplate.available``), so reaching here without it is a hire
+    # made before the feature was switched off, and it is said once.
+    if template.needs_documents and not template.available:
+        logger.warning(
+            "Hired {} while its document tools are switched off", template.id
+        )
     if uuids:
         logger.info("Hired {} with {} tool(s)", template.id, len(uuids))
     return brief_apps.attach(definition, uuids)

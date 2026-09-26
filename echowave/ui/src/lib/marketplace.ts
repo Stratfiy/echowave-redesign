@@ -142,6 +142,7 @@ const INDUSTRY_ICONS: Record<string, LucideIcon> = {
     "E-commerce": ShoppingCart,
     Hospitality: UtensilsCrossed,
     "Any business": Briefcase,
+    Procurement: ClipboardList,
 };
 
 export function industryIcon(name: string): LucideIcon {

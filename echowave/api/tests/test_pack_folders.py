@@ -64,8 +64,8 @@ class TestLiveFoldersEqualTheCatalogue:
         pairs = [(p, get_template(p.template_id)) for p in _packs(None, None)]
         # Nine written in code; four chat desks, ten back-office desks and
         # the report generator and the telecaller coach promoted from the
-        # drafts on 22 Sept 2026.
-        assert len(pairs) == 25
+        # drafts on 22 Sept 2026; the four procurement desks (Step 2).
+        assert len(pairs) == 29
         assert check_drift(pairs, LIVE_DIR) == [], (
             "packs/live has drifted from the catalogue; "
             "run: python -m scripts.export_pack_folders"

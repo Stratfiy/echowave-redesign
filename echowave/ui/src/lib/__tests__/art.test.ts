@@ -41,6 +41,11 @@ const JOBS = [
     "Voice note taker",
     "Ticket triage",
     "Sales coach",
+    "Procurement document drafter",
+    "RFQ and quote comparer",
+    "PO follow-up and delivery chaser",
+    "Invoice 3-way match",
+    "Procurement",
     "Agent 3",
     "",
 ];
@@ -55,6 +60,7 @@ const INDUSTRIES = [
     "Any business",
     "Retail and D2C",
     "Logistics",
+    "Procurement",
     "Something new",
 ];
 
@@ -136,8 +142,23 @@ describe("the roles on today's shelf", () => {
         expect(jobArt("Outbound Prospecting")).toBe("megaphone");
     });
 
+    it("gives each procurement desk its own picture, not a quotation, a lorry or a bill", () => {
+        // As the marketplace card asks: the role's name and its function.
+        expect(jobArt("Procurement document drafter Do the paperwork")).toBe("file-text");
+        expect(jobArt("RFQ and quote comparer Buy from vendors")).toBe("calculator");
+        expect(jobArt("PO follow-up and delivery chaser Send reminders")).toBe("clock");
+        expect(jobArt("Invoice 3-way match Do the paperwork")).toBe("tick");
+        expect(jobArt("Procurement")).toBe("file-text");
+        expect(industryArt("Procurement")).toBe("bag");
+    });
+
+    it("leaves the office drafter and the invoice clerk as they were", () => {
+        expect(jobArt("Document drafter to your format Do the paperwork")).toBe("notebook");
+        expect(jobArt("Supplier invoice and PO clerk Do the paperwork")).toBe("file-text");
+    });
+
     it("gives every industry on the shelf a picture of its own, not the fallback cube", () => {
-        for (const industry of ["Manufacturing", "Financial services", "Recruitment and HR"]) {
+        for (const industry of ["Manufacturing", "Financial services", "Recruitment and HR", "Procurement"]) {
             expect(industryArt(industry)).not.toBe("cube");
         }
     });

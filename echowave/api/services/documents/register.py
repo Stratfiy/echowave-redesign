@@ -203,8 +203,27 @@ def display_date(value: date | None) -> str:
     return value.strftime("%d-%m-%Y") if value else ""
 
 
-def summary(row: ProcurementDocumentModel) -> dict[str, Any]:
-    """What the model and the register screen are told about one row."""
+#: How many of a document's lines one register entry shows.
+MAX_LINES = 50
+
+
+def ordered_lines(row: ProcurementDocumentModel) -> list[dict[str, Any]]:
+    """The lines as they were given to the draft -- description, quantity,
+    unit, rate, discount, GST rate -- which is what a receipt and an invoice
+    are checked against. Empty for a document drafted without items."""
+    given = ((row.data or {}).get("input") or {}).get("items") or []
+    keep = ("description", "hsn_sac", "qty", "unit", "rate", "discount", "gst_rate")
+    return [
+        {"line": index, **{k: item[k] for k in keep if item.get(k) not in (None, "")}}
+        for index, item in enumerate(given[:MAX_LINES], start=1)
+        if isinstance(item, dict)
+    ]
+
+
+def summary(row: ProcurementDocumentModel, *, lines: bool = False) -> dict[str, Any]:
+    """What the model and the register screen are told about one row. With
+    ``lines``, also what was ordered, line by line (one document asked for
+    by number; a list of fifty would be mostly lines)."""
     amount = row.amount_paise
     due = row.due_date
     open_ = row.status not in ("delivered", "closed", "cancelled")
@@ -231,6 +250,9 @@ def summary(row: ProcurementDocumentModel) -> dict[str, Any]:
             if key
         ],
         "notes": list((row.data or {}).get("notes") or [])[-5:],
+        # Where the follow-up and the send go; kept with the draft.
+        "counterparty_email": (row.data or {}).get("counterparty_email"),
+        **({"lines": ordered_lines(row)} if lines else {}),
     }
 
 
@@ -323,6 +345,7 @@ PRESIGN_SECONDS = int(timedelta(days=7).total_seconds())
 
 __all__ = [
     "IST",
+    "MAX_LINES",
     "MAX_LIST",
     "PRESIGN_SECONDS",
     "RegisterError",
@@ -333,6 +356,7 @@ __all__ = [
     "get",
     "key_belongs_to",
     "list_rows",
+    "ordered_lines",
     "parse_date",
     "storage_key",
     "summary",
