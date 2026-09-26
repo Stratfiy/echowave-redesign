@@ -6,7 +6,7 @@ decibyl:
   pack:
     slug: order_confirmation
     name: Order Confirmation Agent
-    job: Confirm orders before they ship
+    job: Order confirmation executive
     publisher:
       slug: decibyl
       name: Decibyl

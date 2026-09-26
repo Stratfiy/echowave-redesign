@@ -6,7 +6,7 @@ decibyl:
   pack:
     slug: reservations_desk
     name: Reservations Agent
-    job: Answer the phone
+    job: Front office executive
     publisher:
       slug: decibyl
       name: Decibyl

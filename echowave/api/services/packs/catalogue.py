@@ -115,7 +115,7 @@ def _packs(
         AgentPack(
             slug="front_desk_clinic",
             name="Front Desk Agent",
-            job="Answer the phone",
+            job="Front office executive",
             summary="Answers every call, books the appointment, and hands anything clinical to a person.",
             publisher=DECIBYL,
             channels=[Channel.INBOUND_CALL, Channel.WHATSAPP],
@@ -150,7 +150,7 @@ def _packs(
         AgentPack(
             slug="order_confirmation",
             name="Order Confirmation Agent",
-            job="Confirm orders before they ship",
+            job="Order confirmation executive",
             summary="Rings every COD order before dispatch and confirms the customer still wants it.",
             publisher=DECIBYL,
             channels=[Channel.OUTBOUND_CALL, Channel.WHATSAPP],
@@ -189,7 +189,7 @@ def _packs(
         AgentPack(
             slug="payment_reminder",
             name="Payment Reminder Agent",
-            job="Chase what is owed",
+            job="Collections executive",
             summary="Calls before the due date, takes the promise to pay, and never calls outside legal hours.",
             publisher=DECIBYL,
             channels=[Channel.OUTBOUND_CALL, Channel.WHATSAPP],
@@ -214,7 +214,7 @@ def _packs(
         AgentPack(
             slug="lead_qualifier",
             name="Lead Qualifier Agent",
-            job="Qualify new enquiries",
+            job="Tele-sales executive",
             summary="Calls a new lead within minutes, finds out what they actually want, and books the visit.",
             publisher=DECIBYL,
             channels=[Channel.OUTBOUND_CALL, Channel.WHATSAPP],
@@ -240,7 +240,7 @@ def _packs(
         AgentPack(
             slug="admissions_desk",
             name="Admissions Agent",
-            job="Follow up on admissions",
+            job="Admissions counsellor",
             summary="Calls every enquiry back, answers fees and batches, and books the counselling slot.",
             publisher=DECIBYL,
             channels=[Channel.OUTBOUND_CALL, Channel.WHATSAPP],
@@ -273,7 +273,7 @@ def _packs(
         AgentPack(
             slug="reservations_desk",
             name="Reservations Agent",
-            job="Answer the phone",
+            job="Front office executive",
             summary="Takes the booking, holds the table, and stops the phone ringing through service.",
             publisher=DECIBYL,
             channels=[Channel.INBOUND_CALL, Channel.WHATSAPP],
@@ -314,7 +314,7 @@ def _packs(
         AgentPack(
             slug="internal_knowledge",
             name="Internal Knowledge Agent",
-            job="Answer the team's questions",
+            job="Knowledge assistant",
             summary=(
                 "Answers your staff from your own documents, and says when the "
                 "answer is not in them."
@@ -422,7 +422,7 @@ def _packs(
         AgentPack(
             slug="compliance_reminder",
             name="Compliance Reminder Agent",
-            job="Watch what falls due",
+            job="Compliance executive",
             summary=(
                 "Runs every morning, checks what is coming due, and tells the "
                 "people responsible -- once, with the date and the amount."
@@ -547,7 +547,8 @@ def jobs(packs: Iterable[AgentPack] | None = None) -> tuple[str, ...]:
     """The job groups on the shelf, in the order packs first declare them.
 
     Insertion order rather than alphabetical: the shelf is ordered by what we
-    want somebody to hire first, and "Answer the phone" is the wedge.
+    want somebody to hire first, and "Front office executive" (the
+    phone desk) is the wedge.
 
     Takes the packs so the ordering rule can be tested without a configured
     demo number, which the cached shelf depends on.
