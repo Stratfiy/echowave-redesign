@@ -45,6 +45,9 @@ pyrnnoise==0.4.3
 audiolab<0.5
 av<17.1.0
 python-docx==1.2.0
+# Spreadsheets an agent hands over: the cost-bid analysis and any table a
+# procurement agent builds (PROCUREMENT_DOCS_2026_09_ENABLED).
+openpyxl==3.1.5
 # Thin bindings over the tesseract and poppler binaries installed in the
 # Dockerfile, for PDFs that are scans. Both are small; neither is imported
 # unless a document turns out to have no text layer, and both are checked for

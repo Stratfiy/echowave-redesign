@@ -93,7 +93,16 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "google-calendar",
         ),
     ),
-    ("Knowledge", ("knowledge-base", "s3")),
+    (
+        "Knowledge",
+        (
+            "knowledge-base",
+            "s3",
+            # The purchase orders, RFQs and bid sheets agents draft, and
+            # their register (PROCUREMENT_DOCS_2026_09_ENABLED).
+            "procurement",
+        ),
+    ),
     (
         "Tools and connectors",
         (

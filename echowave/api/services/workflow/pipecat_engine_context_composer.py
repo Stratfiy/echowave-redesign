@@ -355,6 +355,23 @@ async def compose_functions_for_node(
                 required=["action", "why"],
             )
         )
+        # The document tools (PROCUREMENT_DOCS_2026_09_ENABLED): drafting a
+        # PO, a cost-bid sheet, reading a quotation. Text and channel runs
+        # only, like asking a person: a caller on the phone is not waiting
+        # for a purchase order. Registered beside decisions in the engine, on
+        # the same gate, so the model is never offered one nothing answers.
+        from api.services.documents import tools as procurement
+
+        if procurement.enabled():
+            for schema in procurement.schemas():
+                functions.append(
+                    get_function_schema(
+                        schema["name"],
+                        schema["description"],
+                        properties=schema["parameters"].get("properties", {}),
+                        required=schema["parameters"].get("required", []),
+                    )
+                )
 
     # Editing itself is offered where asking a person is: a staff chat. A
     # caller is not the bot's owner.

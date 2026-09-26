@@ -22,6 +22,7 @@ import { useEffect, useState } from "react";
 import { getWorkflowsApiV1WorkflowFetchGet, timelineApiV1TimelineGet } from "@/client/sdk.gen";
 import type { TimelineEvent } from "@/client/types.gen";
 import { BotAvatar } from "@/components/bot/BotAvatar";
+import { type AttachedFile,AttachedFileChip } from "@/components/channel/AttachedFileChip";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { DESK_TABS } from "@/components/layout/SectionTabs";
 
@@ -35,7 +36,7 @@ const TONE: Record<string, { icon: typeof FileText; className: string; word: str
     needs_attention: { icon: AlertTriangle, className: "text-amber-600", word: "Needs you" },
 };
 
-type Attached = { document_uuid: string; filename: string };
+type Attached = AttachedFile;
 
 function filesOf(event: TimelineEvent): Attached[] {
     const list = (event.payload as { attachments?: unknown } | null)?.attachments;
@@ -173,18 +174,11 @@ export default function DeliverablesPage() {
                                                     aria-label="Files"
                                                 >
                                                     {files.map((file) => (
-                                                        <li
+                                                        <AttachedFileChip
                                                             key={file.document_uuid}
-                                                            className="flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5 text-sm"
-                                                        >
-                                                            <FileText
-                                                                className="h-4 w-4 shrink-0 text-muted-foreground"
-                                                                aria-hidden
-                                                            />
-                                                            <span className="max-w-[16rem] truncate">
-                                                                {file.filename}
-                                                            </span>
-                                                        </li>
+                                                            file={file}
+                                                            showSize={false}
+                                                        />
                                                     ))}
                                                 </ul>
                                             )}
