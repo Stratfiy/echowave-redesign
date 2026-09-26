@@ -352,7 +352,7 @@ def _packs(
         AgentPack(
             slug="outbound_prospecting",
             name="Outbound Prospecting",
-            job="Find new customers",
+            job="Business development executive",
             summary=(
                 "Finds businesses that fit your ideal customer on the public "
                 "web, reads their own pages, and drafts one email per prospect "

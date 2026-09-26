@@ -247,9 +247,9 @@ def _drafter() -> AgentTemplate:
 def _comparer() -> AgentTemplate:
     return _desk(
         id="rfq_quote_comparer",
-        name="RFQ and quote comparer",
+        name="RFQ and quotation comparison",
         vertical="Businesses that buy on quotations from several vendors",
-        function="Buy from vendors",
+        function="Sourcing and purchasing",
         summary=(
             "Sends one RFQ per shortlisted vendor after approval, reads each "
             "quotation as it arrives, builds the cost-bid comparison with "
@@ -378,7 +378,7 @@ def _comparer() -> AgentTemplate:
 def _follow_up() -> AgentTemplate:
     return _desk(
         id="po_followup",
-        name="PO follow-up and delivery chaser",
+        name="Purchase order follow-up",
         vertical="Businesses waiting on deliveries against purchase orders",
         function="Send reminders",
         direction=CallDirection.scheduled,
@@ -501,7 +501,7 @@ def _follow_up() -> AgentTemplate:
 def _three_way() -> AgentTemplate:
     return _desk(
         id="invoice_three_way_match",
-        name="Invoice 3-way match",
+        name="Invoice three-way matching",
         vertical="Businesses that pay vendors against POs and goods received",
         function="Do the paperwork",
         summary=(

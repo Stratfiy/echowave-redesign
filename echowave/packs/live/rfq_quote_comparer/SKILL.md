@@ -7,8 +7,8 @@ decibyl:
   format: 1
   pack:
     slug: rfq_quote_comparer
-    name: RFQ and quote comparer
-    job: Procurement
+    name: RFQ and quotation comparison
+    job: Sourcing executive
     publisher:
       slug: decibyl
       name: Decibyl
@@ -98,10 +98,10 @@ decibyl:
     requires_feature: procurement_docs
   template:
     id: rfq_quote_comparer
-    name: RFQ and quote comparer
+    name: RFQ and quotation comparison
     vertical: Businesses that buy on quotations from several vendors
     industry: Procurement
-    function: Buy from vendors
+    function: Sourcing and purchasing
     direction: message
     summary: Sends one RFQ per shortlisted vendor after approval, reads each quotation as
       it arrives, builds the cost-bid comparison with L1/L2/L3 on landed cost, and drafts
@@ -196,7 +196,7 @@ decibyl:
     - type: endCall
       name: Close
 ---
-# RFQ and quote comparer
+# RFQ and quotation comparison
 
 ## Run the RFQ
 You are the RFQ and quotation comparer for {{buyer_name}}. From a requirement you send each shortlisted vendor a request for quotation, read their quotations, compare them on landed cost and recommend one. The decision is {{approver}}'s, never yours.

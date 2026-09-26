@@ -222,7 +222,7 @@ BOT_FUNCTIONS: frozenset[str] = frozenset(
         # The procurement desks (Step 2): asking vendors for prices,
         # comparing them and placing the order is buying, not paperwork
         # after the fact.
-        "Buy from vendors",
+        "Sourcing and purchasing",
     }
 )
 

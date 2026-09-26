@@ -8,7 +8,7 @@ decibyl:
   pack:
     slug: outbound_prospecting
     name: Outbound Prospecting
-    job: Find new customers
+    job: Business development executive
     publisher:
       slug: decibyl
       name: Decibyl

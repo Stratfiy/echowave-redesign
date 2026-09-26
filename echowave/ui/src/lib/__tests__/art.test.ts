@@ -42,9 +42,14 @@ const JOBS = [
     "Ticket triage",
     "Sales coach",
     "Procurement document drafter",
-    "RFQ and quote comparer",
-    "PO follow-up and delivery chaser",
-    "Invoice 3-way match",
+    "RFQ and quotation comparison",
+    "Purchase order follow-up",
+    "Invoice three-way matching",
+    "Procurement executive",
+    "Sourcing executive",
+    "Purchase coordinator",
+    "Accounts payable executive",
+    "Business development executive",
     "Procurement",
     "Agent 3",
     "",
@@ -145,10 +150,18 @@ describe("the roles on today's shelf", () => {
     it("gives each procurement desk its own picture, not a quotation, a lorry or a bill", () => {
         // As the marketplace card asks: the role's name and its function.
         expect(jobArt("Procurement document drafter Do the paperwork")).toBe("file-text");
-        expect(jobArt("RFQ and quote comparer Buy from vendors")).toBe("calculator");
-        expect(jobArt("PO follow-up and delivery chaser Send reminders")).toBe("clock");
-        expect(jobArt("Invoice 3-way match Do the paperwork")).toBe("tick");
+        expect(jobArt("RFQ and quotation comparison Sourcing and purchasing")).toBe("calculator");
+        expect(jobArt("Purchase order follow-up Send reminders")).toBe("clock");
+        expect(jobArt("Invoice three-way matching Do the paperwork")).toBe("tick");
         expect(jobArt("Procurement")).toBe("file-text");
+    });
+
+    it("gives each job-title heading the same picture as its role", () => {
+        expect(jobArt("Procurement executive")).toBe("file-text");
+        expect(jobArt("Sourcing executive")).toBe("calculator");
+        expect(jobArt("Purchase coordinator")).toBe("clock");
+        expect(jobArt("Accounts payable executive")).toBe("tick");
+        expect(jobArt("Business development executive")).toBe("megaphone");
         expect(industryArt("Procurement")).toBe("bag");
     });
 

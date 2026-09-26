@@ -8,7 +8,7 @@ decibyl:
   pack:
     slug: procurement_document_drafter
     name: Procurement document drafter
-    job: Procurement
+    job: Procurement executive
     publisher:
       slug: decibyl
       name: Decibyl

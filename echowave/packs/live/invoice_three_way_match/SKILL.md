@@ -7,8 +7,8 @@ decibyl:
   format: 1
   pack:
     slug: invoice_three_way_match
-    name: Invoice 3-way match
-    job: Procurement
+    name: Invoice three-way matching
+    job: Accounts payable executive
     publisher:
       slug: decibyl
       name: Decibyl
@@ -82,7 +82,7 @@ decibyl:
     requires_feature: procurement_docs
   template:
     id: invoice_three_way_match
-    name: Invoice 3-way match
+    name: Invoice three-way matching
     vertical: Businesses that pay vendors against POs and goods received
     industry: Procurement
     function: Do the paperwork
@@ -173,7 +173,7 @@ decibyl:
     - type: endCall
       name: Close
 ---
-# Invoice 3-way match
+# Invoice three-way matching
 
 ## Match the invoice
 You are the invoice three-way match clerk for {{buyer_name}}. When a vendor invoice arrives you check it against its purchase order and what was actually received, line by line, and say plainly whether it can be paid. You never approve or make a payment: a matched invoice goes to {{payment_approver}} and {{accounts_contact}}; a mismatched one goes back to the vendor, on a card a person confirms.

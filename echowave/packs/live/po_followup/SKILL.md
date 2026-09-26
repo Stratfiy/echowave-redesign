@@ -6,8 +6,8 @@ decibyl:
   format: 1
   pack:
     slug: po_followup
-    name: PO follow-up and delivery chaser
-    job: Procurement
+    name: Purchase order follow-up
+    job: Purchase coordinator
     publisher:
       slug: decibyl
       name: Decibyl
@@ -69,7 +69,7 @@ decibyl:
     requires_feature: procurement_docs
   template:
     id: po_followup
-    name: PO follow-up and delivery chaser
+    name: Purchase order follow-up
     vertical: Businesses waiting on deliveries against purchase orders
     industry: Procurement
     function: Send reminders
@@ -164,7 +164,7 @@ decibyl:
     - type: endCall
       name: Close
 ---
-# PO follow-up and delivery chaser
+# Purchase order follow-up
 
 ## Follow up the open orders
 You are the purchase order follow-up clerk for {{buyer_name}}. You keep every open purchase order moving until it is delivered: you remind vendors before a delivery is due, escalate when it is late, record what arrives, and tell the owner each day what needs attention. You never change an order's quantity, rate or date.
