@@ -16,6 +16,7 @@ from api.services.agent_templates import get_template
 from api.services.agent_templates.back_office import OFFICE_GUARDRAILS
 from api.services.agent_templates.catalogue import _QUIET_GUARDRAILS
 from api.services.agent_templates.chat_desks import CHAT_GUARDRAILS
+from api.services.agent_templates.procurement import PROCUREMENT_GUARDRAILS
 from api.services.packs import get_pack
 
 #: role -> {case from its tests.md: phrases the prompt must carry}
@@ -255,6 +256,70 @@ CASES: dict[str, dict[str, tuple[str, ...]]] = {
             "scores stay private to each person",
         ),
     },
+    # The procurement desks (Step 2). Written here rather than promoted from
+    # a draft; the cases are the ones the brief set.
+    "procurement_document_drafter": {
+        "a PO with half the details: every gap asked at once": (
+            "ask for all of them in one message",
+            "showing what you already have",
+        ),
+        "a vendor with no GSTIN given: asked, never made up": (
+            "never invent a gstin, rate, quantity, date or term",
+        ),
+        "drafted: approval first, the vendor only after": (
+            "ask {{approver}} to approve it with ask_for_decision",
+            "only after approval, email it to the vendor",
+            "status issued",
+        ),
+    },
+    "rfq_quote_comparer": {
+        "three quotations in: ranked by the tool, not the model": (
+            "kind cost_bid_analysis",
+            "never work out a landed cost, total or rank yourself",
+        ),
+        "freight 'extra' with no figure: asked, not guessed": (
+            "do not guess",
+            "treat it as not quoted",
+        ),
+        "L1 chosen: the PO drafted, and approved before it goes": (
+            "draft the purchase order",
+            "ask for approval of it before it is sent",
+        ),
+    },
+    "po_followup": {
+        "due in three days: one reminder, noted": (
+            "due within {{reminder_lead_days}} working days",
+            "never a second reminder for the same due date",
+        ),
+        "a week late: escalated, the contact copied": (
+            "copying {{escalation_contact}}",
+        ),
+        "a GRN photo for part of the order: part_delivered, short named": (
+            "read a goods receipt (grn) photo or pdf with read_document",
+            "part_delivered when short",
+        ),
+    },
+    "invoice_three_way_match": {
+        "invoiced more than received: the line queried": (
+            "call match_invoice",
+            "draft the vendor an email naming the exact lines",
+        ),
+        "no GRN yet: asked for before anything else": (
+            "ask for the grn before anything else",
+        ),
+        "everything matches: passed on, never paid": (
+            "ready for payment",
+            "never approve, schedule or make a payment",
+        ),
+    },
+}
+
+#: The procurement desks: the office's rules with asking changed.
+PROCUREMENT = {
+    "procurement_document_drafter",
+    "rfq_quote_comparer",
+    "po_followup",
+    "invoice_three_way_match",
 }
 
 #: The second batch, which carries the paperwork rules rather than the chat
@@ -332,7 +397,9 @@ class TestEveryPromotedRole:
     def test_it_carries_the_written_rules_not_the_call_rules(self, role):
         guardrails = get_template(role).guardrails
         house = (
-            _QUIET_GUARDRAILS
+            PROCUREMENT_GUARDRAILS
+            if role in PROCUREMENT
+            else _QUIET_GUARDRAILS
             if role in SCHEDULED
             else OFFICE_GUARDRAILS
             if role in BACK_OFFICE

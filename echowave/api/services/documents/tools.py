@@ -1,6 +1,6 @@
 """The document engine as agent tools (PROCUREMENT_DOCS_2026_09_ENABLED).
 
-Seven tools, offered to Decibyl on its thread and to every agent on a text
+Eight tools, offered to Decibyl on its thread and to every agent on a text
 or channel run while the flag is on, and to nobody while it is off:
 
 - ``list_template_fields`` -- what a template asks for.
@@ -10,6 +10,8 @@ or channel run while the flag is on, and to nobody while it is off:
 - ``read_document`` -- an uploaded file's text and tables.
 - ``save_email_attachment`` -- a Gmail attachment, stored as an upload.
 - ``update_register`` / ``list_register`` -- PO follow-up.
+- ``match_invoice`` -- an invoice against its PO and what was received
+  (the three-way match), or a receipt against its PO.
 
 **Ask once.** ``draft_document`` never produces a file with a blank in it.
 Anything the template needs that was not given and cannot be worked out
@@ -40,6 +42,7 @@ from api.services import features
 from api.services.documents import (
     convert,
     formats,
+    matching,
     money,
     reading,
     register,
@@ -57,11 +60,12 @@ READ = "read_document"
 SAVE_ATTACHMENT = "save_email_attachment"
 UPDATE = "update_register"
 LIST = "list_register"
+MATCH = "match_invoice"
 
-NAMES = (LIST_FIELDS, DRAFT, SPREADSHEET, READ, SAVE_ATTACHMENT, UPDATE, LIST)
+NAMES = (LIST_FIELDS, DRAFT, SPREADSHEET, READ, SAVE_ATTACHMENT, UPDATE, LIST, MATCH)
 #: Tools that leave the model its tools for the next round on Decibyl's
 #: thread: nothing was handed over yet, the model is still working.
-READS = frozenset({LIST_FIELDS, READ, LIST, SAVE_ATTACHMENT})
+READS = frozenset({LIST_FIELDS, READ, LIST, SAVE_ATTACHMENT, MATCH})
 
 MAX_ITEMS = 200
 
@@ -84,7 +88,11 @@ RULES = (
     "attachment so read_document can read it. build_spreadsheet makes an "
     "Excel file, and with kind cost_bid_analysis compares vendors' rates "
     "(landed cost, L1/L2/L3). update_register and list_register follow up "
-    "POs: status, due dates, what has been delivered.\n"
+    "POs: status, due dates, what has been delivered; list_register with a "
+    "number gives that document's ordered lines. match_invoice checks a "
+    "vendor invoice against its PO and what was received (the three-way "
+    "match), or a receipt against its PO; pass the figures as read and use "
+    "its verdict rather than your own arithmetic.\n"
 )
 
 
@@ -281,6 +289,53 @@ def schemas() -> list[dict[str, Any]]:
                         "description": "One status, or several separated by commas.",
                     },
                     "due_before": {"type": "string", "description": "YYYY-MM-DD"},
+                    "number": {
+                        "type": "string",
+                        "description": (
+                            "One document by its number, e.g. PO/26-27/0001, "
+                            "with its ordered lines."
+                        ),
+                    },
+                },
+            },
+        },
+        {
+            "name": MATCH,
+            "description": (
+                "Check a vendor invoice against its purchase order and what was "
+                "received, line by line: invoiced <= received <= ordered, rate "
+                "and GST rate against the PO, GSTINs, and the invoice's own "
+                "totals. Without an invoice, checks what was received against "
+                "the PO (complete, short or over). Runs now; changes nothing."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "po": {
+                        "type": "string",
+                        "description": "The PO's number in the register, e.g. PO/26-27/0001.",
+                    },
+                    "register_id": {"type": "integer"},
+                    "received": {
+                        "type": "array",
+                        "description": (
+                            "Every goods-receipt line so far, as read from the GRN(s) "
+                            "or the register notes. Each: {line? (the PO line number), "
+                            "description, qty}. The same item on two GRNs is added up "
+                            "for you."
+                        ),
+                        "items": {"type": "object"},
+                    },
+                    "invoice": {
+                        "type": "object",
+                        "description": (
+                            "As read from the invoice: {number, date, vendor_gstin, "
+                            "buyer_gstin, lines: [{line?, description, qty, rate, "
+                            "discount?, gst_rate}], taxable_value?, gst_total?, total?}."
+                        ),
+                    },
+                    "price_tolerance_pct": {"type": "number"},
+                    "quantity_tolerance_pct": {"type": "number"},
                 },
             },
         },
@@ -917,6 +972,25 @@ async def list_register(
 ) -> dict[str, Any]:
     from api.db import db_client
 
+    number = str(arguments.get("number") or "").strip()
+    if number:
+        async with db_client.async_session() as session:
+            row = await register.get(
+                session, organization_id=organization_id, number=number
+            )
+            if row is None:
+                return {
+                    "status": "success",
+                    "entries": [],
+                    "count": 0,
+                    "note": f"No document numbered {number} in the register.",
+                }
+            return {
+                "status": "success",
+                "entries": [register.summary(row, lines=True)],
+                "count": 1,
+            }
+
     async with db_client.async_session() as session:
         rows = await register.list_rows(
             session,
@@ -938,6 +1012,48 @@ async def list_register(
             f"Showing the newest {register.MAX_LIST}; narrow by kind, status or date."
         )
     return out
+
+
+async def match_invoice(
+    organization_id: int, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    """The three-way match against an order in this workspace's register."""
+    from api.db import db_client
+
+    async with db_client.async_session() as session:
+        row = await register.get(
+            session,
+            organization_id=organization_id,
+            register_id=arguments.get("register_id"),
+            number=arguments.get("po") or arguments.get("number"),
+        )
+        if row is None:
+            return {
+                "status": "error",
+                "error": "No purchase order by that number in this workspace's register.",
+            }
+        entry = register.summary(row, lines=True)
+        given = ((row.data or {}).get("input") or {}).get("values") or {}
+        order_items = list(((row.data or {}).get("input") or {}).get("items") or [])
+    invoice = arguments.get("invoice")
+    received = arguments.get("received")
+    result = matching.match(
+        order_items,
+        received=list(received) if isinstance(received, list) else None,
+        invoice=invoice if isinstance(invoice, dict) else None,
+        order_vendor_gstin=row.counterparty_gstin,
+        order_buyer_gstin=given.get("buyer_gstin"),
+        price_tolerance_pct=arguments.get("price_tolerance_pct") or 0,
+        quantity_tolerance_pct=arguments.get("quantity_tolerance_pct") or 0,
+    )
+    return {
+        **result,
+        "order": {
+            k: entry[k] for k in ("register_id", "number", "status", "counterparty")
+        },
+        "match": result["status"],
+        "status": "success",
+    }
 
 
 async def run(
@@ -989,6 +1105,8 @@ async def run(
             result = await update_register(organization_id, arguments)
         elif name == LIST:
             result = await list_register(organization_id, arguments)
+        elif name == MATCH:
+            result = await match_invoice(organization_id, arguments)
         else:
             return {"status": "unavailable", "reason": "no such tool"}
     except sources.SourceError as exc:
@@ -1000,6 +1118,7 @@ async def run(
         register.RegisterError,
         spreadsheet.SpreadsheetError,
         money.MoneyError,
+        matching.MatchError,
     ) as exc:
         return {"status": "error", "error": str(exc)}
     except Exception as exc:  # noqa: BLE001 - the turn must finish
@@ -1034,6 +1153,7 @@ __all__ = [
     "FEATURE",
     "LIST",
     "LIST_FIELDS",
+    "MATCH",
     "NAMES",
     "READ",
     "READS",

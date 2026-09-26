@@ -471,12 +471,13 @@ def _packs(
 
 def _promoted() -> tuple[AgentPack, ...]:
     """Roles promoted from the drafts, in their own modules."""
-    from api.services.packs import back_office, call_coach, chat_desks
+    from api.services.packs import back_office, call_coach, chat_desks, procurement
 
     return (
         chat_desks.packs(DECIBYL)
         + back_office.packs(DECIBYL)
         + call_coach.packs(DECIBYL)
+        + procurement.packs(DECIBYL)
     )
 
 

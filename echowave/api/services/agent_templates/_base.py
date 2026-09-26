@@ -65,6 +65,12 @@ CALLING_DIRECTIONS: frozenset[CallDirection] = frozenset(
 )
 
 
+#: The feature the document tools are switched on by. Named here rather than
+#: imported from ``services/documents/tools`` so reading a template never
+#: imports the document engine.
+DOCUMENTS_FEATURE = "procurement_docs"
+
+
 class TemplateNode(BaseModel):
     """One node of the starting workflow.
 
@@ -213,6 +219,10 @@ BOT_FUNCTIONS: frozenset[str] = frozenset(
         # The telecaller coach (CR-3): it reads a human team's calls and
         # coaches the people, which none of the headings above describe.
         "Coach the team",
+        # The procurement desks (Step 2): asking vendors for prices,
+        # comparing them and placing the order is buying, not paperwork
+        # after the fact.
+        "Buy from vendors",
     }
 )
 
@@ -265,8 +275,35 @@ class AgentTemplate(BaseModel):
     needs_team_calls: bool = False
     apps: list[str] = Field(default_factory=list)
     approve_sends: bool = False
+    #: The document engine (``services/documents``): drafting a PO or an
+    #: RFQ, reading a quotation, the register. Offered by the engine to
+    #: every text and channel run while ``procurement_docs`` is on, so
+    #: there is nothing to attach at hire; what this changes is where the
+    #: role is seen. While the feature is off the template is off the
+    #: gallery and its pack off the shelf -- a drafter with no drafting
+    #: tool would ask every question and then have nowhere to put the
+    #: answers.
+    needs_documents: bool = False
 
     model_config = ConfigDict(extra="forbid")
+
+    @property
+    def requires_feature(self) -> str | None:
+        """The switched-off feature this template's tools come from, if any
+        (``services/features.FLAGS``). A pack wrapping it must wait on the
+        same one."""
+        return DOCUMENTS_FEATURE if self.needs_documents else None
+
+    @property
+    def available(self) -> bool:
+        """Whether it may be shown and hired here, now. Read at call time,
+        so switching the feature needs no restart."""
+        feature = self.requires_feature
+        if not feature:
+            return True
+        from api.services import features
+
+        return features.is_on(feature)
 
     @model_validator(mode="after")
     def _stack_matches_the_trigger(self) -> "AgentTemplate":

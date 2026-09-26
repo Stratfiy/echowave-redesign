@@ -239,6 +239,18 @@ class AgentPack(BaseModel):
                 "which does not exist"
             )
 
+        # A template whose tools wait on a switched-off feature (the
+        # procurement desks, on the document engine) is a role that must
+        # wait on it too; listed without it, it could be hired and would
+        # have nothing to draft with.
+        needed = template.requires_feature
+        if needed and self.requires_feature != needed:
+            raise ValueError(
+                f"pack {self.slug!r} wraps template {self.template_id!r}, "
+                f"which needs the {needed!r} feature; declare "
+                f"requires_feature={needed!r}"
+            )
+
         calls = bool(set(self.channels) & CALLING_CHANNELS)
 
         # The contradiction that would otherwise cost money quietly, in both

@@ -71,6 +71,12 @@ const BY_JOB: [RegExp, ArtName][] = [
     [/reservation|hotel/i, "tea-cup"],
     [/admission|education|school|college/i, "notebook"],
     [/kyc|compliance/i, "shield"],
+    // The procurement desks, before "quote", "delivery" and "invoice" below
+    // give them a quotation, a lorry and a bill.
+    [/\brfq\b|quote compar|bid analysis/i, "calculator"],
+    [/po follow|delivery chaser/i, "clock"],
+    [/3-way|three-way|three way/i, "tick"],
+    [/procurement|purchase order/i, "file-text"],
     // BotAvatar's list, in its order.
     [/apostle|appointment|booking|schedul|calendar|slot/i, "calender"],
     [/quote|quotation|estimate|pricing|invoice/i, "file-text"],
@@ -116,6 +122,7 @@ const BY_INDUSTRY: Record<string, ArtName> = {
     Manufacturing: "tools",
     "Financial services": "rupee",
     "Recruitment and HR": "target",
+    Procurement: "bag",
 };
 
 /** The picture for a marketplace industry shelf. */

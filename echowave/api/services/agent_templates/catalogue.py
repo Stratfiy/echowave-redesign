@@ -1440,9 +1440,19 @@ def _promoted() -> tuple[AgentTemplate, ...]:
     """Roles promoted from the drafts, kept in their own modules so this file
     stops growing by a role at a time. Imported here, late, because they
     share this file's stacks and guardrails."""
-    from api.services.agent_templates import back_office, call_coach, chat_desks
+    from api.services.agent_templates import (
+        back_office,
+        call_coach,
+        chat_desks,
+        procurement,
+    )
 
-    return chat_desks.templates() + back_office.templates() + (call_coach.template(),)
+    return (
+        chat_desks.templates()
+        + back_office.templates()
+        + (call_coach.template(),)
+        + procurement.templates()
+    )
 
 
 def list_templates() -> tuple[AgentTemplate, ...]:
@@ -1451,8 +1461,13 @@ def list_templates() -> tuple[AgentTemplate, ...]:
     Order is deliberate rather than alphabetical: inbound front-desk agents
     first, because they are the smallest thing a new account can put live, and
     the highest-volume outbound campaigns last.
+
+    Only what is available here: a template waiting on a switched-off
+    feature (the procurement desks, on ``procurement_docs``) is left off
+    the gallery, the builder's list and Decibyl's until it is on.
+    ``get_template`` still resolves it, so its pack validates.
     """
-    return tuple(with_suggested_voices(t) for t in _all())
+    return tuple(with_suggested_voices(t) for t in _all() if t.available)
 
 
 #: Templates that arrived from a pack folder rather than from this file.
@@ -1510,11 +1525,12 @@ def find_templates(query: str) -> tuple[AgentTemplate, ...]:
     only be a second thing to keep correct.
     """
     terms = [t for t in query.lower().split() if len(t) > 2]
+    shown = tuple(t for t in _all() if t.available)
     if not terms:
-        return _all()
+        return shown
 
     scored: list[tuple[int, AgentTemplate]] = []
-    for template in _all():
+    for template in shown:
         haystack = " ".join(
             [
                 template.name,
