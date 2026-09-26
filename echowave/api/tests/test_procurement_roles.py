@@ -28,6 +28,7 @@ from api.services.agent_templates.procurement import PROCUREMENT_GUARDRAILS
 from api.services.documents import matching, money, tools
 from api.services.packs import catalogue
 from api.services.packs._base import CALLING_CHANNELS, AgentPack, Channel
+from api.services.packs.procurement import JOBS
 
 ROLES = (
     "procurement_document_drafter",
@@ -71,8 +72,8 @@ class TestTheFlag:
             assert shelf[role].listed is False
             assert role not in {t.id for t in list_templates()}
         assert not {t.id for t in find_templates("purchase order vendor")} & set(ROLES)
-        assert "Procurement" not in catalogue.jobs(
-            p for p in shelf.values() if p.listed
+        assert not set(JOBS.values()) & set(
+            catalogue.jobs(p for p in shelf.values() if p.listed)
         )
 
     def test_on_they_are_all_on_one_shelf(self, on):
@@ -80,7 +81,9 @@ class TestTheFlag:
         for role in ROLES:
             assert shelf[role].listed is True
             assert role in {t.id for t in list_templates()}
-        assert "Procurement" in catalogue.jobs(p for p in shelf.values() if p.listed)
+        assert set(JOBS.values()) <= set(
+            catalogue.jobs(p for p in shelf.values() if p.listed)
+        )
 
     def test_get_template_resolves_them_either_way(self, off):
         # So the pack validates while the flag is off.
@@ -96,7 +99,7 @@ class TestTheFlag:
                 slug="x",
                 name="x",
                 summary="x",
-                job="Procurement",
+                job="Procurement executive",
                 publisher=DECIBYL,
                 channels=[Channel.WEB],
                 template_id="procurement_document_drafter",
@@ -138,7 +141,7 @@ class TestTheFlag:
 class TestEveryRole:
     def test_it_is_ours_on_the_procurement_shelf(self, role, on):
         pack = _shelf()[role]
-        assert pack.job == "Procurement"
+        assert pack.job == JOBS[role]
         assert pack.industries == ["Procurement"]
         assert pack.publisher.first_party and pack.publisher.name == "Decibyl"
         assert pack.requires_feature == "procurement_docs"

@@ -8,7 +8,7 @@ const pack = vi.hoisted(() => ({
         slug: "outbound_prospecting",
         name: "Outbound Prospecting",
         summary: "Finds businesses that fit your ideal customer.",
-        job: "Find new customers",
+        job: "Business development executive",
         publisher: { slug: "decibyl", name: "Decibyl", first_party: true },
         badges: ["Email", "Scheduled"],
         industries: [],

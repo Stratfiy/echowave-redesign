@@ -23,7 +23,16 @@ from api.services.packs._base import (
 from api.services.packs.chat_desks import _WHATSAPP
 
 FEATURE = "procurement_docs"
-JOB = "Procurement"
+#: The industry every procurement role is filed under.
+INDUSTRY = "Procurement"
+#: Each role's heading on the shelf: the job title a buyer's office would
+#: hire for, as the back-office desks do ("Purchase accounts assistant").
+JOBS = {
+    "procurement_document_drafter": "Procurement executive",
+    "rfq_quote_comparer": "Sourcing executive",
+    "po_followup": "Purchase coordinator",
+    "invoice_three_way_match": "Accounts payable executive",
+}
 _LANGUAGES = ["en", "hi", "ta", "te", "kn", "mr"]
 
 _BUYER_NAME = RequiredFact(
@@ -133,8 +142,8 @@ def packs(publisher) -> tuple[AgentPack, ...]:
         return AgentPack(
             publisher=publisher,
             template_id=kwargs["slug"],
-            job=JOB,
-            industries=[JOB],
+            job=JOBS[kwargs["slug"]],
+            industries=[INDUSTRY],
             languages=_LANGUAGES,
             listed=True,
             requires_feature=FEATURE,
@@ -157,7 +166,7 @@ def packs(publisher) -> tuple[AgentPack, ...]:
         ),
         pack(
             slug="rfq_quote_comparer",
-            name="RFQ and quote comparer",
+            name="RFQ and quotation comparison",
             summary=(
                 "Sends one RFQ per vendor after approval, reads each quotation "
                 "as it arrives, ranks them L1/L2/L3 on landed cost in a "
@@ -185,7 +194,7 @@ def packs(publisher) -> tuple[AgentPack, ...]:
         ),
         pack(
             slug="po_followup",
-            name="PO follow-up and delivery chaser",
+            name="Purchase order follow-up",
             summary=(
                 "Every morning, reminds vendors before a delivery is due, "
                 "escalates the late ones, records goods received from a GRN "
@@ -221,7 +230,7 @@ def packs(publisher) -> tuple[AgentPack, ...]:
         ),
         pack(
             slug="invoice_three_way_match",
-            name="Invoice 3-way match",
+            name="Invoice three-way matching",
             summary=(
                 "Checks each vendor invoice against its PO and the goods "
                 "received, line by line, passes a match to accounts, and "
@@ -266,4 +275,4 @@ def packs(publisher) -> tuple[AgentPack, ...]:
     )
 
 
-__all__ = ["FEATURE", "JOB", "packs"]
+__all__ = ["FEATURE", "INDUSTRY", "JOBS", "packs"]

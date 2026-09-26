@@ -62,7 +62,7 @@ export function art3d(name: ArtName): string {
 const BY_JOB: [RegExp, ArtName][] = [
     // Before the call rule: "Outbound Prospecting" is email outreach, and
     // "outbound" would otherwise give it a telephone.
-    [/prospect|outreach/i, "megaphone"],
+    [/prospect|outreach|business development/i, "megaphone"],
     [/knowledge|staff question|faq/i, "folder"],
     [/voice note/i, "mic"],
     [/data entry/i, "computer"],
@@ -73,9 +73,9 @@ const BY_JOB: [RegExp, ArtName][] = [
     [/kyc|compliance/i, "shield"],
     // The procurement desks, before "quote", "delivery" and "invoice" below
     // give them a quotation, a lorry and a bill.
-    [/\brfq\b|quote compar|bid analysis/i, "calculator"],
-    [/po follow|delivery chaser/i, "clock"],
-    [/3-way|three-way|three way/i, "tick"],
+    [/\brfq\b|quot(e|ation) compar|bid analysis|sourcing/i, "calculator"],
+    [/po follow|purchase order follow|purchase coordinator|delivery chaser/i, "clock"],
+    [/3-way|three-way|three way|accounts payable/i, "tick"],
     [/procurement|purchase order/i, "file-text"],
     // BotAvatar's list, in its order.
     [/apostle|appointment|booking|schedul|calendar|slot/i, "calender"],
