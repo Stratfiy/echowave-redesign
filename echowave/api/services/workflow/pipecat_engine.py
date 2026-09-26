@@ -946,6 +946,15 @@ class PipecatEngine:
             )
             self.llm.register_function(actions.TOOL_NAME, self._propose_action_handler)
             self.llm.register_function(tasks_board.TOOL_NAME, self._create_task_handler)
+            from api.services.documents import tools as procurement
+
+            if procurement.enabled():
+                for name in procurement.NAMES:
+                    # Converting a document and uploading two files is
+                    # seconds, not the default tool budget.
+                    self.llm.register_function(
+                        name, self._procurement_handler(name), timeout_secs=120.0
+                    )
 
         # Register custom tool handlers for this node
         if node.tool_uuids and self._custom_tool_manager:
@@ -1753,6 +1762,35 @@ class PipecatEngine:
             logger.warning("Could not record a proposed action: {}", exc)
             result = {"status": "not_proposed", "reason": "could not be recorded"}
         await function_call_params.result_callback(result)
+
+    def _procurement_handler(self, name: str):
+        """One document tool (services/documents/tools.py), for this run's
+        organization and agent. The organization comes from the run, never
+        from the model's arguments. Never raises, as with decisions."""
+
+        async def handler(function_call_params) -> None:
+            from api.services.documents import tools as procurement
+
+            arguments = getattr(function_call_params, "arguments", None) or {}
+            call_id = getattr(function_call_params, "tool_call_id", None)
+            try:
+                result = await procurement.run(
+                    name,
+                    organization_id=await self._get_organization_id(),
+                    arguments=arguments if isinstance(arguments, dict) else {},
+                    ref_id=f"{self._workflow_run_id or 'run'}:doc:{call_id or name}",
+                    workflow_id=await self._get_workflow_id(),
+                    workflow_run_id=self._workflow_run_id,
+                )
+            except Exception as exc:  # noqa: BLE001 - the turn must finish
+                logger.warning("Document tool {} failed on a run: {}", name, exc)
+                result = {
+                    "status": "error",
+                    "error": "The document tool did not finish.",
+                }
+            await function_call_params.result_callback(result)
+
+        return handler
 
     async def _create_task_handler(self, function_call_params) -> None:
         """The bot filed a task for a colleague or the team (KAN-140 P1).

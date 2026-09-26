@@ -46,6 +46,7 @@ from api.routes.partners import router as partners_router
 from api.routes.payments import router as payments_router
 from api.routes.platform_credentials import router as platform_credentials_router
 from api.routes.privacy import router as privacy_router
+from api.routes.procurement import router as procurement_router
 from api.routes.promo_admin import router as promo_admin_router
 from api.routes.provider_keys import router as provider_keys_router
 from api.routes.public_agent import router as public_agent_router
@@ -116,6 +117,7 @@ router.include_router(platform_credentials_router)
 router.include_router(provider_keys_router)
 router.include_router(dialer_connections_router)
 router.include_router(workspace_roles_router)
+router.include_router(procurement_router)
 router.include_router(agent_graph_router)
 router.include_router(payments_router)
 router.include_router(privacy_router)

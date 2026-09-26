@@ -39,6 +39,7 @@ import {
 import type { ThreadChip, TimelineEvent } from '@/client/types.gen';
 import { Art3D } from '@/components/art/Art3D';
 import { BotAvatar } from '@/components/bot/BotAvatar';
+import { type AttachedFile,AttachedFileChip } from '@/components/channel/AttachedFileChip';
 import { BlockedCard } from '@/components/channel/BlockedCard';
 import { tagTokens } from '@/components/channel/ChannelComposer';
 import { emphasisTokens } from '@/components/channel/emphasis';
@@ -230,7 +231,7 @@ function ActivityRow({
     );
 }
 
-type Attached = { document_uuid: string; filename: string; size_bytes?: number };
+type Attached = AttachedFile;
 
 /** The files a message carried, if any. */
 function attachmentsOf(event: TimelineEvent): Attached[] {
@@ -272,13 +273,6 @@ function testOf(event: TimelineEvent): TestOffer | null {
     const offer = test as Partial<TestOffer>;
     if (typeof offer.workflow_id !== 'number' || typeof offer.url !== 'string') return null;
     return offer as TestOffer;
-}
-
-function sizeOf(bytes?: number): string {
-    if (!bytes) return '';
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export type ChannelStreamHandle = { refresh: () => void };
@@ -1214,18 +1208,7 @@ export function ChannelStream({
                                 {attachmentsOf(event).length > 0 && (
                                     <ul className="mt-1.5 flex flex-wrap gap-2" aria-label="Files">
                                         {attachmentsOf(event).map((file) => (
-                                            <li
-                                                key={file.document_uuid}
-                                                className="flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5 text-sm"
-                                            >
-                                                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                                <span className="max-w-[16rem] truncate">{file.filename}</span>
-                                                {sizeOf(file.size_bytes) && (
-                                                    <span className="text-xs text-muted-foreground">
-                                                        {sizeOf(file.size_bytes)}
-                                                    </span>
-                                                )}
-                                            </li>
+                                            <AttachedFileChip key={file.document_uuid} file={file} />
                                         ))}
                                     </ul>
                                 )}

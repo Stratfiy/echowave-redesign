@@ -6550,3 +6550,106 @@ class OrganisationSkillModel(Base):
             postgresql_where=text("workflow_id IS NULL"),
         ),
     )
+
+
+class ProcurementSeriesModel(Base):
+    """The next number in one workspace's series of procurement documents.
+
+    Per organization, per kind, per Indian financial year and per prefix: a
+    workspace that numbers its orders ``PO/26-27/…`` and one that numbers
+    them ``BLR-PO/26-27/…`` each get a consecutive run with no gaps. Numbers
+    come from here under a row lock, the way ``document_sequences`` numbers
+    our own invoices -- a count of existing rows races, and a database
+    sequence is allowed to skip.
+    """
+
+    __tablename__ = "procurement_series"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    # purchase_order | rfq | work_order | comparative_statement | award_letter | other
+    kind = Column(String(32), nullable=False)
+    # Indian financial year, April to March, as "26-27".
+    fy = Column(String(5), nullable=False)
+    prefix = Column(String(24), nullable=False)
+    next_value = Column(Integer, nullable=False, default=1, server_default=text("1"))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id", "kind", "fy", "prefix", name="uq_procurement_series"
+        ),
+    )
+
+
+class ProcurementDocumentModel(Base):
+    """One drafted procurement document and where it stands: the register.
+
+    A PO, an RFQ, a work order, a comparative statement or an award letter,
+    with its number, the other party, the amount and the files an agent
+    produced for it. ``status`` is what a person or an agent moves it along
+    (awaiting approval, issued, part delivered…) for follow-up and the
+    three-way match. ``data`` keeps the values and line items the files were
+    filled from, frozen as of drafting.
+    """
+
+    __tablename__ = "procurement_documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="SET NULL"), nullable=True
+    )
+    kind = Column(String(32), nullable=False)
+    number = Column(String(64), nullable=False)
+    # The number without its serial, e.g. "PO/26-27".
+    series = Column(String(40), nullable=False)
+    counterparty_name = Column(String(255), nullable=True)
+    counterparty_gstin = Column(String(15), nullable=True)
+    reference = Column(String(255), nullable=True)
+    amount_paise = Column(BigInteger, nullable=True)
+    currency = Column(String(3), nullable=False, default="INR", server_default="INR")
+    issue_date = Column(Date, nullable=True)
+    # Delivery or completion for an order, the quote deadline for an RFQ.
+    due_date = Column(Date, nullable=True)
+    # draft | awaiting_approval | issued | acknowledged | part_delivered |
+    # delivered | closed | cancelled
+    status = Column(String(24), nullable=False, default="draft", index=True)
+    docx_key = Column(String(512), nullable=True)
+    pdf_key = Column(String(512), nullable=True)
+    xlsx_key = Column(String(512), nullable=True)
+    data = Column(JSON, nullable=False, default=dict)
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id", "series", "number", name="uq_procurement_document_number"
+        ),
+        Index(
+            "ix_procurement_documents_org_kind_status",
+            "organization_id",
+            "kind",
+            "status",
+        ),
+    )

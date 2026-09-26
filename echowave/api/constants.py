@@ -563,6 +563,19 @@ CHARGE_RULE_2026_09_ENABLED = (
     os.getenv("CHARGE_RULE_2026_09_ENABLED", "false").lower() == "true"
 )
 
+# The document engine for procurement agents (Step 1): purchase orders, RFQs,
+# work orders, comparative statements and award letters drafted from a
+# template, numbered gaplessly per workspace, converted to PDF and kept in a
+# register. Off: no agent is offered the tools and the routes answer 404.
+# Read at call time, never at import, so a test can turn it either way.
+PROCUREMENT_DOCS_2026_09_ENABLED = (
+    os.getenv("PROCUREMENT_DOCS_2026_09_ENABLED", "false").lower() == "true"
+)
+
+# The Gotenberg service (LibreOffice behind HTTP) that turns a drafted .docx
+# into a PDF. When it cannot be reached a plain PDF is rendered in-process.
+GOTENBERG_URL = os.getenv("GOTENBERG_URL", "http://gotenberg:3000")
+
 # Spend caps a customer sets on a workspace or on one agent (S-1, after the
 # paperclip budget-policy shape): warn at a share of the cap, stop at the
 # cap. Off, and no policy is read anywhere -- a run authorisation costs

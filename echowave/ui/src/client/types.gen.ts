@@ -5031,6 +5031,20 @@ export type FileDescriptor = {
 };
 
 /**
+ * FileLink
+ */
+export type FileLink = {
+    /**
+     * Url
+     */
+    url: string;
+    /**
+     * Filename
+     */
+    filename: string;
+};
+
+/**
  * FileMetadataResponse
  */
 export type FileMetadataResponse = {
@@ -10232,6 +10246,74 @@ export type ReferralCapRequest = {
      * Paid referrals a month; null returns to the default
      */
     cap?: number | null;
+};
+
+/**
+ * RegisterEntry
+ */
+export type RegisterEntry = {
+    /**
+     * Register Id
+     */
+    register_id: number;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Number
+     */
+    number: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Counterparty
+     */
+    counterparty?: string | null;
+    /**
+     * Counterparty Gstin
+     */
+    counterparty_gstin?: string | null;
+    /**
+     * Reference
+     */
+    reference?: string | null;
+    /**
+     * Amount
+     */
+    amount?: string | null;
+    /**
+     * Amount Paise
+     */
+    amount_paise?: number | null;
+    /**
+     * Issue Date
+     */
+    issue_date?: string | null;
+    /**
+     * Due Date
+     */
+    due_date?: string | null;
+    /**
+     * Overdue
+     */
+    overdue?: boolean;
+    /**
+     * Files
+     */
+    files?: Array<string>;
+};
+
+/**
+ * RegisterList
+ */
+export type RegisterList = {
+    /**
+     * Entries
+     */
+    entries: Array<RegisterEntry>;
 };
 
 /**
@@ -22304,6 +22386,113 @@ export type InstallSharedRoleApiV1WorkspaceRolesSharedTokenInstallPostResponses 
      */
     200: unknown;
 };
+
+export type ListProcurementDocumentsApiV1ProcurementDocumentsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Kind
+         */
+        kind?: string | null;
+        /**
+         * Status
+         */
+        status?: string | null;
+        /**
+         * Due Before
+         */
+        due_before?: string | null;
+    };
+    url: '/api/v1/procurement/documents';
+};
+
+export type ListProcurementDocumentsApiV1ProcurementDocumentsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListProcurementDocumentsApiV1ProcurementDocumentsGetError = ListProcurementDocumentsApiV1ProcurementDocumentsGetErrors[keyof ListProcurementDocumentsApiV1ProcurementDocumentsGetErrors];
+
+export type ListProcurementDocumentsApiV1ProcurementDocumentsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: RegisterList;
+};
+
+export type ListProcurementDocumentsApiV1ProcurementDocumentsGetResponse = ListProcurementDocumentsApiV1ProcurementDocumentsGetResponses[keyof ListProcurementDocumentsApiV1ProcurementDocumentsGetResponses];
+
+export type DownloadProcurementFileApiV1ProcurementDocumentsRegisterIdFilesFileGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Register Id
+         */
+        register_id: number;
+        /**
+         * File
+         */
+        file: 'docx' | 'pdf' | 'xlsx';
+    };
+    query?: {
+        /**
+         * Redirect
+         *
+         * False returns the link as JSON.
+         */
+        redirect?: boolean;
+    };
+    url: '/api/v1/procurement/documents/{register_id}/files/{file}';
+};
+
+export type DownloadProcurementFileApiV1ProcurementDocumentsRegisterIdFilesFileGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DownloadProcurementFileApiV1ProcurementDocumentsRegisterIdFilesFileGetError = DownloadProcurementFileApiV1ProcurementDocumentsRegisterIdFilesFileGetErrors[keyof DownloadProcurementFileApiV1ProcurementDocumentsRegisterIdFilesFileGetErrors];
+
+export type DownloadProcurementFileApiV1ProcurementDocumentsRegisterIdFilesFileGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: FileLink;
+};
+
+export type DownloadProcurementFileApiV1ProcurementDocumentsRegisterIdFilesFileGetResponse = DownloadProcurementFileApiV1ProcurementDocumentsRegisterIdFilesFileGetResponses[keyof DownloadProcurementFileApiV1ProcurementDocumentsRegisterIdFilesFileGetResponses];
 
 export type AgentStartsApiV1AgentGraphWorkflowIdStartsGetData = {
     body?: never;

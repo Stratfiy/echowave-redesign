@@ -333,6 +333,8 @@ services:
     environment:
       # The sandbox service, on the compose network; see the sandbox service.
       SANDBOX_URL: ${SANDBOX_URL:-http://sandbox:8080}
+      # Word to PDF for the documents agents draft; see the gotenberg service.
+      GOTENBERG_URL: ${GOTENBERG_URL:-http://gotenberg:3000}
       # Core application config
       ENVIRONMENT: "${ENVIRONMENT:-local}"
       LOG_LEVEL: "INFO"
@@ -565,6 +567,32 @@ services:
       - "8080"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - app-network
+
+  gotenberg:
+    # Word to PDF for the purchase orders, RFQs and letters an agent drafts
+    # (PROCUREMENT_DOCS_2026_09_ENABLED). LibreOffice behind an HTTP API,
+    # so the PDF looks like the .docx it came from. No profile, like the api
+    # it serves, so `docker compose --profile remote up -d` starts it; no host
+    # port, because only the api talks to it. The api falls back to a plain
+    # rendering when this is down, so a PDF is always produced.
+    image: gotenberg/gotenberg:8
+    container_name: decibyl_gotenberg
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    mem_limit: 512m
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3

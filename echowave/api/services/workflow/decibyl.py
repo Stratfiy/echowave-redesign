@@ -36,6 +36,7 @@ from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
 from api.services import prompt_budget, reporting_window
 from api.services.billing import model_usage
+from api.services.documents import tools as procurement
 from api.services.knowledge_graph import quiet, recall, teach
 from api.services.organization_preferences import get_organization_preferences
 from api.services.skills import imports as skill_imports
@@ -217,6 +218,15 @@ SYSTEM = (
 )
 
 
+def system_prompt() -> str:
+    """SYSTEM, plus the rules for the tools switched on for this deployment.
+
+    The procurement rules are said only while those tools are offered: a
+    rule for a tool the model is not holding is a tool it will describe and
+    cannot call (``test_decibyl_knows_what_it_has``)."""
+    return SYSTEM + (procurement.RULES if procurement.enabled() else "")
+
+
 def thread_filter() -> dict[str, Any]:
     """The timeline filter that is Decibyl's thread.
 
@@ -234,6 +244,9 @@ def thread_filter() -> dict[str, Any]:
             AgentEventKind.EDIT_PROPOSED.value,
             AgentEventKind.CONNECTOR_OFFERED.value,
             AgentEventKind.ACTIVITY.value,
+            # The files the document tools hand over (a drafted PO, a
+            # cost-bid sheet), shown on the thread with their downloads.
+            *((AgentEventKind.DELIVERABLE.value,) if procurement.enabled() else ()),
         ],
     }
 
@@ -1240,6 +1253,7 @@ def office_tools() -> list[dict[str, Any]]:
             if web_tools.enabled()
             else ()
         ),
+        *(procurement.schemas() if procurement.enabled() else ()),
     ]
 
 
@@ -1280,6 +1294,18 @@ def _was_a_read(call: Any, result: Any) -> bool:
     retry with, and the turn ended on "I have nothing to add on that."
     """
     name = str(getattr(call, "name", "") or "")
+    if name in procurement.NAMES and isinstance(result, dict):
+        # Reading a template, a quotation or the register is a read; so is a
+        # draft that came back asking for what is missing -- nothing was
+        # handed over and the model still has work to do with its tools. A
+        # connect card is not: like offer_connector, it ends the round.
+        if result.get("status") == "needs_connection":
+            return False
+        return name in procurement.READS or result.get("status") in (
+            "missing",
+            "invalid",
+            "error",
+        )
     return (
         (
             name.startswith(connected_tools.PREFIX)
@@ -1476,6 +1502,13 @@ async def _tool(
             workflow_run_id=None,
             ref_id=f"decibyl:{organization_id}:{call.id or call.name}",
         )
+    if call.name in procurement.NAMES and procurement.enabled():
+        return await procurement.run(
+            call.name,
+            organization_id=organization_id,
+            arguments=arguments,
+            ref_id=f"decibyl:{organization_id}:{call.id or call.name}",
+        )
     if call.name == documents.SEND_TOOL_NAME:
         return await documents.send_for_thread(
             organization_id,
@@ -1543,7 +1576,7 @@ async def _speak(
             provider=model.provider,
             model=model.model,
             api_key=model.api_key,
-            system=SYSTEM,
+            system=system_prompt(),
             conversation=conversation,
             on_text=on_text,
             tools=tools,
