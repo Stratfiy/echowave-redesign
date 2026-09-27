@@ -137,7 +137,7 @@ def _drafter() -> AgentTemplate:
         template_variables={
             **_BUYER_VARIABLES,
             "template_source": (
-                "standard, or the uploaded Word file, Google Doc or OneDrive link to draft from"
+                "standard, or the uploaded Word/Excel file, Google Doc or OneDrive link to draft from"
             ),
             "numbering_prefixes": (
                 "Each document's number prefix, or standard (PO, RFQ, WO, CS, AL)"

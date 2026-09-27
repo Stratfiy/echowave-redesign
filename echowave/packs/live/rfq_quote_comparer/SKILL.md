@@ -93,7 +93,8 @@ decibyl:
       required: false
     - app: one_drive
       label: OneDrive
-      used_for: Drafting from a Word template on OneDrive or SharePoint, word for word.
+      used_for: Drafting from a Word or Excel template on OneDrive or SharePoint, word for
+        word.
       required: false
     - app: whatsapp
       label: WhatsApp

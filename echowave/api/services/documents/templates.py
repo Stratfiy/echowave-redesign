@@ -37,12 +37,15 @@ import docx
 from docx.oxml.ns import qn
 from docx.text.run import Run
 
-PLACEHOLDER = re.compile(r"\{\{\s*([a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?)\s*\}\}")
-ITEMS_PREFIX = "items."
+from api.services.documents import xlsx_templates
+from api.services.documents.placeholders import ITEMS_PREFIX, PLACEHOLDER, TemplateError
+
+__all__ = ["ITEMS_PREFIX", "PLACEHOLDER", "TemplateError"]
 
 
-class TemplateError(ValueError):
-    """A template that cannot be read, in words a person can act on."""
+def extension_of(data: bytes) -> str:
+    """``xlsx`` for a workbook, ``docx`` for anything else this reads."""
+    return "xlsx" if xlsx_templates.is_workbook(data) else "docx"
 
 
 def _open(data: bytes):
@@ -151,9 +154,12 @@ def _as_text(value: Any) -> str | None:
     return str(value)
 
 
-def inspect(data: bytes) -> dict[str, list[str]]:
+def inspect(data: bytes) -> dict[str, Any]:
     """The fields and the line-item columns a template asks for, in the
-    order a reader meets them."""
+    order a reader meets them. A workbook also says how many item rows it
+    has room for."""
+    if xlsx_templates.is_workbook(data):
+        return xlsx_templates.inspect(data)
     document = _open(data)
     fields: list[str] = []
     columns: list[str] = []
@@ -172,7 +178,9 @@ def inspect(data: bytes) -> dict[str, list[str]]:
 
 def fill(data: bytes, values: dict[str, Any], items: Iterable[dict[str, Any]]) -> bytes:
     """The template with every known placeholder replaced and each repeating
-    row cloned once per item."""
+    row cloned once per item (a workbook's rows are filled in place)."""
+    if xlsx_templates.is_workbook(data):
+        return xlsx_templates.fill(data, values, items)
     document = _open(data)
     items = list(items or [])
 

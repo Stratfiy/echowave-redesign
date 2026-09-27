@@ -90,7 +90,7 @@ _TEMPLATE_SOURCE = RequiredFact(
     question="Should documents use the standard Indian format, or your own template?",
     example="standard -- or the link to your PO template in Google Docs or OneDrive",
     required=False,
-    used_for="The format it drafts in. Upload a Word file, or share a Google Doc or OneDrive link to use your own.",
+    used_for="The format it drafts in. Upload a Word or Excel file, or share a Google Doc or OneDrive link to use your own.",
 )
 _PREFIXES = RequiredFact(
     key="numbering_prefixes",
@@ -138,7 +138,7 @@ _DOCS = RequiredConnector(
 _ONEDRIVE = RequiredConnector(
     app="one_drive",
     label="OneDrive",
-    used_for="Drafting from a Word template on OneDrive or SharePoint, word for word.",
+    used_for="Drafting from a Word or Excel template on OneDrive or SharePoint, word for word.",
     required=False,
 )
 

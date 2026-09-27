@@ -539,7 +539,7 @@ class TestTheDrafterEndToEnd:
         engine = _engine(org_id, workflow_id, run_id, [])
         with (
             patch(
-                "api.services.documents.convert.docx_to_pdf",
+                "api.services.documents.convert.to_pdf",
                 new=AsyncMock(return_value=b"%PDF-1.7 test"),
             ),
             patch("api.services.workflow.agent_timeline.record", new=timeline),

@@ -110,29 +110,26 @@ class TestReadingTheTemplate:
         assert all(c["connected_account_id"] == "ca_od" for c in calls)
 
     async def test_not_connected_names_the_app_to_connect(self):
-        with patch(
-            "api.services.integrations.composio.client.connected_accounts",
-            new=AsyncMock(return_value=[]),
+        with (
+            patch(
+                "api.services.integrations.composio.client.connected_accounts",
+                new=AsyncMock(return_value=[]),
+            ),
+            pytest.raises(sources.SourceError) as exc,
         ):
-            with pytest.raises(sources.SourceError) as exc:
-                await sources.resolve_template(7, SHARE, kind="purchase_order")
+            await sources.resolve_template(7, SHARE, kind="purchase_order")
         assert exc.value.needs_app == "one_drive"
         assert "OneDrive is not connected" in str(exc.value)
 
-    async def test_a_spreadsheet_is_refused_by_name_until_slice_two(self):
+    async def test_a_pdf_is_refused_by_name_before_it_is_downloaded(self):
         accounts = [{"app": "one_drive", "connected_account_id": "ca_od"}]
+        calls = []
 
         async def execute(**kwargs):
-            if kwargs["tool_slug"] == sources.ONEDRIVE_BY_SHARING_URL:
-                return {
-                    "status": "success",
-                    "data": {"id": "01X", "name": "001 Copy Hero LLC.xlsx"},
-                }
+            calls.append(kwargs["tool_slug"])
             return {
                 "status": "success",
-                "data": {
-                    "file": {"name": "001 Copy Hero LLC.xlsx", "data": "UEsDBBQA"}
-                },
+                "data": {"id": "01X", "name": "001 Copy Hero LLC.pdf"},
             }
 
         with (
@@ -143,11 +140,11 @@ class TestReadingTheTemplate:
             patch(
                 "api.services.integrations.composio.client.execute_tool", new=execute
             ),
+            pytest.raises(sources.SourceError) as exc,
         ):
-            with pytest.raises(sources.SourceError) as exc:
-                await sources.resolve_template(7, SHARE, kind="purchase_order")
-        assert "001 Copy Hero LLC.xlsx" in str(exc.value)
-        assert ".docx" in str(exc.value)
+            await sources.resolve_template(7, SHARE, kind="purchase_order")
+        assert "001 Copy Hero LLC.pdf" in str(exc.value)
+        assert calls == [sources.ONEDRIVE_BY_SHARING_URL]
 
     async def test_a_link_that_resolves_to_nothing_is_a_plain_refusal(self):
         accounts = [{"app": "one_drive", "connected_account_id": "ca_od"}]
@@ -163,7 +160,7 @@ class TestReadingTheTemplate:
             patch(
                 "api.services.integrations.composio.client.execute_tool", new=execute
             ),
+            pytest.raises(sources.SourceError) as exc,
         ):
-            with pytest.raises(sources.SourceError) as exc:
-                await sources.resolve_template(7, SHARE, kind="purchase_order")
+            await sources.resolve_template(7, SHARE, kind="purchase_order")
         assert "itemNotFound" in str(exc.value)

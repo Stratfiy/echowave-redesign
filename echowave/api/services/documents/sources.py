@@ -103,10 +103,10 @@ async def resolve_template(
         return Template(formats.FORMATS[name].template_bytes(), f"standard:{name}")
     if _UUID.match(text):
         data, filename, _ = await uploaded_bytes(organization_id, text)
-        if not filename.lower().endswith(".docx"):
+        if not filename.lower().endswith((".docx", ".xlsx")):
             raise SourceError(
-                f"{filename} is not a Word (.docx) file. A template must be "
-                ".docx with {{field}} placeholders."
+                f"{filename} is not a Word (.docx) or Excel (.xlsx) file. A "
+                "template must be one of those with {{field}} placeholders."
             )
         return Template(data, f"upload:{text}")
     doc_id = google_doc_id(text)
@@ -117,7 +117,7 @@ async def resolve_template(
         return await onedrive_template(organization_id, link)
     raise SourceError(
         f"{text!r} is not a template: use one of {', '.join(formats.STANDARD)}, an "
-        "uploaded Word file's uuid, a Google Doc link, or a OneDrive link."
+        "uploaded Word or Excel file's uuid, a Google Doc link, or a OneDrive link."
     )
 
 
@@ -249,8 +249,8 @@ async def onedrive_template(organization_id: int, link: str) -> Template:
     """A Word file on OneDrive or SharePoint, by its sharing link.
 
     Two calls on the connected OneDrive account: the link becomes an item
-    (id, drive, name), and the item is downloaded. A spreadsheet is refused
-    by name -- filling an .xlsx format is its own slice -- so the person
+    (id, drive, name), and the item is downloaded. Anything that is not a
+    Word or Excel file is refused by name before the download, so the person
     hears which file it was rather than "not a template"."""
     account = await _account(organization_id, ONEDRIVE)
     if not account:
@@ -266,11 +266,11 @@ async def onedrive_template(organization_id: int, link: str) -> Template:
     if not item_id:
         raise SourceError("That OneDrive link did not resolve to a file.")
     name = str(item.get("name") or "")
-    if name and not name.lower().endswith(".docx"):
+    if name and not name.lower().endswith((".docx", ".xlsx")):
         # Known before the download: say which file, and do not fetch it.
         raise SourceError(
-            f"{name} is not a Word (.docx) file. A template must be .docx "
-            "with {{field}} placeholders."
+            f"{name} is not a Word (.docx) or Excel (.xlsx) file. A template "
+            "must be one of those with {{field}} placeholders."
         )
     arguments: dict[str, Any] = {"item_id": item_id}
     drive_id = (item.get("parentReference") or {}).get("driveId")
@@ -281,10 +281,10 @@ async def onedrive_template(organization_id: int, link: str) -> Template:
     data = await _run(organization_id, account, ONEDRIVE_DOWNLOAD, arguments)
     blob, filename, _ = await _file_bytes(data, what="The OneDrive file")
     filename = name or filename
-    if not filename.lower().endswith(".docx") or blob[:2] != b"PK":
+    if not filename.lower().endswith((".docx", ".xlsx")) or blob[:2] != b"PK":
         raise SourceError(
-            f"{filename} is not a Word (.docx) file. A template must be .docx "
-            "with {{field}} placeholders."
+            f"{filename} is not a Word (.docx) or Excel (.xlsx) file. A template "
+            "must be one of those with {{field}} placeholders."
         )
     templates.inspect(blob)  # proves it opens
     return Template(blob, f"onedrive:{item_id}")

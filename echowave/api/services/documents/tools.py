@@ -5,7 +5,7 @@ or channel run while the flag is on, and to nobody while it is off:
 
 - ``list_template_fields`` -- what a template asks for.
 - ``draft_document`` -- a PO, RFQ, work order, comparative statement or
-  award letter, filled, numbered, as .docx and PDF, in the register.
+  award letter, filled, numbered, as Word or Excel plus PDF, in the register.
 - ``build_spreadsheet`` -- any table as .xlsx, or the cost-bid analysis.
 - ``read_document`` -- an uploaded file's text and tables.
 - ``save_email_attachment`` -- a Gmail attachment, stored as an upload.
@@ -74,8 +74,8 @@ MAX_ITEMS = 200
 RULES = (
     "- Procurement documents: draft_document fills a purchase order, RFQ, "
     "work order, comparative statement or award letter from the standard "
-    "Indian format or the person's own template (an uploaded Word file's "
-    "uuid, a Google Doc link or a OneDrive link), numbers it, and puts the Word file and PDF "
+    "Indian format or the person's own template (an uploaded Word or Excel "
+    "file's uuid, a Google Doc link or a OneDrive link), numbers it, and puts the file and PDF "
     "on the thread and in the register as awaiting approval. "
     "list_template_fields says what a template asks for. Call draft_document "
     "with everything you know; when it answers status missing, ask the person "
@@ -122,7 +122,7 @@ def schemas() -> list[dict[str, Any]]:
         "type": "string",
         "description": (
             f"One of {', '.join(formats.STANDARD)} (the standard format), an "
-            "uploaded Word file's document uuid, a Google Doc id or link, or a OneDrive/SharePoint link. "
+            "uploaded Word or Excel file's document uuid, a Google Doc id or link, or a OneDrive/SharePoint link. "
             "Empty means the standard format for the kind."
         ),
     }
@@ -142,7 +142,7 @@ def schemas() -> list[dict[str, Any]]:
         {
             "name": DRAFT,
             "description": (
-                "Draft a procurement document (.docx and PDF) from a template, "
+                "Draft a procurement document (Word or Excel, plus PDF) from a template, "
                 "number it, and put it in the register awaiting approval. Does NOT "
                 "send it. If anything is missing it drafts nothing and answers "
                 "status missing with a question per field: ask them all at once."
@@ -760,9 +760,10 @@ async def draft_document(
     stem = _file_stem(number)
     try:
         values = {**prepared.values, "document_number": number}
+        ext = templates.extension_of(found.data)
         docx_bytes = templates.fill(found.data, values, prepared.items)
-        pdf_bytes = await convert.docx_to_pdf(docx_bytes, filename=f"{stem}.docx")
-        docx_key = register.storage_key(organization_id, row_id, f"{stem}.docx")
+        pdf_bytes = await convert.to_pdf(docx_bytes, filename=f"{stem}.{ext}")
+        docx_key = register.storage_key(organization_id, row_id, f"{stem}.{ext}")
         pdf_key = register.storage_key(organization_id, row_id, f"{stem}.pdf")
         await _put(docx_key, docx_bytes)
         await _put(pdf_key, pdf_bytes)
@@ -790,12 +791,17 @@ async def draft_document(
         row = await register.get(
             session, organization_id=organization_id, register_id=row_id
         )
-        row.docx_key, row.pdf_key, row.status = docx_key, pdf_key, "awaiting_approval"
+        # A filled workbook is the register's spreadsheet file, not its Word file.
+        if ext == "xlsx":
+            row.xlsx_key = docx_key
+        else:
+            row.docx_key = docx_key
+        row.pdf_key, row.status = pdf_key, "awaiting_approval"
         await session.commit()
 
     files = [
         {"filename": f"{stem}.pdf", "url": await _link(pdf_key)},
-        {"filename": f"{stem}.docx", "url": await _link(docx_key)},
+        {"filename": f"{stem}.{ext}", "url": await _link(docx_key)},
     ]
     vendor = prepared.values.get("vendor_name")
     amount = (
@@ -811,7 +817,7 @@ async def draft_document(
         summary=summary + " — awaiting approval",
         attachments=[
             attachment(row_id, "pdf", f"{stem}.pdf", len(pdf_bytes)),
-            attachment(row_id, "docx", f"{stem}.docx", len(docx_bytes)),
+            attachment(row_id, ext, f"{stem}.{ext}", len(docx_bytes)),
         ],
         entry={
             "register_id": row_id,
@@ -1136,7 +1142,7 @@ async def _offer(organization_id: int, app: str, reason: str) -> dict[str, Any]:
     why = {
         "gmail": "Read the quotations vendors email you",
         "googledrive": "Use your Google Docs as document templates",
-        "one_drive": "Use your Word files on OneDrive as document templates",
+        "one_drive": "Use your Word or Excel files on OneDrive as document templates",
     }.get(app, "")
     offered = await connector_offer.offer(
         organization_id=organization_id, arguments={"app": app, "why": why}

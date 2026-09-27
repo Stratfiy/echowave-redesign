@@ -31,17 +31,20 @@ from api import constants
 LIBREOFFICE_ROUTE = "/forms/libreoffice/convert"
 TIMEOUT_SECS = 60.0
 DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
-async def docx_to_pdf(
+async def to_pdf(
     data: bytes,
     *,
     filename: str = "document.docx",
     base_url: str | None = None,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> bytes:
-    """The PDF of a .docx. Never raises for a converter problem: the
-    fallback rendering is returned instead."""
+    """The PDF of a .docx or .xlsx, told apart by the filename. Never raises
+    for a converter problem: the fallback rendering is returned instead."""
+    is_sheet = filename.lower().endswith(".xlsx")
+    mime = XLSX_MIME if is_sheet else DOCX_MIME
     url = (base_url or constants.GOTENBERG_URL or "").rstrip("/")
     if url:
         try:
@@ -50,7 +53,7 @@ async def docx_to_pdf(
             ) as client:
                 response = await client.post(
                     f"{url}{LIBREOFFICE_ROUTE}",
-                    files={"files": (filename, data, DOCX_MIME)},
+                    files={"files": (filename, data, mime)},
                 )
             if response.status_code == 200 and response.content.startswith(b"%PDF"):
                 return response.content
@@ -69,7 +72,11 @@ async def docx_to_pdf(
                 filename,
                 exc,
             )
-    return render_fallback_pdf(data)
+    return render_fallback_sheet_pdf(data) if is_sheet else render_fallback_pdf(data)
+
+
+#: The name the drafting tool has always called; a .docx is what it sends.
+docx_to_pdf = to_pdf
 
 
 # ---------------------------------------------------------------------------
@@ -333,3 +340,59 @@ def render_fallback_pdf(data: bytes) -> bytes:
 
 
 __all__ = ["LIBREOFFICE_ROUTE", "docx_to_pdf", "render_fallback_pdf"]
+
+
+def render_fallback_sheet_pdf(data: bytes) -> bytes:
+    """Each sheet of a workbook as a plain table, one after the other. The
+    workbook is never calculated here, so a formula cell shows its formula;
+    the converter, when it is up, shows the values."""
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.platypus import (
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
+
+    from api.services.documents import xlsx_templates
+
+    regular, bold, _ = _font_names()
+    out = io.BytesIO()
+    doc = SimpleDocTemplate(
+        out,
+        pagesize=landscape(A4),
+        leftMargin=12 * mm,
+        rightMargin=12 * mm,
+        topMargin=12 * mm,
+        bottomMargin=12 * mm,
+    )
+    cell_style = ParagraphStyle("cell", fontName=regular, fontSize=8, leading=10)
+    title_style = ParagraphStyle("title", fontName=bold, fontSize=11, leading=14)
+    story: list[Any] = []
+    for title, rows in xlsx_templates.rows_as_text(data):
+        story.append(Paragraph(escape(title), title_style))
+        story.append(Spacer(1, 3 * mm))
+        width = max(len(r) for r in rows)
+        body = [
+            [Paragraph(escape(c), cell_style) for c in r + [""] * (width - len(r))]
+            for r in rows
+        ]
+        table = Table(body, repeatRows=0)
+        table.setStyle(
+            TableStyle(
+                [
+                    ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ]
+            )
+        )
+        story.append(table)
+        story.append(Spacer(1, 6 * mm))
+    if not story:
+        story.append(Paragraph("(empty workbook)", cell_style))
+    doc.build(story)
+    return out.getvalue()

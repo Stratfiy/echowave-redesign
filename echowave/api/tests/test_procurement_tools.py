@@ -58,7 +58,7 @@ def storage(monkeypatch):
 @pytest.fixture
 def converter():
     with patch(
-        "api.services.documents.convert.docx_to_pdf",
+        "api.services.documents.convert.to_pdf",
         new=AsyncMock(return_value=b"%PDF-1.7 test"),
     ) as mocked:
         yield mocked
@@ -576,3 +576,73 @@ class TestFlagOff:
             ref_id="x",
         )
         assert result["status"] == "unavailable"
+
+
+def _xlsx_template() -> bytes:
+    """An Excel format in the founder's shape: item rows with a formula per
+    line and a SUM under them (KAN-159, slice 2)."""
+    import openpyxl
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws["B2"], ws["E2"] = "{{buyer_name}}", "{{document_number}}"
+    ws["B4"] = "{{vendor_name}}"
+    for row in (6, 7, 8):
+        ws[f"B{row}"] = "{{items.description}}"
+        ws[f"C{row}"] = "{{items.qty}}"
+        ws[f"D{row}"] = "{{items.rate}}"
+        ws[f"E{row}"] = f"=ROUND(C{row}*D{row},2)"
+    ws["E9"] = "=SUM(E6:E8)"
+    out = io.BytesIO()
+    wb.save(out)
+    return out.getvalue()
+
+
+class TestAnExcelTemplate:
+    async def test_the_draft_is_a_filled_workbook_with_its_formulas(
+        self, flag_on, db_session, storage, converter, timeline, charges
+    ):
+        org = await _org(db_session)
+        with patch(
+            "api.services.documents.sources.uploaded_bytes",
+            new=AsyncMock(return_value=(_xlsx_template(), "PO format.xlsx", "")),
+        ):
+            result = await tools.run(
+                tools.DRAFT,
+                organization_id=org,
+                arguments={
+                    "kind": "purchase_order",
+                    "template": "5b3c1d2e-1111-2222-3333-444455556666",
+                    "values": _complete_values(),
+                    "items": _items(),
+                },
+                ref_id="t:x1",
+                workflow_id=None,
+            )
+        assert result["status"] == "drafted", result
+        stem = result["number"].replace("/", "-")
+        assert [f["filename"] for f in result["files"]] == [
+            f"{stem}.pdf",
+            f"{stem}.xlsx",
+        ]
+        xlsx_bytes = next(v for k, v in storage.files.items() if k.endswith(".xlsx"))
+        ws = openpyxl.load_workbook(io.BytesIO(xlsx_bytes)).active
+        assert ws["E2"].value == result["number"]
+        assert ws["B6"].value == "OPC 53 cement"
+        assert isinstance(ws["C6"].value, (int, float)) and ws["C6"].value == 200
+        assert isinstance(ws["D6"].value, (int, float)) and ws["D6"].value == 380
+        assert ws["E6"].value == "=ROUND(C6*D6,2)"
+        assert ws["E9"].value == "=SUM(E6:E8)"
+        assert ws["B8"].value is None  # two items, three rows: the third is blank
+        assert converter.await_args.kwargs["filename"] == f"{stem}.xlsx"
+
+        async with db_session.async_session() as session:
+            row = await session.scalar(
+                select(ProcurementDocumentModel).where(
+                    ProcurementDocumentModel.id == result["register_id"]
+                )
+            )
+        assert row.xlsx_key and row.xlsx_key.endswith(".xlsx")
+        assert row.docx_key is None
+        attachments = timeline.await_args.kwargs["payload"]["attachments"]
+        assert [a["file"] for a in attachments] == ["pdf", "xlsx"]
