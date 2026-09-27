@@ -108,6 +108,7 @@ export default function WorkflowDetailPage() {
                     initialWorkflowName={workflow.name}
                     workflowId={workflow.id}
                     workflowUuid={workflow.workflow_uuid ?? undefined}
+                    visibility={workflow.visibility ?? "everyone"}
                     initialTotalRuns={workflow.total_runs ?? 0}
                     openTesterOnLoad={openTesterOnLoad}
                     testerInitialMode={testerInitialMode}

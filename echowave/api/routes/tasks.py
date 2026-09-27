@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from api.db import db_client
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
-from api.services.workflow import tasks_board
+from api.services.workflow import tasks_board, visibility
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -74,7 +74,11 @@ _context = tasks_board.board_context
 async def list_tasks(user: Annotated[UserModel, Depends(get_user)]) -> dict[str, Any]:
     organization_id = _organization_id(user)
     rows = await db_client.tasks_for_organization(organization_id)
-    ctx = await _context(organization_id)
+    ctx = await tasks_board.board_context(
+        organization_id,
+        viewer_role=await visibility.role_of(user.id, organization_id),
+        for_person=True,
+    )
     counts = await db_client.comment_counts(organization_id, [t.id for t in rows])
     enabled = tasks_board.enabled()
     return {

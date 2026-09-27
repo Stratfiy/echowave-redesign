@@ -8,8 +8,7 @@ import { toast } from "sonner";
 
 import {
     duplicateWorkflowEndpointApiV1WorkflowWorkflowIdDuplicatePost,
-    publishWorkflowApiV1WorkflowWorkflowIdPublishPost,
-} from "@/client/sdk.gen";
+    publishWorkflowApiV1WorkflowWorkflowIdPublishPost, updateWorkflowVisibilityApiV1WorkflowWorkflowIdVisibilityPut } from "@/client/sdk.gen";
 import { WorkflowError } from "@/client/types.gen";
 import { FlowEdge, FlowNode } from "@/components/flow/types";
 import { Button } from "@/components/ui/button";
@@ -36,6 +35,8 @@ interface WorkflowEditorHeaderProps {
     rfInstance: React.RefObject<ReactFlowInstance<FlowNode, FlowEdge> | null>;
     workflowId: number;
     workflowUuid?: string;
+    /** Who may see this agent (KAN-158): "everyone" or "admins". */
+    visibility?: string;
     saveWorkflow: (updateWorkflowDefinition?: boolean) => Promise<void>;
     user: { id: string; email?: string };
     onPhoneCallClick: () => void;
@@ -73,6 +74,7 @@ export const WorkflowEditorHeader = ({
     onPublished,
     workflowId,
     workflowUuid,
+    visibility: visibilityProp,
     renameWorkflow,
 }: WorkflowEditorHeaderProps) => {
     const router = useRouter();
@@ -82,6 +84,23 @@ export const WorkflowEditorHeader = ({
     // MP-2: offered only while workspace roles are switched on.
     const rolesAvailable = useFeature("workspace_roles");
     const [savingRole, setSavingRole] = useState(false);
+    // KAN-158: who may see this agent. Admins only hides it from members
+    // everywhere a person is served; a run is not a person and still sees it.
+    const [visibility, setVisibility] = useState(visibilityProp ?? "everyone");
+    const [settingVisibility, setSettingVisibility] = useState(false);
+    const toggleVisibility = async () => {
+        const wanted = visibility === "admins" ? "everyone" : "admins";
+        setSettingVisibility(true);
+        try {
+            const result = await updateWorkflowVisibilityApiV1WorkflowWorkflowIdVisibilityPut({
+                path: { workflow_id: workflowId },
+                body: { visibility: wanted },
+            });
+            if (!result.error) setVisibility(wanted);
+        } finally {
+            setSettingVisibility(false);
+        }
+    };
     const [publishing, setPublishing] = useState(false);
     // One discriminated-union state instead of (isEditingName, nameDraft,
     // nameError, isRenaming): they're not independent — error and saving are
@@ -502,6 +521,18 @@ export const WorkflowEditorHeader = ({
                             >
                                 <BookmarkPlus className="w-4 h-4 mr-2" />
                                 Save as workspace role
+                            </DropdownMenuItem>
+                        )}
+                        {rolesAvailable && (
+                            <DropdownMenuItem
+                                onClick={() => void toggleVisibility()}
+                                disabled={settingVisibility}
+                                className="text-foreground hover:bg-accent cursor-pointer"
+                            >
+                                <Eye className="w-4 h-4 mr-2" />
+                                {visibility === "admins"
+                                    ? "Visible to admins only — show to everyone"
+                                    : "Visible to everyone — hide from members"}
                             </DropdownMenuItem>
                         )}
                         <DropdownMenuItem

@@ -51,6 +51,7 @@ def test_workflow_fetch_list_includes_workflow_uuid():
             # The agent list renders the Live switch from this, so it has to
             # arrive with the list rather than a request later.
             "is_live": True,
+            "visibility": "everyone",
             "created_at": "2026-05-22T10:30:00Z",
             "total_runs": 9,
             "folder_id": workflow.folder_id,

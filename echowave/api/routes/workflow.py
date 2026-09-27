@@ -18,6 +18,7 @@ from api.db.workflow_template_client import WorkflowTemplateClient
 from api.enums import (
     BotChannel,
     CallType,
+    OrganizationRole,
     PostHogEvent,
     StorageBackend,
     WorkflowStatus,
@@ -30,7 +31,8 @@ from api.schemas.workflow_configurations import (
     preserve_carried_keys,
 )
 from api.sdk_expose import sdk_expose
-from api.services.auth.depends import get_user
+from api.services import features
+from api.services.auth.depends import get_user, require_organization_role
 from api.services.compliance import acceptable_use, ai_disclosure
 from api.services.configuration import model_presets
 from api.services.configuration.agent_options import managed_stack_override
@@ -58,7 +60,7 @@ from api.services.configuration.resolve import (
 from api.services.posthog_client import capture_event
 from api.services.reports import generate_workflow_report_csv
 from api.services.storage import storage_fs
-from api.services.workflow import bot_notices, setup_progress, unfilled
+from api.services.workflow import bot_notices, setup_progress, unfilled, visibility
 from api.services.workflow.agent_brief import (
     AgentBrief,
     apply_brief,
@@ -345,6 +347,7 @@ class WorkflowResponse(BaseModel):
     # active-vs-archived. Defaulted so an older client that does not send it
     # cannot read as "paused".
     is_live: bool = True
+    visibility: str = "everyone"
     created_at: datetime
     workflow_definition: dict
     current_definition_id: int | None
@@ -368,6 +371,8 @@ class WorkflowListResponse(BaseModel):
     # a second request lands. Defaulted True so an older cached row cannot show
     # a live agent as paused.
     is_live: bool = True
+    #: Who may see it: everyone or admins (KAN-158).
+    visibility: str = "everyone"
     created_at: datetime
     total_runs: int
     folder_id: int | None = None
@@ -702,6 +707,7 @@ async def create_workflow(
         "name": workflow.name,
         "status": workflow.status,
         "is_live": workflow.is_live,
+        "visibility": getattr(workflow, "visibility", None) or "everyone",
         "created_at": workflow.created_at,
         "workflow_definition": mask_workflow_definition(workflow_definition),
         "current_definition_id": workflow.current_definition_id,
@@ -987,6 +993,11 @@ async def get_workflows(
             organization_id=user.selected_organization_id, status=None
         )
 
+    # A member does not see an admins-only agent (KAN-158).
+    workflows = visibility.only_visible(
+        workflows,
+        await visibility.role_of(user.id, user.selected_organization_id),
+    )
     # Get run counts for all workflows in a single query
     workflow_ids = [workflow.id for workflow in workflows]
     run_counts = await db_client.get_workflow_run_counts(workflow_ids)
@@ -1006,6 +1017,7 @@ async def get_workflows(
             workflow_uuid=workflow.workflow_uuid,
             handle=workflow.handle,
             is_squad=workflow.id in squads,
+            visibility=getattr(workflow, "visibility", None) or "everyone",
         )
         for workflow in workflows
     ]
@@ -1030,7 +1042,10 @@ async def get_workflow(
     workflow = await db_client.get_workflow(
         workflow_id, organization_id=user.selected_organization_id
     )
-    if workflow is None:
+    if workflow is None or not visibility.visible(
+        workflow, await visibility.role_of(user.id, user.selected_organization_id)
+    ):
+        # Hidden reads as absent: a member is not told what they may not see.
         raise HTTPException(
             status_code=404, detail=f"Workflow with id {workflow_id} not found"
         )
@@ -1054,6 +1069,7 @@ async def get_workflow(
         "name": workflow.name,
         "status": workflow.status,
         "is_live": workflow.is_live,
+        "visibility": getattr(workflow, "visibility", None) or "everyone",
         "created_at": workflow.created_at,
         "workflow_definition": mask_workflow_definition(workflow_def),
         "current_definition_id": workflow.current_definition_id,
@@ -1890,6 +1906,36 @@ async def update_workflow_status(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class UpdateWorkflowVisibilityRequest(BaseModel):
+    visibility: str
+
+
+@router.put(
+    "/{workflow_id}/visibility",
+    dependencies=[Depends(features.require("workspace_roles"))],
+)
+async def update_workflow_visibility(
+    workflow_id: int,
+    request: UpdateWorkflowVisibilityRequest,
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
+) -> dict:
+    """Who may see this agent: everyone (the default) or admins only (KAN-158).
+    An admin's call; a member cannot hide an agent from themselves."""
+    try:
+        wanted = visibility.clean(request.visibility)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    try:
+        workflow = await db_client.set_workflow_visibility(
+            workflow_id=workflow_id,
+            visibility=wanted,
+            organization_id=user.selected_organization_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {"id": workflow.id, "visibility": workflow.visibility}
+
+
 @router.put("/{workflow_id}/live")
 async def update_workflow_live(
     workflow_id: int,
@@ -1929,6 +1975,7 @@ async def update_workflow_live(
         "name": workflow.name,
         "status": workflow.status,
         "is_live": workflow.is_live,
+        "visibility": getattr(workflow, "visibility", None) or "everyone",
         "created_at": workflow.created_at,
         # An agent that has never been published has no released definition,
         # and pausing one is a perfectly ordinary thing to want to do — so this
@@ -2650,6 +2697,7 @@ async def duplicate_workflow_template(
         "name": workflow.name,
         "status": workflow.status,
         "is_live": workflow.is_live,
+        "visibility": getattr(workflow, "visibility", None) or "everyone",
         "created_at": workflow.created_at,
         "workflow_definition": mask_workflow_definition(workflow_def),
         "current_definition_id": workflow.current_definition_id,

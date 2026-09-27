@@ -56,6 +56,7 @@ from api.services.workflow import (
     reply_draft,
     secrets_request,
     self_edit,
+    visibility,
 )
 from api.tasks.arq import enqueue_job
 from api.tasks.function_names import FunctionNames
@@ -529,8 +530,9 @@ async def post_message(
     # A bot that is not here cannot be addressed here, the same rule Slack
     # applies to apps -- and it is what makes putting a bot in a channel mean
     # something rather than being decoration.
-    workflows = await db_client.get_all_workflows_for_listing(
-        organization_id=organization_id
+    workflows = visibility.only_visible(
+        await db_client.get_all_workflows_for_listing(organization_id=organization_id),
+        await visibility.role_of(user.id, organization_id),
     )
     roster = [
         {

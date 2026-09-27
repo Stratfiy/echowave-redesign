@@ -13346,6 +13346,16 @@ export type UpdateWorkflowStatusRequest = {
 };
 
 /**
+ * UpdateWorkflowVisibilityRequest
+ */
+export type UpdateWorkflowVisibilityRequest = {
+    /**
+     * Visibility
+     */
+    visibility: string;
+};
+
+/**
  * UsageHistoryResponse
  */
 export type UsageHistoryResponse = {
@@ -14135,6 +14145,10 @@ export type WorkflowListResponse = {
      */
     is_live?: boolean;
     /**
+     * Visibility
+     */
+    visibility?: string;
+    /**
      * Created At
      */
     created_at: string;
@@ -14194,6 +14208,10 @@ export type WorkflowResponse = {
      * Is Live
      */
     is_live?: boolean;
+    /**
+     * Visibility
+     */
+    visibility?: string;
     /**
      * Created At
      */
@@ -25651,6 +25669,54 @@ export type UpdateWorkflowStatusApiV1WorkflowWorkflowIdStatusPutResponses = {
 };
 
 export type UpdateWorkflowStatusApiV1WorkflowWorkflowIdStatusPutResponse = UpdateWorkflowStatusApiV1WorkflowWorkflowIdStatusPutResponses[keyof UpdateWorkflowStatusApiV1WorkflowWorkflowIdStatusPutResponses];
+
+export type UpdateWorkflowVisibilityApiV1WorkflowWorkflowIdVisibilityPutData = {
+    body: UpdateWorkflowVisibilityRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/visibility';
+};
+
+export type UpdateWorkflowVisibilityApiV1WorkflowWorkflowIdVisibilityPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateWorkflowVisibilityApiV1WorkflowWorkflowIdVisibilityPutError = UpdateWorkflowVisibilityApiV1WorkflowWorkflowIdVisibilityPutErrors[keyof UpdateWorkflowVisibilityApiV1WorkflowWorkflowIdVisibilityPutErrors];
+
+export type UpdateWorkflowVisibilityApiV1WorkflowWorkflowIdVisibilityPutResponses = {
+    /**
+     * Response Update Workflow Visibility Api V1 Workflow  Workflow Id  Visibility Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type UpdateWorkflowVisibilityApiV1WorkflowWorkflowIdVisibilityPutResponse = UpdateWorkflowVisibilityApiV1WorkflowWorkflowIdVisibilityPutResponses[keyof UpdateWorkflowVisibilityApiV1WorkflowWorkflowIdVisibilityPutResponses];
 
 export type UpdateWorkflowLiveApiV1WorkflowWorkflowIdLivePutData = {
     body: UpdateWorkflowLiveRequest;

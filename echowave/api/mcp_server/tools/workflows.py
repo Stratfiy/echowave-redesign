@@ -17,9 +17,14 @@ async def list_workflows(status: str | None = "active") -> list[dict]:
     list archived agents, or `status=None` to list all.
     """
     user = await authenticate_mcp_request()
-    workflows = await db_client.get_all_workflows_for_listing(
-        organization_id=user.selected_organization_id,
-        status=status,
+    from api.services.workflow import visibility
+
+    workflows = visibility.only_visible(
+        await db_client.get_all_workflows_for_listing(
+            organization_id=user.selected_organization_id,
+            status=status,
+        ),
+        await visibility.role_of(user.id, user.selected_organization_id),
     )
     return [
         {
