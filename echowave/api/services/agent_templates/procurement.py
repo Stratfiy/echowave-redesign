@@ -130,14 +130,14 @@ def _drafter() -> AgentTemplate:
         summary=(
             "Drafts RFQs, purchase orders, work orders, comparative "
             "statements and award letters -- in the standard Indian format "
-            "or your own Word or Google Docs template -- asks for every "
+            "or your own Word, Google Docs or OneDrive template -- asks for every "
             "missing detail in one message, and sends to the vendor only "
             "after approval."
         ),
         template_variables={
             **_BUYER_VARIABLES,
             "template_source": (
-                "standard, or the uploaded Word file or Google Doc to draft from"
+                "standard, or the uploaded Word file, Google Doc or OneDrive link to draft from"
             ),
             "numbering_prefixes": (
                 "Each document's number prefix, or standard (PO, RFQ, WO, CS, AL)"
@@ -157,8 +157,8 @@ def _drafter() -> AgentTemplate:
                 "1. Work out which document is wanted and which template. It "
                 "is the standard format for that kind unless the person names "
                 "their own, or {{template_source}} names one uploaded Word "
-                "file or one Google Doc -- then pass that file's uuid or the "
-                "Google Doc link as template. If {{template_source}} says "
+                "file, one Google Doc or one OneDrive link -- then pass that "
+                "file's uuid or the link as template. If {{template_source}} says "
                 "standard, or names only a folder, use the standard format "
                 "and say so.\n"
                 "2. Call list_template_fields with that template, so you know "

@@ -88,9 +88,9 @@ _APPROVER = RequiredFact(
 _TEMPLATE_SOURCE = RequiredFact(
     key="template_source",
     question="Should documents use the standard Indian format, or your own template?",
-    example="standard -- or the link to your PO template in Google Docs",
+    example="standard -- or the link to your PO template in Google Docs or OneDrive",
     required=False,
-    used_for="The format it drafts in. Upload a Word file or share a Google Doc to use your own.",
+    used_for="The format it drafts in. Upload a Word file, or share a Google Doc or OneDrive link to use your own.",
 )
 _PREFIXES = RequiredFact(
     key="numbering_prefixes",
@@ -135,6 +135,12 @@ _DOCS = RequiredConnector(
     used_for="Drafting from your own Google Docs template, word for word.",
     required=False,
 )
+_ONEDRIVE = RequiredConnector(
+    app="one_drive",
+    label="OneDrive",
+    used_for="Drafting from a Word template on OneDrive or SharePoint, word for word.",
+    required=False,
+)
 
 
 def packs(publisher) -> tuple[AgentPack, ...]:
@@ -162,7 +168,7 @@ def packs(publisher) -> tuple[AgentPack, ...]:
             ),
             channels=[Channel.WEB, Channel.WHATSAPP, Channel.EMAIL],
             required_facts=[*_BUYER_FACTS, _TEMPLATE_SOURCE, _PREFIXES],
-            required_connectors=[_GMAIL, _OUTLOOK, _DRIVE, _DOCS, _WHATSAPP],
+            required_connectors=[_GMAIL, _OUTLOOK, _DRIVE, _DOCS, _ONEDRIVE, _WHATSAPP],
         ),
         pack(
             slug="rfq_quote_comparer",
@@ -190,7 +196,7 @@ def packs(publisher) -> tuple[AgentPack, ...]:
                     used_for="Which vendor it recommends: the cheapest landed, or the cheapest that meets the specification.",
                 ),
             ],
-            required_connectors=[_GMAIL, _OUTLOOK, _DRIVE, _DOCS, _WHATSAPP],
+            required_connectors=[_GMAIL, _OUTLOOK, _DRIVE, _DOCS, _ONEDRIVE, _WHATSAPP],
         ),
         pack(
             slug="po_followup",

@@ -91,6 +91,10 @@ decibyl:
       label: Google Docs
       used_for: Drafting from your own Google Docs template, word for word.
       required: false
+    - app: one_drive
+      label: OneDrive
+      used_for: Drafting from a Word template on OneDrive or SharePoint, word for word.
+      required: false
     - app: whatsapp
       label: WhatsApp
       used_for: Answering customers where they already write to you.

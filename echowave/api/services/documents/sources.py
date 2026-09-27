@@ -39,12 +39,22 @@ DRIVE_DOWNLOAD = "GOOGLEDRIVE_DOWNLOAD_FILE"
 DOCS_PLAINTEXT = "GOOGLEDOCS_GET_DOCUMENT_PLAINTEXT"
 GMAIL_ATTACHMENT = "GMAIL_GET_ATTACHMENT"
 GMAIL_MESSAGE = "GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID"
+ONEDRIVE = "one_drive"
+ONEDRIVE_BY_SHARING_URL = "ONE_DRIVE_GET_DRIVE_ITEM_BY_SHARING_URL"
+ONEDRIVE_DOWNLOAD = "ONE_DRIVE_DOWNLOAD_FILE"
 
 _UUID = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE
 )
 _GOOGLE_URL = re.compile(r"/(?:document|file)/d/([A-Za-z0-9_-]{20,})")
 _GOOGLE_ID = re.compile(r"^[A-Za-z0-9_-]{25,80}$")
+#: A OneDrive or SharePoint sharing link, personal or business. Only the host
+#: is read here; the link is handed whole to Microsoft to resolve, which is
+#: the one party that knows what it points at.
+_ONEDRIVE_URL = re.compile(
+    r"^https://(?:[a-z0-9-]+\.sharepoint\.com|1drv\.ms|onedrive\.live\.com)/",
+    re.IGNORECASE,
+)
 
 
 class SourceError(ValueError):
@@ -78,14 +88,14 @@ async def resolve_template(
     organization_id: int, template: Any, *, kind: str
 ) -> Template:
     """The template's bytes. ``template`` is a standard format name (or
-    empty for the kind's own), an uploaded document's uuid, or a Google Doc
-    id or link."""
+    empty for the kind's own), an uploaded document's uuid, a Google Doc
+    id or link, or a OneDrive/SharePoint sharing link."""
     text = str(template or "").strip()
     if not text or text.lower() in ("standard", "default"):
         if kind not in formats.STANDARD:
             raise SourceError(
                 "There is no standard format for that kind; give a template "
-                "(an uploaded Word file's uuid or a Google Doc link)."
+                "(an uploaded Word file's uuid, a Google Doc link or a OneDrive link)."
             )
         text = kind
     if text.lower() in formats.STANDARD:
@@ -102,9 +112,12 @@ async def resolve_template(
     doc_id = google_doc_id(text)
     if doc_id:
         return await google_doc_template(organization_id, doc_id)
+    link = onedrive_link(text)
+    if link:
+        return await onedrive_template(organization_id, link)
     raise SourceError(
         f"{text!r} is not a template: use one of {', '.join(formats.STANDARD)}, an "
-        "uploaded Word file's uuid, or a Google Doc link."
+        "uploaded Word file's uuid, a Google Doc link, or a OneDrive link."
     )
 
 
@@ -225,6 +238,56 @@ async def _file_bytes(data: Any, *, what: str) -> tuple[bytes, str, str]:
     if len(blob) > MAX_BYTES:
         raise SourceError(f"{what} is larger than 25 MB.")
     return blob, name, mime
+
+
+def onedrive_link(value: str) -> str | None:
+    text = (value or "").strip()
+    return text if _ONEDRIVE_URL.match(text) else None
+
+
+async def onedrive_template(organization_id: int, link: str) -> Template:
+    """A Word file on OneDrive or SharePoint, by its sharing link.
+
+    Two calls on the connected OneDrive account: the link becomes an item
+    (id, drive, name), and the item is downloaded. A spreadsheet is refused
+    by name -- filling an .xlsx format is its own slice -- so the person
+    hears which file it was rather than "not a template"."""
+    account = await _account(organization_id, ONEDRIVE)
+    if not account:
+        raise SourceError(
+            "OneDrive is not connected, so the link cannot be read.",
+            needs_app=ONEDRIVE,
+        )
+    item = await _run(
+        organization_id, account, ONEDRIVE_BY_SHARING_URL, {"sharing_url": link}
+    )
+    item = item if isinstance(item, dict) else {}
+    item_id = str(item.get("id") or "").strip()
+    if not item_id:
+        raise SourceError("That OneDrive link did not resolve to a file.")
+    name = str(item.get("name") or "")
+    if name and not name.lower().endswith(".docx"):
+        # Known before the download: say which file, and do not fetch it.
+        raise SourceError(
+            f"{name} is not a Word (.docx) file. A template must be .docx "
+            "with {{field}} placeholders."
+        )
+    arguments: dict[str, Any] = {"item_id": item_id}
+    drive_id = (item.get("parentReference") or {}).get("driveId")
+    if drive_id:
+        arguments["drive_id"] = str(drive_id)
+    if name:
+        arguments["file_name"] = name
+    data = await _run(organization_id, account, ONEDRIVE_DOWNLOAD, arguments)
+    blob, filename, _ = await _file_bytes(data, what="The OneDrive file")
+    filename = name or filename
+    if not filename.lower().endswith(".docx") or blob[:2] != b"PK":
+        raise SourceError(
+            f"{filename} is not a Word (.docx) file. A template must be .docx "
+            "with {{field}} placeholders."
+        )
+    templates.inspect(blob)  # proves it opens
+    return Template(blob, f"onedrive:{item_id}")
 
 
 async def google_doc_template(organization_id: int, doc_id: str) -> Template:

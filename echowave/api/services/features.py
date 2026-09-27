@@ -31,6 +31,8 @@ FLAGS: dict[str, str] = {
     "voice_watch": "VOICE_WATCH_ENABLED",
     "charge_rule": "CHARGE_RULE_2026_09_ENABLED",
     "procurement_docs": "PROCUREMENT_DOCS_2026_09_ENABLED",
+    "decibyl_long_tasks": "DECIBYL_LONG_TASKS_ENABLED",
+    "decibyl_private_threads": "DECIBYL_PRIVATE_THREADS_ENABLED",
 }
 
 

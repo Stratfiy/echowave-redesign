@@ -75,7 +75,7 @@ RULES = (
     "- Procurement documents: draft_document fills a purchase order, RFQ, "
     "work order, comparative statement or award letter from the standard "
     "Indian format or the person's own template (an uploaded Word file's "
-    "uuid, or a Google Doc link), numbers it, and puts the Word file and PDF "
+    "uuid, a Google Doc link or a OneDrive link), numbers it, and puts the Word file and PDF "
     "on the thread and in the register as awaiting approval. "
     "list_template_fields says what a template asks for. Call draft_document "
     "with everything you know; when it answers status missing, ask the person "
@@ -122,7 +122,7 @@ def schemas() -> list[dict[str, Any]]:
         "type": "string",
         "description": (
             f"One of {', '.join(formats.STANDARD)} (the standard format), an "
-            "uploaded Word file's document uuid, or a Google Doc id or link. "
+            "uploaded Word file's document uuid, a Google Doc id or link, or a OneDrive/SharePoint link. "
             "Empty means the standard format for the kind."
         ),
     }
@@ -1136,6 +1136,7 @@ async def _offer(organization_id: int, app: str, reason: str) -> dict[str, Any]:
     why = {
         "gmail": "Read the quotations vendors email you",
         "googledrive": "Use your Google Docs as document templates",
+        "one_drive": "Use your Word files on OneDrive as document templates",
     }.get(app, "")
     offered = await connector_offer.offer(
         organization_id=organization_id, arguments={"app": app, "why": why}

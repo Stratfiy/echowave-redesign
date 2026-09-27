@@ -25,6 +25,16 @@ def test_the_health_check_reports_every_flag(monkeypatch):
     assert public["dialer_import"] is False
 
 
+def test_decibyl_switches_are_reported_so_the_ui_learns_them_at_start_up(monkeypatch):
+    # D-1a/D-1b shipped behind plain env switches with no registry entry, so
+    # the UI could not know whether long tasks or private threads were on.
+    monkeypatch.setattr(constants, "DECIBYL_LONG_TASKS_ENABLED", True)
+    monkeypatch.setattr(constants, "DECIBYL_PRIVATE_THREADS_ENABLED", False)
+    public = features.public()
+    assert public["decibyl_long_tasks"] is True
+    assert public["decibyl_private_threads"] is False
+
+
 def test_a_switched_off_feature_answers_404_and_an_on_one_passes(monkeypatch):
     check = features.require("agent_graph_extras")
     assert check.feature == "agent_graph_extras"
