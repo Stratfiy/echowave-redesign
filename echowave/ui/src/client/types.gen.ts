@@ -10529,7 +10529,7 @@ export type RoutineResponse = {
     /**
      * Workflow Id
      */
-    workflow_id: number;
+    workflow_id?: number | null;
     /**
      * Name
      */
@@ -28342,6 +28342,143 @@ export type ListAllRoutinesApiV1RoutinesGetResponses = {
 };
 
 export type ListAllRoutinesApiV1RoutinesGetResponse = ListAllRoutinesApiV1RoutinesGetResponses[keyof ListAllRoutinesApiV1RoutinesGetResponses];
+
+export type TestDecibylRoutineApiV1RoutinesRoutineIdTestPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Routine Id
+         */
+        routine_id: number;
+    };
+    query?: never;
+    url: '/api/v1/routines/{routine_id}/test';
+};
+
+export type TestDecibylRoutineApiV1RoutinesRoutineIdTestPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TestDecibylRoutineApiV1RoutinesRoutineIdTestPostError = TestDecibylRoutineApiV1RoutinesRoutineIdTestPostErrors[keyof TestDecibylRoutineApiV1RoutinesRoutineIdTestPostErrors];
+
+export type TestDecibylRoutineApiV1RoutinesRoutineIdTestPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: RoutineTestResponse;
+};
+
+export type TestDecibylRoutineApiV1RoutinesRoutineIdTestPostResponse = TestDecibylRoutineApiV1RoutinesRoutineIdTestPostResponses[keyof TestDecibylRoutineApiV1RoutinesRoutineIdTestPostResponses];
+
+export type SetDecibylRoutineActiveApiV1RoutinesRoutineIdActivePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Routine Id
+         */
+        routine_id: number;
+    };
+    query: {
+        /**
+         * Active
+         */
+        active: boolean;
+    };
+    url: '/api/v1/routines/{routine_id}/active';
+};
+
+export type SetDecibylRoutineActiveApiV1RoutinesRoutineIdActivePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetDecibylRoutineActiveApiV1RoutinesRoutineIdActivePostError = SetDecibylRoutineActiveApiV1RoutinesRoutineIdActivePostErrors[keyof SetDecibylRoutineActiveApiV1RoutinesRoutineIdActivePostErrors];
+
+export type SetDecibylRoutineActiveApiV1RoutinesRoutineIdActivePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: RoutineResponse;
+};
+
+export type SetDecibylRoutineActiveApiV1RoutinesRoutineIdActivePostResponse = SetDecibylRoutineActiveApiV1RoutinesRoutineIdActivePostResponses[keyof SetDecibylRoutineActiveApiV1RoutinesRoutineIdActivePostResponses];
+
+export type DeleteDecibylRoutineApiV1RoutinesRoutineIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Routine Id
+         */
+        routine_id: number;
+    };
+    query?: never;
+    url: '/api/v1/routines/{routine_id}';
+};
+
+export type DeleteDecibylRoutineApiV1RoutinesRoutineIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteDecibylRoutineApiV1RoutinesRoutineIdDeleteError = DeleteDecibylRoutineApiV1RoutinesRoutineIdDeleteErrors[keyof DeleteDecibylRoutineApiV1RoutinesRoutineIdDeleteErrors];
+
+export type DeleteDecibylRoutineApiV1RoutinesRoutineIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteDecibylRoutineApiV1RoutinesRoutineIdDeleteResponse = DeleteDecibylRoutineApiV1RoutinesRoutineIdDeleteResponses[keyof DeleteDecibylRoutineApiV1RoutinesRoutineIdDeleteResponses];
 
 export type DeleteEventWebhookApiV1WorkflowsWorkflowIdEventWebhookDeleteData = {
     body?: never;

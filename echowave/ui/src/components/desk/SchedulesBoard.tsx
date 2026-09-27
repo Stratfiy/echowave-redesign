@@ -34,9 +34,12 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import {
+    deleteDecibylRoutineApiV1RoutinesRoutineIdDelete,
     deleteRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdDelete,
     listAllRoutinesApiV1RoutinesGet,
     setActiveApiV1WorkflowsWorkflowIdRoutinesRoutineIdActivePost,
+    setDecibylRoutineActiveApiV1RoutinesRoutineIdActivePost,
+    testDecibylRoutineApiV1RoutinesRoutineIdTestPost,
     updateRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdPut,
 } from "@/client/sdk.gen";
 import type { Anchor, Cadence } from "@/client/types.gen";
@@ -52,7 +55,8 @@ import { minuteToTime, timeToMinute, when } from "@/lib/schedule";
 
 type Routine = {
     id: number;
-    workflow_id: number;
+    /** null for one of Decibyl's own (KAN-156): no bot, run by the assistant's turn. */
+    workflow_id: number | null;
     workflow_name?: string | null;
     name: string;
     instruction: string;
@@ -113,6 +117,7 @@ export function SchedulesBoard({ tabs = DESK_TABS }: Props) {
         if (!draft) return;
         setBusy(routine.id);
         setError(null);
+        if (routine.workflow_id === null) return; // Decibyl's rows have no editor yet
         const result = await updateRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdPut({
             path: { workflow_id: routine.workflow_id, routine_id: routine.id },
             body: {
@@ -139,13 +144,36 @@ export function SchedulesBoard({ tabs = DESK_TABS }: Props) {
         await load();
     };
 
+    // Decibyl's own routines have no bot, so they are reached on the flat
+    // /routines path; a bot's routine stays on its bot's path.
+    const isDecibyls = (routine: Routine) => routine.workflow_id === null;
+
+    const testRun = async (routine: Routine) => {
+        setBusy(routine.id);
+        setError(null);
+        const result = await testDecibylRoutineApiV1RoutinesRoutineIdTestPost({
+            path: { routine_id: routine.id },
+        });
+        setBusy(null);
+        if (result.error) {
+            setError(detailFromResult(result, "Could not start the test run"));
+            return;
+        }
+        await load();
+    };
+
     const arm = async (routine: Routine, active: boolean) => {
         setBusy(routine.id);
         setError(null);
-        const result = await setActiveApiV1WorkflowsWorkflowIdRoutinesRoutineIdActivePost({
-            path: { workflow_id: routine.workflow_id, routine_id: routine.id },
-            query: { active },
-        });
+        const result = isDecibyls(routine)
+            ? await setDecibylRoutineActiveApiV1RoutinesRoutineIdActivePost({
+                  path: { routine_id: routine.id },
+                  query: { active },
+              })
+            : await setActiveApiV1WorkflowsWorkflowIdRoutinesRoutineIdActivePost({
+                  path: { workflow_id: routine.workflow_id as number, routine_id: routine.id },
+                  query: { active },
+              });
         setBusy(null);
         if (result.error) {
             // The server refuses to arm a routine that has never been
@@ -161,9 +189,13 @@ export function SchedulesBoard({ tabs = DESK_TABS }: Props) {
         if (!window.confirm(`Delete "${routine.name}"? It stops running.`)) return;
         setBusy(routine.id);
         setError(null);
-        const result = await deleteRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdDelete({
-            path: { workflow_id: routine.workflow_id, routine_id: routine.id },
-        });
+        const result = isDecibyls(routine)
+            ? await deleteDecibylRoutineApiV1RoutinesRoutineIdDelete({
+                  path: { routine_id: routine.id },
+              })
+            : await deleteRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdDelete({
+                  path: { workflow_id: routine.workflow_id as number, routine_id: routine.id },
+              });
         setBusy(null);
         if (result.error) {
             setError(detailFromResult(result, "Could not delete that task"));
@@ -214,7 +246,7 @@ export function SchedulesBoard({ tabs = DESK_TABS }: Props) {
                                     <div className="min-w-0 flex-1">
                                         <div className="flex flex-wrap items-baseline gap-x-2">
                                             <Link
-                                                href={`/workflow/${r.workflow_id}`}
+                                                href={isDecibyls(r) ? "/overview" : `/workflow/${r.workflow_id}`}
                                                 className="font-medium hover:underline"
                                             >
                                                 {r.name}
@@ -222,7 +254,7 @@ export function SchedulesBoard({ tabs = DESK_TABS }: Props) {
                                             {/* The bot, because a time with no name
                                                 beside it is not an answer. */}
                                             <span className="text-sm text-muted-foreground">
-                                                {r.workflow_name ?? "agent deleted"}
+                                                {isDecibyls(r) ? "Decibyl" : (r.workflow_name ?? "agent deleted")}
                                             </span>
                                         </div>
                                         {r.schedule_summary && (
@@ -252,17 +284,28 @@ export function SchedulesBoard({ tabs = DESK_TABS }: Props) {
                                             className="h-4 w-4 animate-spin text-muted-foreground"
                                         />
                                     ) : null}
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        disabled={busy === r.id}
-                                        onClick={() =>
-                                            editing === r.id ? closeEdit() : beginEdit(r)
-                                        }
-                                    >
-                                        <Pencil className="mr-1 h-3.5 w-3.5" aria-hidden />
-                                        {editing === r.id ? "Cancel" : "Change when"}
-                                    </Button>
+                                    {isDecibyls(r) ? (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={busy === r.id}
+                                            onClick={() => void testRun(r)}
+                                        >
+                                            Test run
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={busy === r.id}
+                                            onClick={() =>
+                                                editing === r.id ? closeEdit() : beginEdit(r)
+                                            }
+                                        >
+                                            <Pencil className="mr-1 h-3.5 w-3.5" aria-hidden />
+                                            {editing === r.id ? "Cancel" : "Change when"}
+                                        </Button>
+                                    )}
                                     <Button
                                         size="sm"
                                         variant="outline"
@@ -284,12 +327,14 @@ export function SchedulesBoard({ tabs = DESK_TABS }: Props) {
                                     {/* What it does lives with the bot, and this
                                         says so rather than leaving somebody
                                         hunting for where the wording is kept. */}
-                                    <Link
-                                        href={`/workflow/${r.workflow_id}`}
-                                        className="text-sm text-muted-foreground underline"
-                                    >
-                                        Edit what it does
-                                    </Link>
+                                    {!isDecibyls(r) && (
+                                        <Link
+                                            href={`/workflow/${r.workflow_id}`}
+                                            className="text-sm text-muted-foreground underline"
+                                        >
+                                            Edit what it does
+                                        </Link>
+                                    )}
                                 </div>
 
                                 {editing === r.id && draft ? (

@@ -50,6 +50,8 @@ router = APIRouter(prefix="/workflows/{workflow_id}/routines", tags=["routines"]
 #: The account's whole schedule, which is not any one bot's business and so
 #: cannot hang off a workflow prefix.
 all_router = APIRouter(prefix="/routines", tags=["routines"])
+#: What the account-wide listing calls a routine with no bot.
+DECIBYL = "Decibyl"
 
 #: How many a single bot may have. A bot with thirty routines is not a bot
 #: anybody can reason about, and the tick reads every armed one every minute.
@@ -332,11 +334,94 @@ async def list_all_routines(
     names: dict[int, str | None] = {}
     rendered = []
     for row in rows:
-        workflow_id = int(row.workflow_id)
-        if workflow_id not in names:
-            workflow = await db_client.get_workflow_by_id(workflow_id)
-            names[workflow_id] = getattr(workflow, "name", None) if workflow else None
         shown = await _render(row, organization_id=organization_id)
-        shown.workflow_name = names[workflow_id]
+        if row.workflow_id is None:
+            # Decibyl's own (KAN-156): no bot, run by the assistant's turn.
+            shown.workflow_name = DECIBYL
+        else:
+            workflow_id = int(row.workflow_id)
+            if workflow_id not in names:
+                workflow = await db_client.get_workflow_by_id(workflow_id)
+                names[workflow_id] = (
+                    getattr(workflow, "name", None) if workflow else None
+                )
+            shown.workflow_name = names[workflow_id]
         rendered.append(shown)
     return RoutineListResponse(routines=rendered)
+
+
+async def _decibyls(routine_id: int, organization_id: int):
+    """One of Decibyl's own routines, or 404. A bot's routine is not reached
+    through here: its bot's path owns it."""
+    routine = await db_client.get_routine(routine_id, organization_id=organization_id)
+    if routine is None or routine.workflow_id is not None:
+        raise HTTPException(status_code=404, detail="No such routine of Decibyl's.")
+    return routine
+
+
+@all_router.post("/{routine_id}/test", response_model=RoutineTestResponse)
+async def test_decibyl_routine(
+    routine_id: int,
+    user: Annotated[
+        UserModel, Depends(require_organization_role(OrganizationRole.ADMIN))
+    ],
+) -> RoutineTestResponse:
+    """Run one of Decibyl's routines once, now, on purpose -- the same gate a
+    bot's routine passes before it may arm."""
+    organization_id = _organization_id(user)
+    await _decibyls(routine_id, organization_id)
+    await db_client.mark_routine_tested(routine_id, organization_id=organization_id)
+    try:
+        await enqueue_job(FunctionNames.RUN_AGENT_ROUTINE, routine_id)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not start the test run just now. Try again in a moment.",
+        ) from exc
+    return RoutineTestResponse(
+        started=True,
+        workflow_id=None,
+        detail="Running now. Watch Decibyl's thread -- it will report what it found, or say plainly that it could not.",
+    )
+
+
+@all_router.post("/{routine_id}/active", response_model=RoutineResponse)
+async def set_decibyl_routine_active(
+    routine_id: int,
+    active: bool,
+    user: Annotated[
+        UserModel, Depends(require_organization_role(OrganizationRole.ADMIN))
+    ],
+) -> RoutineResponse:
+    """Switch one of Decibyl's routines on (after a test run) or off."""
+    organization_id = _organization_id(user)
+    routine = await _decibyls(routine_id, organization_id)
+    if active and not routine_rules.may_arm(routine_rules.spec_from_model(routine)):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Test run it first. The first time this runs unsupervised it "
+                "acts on real data, so the test is the one chance to see what "
+                "it would do."
+            ),
+        )
+    updated = await db_client.set_routine_active(
+        routine_id, organization_id=organization_id, active=active
+    )
+    if updated is None:
+        raise HTTPException(status_code=404, detail="No such routine of Decibyl's.")
+    shown = await _render(updated, organization_id=organization_id)
+    shown.workflow_name = DECIBYL
+    return shown
+
+
+@all_router.delete("/{routine_id}", status_code=204)
+async def delete_decibyl_routine(
+    routine_id: int,
+    user: Annotated[
+        UserModel, Depends(require_organization_role(OrganizationRole.ADMIN))
+    ],
+) -> None:
+    organization_id = _organization_id(user)
+    await _decibyls(routine_id, organization_id)
+    await db_client.delete_routine(routine_id, organization_id=organization_id)

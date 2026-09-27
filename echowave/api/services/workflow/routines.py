@@ -460,3 +460,82 @@ __all__ = [
     "spec_from_model",
     "targets_for_day",
 ]
+
+
+# --- Decibyl's own routines (KAN-156) ------------------------------------------
+#
+# A routine with no workflow is the workspace assistant's. It is proposed
+# from the thread as a card -- the words are read by schedule_from_words, the
+# card says the schedule back -- saved on Confirm switched off and untested
+# like every routine, and run by Decibyl's own turn (routine_runner).
+
+SCHEDULE_TOOL_NAME = "schedule_routine"
+SCHEDULE_DESCRIPTION = (
+    "Schedule something for yourself to do on a cadence -- 'every weekday at "
+    "9am summarise the board', 'every Monday morning list unpaid invoices'. "
+    "Proposes a card; the person confirms, tests it once, then switches it "
+    "on. Say that you have proposed it. Not for an agent's routine: those "
+    "are set on the agent."
+)
+SCHEDULE_EXAMPLES = (
+    "every weekday at 9am, every morning, every Monday at 10:30, every 2 hours"
+)
+
+
+def schedule_tool_schema() -> dict[str, Any]:
+    return {
+        "name": SCHEDULE_TOOL_NAME,
+        "description": SCHEDULE_DESCRIPTION,
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Two to five words."},
+                "instruction": {
+                    "type": "string",
+                    "description": "What to do each time, as you would be told it.",
+                },
+                "when": {
+                    "type": "string",
+                    "description": f"In words: {SCHEDULE_EXAMPLES}.",
+                },
+                "why": {"type": "string", "description": "One line, for the card."},
+            },
+            "required": ["name", "instruction", "when"],
+        },
+    }
+
+
+async def propose_schedule(
+    *, organization_id: int, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    """The tool: read the words, put the card on the thread."""
+    from api.services.workflow import actions, schedule_from_words
+
+    when = str(arguments.get("when") or "").strip()
+    schedule = schedule_from_words.parse(when) if when else None
+    if schedule is None:
+        return {
+            "status": "not_proposed",
+            "reason": (
+                f"Could not read a schedule in {when!r}. Say it like: "
+                f"{SCHEDULE_EXAMPLES}."
+            ),
+        }
+    return await actions.propose(
+        organization_id=organization_id,
+        workflow_id=None,
+        workflow_run_id=None,
+        in_channel=False,
+        arguments={
+            "action": actions.SCHEDULE_ROUTINE,
+            "name": str(arguments.get("name") or "").strip(),
+            "instruction": str(arguments.get("instruction") or "").strip(),
+            "cadence": schedule.cadence.value,
+            "anchor": schedule.anchor.value,
+            "at_minute": schedule.at_minute,
+            "offset_minutes": schedule.offset_minutes,
+            "weekday": schedule.weekday,
+            "said": schedule.said,
+            "why": str(arguments.get("why") or "asked on the thread").strip(),
+        },
+    )
