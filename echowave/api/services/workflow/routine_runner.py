@@ -76,6 +76,9 @@ async def run_routine(routine_id: int) -> Optional[int]:
 
     organization_id = routine["organization_id"]
     workflow_id = routine["workflow_id"]
+    if workflow_id is None:
+        await _run_decibyl_routine(routine)
+        return None
     run_id: Optional[int] = None
 
     try:
@@ -273,3 +276,68 @@ async def _first_routine_run_is_free(organization_id: int | None) -> bool:
     except Exception as exc:  # noqa: BLE001
         logger.warning("Could not decide whether the routine run is free: {}", exc)
         return False
+
+
+# --- Decibyl's own routines (KAN-156) ------------------------------------------
+
+
+def decibyl_briefing(instruction: str) -> str:
+    """The instruction with the room described: nobody is on the thread,
+    nothing can answer, reads run and writes stay cards -- the same rule
+    Decibyl works under when a person is there, said out loud because the
+    turn would otherwise end on a question to an empty room."""
+    return (
+        "This is a scheduled run of a routine you own. Nobody is reading the "
+        "thread right now and nothing can answer a question, so do the job "
+        "with what you have and finish with the result. Reads run now; "
+        "anything that would send, create, change or delete becomes a card "
+        "for a person to confirm later, as always. The instruction:\n\n"
+        + instruction.strip()
+    )
+
+
+async def _run_decibyl_routine(routine: dict[str, Any]) -> None:
+    """One turn on Decibyl's thread with the instruction as the user line.
+    No workflow run and no ROUTINE_RUN charge: a Decibyl turn is metered as
+    every Decibyl turn is (model_usage, feature "decibyl"). The obligation
+    is the same as a bot routine's: a deliverable when it worked, a
+    COULD_NOT when it did not, never silence."""
+    from api.services.workflow import decibyl
+
+    organization_id = routine["organization_id"]
+    routine_id = routine["id"]
+    try:
+        answer = (
+            await decibyl.answer(
+                organization_id,
+                decibyl_briefing(routine["instruction"] or routine["name"]),
+                author_id=None,
+            )
+            or ""
+        ).strip()
+    except Exception as exc:  # the tick must not die
+        logger.exception("Decibyl routine {} failed: {}", routine_id, exc)
+        await agent_timeline.record(
+            organization_id=organization_id,
+            kind=AgentEventKind.COULD_NOT.value,
+            summary=f"{routine['name']} could not finish its run",
+            workflow_id=None,
+            payload={"routine_id": routine_id, "error": str(exc)[:500]},
+        )
+        return
+    if not answer:
+        await agent_timeline.record(
+            organization_id=organization_id,
+            kind=AgentEventKind.COULD_NOT.value,
+            summary=f"{routine['name']} ran and had nothing to report",
+            workflow_id=None,
+            payload={"routine_id": routine_id},
+        )
+        return
+    await agent_timeline.record(
+        organization_id=organization_id,
+        kind=AgentEventKind.DELIVERABLE.value,
+        summary=answer[:MAX_DELIVERABLE],
+        workflow_id=None,
+        payload={"routine_id": routine_id, "routine": routine["name"]},
+    )

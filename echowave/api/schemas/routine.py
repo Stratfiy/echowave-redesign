@@ -65,7 +65,9 @@ class RoutineResponse(BaseModel):
     workflow_name: Optional[str] = None
 
     id: int
-    workflow_id: int
+    #: None for one of Decibyl's own (KAN-156): run by the workspace
+    #: assistant's turn, not a bot's engine.
+    workflow_id: Optional[int] = None
     name: str
     instruction: str
     cadence: str

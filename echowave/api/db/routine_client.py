@@ -93,9 +93,10 @@ class RoutineClient(BaseDBClient):
             return result.scalar_one_or_none()
 
     async def create_routine(
-        self, *, organization_id: int, workflow_id: int, **fields
+        self, *, organization_id: int, workflow_id: Optional[int], **fields
     ) -> AgentRoutineModel:
-        """Add one. Off by default, and untested, so it cannot arm yet."""
+        """Add one. Off by default, and untested, so it cannot arm yet.
+        ``workflow_id`` None is Decibyl's own routine (KAN-156)."""
         async with self.async_session() as session:
             routine = AgentRoutineModel(
                 organization_id=organization_id,

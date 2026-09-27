@@ -104,7 +104,17 @@ BUILD_FROM_SPEC = "build_from_spec"
 #: services/skills/imports.py). Internal for the same reason: Decibyl reaches
 #: it through its own tool, which has already read the repository.
 INSTALL_FROM_REPOSITORY = "install_from_repository"
-INTERNAL_ACTIONS = (RUN_TOOL, SEND_DOCUMENT, BUILD_FROM_SPEC, INSTALL_FROM_REPOSITORY)
+#: Schedule one of Decibyl's own routines (KAN-156; see
+#: services/workflow/routines.py). Internal like the three above: Decibyl
+#: reaches it through schedule_routine, which has already read the words.
+SCHEDULE_ROUTINE = "schedule_routine"
+INTERNAL_ACTIONS = (
+    RUN_TOOL,
+    SEND_DOCUMENT,
+    BUILD_FROM_SPEC,
+    INSTALL_FROM_REPOSITORY,
+    SCHEDULE_ROUTINE,
+)
 
 #: The states a proposal moves through. Terminal ones are the last four.
 PROPOSED = "proposed"
@@ -381,6 +391,32 @@ async def resolve(
             "args": {"workflow_id": target_id, "bot_name": target_name, "is_live": on},
             "label": f"Turn {target_name} {'on' if on else 'off'}",
             "why": why,
+            "reversible": True,
+            "state": PROPOSED,
+        }
+
+    if action == SCHEDULE_ROUTINE:
+        name = str(arguments.get("name") or "").strip()[:120]
+        instruction = str(arguments.get("instruction") or "").strip()
+        said = str(arguments.get("said") or "").strip()
+        if not name or not instruction or not said:
+            raise ActionError("A routine needs a name, an instruction and a schedule.")
+        return {
+            "action": action,
+            "args": {
+                "workflow_id": None,
+                "name": name,
+                "instruction": instruction,
+                "cadence": str(arguments.get("cadence") or "daily"),
+                "anchor": str(arguments.get("anchor") or "opening"),
+                "at_minute": int(arguments.get("at_minute") or 0),
+                "offset_minutes": int(arguments.get("offset_minutes") or 0),
+                "weekday": int(arguments.get("weekday") or 0),
+                "said": said,
+            },
+            "label": f"Schedule {name}: {said}",
+            "why": why,
+            # Saved off and untested; deleting it is the undo.
             "reversible": True,
             "state": PROPOSED,
         }
@@ -779,6 +815,23 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
         ):
             raise ActionError("That fact is no longer in memory.")
         return f"Forgotten: {args.get('key', 'that')}."
+    if action == SCHEDULE_ROUTINE:
+        routine = await db_client.create_routine(
+            organization_id=organization_id,
+            workflow_id=None,
+            name=str(args.get("name") or "")[:120],
+            instruction=str(args.get("instruction") or ""),
+            cadence=str(args.get("cadence") or "daily"),
+            anchor=str(args.get("anchor") or "opening"),
+            at_minute=int(args.get("at_minute") or 0),
+            offset_minutes=int(args.get("offset_minutes") or 0),
+            weekday=int(args.get("weekday") or 0),
+            is_active=False,
+        )
+        return (
+            f"Saved {routine.name} ({args.get('said')}), switched off. Test it "
+            "from Schedules, then switch it on."
+        )
     if action == CREATE_BOT:
         from api.services.agent_builder import tools as builder_tools
 

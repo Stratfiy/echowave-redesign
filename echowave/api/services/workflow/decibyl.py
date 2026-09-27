@@ -57,6 +57,7 @@ from api.services.workflow import (
     prospects,
     records,
     reply_draft,
+    routines,
     self_edit,
     skill_context,
     tasks_board,
@@ -108,6 +109,10 @@ SYSTEM = (
     "- read_board: runs now. What is on the board -- open, blocked, in "
     "review, who holds what -- or one task with its comments. Read it before "
     "answering anything about the team's work; never guess the board.\n"
+    "- schedule_routine: proposes a card. Something for you to do on a "
+    "cadence ('every weekday at 9am summarise the board'). The person "
+    "confirms, tests it once from Schedules, then switches it on. An "
+    "agent's own routine is set on the agent, not here.\n"
     "- Connected apps (the app_… tools): the Connected apps block in the "
     "context names every one you have, split into the ones that run as you "
     "answer (fetch, list, search, find) and the ones that propose a card "
@@ -1237,6 +1242,7 @@ def office_tools() -> list[dict[str, Any]]:
         office.check_tool_schema(),
         tasks_board.tool_schema(),
         tasks_board.read_tool_schema(),
+        routines.schedule_tool_schema(),
         connector_offer.tool_schema(),
         bot_from_brief.tool_schema(),
         documents.find_tool_schema(),
@@ -1419,6 +1425,10 @@ async def _tool(
         )
     if call.name == office.TEST_TOOL_NAME:
         return await office.offer_test(
+            organization_id=organization_id, arguments=arguments
+        )
+    if call.name == routines.SCHEDULE_TOOL_NAME:
+        return await routines.propose_schedule(
             organization_id=organization_id, arguments=arguments
         )
     if call.name == tasks_board.READ_TOOL_NAME:
