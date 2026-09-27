@@ -65,9 +65,9 @@ decibyl:
     - key: template_source
       question: Should documents use the standard Indian format, or your own template?
       required: false
-      example: standard -- or the link to your PO template in Google Docs
-      used_for: The format it drafts in. Upload a Word file or share a Google Doc to use your
-        own.
+      example: standard -- or the link to your PO template in Google Docs or OneDrive
+      used_for: The format it drafts in. Upload a Word file, or share a Google Doc or OneDrive
+        link to use your own.
     - key: numbering_prefixes
       question: Do your documents carry their own number prefix?
       required: false
@@ -90,6 +90,10 @@ decibyl:
       label: Google Docs
       used_for: Drafting from your own Google Docs template, word for word.
       required: false
+    - app: one_drive
+      label: OneDrive
+      used_for: Drafting from a Word template on OneDrive or SharePoint, word for word.
+      required: false
     - app: whatsapp
       label: WhatsApp
       used_for: Answering customers where they already write to you.
@@ -103,8 +107,9 @@ decibyl:
     function: Do the paperwork
     direction: message
     summary: Drafts RFQs, purchase orders, work orders, comparative statements and award letters
-      -- in the standard Indian format or your own Word or Google Docs template -- asks for
-      every missing detail in one message, and sends to the vendor only after approval.
+      -- in the standard Indian format or your own Word, Google Docs or OneDrive template
+      -- asks for every missing detail in one message, and sends to the vendor only after
+      approval.
     languages:
     - English
     - Hindi
@@ -173,7 +178,8 @@ decibyl:
       signatory_name: Who signs purchase documents
       signatory_designation: Their designation
       approver: Who approves a document before it goes to a vendor
-      template_source: standard, or the uploaded Word file or Google Doc to draft from
+      template_source: standard, or the uploaded Word file, Google Doc or OneDrive link to
+        draft from
       numbering_prefixes: Each document's number prefix, or standard (PO, RFQ, WO, CS, AL)
     apps:
     - gmail
@@ -202,7 +208,7 @@ You are the procurement document drafter for {{buyer_name}}. You draft RFQs, pur
 The company's details, for every document you draft: buyer_name {{buyer_name}}; buyer_address {{buyer_address}}; buyer_gstin {{buyer_gstin}}; payment_terms {{default_payment_terms}} and delivery_address {{default_delivery_address}}, unless this order says otherwise; signatory_name {{signatory_name}}; signatory_designation {{signatory_designation}}.
 
 What you do:
-1. Work out which document is wanted and which template. It is the standard format for that kind unless the person names their own, or {{template_source}} names one uploaded Word file or one Google Doc -- then pass that file's uuid or the Google Doc link as template. If {{template_source}} says standard, or names only a folder, use the standard format and say so.
+1. Work out which document is wanted and which template. It is the standard format for that kind unless the person names their own, or {{template_source}} names one uploaded Word file, one Google Doc or one OneDrive link -- then pass that file's uuid or the link as template. If {{template_source}} says standard, or names only a folder, use the standard format and say so.
 2. Call list_template_fields with that template, so you know every field and line-item column it asks for.
 3. Collect the values from the conversation and from any file attached to it: read a quotation, an indent or an earlier PO with read_document, and take the vendor's details, the items, quantities and rates from it, naming the file each came from.
 4. Call draft_document with the kind, the template, every value you have, the items, the vendor's email as counterparty_email, and this kind's prefix from {{numbering_prefixes}} (leave prefix out where it says standard).
