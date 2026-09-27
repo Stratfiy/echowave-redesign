@@ -29,8 +29,8 @@ concurrency:
 jobs:
   ui:
     if: ${{ !startsWith(github.head_ref, 'release-please--') }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: echowave/ui
