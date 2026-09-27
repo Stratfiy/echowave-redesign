@@ -155,7 +155,12 @@ def schemas() -> list[dict[str, Any]]:
                     "values": {
                         "type": "object",
                         "description": (
-                            "Field values by name, e.g. buyer_name, buyer_address, "
+                            "Field values by name. For a tax_invoice also: currency "
+                            "(INR default; USD, EUR, GBP, AED, SGD, AUD, CAD), supply "
+                            "(local, or export_lut for an export under a Letter of "
+                            "Undertaking: zero IGST, the Rule 46 endorsement, place of "
+                            "supply Outside India), exchange_rate to INR for a foreign "
+                            "currency, lut_arn, country_of_destination. E.g. buyer_name, buyer_address, "
                             "buyer_gstin, vendor_name, vendor_address, vendor_gstin, "
                             "vendor_pan, reference, delivery_address, delivery_date, "
                             "payment_terms, validity, terms_and_conditions ('standard' "
@@ -169,7 +174,7 @@ def schemas() -> list[dict[str, Any]]:
                     },
                     "prefix": {
                         "type": "string",
-                        "description": "This workspace's own number prefix, if not the default (PO, RFQ, WO, CS, AL).",
+                        "description": "This workspace's own number prefix, if not the default (PO, RFQ, WO, CS, AL, INV). Numbers run PREFIX/FY/0001.",
                     },
                 },
                 "required": ["kind"],
@@ -356,6 +361,32 @@ class Prepared:
     total: Decimal | None = None
     issue_date: Any = None
     raw: dict[str, Any] = field(default_factory=dict)
+    currency: str = "INR"
+    supply: str = formats.SUPPLY_LOCAL
+    #: The total in rupees when the invoice is in another currency and an
+    #: exchange rate was given; the register and GSTR-1 want this figure.
+    inr_total: Decimal | None = None
+
+
+def compliance_gaps(kind: str, inspected: dict[str, Any], *, supply: str) -> list[str]:
+    """The Rule 46 particulars this template has no place for, by name --
+    sorted, so the sentence is stable. Empty for any kind but a tax invoice:
+    a purchase order has no such rule."""
+    if kind != "tax_invoice":
+        return []
+    have = set(inspected.get("fields") or []) | {
+        f"items.{c}" for c in (inspected.get("item_columns") or [])
+    }
+    wanted = dict(formats.RULE_46_PARTICULARS)
+    if supply == formats.SUPPLY_EXPORT_LUT:
+        wanted.update(formats.EXPORT_PARTICULARS)
+    if inspected.get("has_formulas"):
+        # A sheet with formulas adds up its own lines, tax and total.
+        for name in formats.COMPUTED_PARTICULARS:
+            wanted.pop(name, None)
+    return sorted(
+        name for name, spellings in wanted.items() if not have & set(spellings)
+    )
 
 
 def _blank(value: Any) -> bool:
@@ -408,6 +439,47 @@ def prepare(
     for index, line in enumerate(lines, start=1):
         check_ids(line, f"item {index} ")
 
+    # The invoice's currency and mode. Both default to what every document
+    # was before they existed: rupees, within India.
+    try:
+        out.currency = money.currency_code(given.get("currency"))
+    except money.MoneyError as exc:
+        out.errors.append(str(exc))
+    given["currency"] = out.currency
+    supply = str(given.get("supply") or formats.SUPPLY_LOCAL).strip().lower()
+    if supply not in formats.SUPPLY_MODES:
+        out.errors.append(
+            f"supply: {supply!r} is not a mode; use {' or '.join(formats.SUPPLY_MODES)}."
+        )
+        supply = formats.SUPPLY_LOCAL
+    out.supply = supply
+    given["supply"] = supply
+    exporting = supply == formats.SUPPLY_EXPORT_LUT
+    if exporting:
+        given["export_declaration"] = formats.EXPORT_DECLARATION
+        given["place_of_supply"] = "Outside India"
+        if any(
+            not _blank(line.get("gst_rate")) and money.dec(line["gst_rate"])
+            for line in lines
+            if not _blank(line.get("gst_rate"))
+        ):
+            out.notes.append(
+                "An export under LUT is without payment of integrated tax, so the "
+                "GST rate on the lines was set to 0."
+            )
+        for line in lines:
+            line["gst_rate"] = 0
+    exchange_rate: Decimal | None = None
+    if out.currency != "INR" and not _blank(given.get("exchange_rate")):
+        try:
+            exchange_rate = money.dec(given["exchange_rate"])
+            if exchange_rate <= 0:
+                raise money.MoneyError("must be more than zero")
+            given["exchange_rate"] = str(given["exchange_rate"]).strip()
+        except money.MoneyError as exc:
+            out.errors.append(f"exchange_rate: {exc}")
+            exchange_rate = None
+
     if str(given.get("terms_and_conditions") or "").strip().lower() in (
         "standard",
         "usual",
@@ -443,8 +515,13 @@ def prepare(
             not _blank(line.get("qty")) and not _blank(line.get("rate"))
             for line in lines
         ):
-            buyer, vendor = given.get("buyer_gstin"), given.get("vendor_gstin")
-            if (money.is_unregistered(vendor) or _blank(vendor)) and _blank(
+            buyer = given.get("buyer_gstin") or given.get("recipient_gstin")
+            vendor = given.get("vendor_gstin") or given.get("supplier_gstin")
+            if exporting:
+                # A foreign recipient has no GSTIN and no state; the supply is
+                # inter-state by definition and the rate is already zero.
+                buyer, vendor = None, None
+            elif (money.is_unregistered(vendor) or _blank(vendor)) and _blank(
                 given.get("vendor_state_code")
             ):
                 out.notes.append(
@@ -463,8 +540,12 @@ def prepare(
                     ],
                     buyer_gstin=buyer,
                     vendor_gstin=vendor,
-                    buyer_state_code=given.get("buyer_state_code"),
-                    vendor_state_code=given.get("vendor_state_code"),
+                    buyer_state_code="96"
+                    if exporting
+                    else given.get("buyer_state_code"),
+                    vendor_state_code="97"
+                    if exporting
+                    else given.get("vendor_state_code"),
                 )
             except money.MoneyError as exc:
                 out.errors.append(str(exc))
@@ -477,7 +558,7 @@ def prepare(
                 printed[name] = ""
             elif name in formats.MONEY_ITEM_COLUMNS:
                 try:
-                    printed[name] = money.format_inr(value)
+                    printed[name] = money.format_amount(value, out.currency)
                 except money.MoneyError:
                     printed[name] = str(value)
             elif name in ("qty", "discount", "gst_rate"):
@@ -491,12 +572,16 @@ def prepare(
         printed.setdefault("discount", "0")
         if totals is not None:
             computed = totals.lines[index - 1]
-            printed["taxable_value"] = money.format_inr(computed.taxable_value)
-            printed["gst_amount"] = money.format_inr(computed.gst_amount)
-            printed["amount"] = money.format_inr(computed.amount)
-            printed["cgst"] = money.format_inr(computed.cgst)
-            printed["sgst"] = money.format_inr(computed.sgst)
-            printed["igst"] = money.format_inr(computed.igst)
+            printed["taxable_value"] = money.format_amount(
+                computed.taxable_value, out.currency
+            )
+            printed["gst_amount"] = money.format_amount(
+                computed.gst_amount, out.currency
+            )
+            printed["amount"] = money.format_amount(computed.amount, out.currency)
+            printed["cgst"] = money.format_amount(computed.cgst, out.currency)
+            printed["sgst"] = money.format_amount(computed.sgst, out.currency)
+            printed["igst"] = money.format_amount(computed.igst, out.currency)
         out.items.append(printed)
 
     # Fields: given, derived, or missing.
@@ -511,25 +596,48 @@ def prepare(
     if totals is not None:
         out.total = totals.total
         for name in ("subtotal", "cgst", "sgst", "igst", "gst_total", "total"):
-            printed_values[name] = money.format_inr(getattr(totals, name))
+            printed_values[name] = money.format_amount(
+                getattr(totals, name), out.currency
+            )
     elif not _blank(given.get("total")):
         try:
             out.total = money.to_paise(given["total"])
-            printed_values["total"] = money.format_inr(out.total)
+            printed_values["total"] = money.format_amount(out.total, out.currency)
         except money.MoneyError as exc:
             out.errors.append(f"total: {exc}")
     for name in formats.MONEY_FIELDS - {"total"}:
         if totals is None and not _blank(given.get(name)):
             try:
-                printed_values[name] = money.format_inr(given[name])
+                printed_values[name] = money.format_amount(given[name], out.currency)
             except money.MoneyError as exc:
                 out.errors.append(f"{name}: {exc}")
     if out.total is not None:
-        printed_values["amount_in_words"] = money.amount_in_words(out.total)
+        printed_values["amount_in_words"] = money.amount_in_words(
+            out.total, out.currency
+        )
+        if out.currency == "INR":
+            out.inr_total = out.total
+        elif exchange_rate is not None:
+            out.inr_total = money.to_paise(out.total * exchange_rate)
+            printed_values["inr_equivalent"] = money.format_inr(out.inr_total)
+    if (
+        out.currency != "INR"
+        and exchange_rate is None
+        and _blank(given.get("exchange_rate"))
+        and "exchange_rate" not in fields
+    ):
+        out.missing.append(
+            {
+                "field": "exchange_rate",
+                "question": formats.question_for("exchange_rate"),
+            }
+        )
 
     derived_money = {"subtotal", "cgst", "sgst", "igst", "gst_total"}
     for name in fields:
-        if name in ("document_number", "document_date"):
+        if name in ("document_number", "document_date", "inr_equivalent"):
+            continue
+        if name in ("export_declaration", "place_of_supply") and exporting:
             continue
         if name in derived_money and priced:
             continue  # comes from the items; their gaps are asked below
@@ -678,6 +786,11 @@ async def list_template_fields(
     }
     if found.note:
         out["note"] = found.note
+    gaps = compliance_gaps(
+        kind, inspected, supply=str(arguments.get("supply") or formats.SUPPLY_LOCAL)
+    )
+    if gaps:
+        out["compliance_gaps"] = gaps
     return out
 
 
@@ -720,12 +833,24 @@ async def draft_document(
     label = formats.FORMATS[kind].label
     given = prepared.raw["values"]
     due_field = formats.FORMATS[kind].due_field
-    counterparty_gstin = prepared.values.get("vendor_gstin")
+    counterparty_gstin = prepared.values.get("vendor_gstin") or prepared.values.get(
+        "recipient_gstin"
+    )
+    counterparty_name = prepared.values.get("vendor_name") or prepared.values.get(
+        "recipient_name"
+    )
+    gaps = compliance_gaps(kind, inspected, supply=prepared.supply)
     data = {
         "template": found.label,
         "values": prepared.values,
         "items": prepared.items,
         "input": prepared.raw,
+        "currency": prepared.currency,
+        "supply": prepared.supply,
+        "inr_total_paise": None
+        if prepared.inr_total is None
+        else money.paise_int(prepared.inr_total),
+        "compliance_gaps": gaps,
         "counterparty_email": str(arguments.get("counterparty_email") or "").strip()
         or None,
     }
@@ -740,7 +865,7 @@ async def draft_document(
             issue_date=prepared.issue_date,
             prefix=arguments.get("prefix"),
             workflow_id=workflow_id,
-            counterparty_name=prepared.values.get("vendor_name") or None,
+            counterparty_name=counterparty_name or None,
             counterparty_gstin=(
                 counterparty_gstin
                 if counterparty_gstin and counterparty_gstin != "Unregistered"
@@ -750,6 +875,7 @@ async def draft_document(
             amount_paise=None
             if prepared.total is None
             else money.paise_int(prepared.total),
+            currency=prepared.currency,
             due_date=register.parse_date(given.get(due_field)) if due_field else None,
             status="draft",
             data=data,
@@ -803,9 +929,12 @@ async def draft_document(
         {"filename": f"{stem}.pdf", "url": await _link(pdf_key)},
         {"filename": f"{stem}.{ext}", "url": await _link(docx_key)},
     ]
-    vendor = prepared.values.get("vendor_name")
+    vendor = counterparty_name
     amount = (
-        f", ₹{money.format_inr(prepared.total)}" if prepared.total is not None else ""
+        f", {'₹' if prepared.currency == 'INR' else prepared.currency + ' '}"
+        f"{money.format_amount(prepared.total, prepared.currency)}"
+        if prepared.total is not None
+        else ""
     )
     summary = (
         f"Drafted {label.lower()} {number}"
@@ -839,6 +968,12 @@ async def draft_document(
             "NOT been sent; send it with the email tools once the person approves."
         ),
     }
+    if gaps:
+        prepared.notes.append(
+            "The template has no place for these particulars a tax invoice must "
+            "carry: " + ", ".join(g.replace("_", " ") for g in gaps) + ". Tell the "
+            "person, so they can add the fields to their format."
+        )
     if found.note or prepared.notes:
         out["note"] += " " + " ".join(n for n in [found.note, *prepared.notes] if n)
     return out

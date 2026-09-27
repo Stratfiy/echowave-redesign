@@ -58,6 +58,7 @@ FORMATS: dict[str, Format] = {
             "award_letter.docx",
             "delivery_date",
         ),
+        Format("tax_invoice", "Tax invoice", "INV", None, "due_date"),
         Format("other", "Document", "DOC", None, None),
     )
 }
@@ -88,8 +89,53 @@ DERIVED_FIELDS = frozenset(
         "gst_total",
         "total",
         "amount_in_words",
+        "export_declaration",
+        "place_of_supply",
+        "inr_equivalent",
     }
 )
+
+#: Rule 46, third proviso: the endorsement an export under a Letter of
+#: Undertaking must carry, word for word.
+EXPORT_DECLARATION = (
+    "SUPPLY MEANT FOR EXPORT UNDER LETTER OF UNDERTAKING WITHOUT PAYMENT OF "
+    "INTEGRATED TAX"
+)
+#: How the two invoice modes are named in ``supply``.
+SUPPLY_LOCAL = "local"
+SUPPLY_EXPORT_LUT = "export_lut"
+SUPPLY_MODES = (SUPPLY_LOCAL, SUPPLY_EXPORT_LUT)
+
+#: The particulars Rule 46 of the CGST Rules requires on a tax invoice, as
+#: template field names, and what an export under LUT adds. Measured
+#: against a template's fields (and item columns) so the person is told
+#: what their format has no place for; never used to refuse a draft, since
+#: a template is theirs to fix.
+#:
+#: The supplier's own name, address, GSTIN and signature are not measured:
+#: they are the same on every invoice a workspace issues and are usually the
+#: letterhead, printed text rather than a field. What changes per invoice is.
+RULE_46_PARTICULARS: dict[str, tuple[str, ...]] = {
+    "document_number": ("document_number",),
+    "document_date": ("document_date",),
+    "recipient_name": ("recipient_name",),
+    "recipient_address": ("recipient_address",),
+    "place_of_supply": ("place_of_supply",),
+    "hsn_sac": ("hsn_sac", "items.hsn_sac"),
+    "description": ("description", "items.description"),
+    "qty": ("qty", "items.qty"),
+    "taxable_value": ("subtotal", "taxable_value", "items.taxable_value"),
+    "tax": ("igst", "cgst", "gst_total", "items.gst_amount"),
+    "total": ("total",),
+}
+#: Particulars a spreadsheet with formulas works out for itself.
+COMPUTED_PARTICULARS = frozenset({"taxable_value", "tax", "total"})
+EXPORT_PARTICULARS: dict[str, tuple[str, ...]] = {
+    "export_declaration": ("export_declaration",),
+    "lut_arn": ("lut_arn",),
+    "country_of_destination": ("country_of_destination",),
+    "inr_equivalent": ("inr_equivalent",),
+}
 #: Computed per line from qty, rate, discount and GST rate.
 DERIVED_ITEM_COLUMNS = frozenset({"sl", "taxable_value", "gst_amount", "amount"})
 #: Item columns that may be left out and default to nothing to ask about.
@@ -128,6 +174,21 @@ QUESTIONS: dict[str, str] = {
     "signatory_name": "Who signs it (name)?",
     "signatory_designation": "What is the signatory's designation?",
     "scope_of_work": "What is the scope of work, in a few lines?",
+    "supplier_name": "What is the supplier's registered name, as it should print on the invoice?",
+    "supplier_address": "What is the supplier's address for the invoice?",
+    "supplier_gstin": "What is the supplier's GSTIN (15 characters)?",
+    "recipient_name": "Who is the invoice to (registered name)?",
+    "recipient_address": "What is the recipient's full address (for an export, the full foreign address)?",
+    "recipient_gstin": "What is the recipient's GSTIN? Say 'unregistered' or, for a foreign buyer, 'none'.",
+    "place_of_supply": "What is the place of supply (state and code; 'Outside India' for an export)?",
+    "country_of_destination": "Which country is the supply going to?",
+    "lut_arn": "What is the Letter of Undertaking ARN (application reference number)?",
+    "lut_validity": "Until when is the LUT valid (the financial year it covers)?",
+    "iec": "What is the supplier's Import Export Code (10 characters)?",
+    "currency": "Which currency is the invoice in (INR, USD, EUR, GBP, AED, SGD, AUD, CAD)?",
+    "exchange_rate": "What is the exchange rate to INR on the invoice date (the RBI or CBIC notified rate)?",
+    "hsn_sac": "What is the HSN code (goods) or SAC (services)?",
+    "due_date": "By when is payment due?",
     "subject": "What is the subject line (what is being bought or awarded)?",
     "recommendation": "What do you recommend, and why, in a line or two?",
     "total": "What is the total value in rupees?",
@@ -175,16 +236,23 @@ def item_question(index: int, column: str, description: str | None) -> str:
 
 
 __all__ = [
+    "COMPUTED_PARTICULARS",
     "DERIVED_FIELDS",
     "DERIVED_ITEM_COLUMNS",
+    "EXPORT_DECLARATION",
+    "EXPORT_PARTICULARS",
     "FORMATS",
     "KINDS",
     "MONEY_FIELDS",
     "MONEY_ITEM_COLUMNS",
     "OPTIONAL_ITEM_COLUMNS",
+    "RULE_46_PARTICULARS",
     "STANDARD",
     "STANDARD_TERMS",
     "STATUSES",
+    "SUPPLY_EXPORT_LUT",
+    "SUPPLY_LOCAL",
+    "SUPPLY_MODES",
     "Format",
     "item_question",
     "question_for",

@@ -172,14 +172,52 @@ def number_in_words(n: int) -> str:
     return " ".join(parts)
 
 
-def amount_in_words(value: Any) -> str:
-    """``Rupees One Crore ... and Fifty Paise Only``."""
+#: The currencies an invoice may be drawn in: (major unit, minor unit) for
+#: the amount in words. INR keeps its lakh/crore grouping; the rest group in
+#: thousands, as their readers expect.
+CURRENCIES: dict[str, tuple[str, str]] = {
+    "INR": ("Rupees", "Paise"),
+    "USD": ("Dollars", "Cents"),
+    "EUR": ("Euros", "Cents"),
+    "GBP": ("Pounds", "Pence"),
+    "AED": ("Dirhams", "Fils"),
+    "SGD": ("Dollars", "Cents"),
+    "AUD": ("Dollars", "Cents"),
+    "CAD": ("Dollars", "Cents"),
+}
+
+
+def currency_code(value: Any) -> str:
+    code = str(value or "INR").strip().upper()
+    if code not in CURRENCIES:
+        raise MoneyError(
+            f"{code} is not a currency this drafts in; use one of "
+            + ", ".join(CURRENCIES)
+            + "."
+        )
+    return code
+
+
+def format_amount(value: Any, currency: Any = "INR") -> str:
+    """The figure as the invoice prints it: Indian grouping for rupees,
+    thousands for everything else. No symbol -- the template puts it."""
+    code = currency_code(currency)
+    if code == "INR":
+        return format_inr(value)
     amount = to_paise(value)
-    rupees = int(amount)
-    paise = int(((abs(amount) - abs(Decimal(rupees))) * 100).to_integral_value())
-    words = f"Rupees {number_in_words(rupees)}"
-    if paise:
-        words += f" and {_below_hundred(paise)} Paise"
+    return f"{amount:,.2f}"
+
+
+def amount_in_words(value: Any, currency: Any = "INR") -> str:
+    """``Rupees One Crore ... and Fifty Paise Only``, or the same in the
+    invoice's currency: ``Dollars Three Hundred and Sixteen Only``."""
+    major, minor = CURRENCIES[currency_code(currency)]
+    amount = to_paise(value)
+    whole = int(amount)
+    fraction = int(((abs(amount) - abs(Decimal(whole))) * 100).to_integral_value())
+    words = f"{major} {number_in_words(whole)}"
+    if fraction:
+        words += f" and {_below_hundred(fraction)} {minor}"
     return words + " Only"
 
 

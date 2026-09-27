@@ -646,3 +646,146 @@ class TestAnExcelTemplate:
         assert row.docx_key is None
         attachments = timeline.await_args.kwargs["payload"]["attachments"]
         assert [a["file"] for a in attachments] == ["pdf", "xlsx"]
+
+
+def _export_xlsx_template() -> bytes:
+    """The founder's NL export invoice, as a template (KAN-159, slice 3)."""
+    import openpyxl
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws["B2"], ws["E2"] = "{{supplier_name}}", "{{document_number}}"
+    ws["B3"], ws["B4"] = "{{supplier_address}}", "{{supplier_gstin}}"
+    ws["B5"], ws["B6"] = "{{recipient_name}}", "{{recipient_address}}"
+    ws["B7"], ws["B8"] = "{{country_of_destination}}", "{{place_of_supply}}"
+    ws["B9"], ws["E9"] = "{{signatory_name}}", "{{document_date}}"
+    for row in (11, 12, 13):
+        ws[f"B{row}"] = "{{items.description}}"
+        ws[f"C{row}"] = "{{items.hsn_sac}}"
+        ws[f"D{row}"] = "{{items.qty}}"
+        ws[f"E{row}"] = "{{items.rate}}"
+        ws[f"F{row}"] = f"=ROUND(D{row}*E{row},2)"
+        ws[f"F{row}"].number_format = '"$"#,##0.00'
+    ws["F14"] = "=SUM(F11:F13)"
+    ws["F15"] = "{{igst}}"
+    ws["F16"] = "{{amount_in_words}}"
+    ws["B17"] = "{{export_declaration}}"
+    ws["B18"] = "LUT ARN {{lut_arn}}"
+    ws["B19"] = "Rate {{exchange_rate}} INR equivalent {{inr_equivalent}}"
+    out = io.BytesIO()
+    wb.save(out)
+    return out.getvalue()
+
+
+class TestAnExportInvoiceInDollars:
+    async def test_the_draft_is_zero_rated_in_dollars_with_the_rupee_figure_on_the_register(
+        self, flag_on, db_session, storage, converter, timeline, charges
+    ):
+        org = await _org(db_session)
+        with patch(
+            "api.services.documents.sources.uploaded_bytes",
+            new=AsyncMock(return_value=(_export_xlsx_template(), "NL.xlsx", "")),
+        ):
+            result = await tools.run(
+                tools.DRAFT,
+                organization_id=org,
+                arguments={
+                    "kind": "tax_invoice",
+                    "template": "5b3c1d2e-1111-2222-3333-444455556666",
+                    "prefix": "NL",
+                    "values": {
+                        "supplier_name": "Nautomation Labs Private Limited",
+                        "supplier_address": "Hosur 635109",
+                        "supplier_gstin": "33AALCN7211L1ZB",
+                        "recipient_name": "Copy Hero LLC",
+                        "recipient_address": "16192 Coastal Hgw, Lewes, DE 19958",
+                        "country_of_destination": "United States",
+                        "signatory_name": "Nithish Kalyan",
+                        "lut_arn": "AD330726040304D",
+                        "currency": "USD",
+                        "exchange_rate": "83.50",
+                        "supply": "export_lut",
+                    },
+                    "items": [
+                        {
+                            "description": "Service fee",
+                            "hsn_sac": "998314",
+                            "qty": 1,
+                            "rate": 250,
+                        },
+                        {
+                            "description": "Hostinger - 1 month",
+                            "hsn_sac": "998315",
+                            "qty": 3,
+                            "rate": 22,
+                        },
+                    ],
+                },
+                ref_id="t:nl1",
+                workflow_id=None,
+            )
+        assert result["status"] == "drafted", result
+        assert result["number"].startswith("NL/") and result["number"].endswith("/0001")
+        assert len(result["number"]) <= 16
+        assert "no place for" not in result["note"]
+
+        xlsx_bytes = next(v for k, v in storage.files.items() if k.endswith(".xlsx"))
+        ws = openpyxl.load_workbook(io.BytesIO(xlsx_bytes)).active
+        assert (
+            ws["E11"].value == 250 and ws["E12"].value == 22
+        )  # numbers, so F computes
+        assert ws["F14"].value == "=SUM(F11:F13)"
+        assert ws["F15"].value == 0
+        assert ws["F16"].value == "Dollars Three Hundred Sixteen Only"
+        assert ws["B17"].value == formats.EXPORT_DECLARATION
+        assert ws["B8"].value == "Outside India"
+        assert ws["B19"].value == "Rate 83.50 INR equivalent 26,386.00"
+
+        async with db_session.async_session() as session:
+            row = await session.scalar(
+                select(ProcurementDocumentModel).where(
+                    ProcurementDocumentModel.id == result["register_id"]
+                )
+            )
+        assert row.currency == "USD"
+        assert row.amount_paise == 31600
+        assert "USD 316.00" in timeline.await_args.kwargs["summary"]
+        assert row.data["inr_total_paise"] == 2638600
+        assert row.data["supply"] == "export_lut"
+        assert row.counterparty_name == "Copy Hero LLC"
+
+    async def test_a_template_with_no_place_for_the_lut_is_told_so(
+        self, flag_on, db_session, storage, converter, timeline, charges
+    ):
+        org = await _org(db_session)
+        import openpyxl
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws["A1"], ws["A2"] = "{{recipient_name}}", "{{total}}"
+        blob = io.BytesIO()
+        wb.save(blob)
+        with patch(
+            "api.services.documents.sources.uploaded_bytes",
+            new=AsyncMock(return_value=(blob.getvalue(), "bare.xlsx", "")),
+        ):
+            result = await tools.run(
+                tools.DRAFT,
+                organization_id=org,
+                arguments={
+                    "kind": "tax_invoice",
+                    "template": "5b3c1d2e-1111-2222-3333-444455556666",
+                    "values": {
+                        "recipient_name": "X",
+                        "total": "10",
+                        "supply": "export_lut",
+                    },
+                },
+                ref_id="t:nl2",
+                workflow_id=None,
+            )
+        assert result["status"] == "drafted", result
+        assert "no place for" in result["note"]
+        assert (
+            "lut arn" in result["note"] and "country of destination" in result["note"]
+        )

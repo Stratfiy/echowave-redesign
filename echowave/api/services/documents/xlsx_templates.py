@@ -98,8 +98,12 @@ def inspect(data: bytes) -> dict[str, Any]:
     workbook = _open(data)
     fields: list[str] = []
     columns: list[str] = []
+    has_formulas = False
     for _, cell in _cells(workbook):
-        if _is_formula(cell) or not isinstance(cell.value, str):
+        if _is_formula(cell):
+            has_formulas = True
+            continue
+        if not isinstance(cell.value, str):
             continue
         for match in PLACEHOLDER.finditer(cell.value):
             name = match.group(1)
@@ -113,6 +117,7 @@ def inspect(data: bytes) -> dict[str, Any]:
         "fields": fields,
         "item_columns": columns,
         "item_rows": len(_item_rows(workbook)),
+        "has_formulas": has_formulas,
     }
 
 
@@ -127,7 +132,7 @@ def _typed(value: Any) -> Any:
     if isinstance(value, Decimal):
         return float(value)
     text = str(value)
-    stripped = text.replace(",", "").strip()
+    stripped = text.replace(",", "").strip().lstrip("₹$€£")
     try:
         number = Decimal(stripped)
     except Exception:  # noqa: BLE001 - not a number, and that is fine
