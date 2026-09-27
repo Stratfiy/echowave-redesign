@@ -227,6 +227,207 @@ def tool_schema() -> dict[str, Any]:
     }
 
 
+# --- reading the board (KAN-186) ---------------------------------------------
+#
+# Decibyl could file a task and could not say what was on the board, so
+# "what is blocked?" was answered with "I have no tool for that". This is
+# the read: the same rows the /tasks screen shows, the board's own filters,
+# and one task with its comments. A read runs in the turn; there is no card.
+
+READ_TOOL_NAME = "read_board"
+READ_DESCRIPTION = (
+    "Read the team's task board: what is open, blocked, in review, done; "
+    "who holds what; or one task with its comments. Give status, assignee "
+    "(a person's name, an agent's @handle, or 'team') or label to narrow; "
+    "give task_id for one task in full. With nothing, the open work."
+)
+#: How many rows one read returns. The board is a screen; the model gets
+#: the newest and is told how many more there are.
+READ_MAX = 40
+OPEN = tuple(s for s in STATUSES if s not in TERMINAL)
+
+
+def read_tool_schema() -> dict[str, Any]:
+    return {
+        "name": READ_TOOL_NAME,
+        "description": READ_DESCRIPTION,
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": list(STATUSES) + ["open"],
+                    "description": "One status, or 'open' for everything not done or cancelled (the default).",
+                },
+                "assignee": {
+                    "type": "string",
+                    "description": "A person's name, an agent's @handle, or 'team' for unassigned.",
+                },
+                "label": {"type": "string"},
+                "task_id": {
+                    "type": "integer",
+                    "description": "One task, in full, with its comments.",
+                },
+            },
+        },
+    }
+
+
+def person_name(user: Any) -> str:
+    return (
+        getattr(user, "name", None)
+        or getattr(user, "full_name", None)
+        or getattr(user, "email", None)
+        or f"Member {user.id}"
+    )
+
+
+async def board_context(organization_id: int) -> dict[str, Any]:
+    """The names a card or a listing needs: the bots, the people, the
+    workspace prefix. Shared by the /tasks routes and the read tool."""
+    from api.db import db_client
+
+    roster = await db_client.get_all_workflows_for_listing(
+        organization_id=organization_id
+    )
+    members = await db_client.list_organization_members(organization_id)
+    organization = await db_client.get_organization_by_id(organization_id)
+    return {
+        "roster": roster,
+        "names": {w.id: w.name for w in roster},
+        "handles": {w.id: getattr(w, "handle", None) for w in roster},
+        "people": {m.user.id: person_name(m.user) for m in members},
+        "prefix": identifier_prefix(
+            getattr(organization, "name", None) if organization else None
+        ),
+    }
+
+
+def _holder(task: Any, ctx: dict[str, Any]) -> str:
+    """Who holds the task, as the model should say it."""
+    if getattr(task, "assignee_user_id", None):
+        return ctx["people"].get(
+            task.assignee_user_id, f"Member {task.assignee_user_id}"
+        )
+    if task.assignee_workflow_id:
+        handle = ctx["handles"].get(task.assignee_workflow_id)
+        return (
+            f"@{handle}"
+            if handle
+            else f"@{ctx['names'].get(task.assignee_workflow_id, task.assignee_workflow_id)}"
+        )
+    return TEAM
+
+
+def _holds(task: Any, wanted: str, ctx: dict[str, Any]) -> bool:
+    wanted = wanted.strip().lower().lstrip("@")
+    if wanted == TEAM:
+        return (
+            not getattr(task, "assignee_user_id", None)
+            and not task.assignee_workflow_id
+        )
+    if task.assignee_workflow_id:
+        handle = (ctx["handles"].get(task.assignee_workflow_id) or "").lower()
+        name = (ctx["names"].get(task.assignee_workflow_id) or "").lower()
+        if wanted in (handle, name):
+            return True
+    user_id = getattr(task, "assignee_user_id", None)
+    if user_id:
+        return ctx["people"].get(user_id, "").lower() == wanted
+    return False
+
+
+def _row(task: Any, ctx: dict[str, Any]) -> dict[str, Any]:
+    full = as_dict(task, ctx["names"], people=ctx["people"], prefix=ctx["prefix"])
+    return {
+        "id": full["id"],
+        "identifier": full["identifier"],
+        "title": full["title"],
+        "status": full["status"],
+        "priority": full["priority"],
+        "assignee": _holder(task, ctx),
+        "from": full["from_name"],
+        "labels": full["labels"],
+        "due_at": full["due_at"],
+        "blocked_by": full["blocked_by"],
+        "result": (full["result"] or "")[:200] or None,
+    }
+
+
+async def read_board(
+    *, organization_id: int, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    """The tool: a listing, or one task with its comments. Never raises."""
+    from api.db import db_client
+
+    task_id = arguments.get("task_id")
+    if task_id not in (None, ""):
+        try:
+            task_id = int(task_id)
+        except (TypeError, ValueError):
+            return {"status": "error", "error": f"task_id {task_id!r} is not a number."}
+        task = await db_client.get_task(task_id, organization_id=organization_id)
+        if task is None:
+            return {
+                "status": "error",
+                "error": f"There is no task {task_id} on this board.",
+            }
+        ctx = await board_context(organization_id)
+        comments = await db_client.comments_for_task(
+            task_id, organization_id=organization_id
+        )
+        full = as_dict(task, ctx["names"], people=ctx["people"], prefix=ctx["prefix"])
+        full["assignee"] = _holder(task, ctx)
+        full["comments"] = [
+            {
+                "by": (
+                    ctx["people"].get(c.author_user_id)
+                    if getattr(c, "author_user_id", None)
+                    else ctx["names"].get(
+                        getattr(c, "author_workflow_id", None), "Decibyl"
+                    )
+                ),
+                "body": c.body,
+                "at": c.created_at.isoformat()
+                if getattr(c, "created_at", None)
+                else None,
+            }
+            for c in comments
+        ]
+        return {"status": "success", "task": full}
+
+    status = str(arguments.get("status") or "open").strip().lower()
+    if status != "open" and status not in STATUSES:
+        return {
+            "status": "error",
+            "error": f"{status!r} is not a status; use open or one of {', '.join(STATUSES)}.",
+        }
+    rows = await db_client.tasks_for_organization(organization_id)
+    ctx = await board_context(organization_id)
+    wanted_status = OPEN if status == "open" else (status,)
+    assignee = str(arguments.get("assignee") or "").strip()
+    label = str(arguments.get("label") or "").strip().lower()
+    picked = [
+        t
+        for t in rows
+        if t.status in wanted_status
+        and (not assignee or _holds(t, assignee, ctx))
+        and (
+            not label
+            or label in [str(x).lower() for x in (getattr(t, "labels", None) or [])]
+        )
+    ]
+    counts: dict[str, int] = {}
+    for t in picked:
+        counts[t.status] = counts.get(t.status, 0) + 1
+    return {
+        "status": "success",
+        "tasks": [_row(t, ctx) for t in picked[:READ_MAX]],
+        "more": max(0, len(picked) - READ_MAX),
+        "counts": dict(sorted(counts.items())),
+    }
+
+
 class TaskError(Refused):
     """The board cannot take that; the message says why, for the screen."""
 
