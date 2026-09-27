@@ -996,7 +996,9 @@ async def get_workflows(
     # A member does not see an admins-only agent (KAN-158).
     workflows = visibility.only_visible(
         workflows,
-        await visibility.role_of(user.id, user.selected_organization_id),
+        await visibility.role_of(
+            getattr(user, "id", None), user.selected_organization_id
+        ),
     )
     # Get run counts for all workflows in a single query
     workflow_ids = [workflow.id for workflow in workflows]
@@ -1043,7 +1045,10 @@ async def get_workflow(
         workflow_id, organization_id=user.selected_organization_id
     )
     if workflow is None or not visibility.visible(
-        workflow, await visibility.role_of(user.id, user.selected_organization_id)
+        workflow,
+        await visibility.role_of(
+            getattr(user, "id", None), user.selected_organization_id
+        ),
     ):
         # Hidden reads as absent: a member is not told what they may not see.
         raise HTTPException(

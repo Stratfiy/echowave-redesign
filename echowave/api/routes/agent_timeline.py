@@ -532,7 +532,7 @@ async def post_message(
     # something rather than being decoration.
     workflows = visibility.only_visible(
         await db_client.get_all_workflows_for_listing(organization_id=organization_id),
-        await visibility.role_of(user.id, organization_id),
+        await visibility.role_of(getattr(user, "id", None), organization_id),
     )
     roster = [
         {

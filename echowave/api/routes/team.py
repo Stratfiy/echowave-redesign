@@ -174,7 +174,9 @@ async def team_status(
         members=await _members(
             organization_id,
             hours,
-            viewer_role=await visibility.role_of(user.id, organization_id),
+            viewer_role=await visibility.role_of(
+                getattr(user, "id", None), organization_id
+            ),
             for_person=True,
         ),
     )
@@ -261,7 +263,9 @@ async def team_home(
         organization_id,
         hours,
         since=window.since,
-        viewer_role=await visibility.role_of(user.id, organization_id),
+        viewer_role=await visibility.role_of(
+            getattr(user, "id", None), organization_id
+        ),
         for_person=True,
     )
 

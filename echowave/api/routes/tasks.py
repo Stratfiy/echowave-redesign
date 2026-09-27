@@ -76,7 +76,9 @@ async def list_tasks(user: Annotated[UserModel, Depends(get_user)]) -> dict[str,
     rows = await db_client.tasks_for_organization(organization_id)
     ctx = await tasks_board.board_context(
         organization_id,
-        viewer_role=await visibility.role_of(user.id, organization_id),
+        viewer_role=await visibility.role_of(
+            getattr(user, "id", None), organization_id
+        ),
         for_person=True,
     )
     counts = await db_client.comment_counts(organization_id, [t.id for t in rows])

@@ -24,7 +24,9 @@ async def list_workflows(status: str | None = "active") -> list[dict]:
             organization_id=user.selected_organization_id,
             status=status,
         ),
-        await visibility.role_of(user.id, user.selected_organization_id),
+        await visibility.role_of(
+            getattr(user, "id", None), user.selected_organization_id
+        ),
     )
     return [
         {
