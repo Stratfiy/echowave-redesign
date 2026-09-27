@@ -64,30 +64,10 @@ class CommentWrite(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-def _person_name(user: Any) -> str:
-    return (
-        getattr(user, "name", None)
-        or getattr(user, "full_name", None)
-        or getattr(user, "email", None)
-        or f"Member {user.id}"
-    )
+_person_name = tasks_board.person_name
 
 
-async def _context(organization_id: int) -> dict[str, Any]:
-    """The names a card needs: the bots, the people, the workspace prefix."""
-    roster = await db_client.get_all_workflows_for_listing(
-        organization_id=organization_id
-    )
-    members = await db_client.list_organization_members(organization_id)
-    organization = await db_client.get_organization_by_id(organization_id)
-    return {
-        "roster": roster,
-        "names": {w.id: w.name for w in roster},
-        "people": {m.user.id: _person_name(m.user) for m in members},
-        "prefix": tasks_board.identifier_prefix(
-            getattr(organization, "name", None) if organization else None
-        ),
-    }
+_context = tasks_board.board_context
 
 
 @router.get("")
