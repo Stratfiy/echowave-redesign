@@ -37,7 +37,7 @@ from loguru import logger
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
 from api.services.refused import Refused
-from api.services.workflow import agent_timeline, one_shot_run
+from api.services.workflow import agent_timeline, one_shot_run, task_notices
 
 TOOL_NAME = "create_task"
 DESCRIPTION = (
@@ -656,6 +656,10 @@ async def create(
             in_channel=False,
         )
 
+    if assignee_user_id:
+        await task_notices.assigned(
+            task, organization_id=organization_id, by_user_id=created_by
+        )
     if assignee is not None:
         from api.tasks.arq import enqueue_job
         from api.tasks.function_names import FunctionNames
@@ -1022,6 +1026,17 @@ async def _finish(
         else "could not do"
     )
     line = f"{assignee_name} {verb} the task: {title}"
+    if task is not None:
+        await task_notices.reported(
+            task,
+            organization_id=organization_id,
+            body=f"{verb.capitalize()}: {result}",
+            agent_name=assignee_name,
+        )
+        if status == BLOCKED:
+            await task_notices.blocked(
+                task, organization_id=organization_id, reason=result
+            )
     payload = {
         "task": as_dict(task) if task else {"id": task_id},
         "result": result[:500],
@@ -1130,6 +1145,13 @@ async def set_status(
     updated = await db_client.update_task(
         task_id, organization_id=organization_id, **fields
     )
+    if status == BLOCKED and task.status != BLOCKED:
+        await task_notices.blocked(
+            updated,
+            organization_id=organization_id,
+            by_user_id=user_id,
+            reason=fields.get("result"),
+        )
     if status in TERMINAL:
         word = (
             "signed off"
@@ -1208,6 +1230,11 @@ async def edit(
     updated = await db_client.update_task(
         task_id, organization_id=organization_id, **fields
     )
+    new_holder = fields.get("assignee_user_id")
+    if new_holder and new_holder != getattr(task, "assignee_user_id", None):
+        await task_notices.assigned(
+            updated, organization_id=organization_id, by_user_id=user_id
+        )
     return as_dict(updated)
 
 
