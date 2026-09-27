@@ -66,8 +66,8 @@ decibyl:
       question: Should documents use the standard Indian format, or your own template?
       required: false
       example: standard -- or the link to your PO template in Google Docs or OneDrive
-      used_for: The format it drafts in. Upload a Word file, or share a Google Doc or OneDrive
-        link to use your own.
+      used_for: The format it drafts in. Upload a Word or Excel file, or share a Google Doc
+        or OneDrive link to use your own.
     - key: numbering_prefixes
       question: Do your documents carry their own number prefix?
       required: false
@@ -92,7 +92,8 @@ decibyl:
       required: false
     - app: one_drive
       label: OneDrive
-      used_for: Drafting from a Word template on OneDrive or SharePoint, word for word.
+      used_for: Drafting from a Word or Excel template on OneDrive or SharePoint, word for
+        word.
       required: false
     - app: whatsapp
       label: WhatsApp
@@ -178,8 +179,8 @@ decibyl:
       signatory_name: Who signs purchase documents
       signatory_designation: Their designation
       approver: Who approves a document before it goes to a vendor
-      template_source: standard, or the uploaded Word file, Google Doc or OneDrive link to
-        draft from
+      template_source: standard, or the uploaded Word/Excel file, Google Doc or OneDrive link
+        to draft from
       numbering_prefixes: Each document's number prefix, or standard (PO, RFQ, WO, CS, AL)
     apps:
     - gmail
