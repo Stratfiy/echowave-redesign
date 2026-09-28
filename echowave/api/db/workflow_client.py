@@ -851,6 +851,31 @@ class WorkflowClient(BaseDBClient):
             await session.refresh(workflow)
         return workflow
 
+    async def set_workflow_visibility(
+        self,
+        workflow_id: int,
+        visibility: str,
+        organization_id: int,
+    ) -> WorkflowModel:
+        """Who may see this agent (KAN-158). Org-scoped like every mutation.
+
+        Raises:
+            ValueError: If the workflow is not found in this organization.
+        """
+        async with self.async_session() as session:
+            workflow = await session.scalar(
+                select(WorkflowModel).where(
+                    WorkflowModel.id == workflow_id,
+                    WorkflowModel.organization_id == organization_id,
+                )
+            )
+            if not workflow:
+                raise ValueError(f"Workflow with ID {workflow_id} not found")
+            workflow.visibility = visibility
+            await session.commit()
+            await session.refresh(workflow)
+            return workflow
+
     async def set_workflow_live(
         self,
         workflow_id: int,

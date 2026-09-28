@@ -22,7 +22,12 @@ from api.enums import WorkflowStatus
 from api.services import reporting_window
 from api.services.auth.depends import get_user
 from api.services.organization_preferences import get_organization_preferences
-from api.services.workflow import home_openers, home_suggestions, status_lines
+from api.services.workflow import (
+    home_openers,
+    home_suggestions,
+    status_lines,
+    visibility,
+)
 
 router = APIRouter(prefix="/team", tags=["team"])
 
@@ -77,7 +82,12 @@ _TONE_ORDER = {
 
 
 async def _members(
-    organization_id: int, hours: int, *, since: datetime | None = None
+    organization_id: int,
+    hours: int,
+    *,
+    since: datetime | None = None,
+    viewer_role: str | None = None,
+    for_person: bool = False,
 ) -> list[TeamMember]:
     """The team, sorted worst-first.
 
@@ -94,6 +104,10 @@ async def _members(
     workflows = await db_client.get_all_workflows_for_listing(
         organization_id=organization_id, status=WorkflowStatus.ACTIVE.value
     )
+    if for_person:
+        # A member's screen omits admins-only agents (KAN-158); Decibyl's
+        # own reading of the team is not a person's and is not filtered.
+        workflows = visibility.only_visible(workflows, viewer_role)
     activity = await db_client.agent_activity(
         organization_id=organization_id, hours=hours, since=since
     )
@@ -155,7 +169,17 @@ async def team_status(
     organization_id = user.selected_organization_id
     if not organization_id:
         raise HTTPException(status_code=400, detail="No organization selected")
-    return TeamResponse(hours=hours, members=await _members(organization_id, hours))
+    return TeamResponse(
+        hours=hours,
+        members=await _members(
+            organization_id,
+            hours,
+            viewer_role=await visibility.role_of(
+                getattr(user, "id", None), organization_id
+            ),
+            for_person=True,
+        ),
+    )
 
 
 class Headline(BaseModel):
@@ -235,7 +259,15 @@ async def team_home(
     else:
         window = reporting_window.last_days(max(1, hours // 24))
 
-    members = await _members(organization_id, hours, since=window.since)
+    members = await _members(
+        organization_id,
+        hours,
+        since=window.since,
+        viewer_role=await visibility.role_of(
+            getattr(user, "id", None), organization_id
+        ),
+        for_person=True,
+    )
 
     summary = await db_client.app_interaction_summary(
         organization_id=organization_id, days=7

@@ -282,14 +282,20 @@ def person_name(user: Any) -> str:
     )
 
 
-async def board_context(organization_id: int) -> dict[str, Any]:
+async def board_context(
+    organization_id: int, *, viewer_role: str | None = None, for_person: bool = False
+) -> dict[str, Any]:
     """The names a card or a listing needs: the bots, the people, the
-    workspace prefix. Shared by the /tasks routes and the read tool."""
+    workspace prefix. Shared by the /tasks routes and the read tool.
+    ``for_person`` filters the roster to what the viewer may see (KAN-158)."""
     from api.db import db_client
+    from api.services.workflow import visibility
 
     roster = await db_client.get_all_workflows_for_listing(
         organization_id=organization_id
     )
+    if for_person:
+        roster = visibility.only_visible(roster, viewer_role)
     members = await db_client.list_organization_members(organization_id)
     organization = await db_client.get_organization_by_id(organization_id)
     return {

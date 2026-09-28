@@ -78,6 +78,8 @@ interface RenderWorkflowProps {
     initialWorkflowName: string;
     workflowId: number;
     workflowUuid?: string;
+    /** Who may see this agent (KAN-158): "everyone" or "admins". */
+    visibility?: string;
     initialTotalRuns?: number | null;
     openTesterOnLoad?: boolean;
     /** Which tab the tester opens on when opened on load. */
@@ -104,6 +106,7 @@ function RenderWorkflow({
     initialWorkflowName,
     workflowId,
     workflowUuid,
+    visibility,
     initialTotalRuns,
     openTesterOnLoad = false,
     testerInitialMode,
@@ -612,6 +615,7 @@ function RenderWorkflow({
                     rfInstance={rfInstance}
                     workflowId={workflowId}
                     workflowUuid={workflowUuid}
+                    visibility={visibility}
                     saveWorkflow={guardedSaveWorkflow}
                     user={user}
                     onPhoneCallClick={() => setIsPhoneCallDialogOpen(true)}

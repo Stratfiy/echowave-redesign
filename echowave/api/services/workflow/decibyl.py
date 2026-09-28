@@ -62,6 +62,7 @@ from api.services.workflow import (
     skill_context,
     tasks_board,
     untrusted,
+    visibility,
     web_tools,
 )
 
@@ -280,8 +281,9 @@ async def ask(
     the account has always had, so a client that knows nothing about threads
     keeps writing where it always wrote.
     """
-    workflows = await db_client.get_all_workflows_for_listing(
-        organization_id=organization_id
+    workflows = visibility.only_visible(
+        await db_client.get_all_workflows_for_listing(organization_id=organization_id),
+        await visibility.role_of(user_id, organization_id),
     )
     roster = [
         {"id": w.id, "handle": getattr(w, "handle", None), "name": w.name}

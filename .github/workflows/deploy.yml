@@ -55,9 +55,9 @@ permissions:
 jobs:
   deploy:
     name: Deploy to production
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
     environment: production # gate approvals/secrets here if you want them
-    timeout-minutes: 25
+    timeout-minutes: 45
 
     steps:
       - name: Resolve the ref being deployed

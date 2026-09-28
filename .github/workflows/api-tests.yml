@@ -23,8 +23,8 @@ concurrency:
 jobs:
   pytest:
     if: ${{ !startsWith(github.head_ref, 'release-please--') }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 45
 
     services:
       postgres:
@@ -36,7 +36,7 @@ jobs:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: postgres
         ports:
-          - 5432:5432
+          - 55432:5432
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 10s
@@ -46,7 +46,7 @@ jobs:
       redis:
         image: redis:7
         ports:
-          - 6379:6379
+          - 56379:6379
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
@@ -55,8 +55,8 @@ jobs:
 
     env:
       # api/conftest.py creates test_db via the postgres admin DB.
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/test_db
-      REDIS_URL: redis://localhost:6379/0
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:55432/test_db
+      REDIS_URL: redis://localhost:56379/0
       ENABLE_AWS_S3: "false"
       # MINIO is not actually contacted by tests, but storage.py constructs
       # the MinioFileSystem at import time and requires MINIO_PUBLIC_ENDPOINT.

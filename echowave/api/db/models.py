@@ -967,6 +967,14 @@ class WorkflowModel(Base):
         default=True,
         server_default=text("true"),
     )
+    #: Who may see this agent (KAN-158): "everyone" or "admins". Enforced
+    #: in services/workflow/visibility.py wherever a person is served.
+    visibility = Column(
+        String(16),
+        nullable=False,
+        default="everyone",
+        server_default=text("'everyone'"),
+    )
     #: This is the agent a prospect hears when they want to try a published
     #: role before hiring it.
     #:

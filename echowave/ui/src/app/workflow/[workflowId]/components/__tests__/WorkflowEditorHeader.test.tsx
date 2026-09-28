@@ -6,7 +6,8 @@ import { WorkflowEditorHeader } from "../WorkflowEditorHeader";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("@/components/ui/sidebar", () => ({ useSidebar: () => ({ toggleSidebar: vi.fn() }) }));
-vi.mock("@/client/sdk.gen", () => ({ duplicateWorkflowEndpointApiV1WorkflowWorkflowIdDuplicatePost: vi.fn(), publishWorkflowApiV1WorkflowWorkflowIdPublishPost: vi.fn() }));
+const setVisibility = vi.hoisted(() => vi.fn());
+vi.mock("@/client/sdk.gen", () => ({ duplicateWorkflowEndpointApiV1WorkflowWorkflowIdDuplicatePost: vi.fn(), publishWorkflowApiV1WorkflowWorkflowIdPublishPost: vi.fn(), updateWorkflowVisibilityApiV1WorkflowWorkflowIdVisibilityPut: (...a: unknown[]) => setVisibility(...a) }));
 // Workspace roles (MP-2) are asked about over the network; off here, and
 // their menu item is tested at the bottom of this file.
 const roles = vi.hoisted(() => ({ available: false }));
@@ -68,6 +69,29 @@ describe("saving an agent as a workspace role (MP-2)", () => {
         render(<WorkflowEditorHeader {...props()} isViewingHistoricalVersion />);
         openMore();
         expect(screen.queryByText("Save as workspace role")).toBeNull();
+        roles.available = false;
+    });
+});
+
+
+describe("who may see the agent (KAN-158)", () => {
+    it("is not offered while workspace roles are off", () => {
+        roles.available = false;
+        render(<WorkflowEditorHeader {...props()} />);
+        openMore();
+        expect(screen.queryByRole("menuitem", { name: /Visible to/ })).toBeNull();
+    });
+    it("hides from members on the flat visibility route and says so", async () => {
+        roles.available = true;
+        setVisibility.mockResolvedValue({ data: { id: 39, visibility: "admins" } });
+        render(<WorkflowEditorHeader {...props()} visibility="everyone" />);
+        openMore();
+        fireEvent.click(screen.getByRole("menuitem", { name: /Visible to everyone/ }));
+        await vi.waitFor(() =>
+            expect(setVisibility).toHaveBeenCalledWith({ path: { workflow_id: 39 }, body: { visibility: "admins" } }),
+        );
+        openMore();
+        expect(screen.getByRole("menuitem", { name: /Visible to admins only/ })).toBeTruthy();
         roles.available = false;
     });
 });
