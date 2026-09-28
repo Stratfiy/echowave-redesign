@@ -205,6 +205,55 @@ except RuntimeError as e:
 
 
 @pytest.mark.asyncio
+class TestTheChildsEnvironment:
+    """The box gets CODE and PATH and nothing else of ours -- except the
+    interpreter's own loader path, which is not ours and not a secret."""
+
+    @pytest.mark.asyncio
+    async def test_the_loader_path_reaches_the_child_and_nothing_else_does(
+        self, monkeypatch
+    ):
+        from unittest.mock import AsyncMock, patch
+
+        monkeypatch.setenv("LD_LIBRARY_PATH", "/tool/python/lib")
+        monkeypatch.setenv("DATABASE_URL", "postgresql://secret")
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-secret")
+        seen = {}
+
+        async def spawn(*args, **kwargs):
+            seen.update(kwargs["env"])
+            return SimpleNamespace(
+                stdout=None, stderr=None, stdin=None, returncode=None, pid=1
+            )
+
+        with patch("asyncio.create_subprocess_exec", new=AsyncMock(side_effect=spawn)):
+            runner = LocalRunner()
+            runner._drain_stderr = AsyncMock()  # nothing to drain from a fake
+            await runner.start("print(1)", Limits())
+        assert seen["LD_LIBRARY_PATH"] == "/tool/python/lib"
+        assert seen["CODE"] == "print(1)"
+        assert "DATABASE_URL" not in seen and "OPENAI_API_KEY" not in seen
+
+    @pytest.mark.asyncio
+    async def test_no_loader_path_no_variable(self, monkeypatch):
+        from unittest.mock import AsyncMock, patch
+
+        monkeypatch.delenv("LD_LIBRARY_PATH", raising=False)
+        seen = {}
+
+        async def spawn(*args, **kwargs):
+            seen.update(kwargs["env"])
+            return SimpleNamespace(
+                stdout=None, stderr=None, stdin=None, returncode=None, pid=1
+            )
+
+        with patch("asyncio.create_subprocess_exec", new=AsyncMock(side_effect=spawn)):
+            runner = LocalRunner()
+            runner._drain_stderr = AsyncMock()
+            await runner.start("print(1)", Limits())
+        assert "LD_LIBRARY_PATH" not in seen
+
+
 class TestTheRemoteService:
     """The api's side of the four calls, against a faked service."""
 

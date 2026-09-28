@@ -187,6 +187,15 @@ class LocalRunner:
             "PYTHONIOENCODING": "utf-8",
             "PYTHONUNBUFFERED": "1",
         }
+        # The interpreter's own loader path, when it has one. A Python
+        # installed by actions/setup-python on a self-hosted runner is a
+        # relocated build that finds libpython only through
+        # LD_LIBRARY_PATH; without it the child dies before the prelude
+        # runs, with nothing on stdout and "seconds: 0.0". Nothing the
+        # script can read from it that PATH did not already say.
+        for name in ("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"):
+            if os.environ.get(name):
+                env[name] = os.environ[name]
         process = await asyncio.create_subprocess_exec(
             sys.executable,
             "-I",
