@@ -37,16 +37,7 @@
 name: Build images
 
 on:
-  push:
-    branches: [main]
-    # Matched from the repository root; a docs-only merge builds nothing.
-    paths:
-      - "echowave/**"
-      - "!echowave/docs/**"
-      - "!**/*.md"
-      - ".github/workflows/build-images.yml"
-  # So a release can be rebuilt without an empty commit, and so the first run
-  # can be triggered by hand before anything merges.
+  
   workflow_dispatch:
 
 # One build per ref. A second push while the first is still going cancels it:
