@@ -60,7 +60,13 @@ from api.services.configuration.resolve import (
 from api.services.posthog_client import capture_event
 from api.services.reports import generate_workflow_report_csv
 from api.services.storage import storage_fs
-from api.services.workflow import bot_notices, setup_progress, unfilled, visibility
+from api.services.workflow import (
+    audit_log,
+    bot_notices,
+    setup_progress,
+    unfilled,
+    visibility,
+)
 from api.services.workflow.agent_brief import (
     AgentBrief,
     apply_brief,
@@ -1557,6 +1563,15 @@ async def publish_workflow(
             "organization_id": user.selected_organization_id,
         },
     )
+    await audit_log.record(
+        user.selected_organization_id,
+        action=audit_log.AGENT_PUBLISHED,
+        subject_kind="agent",
+        subject_id=workflow_id,
+        subject=getattr(workflow, "name", None),
+        actor_user_id=user.id,
+        after={"version_number": published.version_number},
+    )
 
     return {
         "id": published.id,
@@ -1938,6 +1953,15 @@ async def update_workflow_visibility(
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    await audit_log.record(
+        user.selected_organization_id,
+        action=audit_log.AGENT_VISIBILITY,
+        subject_kind="agent",
+        subject_id=workflow_id,
+        subject=getattr(workflow, "name", None),
+        actor_user_id=user.id,
+        after={"visibility": workflow.visibility},
+    )
     return {"id": workflow.id, "visibility": workflow.visibility}
 
 
@@ -1972,6 +1996,15 @@ async def update_workflow_live(
         f"Agent {workflow_id} is now "
         f"{'taking calls' if request.is_live else 'paused'} "
         f"(org {user.selected_organization_id}, user {user.id})"
+    )
+    await audit_log.record(
+        user.selected_organization_id,
+        action=audit_log.AGENT_LIVE,
+        subject_kind="agent",
+        subject_id=workflow_id,
+        subject=getattr(workflow, "name", None),
+        actor_user_id=user.id,
+        after={"is_live": bool(request.is_live)},
     )
 
     run_count = await db_client.get_workflow_run_count(workflow.id)

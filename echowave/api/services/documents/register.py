@@ -39,6 +39,9 @@ SERIAL_WIDTH = 4
 MAX_LIST = 50
 
 
+ISSUED = "issued"
+
+
 class RegisterError(ValueError):
     """Said to the model as it is."""
 
@@ -267,16 +270,32 @@ async def update(
     due_date: Any = None,
     note: Any = None,
     author: str = "agent",
+    user_id: int | None = None,
 ) -> ProcurementDocumentModel:
+    """``user_id`` is the person acting, when one is; an agent passes none,
+    and the approval matrix treats nobody as unable to approve."""
+    from api.services.workflow import approvals, audit_log
+
     row = await get(
         session, organization_id=organization_id, register_id=register_id, number=number
     )
     if row is None:
         raise RegisterError("No register entry by that id or number in this workspace.")
+    was = row.status
     if status not in (None, ""):
         status = str(status).strip().lower()
         if status not in formats.STATUSES:
             raise RegisterError(f"status must be one of {', '.join(formats.STATUSES)}")
+        if status == ISSUED and was != ISSUED:
+            # The approval matrix (KAN-160): issuing is the act a rule is
+            # about, by the document's kind and amount. Raises
+            # ApprovalRequired naming who must; a no-op while off.
+            await approvals.check(
+                organization_id,
+                subject=row.kind,
+                amount_paise=row.amount_paise,
+                user_id=user_id,
+            )
         row.status = status
     if due_date not in (None, ""):
         parsed = parse_date(due_date)
@@ -298,6 +317,19 @@ async def update(
         data["notes"] = notes[-50:]
         row.data = data
     await session.flush()
+    if status and status != was:
+        await audit_log.record(
+            organization_id,
+            action=audit_log.DOCUMENT_STATUS,
+            subject_kind=row.kind,
+            subject_id=row.id,
+            subject=row.number,
+            actor_user_id=user_id,
+            actor=None if user_id else author,
+            before={"status": was},
+            after={"status": status, "amount_paise": row.amount_paise},
+            note=text or None,
+        )
     return row
 
 

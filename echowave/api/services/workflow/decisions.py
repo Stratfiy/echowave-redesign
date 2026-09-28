@@ -33,7 +33,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
-from api.services.workflow import agent_timeline
+from api.services.workflow import agent_timeline, approvals, audit_log
 
 TOOL_NAME = "ask_for_decision"
 DESCRIPTION = (
@@ -180,6 +180,11 @@ async def decide(
         raise DecisionError("Pick one.")
     if not picked and not typed:
         raise DecisionError("Pick an option.")
+    # The approval matrix (KAN-160): who may answer a bot's question. Raises
+    # ApprovalRequired naming who must; a no-op while the switch is off.
+    await approvals.check(
+        organization_id, subject=approvals.DECISION, amount_paise=None, user_id=user_id
+    )
 
     decided = {
         "choice": picked,
@@ -197,6 +202,15 @@ async def decide(
     if typed and picked:
         answer = f"{answer} -- {typed}"
     line = f'Decision on "{payload["question"]}": {answer}'
+    await audit_log.record(
+        organization_id,
+        action=audit_log.DECISION_MADE,
+        subject_kind="decision",
+        subject_id=event_id,
+        subject=str(payload.get("question") or "")[:255],
+        actor_user_id=user_id,
+        after={"choice": picked, "other": typed or None},
+    )
 
     # The answer is a message in the channel like any other, so the bot reads
     # it the way it reads everything else said there, and so the people in

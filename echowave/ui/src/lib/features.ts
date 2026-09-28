@@ -6,7 +6,7 @@ import { useAppConfig } from "@/context/AppConfigContext";
  * by AppConfigProvider. False until that answer arrives, so nothing about a
  * feature flashes on screen before it is known to exist.
  */
-export type Feature = "task_board" | "dialer_import" | "workspace_roles" | "agent_graph_extras" | "shell" | "voice_watch" | "charge_rule" | "procurement_docs" | "decibyl_long_tasks" | "decibyl_private_threads";
+export type Feature = "task_board" | "dialer_import" | "workspace_roles" | "agent_graph_extras" | "shell" | "voice_watch" | "charge_rule" | "procurement_docs" | "decibyl_long_tasks" | "decibyl_private_threads" | "approvals";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

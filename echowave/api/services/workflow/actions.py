@@ -40,7 +40,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
-from api.services.workflow import agent_timeline
+from api.services.workflow import agent_timeline, approvals, audit_log
 
 TOOL_NAME = "propose_action"
 DESCRIPTION = (
@@ -696,6 +696,12 @@ async def settle(
     if verb == "confirm":
         if state != PROPOSED:
             raise ActionError("Already settled.")
+        # The approval matrix (KAN-160): a card is a "card" subject with no
+        # amount. Raises ApprovalRequired, naming who must, before anything
+        # is armed; a no-op while the switch is off.
+        await approvals.check(
+            organization_id, subject=approvals.CARD, amount_paise=None, user_id=user_id
+        )
         fires_at = datetime.now(UTC) + timedelta(seconds=UNDO_WINDOW_SECONDS)
         payload["state"] = ARMED
         payload["confirmed"] = _stamp(user_id)
@@ -719,6 +725,7 @@ async def settle(
             payload["error"] = "Could not be started. Try again."
             await _write(event, payload)
             raise ActionError(payload["error"]) from exc
+        await _audit(event, payload, audit_log.CARD_CONFIRMED, user_id, state)
         return payload
 
     if verb == "decline":
@@ -727,6 +734,7 @@ async def settle(
         payload["state"] = DECLINED
         payload["declined"] = _stamp(user_id)
         await _write(event, payload)
+        await _audit(event, payload, audit_log.CARD_DECLINED, user_id, state)
         if payload.get("action") == RUN_TOOL:
             # A declined send is an outcome too (OP-4): the prospect is
             # marked, and the next run does not propose them as new.
@@ -743,12 +751,14 @@ async def settle(
             payload["state"] = CANCELLED
             payload["cancelled"] = _stamp(user_id)
             await _write(event, payload)
+            await _audit(event, payload, audit_log.CARD_UNDONE, user_id, state)
             return payload
         if state == DONE and payload.get("reversible"):
             await _reverse(organization_id, payload)
             payload["state"] = UNDONE
             payload["undone"] = _stamp(user_id)
             await _write(event, payload)
+            await _audit(event, payload, audit_log.CARD_UNDONE, user_id, state)
             await _say(event, f"Put back: {payload['label'].lower()} undone.")
             return payload
         if state == DONE:
@@ -756,6 +766,22 @@ async def settle(
         raise ActionError("Nothing to undo.")
 
     raise ActionError("Not a thing to do with a proposal.")
+
+
+async def _audit(
+    event: Any, payload: dict[str, Any], action: str, user_id: int, was: str
+) -> None:
+    """One audit row per press on a card (KAN-160). Never raises."""
+    await audit_log.record(
+        event.organization_id,
+        action=action,
+        subject_kind="card",
+        subject_id=event.id,
+        subject=str(payload.get("label") or payload.get("action") or "")[:255],
+        actor_user_id=user_id,
+        before={"state": was},
+        after={"state": payload.get("state"), "action": payload.get("action")},
+    )
 
 
 # --- the job ---------------------------------------------------------------
