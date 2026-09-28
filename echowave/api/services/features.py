@@ -33,6 +33,7 @@ FLAGS: dict[str, str] = {
     "procurement_docs": "PROCUREMENT_DOCS_2026_09_ENABLED",
     "decibyl_long_tasks": "DECIBYL_LONG_TASKS_ENABLED",
     "decibyl_private_threads": "DECIBYL_PRIVATE_THREADS_ENABLED",
+    "approvals": "APPROVALS_2026_09_ENABLED",
 }
 
 

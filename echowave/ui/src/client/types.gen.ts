@@ -551,6 +551,86 @@ export type AppendTextChatMessageRequest = {
 };
 
 /**
+ * ApprovalRuleIn
+ */
+export type ApprovalRuleIn = {
+    /**
+     * Subject
+     */
+    subject?: string;
+    /**
+     * Min Amount Paise
+     */
+    min_amount_paise?: number | null;
+    /**
+     * Max Amount Paise
+     */
+    max_amount_paise?: number | null;
+    /**
+     * Approver Role
+     */
+    approver_role?: string | null;
+    /**
+     * Approver User Id
+     */
+    approver_user_id?: number | null;
+};
+
+/**
+ * ApprovalRuleOut
+ */
+export type ApprovalRuleOut = {
+    /**
+     * Subject
+     */
+    subject?: string;
+    /**
+     * Min Amount Paise
+     */
+    min_amount_paise?: number | null;
+    /**
+     * Max Amount Paise
+     */
+    max_amount_paise?: number | null;
+    /**
+     * Approver Role
+     */
+    approver_role?: string | null;
+    /**
+     * Approver User Id
+     */
+    approver_user_id?: number | null;
+    /**
+     * Id
+     */
+    id?: number | null;
+    /**
+     * Position
+     */
+    position?: number;
+};
+
+/**
+ * ApprovalRulesRequest
+ */
+export type ApprovalRulesRequest = {
+    /**
+     * Rules
+     */
+    rules: Array<ApprovalRuleIn>;
+};
+
+/**
+ * ApprovalRulesResponse
+ */
+export type ApprovalRulesResponse = {
+    /**
+     * Rules
+     */
+    rules: Array<ApprovalRuleOut>;
+};
+
+/**
  * ApproveRequest
  */
 export type ApproveRequest = {
@@ -638,6 +718,66 @@ export type Attribution = {
      * License
      */
     license: string;
+};
+
+/**
+ * AuditEntryOut
+ */
+export type AuditEntryOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * At
+     */
+    at: string | null;
+    /**
+     * Actor
+     */
+    actor: string;
+    /**
+     * Actor User Id
+     */
+    actor_user_id: number | null;
+    /**
+     * Action
+     */
+    action: string;
+    /**
+     * Subject Kind
+     */
+    subject_kind: string;
+    /**
+     * Subject Id
+     */
+    subject_id: string | null;
+    /**
+     * Subject
+     */
+    subject: string | null;
+    /**
+     * Before
+     */
+    before?: unknown | null;
+    /**
+     * After
+     */
+    after?: unknown | null;
+    /**
+     * Note
+     */
+    note: string | null;
+};
+
+/**
+ * AuditResponse
+ */
+export type AuditResponse = {
+    /**
+     * Entries
+     */
+    entries: Array<AuditEntryOut>;
 };
 
 /**
@@ -31885,6 +32025,182 @@ export type SavePreferencesApiV1OrganizationsPreferencesPutResponses = {
 };
 
 export type SavePreferencesApiV1OrganizationsPreferencesPutResponse = SavePreferencesApiV1OrganizationsPreferencesPutResponses[keyof SavePreferencesApiV1OrganizationsPreferencesPutResponses];
+
+export type GetApprovalRulesApiV1OrganizationsApprovalRulesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations/approval-rules';
+};
+
+export type GetApprovalRulesApiV1OrganizationsApprovalRulesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetApprovalRulesApiV1OrganizationsApprovalRulesGetError = GetApprovalRulesApiV1OrganizationsApprovalRulesGetErrors[keyof GetApprovalRulesApiV1OrganizationsApprovalRulesGetErrors];
+
+export type GetApprovalRulesApiV1OrganizationsApprovalRulesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ApprovalRulesResponse;
+};
+
+export type GetApprovalRulesApiV1OrganizationsApprovalRulesGetResponse = GetApprovalRulesApiV1OrganizationsApprovalRulesGetResponses[keyof GetApprovalRulesApiV1OrganizationsApprovalRulesGetResponses];
+
+export type SaveApprovalRulesApiV1OrganizationsApprovalRulesPutData = {
+    body: ApprovalRulesRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations/approval-rules';
+};
+
+export type SaveApprovalRulesApiV1OrganizationsApprovalRulesPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveApprovalRulesApiV1OrganizationsApprovalRulesPutError = SaveApprovalRulesApiV1OrganizationsApprovalRulesPutErrors[keyof SaveApprovalRulesApiV1OrganizationsApprovalRulesPutErrors];
+
+export type SaveApprovalRulesApiV1OrganizationsApprovalRulesPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: ApprovalRulesResponse;
+};
+
+export type SaveApprovalRulesApiV1OrganizationsApprovalRulesPutResponse = SaveApprovalRulesApiV1OrganizationsApprovalRulesPutResponses[keyof SaveApprovalRulesApiV1OrganizationsApprovalRulesPutResponses];
+
+export type GetAuditApiV1OrganizationsAuditGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Since
+         */
+        since?: string | null;
+        /**
+         * Until
+         */
+        until?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/organizations/audit';
+};
+
+export type GetAuditApiV1OrganizationsAuditGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAuditApiV1OrganizationsAuditGetError = GetAuditApiV1OrganizationsAuditGetErrors[keyof GetAuditApiV1OrganizationsAuditGetErrors];
+
+export type GetAuditApiV1OrganizationsAuditGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: AuditResponse;
+};
+
+export type GetAuditApiV1OrganizationsAuditGetResponse = GetAuditApiV1OrganizationsAuditGetResponses[keyof GetAuditApiV1OrganizationsAuditGetResponses];
+
+export type GetAuditCsvApiV1OrganizationsAuditCsvGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Since
+         */
+        since?: string | null;
+        /**
+         * Until
+         */
+        until?: string | null;
+    };
+    url: '/api/v1/organizations/audit.csv';
+};
+
+export type GetAuditCsvApiV1OrganizationsAuditCsvGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAuditCsvApiV1OrganizationsAuditCsvGetError = GetAuditCsvApiV1OrganizationsAuditCsvGetErrors[keyof GetAuditCsvApiV1OrganizationsAuditCsvGetErrors];
+
+export type GetAuditCsvApiV1OrganizationsAuditCsvGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
 
 export type ListTelephonyConfigurationsApiV1OrganizationsTelephonyConfigsGetData = {
     body?: never;

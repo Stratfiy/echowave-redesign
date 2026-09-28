@@ -6471,6 +6471,72 @@ class AdminActionLogModel(Base):
     )
 
 
+class ApprovalRuleModel(Base):
+    """One line of a workspace's approval matrix (KAN-160, E-1).
+
+    Who must approve what: ``subject`` is a register kind (purchase_order,
+    tax_invoice, ...), ``card`` for a proposed action, ``decision`` for a
+    bot's question, or ``*``; the amount band is in paise and either end
+    may be open; the approver is a role (admin, owner) or one member.
+    Rules are read in ``position`` order and the first match decides.
+    """
+
+    __tablename__ = "approval_rules"
+
+    id = Column(Integer, primary_key=True)
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    subject = Column(String(32), nullable=False)
+    min_amount_paise = Column(BigInteger, nullable=True)
+    max_amount_paise = Column(BigInteger, nullable=True)
+    approver_role = Column(String(16), nullable=True)
+    approver_user_id = Column(Integer, nullable=True)
+    position = Column(Integer, nullable=False, default=0, server_default=text("0"))
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+
+class AuditEntryModel(Base):
+    """One act on something that matters, as it happened (KAN-160, E-1).
+
+    Append-only: nothing updates or deletes a row, which is what makes it an
+    audit log rather than a table. ``before`` and ``after`` are bounded JSON
+    of the part that changed. Its own table, not ``admin_action_log``: that
+    one records staff acting on customers; this one records the customer's
+    own people acting in their workspace, and is theirs to export.
+    """
+
+    __tablename__ = "audit_entries"
+
+    id = Column(Integer, primary_key=True)
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        index=True,
+    )
+    actor_user_id = Column(Integer, nullable=True)
+    actor = Column(String(120), nullable=False)
+    action = Column(String(48), nullable=False)
+    subject_kind = Column(String(32), nullable=False)
+    subject_id = Column(String(64), nullable=True)
+    subject = Column(String(255), nullable=True)
+    before = Column(JSON, nullable=True)
+    after = Column(JSON, nullable=True)
+    note = Column(String(500), nullable=True)
+
+
 class SandboxJobModel(Base):
     """One script a bot ran in the sandbox (Step 20).
 

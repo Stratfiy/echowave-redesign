@@ -663,6 +663,14 @@ WEB_FETCH_MAX_CHARS = int(os.getenv("WEB_FETCH_MAX_CHARS", "12000"))
 DECIBYL_PRIVATE_THREADS_ENABLED = (
     os.getenv("DECIBYL_PRIVATE_THREADS_ENABLED", "false").lower() == "true"
 )
+# KAN-160 (E-1): the approval matrix. Off, any member confirms any card,
+# answers any question, and a document moves to issued unchecked -- what
+# every workspace had. On, a workspace's rules (who must approve what, by
+# subject and amount band) are checked at those three moments, and the
+# rules and the audit log get their routes.
+APPROVALS_2026_09_ENABLED = (
+    os.getenv("APPROVALS_2026_09_ENABLED", "false").lower() == "true"
+)
 WEB_FETCH_PER_DOMAIN_PER_MINUTE = int(
     os.getenv("WEB_FETCH_PER_DOMAIN_PER_MINUTE", "10")
 )

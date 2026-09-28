@@ -1,6 +1,8 @@
+from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from loguru import logger
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
@@ -40,6 +42,7 @@ from api.schemas.telephony_phone_number import (
     PhoneNumberUpdateRequest,
     ProviderSyncStatus,
 )
+from api.services import features
 from api.services.auth.depends import (
     get_user,
     get_user_with_selected_organization,
@@ -93,6 +96,7 @@ from api.services.telephony import registry as telephony_registry
 from api.services.telephony.factory import get_telephony_provider_by_id
 from api.services.worker_sync.manager import get_worker_sync_manager
 from api.services.worker_sync.protocol import WorkerSyncEventType
+from api.services.workflow import approvals, audit_log
 from api.utils.common import get_backend_endpoints
 
 router = APIRouter(prefix="/organizations", tags=["organizations"])
@@ -625,9 +629,159 @@ async def save_preferences(
     organization_id = user.selected_organization_id
     # Staff-only fields stay as stored, whatever the request says.
     existing = await get_organization_preferences(organization_id)
-    return await upsert_organization_preferences(
+    saved = await upsert_organization_preferences(
         organization_id,
         with_staff_fields(request, existing),
+    )
+    was = existing.model_dump(mode="json", exclude_none=True)
+    now = saved.model_dump(mode="json", exclude_none=True)
+    changed = sorted(k for k in set(was) | set(now) if was.get(k) != now.get(k))
+    if changed:
+        await audit_log.record(
+            organization_id,
+            action=audit_log.PREFERENCES_SAVED,
+            subject_kind="preferences",
+            actor_user_id=user.id,
+            before={k: was.get(k) for k in changed},
+            after={k: now.get(k) for k in changed},
+        )
+    return saved
+
+
+# --- the approval matrix and the audit log (KAN-160, E-1) -------------------
+
+
+class ApprovalRuleIn(BaseModel):
+    subject: str = "*"
+    min_amount_paise: int | None = None
+    max_amount_paise: int | None = None
+    approver_role: str | None = None
+    approver_user_id: int | None = None
+
+
+class ApprovalRuleOut(ApprovalRuleIn):
+    id: int | None = None
+    position: int = 0
+
+
+class ApprovalRulesRequest(BaseModel):
+    rules: List[ApprovalRuleIn]
+
+
+class ApprovalRulesResponse(BaseModel):
+    rules: List[ApprovalRuleOut]
+
+
+@router.get(
+    "/approval-rules",
+    response_model=ApprovalRulesResponse,
+    dependencies=[Depends(features.require("approvals"))],
+)
+async def get_approval_rules(
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
+):
+    """The workspace's approval matrix, in the order it is read (KAN-160)."""
+    rules = await approvals.rules_of(user.selected_organization_id)
+    return {"rules": [r.as_dict() for r in rules]}
+
+
+@router.put(
+    "/approval-rules",
+    response_model=ApprovalRulesResponse,
+    dependencies=[Depends(features.require("approvals"))],
+)
+async def save_approval_rules(
+    request: ApprovalRulesRequest,
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
+):
+    """Replace the matrix with these rules, in this order. A rule that
+    cannot be read is refused with what is wrong and nothing is changed."""
+    organization_id = user.selected_organization_id
+    before = [r.as_dict() for r in await approvals.rules_of(organization_id)]
+    rules = await approvals.save_rules(
+        organization_id, [r.model_dump() for r in request.rules]
+    )
+    after = [r.as_dict() for r in rules]
+    await audit_log.record(
+        organization_id,
+        action=audit_log.RULES_SAVED,
+        subject_kind="approval_rules",
+        actor_user_id=user.id,
+        before=before,
+        after=after,
+    )
+    return {"rules": after}
+
+
+class AuditEntryOut(BaseModel):
+    id: int
+    at: str | None
+    actor: str
+    actor_user_id: int | None
+    action: str
+    subject_kind: str
+    subject_id: str | None
+    subject: str | None
+    before: object | None = None
+    after: object | None = None
+    note: str | None
+
+
+class AuditResponse(BaseModel):
+    entries: List[AuditEntryOut]
+
+
+def _window(
+    since: str | None, until: str | None
+) -> tuple[datetime | None, datetime | None]:
+    def parse(value: str | None, name: str) -> datetime | None:
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            raise HTTPException(
+                status_code=400, detail=f"{name} must be an ISO date or datetime."
+            ) from None
+
+    return parse(since, "since"), parse(until, "until")
+
+
+@router.get(
+    "/audit",
+    response_model=AuditResponse,
+    dependencies=[Depends(features.require("approvals"))],
+)
+async def get_audit(
+    since: str | None = Query(default=None),
+    until: str | None = Query(default=None),
+    limit: int = Query(default=500, ge=1, le=5000),
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
+):
+    """Who did what, newest first, inside the window (KAN-160)."""
+    a, b = _window(since, until)
+    rows = await audit_log.rows(
+        user.selected_organization_id, since=a, until=b, limit=limit
+    )
+    return {"entries": [audit_log.as_dict(r) for r in rows]}
+
+
+@router.get(
+    "/audit.csv",
+    dependencies=[Depends(features.require("approvals"))],
+)
+async def get_audit_csv(
+    since: str | None = Query(default=None),
+    until: str | None = Query(default=None),
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
+):
+    """The same, as a file an auditor opens in a spreadsheet."""
+    a, b = _window(since, until)
+    rows = await audit_log.rows(user.selected_organization_id, since=a, until=b)
+    return Response(
+        content=audit_log.as_csv(rows),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="audit.csv"'},
     )
 
 
