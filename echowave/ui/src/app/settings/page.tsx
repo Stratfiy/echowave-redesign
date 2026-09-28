@@ -2,6 +2,7 @@
 
 import { ExternalLink } from "lucide-react";
 
+import { ApprovalsSection } from "@/components/ApprovalsSection";
 import { CredentialsSection } from "@/components/CredentialsSection";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { MCPSection } from "@/components/MCPSection";
@@ -22,6 +23,7 @@ import { useFeature } from "@/lib/features";
 
 export default function SettingsPage() {
   const shell = useFeature("shell");
+  const approvals = useFeature("approvals");
   // Several cards on this page hold editable state — preferences, telemetry
   // credentials — and until this wrapper existed, clicking away from a
   // half-filled form discarded it without a word. The provider is the same one
@@ -75,6 +77,22 @@ export default function SettingsPage() {
             <OrganizationMembersSection />
           </CardContent>
         </Card>
+
+        {approvals && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Approvals</CardTitle>
+              <CardDescription>
+                Who must approve what: a card, an agent&apos;s question, or a
+                document going out, by kind and amount. And the record of who
+                did.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ApprovalsSection />
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>
