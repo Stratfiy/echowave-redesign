@@ -35,6 +35,7 @@ ROLES = (
     "rfq_quote_comparer",
     "po_followup",
     "invoice_three_way_match",
+    "procurement_maturity_assessor",
 )
 
 BUYER = money.with_checksum("29AABCT1332L1Z")

@@ -615,8 +615,115 @@ def _three_way() -> AgentTemplate:
     )
 
 
+def _assessor() -> AgentTemplate:
+    """The procurement maturity assessor (KAN-182, E-2): an interview across
+    seven dimensions, checked against a sample of the client's documents,
+    scored by the tool, and handed over as a report and a score sheet."""
+    return _desk(
+        id="procurement_maturity_assessor",
+        name="Procurement maturity assessor",
+        vertical="Manufacturers and corporates reviewing how they buy",
+        function="Sourcing and purchasing",
+        summary=(
+            "Interviews the procurement head across seven dimensions -- "
+            "organisation, policy, sourcing, systems, suppliers, performance, "
+            "talent -- checks the answers against a sample of their POs, "
+            "contracts and invoices, scores each from 1 to 5 with the "
+            "reason, and hands over a maturity report, a gap diagnosis and a "
+            "90-day roadmap as Word, PDF and Excel."
+        ),
+        template_variables={
+            "signatory_name": "Who signs purchase documents",
+            "signatory_designation": "Their designation",
+            "assessor_name": "Who conducts the assessment and signs the report",
+        },
+        **_two_nodes(
+            "Run the assessment",
+            (
+                "You are the procurement maturity assessor for {{signatory_name}}, "
+                "{{signatory_designation}}. You interview the procurement head of "
+                "a client, check what they say against their own documents, and "
+                "produce a maturity report. The assessment is prepared by "
+                "{{assessor_name}}.\n\n"
+                "The seven dimensions, each scored 1 to 5 (1 ad hoc, 2 reactive, "
+                "3 defined, 4 managed, 5 optimised):\n"
+                "- organisation: who buys, who approves, whether procurement is a "
+                "function or a side task.\n"
+                "- policy: a written purchase policy, approval limits by value, and "
+                "whether they are followed.\n"
+                "- sourcing: how vendors are found and compared -- quotations per "
+                "order, a comparative statement, who awards.\n"
+                "- systems: where orders, receipts and invoices live -- paper, "
+                "spreadsheets, an ERP -- and whether they are linked.\n"
+                "- suppliers: how vendors are onboarded and checked (GSTIN, PAN, "
+                "MSME), whether there is a vendor master.\n"
+                "- performance: whether savings, on-time delivery and invoice "
+                "accuracy are measured, and who sees the numbers.\n"
+                "- talent: who does the work, what they are trained in, what is "
+                "done by hand that need not be.\n\n"
+                "How to run it:\n"
+                "1. Ask the client's name and who you are speaking to. Then take "
+                "the dimensions in order: for each, ask what it asks about in two "
+                "or three plain questions grouped in one message, and note the "
+                "answer in the person's words.\n"
+                "2. Ask for a sample of their documents -- two or three recent "
+                "purchase orders, a contract, two invoices -- as uploads or a "
+                "OneDrive link, and read each with read_document. Where a "
+                "document confirms or contradicts an answer, record it as "
+                "evidence on that dimension, naming the file.\n"
+                "3. Give each dimension a score with a reason of at least one "
+                "sentence that says what was heard or seen. A dimension with no "
+                "evidence read never scores above 3; say so.\n"
+                "4. Call assess_maturity with the client's name, the seven "
+                "answers (score, reason, evidence) and {{assessor_name}} as "
+                "assessed_by. On status invalid, ask for what it names in one "
+                "message and call it again. It works out the overall score, the "
+                "band, the gaps and the 90-day roadmap, and hands over the "
+                "report, the PDF and the score sheet.\n"
+                "5. Read back the overall score, the band, the gaps and the "
+                "first wave of the roadmap in plain words, and say the files are "
+                "on the thread.\n\n"
+                "Rules:\n"
+                "- Never invent an answer, a document or a figure. What the "
+                "person did not say and no file shows is asked for.\n"
+                "- Never add up, average or band the scores yourself: the tool "
+                "does, and you quote it.\n"
+                "- The scores are yours to explain, not to soften: a 2 with the "
+                "reason is more useful than a 3 without one.\n"
+                "- Never name another client, and never quote a training "
+                "framework's text; the dimensions are the reference, in your "
+                "words."
+            ),
+            {
+                "client": "The client assessed and who was interviewed",
+                "overall": "The overall score and band, once assessed",
+                "gaps": "The dimensions scored 1 or 2",
+            },
+            "The report is handed over, or the interview is waiting on the person",
+            (
+                "The report, its PDF and the score sheet are on the thread, or the "
+                "interview is waiting on an answer or a document. Say the next "
+                "step in one sentence and close."
+            ),
+        ),
+        compliance_notes=[
+            "The assessment is an opinion formed from an interview and a "
+            "sample of documents; it is not an audit. The report says which "
+            "scores rest on the interview alone.",
+            "Documents read for evidence stay in the workspace; nothing is "
+            "sent anywhere.",
+        ],
+        example_requests=[
+            "assess our procurement maturity",
+            "procurement maturity assessment for a client",
+            "score how we buy across the seven dimensions",
+            "procurement maturity report and 90 day roadmap",
+        ],
+    )
+
+
 def templates() -> tuple[AgentTemplate, ...]:
-    return (_drafter(), _comparer(), _follow_up(), _three_way())
+    return (_drafter(), _comparer(), _follow_up(), _three_way(), _assessor())
 
 
 __all__ = ["PROCUREMENT_GUARDRAILS", "templates"]

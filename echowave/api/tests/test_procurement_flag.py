@@ -2,7 +2,7 @@
 
 Off, no agent is offered a document tool, Decibyl's rules do not mention
 them, its thread filter is unchanged and the routes are a 404. On, Decibyl
-and every text agent get all seven, each named in the rules, and the thread
+and every text agent get all of them, each named in the rules, and the thread
 shows what they hand over. The routes serve only this workspace's files.
 """
 
@@ -47,7 +47,7 @@ class TestDecibyl:
         assert decibyl.system_prompt() == decibyl.SYSTEM
         assert AgentEventKind.DELIVERABLE.value not in decibyl.thread_filter()["kinds"]
 
-    def test_on_it_has_all_seven_each_with_a_rule(self, on):
+    def test_on_it_has_all_of_them_each_with_a_rule(self, on):
         assert _names(decibyl.office_tools()) >= set(tools.NAMES)
         prompt = decibyl.system_prompt()
         missing = [t["name"] for t in decibyl.office_tools() if t["name"] not in prompt]
@@ -112,7 +112,7 @@ class TestAgents:
     async def test_off_no_agent_is_offered_them(self, off):
         assert not (await self._functions(voice=False) & set(tools.NAMES))
 
-    async def test_on_a_text_agent_is_offered_all_seven(self, on):
+    async def test_on_a_text_agent_is_offered_all_of_them(self, on):
         assert await self._functions(voice=False) >= set(tools.NAMES)
 
     async def test_on_a_voice_agent_is_not(self, on):

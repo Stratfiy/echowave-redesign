@@ -43,6 +43,7 @@ from api.services.documents import (
     convert,
     formats,
     matching,
+    maturity,
     money,
     reading,
     register,
@@ -61,8 +62,19 @@ SAVE_ATTACHMENT = "save_email_attachment"
 UPDATE = "update_register"
 LIST = "list_register"
 MATCH = "match_invoice"
+ASSESS = "assess_maturity"
 
-NAMES = (LIST_FIELDS, DRAFT, SPREADSHEET, READ, SAVE_ATTACHMENT, UPDATE, LIST, MATCH)
+NAMES = (
+    LIST_FIELDS,
+    DRAFT,
+    SPREADSHEET,
+    READ,
+    SAVE_ATTACHMENT,
+    UPDATE,
+    LIST,
+    MATCH,
+    ASSESS,
+)
 #: Tools that leave the model its tools for the next round on Decibyl's
 #: thread: nothing was handed over yet, the model is still working.
 READS = frozenset({LIST_FIELDS, READ, LIST, SAVE_ATTACHMENT, MATCH})
@@ -92,7 +104,11 @@ RULES = (
     "number gives that document's ordered lines. match_invoice checks a "
     "vendor invoice against its PO and what was received (the three-way "
     "match), or a receipt against its PO; pass the figures as read and use "
-    "its verdict rather than your own arithmetic.\n"
+    "its verdict rather than your own arithmetic. assess_maturity takes the "
+    "seven procurement maturity scores (1 to 5, each with the reason heard "
+    "or read) and produces the report (Word and PDF) and the Excel score "
+    "sheet with the overall band, the gaps and a 90-day roadmap; never add "
+    "up or band the scores yourself.\n"
 )
 
 
@@ -342,6 +358,40 @@ def schemas() -> list[dict[str, Any]]:
                     "price_tolerance_pct": {"type": "number"},
                     "quantity_tolerance_pct": {"type": "number"},
                 },
+            },
+        },
+        {
+            "name": ASSESS,
+            "description": (
+                "Score a procurement maturity assessment and produce its report. "
+                "Give the client's name and, for each of the seven dimensions "
+                f"({', '.join(maturity.KEYS)}), a score from 1 to 5 with the reason "
+                "heard in the interview and, where a document was read, the evidence. "
+                "It works out the overall score, the band, the gaps and the 90-day "
+                "roadmap, and hands over the Word report, its PDF and the Excel score "
+                "sheet. Runs now."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "client": {
+                        "type": "string",
+                        "description": "The client being assessed.",
+                    },
+                    "answers": {
+                        "type": "object",
+                        "description": (
+                            "One entry per dimension key, each {score: 1-5, reason: what "
+                            "was heard or seen, evidence: the document that confirms it, "
+                            "if any}."
+                        ),
+                    },
+                    "assessed_by": {
+                        "type": "string",
+                        "description": "Who prepared the assessment, for the report.",
+                    },
+                },
+                "required": ["client", "answers"],
             },
         },
     ]
@@ -1197,6 +1247,122 @@ async def match_invoice(
     }
 
 
+async def assess_maturity(
+    organization_id: int,
+    arguments: dict[str, Any],
+    *,
+    workflow_id: int | None = None,
+    workflow_run_id: int | None = None,
+) -> dict[str, Any]:
+    """The maturity report, its PDF and the score sheet, filed in the
+    register under kind other and handed over on the thread."""
+    from api.db import db_client
+
+    try:
+        result = maturity.assess(arguments.get("client"), arguments.get("answers"))
+    except maturity.AssessmentError as exc:
+        return {
+            "status": "invalid",
+            "error": str(exc),
+            "note": "Nothing was produced. Ask the person for what is missing, in one message.",
+        }
+    assessed_by = str(arguments.get("assessed_by") or "").strip()[:120]
+    issued = register.today()
+    async with db_client.async_session() as session:
+        row = await register.create(
+            session,
+            organization_id=organization_id,
+            kind="other",
+            issue_date=issued,
+            workflow_id=workflow_id,
+            counterparty_name=result.client,
+            reference=f"Procurement maturity assessment: {result.client}"[:255],
+            status="draft",
+            data={"assessment": result.as_dict(), "assessed_by": assessed_by},
+        )
+        await session.commit()
+        row_id, number = row.id, row.number
+
+    stem = _file_stem(number)
+    try:
+        docx_bytes = maturity.report_docx(
+            result, assessed_by=assessed_by, on=issued.isoformat()
+        )
+        pdf_bytes = await convert.to_pdf(docx_bytes, filename=f"{stem}.docx")
+        xlsx_bytes = spreadsheet.build_workbook(
+            f"Maturity scores {result.client}", maturity.score_sheets(result)
+        )
+        docx_key = register.storage_key(organization_id, row_id, f"{stem}.docx")
+        pdf_key = register.storage_key(organization_id, row_id, f"{stem}.pdf")
+        xlsx_key = register.storage_key(organization_id, row_id, f"{stem} scores.xlsx")
+        await _put(docx_key, docx_bytes)
+        await _put(pdf_key, pdf_bytes)
+        await _put(xlsx_key, xlsx_bytes)
+    except Exception as exc:  # noqa: BLE001 - the number is accounted for below
+        logger.error(
+            "Could not produce the assessment files for {} (org {}): {}",
+            number,
+            organization_id,
+            exc,
+        )
+        async with db_client.async_session() as session:
+            failed = await register.get(
+                session, organization_id=organization_id, register_id=row_id
+            )
+            if failed is not None:
+                failed.status = "cancelled"
+                failed.data = {
+                    **(failed.data or {}),
+                    "failure": "The files could not be produced.",
+                }
+                await session.commit()
+        return {
+            "status": "error",
+            "error": f"{number} was numbered but its files could not be produced; try again.",
+        }
+
+    async with db_client.async_session() as session:
+        row = await register.get(
+            session, organization_id=organization_id, register_id=row_id
+        )
+        row.docx_key, row.pdf_key, row.xlsx_key = docx_key, pdf_key, xlsx_key
+        row.status = "issued"
+        await session.commit()
+
+    summary = (
+        f"Maturity assessment for {result.client}: {result.overall} of 5, "
+        f"{result.band} ({number})"
+    )
+    await _hand_over(
+        organization_id=organization_id,
+        summary=summary,
+        attachments=[
+            attachment(row_id, "pdf", f"{stem}.pdf", len(pdf_bytes)),
+            attachment(row_id, "docx", f"{stem}.docx", len(docx_bytes)),
+            attachment(row_id, "xlsx", f"{stem} scores.xlsx", len(xlsx_bytes)),
+        ],
+        entry={
+            "register_id": row_id,
+            "number": number,
+            "kind": "other",
+            "status": "issued",
+        },
+        workflow_id=workflow_id,
+        workflow_run_id=workflow_run_id,
+    )
+    return {
+        "status": "success",
+        "register_id": row_id,
+        "number": number,
+        **result.as_dict(),
+        "files": [
+            {"filename": f"{stem}.pdf", "url": await _link(pdf_key)},
+            {"filename": f"{stem}.docx", "url": await _link(docx_key)},
+            {"filename": f"{stem} scores.xlsx", "url": await _link(xlsx_key)},
+        ],
+    }
+
+
 async def run(
     name: str,
     *,
@@ -1248,6 +1414,13 @@ async def run(
             result = await list_register(organization_id, arguments)
         elif name == MATCH:
             result = await match_invoice(organization_id, arguments)
+        elif name == ASSESS:
+            result = await assess_maturity(
+                organization_id,
+                arguments,
+                workflow_id=workflow_id,
+                workflow_run_id=workflow_run_id,
+            )
         else:
             return {"status": "unavailable", "reason": "no such tool"}
     except sources.SourceError as exc:
