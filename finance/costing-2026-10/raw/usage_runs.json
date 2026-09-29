@@ -1,0 +1,4451 @@
+{
+ "runs": [
+  {
+   "id": 418,
+   "workflow_id": 30,
+   "workflow_name": "Inbox Brief v2",
+   "name": "ROUTINE-Inbox Brief v2",
+   "created_at": "2026-09-29T02:30:16.139224+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 17,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 417,
+   "workflow_id": 3,
+   "workflow_name": "Meera \u2014 Decibyl Sales Assistant",
+   "name": "Embed Run - 2026-09-28T04:50:13.516854+00:00",
+   "created_at": "2026-09-28T04:50:13.566632+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 0,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": null,
+   "transcript_public_url": null,
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": null,
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": null,
+   "call_outcomes": null,
+   "initial_context": {
+    "provider": "smallwebrtc"
+   },
+   "gathered_context": {},
+   "charge_usd": null
+  },
+  {
+   "id": 416,
+   "workflow_id": 30,
+   "workflow_name": "Inbox Brief v2",
+   "name": "ROUTINE-Inbox Brief v2",
+   "created_at": "2026-09-28T02:30:15.981797+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 20,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 414,
+   "workflow_id": 30,
+   "workflow_name": "Inbox Brief v2",
+   "name": "ROUTINE-Inbox Brief v2",
+   "created_at": "2026-09-25T02:30:16.092730+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 7,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "interested"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 413,
+   "workflow_id": 30,
+   "workflow_name": "Inbox Brief v2",
+   "name": "ROUTINE-Inbox Brief v2",
+   "created_at": "2026-09-24T02:30:15.997061+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 7,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 412,
+   "workflow_id": 38,
+   "workflow_name": "Elock Support \u2014 Kriti Labs",
+   "name": "WR-7930",
+   "created_at": "2026-09-23T17:45:58.500918+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 22,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "no_answer"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "stt_provider": "deepgram",
+     "stt_model": "flux-general-multi",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_flash_v2_5",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start Call"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 411,
+   "workflow_id": 38,
+   "workflow_name": "Elock Support \u2014 Kriti Labs",
+   "name": "WR-4297",
+   "created_at": "2026-09-23T17:23:50.575066+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 63,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "no_answer"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "stt_provider": "deepgram",
+     "stt_model": "flux-general-multi",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_flash_v2_5",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start Call"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 410,
+   "workflow_id": 3,
+   "workflow_name": "Meera \u2014 Decibyl Sales Assistant",
+   "name": "WR-TEL-IN-96483673",
+   "created_at": "2026-09-23T07:05:48.540916+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 15,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": "<redacted>",
+   "caller_number": "<redacted>",
+   "called_number": "<redacted>",
+   "call_type": "inbound",
+   "mode": "plivo",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "no_answer"
+   ],
+   "initial_context": {
+    "caller_number": "+917075701878",
+    "called_number": "+918035302788",
+    "direction": "inbound",
+    "provider": "plivo",
+    "telephony_configuration_id": 1,
+    "runtime_configuration": {
+     "stt_provider": "deepgram",
+     "stt_model": "flux-general-multi",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_flash_v2_5",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "call_id": "2f6319ce-ac0b-486d-b258-8d3d92525a14",
+    "nodes_visited": [
+     "Start Call"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 409,
+   "workflow_id": 3,
+   "workflow_name": "Meera \u2014 Decibyl Sales Assistant",
+   "name": "WR-TEL-IN-21196168",
+   "created_at": "2026-09-23T07:05:42.178233+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 1,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": "<redacted>",
+   "caller_number": "<redacted>",
+   "called_number": "<redacted>",
+   "call_type": "inbound",
+   "mode": "plivo",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "no_answer"
+   ],
+   "initial_context": {
+    "caller_number": "+917075701878",
+    "called_number": "+918035302788",
+    "direction": "inbound",
+    "provider": "plivo",
+    "telephony_configuration_id": 1,
+    "runtime_configuration": {
+     "stt_provider": "deepgram",
+     "stt_model": "flux-general-multi",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_flash_v2_5",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "call_id": "f1b4533f-6702-4297-86ee-338e1e268252",
+    "nodes_visited": [
+     "Start Call"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 408,
+   "workflow_id": 30,
+   "workflow_name": "Inbox Brief v2",
+   "name": "ROUTINE-Inbox Brief v2",
+   "created_at": "2026-09-23T02:30:15.840503+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 12,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 407,
+   "workflow_id": 3,
+   "workflow_name": "Meera \u2014 Decibyl Sales Assistant",
+   "name": "WR-5231",
+   "created_at": "2026-09-22T17:33:44.907797+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 113,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "booked"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "stt_provider": "deepgram",
+     "stt_model": "flux-general-multi",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_flash_v2_5",
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start Call"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech",
+     "stuck_in_first_node"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 406,
+   "workflow_id": 38,
+   "workflow_name": "Elock Support \u2014 Kriti Labs",
+   "name": "WR-1619",
+   "created_at": "2026-09-22T17:33:01.085998+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 35,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "stt_provider": "deepgram",
+     "stt_model": "flux-general-multi",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_flash_v2_5",
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start Call"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 405,
+   "workflow_id": 43,
+   "workflow_name": "Outbound Prospecting (sample)",
+   "name": "CHAT-Outbound Prospecting (sample)",
+   "created_at": "2026-09-22T05:39:06.254405+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 14,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start Call"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 404,
+   "workflow_id": 43,
+   "workflow_name": "Outbound Prospecting (sample)",
+   "name": "CHAT-Outbound Prospecting (sample)",
+   "created_at": "2026-09-22T05:39:05.748113+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 1,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": null,
+   "transcript_public_url": null,
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": null,
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": null,
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "anthropic",
+     "llm_model": "claude-haiku-4-5"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start Call"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 403,
+   "workflow_id": 42,
+   "workflow_name": "Web check (verification)",
+   "name": "CHAT-Web check (verification)",
+   "created_at": "2026-09-22T05:39:04.327540+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 4,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": null,
+   "transcript_public_url": null,
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": null,
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "interested"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "anthropic",
+     "llm_model": "claude-opus-5"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Web check"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 402,
+   "workflow_id": 43,
+   "workflow_name": "Outbound Prospecting (sample)",
+   "name": "probe bots own",
+   "created_at": "2026-09-22T05:38:01.984188+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 4,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": null,
+   "transcript_public_url": null,
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": null,
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": null,
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start Call"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 401,
+   "workflow_id": 43,
+   "workflow_name": "Outbound Prospecting (sample)",
+   "name": "probe openai",
+   "created_at": "2026-09-22T05:36:23.428526+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 4,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": null,
+   "transcript_public_url": null,
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": null,
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": null,
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start Call"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 400,
+   "workflow_id": 42,
+   "workflow_name": "Web check (verification)",
+   "name": "probe anthropic",
+   "created_at": "2026-09-22T05:36:14.669387+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 7,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": null,
+   "transcript_public_url": null,
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": null,
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": null,
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Web check"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 399,
+   "workflow_id": 43,
+   "workflow_name": "Outbound Prospecting (sample)",
+   "name": "CHAT-Outbound Prospecting (sample)",
+   "created_at": "2026-09-22T05:07:40.217107+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 2,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "anthropic",
+     "llm_model": "claude-opus-5"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start Call"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 398,
+   "workflow_id": 43,
+   "workflow_name": "Outbound Prospecting (sample)",
+   "name": "CHAT-Outbound Prospecting (sample)",
+   "created_at": "2026-09-22T05:07:10.721497+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 2,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "anthropic",
+     "llm_model": "claude-opus-5"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start Call"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 397,
+   "workflow_id": 42,
+   "workflow_name": "Web check (verification)",
+   "name": "serper check",
+   "created_at": "2026-09-22T03:48:53.430723+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 21,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": null,
+   "transcript_public_url": null,
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": null,
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": null,
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Web check"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 396,
+   "workflow_id": 30,
+   "workflow_name": "Inbox Brief v2",
+   "name": "ROUTINE-Inbox Brief v2",
+   "created_at": "2026-09-22T02:30:15.667430+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 14,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 395,
+   "workflow_id": 38,
+   "workflow_name": "Elock Support \u2014 Kriti Labs",
+   "name": "WR-4278",
+   "created_at": "2026-09-21T15:47:48.930429+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 55,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "interested"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "stt_provider": "deepgram",
+     "stt_model": "flux-general-multi",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_flash_v2_5",
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start Call"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 394,
+   "workflow_id": 30,
+   "workflow_name": "Inbox Brief v2",
+   "name": "ROUTINE-Inbox Brief v2",
+   "created_at": "2026-09-21T02:30:15.710562+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 6,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 393,
+   "workflow_id": 3,
+   "workflow_name": "Meera \u2014 Decibyl Sales Assistant",
+   "name": "Embed Run - 2026-09-20T12:27:02.055641+00:00",
+   "created_at": "2026-09-20T12:27:02.182327+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 0,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": null,
+   "transcript_public_url": null,
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": null,
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": null,
+   "call_outcomes": null,
+   "initial_context": {
+    "provider": "smallwebrtc"
+   },
+   "gathered_context": {},
+   "charge_usd": null
+  },
+  {
+   "id": 391,
+   "workflow_id": 39,
+   "workflow_name": "Clinic front desk",
+   "name": "CHAT-Clinic front desk",
+   "created_at": "2026-09-20T07:17:16.636868+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 5,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start Call"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 390,
+   "workflow_id": 39,
+   "workflow_name": "Clinic front desk",
+   "name": "CHAT-Clinic front desk",
+   "created_at": "2026-09-20T07:16:49.596655+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 5,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "interested"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start Call"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 389,
+   "workflow_id": 39,
+   "workflow_name": "Clinic front desk",
+   "name": "WR-TEL-OUT-81419511",
+   "created_at": "2026-09-20T07:13:43.096869+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 163,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": "<redacted>",
+   "caller_number": "<redacted>",
+   "called_number": "<redacted>",
+   "call_type": "outbound",
+   "mode": "plivo",
+   "disposition": "user_qualified",
+   "call_outcomes": [
+    "booked"
+   ],
+   "initial_context": {
+    "phone_number": "+917893771551",
+    "called_number": "+917893771551",
+    "provider": "plivo",
+    "telephony_configuration_id": 1,
+    "caller_number": "+918035302788",
+    "runtime_configuration": {
+     "stt_provider": "deepgram",
+     "stt_model": "flux-general-multi",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_flash_v2_5",
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "provider": "plivo",
+    "call_id": "46b166db-80a9-493e-bf15-e4c3a62ce66b",
+    "nodes_visited": [
+     "Start Call",
+     "Book appointment",
+     "Close"
+    ],
+    "preferred_day": "Monday 21 September 2026",
+    "preferred_time": "morning",
+    "callback_number": "7893771551",
+    "extracted_variables": {
+     "preferred_day": "Monday 21 September 2026",
+     "preferred_time": "morning",
+     "callback_number": "7893771551",
+     "doctor": null
+    },
+    "doctor": null,
+    "call_disposition": "user_qualified",
+    "mapped_call_disposition": "user_qualified",
+    "call_tags": [
+     "user_qualified",
+     "user_speech"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 388,
+   "workflow_id": 3,
+   "workflow_name": "Meera \u2014 Decibyl Sales Assistant",
+   "name": "Embed Run - 2026-09-20T06:58:50.025388+00:00",
+   "created_at": "2026-09-20T06:58:50.104052+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 5,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "provider": "smallwebrtc",
+    "runtime_configuration": {
+     "stt_provider": "deepgram",
+     "stt_model": "flux-general-multi",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_flash_v2_5",
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start Call"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 387,
+   "workflow_id": 39,
+   "workflow_name": "Clinic front desk",
+   "name": "WR-TEL-OUT-51844931",
+   "created_at": "2026-09-20T06:07:00.221665+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 66,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": "<redacted>",
+   "caller_number": "<redacted>",
+   "called_number": "<redacted>",
+   "call_type": "outbound",
+   "mode": "plivo",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "booked",
+    "interested"
+   ],
+   "initial_context": {
+    "phone_number": "+917075701878",
+    "called_number": "+917075701878",
+    "provider": "plivo",
+    "telephony_configuration_id": 1,
+    "caller_number": "+918035302788",
+    "runtime_configuration": {
+     "stt_provider": "deepgram",
+     "stt_model": "flux-general-multi",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_flash_v2_5",
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "provider": "plivo",
+    "call_id": "63674150-855d-4878-b280-c41c90d7a2f8",
+    "nodes_visited": [
+     "Start Call",
+     "Book appointment"
+    ],
+    "doctor": null,
+    "preferred_day": null,
+    "preferred_time": null,
+    "callback_number": null,
+    "extracted_variables": {
+     "doctor": null,
+     "preferred_day": null,
+     "preferred_time": null,
+     "callback_number": null
+    },
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 386,
+   "workflow_id": 39,
+   "workflow_name": "Clinic front desk",
+   "name": "CHAT-Clinic front desk",
+   "created_at": "2026-09-20T06:06:40.196557+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 5,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start Call"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 385,
+   "workflow_id": 38,
+   "workflow_name": "Elock Support \u2014 Kriti Labs",
+   "name": "CHAT-Elock Support \u2014 Kriti Labs",
+   "created_at": "2026-09-19T13:25:34.019952+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 5,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start Call"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 374,
+   "workflow_id": 34,
+   "workflow_name": "Draft My Replies",
+   "name": "ROUTINE-Morning draft replies",
+   "created_at": "2026-09-17T10:27:45.305013+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 22,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": null,
+   "transcript_public_url": null,
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": null,
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Draft My Replies"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 373,
+   "workflow_id": 34,
+   "workflow_name": "Draft My Replies",
+   "name": "ROUTINE-Morning draft replies",
+   "created_at": "2026-09-17T09:25:24.522818+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 29,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": null,
+   "transcript_public_url": null,
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": null,
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Draft My Replies"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 372,
+   "workflow_id": 33,
+   "workflow_name": "Portfolio Brief",
+   "name": "ROUTINE-Morning portfolio brief",
+   "created_at": "2026-09-17T07:19:05.965090+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 17,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": null,
+   "transcript_public_url": null,
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": null,
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Portfolio Brief"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 371,
+   "workflow_id": 32,
+   "workflow_name": "Inbox Brief v4",
+   "name": "ROUTINE-Morning inbox brief",
+   "created_at": "2026-09-17T05:48:04.364762+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 14,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": null,
+   "transcript_public_url": null,
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": null,
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Inbox Brief v4"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 370,
+   "workflow_id": 31,
+   "workflow_name": "Inbox Brief v3",
+   "name": "ROUTINE-Inbox Brief v3",
+   "created_at": "2026-09-17T05:17:02.959192+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 7,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 369,
+   "workflow_id": 31,
+   "workflow_name": "Inbox Brief v3",
+   "name": "ROUTINE-Inbox Brief v3",
+   "created_at": "2026-09-17T04:53:03.725007+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 5,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "interested"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 368,
+   "workflow_id": 30,
+   "workflow_name": "Inbox Brief v2",
+   "name": "ROUTINE-Inbox Brief v2",
+   "created_at": "2026-09-17T04:29:06.492344+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 5,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "interested"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 367,
+   "workflow_id": 29,
+   "workflow_name": "Inbox Brief",
+   "name": "ROUTINE-Daily inbox brief",
+   "created_at": "2026-09-17T02:03:32.557326+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 5,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 362,
+   "workflow_id": 3,
+   "workflow_name": "Meera \u2014 Decibyl Sales Assistant",
+   "name": "Embed Run - 2026-09-16T08:37:21.544365+00:00",
+   "created_at": "2026-09-16T08:37:21.577294+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 1,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "provider": "smallwebrtc",
+    "runtime_configuration": {
+     "stt_provider": "deepgram",
+     "stt_model": "flux-general-multi",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_flash_v2_5",
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup"
+    ],
+    "nodes_visited": [
+     "Start Call"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 361,
+   "workflow_id": 27,
+   "workflow_name": "Clinic front desk",
+   "name": "WR-6449",
+   "created_at": "2026-09-15T20:07:31.378675+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 18,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "stt_provider": "deepgram",
+     "stt_model": "flux-general-multi",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_flash_v2_5",
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start Call"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 360,
+   "workflow_id": 15,
+   "workflow_name": "Workflow-4597",
+   "name": "CHAT-Workflow-4597",
+   "created_at": "2026-09-15T19:54:12.475627+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 6,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": null,
+   "transcript_public_url": null,
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": null,
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "start call"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 359,
+   "workflow_id": 15,
+   "workflow_name": "Workflow-4597",
+   "name": "CHAT-Workflow-4597",
+   "created_at": "2026-09-15T19:53:35.917993+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 6,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": null,
+   "transcript_public_url": null,
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": null,
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "start call"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 358,
+   "workflow_id": 21,
+   "workflow_name": "Kovai Fertility Centre \u2014 demo",
+   "name": "CHAT-Kovai Fertility Centre \u2014 demo",
+   "created_at": "2026-09-15T19:52:41.834631+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 4,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "not_interested"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 357,
+   "workflow_id": 21,
+   "workflow_name": "Kovai Fertility Centre \u2014 demo",
+   "name": "Embed Run - 2026-09-15T19:48:54.848276+00:00",
+   "created_at": "2026-09-15T19:48:54.858719+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 35,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "no_answer"
+   ],
+   "initial_context": {
+    "provider": "smallwebrtc",
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_flash_v2_5",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 356,
+   "workflow_id": 21,
+   "workflow_name": "Kovai Fertility Centre \u2014 demo",
+   "name": "Embed Run - 2026-09-15T19:48:27.165054+00:00",
+   "created_at": "2026-09-15T19:48:27.183257+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 3,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": null,
+   "transcript_public_url": null,
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": null,
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": null,
+   "initial_context": {
+    "provider": "textchat",
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 355,
+   "workflow_id": 21,
+   "workflow_name": "Kovai Fertility Centre \u2014 demo",
+   "name": "TRIGGER-QATEST log webhook",
+   "created_at": "2026-09-15T19:45:02.572659+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 3,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "no_answer"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 354,
+   "workflow_id": 21,
+   "workflow_name": "Kovai Fertility Centre \u2014 demo",
+   "name": "CHAT-Kovai Fertility Centre \u2014 demo",
+   "created_at": "2026-09-15T19:35:18.963756+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 6,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "interested"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand",
+     "Timings, directions and fees"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 353,
+   "workflow_id": 3,
+   "workflow_name": "Meera \u2014 Decibyl Sales Assistant",
+   "name": "Embed Run - 2026-09-15T18:38:53.835332+00:00",
+   "created_at": "2026-09-15T18:38:53.853675+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 26,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "provider": "smallwebrtc",
+    "runtime_configuration": {
+     "stt_provider": "deepgram",
+     "stt_model": "flux-general-multi",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_flash_v2_5",
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start Call"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 352,
+   "workflow_id": 19,
+   "workflow_name": "Logicorp quote desk",
+   "name": "CHANNEL-Logicorp quote desk",
+   "created_at": "2026-09-15T18:27:56.950038+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 6,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "interested"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand",
+     "Take the shipment details"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 351,
+   "workflow_id": 19,
+   "workflow_name": "Logicorp quote desk",
+   "name": "CHANNEL-Logicorp quote desk",
+   "created_at": "2026-09-15T18:16:43.867668+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 3,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "interested"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 350,
+   "workflow_id": 19,
+   "workflow_name": "Logicorp quote desk",
+   "name": "CHANNEL-Logicorp quote desk",
+   "created_at": "2026-09-15T18:15:54.796227+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 3,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 349,
+   "workflow_id": 3,
+   "workflow_name": "Meera \u2014 Decibyl Sales Assistant",
+   "name": "CHANNEL-Meera \u2014 Decibyl Sales Assistant",
+   "created_at": "2026-09-15T18:15:48.352269+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 7,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start Call"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 348,
+   "workflow_id": 21,
+   "workflow_name": "Kovai Fertility Centre \u2014 demo",
+   "name": "CHAT-Kovai Fertility Centre \u2014 demo",
+   "created_at": "2026-09-15T18:07:40.970993+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 15,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "interested"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 347,
+   "workflow_id": 21,
+   "workflow_name": "Kovai Fertility Centre \u2014 demo",
+   "name": "CHAT-Kovai Fertility Centre \u2014 demo",
+   "created_at": "2026-09-15T18:07:21.738778+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 5,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "interested"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 346,
+   "workflow_id": 26,
+   "workflow_name": "Clinic front desk",
+   "name": "WR-8715",
+   "created_at": "2026-09-15T16:02:58.446762+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 0,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": null,
+   "transcript_public_url": null,
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": null,
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": null,
+   "call_outcomes": null,
+   "initial_context": {},
+   "gathered_context": {},
+   "charge_usd": null
+  },
+  {
+   "id": 345,
+   "workflow_id": 21,
+   "workflow_name": "Kovai Fertility Centre \u2014 demo",
+   "name": "CHAT-Kovai Fertility Centre \u2014 demo",
+   "created_at": "2026-09-14T19:19:16.977905+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 4,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "booked"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 344,
+   "workflow_id": 21,
+   "workflow_name": "Kovai Fertility Centre \u2014 demo",
+   "name": "CHAT-Kovai Fertility Centre \u2014 demo",
+   "created_at": "2026-09-14T19:18:50.902202+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 5,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "interested"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 342,
+   "workflow_id": 21,
+   "workflow_name": "Kovai Fertility Centre \u2014 demo",
+   "name": "CHAT-Kovai Fertility Centre \u2014 demo",
+   "created_at": "2026-09-14T06:35:49.893545+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 4,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "not_interested"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 341,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "CHAT-Narayani Dental front desk",
+   "created_at": "2026-09-14T01:56:07.638228+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 3,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "interested"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 340,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "CHAT-Narayani Dental front desk",
+   "created_at": "2026-09-14T01:55:58.707111+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 4,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 339,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "CHAT-Narayani Dental front desk",
+   "created_at": "2026-09-14T01:26:35.370987+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 3,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "no_answer"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 338,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "CHAT-Narayani Dental front desk",
+   "created_at": "2026-09-14T01:26:01.317627+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 3,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "callback"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 337,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "CHAT-Narayani Dental front desk",
+   "created_at": "2026-09-14T01:25:43.636572+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 4,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": [
+    "no_answer"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 336,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "WR-TEL-OUT-28312632",
+   "created_at": "2026-09-13T17:34:42.666661+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 67,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": "<redacted>",
+   "caller_number": "<redacted>",
+   "called_number": "<redacted>",
+   "call_type": "outbound",
+   "mode": "plivo",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "booked"
+   ],
+   "initial_context": {
+    "phone_number": "+917075701878",
+    "called_number": "+917075701878",
+    "provider": "plivo",
+    "telephony_configuration_id": 1,
+    "caller_number": "+918035302788",
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_flash_v2_5",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "provider": "plivo",
+    "call_id": "748d4d76-1953-4d6d-b2ba-9ef63675db36",
+    "nodes_visited": [
+     "Greet and understand",
+     "Take the booking details"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 335,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "WR-TEL-OUT-10385003",
+   "created_at": "2026-09-13T16:11:31.263763+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 25,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": "<redacted>",
+   "caller_number": "<redacted>",
+   "called_number": "<redacted>",
+   "call_type": "outbound",
+   "mode": "plivo",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "phone_number": "+917075701878",
+    "called_number": "+917075701878",
+    "provider": "plivo",
+    "telephony_configuration_id": 1,
+    "caller_number": "+918035302788",
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_flash_v2_5",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "provider": "plivo",
+    "call_id": "3d027f75-c4e5-4cb5-a561-564493bf3539",
+    "nodes_visited": [
+     "Greet and understand"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 334,
+   "workflow_id": 3,
+   "workflow_name": "Meera \u2014 Decibyl Sales Assistant",
+   "name": "WR-TEL-OUT-99746755",
+   "created_at": "2026-09-13T08:02:06.148260+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 26,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": "<redacted>",
+   "caller_number": "<redacted>",
+   "called_number": "<redacted>",
+   "call_type": "outbound",
+   "mode": "plivo",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "phone_number": "+917075701878",
+    "called_number": "+917075701878",
+    "provider": "plivo",
+    "telephony_configuration_id": 1,
+    "caller_number": "+918035302788",
+    "runtime_configuration": {
+     "stt_provider": "deepgram",
+     "stt_model": "flux-general-multi",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_flash_v2_5",
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "provider": "plivo",
+    "call_id": "4f286f4a-0826-4374-836d-87f612dad158",
+    "nodes_visited": [
+     "Start Call"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 333,
+   "workflow_id": 17,
+   "workflow_name": "Kriti Labs \u2014 e-lock support",
+   "name": "WR-3510",
+   "created_at": "2026-09-12T23:17:05.194784+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 37,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "no_answer"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_flash_v2_5",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ],
+    "intent": null,
+    "extracted_variables": {
+     "intent": null
+    },
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 332,
+   "workflow_id": 17,
+   "workflow_name": "Kriti Labs \u2014 e-lock support",
+   "name": "WR-4575",
+   "created_at": "2026-09-12T23:14:06.621276+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 172,
+   "recording_url": "<redacted>",
+   "transcript_url": null,
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": null,
+   "transcript_public_url": null,
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": null,
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_v3_conversational",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ],
+    "intent": "",
+    "extracted_variables": {
+     "intent": ""
+    },
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 331,
+   "workflow_id": 17,
+   "workflow_name": "Kriti Labs \u2014 e-lock support",
+   "name": "WR-5128",
+   "created_at": "2026-09-12T23:13:55.889724+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 6,
+   "recording_url": "<redacted>",
+   "transcript_url": null,
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": null,
+   "transcript_public_url": null,
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": null,
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_v3_conversational",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ],
+    "intent": null,
+    "extracted_variables": {
+     "intent": null
+    },
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 330,
+   "workflow_id": 17,
+   "workflow_name": "Kriti Labs \u2014 e-lock support",
+   "name": "WR-3483",
+   "created_at": "2026-09-12T23:12:04.801988+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 86,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": null,
+   "transcript_public_url": null,
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": null,
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "interested"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "sarvam",
+     "tts_model": "bulbul:v3",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand",
+     "Verify TT and invoice"
+    ],
+    "intent": "lock",
+    "extracted_variables": {
+     "intent": "lock",
+     "tt_number": "PM 17 AV 974",
+     "invoice_number": null,
+     "validation_result": null
+    },
+    "tt_number": "PM 17 AV 974",
+    "invoice_number": null,
+    "validation_result": null,
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 329,
+   "workflow_id": 3,
+   "workflow_name": "Meera \u2014 Decibyl Sales Assistant",
+   "name": "Embed Run - 2026-09-12T15:58:08.087315+00:00",
+   "created_at": "2026-09-12T15:58:08.103600+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 87,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "interested"
+   ],
+   "initial_context": {
+    "provider": "smallwebrtc",
+    "runtime_configuration": {
+     "stt_provider": "deepgram",
+     "stt_model": "flux-general-multi",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_flash_v2_5",
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Start Call"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech",
+     "stuck_in_first_node"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 328,
+   "workflow_id": 3,
+   "workflow_name": "Meera \u2014 Decibyl Sales Assistant",
+   "name": "Embed Run - 2026-09-12T15:58:03.193205+00:00",
+   "created_at": "2026-09-12T15:58:03.210270+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 2,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": null,
+   "transcript_public_url": null,
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": null,
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "provider": "smallwebrtc",
+    "runtime_configuration": {
+     "stt_provider": "deepgram",
+     "stt_model": "flux-general-multi",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_flash_v2_5",
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-nano"
+    }
+   },
+   "gathered_context": {
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 327,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "WR-TEXT-EB2C90",
+   "created_at": "2026-09-12T14:06:48.930869+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 35,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": null,
+   "transcript_public_url": null,
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": null,
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": null,
+   "initial_context": {
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand",
+     "Take the booking details",
+     "Find a slot",
+     "Confirm and book"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 326,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "Embed Run - 2026-09-12T12:34:58.973800+00:00",
+   "created_at": "2026-09-12T12:34:59.000874+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 45,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "callback"
+   ],
+   "initial_context": {
+    "provider": "smallwebrtc",
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_flash_v2_5",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech",
+     "stuck_in_first_node"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 325,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "WR-350",
+   "created_at": "2026-09-11T21:02:05.011602+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 56,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "booked"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_flash_v2_5",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand",
+     "Take the booking details"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 324,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "WR-5409",
+   "created_at": "2026-09-11T20:56:48.046859+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 75,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "booked"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_flash_v2_5",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech",
+     "stuck_in_first_node"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 323,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "WR-9560",
+   "created_at": "2026-09-11T20:54:37.220369+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 124,
+   "recording_url": "<redacted>",
+   "transcript_url": null,
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_v3_conversational",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 322,
+   "workflow_id": 21,
+   "workflow_name": "Kovai Fertility Centre \u2014 demo",
+   "name": "WR-1680",
+   "created_at": "2026-09-11T20:52:38.511444+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 34,
+   "recording_url": "<redacted>",
+   "transcript_url": null,
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_v3_conversational",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 321,
+   "workflow_id": 21,
+   "workflow_name": "Kovai Fertility Centre \u2014 demo",
+   "name": "WR-6347",
+   "created_at": "2026-09-11T20:40:15.702231+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 46,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "booked"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_flash_v2_5",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand",
+     "Take the booking details"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 320,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "WR-4677",
+   "created_at": "2026-09-11T19:40:30.469273+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 78,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "booked"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "elevenlabs",
+     "tts_model": "eleven_flash_v2_5",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand",
+     "Take the booking details"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 319,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "WR-6925",
+   "created_at": "2026-09-11T19:39:32.798838+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 54,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "interested"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "smallest",
+     "tts_model": "lightning_v3.1",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 318,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "WR-6784",
+   "created_at": "2026-09-11T19:36:59.814146+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 76,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "booked"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "sarvam",
+     "tts_model": "bulbul:v3",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand",
+     "Take the booking details"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 317,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "WR-7288",
+   "created_at": "2026-09-11T19:30:34.579464+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 132,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "interested"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "sarvam",
+     "tts_model": "bulbul:v3",
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech",
+     "stuck_in_first_node"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 316,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "Embed Run - 2026-09-11T17:56:36.925657+00:00",
+   "created_at": "2026-09-11T17:56:36.931265+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 98,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": null,
+   "transcript_public_url": null,
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": null,
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "textchat",
+   "disposition": null,
+   "call_outcomes": null,
+   "initial_context": {
+    "provider": "textchat",
+    "runtime_configuration": {
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand",
+     "Take the booking details",
+     "Find a slot",
+     "Confirm and book"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 315,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "Embed Run - 2026-09-11T17:48:54.450093+00:00",
+   "created_at": "2026-09-11T17:48:54.455435+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 81,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "interested"
+   ],
+   "initial_context": {
+    "provider": "smallwebrtc",
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "sarvam",
+     "tts_model": "bulbul:v3",
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech",
+     "stuck_in_first_node"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 314,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "Embed Run - 2026-09-11T17:45:58.064550+00:00",
+   "created_at": "2026-09-11T17:45:58.078442+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 169,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "interested"
+   ],
+   "initial_context": {
+    "provider": "smallwebrtc",
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "sarvam",
+     "tts_model": "bulbul:v3",
+     "llm_provider": "openai",
+     "llm_model": "gpt-5-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand",
+     "Timings, directions and fees"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 313,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "Embed Run - 2026-09-11T15:24:41.787535+00:00",
+   "created_at": "2026-09-11T15:24:41.800091+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 121,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "booked",
+    "callback"
+   ],
+   "initial_context": {
+    "provider": "smallwebrtc",
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "sarvam",
+     "tts_model": "bulbul:v3",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand",
+     "Take the booking details",
+     "Find a slot"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 312,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "WR-4225",
+   "created_at": "2026-09-11T15:18:19.613211+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 164,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "booked"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "sarvam",
+     "tts_model": "bulbul:v3",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand",
+     "Take the booking details",
+     "Find a slot",
+     "Confirm and book"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 311,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "Embed Run - 2026-09-11T14:58:58.473894+00:00",
+   "created_at": "2026-09-11T14:58:58.481606+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 0,
+   "recording_url": null,
+   "transcript_url": null,
+   "user_recording_url": null,
+   "bot_recording_url": null,
+   "recording_public_url": null,
+   "transcript_public_url": null,
+   "user_recording_public_url": null,
+   "bot_recording_public_url": null,
+   "public_access_token": null,
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": null,
+   "call_outcomes": null,
+   "initial_context": {
+    "provider": "smallwebrtc"
+   },
+   "gathered_context": {},
+   "charge_usd": null
+  },
+  {
+   "id": 310,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "Embed Run - 2026-09-11T14:56:57.757005+00:00",
+   "created_at": "2026-09-11T14:56:57.762000+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 92,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "interested"
+   ],
+   "initial_context": {
+    "provider": "smallwebrtc",
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "sarvam",
+     "tts_model": "bulbul:v3",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand",
+     "Reschedule or cancel"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 309,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "Embed Run - 2026-09-11T14:53:07.792338+00:00",
+   "created_at": "2026-09-11T14:53:07.826696+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 123,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "booked",
+    "callback"
+   ],
+   "initial_context": {
+    "provider": "smallwebrtc",
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "sarvam",
+     "tts_model": "bulbul:v3",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand",
+     "Take the booking details",
+     "Find a slot"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 308,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "Embed Run - 2026-09-11T14:52:27.814736+00:00",
+   "created_at": "2026-09-11T14:52:27.821101+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 36,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "provider": "smallwebrtc",
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "sarvam",
+     "tts_model": "bulbul:v3",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 307,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "Embed Run - 2026-09-11T14:52:16.182171+00:00",
+   "created_at": "2026-09-11T14:52:16.215607+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 39,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_idle_max_duration_exceeded",
+   "call_outcomes": [
+    "not_interested"
+   ],
+   "initial_context": {
+    "provider": "smallwebrtc",
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "sarvam",
+     "tts_model": "bulbul:v3",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ],
+    "call_disposition": "user_idle_max_duration_exceeded",
+    "mapped_call_disposition": "user_idle_max_duration_exceeded",
+    "call_tags": [
+     "user_idle_max_duration_exceeded"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 306,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "Embed Run - 2026-09-11T14:30:32.173091+00:00",
+   "created_at": "2026-09-11T14:30:32.180056+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 50,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "unclear"
+   ],
+   "initial_context": {
+    "provider": "smallwebrtc",
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "sarvam",
+     "tts_model": "bulbul:v3",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand",
+     "Clinical question"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 305,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "WR-794",
+   "created_at": "2026-09-11T14:30:03.068843+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 6,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "no_answer"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "sarvam",
+     "tts_model": "bulbul:v3",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 304,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "WR-4547",
+   "created_at": "2026-09-11T14:23:35.834399+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 2,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "no_answer"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "sarvam",
+     "tts_model": "bulbul:v3",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 303,
+   "workflow_id": 18,
+   "workflow_name": "Narayani Dental front desk",
+   "name": "WR-4097",
+   "created_at": "2026-09-11T12:57:07.140420+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 87,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "booked"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "sarvam",
+     "tts_model": "bulbul:v3",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand",
+     "Take the booking details"
+    ],
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech"
+    ]
+   },
+   "charge_usd": null
+  },
+  {
+   "id": 302,
+   "workflow_id": 17,
+   "workflow_name": "Kriti Labs \u2014 e-lock support",
+   "name": "WR-8530",
+   "created_at": "2026-09-11T12:35:58.863469+00:00",
+   "decibyl_token_usage": 0.0,
+   "call_duration_seconds": 112,
+   "recording_url": "<redacted>",
+   "transcript_url": "<redacted>",
+   "user_recording_url": "<redacted>",
+   "bot_recording_url": "<redacted>",
+   "recording_public_url": "<redacted>",
+   "transcript_public_url": "<redacted>",
+   "user_recording_public_url": "<redacted>",
+   "bot_recording_public_url": "<redacted>",
+   "public_access_token": "<redacted>",
+   "phone_number": null,
+   "caller_number": null,
+   "called_number": null,
+   "call_type": "outbound",
+   "mode": "smallwebrtc",
+   "disposition": "user_hangup",
+   "call_outcomes": [
+    "not_interested"
+   ],
+   "initial_context": {
+    "runtime_configuration": {
+     "stt_provider": "sarvam",
+     "stt_model": "saaras:v3",
+     "tts_provider": "sarvam",
+     "tts_model": "bulbul:v3",
+     "llm_provider": "openai",
+     "llm_model": "gpt-4.1-mini"
+    }
+   },
+   "gathered_context": {
+    "nodes_visited": [
+     "Greet and understand",
+     "Verify TT and invoice"
+    ],
+    "intent": "lock_open_issue",
+    "extracted_variables": {
+     "intent": "lock_open_issue",
+     "tt_number": "TN 70 AV 8040",
+     "invoice_number": "1234567890",
+     "validation_result": "TT number and invoice matched to an active trip."
+    },
+    "tt_number": "TN 70 AV 8040",
+    "invoice_number": "1234567890",
+    "validation_result": "TT number and invoice matched to an active trip.",
+    "call_disposition": "user_hangup",
+    "mapped_call_disposition": "user_hangup",
+    "call_tags": [
+     "user_hangup",
+     "user_speech"
+    ]
+   },
+   "charge_usd": null
+  }
+ ],
+ "total_decibyl_tokens": 0.0,
+ "total_duration_seconds": 3424,
+ "total_count": 372,
+ "page": 1,
+ "limit": 100,
+ "total_pages": 4
+}
