@@ -141,3 +141,39 @@ github.com/paperclipai/paperclip, MIT, Paperclip Labs. "The open-source app ever
 **What to leave.** The zero-human-company framing (our buyer wants a receptionist, not a CEO), and a chart as the front door (ours is the thread; the chart is a view).
 
 **What it means.** The "company of agents" mental model has 95k stars of mindshare among developers. For an Indian SMB owner it becomes real only when the agents answer the phone. Decibyl's line, "hire a team, not a tool", is the SMB-facing version of exactly this, with the channels Paperclip does not have.
+
+## 12. Gap check against Paperclip, feature by feature (founder ask, 30 September)
+
+Paperclip's README and site, every feature they name, against what Decibyl has in code or on the board. "Have" = in `main`; "Planned" = a KAN item; "Miss" = neither, now filed.
+
+| Paperclip feature (their words) | Decibyl | Where |
+|---|---|---|
+| Org chart for agents: roles, permissions, boundaries for humans and agents | Planned | ORG-1 light in the gate (KAN-219), Team view (ACT-1 KAN-200), visibility by role (G8, done) |
+| Scoped secrets and company boundaries | Have | Secure form in chat (H7), credentials vault, org scoping rule |
+| Board users and agent API keys | Half | User API keys exist; **an agent has no identity of its own** for acting and audit. Filed on ACT-1 |
+| Bring your own agent: any runtime, "if it can receive a heartbeat, it's hired" | Miss | Custom tools and MCP exist; an external agent cannot be hired as a colleague. Filed EXT-1 (Phase 3) |
+| Heartbeats: wake on a schedule, budget check, secret injection, skill loading | Have | Routines (G4), triggers (Q1–Q3), ARQ |
+| Pause or terminate any agent at any time | Miss | Campaigns pause; a bot can be archived, not paused with queued work cancelled. Filed on POL-2 |
+| Issues carry company / project / goal / parent links; goal ancestry | Planned | Task board (G11), ORG-1 light |
+| Atomic checkout with execution locks; blocker dependencies | Half | `blocked.py` handles dead ends; checkout rule filed on OUT-1 for delegation |
+| Comments, documents, attachments, work products; labels and inbox | Have | Threads, deliverables, files, Pending-for-you strip (UI-1) |
+| Recurring tasks with cron, webhook and API triggers; each run a tracked issue | Have | Routines and triggers; runs appear in Activity |
+| Board approval workflows; execution policies with review stages | Have | Approval matrix + audit (E-1), propose → confirm → undo cards; scopes in POL-2 |
+| Monthly budgets per agent, warning thresholds, hard stop; overspend pauses the agent **and cancels queued work** | Planned | OUT-1 (KAN-253); "cancels queued work" added |
+| Cost tracking by company, agent, project, goal, issue, provider, model | Have / Planned | Ledger, cost lines per run, M-1; per goal after ORG-1 light |
+| Config changes revisioned, rolled back | Have | Workflow versions, publish/rollback |
+| Every mutating request traced to an actor; immutable audit; tool-call tracing | Have | Audit log (E-1), acting-as, P2 (what the model saw and did), trace IDs in OBS-1 |
+| Skill Studio and shared org-wide skills | Have / Planned | Skills catalogue and imports; "shared with the office" in UI-2; publishing in MKT-1 |
+| Evals and saved test runs | Have | Eval runner and judge; Check it |
+| Active learning loops, quality metrics, **performance reviews for agents** | Miss | Outcome board and QA exist; no periodic review per colleague. Filed REV-1 |
+| Activity and events; work products as durable activity | Have | Activity home, action event stream (P1) |
+| Mobile-ready | Have | PWA (K1), mobile thread (K2) |
+| MCP servers and tool access | Have | Tools, MCP server, connectors |
+| Multi-organization, complete data isolation | Have | Org scoping; RLS in ENG-7 |
+| Workspaces and runtime: git worktrees, dev servers, preview URLs | Not ours | Developer runtime; our sandbox covers scripts |
+| **Company portability: export and import entire organizations, templates with secret scrubbing** | Miss | Workspace roles strip IDs for one bot; no whole-workspace export/import. Filed PORT-1 |
+| Plugin system, out-of-process workers; recovery of orphaned runs | Half | Worker health exists; orphan recovery for text runs to be confirmed in ENG-5 |
+| Onboarding: "hire a team of agents in one command" | Have | The Build card; first ten minutes in the UI plan |
+| UI: agent cost table, heartbeat timeline, ticket with trace log, org structure | Have / Planned | Activity spend, Schedules tab, run detail with tool timeline, ORG-1 |
+
+Net: four genuine misses (bring-your-own agent, pause with cancel, performance reviews, company portability) and two under-specified items (agent identity, overspend cancelling queued work). None blocks the launch; pause-with-cancel and the budget rule join the gate through POL-2 and OUT-1; the other three are Phase 3.
