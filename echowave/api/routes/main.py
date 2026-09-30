@@ -19,6 +19,7 @@ from api.routes.bot_event_webhooks import router as bot_event_webhooks_router
 from api.routes.bot_triggers import router as bot_triggers_router
 from api.routes.budgets import router as budgets_router
 from api.routes.campaign import router as campaign_router
+from api.routes.channel_links import router as channel_links_router
 from api.routes.connectors import router as connectors_router
 from api.routes.contacts import router as contacts_router
 from api.routes.cost_estimate import router as cost_estimate_router
@@ -51,6 +52,7 @@ from api.routes.procurement import router as procurement_router
 from api.routes.promo_admin import router as promo_admin_router
 from api.routes.provider_keys import router as provider_keys_router
 from api.routes.public_agent import router as public_agent_router
+from api.routes.public_decibyl_channels import router as public_decibyl_channels_router
 from api.routes.public_download import router as public_download_router
 from api.routes.public_email import router as public_email_router
 from api.routes.public_embed import router as public_embed_router
@@ -162,6 +164,8 @@ router.include_router(public_agent_router)
 router.include_router(public_triggers_router)
 router.include_router(public_email_router)
 router.include_router(public_whatsapp_router)
+router.include_router(public_decibyl_channels_router)
+router.include_router(channel_links_router)
 router.include_router(public_download_router)
 router.include_router(public_trust_router)
 router.include_router(public_marketplace_router)

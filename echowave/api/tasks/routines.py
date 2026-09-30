@@ -335,21 +335,54 @@ async def answer_decibyl_message(
             if attempt > 0:
                 return
 
-    body = await decibyl.answer(
-        organization_id,
-        text,
-        asked=asked,
-        preset=preset,
-        subjects=subjects,
-        author_id=author_id,
-        attachments=attachments,
-        # Nothing re-runs this turn after the cap, so the block must stop
-        # telling the model to promise a follow-up. A promise made on the
-        # way out is the one nobody keeps.
-        last_try=bool(pending) and attempt >= decibyl.UNREAD_RETRIES,
-        thread_id=thread_id,
-    )
-    if reply_to and reply_to.get("channel") == "whatsapp" and reply_to.get("to"):
+    from api.services.workflow import agent_timeline
+
+    with agent_timeline.collecting() as written:
+        body = await _answer_turn(
+            decibyl,
+            organization_id,
+            text,
+            asked=asked,
+            preset=preset,
+            subjects=subjects,
+            author_id=author_id,
+            attachments=attachments,
+            # Nothing re-runs this turn after the cap, so the block must stop
+            # telling the model to promise a follow-up. A promise made on the
+            # way out is the one nobody keeps.
+            last_try=bool(pending) and attempt >= decibyl.UNREAD_RETRIES,
+            thread_id=thread_id,
+        )
+    if not reply_to or not reply_to.get("channel"):
+        return
+    await _reply_on_channel(organization_id, reply_to, body, written)
+
+
+async def _answer_turn(decibyl, organization_id, text, **kwargs):
+    return await decibyl.answer(organization_id, text, **kwargs)
+
+
+async def _reply_on_channel(organization_id, reply_to, body, written) -> None:
+    """Back on the app the line came from (DCH-1): the text, and a card for
+    every action the turn proposed. With the feature off, WhatsApp gets the
+    text as it always did."""
+    from api.enums import AgentEventKind
+    from api.services.messaging.channels import dispatch
+
+    if dispatch.channel_on(str(reply_to["channel"]), organization_id):
+        cards = [
+            dispatch.card_from_payload(event_id, payload)
+            for kind, event_id, payload in written
+            if kind == AgentEventKind.ACTION_PROPOSED.value
+        ]
+        await dispatch.deliver(
+            organization_id=organization_id,
+            reply_to=reply_to,
+            body=body,
+            cards=cards,
+        )
+        return
+    if reply_to.get("channel") == "whatsapp" and reply_to.get("to"):
         from api.services.messaging import whatsapp_inbound
 
         await whatsapp_inbound.reply(
