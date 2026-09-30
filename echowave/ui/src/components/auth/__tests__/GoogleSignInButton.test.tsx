@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -29,5 +29,23 @@ describe("the Google button and the sentence that belongs to it", () => {
         render(<GoogleSignInButton label="Sign up with Google" notice={<p>Continuing with Google means you agree.</p>} />);
         await waitFor(() => expect(screen.queryByTestId("google-signin-button")).toBeNull());
         expect(screen.queryByText(/Continuing with Google/)).toBeNull();
+    });
+
+    it("carries the invite code through Google so a new account can redeem it (INVITE-1)", async () => {
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce({ ok: true } as Response)
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({ detail: "stop here" }),
+            } as unknown as Response);
+        vi.stubGlobal("fetch", fetchMock);
+        render(<GoogleSignInButton referralCode="PARTNER1" inviteCode="ABCD-2345" />);
+        await waitFor(() => expect(screen.getByTestId("google-signin-button")).toBeTruthy());
+        fireEvent.click(screen.getByTestId("google-signin-button"));
+        await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+        const url = String(fetchMock.mock.calls[1][0]);
+        expect(url).toContain("/api/v1/auth/google/start?");
+        expect(url).toContain("ref=PARTNER1");
+        expect(url).toContain("invite=ABCD-2345");
     });
 });

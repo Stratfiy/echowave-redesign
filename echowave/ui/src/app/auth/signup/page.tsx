@@ -15,13 +15,20 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PostHogEvent } from "@/constants/posthog-events";
+import { useFeature } from "@/lib/features";
 
 function SignupForm() {
   // A partner's referral code, from the link they handed out. Read here and
   // sent with the signup rather than stored anywhere: attribution happens once,
   // at provisioning, and a code that lingers in a cookie would attribute an
   // account somebody created weeks later from a different link.
-  const referralCode = useSearchParams().get("ref");
+  const searchParams = useSearchParams();
+  const referralCode = searchParams.get("ref");
+  // Invite-only (INVITE-1, KAN-273). The invite email links here with
+  // `?invite=ABCD-2345` so the field arrives filled; the server decides
+  // whether a code is required and whether this one is good.
+  const inviteOnly = useFeature("invite_only_signup");
+  const [inviteCode, setInviteCode] = useState(searchParams.get("invite") ?? "");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -49,6 +56,11 @@ function SignupForm() {
       return;
     }
 
+    if (inviteOnly && !inviteCode.trim()) {
+      toast.error("Enter your invite code to create an account.");
+      return;
+    }
+
     setLoading(true);
     // Before the request, so a sign-up that never returns still counts as an
     // attempt. The email is not sent: the user is identified once signed in.
@@ -60,6 +72,7 @@ function SignupForm() {
           email,
           password,
           referral_code: referralCode,
+          invite_code: inviteCode.trim() || null,
           accepted_agreements: ["terms", "privacy"],
         },
       });
@@ -102,6 +115,7 @@ function SignupForm() {
       <GoogleSignInButton
         label="Sign up with Google"
         referralCode={referralCode}
+        inviteCode={inviteCode.trim() || null}
         notice={
           <p className="text-center text-xs text-muted-foreground" data-testid="signup-google-notice">
             Continuing with Google means you agree to the <LegalLinks />.
@@ -110,6 +124,25 @@ function SignupForm() {
       />
 
       <form onSubmit={handleSubmit} className="space-y-4" data-testid="signup-form">
+        {(inviteOnly || inviteCode) && (
+          <div className="space-y-2">
+            <Label htmlFor="inviteCode">Invite code</Label>
+            <Input
+              id="inviteCode"
+              placeholder="ABCD-2345"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value)}
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+              required={inviteOnly}
+              data-testid="signup-invite-input"
+            />
+            <p className="text-xs text-muted-foreground">
+              Decibyl is invite-only for now. The code is in your invite email.
+            </p>
+          </div>
+        )}
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
           <Input

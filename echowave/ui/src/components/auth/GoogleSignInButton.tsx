@@ -35,6 +35,7 @@ function GoogleMark() {
 export function GoogleSignInButton({
     label = "Continue with Google",
     referralCode,
+    inviteCode,
     notice,
 }: {
     label?: string;
@@ -51,6 +52,9 @@ export function GoogleSignInButton({
      *  Google's own page, so without it a partner's link would attribute every
      *  password signup and no Google one. */
     referralCode?: string | null;
+    /** The invite code (INVITE-1), carried in the signed state the same way
+     *  so a new Google account can redeem it on the way back. */
+    inviteCode?: string | null;
 }) {
     const [available, setAvailable] = useState<boolean | null>(null);
     const [starting, setStarting] = useState(false);
@@ -87,9 +91,10 @@ export function GoogleSignInButton({
     const start = async () => {
         setStarting(true);
         try {
-            const query = referralCode
-                ? `?ref=${encodeURIComponent(referralCode)}`
-                : "";
+            const params = new URLSearchParams();
+            if (referralCode) params.set("ref", referralCode);
+            if (inviteCode) params.set("invite", inviteCode);
+            const query = params.toString() ? `?${params.toString()}` : "";
             const res = await fetch(
                 `${apiBase}/api/v1/auth/google/start${query}`,
             );
