@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { TrialNotice } from "@/components/billing/TrialNotice";
 import { FirstAgentJourney } from "@/components/first-agent/FirstAgentJourney";
 
 export const metadata: Metadata = {
@@ -13,5 +14,12 @@ export const metadata: Metadata = {
  * reopen later — a second visit starts a second agent.
  */
 export default function StartPage() {
-    return <FirstAgentJourney />;
+    return (
+        <>
+            <div className="mx-auto w-full max-w-3xl px-4 pt-4">
+                <TrialNotice />
+            </div>
+            <FirstAgentJourney />
+        </>
+    );
 }

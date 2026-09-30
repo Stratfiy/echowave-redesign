@@ -917,6 +917,19 @@ async def get_plan(user: UserModel = Depends(get_user)) -> dict[str, Any]:
             "is_current": on_plan.code == plan.code,
         }
 
+    from api.services.billing import trial as trial_service
+
+    async with db_client.async_session() as session:
+        trial_status = await trial_service.status(
+            session, organization_id=organization_id
+        )
+    # No Free while the trial is on (PLAN-1): the trial is what a plan-less
+    # account is on, and Free is not offered next to it.
+    if trial_service.applies(organization_id):
+        plans = [p for p in plans if p.code != subscription_plans.FREE]
+        if all(p.code != on_plan.code for p in plans):
+            plans = [on_plan, *plans]
+
     priced = [_priced(plan) for plan in plans]
     current = next((p for p in priced if p["is_current"]), None)
     if current is not None and mandate is not None:
@@ -939,6 +952,8 @@ async def get_plan(user: UserModel = Depends(get_user)) -> dict[str, Any]:
             "extra_paise": next_number_paise,
         },
         "mandate": _mandate_view(mandate),
+        # The trial window (PLAN-1): on_trial, active, ends_at, days_left.
+        "trial": trial_status.as_dict(),
         "configured": mandate_service.is_configured(),
         "billing_profile_complete": profile.is_complete,
         # The rule every plan shares, stated once for the screen: plan credits
