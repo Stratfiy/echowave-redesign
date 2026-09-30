@@ -61,6 +61,7 @@ from api.services.workflow import (
     routines,
     self_edit,
     skill_context,
+    tables,
     tasks_board,
     untrusted,
     visibility,
@@ -256,7 +257,11 @@ def thread_filter() -> dict[str, Any]:
             AgentEventKind.ACTIVITY.value,
             # The files the document tools hand over (a drafted PO, a
             # cost-bid sheet), shown on the thread with their downloads.
-            *((AgentEventKind.DELIVERABLE.value,) if procurement.enabled() else ()),
+            *(
+                (AgentEventKind.DELIVERABLE.value,)
+                if procurement.enabled() or tables.enabled()
+                else ()
+            ),
         ],
     }
 
@@ -1272,6 +1277,7 @@ def office_tools() -> list[dict[str, Any]]:
             else ()
         ),
         *(procurement.schemas() if procurement.enabled() else ()),
+        *(tables.schemas() if tables.enabled() else ()),
     ]
 
 
@@ -1527,6 +1533,10 @@ async def _tool(
             workflow_id=None,
             workflow_run_id=None,
             ref_id=f"decibyl:{organization_id}:{call.id or call.name}",
+        )
+    if call.name in tables.NAMES and tables.enabled():
+        return await tables.run(
+            call.name, organization_id=organization_id, arguments=arguments
         )
     if call.name in procurement.NAMES and procurement.enabled():
         return await procurement.run(

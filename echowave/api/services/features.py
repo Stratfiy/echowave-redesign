@@ -38,6 +38,7 @@ FLAGS: dict[str, str] = {
     "managed_realtime_gemini_only": "MANAGED_REALTIME_GEMINI_ONLY_ENABLED",
     "connections_per_person": "CONNECTIONS_PER_PERSON_ENABLED",
     "personal_memory": "PERSONAL_MEMORY_ENABLED",
+    "table_tools": "TABLE_TOOLS_ENABLED",
 }
 
 
