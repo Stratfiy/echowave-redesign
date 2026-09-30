@@ -112,6 +112,20 @@ Two shapes share one process today: the **voice** half (stateful, CPU-bound, can
   - ECC developer profile (68 agents, 128 skills, 122 rules, no hooks): use `planner` → `tdd-guide` → `fastapi-reviewer` / `react-reviewer` / `security-reviewer` → `e2e-runner`; `/fastapi-review`, `/react-review`, `/security-scan`, `/test-coverage` before each PR.
   - Agency roster (108 agents): `engineering-backend-architect`, `engineering-payments-billing-engineer` for anything under `services/billing/`, `engineering-sre` and `engineering-devops-automator` for ENG-2/ENG-5/INFRA-A, `engineering-privacy-engineer` for DPDP items, `testing-*` for the E2E gate, `product-*` and `project-management-*` for board grooming.
   - Hooks were deliberately not installed in this cloud session; enable them locally with `npx ecc-universal@2.2.2 setup` if wanted.
+
+**Loop engineering for our own work** (founder input, 30 September; github.com/cobusgreyling/loop-engineering, MIT: `loop-init`, `loop-audit`, `loop-cost`, seven patterns). Adopt the patterns for the platform team's own agents, each with a budget file and a hand-off rule:
+
+| Pattern | Our loop | Cadence | Budget |
+|---|---|---|---|
+| PR Babysitter | Claude watches its own PRs (subscribe to PR events, fix CI, answer reviews) | on event | per PR |
+| CI Sweeper | A weekly sweep of flaky or slow tests with a proposed fix per failure | weekly | low |
+| Issue Triage | New KAN issues get "Done when" and tests drafted, labelled `claude` or `harsha` | 2 h to 1 d | low |
+| Daily Triage | Morning digest: red CI, open threads, flags on in production, errors from the observer feed (G10, KAN-161) | daily | low |
+| Dependency Sweeper | Vendor SDK and Next/FastAPI upgrades behind CI, one PR each | weekly | medium |
+| Changelog Drafter | Release notes from merged PR titles, in the board's own voice | on tag | low |
+
+The same patterns are what the Phase 4 "agents tested on us" epics describe (error observer KAN-183, deploy watcher KAN-185, marketplace QA KAN-184): they are loops on Decibyl itself, and Decibyl's long tasks (G1, KAN-153) already have the shape: a goal, state, a budget, and a hand-off card when the loop cannot finish. Run `loop-audit` against the repo once and keep its score in `STATUS.md` (ENG-12).
+
 - **Reviews**: Harsha remains code owner. Claude PRs self-review with the ECC reviewers before requesting him.
 - **Release evidence**: the CI run, the E2E report and the `/health` flag map are the release record. Historical pass counts in markdown are not.
 

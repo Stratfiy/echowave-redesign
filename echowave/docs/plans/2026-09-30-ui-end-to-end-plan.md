@@ -125,3 +125,15 @@ The app already runs on shadcn/ui (Radix + Tailwind), Recharts, lucide and react
 | MUI, Chakra, Mantine, HeroUI | No; each is a second design system | |
 
 Missing today: a written token set. The app uses ivory, ink, coral, Inter and Outfit by convention; the docs site and the public site each drifted. UI-0 (KAN-257) adds `ui/src/styles/tokens.css` and a one-page `ui/DESIGN.md` extracted from what the app already uses, so UI-1 and UI-2 start from one palette, one spacing scale and one set of surface rules (no cards inside cards, dense and quiet for daily use).
+
+## 10. Agent faces and people avatars (founder input, 30 September)
+
+A hired agent is a colleague with a handle. It needs a face that is the same everywhere: the roster, the thread, the About panel, the public marketplace card, the WhatsApp profile. Today `BotAvatar` is static artwork behind the `shell` flag.
+
+**Decision.** Port the Bloub avatar (github.com/jeremy-prt/bloub, MIT, Vue 3, 1.7k stars) to a React component in `components/ui/AgentFace.tsx`: one SVG shape morphing between states, two eyes with gaze drift and blinking, no animation library. Bloub gives 8 bodies × 12 colours × 16 rest expressions, so every handle in a workspace gets a distinct, deterministic face from a hash of its id; the owner can re-roll or pick. Alternatively the React `bot-avatars` package (18 3D shapes) if a 3D look is wanted; recommendation is the flat SVG, because it renders in a 24 px roster row and in an email signature without WebGL.
+
+**States mapped to what the agent is doing**, so the face is also a status indicator: idle · listening (a call or message is coming in) · thinking (a run in progress) · speaking (TTS or a reply streaming) · waiting (a card needs the owner) · blocked (key exhausted, number down) · asleep (paused). The same states drive the roster dot and the header chip, one source of truth.
+
+**People.** Members get a deterministic avatar from their id with zero image storage (the Blobatar idea), replacing the initials fallback; a real photo still overrides.
+
+Board: UI-4 (new). Lands with UI-1 (roster) and UI-2 (bot page header). Also becomes the marketplace card's picture in MKT-1.
