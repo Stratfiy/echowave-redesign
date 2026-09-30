@@ -58,6 +58,23 @@ MAX_ROWS_SHOWN = 50
 #: Rows written to an export.
 MAX_EXPORT_ROWS = 5_000
 MAX_RULES = 30
+MAX_PEOPLE = 300
+PEOPLE_SHEET = "People to reach"
+PEOPLE_COLUMNS = ("Account", "Name", "Role", "Why them", "How to reach", "Source")
+RULES = (
+    "- Spreadsheets: an attached CSV is shown clipped. describe_table, "
+    "query_table and rank_table read every row. To say which accounts to go "
+    "for, write the rules from the person's own material and show them. "
+    "export_table puts the ranked list in an .xlsx.\n"
+    "- Who to reach: name people only from public pages (the company's "
+    "leadership or management page, annual report, press release, "
+    "regulator filing, news) that you read with the web tools. Never use "
+    "LinkedIn. Give every named person the page they came from as their "
+    "source. Never guess an email or a phone number. If none is published, "
+    "say how to reach them (the switchboard, the investor-relations desk, "
+    "a named assistant). Put them in export_table's people so they are on "
+    "the same workbook, and tell the person which ones were refused and why.\n"
+)
 MAX_CONDITIONS = 12
 #: Distinct values listed per column when describing.
 TOP_VALUES = 8
@@ -526,11 +543,70 @@ def schemas() -> list[dict[str, Any]]:
                     "where": _conditions_arg(),
                     "columns": {"type": "array", "items": {"type": "string"}},
                     "top": {"type": "integer"},
+                    "people": {
+                        "type": "array",
+                        "description": (
+                            "Who to reach at the ranked accounts, each from a "
+                            "public page you read (never LinkedIn). Added as "
+                            f"a '{PEOPLE_SHEET}' sheet."
+                        ),
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "account": {"type": "string"},
+                                "name": {"type": "string"},
+                                "title": {"type": "string"},
+                                "why": {"type": "string"},
+                                "route": {
+                                    "type": "string",
+                                    "description": "How to reach them.",
+                                },
+                                "source_url": {"type": "string"},
+                            },
+                            "required": ["account", "name", "source_url"],
+                        },
+                    },
                 },
                 "required": ["file", "title"],
             },
         },
     ]
+
+
+def people_rows(raw: Any) -> tuple[list[list[str]], list[dict[str, str]]]:
+    """(rows for the People sheet, the ones refused with why). A person
+    without a public web page behind them is refused, and so is anyone
+    whose source is a site we never read (LinkedIn among them)."""
+    from api.services.workflow import web_tools
+
+    rows: list[list[str]] = []
+    rejected: list[dict[str, str]] = []
+    for item in list(raw or []):
+        person = item if isinstance(item, dict) else {}
+
+        def field(key: str, limit: int = 300) -> str:
+            return str(person.get(key) or "").strip()[:limit]
+
+        name, account, source = field("name"), field("account"), field("source_url")
+        if not name or not account:
+            rejected.append({"name": name, "reason": "needs an account and a name"})
+        elif not source.lower().startswith(("http://", "https://")):
+            rejected.append({"name": name, "reason": "no public source page"})
+        elif web_tools.is_blocked(source):
+            host = web_tools.domain_of(source)
+            site = next(
+                d
+                for d in web_tools.BLOCKED_DOMAINS
+                if host == d or host.endswith("." + d)
+            )
+            rejected.append({"name": name, "reason": f"{site} is not a source we use"})
+        elif len(rows) >= MAX_PEOPLE:
+            rejected.append({"name": name, "reason": f"over the limit of {MAX_PEOPLE}"})
+        else:
+            rows.append(
+                [account, name, field("title"), field("why"), field("route"), source]
+            )
+    return rows, rejected
 
 
 def _int(value: Any, default: int, low: int, high: int) -> int:
@@ -640,6 +716,7 @@ async def run(
                 columns,
                 title=str(arguments.get("title") or "").strip()[:100] or table.name,
                 top=_int(arguments.get("top"), MAX_EXPORT_ROWS, 1, MAX_EXPORT_ROWS),
+                people=arguments.get("people"),
                 workflow_id=workflow_id,
                 workflow_run_id=workflow_run_id,
             )
@@ -660,6 +737,7 @@ async def _export(
     *,
     title: str,
     top: int,
+    people: Any = None,
     workflow_id: int | None,
     workflow_run_id: int | None,
 ) -> dict[str, Any]:
@@ -693,6 +771,11 @@ async def _export(
     else:
         body = [[row.get(c, "") for c in keep] for row in rows[:top]]
         sheets = [{"name": "Rows", "columns": keep, "rows": body}]
+    named, rejected = people_rows(people) if people else ([], [])
+    if named:
+        sheets.insert(
+            1, {"name": PEOPLE_SHEET, "columns": list(PEOPLE_COLUMNS), "rows": named}
+        )
     result = await document_tools.build_spreadsheet(
         organization_id,
         {"title": title, "kind": "table", "sheets": sheets},
@@ -701,6 +784,9 @@ async def _export(
     )
     if result.get("status") == "success":
         result["rows"] = len(body)
+        if people:
+            result["people"] = len(named)
+            result["people_rejected"] = rejected
     return result
 
 
@@ -709,8 +795,10 @@ __all__ = [
     "EXPORT_TOOL_NAME",
     "FLAG",
     "NAMES",
+    "PEOPLE_COLUMNS",
     "QUERY_TOOL_NAME",
     "RANK_TOOL_NAME",
+    "RULES",
     "Rule",
     "Table",
     "TableError",
@@ -720,6 +808,7 @@ __all__ = [
     "load",
     "number",
     "parse",
+    "people_rows",
     "rank",
     "run",
     "schemas",

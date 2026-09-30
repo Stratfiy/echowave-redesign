@@ -327,3 +327,150 @@ class TestDecibylOffersThem:
 
         assert features.FLAGS["table_tools"] == "TABLE_TOOLS_ENABLED"
         assert constants.TABLE_TOOLS_ENABLED is False
+
+
+class TestPeopleToReach:
+    """Step 2: who to reach at each account, from public pages only.
+
+    The contact book needs an email or a phone, and a named IT head found on
+    a bank's leadership page usually has neither. They go on a People sheet
+    in the same workbook, each with the page they came from; anyone without
+    a public source is reported back, never dropped silently."""
+
+    def test_a_person_with_a_public_source_is_kept(self):
+        rows, rejected = tables.people_rows(
+            [
+                {
+                    "account": "Axis Demo Bank",
+                    "name": "R. Sharma",
+                    "title": "Chief Information Officer",
+                    "source_url": "https://www.axisdemo.example/leadership",
+                    "route": "Board office, number on the leadership page",
+                    "why": "Owns core banking and branch IT",
+                }
+            ]
+        )
+        assert rejected == []
+        assert rows == [
+            [
+                "Axis Demo Bank",
+                "R. Sharma",
+                "Chief Information Officer",
+                "Owns core banking and branch IT",
+                "Board office, number on the leadership page",
+                "https://www.axisdemo.example/leadership",
+            ]
+        ]
+
+    def test_no_source_is_rejected_with_the_reason(self):
+        rows, rejected = tables.people_rows(
+            [{"account": "Small Coop Bank", "name": "A. Rao", "title": "CEO"}]
+        )
+        assert rows == []
+        assert rejected == [{"name": "A. Rao", "reason": "no public source page"}]
+
+    def test_linkedin_is_never_a_source(self):
+        rows, rejected = tables.people_rows(
+            [
+                {
+                    "account": "Kotak Sample Bank",
+                    "name": "S. Iyer",
+                    "title": "CTO",
+                    "source_url": "https://in.linkedin.com/in/siyer",
+                }
+            ]
+        )
+        assert rows == []
+        assert rejected[0]["reason"] == "linkedin.com is not a source we use"
+
+    def test_a_source_that_is_not_a_web_page_is_rejected(self):
+        _, rejected = tables.people_rows(
+            [{"account": "X", "name": "Y", "source_url": "my notes"}]
+        )
+        assert rejected[0]["reason"] == "no public source page"
+
+    def test_a_row_without_a_name_or_account_is_rejected(self):
+        _, rejected = tables.people_rows(
+            [{"title": "CIO", "source_url": "https://bank.example/team"}, "junk"]
+        )
+        assert [r["reason"] for r in rejected] == [
+            "needs an account and a name",
+            "needs an account and a name",
+        ]
+
+    def test_people_past_the_cap_are_counted(self, monkeypatch):
+        monkeypatch.setattr(tables, "MAX_PEOPLE", 1)
+        person = {"account": "A", "name": "B", "source_url": "https://a.example/b"}
+        rows, rejected = tables.people_rows([person, person])
+        assert len(rows) == 1
+        assert rejected == [{"name": "B", "reason": "over the limit of 1"}]
+
+    async def test_export_adds_a_people_sheet_and_reports_rejections(self):
+        build = AsyncMock(
+            return_value={"status": "success", "register_id": 3, "number": "OT-1"}
+        )
+        with (
+            patch.object(tables, "load", AsyncMock(return_value=_table())),
+            patch("api.services.documents.tools.build_spreadsheet", build),
+        ):
+            out = await tables.run(
+                "export_table",
+                organization_id=7,
+                arguments={
+                    "file": "x",
+                    "title": "Netoyed target accounts",
+                    "rules": [
+                        {
+                            "column": "Type",
+                            "op": "equals",
+                            "value": "Private",
+                            "points": 1,
+                            "why": "private bank",
+                        }
+                    ],
+                    "people": [
+                        {
+                            "account": "Axis Demo Bank",
+                            "name": "R. Sharma",
+                            "title": "CIO",
+                            "source_url": "https://axisdemo.example/leadership",
+                        },
+                        {
+                            "account": "Kotak Sample Bank",
+                            "name": "S. Iyer",
+                            "source_url": "https://linkedin.com/in/siyer",
+                        },
+                    ],
+                },
+            )
+        sheets = build.await_args.args[1]["sheets"]
+        assert [s["name"] for s in sheets] == ["Ranked", "People to reach", "Rules"]
+        assert sheets[1]["columns"] == list(tables.PEOPLE_COLUMNS)
+        assert len(sheets[1]["rows"]) == 1
+        assert out["people"] == 1
+        assert out["people_rejected"] == [
+            {"name": "S. Iyer", "reason": "linkedin.com is not a source we use"}
+        ]
+
+    async def test_export_without_people_has_no_people_sheet(self):
+        build = AsyncMock(return_value={"status": "success"})
+        with (
+            patch.object(tables, "load", AsyncMock(return_value=_table())),
+            patch("api.services.documents.tools.build_spreadsheet", build),
+        ):
+            out = await tables.run(
+                "export_table", organization_id=7, arguments={"file": "x", "title": "t"}
+            )
+        sheets = build.await_args.args[1]["sheets"]
+        assert [s["name"] for s in sheets] == ["Rows"]
+        assert "people" not in out
+
+    def test_the_rules_are_said_only_while_the_tools_are_on(self, monkeypatch):
+        from api.services.workflow import decibyl
+
+        monkeypatch.setattr(constants, "TABLE_TOOLS_ENABLED", False)
+        assert tables.RULES not in decibyl.system_prompt()
+        monkeypatch.setattr(constants, "TABLE_TOOLS_ENABLED", True)
+        prompt = decibyl.system_prompt()
+        assert tables.RULES in prompt
+        assert "LinkedIn" in tables.RULES and "source" in tables.RULES

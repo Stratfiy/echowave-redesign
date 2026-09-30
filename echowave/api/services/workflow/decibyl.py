@@ -235,7 +235,11 @@ def system_prompt() -> str:
     The procurement rules are said only while those tools are offered: a
     rule for a tool the model is not holding is a tool it will describe and
     cannot call (``test_decibyl_knows_what_it_has``)."""
-    return SYSTEM + (procurement.RULES if procurement.enabled() else "")
+    return (
+        SYSTEM
+        + (procurement.RULES if procurement.enabled() else "")
+        + (tables.RULES if tables.enabled() else "")
+    )
 
 
 def thread_filter() -> dict[str, Any]:
