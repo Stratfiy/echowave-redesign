@@ -28,6 +28,10 @@ interface OrgConfigContextType {
     permissions: TeamPermission[];
     user: AuthUser | null;
     organizationPricing: OrganizationPricing | null;
+    // The signed-in organisation's feature map from /api/v1/features
+    // (global flags plus FEATURE_ORG_OVERRIDES); null until fetched. Read
+    // through useFeature in @/lib/features, not directly.
+    orgFeatures: Record<string, boolean> | null;
 }
 
 const OrgConfigContext = createContext<OrgConfigContextType | null>(null);
@@ -53,6 +57,7 @@ export function OrgConfigProvider({ children }: { children: ReactNode }) {
     const [error, setError] = useState<Error | null>(null);
     const [organizationPricing, setOrganizationPricing] = useState<OrganizationPricing | null>(null);
     const [permissions, setPermissions] = useState<TeamPermission[]>([]);
+    const [orgFeatures, setOrgFeatures] = useState<Record<string, boolean> | null>(null);
 
     const auth = useAuth();
 
@@ -104,10 +109,20 @@ export function OrgConfigProvider({ children }: { children: ReactNode }) {
 
         setLoading(true);
         try {
-            const [orgContextResponse, userConfigResponse] = await Promise.all([
+            const [orgContextResponse, userConfigResponse, featuresResponse] = await Promise.all([
                 getCurrentOrganizationContextApiV1OrganizationsContextGet(),
                 getUserConfigurationsApiV1UserConfigurationsUserGet(),
+                // Not in the generated SDK on purpose: the map is a plain
+                // record and this keeps the flags-only PR off sdk.gen.ts.
+                client.get({ url: '/api/v1/features' }).catch(() => null),
             ]);
+
+            const featureMap = featuresResponse && !featuresResponse.error
+                ? (featuresResponse.data as Record<string, boolean> | undefined)
+                : undefined;
+            if (featureMap && typeof featureMap === 'object') {
+                setOrgFeatures(featureMap);
+            }
 
             if (orgContextResponse.data) {
                 setOrgContext(orgContextResponse.data);
@@ -149,11 +164,21 @@ export function OrgConfigProvider({ children }: { children: ReactNode }) {
                 permissions,
                 user: auth.user,
                 organizationPricing,
+                orgFeatures,
             }}
         >
             {children}
         </OrgConfigContext.Provider>
     );
+}
+
+/**
+ * The organisation feature map, or null outside the provider (the sign-in
+ * screen, public pages). Never throws, so useFeature can run anywhere.
+ */
+export function useOrgFeatures(): Record<string, boolean> | null {
+    const context = useContext(OrgConfigContext);
+    return context?.orgFeatures ?? null;
 }
 
 export function useOrgConfig() {

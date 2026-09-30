@@ -1,7 +1,7 @@
 import secrets
 from typing import Annotated
 
-from fastapi import APIRouter, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from loguru import logger
 from pydantic import BaseModel
 
@@ -83,7 +83,9 @@ from api.routes.workflow_recording import router as workflow_recording_router
 from api.routes.workflow_spend import router as workflow_spend_router
 from api.routes.workflow_text_chat import router as workflow_text_chat_router
 from api.routes.workspace_roles import router as workspace_roles_router
+from api.db.models import UserModel
 from api.services import features
+from api.services.auth.depends import get_user
 from api.services.integrations import all_routers
 
 # No tag here on purpose. A parent tag is merged onto every child route, so
@@ -199,6 +201,16 @@ class HealthResponse(BaseModel):
     # Which switched-off features are on (services/features.py). The UI reads
     # them here, once at start-up, instead of calling each feature's route.
     features: dict[str, bool] = {}
+
+
+@router.get("/features", tags=["health"])
+async def organization_features(
+    user: UserModel = Depends(get_user),
+) -> dict[str, bool]:
+    """The switched-off features as the signed-in organisation sees them:
+    the global switches plus its ``FEATURE_ORG_OVERRIDES`` (FLAG-1). The UI
+    merges this over the global map from ``/health``."""
+    return features.for_organization(user.selected_organization_id)
 
 
 @router.get("/health", response_model=HealthResponse, tags=["health"])
