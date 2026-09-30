@@ -110,3 +110,18 @@ Target (from the coordinator model): sign-up to first Hear it under 15 minutes m
 UI-0 starts now because it removes options without waiting for the new shell and it is where the E2E journeys (ENG-1) get their stable selectors. UI-1 and UI-2 follow; UI-3 last because Settings is the least visited.
 
 Evidence for done, per step: the five E2E journeys green; the option counts in §1 re-measured and written on the issue; five test users, four of five find each destination unaided (UI-1 test 7).
+
+## 9. Component library decision (founder question, 30 September)
+
+The app already runs on shadcn/ui (Radix + Tailwind), Recharts, lucide and react-hook-form. The generic look comes from the information architecture in §1, not from the components, so no library swap.
+
+| Library | Decision | Where |
+|---|---|---|
+| shadcn/ui | Keep; it is the design system. Every UI PR uses `components/ui` first | Whole app |
+| Tremor | Adopt, narrowly: charts, KPI tiles and tables on the Activity home and superadmin billing; Tailwind/Radix-based, so no second theme | Activity, superadmin |
+| 21st.dev | Source of individual components (Try-it phone frame, diff card), copied in and made ours; never a dependency | Bot page |
+| Magic UI, Aceternity | Public site only (separate repo); nothing animated in the app | decibyl.ai |
+| React Aria | No; Radix already covers it | |
+| MUI, Chakra, Mantine, HeroUI | No; each is a second design system | |
+
+Missing today: a written token set. The app uses ivory, ink, coral, Inter and Outfit by convention; the docs site and the public site each drifted. UI-0 (KAN-257) adds `ui/src/styles/tokens.css` and a one-page `ui/DESIGN.md` extracted from what the app already uses, so UI-1 and UI-2 start from one palette, one spacing scale and one set of surface rules (no cards inside cards, dense and quiet for daily use).
