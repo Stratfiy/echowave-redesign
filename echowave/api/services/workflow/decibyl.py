@@ -61,6 +61,7 @@ from api.services.workflow import (
     routines,
     self_edit,
     skill_context,
+    tables,
     tasks_board,
     untrusted,
     visibility,
@@ -234,7 +235,11 @@ def system_prompt() -> str:
     The procurement rules are said only while those tools are offered: a
     rule for a tool the model is not holding is a tool it will describe and
     cannot call (``test_decibyl_knows_what_it_has``)."""
-    return SYSTEM + (procurement.RULES if procurement.enabled() else "")
+    return (
+        SYSTEM
+        + (procurement.RULES if procurement.enabled() else "")
+        + (tables.RULES if tables.enabled() else "")
+    )
 
 
 def thread_filter() -> dict[str, Any]:
@@ -256,7 +261,11 @@ def thread_filter() -> dict[str, Any]:
             AgentEventKind.ACTIVITY.value,
             # The files the document tools hand over (a drafted PO, a
             # cost-bid sheet), shown on the thread with their downloads.
-            *((AgentEventKind.DELIVERABLE.value,) if procurement.enabled() else ()),
+            *(
+                (AgentEventKind.DELIVERABLE.value,)
+                if procurement.enabled() or tables.enabled()
+                else ()
+            ),
         ],
     }
 
@@ -1272,6 +1281,7 @@ def office_tools() -> list[dict[str, Any]]:
             else ()
         ),
         *(procurement.schemas() if procurement.enabled() else ()),
+        *(tables.schemas() if tables.enabled() else ()),
     ]
 
 
@@ -1312,6 +1322,10 @@ def _was_a_read(call: Any, result: Any) -> bool:
     retry with, and the turn ended on "I have nothing to add on that."
     """
     name = str(getattr(call, "name", "") or "")
+    if name in tables.NAMES and isinstance(result, dict):
+        # Describe, then rank, then export is one answer: a table read keeps
+        # the tools open. A handed-over workbook ends the round like a card.
+        return name in tables.READS or result.get("status") != "success"
     if name in procurement.NAMES and isinstance(result, dict):
         # Reading a template, a quotation or the register is a read; so is a
         # draft that came back asking for what is missing -- nothing was
@@ -1527,6 +1541,10 @@ async def _tool(
             workflow_id=None,
             workflow_run_id=None,
             ref_id=f"decibyl:{organization_id}:{call.id or call.name}",
+        )
+    if call.name in tables.NAMES and tables.enabled():
+        return await tables.run(
+            call.name, organization_id=organization_id, arguments=arguments
         )
     if call.name in procurement.NAMES and procurement.enabled():
         return await procurement.run(

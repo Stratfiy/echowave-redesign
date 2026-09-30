@@ -698,6 +698,10 @@ CONNECTIONS_PER_PERSON_ENABLED = (
 PERSONAL_MEMORY_ENABLED = (
     os.getenv("PERSONAL_MEMORY_ENABLED", "false").lower() == "true"
 )
+# Whole-table tools for Decibyl (pilot, 30 Sep 2026): describe, filter, rank
+# and export every row of an attached CSV, read from the original upload
+# rather than the thread's clipped text. Off until switched on.
+TABLE_TOOLS_ENABLED = os.getenv("TABLE_TOOLS_ENABLED", "false").lower() == "true"
 APPROVALS_2026_09_ENABLED = (
     os.getenv("APPROVALS_2026_09_ENABLED", "false").lower() == "true"
 )
