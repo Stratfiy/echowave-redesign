@@ -34,16 +34,16 @@ Why it happened: each slice added its own entrance and its own tab because the s
 | Home | What it is | Absorbs (today's routes) |
 |---|---|---|
 | **My Decibyl** | The thread. Above the fold: what needs you (approvals, questions, blocked), then the composer with follow-up chips | `/overview`, `/start` (first-run is the same thread with a Build card open), `/requests` |
-| **Tasks** | Board or list of work bots are doing, by person and bot | `/tasks`, `/schedules`, `/deliverables`, `/contacts` (as a tab), `/campaigns/*` (a campaign is a task with a list) |
+| **Tasks** | One board of work bots are doing, filtered by project or colleague | `/tasks`, `/schedules`, `/deliverables` |
 | **Agents** | Directory of bots and channels; each bot opens its page (§4) | `/workflow`, `/workflow/archived`, `/workflow/squads/new` (a squad is created from a Build card), `/channels/[id]`, `/model-configurations`, `/roles/install`, `/marketplace/*` as the "Hire" tab |
-| **Knowledge** | Library, templates, persona, memory (mine / shared), graph | `/files`, `/recordings` (audio clips), `/overview/memory`, `/deliverables` documents |
-| **Activity** | Every run: calls, chats, routines, triggers; review, analytics, spend | `/usage`, `/reports`, `/review`, `/analytics`, `/analytics/spend`, `/missed-calls`, `/workflow/[id]/runs`, `/workflow/[id]/run/[runId]`, `/workflow/[id]/analytics` |
+| **Knowledge** | Library, contacts, memory (mine / shared), graph | `/files`, `/contacts`, `/do-not-call`, `/recordings` (audio clips), `/overview/memory` |
+| **Activity** | Every run: calls, chats, routines, triggers; campaigns; review, analytics, spend | `/usage`, `/campaigns/*`, `/reports`, `/review`, `/analytics`, `/analytics/spend`, `/missed-calls`, `/workflow/[id]/runs`, `/workflow/[id]/run/[runId]`, `/workflow/[id]/analytics` |
 | **Team** (managers and admins) | People, roles, approvals queue, operator sessions | `/settings` Team card, `/settings` Approvals card, `/partner` |
 | **Settings** | Six sections (§6) | `/billing`, `/privacy`, `/do-not-call`, `/api-keys`, `/deploy/*`, `/integrations/*`, `/tools`, `/numbers`, `/verification`, `/verified-numbers`, `/telephony-configurations/*`, `/settings` remaining cards |
 
 Public, outside the shell: `/agents`, `/agents/[slug]`, `/talk/[token]`, `/trust`, auth.
 
-Every old route gets a redirect (UI-1 test 2). The nine tab strips collapse to at most one strip per home: Tasks (Board / Contacts / Campaigns), Agents (Mine / Hire), Knowledge (Library / Memory / Graph), Activity (Runs / Review / Analytics / Spend). Marketplace, Telephony, Billing, Developer, Compliance and Bots strips are gone; their content is inside Agents → Hire and Settings.
+Every old route gets a redirect (UI-1 test 2). The nine tab strips collapse to at most one strip per home: Tasks (one board, filters), Agents (Mine / Hire), Knowledge (Library / Contacts / Memory / Graph), Activity (Runs / Campaigns / Review / Analytics / Spend). Marketplace, Telephony, Billing, Developer, Compliance and Bots strips are gone; their content is inside Agents → Hire and Settings.
 
 ## 4. The bot page (UI-2, made concrete)
 
@@ -152,3 +152,5 @@ Second revision (founder): Guardrails & approvals replaces Permissions, as three
 ## 12. Projects (founder direction, 30 September)
 
 Tasks stays. **Projects** is added, like a Claude project: a container with a brief every colleague in it reads first, files scoped to it on top of Company knowledge, people and agents as members, one thread where they collaborate (the existing channel, grown up), a small internal checklist whose items tick by a person, by an outcome landing, or at a goal, and the deliverables made in it. Projects are listed in the rail under Colleagues, not as a home; a project opens on its thread with the inspector Checklist · Files · Colleagues · Deliverables · Activity here. Decibyl creates a project from a sentence and reports on it. The Tasks board gains a Project filter and nothing else. Board: PRJ-1. Screen P in the set.
+
+Founder placement, 30 September: **Contacts under Knowledge** (who the business knows, with consent and do-not-call, is knowledge), **Campaigns under Activity** (outbound activity with a list). Tasks is one board with project and colleague filters.
