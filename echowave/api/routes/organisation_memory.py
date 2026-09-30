@@ -25,7 +25,9 @@ from pydantic import BaseModel, Field
 
 from api.db import db_client
 from api.db.models import UserModel
+from api.services import features
 from api.services.auth.depends import get_user
+from api.services.knowledge_graph import personal
 from api.services.workflow.organisation_learning import (
     KIND_FACT,
     KIND_GAP,
@@ -59,6 +61,10 @@ class MemoryItem(BaseModel):
     #: Whose it is: None is the organisation's, every bot reads it; a bot's
     #: id is that bot's own standing instruction.
     workflow_id: Optional[int] = None
+    #: True for the signed-in member's own personal memory (MEM-1): only they
+    #: see it, and they can share it with the workspace. Always False with
+    #: personal memory off.
+    mine: bool = False
 
 
 class MemoryResponse(BaseModel):
@@ -79,7 +85,14 @@ def _item(row) -> MemoryItem:
         last_seen_at=row.last_seen_at,
         source_run_id=row.source_run_id,
         workflow_id=getattr(row, "workflow_id", None),
+        mine=getattr(row, "user_id", None) is not None,
     )
+
+
+def _viewer(user: UserModel) -> Optional[int]:
+    """The member whose personal memory this screen may show: the signed-in
+    one, when personal memory is on (MEM-1). Never anybody else."""
+    return user.id if personal.enabled() else None
 
 
 @router.get("", response_model=MemoryResponse)
@@ -99,7 +112,9 @@ async def read_memory(
         raise HTTPException(status_code=400, detail="No organization selected")
 
     rows = await db_client.organisation_memory(
-        organization_id=organization_id, workflow_id=workflow_id
+        organization_id=organization_id,
+        workflow_id=workflow_id,
+        user_id=_viewer(user),
     )
     live = [row for row in rows if row.status != STATUS_REJECTED]
     return MemoryResponse(
@@ -163,6 +178,8 @@ async def set_status(
         organization_id=organization_id,
         fact_id=fact_id,
         status=request.status,
+        # A colleague's personal fact is not found, not forbidden (MEM-1).
+        user_id=_viewer(user),
     )
     # Scoped in the UPDATE itself, so a miss is either a deleted row or
     # somebody else's. Both are 404 -- saying which would confirm that another
@@ -170,11 +187,39 @@ async def set_status(
     if not changed:
         raise HTTPException(status_code=404, detail="Not found")
 
-    rows = await db_client.organisation_memory(organization_id=organization_id)
+    rows = await db_client.organisation_memory(
+        organization_id=organization_id, user_id=_viewer(user)
+    )
     for row in rows:
         if row.id == fact_id:
             return _item(row)
     raise HTTPException(status_code=404, detail="Not found")
+
+
+@router.post(
+    "/{fact_id}/share",
+    response_model=MemoryItem,
+    dependencies=[Depends(features.require(personal.FLAG))],
+)
+async def share_fact(
+    fact_id: int,
+    user: UserModel = Depends(get_user),
+) -> MemoryItem:
+    """Make one of your own facts the workspace's (MEM-1).
+
+    Only the member who owns it can share it; anybody else's id is a 404,
+    the way a wrong tenant's is. Once shared it is every member's and every
+    agent's, and it leaves the member's own list.
+    """
+    organization_id = user.selected_organization_id
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+    row = await db_client.share_member_fact(
+        organization_id=organization_id, user_id=user.id, fact_id=fact_id
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    return _item(row)
 
 
 # --- The graph, the export, the delete (B7, B8) ----------------------------

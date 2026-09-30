@@ -52,24 +52,53 @@ def group_id_for_organization(organization_id: int | None) -> str:
     return f"{ORGANIZATION_PREFIX}:{organization_id}"
 
 
+#: Infix of a member's own partition inside an organisation's (MEM-1):
+#: ``org:7:user:3``. Changing it orphans every personal episode written.
+MEMBER_INFIX = "user"
+
+
+def group_id_for_member(organization_id: int | None, user_id: int | None) -> str:
+    """One member's own partition inside their organisation's (MEM-1).
+
+    Strict about both ids for the reason ``group_id_for_organization`` is: a
+    personal episode that landed in the workspace partition would be read by
+    every colleague's recall.
+    """
+    base = group_id_for_organization(organization_id)
+    if isinstance(user_id, bool) or not isinstance(user_id, int) or user_id <= 0:
+        raise GraphScopeError(
+            "Refusing to write a member's memory without a real user id: it "
+            "would land where every colleague reads it."
+        )
+    return f"{base}:{MEMBER_INFIX}:{user_id}"
+
+
 def organization_of(group_id: str | None) -> int | None:
     """The organisation a partition name was derived from, or ``None`` for
     a name this module did not make. The inverse of
-    ``group_id_for_organization``, for attributing what an episode cost."""
+    ``group_id_for_organization`` (and of ``group_id_for_member``), for
+    attributing what an episode cost."""
     prefix = f"{ORGANIZATION_PREFIX}:"
     if not group_id or not group_id.startswith(prefix):
         return None
+    head = group_id[len(prefix) :].split(":", 1)[0]
     try:
-        return int(group_id[len(prefix) :])
+        return int(head)
     except ValueError:
         return None
 
 
-def group_ids_for_search(organization_id: int | None) -> list[str]:
+def group_ids_for_search(
+    organization_id: int | None, user_id: int | None = None
+) -> list[str]:
     """The partitions a search for this organization may read.
 
-    One, always. The list is Graphiti's shape, not an invitation to widen it:
-    searching more than one organization's partition is never a thing this
-    product does, and a helper that made it easy would eventually be used.
+    The organisation's, and with ``user_id`` that one member's own as well
+    (MEM-1) -- never another member's, and never another organisation's. The
+    list is Graphiti's shape, not an invitation to widen it: a helper that
+    made reading someone else's partition easy would eventually be used.
     """
-    return [group_id_for_organization(organization_id)]
+    ids = [group_id_for_organization(organization_id)]
+    if user_id is not None:
+        ids.append(group_id_for_member(organization_id, user_id))
+    return ids

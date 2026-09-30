@@ -4,7 +4,7 @@ import re
 from datetime import UTC, datetime, timedelta
 from typing import Any, Optional
 
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy import update as sa_update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
@@ -20,23 +20,53 @@ from api.db.models import (
 #: about one of its customers.
 SUBJECT_ORGANISATION = "organisation"
 
-#: ``workflow_id IS NULL`` -- the organisation's own memory, which every bot
-#: reads. The predicate is spelled the same way as the partial unique index it
-#: infers against, and with no bound parameter, so Postgres either matches the
-#: index or refuses the statement. A near-miss here would write duplicate rows
-#: rather than raise, which is the one failure this table must not have.
-ORG_SCOPE = OrganisationFactModel.workflow_id.is_(None)
+#: ``workflow_id IS NULL AND user_id IS NULL`` -- the organisation's own
+#: memory, which every bot and every member reads. The predicate is spelled the
+#: same way as the partial unique index it infers against, and with no bound
+#: parameter, so Postgres either matches the index or refuses the statement. A
+#: near-miss here would write duplicate rows rather than raise, which is the
+#: one failure this table must not have.
+ORG_SCOPE = and_(
+    OrganisationFactModel.workflow_id.is_(None),
+    OrganisationFactModel.user_id.is_(None),
+)
 #: ``workflow_id IS NOT NULL`` -- one bot's own memory.
 BOT_SCOPE = OrganisationFactModel.workflow_id.isnot(None)
+#: ``user_id IS NOT NULL`` -- one member's personal memory (MEM-1).
+MEMBER_SCOPE = OrganisationFactModel.user_id.isnot(None)
+#: Rows any member of the workspace may read: everything that is not somebody's
+#: personal memory. The default for every read that does not name a member, so
+#: a reader nobody taught about members can never return one.
+NOT_PERSONAL = OrganisationFactModel.user_id.is_(None)
 
 
-def _scope(workflow_id: Optional[int]):
+def _readable_by(user_id: Optional[int]):
+    """The workspace's rows, plus ``user_id``'s own when one is named."""
+    if user_id is None:
+        return NOT_PERSONAL
+    return or_(NOT_PERSONAL, OrganisationFactModel.user_id == user_id)
+
+
+def _scope(workflow_id: Optional[int], user_id: Optional[int] = None):
     """The conflict target for a write at this scope.
 
-    Two partial unique indexes, so an upsert has to say which one it means.
+    Three partial unique indexes, so an upsert has to say which one it means.
     Returned together because getting the pair out of step is the way to write
     a row that collides with nothing.
     """
+    if user_id is not None:
+        if workflow_id is not None:
+            raise ValueError("A fact is a member's or a bot's, never both")
+        return (
+            [
+                OrganisationFactModel.organization_id,
+                OrganisationFactModel.user_id,
+                OrganisationFactModel.subject_type,
+                OrganisationFactModel.subject_key,
+                OrganisationFactModel.key,
+            ],
+            MEMBER_SCOPE,
+        )
     if workflow_id is None:
         return (
             [
@@ -170,6 +200,7 @@ class OrganisationFactClient(BaseDBClient):
                     OrganisationFactModel.subject_type == subject_type,
                     OrganisationFactModel.subject_key == subject_key,
                     scope,
+                    NOT_PERSONAL,
                 )
                 # The bot's rows land last and overwrite the organisation's in
                 # the dict comprehension below. Ordering is load-bearing, which
@@ -260,8 +291,13 @@ class OrganisationFactClient(BaseDBClient):
         workflow_id: Optional[int] = None,
         subject_type: str = SUBJECT_ORGANISATION,
         subject_key: str = "self",
+        user_id: Optional[int] = None,
     ) -> int:
         """What the business told us about itself -- or about one of its bots.
+
+        With a ``user_id`` it is that member's personal memory instead
+        (MEM-1): something they told Decibyl in their own conversation,
+        which only their own recall reads.
 
         ``subject_type``/``subject_key`` name what the facts are about when it
         is not the business: a document (``"document"``, its uuid) whose
@@ -286,6 +322,7 @@ class OrganisationFactClient(BaseDBClient):
             {
                 "organization_id": organization_id,
                 "workflow_id": workflow_id,
+                "user_id": user_id,
                 "subject_type": subject_type,
                 "subject_key": subject_key,
                 "key": key,
@@ -304,7 +341,7 @@ class OrganisationFactClient(BaseDBClient):
         if not rows:
             return 0
 
-        index_elements, index_where = _scope(workflow_id)
+        index_elements, index_where = _scope(workflow_id, user_id)
         statement = pg_insert(OrganisationFactModel).values(rows)
         statement = statement.on_conflict_do_update(
             index_elements=index_elements,
@@ -331,8 +368,14 @@ class OrganisationFactClient(BaseDBClient):
         workflow_id: Optional[int] = None,
         include_bots: bool = False,
         limit: int = 200,
+        user_id: Optional[int] = None,
     ) -> list[Any]:
         """What this business knows and what it still cannot answer.
+
+        ``user_id`` adds that member's personal memory (MEM-1) to whichever
+        scope is asked for. Without it no member's personal memory is ever
+        returned, whatever the other arguments say -- including
+        ``include_bots``, which reads every bot's but nobody's own.
 
         Most-seen first: the question forty callers asked is the one worth
         reading, and burying it under thirty-nine one-offs would make the
@@ -354,19 +397,20 @@ class OrganisationFactClient(BaseDBClient):
         a prompt.
         """
         if include_bots:
-            scope = None
+            scope = NOT_PERSONAL
         elif workflow_id is None:
             scope = ORG_SCOPE
         else:
             scope = or_(ORG_SCOPE, OrganisationFactModel.workflow_id == workflow_id)
+        if user_id is not None:
+            scope = or_(scope, OrganisationFactModel.user_id == user_id)
 
         async with self.async_session() as session:
             query = select(OrganisationFactModel).where(
                 OrganisationFactModel.organization_id == organization_id,
                 OrganisationFactModel.subject_type == SUBJECT_ORGANISATION,
             )
-            if scope is not None:
-                query = query.where(scope)
+            query = query.where(scope)
             if kind:
                 query = query.where(OrganisationFactModel.kind == kind)
             if status:
@@ -402,15 +446,20 @@ class OrganisationFactClient(BaseDBClient):
         subject_key: Optional[str] = None,
         status: Optional[str] = None,
         limit: int = 200,
+        user_id: Optional[int] = None,
     ) -> list[Any]:
         """Facts about things other than the organisation itself: a person, a
         document, a supplier. What a correction on the thread writes (B5)
         and what recall reads first. ``organisation_memory`` deliberately
-        never returns these; this deliberately never returns those."""
+        never returns these; this deliberately never returns those.
+
+        The workspace's rows, plus ``user_id``'s personal ones when named;
+        never another member's (MEM-1)."""
         async with self.async_session() as session:
             query = select(OrganisationFactModel).where(
                 OrganisationFactModel.organization_id == organization_id,
                 OrganisationFactModel.subject_type != SUBJECT_ORGANISATION,
+                _readable_by(user_id),
             )
             if subject_type:
                 query = query.where(OrganisationFactModel.subject_type == subject_type)
@@ -430,8 +479,12 @@ class OrganisationFactClient(BaseDBClient):
         organization_id: int,
         fact_id: int,
         status: str,
+        user_id: Optional[int] = None,
     ) -> bool:
         """Believe it, or dismiss it.
+
+        A member's personal fact can be changed only by that member
+        (``user_id``); a workspace fact by anyone in the workspace, as before.
 
         Scoped by organization in the WHERE clause rather than checked after
         the read: an id in a request body proves nothing, and confirming
@@ -444,6 +497,7 @@ class OrganisationFactClient(BaseDBClient):
                 .where(
                     OrganisationFactModel.id == fact_id,
                     OrganisationFactModel.organization_id == organization_id,
+                    _readable_by(user_id),
                 )
                 .values(
                     status=status,
@@ -452,6 +506,59 @@ class OrganisationFactClient(BaseDBClient):
             )
             await session.commit()
             return bool(result.rowcount)
+
+    async def share_member_fact(
+        self, *, organization_id: int, user_id: int, fact_id: int
+    ) -> Optional[Any]:
+        """Make one of this member's personal facts the workspace's (MEM-1).
+
+        Written through the workspace upsert, so a workspace fact already on
+        the same point takes the member's value rather than a second row
+        appearing; the personal row is then removed. Returns the workspace row,
+        or None when the fact is not this member's.
+        """
+        from sqlalchemy import delete as sa_delete
+
+        async with self.async_session() as session:
+            row = (
+                await session.execute(
+                    select(OrganisationFactModel).where(
+                        OrganisationFactModel.id == fact_id,
+                        OrganisationFactModel.organization_id == organization_id,
+                        OrganisationFactModel.user_id == user_id,
+                    )
+                )
+            ).scalar_one_or_none()
+            if row is None:
+                return None
+            identity = (row.subject_type, row.subject_key, row.key)
+            value, status = row.value, row.status
+            await session.execute(
+                sa_delete(OrganisationFactModel).where(
+                    OrganisationFactModel.id == fact_id
+                )
+            )
+            await session.commit()
+
+        await self.remember_organisation_facts(
+            organization_id=organization_id,
+            facts={identity[2]: value},
+            status=status,
+            subject_type=identity[0],
+            subject_key=identity[1],
+        )
+        async with self.async_session() as session:
+            return (
+                await session.execute(
+                    select(OrganisationFactModel).where(
+                        OrganisationFactModel.organization_id == organization_id,
+                        OrganisationFactModel.subject_type == identity[0],
+                        OrganisationFactModel.subject_key == identity[1],
+                        OrganisationFactModel.key == identity[2],
+                        ORG_SCOPE,
+                    )
+                )
+            ).scalar_one_or_none()
 
     async def organisation_graph_edges(
         self, *, organization_id: int, days: int = 90
@@ -509,6 +616,7 @@ class OrganisationFactClient(BaseDBClient):
                         OrganisationFactModel.organization_id == organization_id,
                         OrganisationFactModel.subject_type == SUBJECT_ORGANISATION,
                         OrganisationFactModel.status != "rejected",
+                        NOT_PERSONAL,
                     )
                 )
             ).all()

@@ -28,13 +28,12 @@ answers "the workspace" and the tenant id is what it always was.
 
 from __future__ import annotations
 
-from contextlib import contextmanager
-from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Any, Iterator, Optional
+from typing import Any, Optional
 
 from loguru import logger
 
+from api.services import acting as _acting
 from api.services import features
 
 FLAG = "connections_per_person"
@@ -58,39 +57,14 @@ def member_scope(user_id: Any) -> Optional[int]:
     """
     if not enabled():
         return None
-    if isinstance(user_id, bool) or not isinstance(user_id, int) or user_id <= 0:
-        return None
-    return user_id
+    return _acting.valid_member(user_id)
 
 
-_acting: ContextVar[Optional[int]] = ContextVar("composio_acting_user", default=None)
-
-
-@contextmanager
-def acting_as(user_id: Optional[int]) -> Iterator[None]:
-    """Everything inside runs as this member: a Decibyl turn, a card confirm.
-
-    The scope is a context variable rather than an argument for the reason
-    ``agent_timeline.in_thread`` gives: the tool executor is six calls below
-    the turn that knows who is asking, and threading the id through each one
-    is how one of them ends up forgotten and a member sends from the wrong
-    mailbox with nothing failing.
-    """
-    valid = (
-        user_id
-        if isinstance(user_id, int) and not isinstance(user_id, bool) and user_id > 0
-        else None
-    )
-    token = _acting.set(valid)
-    try:
-        yield
-    finally:
-        _acting.reset(token)
-
-
-def acting_user() -> Optional[int]:
-    """The member the current turn runs as, when one was set."""
-    return _acting.get()
+# The member a turn runs as is shared with personal memory (MEM-1), so it
+# lives in one place: api/services/acting.py. Re-exported here because the
+# connected-tool executor and the Decibyl turn already import it from here.
+acting_as = _acting.acting_as
+acting_user = _acting.acting_user
 
 
 @dataclass(frozen=True)

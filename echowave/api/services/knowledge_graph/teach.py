@@ -21,7 +21,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
-from api.services.knowledge_graph import feed
+from api.services.knowledge_graph import feed, personal
 from api.services.workflow import agent_timeline
 
 TOOL_NAME = "correct_memory"
@@ -97,6 +97,8 @@ async def correct(
             status="confirmed",
             subject_type=kind,
             subject_key=subject_key(subject),
+            # Said in a member's own conversation, it is theirs (MEM-1).
+            user_id=personal.owner(),
         )
     except Exception as exc:  # noqa: BLE001
         logger.warning(

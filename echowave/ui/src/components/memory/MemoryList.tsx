@@ -13,12 +13,13 @@
  * card and lands on the same status -- see services/workflow/actions.py.
  */
 
-import { Trash2, Undo2 } from 'lucide-react';
+import { Share2, Trash2, Undo2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import {
     readMemoryApiV1OrganisationMemoryGet,
     setStatusApiV1OrganisationMemoryFactIdStatusPost,
+    shareFactApiV1OrganisationMemoryFactIdSharePost,
 } from '@/client/sdk.gen';
 import type { MemoryItem } from '@/client/types.gen';
 import { detailFromError } from '@/lib/apiError';
@@ -56,6 +57,21 @@ export function MemoryList({
             setFacts(response.data.facts ?? []);
         })();
     }, [authLoading, user, workflowId]);
+
+    // Personal memory (MEM-1): a fact marked "mine" is only the signed-in
+    // member's. Sharing makes it the workspace's, for every member and agent.
+    const share = async (fact: MemoryItem) => {
+        setBusy(fact.id);
+        setError(null);
+        const result = await shareFactApiV1OrganisationMemoryFactIdSharePost({ path: { fact_id: fact.id } });
+        setBusy(null);
+        if (result.error || !result.data) {
+            setError(detailFromError(result.error, 'Could not share that'));
+            return;
+        }
+        const shared = result.data;
+        setFacts((was) => (was ?? []).map((f) => (f.id === fact.id ? shared : f)));
+    };
 
     const setStatus = async (fact: MemoryItem, status: string) => {
         setBusy(fact.id);
@@ -99,6 +115,23 @@ export function MemoryList({
                                     <span className="shrink-0 text-muted-foreground">{fact.key}</span>
                                     <span className="min-w-0 flex-1 truncate">{fact.value}</span>
                                 </>
+                            )}
+                            {fact.mine && !gone && (
+                                <span className="shrink-0 rounded-full border border-border px-1.5 text-[10px] text-muted-foreground">
+                                    Only you
+                                </span>
+                            )}
+                            {fact.mine && !gone && (
+                                <button
+                                    type="button"
+                                    aria-label={`Share ${fact.key} with the workspace`}
+                                    title="Share with the workspace"
+                                    disabled={busy === fact.id}
+                                    onClick={() => void share(fact)}
+                                    className="shrink-0 rounded p-1 text-muted-foreground opacity-60 hover:bg-muted hover:opacity-100 focus-visible:opacity-100"
+                                >
+                                    <Share2 className="h-3.5 w-3.5" aria-hidden />
+                                </button>
                             )}
                             {fact.workflow_id != null && !gone && (
                                 <span className="shrink-0 rounded-full border border-border px-1.5 text-[10px] text-muted-foreground">

@@ -42,6 +42,7 @@ from api.constants import (
     KNOWLEDGE_GRAPH_URL,
 )
 from api.services.billing import model_usage
+from api.services.knowledge_graph import personal
 from api.services.knowledge_graph.episodes import SOURCE_TEXT
 
 #: Built once per process, on first use. ``None`` means either not yet built or
@@ -330,7 +331,7 @@ async def search_facts(
         edges = await asyncio.wait_for(
             graph.search(
                 query,
-                group_ids=group_ids_for_search(organization_id),
+                group_ids=group_ids_for_search(organization_id, personal.viewer()),
                 num_results=max(limit * 2, 20),
             ),
             timeout=SEARCH_TIMEOUT_SECONDS,
@@ -405,7 +406,7 @@ async def recent_facts(
         edges = await asyncio.wait_for(
             EntityEdge.get_by_group_ids(
                 graph.driver,
-                group_ids_for_search(organization_id),
+                group_ids_for_search(organization_id, personal.viewer()),
                 limit=max(limit * 4, 400),
             ),
             timeout=SEARCH_TIMEOUT_SECONDS,
@@ -434,10 +435,13 @@ async def _overlay_confirmed(organization_id: int, facts: list[Fact]) -> list[Fa
                 kind="fact",
                 status="confirmed",
                 limit=500,
+                user_id=personal.viewer(),
             )
         ) + list(
             await db_client.subject_facts(
-                organization_id=organization_id, status="confirmed"
+                organization_id=organization_id,
+                status="confirmed",
+                user_id=personal.viewer(),
             )
         )
     except Exception as exception:  # noqa: BLE001

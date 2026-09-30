@@ -5889,6 +5889,14 @@ class OrganisationFactModel(Base):
         Integer, ForeignKey("workflows.id", ondelete="CASCADE"), nullable=True
     )
 
+    #: Whose personal memory this is (MEM-1). NULL is the workspace's, which
+    #: every member reads. A user id is that member's alone: something they
+    #: told Decibyl in their own conversation, which no colleague's recall,
+    #: search or summary may return. Never set together with ``workflow_id``.
+    #:
+    #: CASCADE: a member removed from the product takes their memory with them.
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+
     #: What kind of thing this is about. "contact" today; "quote" and "shipment"
     #: are the reason it is a column rather than an assumption.
     subject_type = Column(String(64), nullable=False, default="contact")
@@ -5969,7 +5977,18 @@ class OrganisationFactModel(Base):
             "subject_key",
             "key",
             unique=True,
-            postgresql_where=text("workflow_id IS NULL"),
+            postgresql_where=text("workflow_id IS NULL AND user_id IS NULL"),
+        ),
+        # A member's own memory (MEM-1): the same identity, per member.
+        Index(
+            "uq_organisation_facts_member_subject_key",
+            "organization_id",
+            "user_id",
+            "subject_type",
+            "subject_key",
+            "key",
+            unique=True,
+            postgresql_where=text("user_id IS NOT NULL"),
         ),
         Index(
             "uq_organisation_facts_bot_subject_key",

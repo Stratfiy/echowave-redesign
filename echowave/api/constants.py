@@ -691,6 +691,13 @@ MANAGED_REALTIME_GEMINI_ONLY_ENABLED = (
 CONNECTIONS_PER_PERSON_ENABLED = (
     os.getenv("CONNECTIONS_PER_PERSON_ENABLED", "false").lower() == "true"
 )
+# Personal memory per member (PRD v2 MEM-1): what a member tells Decibyl is
+# theirs -- stored against their user id and in their own graph partition --
+# and recall, search and summaries read the workspace's memory plus the
+# asker's own, never a colleague's. Off, all memory is the workspace's.
+PERSONAL_MEMORY_ENABLED = (
+    os.getenv("PERSONAL_MEMORY_ENABLED", "false").lower() == "true"
+)
 APPROVALS_2026_09_ENABLED = (
     os.getenv("APPROVALS_2026_09_ENABLED", "false").lower() == "true"
 )

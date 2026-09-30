@@ -34,10 +34,10 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
-from api.services import prompt_budget, reporting_window
+from api.services import acting, prompt_budget, reporting_window
 from api.services.billing import model_usage
 from api.services.documents import tools as procurement
-from api.services.integrations.composio import members as connection_members
+from api.services.knowledge_graph import personal as personal_memory
 from api.services.knowledge_graph import quiet, recall, teach
 from api.services.organization_preferences import get_organization_preferences
 from api.services.skills import imports as skill_imports
@@ -610,7 +610,9 @@ async def build_context(organization_id: int, question: str) -> str:
 
     try:
         memory_rows = await db_client.organisation_memory(
-            organization_id=organization_id
+            organization_id=organization_id,
+            # The workspace's memory, plus the asker's own (MEM-1).
+            user_id=personal_memory.viewer(),
         )
     except Exception as exc:  # noqa: BLE001
         logger.warning("Decibyl could not read memory: {}", exc)
@@ -832,12 +834,10 @@ async def answer(
     # card a tool proposes, the reply itself -- belongs to the conversation
     # it was asked in. Set once here rather than passed down through each
     # writer; see agent_timeline.in_thread for why.
-    # And every connected-app call in it runs as the person who asked
-    # (WS-1): their Gmail, not the workspace's, when they have one.
-    with (
-        agent_timeline.in_thread(thread_id),
-        connection_members.acting_as(author_id),
-    ):
+    # And it runs as the person who asked: their Gmail, not the
+    # workspace's, when they have one (WS-1), and their own memory beside
+    # the workspace's (MEM-1).
+    with agent_timeline.in_thread(thread_id), acting.acting_as(author_id):
         return await _answer(
             organization_id,
             text,

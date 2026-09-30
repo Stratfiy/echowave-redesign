@@ -7334,6 +7334,10 @@ export type MemoryItem = {
      * Workflow Id
      */
     workflow_id?: number | null;
+    /**
+     * Mine
+     */
+    mine?: boolean;
 };
 
 /**
@@ -30084,6 +30088,50 @@ export type SetStatusApiV1OrganisationMemoryFactIdStatusPostResponses = {
 };
 
 export type SetStatusApiV1OrganisationMemoryFactIdStatusPostResponse = SetStatusApiV1OrganisationMemoryFactIdStatusPostResponses[keyof SetStatusApiV1OrganisationMemoryFactIdStatusPostResponses];
+
+export type ShareFactApiV1OrganisationMemoryFactIdSharePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Fact Id
+         */
+        fact_id: number;
+    };
+    query?: never;
+    url: '/api/v1/organisation/memory/{fact_id}/share';
+};
+
+export type ShareFactApiV1OrganisationMemoryFactIdSharePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ShareFactApiV1OrganisationMemoryFactIdSharePostError = ShareFactApiV1OrganisationMemoryFactIdSharePostErrors[keyof ShareFactApiV1OrganisationMemoryFactIdSharePostErrors];
+
+export type ShareFactApiV1OrganisationMemoryFactIdSharePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MemoryItem;
+};
+
+export type ShareFactApiV1OrganisationMemoryFactIdSharePostResponse = ShareFactApiV1OrganisationMemoryFactIdSharePostResponses[keyof ShareFactApiV1OrganisationMemoryFactIdSharePostResponses];
 
 export type MemoryGraphApiV1OrganisationMemoryGraphGetData = {
     body?: never;
