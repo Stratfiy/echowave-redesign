@@ -124,3 +124,20 @@ github.com/CopilotKit/openbot, MIT, alpha, 5.8k stars. "The AI assistant your co
 **What to leave.** The hosted Intelligence dependency (our threads are ours), single-user mode, the 15-minute routine floor (ours run on triggers and the clock), and the absence of channels: the channels are the product for us.
 
 **What it means.** Self-hostable "own your coworkers" is now free and credible for developers. For an SMB that is not a purchase decision, but it sets a floor: governance (policy, audit, isolation) is table stakes, not a premium tier. Ours is already built; make it visible on the trust page and in the Activity log.
+
+## 11. Addendum: Paperclip (founder input, 30 September)
+
+github.com/paperclipai/paperclip, MIT, Paperclip Labs. "The open-source app everyone uses to manage agents at work." Open-sourced 15 January, launched 2 March 2026; about 95k stars and 16k forks by 30 September, self-hosted only, no paid cloud, no disclosed funding. It sits above agent runtimes (Claude Code, Codex, OpenClaw, Cursor, any CLI or webhook: "if it can receive a heartbeat, it's hired") and gives them a company: a mission and goals, an org chart with roles, titles, reporting lines and permissions for humans and agents alike, a monthly budget per agent with a hard stop at 100%, tickets linked to goals and checked out atomically, heartbeats (scheduled or event wake-ups), board-level approval gates for hires and strategy, cost tracking by company, agent, project, goal and provider, and an immutable audit trail of decisions and tool calls. A CEO agent drafts a hiring plan and delegates down the chart. No channels: no phone, WhatsApp, email or customers.
+
+**Where it sits.** Bottom-left with OpenBot and Buzz: developer-led, self-hosted, works the owner's company. It is the most direct external validation of the office model: named agents, a manager, work as tickets, approval gates, per-agent budgets, an audit row per decision. It is also the vocabulary developers now expect.
+
+**What it confirms and what to take.**
+1. **Per-agent monthly budget with a hard stop** is the governance primitive users understand. Ours exists as a script spend cap and workspace budgets; make it per bot, visible on the bot page, and the thing that pauses with a card. Lands in OUT-1 (consumables ledger) and POL-2.
+2. **Goals that trace to a mission, and every ticket carrying its ancestry.** ORG-1 (KAN-219, "org chart and goals") was Phase 3; Paperclip shows it is table stakes for anyone who has seen an agent company. Pull the light version forward: a workspace mission line, a goal per bot, and the outcome definition (OUT-1) counted against it.
+3. **Heartbeats** are our routines and triggers. Same primitive; keep the name "routine" for owners, expose "heartbeat" only in the API.
+4. **Tickets checked out atomically** so two agents never do the same work: our task board (G11) plus delegation-with-wait (coordinator model P2) should adopt the checkout rule.
+5. **Humans and agents on one org chart with the same permission model**: this is what Team (UI-1) and the approval matrix already imply; say it plainly in the UI.
+
+**What to leave.** The zero-human-company framing (our buyer wants a receptionist, not a CEO), and a chart as the front door (ours is the thread; the chart is a view).
+
+**What it means.** The "company of agents" mental model has 95k stars of mindshare among developers. For an Indian SMB owner it becomes real only when the agents answer the phone. Decibyl's line, "hire a team, not a tool", is the SMB-facing version of exactly this, with the channels Paperclip does not have.
