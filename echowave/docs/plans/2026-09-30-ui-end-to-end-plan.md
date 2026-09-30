@@ -49,11 +49,12 @@ Every old route gets a redirect (UI-1 test 2). The nine tab strips collapse to a
 
 One page per bot, `/agents/[id]`. Header: name, handle (`@reception`), status (draft / live / paused), **Test ▾** (Hear it · Try it · Check it), **Publish** (shows the diff; rollback lives in Version history). No "Setup" dropdown, no More menu; Duplicate, Download, Copy UUID and Save as role go to a "…" at the far right, superusers also see "Publish to marketplace" there (MKT-1).
 
-Body: **Chat** (the bot's thread; edits by sentence produce diff cards) or **Canvas** (the graph), one switch, same definition. On the right, the **inspector**, nine sections in this order, each collapsed to a one-line summary:
+Body: **Chat** (the bot's thread; edits by sentence produce diff cards) or **Canvas** (the graph), one switch, same definition. On My Decibyl the same switch reads **Thread · Graph**: the graph is the office (owner → Decibyl → colleagues → the channels and apps they use, dotted lines for hand-off rules; GV-1, KAN-215), never the home, always one tap away. On the right, the **inspector**, nine sections in this order, each collapsed to a one-line summary:
 
 | Section | Simple (default) | Advanced (disclosure) | Replaces |
 |---|---|---|---|
 | Role & persona | Job, greeting, tone, language(s) | Full prompt, variables, notices, voicemail behaviour | settings Advanced → general, notices, voicemail, variables |
+| Skills | What it can do, as chips (book, reschedule, confirm, hand over); add from the marketplace | Skill sources, order, per-skill instructions | `/marketplace/skills`, skills attach routes |
 | Channels | Phone number (verify → pick → assign, one flow), WhatsApp (connect, one flow; **new**), Web widget, Email address, Webhook | Carrier, SIP, caller-ID pools, test numbers | `/verification`, `/numbers`, `/telephony-configurations/*`, `/verified-numbers`, `/deploy/*`, Share tab |
 | Brain & voice | Tier (Everyday / Natural / Premium) · language · price per minute or per reply | Vendor and model per slot, own key (BYOK-1), fallback chains, the 16 option groups (turn-taking, denoising, interruption, keypad, fillers, compaction…) | About-panel ModelRow + SlotSettings, FallbackChain ×2, voicemail LLMConfigSelector, composer vendor picker, `/model-configurations` |
 | Apps & tools | Toggle which connected apps this bot may use; connect a missing one in place | Custom HTTP tools, MCP, per-tool timeouts, secure-form fields | `/workflow/[id]/tools`, `/tools/*`, Tool credentials, MCP Server |
@@ -63,7 +64,7 @@ Body: **Chat** (the bot's thread; edits by sentence produce diff cards) or **Can
 | Quality | Outcome definition (OUT-1), QA on/off, last Check it result | Eval suites, golden sets, readiness checklist, rate card, recordings retention for this bot | settings Quality tab, `/workflow/[id]/evals` |
 | Versions | Live version, draft, last publish | Full history, rollback, download | Version history, Back to Draft |
 
-Count on the default view: 9 section summaries, 3 header actions. Today: 9 tab destinations, 22 buttons and 21 fields on Settings alone, plus 16 option groups in the About panel.
+Count on the default view: 10 section summaries, 3 header actions. Today: 9 tab destinations, 22 buttons and 21 fields on Settings alone, plus 16 option groups in the About panel.
 
 Deleted outright (dead, never imported): `ModelConfigurationV2`, `AIModelConfigurationV2Editor`, `ServiceConfigurationForm`, `ModelSlotSelect`, `SimpleAgentEditor`, `FlowAgentEditor`, `ChangeByChat`, `ConfigurationsDialog`, `RecordingsDialog`, `VoicemailDetectionDialog`, `DictionaryDialog`. Retired after migration: `settings/page.tsx`, `AgentTabs`, the Setup dropdown, `/workflow/create` (its three steps become the Build card), `FirstAgentJourney` (its four steps become the first-run Build card with Hear it inline).
 
@@ -143,3 +144,5 @@ Board: UI-4 (new). Lands with UI-1 (roster) and UI-2 (bot page header). Also bec
 `samples/2026-09-30-my-decibyl-hifi.html`, also published as a private artifact. One screen, the first ten minutes: the roster with animated faces (states: speaking, waiting, idle), the Build card with Hear it · Try it · Check it and a price per minute before hiring, an approval card from `@accounts` with the draft shown and the grant scopes Once · This task · 7 days · Always, the trial meter (invite-only, days left, credits), the composer whose addressee changes when a line starts with a handle, follow-up chips, and the inspector with the nine sections collapsed and BYOK shown in Brain & voice.
 
 Type and surface, on the founder's instruction to avoid common faces and generated-looking design: Familjen Grotesk for display, Schibsted Grotesk for body, Martian Mono for handles, prices and counts; a cool paper ground with a green-black ink, one teal accent for actions and one haldi for "needs you"; no cream, no coral, no gradients, no cards inside cards, nothing centred. These become the tokens in UI-0 item 7 once the founder confirms the direction; Refero references are pulled in the next session (the server is registered) for the bot page and Activity samples.
+
+Revision after the founder's review: a **Skills** section was missing from the inspector (now ten sections); a **Thread · Graph** switch sits in the header and the graph shows the office; the composer grows with the text (24 px to 160 px, then scrolls) and the follow-up chips hide as soon as typing starts, so the bar is one line tall at rest and never taller than the text.

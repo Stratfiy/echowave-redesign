@@ -81,9 +81,9 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .scope button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 .draft{border-left:3px solid var(--haldi);padding:10px 12px;margin:0;background:var(--haldi-soft);border-radius:0 6px 6px 0;font-size:14px}
 .draft small{display:block;color:var(--ink-3);margin-top:6px;font-family:var(--mono);font-size:11px}
-.composer{padding:12px 22px 18px;border-top:1px solid var(--line);background:var(--paper)}
+.composer{padding:10px 22px 14px;border-top:1px solid var(--line);background:var(--paper)}
 .composer .box{display:flex;gap:10px;align-items:flex-end;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--card)}
-.composer textarea{flex:1;resize:none;border:0;background:none;font:inherit;color:inherit;min-height:24px;max-height:120px;outline:none;min-width:0}
+.composer textarea{flex:1;resize:none;border:0;background:none;font:inherit;color:inherit;height:24px;line-height:24px;max-height:160px;outline:none;min-width:0;overflow:hidden}
 .composer .to{font-family:var(--mono);font-size:11px;color:var(--ink-3);padding-top:4px;white-space:nowrap}
 .followups{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .followups button{padding:6px 11px;border-radius:999px;border:1px dashed var(--line);font-size:13px;color:var(--ink-2)}
@@ -107,6 +107,17 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .byok .k{font-family:var(--mono);font-size:11px;color:var(--teal)}
 .adv{font-size:12px;color:var(--ink-3);text-decoration:underline dotted;background:none;padding:0;text-align:left}
 .face svg{width:100%;height:100%;display:block}
+.tb-left{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.views{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.views button{padding:5px 12px;font-size:13px;color:var(--ink-2)}
+.views button[aria-selected="true"]{background:var(--ink);color:var(--paper)}
+.graph{flex:1;padding:22px;overflow:auto}
+.graph svg{width:100%;max-width:760px;height:auto;display:block}
+.legend{font-size:12.5px;color:var(--ink-3);margin-top:8px}
+.skills{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.skills span{padding:3px 9px;border:1px solid var(--line);border-radius:999px;font-size:12.5px;background:var(--paper)}
+.composer.typing .followups{display:none}
+.composer.typing{padding-bottom:12px}
 @media (prefers-reduced-motion:reduce){.face *{animation:none!important;transition:none!important}}
 @media (max-width:900px){
   .app{grid-template-columns:1fr;height:auto;min-height:0}
@@ -150,14 +161,40 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 
   <main class="thread" id="my-decibyl">
     <div class="topbar">
-      <div><h1>My Decibyl</h1><div class="sub">Tuesday 30 September · two things need you</div></div>
+      <div class="tb-left"><div><h1>My Decibyl</h1><div class="sub">Tuesday 30 September · two things need you</div></div>
+        <div class="views" role="tablist" aria-label="View"><button role="tab" aria-selected="true" data-view="thread">Thread</button><button role="tab" aria-selected="false" data-view="graph">Graph</button></div></div>
       <div class="pending">
         <span class="chip warn"><span class="k">@accounts</span> wants to send 4 reminders</span>
         <span class="chip"><span class="k">@reception</span> booked 6 today</span>
       </div>
     </div>
 
-    <div class="stream">
+
+    <div class="graph" id="graphView" hidden aria-label="The office as a graph">
+      <svg viewBox="0 0 720 360" role="img" aria-label="Who works with whom">
+        <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5 0 10z" fill="var(--ink-3)"/></marker></defs>
+        <g stroke="var(--line)" stroke-width="1.5" fill="none" marker-end="url(#ar)">
+          <path d="M120 180 L250 180"/><path d="M300 165 L400 100"/><path d="M300 180 L400 180"/><path d="M300 195 L400 260"/>
+          <path d="M450 100 L560 70"/><path d="M450 100 L560 130"/><path d="M450 180 L560 200"/><path d="M450 260 L560 280"/><path d="M450 275 L450 195" stroke-dasharray="4 4"/>
+        </g>
+        <g font-family="var(--body)" font-size="13" fill="var(--ink)">
+          <g><circle cx="95" cy="180" r="24" fill="var(--ink)"/><text x="95" y="222" text-anchor="middle">Priya · owner</text></g>
+          <g><rect x="250" y="156" width="50" height="48" rx="10" fill="var(--teal)"/><text x="275" y="222" text-anchor="middle">Decibyl</text></g>
+          <g><rect x="400" y="76" width="50" height="48" rx="24" fill="#3E8E6E"/><text x="425" y="142" text-anchor="middle">@reception</text></g>
+          <g><rect x="400" y="156" width="50" height="48" rx="6" fill="#B07A2A"/><text x="425" y="222" text-anchor="middle">@followup</text></g>
+          <g><path d="M425 236 455 256v28l-30 20-30-20v-28z" fill="#6E4A8E"/><text x="425" y="322" text-anchor="middle">@accounts</text></g>
+          <g fill="var(--ink-2)" font-size="12">
+            <rect x="560" y="52" width="130" height="34" rx="6" fill="var(--paper)" stroke="var(--line)"/><text x="625" y="74" text-anchor="middle">Clinic number · live</text>
+            <rect x="560" y="112" width="130" height="34" rx="6" fill="var(--paper)" stroke="var(--line)"/><text x="625" y="134" text-anchor="middle">WhatsApp · not yet</text>
+            <rect x="560" y="182" width="130" height="34" rx="6" fill="var(--paper)" stroke="var(--line)"/><text x="625" y="204" text-anchor="middle">Appointment sheet</text>
+            <rect x="560" y="262" width="130" height="34" rx="6" fill="var(--paper)" stroke="var(--line)"/><text x="625" y="284" text-anchor="middle">Zoho Books</text>
+          </g>
+          <text x="470" y="238" font-size="11" fill="var(--ink-3)">hands leads to</text>
+        </g>
+      </svg>
+      <div class="legend">Owner → manager → colleagues → what they use. Dotted: a hand-off rule. Tap a colleague to open it.</div>
+    </div>
+    <div class="stream" id="streamView">
       <div class="msg me">
         <span class="face" data-shape="2" data-hue="ink" data-state="idle" data-person="true"></span>
         <div><div class="who">Priya <span>owner · 9:14</span></div>
@@ -241,6 +278,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
     </div>
     <details class="sec" open><summary><span class="lbl">Role &amp; persona</span><span class="sum">Clinic receptionist</span></summary>
       <div class="in"><div>Warm, brief, never guesses a price. Confirms the date back in the caller's language.</div><button class="adv">Advanced: full prompt, variables, voicemail</button></div></details>
+    <details class="sec"><summary><span class="lbl">Skills</span><span class="sum">Book · Reschedule · Confirm</span></summary>
+      <div class="in"><div class="skills"><span>Book an appointment</span><span>Reschedule</span><span>Send confirmation</span><span>Hand over to a person</span><button class="adv" style="display:inline">Add from marketplace</button></div></div></details>
     <details class="sec"><summary><span class="lbl">Channels</span><span class="sum">None yet</span></summary>
       <div class="in"><div>Phone number · WhatsApp · Web widget · Email</div></div></details>
     <details class="sec" open><summary><span class="lbl">Brain &amp; voice</span><span class="sum">Everyday · Tamil, English</span></summary>
@@ -296,7 +335,13 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
   });
   // composer addressee: a leading @handle changes who the line is for
   const ta=document.getElementById('composer'), to=document.getElementById('to');
-  ta.addEventListener('input',()=>{const m=ta.value.match(/^@(\w+)/); to.textContent=m?'to @'+m[1]:'to Decibyl';});
+  const comp=document.querySelector('.composer');
+  function fit(){ ta.style.height='24px'; ta.style.height=Math.min(ta.scrollHeight,160)+'px'; ta.style.overflowY=ta.scrollHeight>160?'auto':'hidden'; }
+  ta.addEventListener('input',()=>{const m=ta.value.match(/^@(\w+)/); to.textContent=m?'to @'+m[1]:'to Decibyl'; comp.classList.toggle('typing',ta.value.length>0); fit();});
+  fit();
+  document.querySelectorAll('.followups button').forEach(b=>b.addEventListener('click',()=>{ta.value=b.textContent; ta.dispatchEvent(new Event('input')); ta.focus();}));
+  const stream=document.getElementById('streamView'), graph=document.getElementById('graphView');
+  document.querySelectorAll('.views button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.views button').forEach(x=>x.setAttribute('aria-selected','false')); b.setAttribute('aria-selected','true'); const g=b.dataset.view==='graph'; graph.hidden=!g; stream.hidden=g; comp.hidden=g;}));
   // scope buttons
   document.querySelectorAll('.scope').forEach(g=>g.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');})));
   document.querySelectorAll('.tier').forEach(g=>g.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');})));
