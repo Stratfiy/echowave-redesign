@@ -43,6 +43,13 @@ h1,h2,h3{font-family:var(--display);letter-spacing:-.01em;margin:0;text-wrap:bal
 .roster .face{width:26px;height:26px;flex:none}
 .roster .h{font-weight:500;font-size:13.5px}.roster .s{font-size:11.5px;color:var(--ink-3)}
 .dot{width:7px;height:7px;border-radius:50%;margin-left:auto;background:var(--ink-3);flex:none}.dot.live{background:var(--live)}.dot.wait{background:var(--haldi)}.dot.bad{background:var(--bad)}
+.roster.projects a{display:flex;align-items:center;gap:9px;padding:5px 8px;border-radius:6px;text-decoration:none;font-size:13px}
+.roster.projects a:hover{background:var(--paper)}
+.pj{width:10px;height:10px;border-radius:3px;background:var(--teal);flex:none}
+.check{display:flex;flex-direction:column;gap:6px;font-size:13px}
+.check label{display:flex;gap:8px;align-items:flex-start}.check input{margin-top:3px;accent-color:var(--teal)}
+.check small{color:var(--ink-3);font-family:var(--mono);font-size:10.5px;display:block}
+.brief{font-size:13.5px;color:var(--ink-2);border-left:3px solid var(--teal);padding:8px 12px;background:var(--teal-soft);border-radius:0 6px 6px 0}
 .trial{margin-top:auto;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);font-size:12px;color:var(--ink-2)}
 .trial .row{display:flex;justify-content:space-between}.trial b{font-family:var(--mono);font-weight:500;color:var(--ink);font-size:11.5px}
 .meter{height:5px;background:var(--line);border-radius:3px;margin:7px 0 5px;overflow:hidden}.meter i{display:block;height:100%;background:var(--teal)}
@@ -150,6 +157,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;font-family:var
   <a href="#home" data-s="home" class="on"><span class="k">1</span>My Decibyl</a>
   <a href="#agents" data-s="agents"><span class="k">2</span>Agents</a>
   <a href="#bot" data-s="bot"><span class="k">3</span>Bot page</a>
+  <a href="#project" data-s="project"><span class="k">P</span>Project</a>
   <a href="#tasks" data-s="tasks"><span class="k">4</span>Tasks</a>
   <a href="#activity" data-s="activity"><span class="k">5</span>Activity</a>
   <a href="#knowledge" data-s="knowledge"><span class="k">6</span>Knowledge</a>
@@ -184,6 +192,10 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;font-family:var
         <button><span class="face" data-shape="3" data-hue="mint" data-state="speaking"></span><span><span class="h">@reception</span><br><span class="s">on a call · 0:42</span></span><span class="dot live"></span></button>
         <button><span class="face" data-shape="5" data-hue="plum" data-state="waiting"></span><span><span class="h">@accounts</span><br><span class="s">needs a yes</span></span><span class="dot wait"></span></button>
         <button><span class="face" data-shape="1" data-hue="sand" data-state="idle"></span><span><span class="h">@followup</span><br><span class="s">routine at 9:00</span></span><span class="dot"></span></button></div></div>
+      <div><div class="eyebrow" style="margin:0 8px 6px">Projects</div><div class="roster projects">
+        <a href="#project"><span class="pj"></span><span><span class="h">October recall</span><br><span class="s">@reception · @accounts · 3 of 8</span></span></a>
+        <a href="#project"><span class="pj" style="background:var(--haldi)"></span><span><span class="h">Anna Nagar branch</span><br><span class="s">@reception · brief only</span></span></a>
+        <a href="#project" style="color:var(--ink-3)">+ New project</a></div></div>
       <div class="trial"><div class="row"><span>Trial · invite-only</span><b>11 days left</b></div><div class="meter"><i style="width:71%"></i></div><div class="row"><span>Credits</span><b>712 / 1,000</b></div></div></aside>
     <main class="main">
       <div class="top"><div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><div><h1>My Decibyl</h1><div class="sub">Tuesday 30 September · two things need you</div></div><div class="tabs"><button aria-selected="true">Thread</button><button>Graph</button></div></div>
@@ -272,11 +284,47 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;font-family:var
   </div>
 </section>
 
+
+<!-- ============ P PROJECT ============ -->
+<section class="screen" id="s-project">
+  <div class="note"><b>Project.</b> Like a Claude project: a brief every colleague reads first, files scoped to it, people and agents collaborating in one thread, a small checklist that ticks itself when work lands. The Tasks board stays the cross-workspace view. <span class="j">PRJ-1</span><span class="j">coordinator P2</span><span class="j">OUT-1</span></div>
+  <div class="app three">
+    <aside class="rail"><div class="brand"><span class="face" data-shape="0" data-hue="teal" data-state="idle"></span>Decibyl</div><nav class="homes"><a href="#home">My Decibyl</a><a href="#tasks">Tasks</a><a href="#agents">Agents</a><a href="#knowledge">Knowledge</a><a href="#activity">Activity</a><a href="#team">Team</a><a href="#settings">Settings</a></nav>
+      <div><div class="eyebrow" style="margin:0 8px 6px">Projects</div><div class="roster projects"><a href="#project" style="background:var(--paper)"><span class="pj"></span><span><span class="h">October recall</span><br><span class="s">3 of 8 done</span></span></a><a href="#project"><span class="pj" style="background:var(--haldi)"></span><span><span class="h">Anna Nagar branch</span></span></a><a href="#project" style="color:var(--ink-3)">+ New project</a></div></div></aside>
+    <main class="main">
+      <div class="top"><div><h1>October recall</h1><div class="sub">Call 180 lapsed patients for a check-up before Diwali · started 22 Sep · ₹1,240 spent · 31 booked</div></div><div style="display:flex;gap:8px"><span class="face" data-shape="3" data-hue="mint" data-state="idle" style="width:26px;height:26px"></span><span class="face" data-shape="5" data-hue="plum" data-state="idle" style="width:26px;height:26px"></span><span class="face" data-shape="4" data-hue="ink" data-state="idle" data-person="true" style="width:26px;height:26px"></span><button class="btn sm">Add</button></div></div>
+      <div class="body">
+        <div class="brief"><b>Brief.</b> We are calling patients who have not visited in 12 months. Offer a free check-up before 20 October. Tamil first, English if they answer in English. Never mention prices; hand over if asked. Book into the recall sheet, not the main diary. Kavitha approves any WhatsApp after the call.</div>
+        <div class="msg"><span class="face" data-shape="4" data-hue="ink" data-state="idle" data-person="true"></span><div><div class="who">Kavitha <span>manager · 9:02</span></div><p>@reception how many did we reach yesterday? @accounts anyone from the recall list still owes us?</p></div></div>
+        <div class="msg"><span class="face" data-shape="3" data-hue="mint" data-state="thinking"></span><div><div class="who">@reception <span>9:02</span></div><p>Reached 24 of 40 yesterday, 9 booked, 6 asked to call back after 6 pm. I have queued those six for @followup tonight.</p>
+          <div class="card" style="margin-top:8px"><header><span class="t">Hand 6 call-backs to @followup · 18:00</span><span class="price">6 × ₹4.90</span></header><div class="actions"><button class="btn primary sm">Confirm</button><button class="btn sm quiet">Change time</button><div class="scope"><span>Allow this</span><button aria-pressed="true">Once</button><button>This project</button><button>Always</button></div></div></div></div></div>
+        <div class="msg"><span class="face" data-shape="5" data-hue="plum" data-state="idle"></span><div><div class="who">@accounts <span>9:03</span></div><p>Three of the booked patients have an open invoice. I will not mention it on the recall call (brief); I can send a gentle WhatsApp after they visit, if you want.</p></div></div>
+        <div class="msg"><span class="face" data-shape="0" data-hue="teal" data-state="idle"></span><div><div class="who">Decibyl <span>9:03</span></div><p>Checklist: 3 of 8 done. "Reach the first 100" ticks itself at 100 reached; you are at 61. Want the Show page for this project updated for Priya?</p></div></div>
+      </div>
+      <div class="composer"><div class="box"><span class="to">to the project</span><textarea class="ta" rows="1" placeholder="Talk to everyone here, or @reception for one colleague" aria-label="Message"></textarea><button class="btn primary sm">Send</button></div><div class="followups"><button>Update the show page</button><button>Add a checklist item</button><button>How is the recall going?</button></div></div>
+    </main>
+    <aside class="inspector">
+      <details class="sec" open style="border-top:0;padding-top:0"><summary><span class="lbl">Checklist</span><span class="sum">3 of 8</span></summary><div class="in"><div class="check">
+        <label><input type="checkbox" checked disabled><span>Load the 180-patient list<small>Kavitha · 22 Sep</small></span></label>
+        <label><input type="checkbox" checked disabled><span>Write the Tamil script and Hear it<small>Priya · 23 Sep</small></span></label>
+        <label><input type="checkbox" checked disabled><span>First 40 calls<small>@reception · ticked by outcome · 28 Sep</small></span></label>
+        <label><input type="checkbox" disabled><span>Reach the first 100<small>ticks at 100 reached · 61 now</small></span></label>
+        <label><input type="checkbox" disabled><span>Evening call-backs<small>@followup · 18:00 daily</small></span></label>
+        <label><input type="checkbox" disabled><span>WhatsApp after visit<small>@accounts · needs Kavitha</small></span></label>
+        <label><input type="checkbox" disabled><span>Book 60 by 20 Oct<small>goal · 31 now</small></span></label>
+        <label><input type="checkbox" disabled><span>Close and report<small>Decibyl</small></span></label></div><button class="adv">Add an item</button></div></details>
+      <details class="sec" open><summary><span class="lbl">Files</span><span class="sum">3</span></summary><div class="in"><div>Recall list · Sheets</div><div>Tamil script v2</div><div>Check-up offer · PDF</div><button class="adv">Add a file · Company knowledge still applies</button></div></details>
+      <details class="sec"><summary><span class="lbl">Colleagues</span><span class="sum">2 bots · 2 people</span></summary><div class="in"><div>@reception · calls</div><div>@followup · evenings</div><div>@accounts · after the visit</div><div>Kavitha · approves</div></div></details>
+      <details class="sec"><summary><span class="lbl">Deliverables</span><span class="sum">Show page</span></summary><div class="in"><div>Recall dashboard for Priya · updated 9:03</div></div></details>
+      <details class="sec"><summary><span class="lbl">Activity here</span><span class="sum">₹1,240 · 31 booked</span></summary><div class="in"><div>124 calls · 31 booked · ₹40 per booking · 0 handed over on price</div></div></details>
+    </aside>
+  </div>
+</section>
 <!-- ============ 4 TASKS ============ -->
 <section class="screen" id="s-tasks">
   <div class="note"><b>Tasks.</b> Board · Contacts · Campaigns. Work bots are doing, by person and bot; a blocked card asks for the one thing it needs; delegation is a card too. <span class="j">G11 KAN-186</span><span class="j">OUT-1 KAN-253</span><span class="j">coordinator P2</span></div>
   <div class="app"><aside class="rail"><div class="brand"><span class="face" data-shape="0" data-hue="teal" data-state="idle"></span>Decibyl</div><nav class="homes"><a href="#home">My Decibyl</a><a aria-current="page">Tasks</a><a href="#agents">Agents</a><a href="#knowledge">Knowledge</a><a href="#activity">Activity</a><a href="#team">Team</a><a href="#settings">Settings</a></nav></aside>
-  <main class="main"><div class="top"><div><h1>Tasks</h1><div class="sub">7 open · 2 waiting on you · Mission: fill every chair by October</div></div><div class="tabs"><button aria-selected="true">Board</button><button>Contacts</button><button>Campaigns</button></div></div>
+  <main class="main"><div class="top"><div><h1>Tasks</h1><div class="sub">7 open · 2 waiting on you · Mission: fill every chair by October</div></div><div style="display:flex;gap:8px;align-items:center"><span class="chip">Project: all ▾</span><div class="tabs"><button aria-selected="true">Board</button><button>Contacts</button><button>Campaigns</button></div></div></div>
   <div class="body"><div class="board">
     <div class="col"><h3>Waiting on you · 2</h3><div class="tk blocked">Send 4 payment reminders<div class="who"><span class="face" data-shape="5" data-hue="plum" data-state="idle"></span>@accounts · needs a yes</div></div><div class="tk blocked">Caller asked for a root-canal price<div class="who"><span class="face" data-shape="3" data-hue="mint" data-state="idle"></span>@reception · handed over 11:02</div></div></div>
     <div class="col"><h3>In progress · 3</h3><div class="tk">Confirm tomorrow's 14 appointments<div class="who"><span class="face" data-shape="3" data-hue="mint" data-state="idle"></span>@reception · 9 of 14 sent</div></div><div class="tk">Chase September receivables<div class="who"><span class="face" data-shape="5" data-hue="plum" data-state="idle"></span>@accounts · ₹18,400 open</div></div><div class="tk">No-show calls, 9:00<div class="who"><span class="face" data-shape="1" data-hue="sand" data-state="idle"></span>@followup · routine · 3 of 5</div></div></div>
@@ -404,7 +452,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;font-family:var
   document.querySelectorAll('.scope,.tabs').forEach(g=>g.querySelectorAll('button').forEach(b=>b.addEventListener('click',e=>{const a=b.hasAttribute('aria-selected')?'aria-selected':'aria-pressed';g.querySelectorAll('button').forEach(x=>x.setAttribute(a,'false'));b.setAttribute(a,'true');})));
   // screen switcher
   const links=[...document.querySelectorAll('.switch a')];
-  function show(id){id=['start','home','agents','bot','tasks','activity','knowledge','team','settings','staff'].includes(id)?id:'home';
+  function show(id){id=['start','home','agents','bot','project','tasks','activity','knowledge','team','settings','staff'].includes(id)?id:'home';
     document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on',s.id==='s-'+id));links.forEach(a=>a.classList.toggle('on',a.dataset.s===id));window.scrollTo(0,0);}
   addEventListener('hashchange',()=>show(location.hash.slice(1)));show(location.hash.slice(1));
   document.querySelectorAll('.homes a[href^="#"]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();location.hash=a.getAttribute('href').slice(1);}));
