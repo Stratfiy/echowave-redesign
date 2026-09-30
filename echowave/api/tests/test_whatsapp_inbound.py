@@ -144,7 +144,12 @@ class TestRouting:
         kwargs = ask.await_args.kwargs
         assert kwargs["organization_id"] == 7 and kwargs["user_id"] == 3
         assert kwargs["text"] == "where is my aadhaar"
-        assert kwargs["reply_to"] == {"channel": "whatsapp", "to": OWN}
+        # The ref is what the channel dispatcher replies with (KAN-277).
+        assert kwargs["reply_to"] == {
+            "channel": "whatsapp",
+            "to": OWN,
+            "ref": {"to": OWN},
+        }
 
     async def test_an_unverified_number_is_nobodys_and_is_dropped(self):
         ask = AsyncMock()

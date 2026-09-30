@@ -50,7 +50,13 @@ def signing_secret() -> str:
     return os.getenv("SLACK_SIGNING_SECRET", "").strip()
 
 
-def verify(raw_body: bytes, timestamp: str | None, signature: str | None, *, now: float | None = None) -> bool:
+def verify(
+    raw_body: bytes,
+    timestamp: str | None,
+    signature: str | None,
+    *,
+    now: float | None = None,
+) -> bool:
     secret = signing_secret()
     if not secret or not timestamp or not signature:
         return False
@@ -192,7 +198,9 @@ async def complete_install(*, code: str, state: str, redirect_uri: str) -> str:
         )
     body = response.json() if response.content else {}
     if not body.get("ok"):
-        raise ValueError(f"Slack refused the install: {body.get('error') or response.status_code}")
+        raise ValueError(
+            f"Slack refused the install: {body.get('error') or response.status_code}"
+        )
     team = body.get("team") or {}
     token = str(body.get("access_token") or "")
     if not team.get("id") or not token:

@@ -11,9 +11,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from api.db.models import UserModel
+from api.enums import OrganizationRole
 from api.services import features
-from api.services.auth.depends import get_user
-from api.services.messaging.channels import base, dispatch, identities, telegram
+from api.services.auth.depends import get_user, require_organization_role
+from api.services.messaging.channels import base, dispatch, identities, slack, telegram
 
 router = APIRouter(prefix="/channel-links", tags=["channel-links"])
 
@@ -37,8 +38,6 @@ def _how_to(channel: str, code: str) -> dict[str, Any]:
             "instructions": f"Open the Decibyl bot in Telegram and send {code}.",
         }
     if channel == base.WHATSAPP:
-
-
         number = os.getenv("WHATSAPP_DISPLAY_NUMBER", "").strip().lstrip("+")
         return {
             "link": f"https://wa.me/{number}?text={quote('LINK ' + code)}"
@@ -108,3 +107,24 @@ async def unlink(identity_id: int, user: UserModel = Depends(get_user)) -> dict:
     ):
         raise HTTPException(status_code=404, detail="Not linked.")
     return {"unlinked": identity_id}
+
+
+@router.get("/slack/install")
+async def slack_install(
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
+) -> dict[str, Any]:
+    """The "Add to Slack" link for this workspace. Admins only: it puts an app
+    into the company's Slack on the organisation's behalf."""
+    from api.routes.public_decibyl_channels import slack_redirect_uri
+
+    organization_id = _organization_id(user)
+    if not dispatch.channel_on(base.SLACK, organization_id):
+        raise HTTPException(status_code=404, detail="Not Found")
+    url = slack.install_url(
+        organization_id=organization_id,
+        user_id=user.id,
+        redirect_uri=slack_redirect_uri(),
+    )
+    if url is None:
+        raise HTTPException(status_code=503, detail="Slack is not set up yet.")
+    return {"url": url}

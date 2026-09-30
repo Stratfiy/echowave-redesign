@@ -116,7 +116,9 @@ class WhatsAppAdapter:
             return False
         if response.status_code >= 400:
             logger.warning(
-                "WhatsApp refused a card: {} {}", response.status_code, response.text[:300]
+                "WhatsApp refused a card: {} {}",
+                response.status_code,
+                response.text[:300],
             )
             return False
         return True

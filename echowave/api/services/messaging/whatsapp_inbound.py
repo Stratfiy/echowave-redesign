@@ -358,9 +358,7 @@ async def handle(inbound: Inbound) -> str:
     from api.services.workflow import decibyl
 
     identity = await identities.find(channel_base.WHATSAPP, inbound.sender)
-    tap = (
-        channel_base.parse_button_id(inbound.text) if inbound.kind == BUTTON else None
-    )
+    tap = channel_base.parse_button_id(inbound.text) if inbound.kind == BUTTON else None
     code = identities.code_in(inbound.text) if inbound.kind == TEXT else None
     if tap is not None or (identity is None and code is not None):
         if await seen_before(inbound.message_id):
