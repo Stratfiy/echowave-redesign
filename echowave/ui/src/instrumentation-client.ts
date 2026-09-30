@@ -9,6 +9,8 @@ import posthog from "posthog-js";
 // injected widgets, etc.) by matching their URL scheme.
 const sharedSentryOptions = {
   debug: false,
+  // Personal data stays out of error reports: no IPs, cookies or bodies.
+  sendDefaultPii: false,
   denyUrls: [
     /^chrome-extension:\/\//i,
     /^moz-extension:\/\//i,
