@@ -41,7 +41,11 @@ export type Feature =
     | "approval_scopes"
     | "projects"
     | "agent_faces"
-    | "ui_shell_v2";
+    | "ui_shell_v2"
+    | "decibyl_channels"
+    | "decibyl_telegram"
+    | "decibyl_slack"
+    | "decibyl_teams";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();
