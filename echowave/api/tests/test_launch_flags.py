@@ -18,6 +18,10 @@ LAUNCH_FLAGS = [
     "projects",
     "agent_faces",
     "ui_shell_v2",
+    "decibyl_channels",
+    "decibyl_telegram",
+    "decibyl_slack",
+    "decibyl_teams",
 ]
 
 PRE_EXISTING_SWITCHES = [
