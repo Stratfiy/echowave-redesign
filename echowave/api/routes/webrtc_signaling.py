@@ -39,7 +39,7 @@ from api.routes.turn_credentials import (
     TURN_SECRET,
     generate_turn_credentials,
 )
-from api.services.auth.depends import get_user_ws
+from api.services.auth.depends import get_user_ws, ws_accept_subprotocol
 from api.services.call_concurrency import (
     CallConcurrencyLimitError,
     WorkflowRunSlotAlreadyBoundError,
@@ -331,7 +331,7 @@ class SignalingManager:
         call_concurrency_source: str = "webrtc",
     ):
         """Handle WebSocket connection for signaling."""
-        await websocket.accept()
+        await websocket.accept(subprotocol=ws_accept_subprotocol(websocket))
         connection_id = f"{workflow_id}:{workflow_run_id}:{user.id}"
         connection_key = f"{connection_id}:{id(websocket)}"
         self._connections[connection_key] = websocket

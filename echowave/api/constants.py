@@ -122,6 +122,10 @@ UI_APP_URL = (
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 REDIS_URL = os.environ["REDIS_URL"]
+# TLS policy for rediss:// (KAN-245). Verification is on unless someone turns
+# it off on purpose; a private CA goes in REDIS_SSL_CA_CERTS (path to a PEM).
+REDIS_SSL_CA_CERTS = os.getenv("REDIS_SSL_CA_CERTS") or None
+REDIS_SSL_VERIFY = os.getenv("REDIS_SSL_VERIFY", "true").strip().lower() != "false"
 
 # The knowledge graph every organization's calls are remembered in, as a
 # FalkorDB or Neo4j URI. Unset means this deployment has no graph: writes are
