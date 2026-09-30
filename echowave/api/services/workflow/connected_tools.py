@@ -35,6 +35,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import ToolCategory, ToolStatus
+from api.services.integrations.composio import members
 from api.services.integrations.composio import schema as tool_schema
 from api.services.integrations.composio.client import (
     ComposioNotConfigured,
@@ -524,17 +525,40 @@ async def execute(
     tool: Any,
     arguments: dict[str, Any],
     ref_id: str,
+    user_id: int | None = None,
 ) -> dict[str, Any]:
     """Run one connected tool for this organisation and bill it.
 
     Same ``{"status": ...}`` envelope the engine hands its model, so the
     assistant sees one contract. Charged only on success, keyed on
     ``ref_id`` so a retried turn never charges twice. Never raises.
+
+    ``user_id`` is the member the call runs as (WS-1); when omitted, the
+    member the turn was opened for (``members.acting_as``). Behind the
+    flag the call uses that member's own connection, the workspace's when
+    they have none, and answers ``needs_connection`` with a connect card on
+    the thread when neither exists. A tool pinned to a specific account
+    keeps it; the executor refuses it if it is another member's.
     """
     slug = slug_of(tool)
     if not slug:
         return {"status": "error", "error": f"{tool.name} is misconfigured"}
     config = (tool.definition or {}).get("config") or {}
+    member = members.member_scope(
+        user_id if user_id is not None else members.acting_user()
+    )
+    source = members.WORKSPACE
+    if member is not None and not config.get("connected_account_id"):
+        resolved = await members.resolve(
+            organization_id=organization_id, toolkit=toolkit_of(tool), user_id=member
+        )
+        if resolved is None:
+            return await members.needs_connection(
+                organization_id=organization_id,
+                toolkit=toolkit_of(tool),
+                tool_name=tool.name,
+            )
+        member, source = resolved.user_id, resolved.scope
     try:
         result = await execute_composio_tool(
             tool_slug=slug,
@@ -542,6 +566,7 @@ async def execute(
             organization_id=organization_id,
             connected_account_id=config.get("connected_account_id"),
             timeout_secs=TIMEOUT_SECS,
+            user_id=member,
         )
     except ComposioNotConfigured as exc:
         logger.error("Connected tool {} unavailable: {}", slug, exc)
@@ -561,7 +586,8 @@ async def execute(
                 toolkit_of(tool), slug or getattr(tool, "name", None)
             ),
             ref_id=ref_id,
-            note=f"{tool.name} via {toolkit_of(tool) or 'connector'} (Decibyl)",
+            note=f"{tool.name} via {toolkit_of(tool) or 'connector'} (Decibyl"
+            + (f", as member {member})" if source == members.MEMBER else ")"),
         )
     # A large read is stored and previewed rather than truncated (Step 20),
     # so nothing is lost and a script can work through the whole of it.

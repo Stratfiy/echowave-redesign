@@ -14,11 +14,13 @@ import { useState } from "react";
 import {
     listAppToolsApiV1ConnectorsSlugToolsGet,
     startConnectingApiV1ConnectorsSlugConnectPost,
+    startConnectingForMeApiV1ConnectorsSlugConnectMinePost,
     syncAppToolsApiV1ConnectorsSlugToolsSyncPost,
 } from "@/client/sdk.gen";
 import type { AppTool, ConnectorResponse } from "@/client/types.gen";
 import { Button } from "@/components/ui/button";
 import { detailFromResult } from "@/lib/apiError";
+import { useFeature } from "@/lib/features";
 import { toneFor } from "@/lib/marketplace";
 import { cn } from "@/lib/utils";
 
@@ -175,14 +177,22 @@ export function ConnectorRow({
 }) {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    // Connections per person (WS-1): the row says whose connection this is
+    // -- Mine, Workspace, or both -- and any member can add an app for
+    // themselves, under their own account, without an admin.
+    const perPerson = useFeature("connections_per_person");
 
-    const connect = async () => {
+    const connect = async (forMe = false) => {
         setBusy(true);
         setError(null);
         try {
-            const response = await startConnectingApiV1ConnectorsSlugConnectPost({
-                path: { slug: connector.slug },
-            });
+            const response = forMe
+                ? await startConnectingForMeApiV1ConnectorsSlugConnectMinePost({
+                      path: { slug: connector.slug },
+                  })
+                : await startConnectingApiV1ConnectorsSlugConnectPost({
+                      path: { slug: connector.slug },
+                  });
             // The generated client resolves on a 4xx rather than throwing, so
             // the catch below never saw a refusal: an admin-only connect read
             // as "could not start connecting just now" for every member.
@@ -205,6 +215,10 @@ export function ConnectorRow({
     };
 
     const canAdd = !connector.connected && (connector.setup === "one_click" || connector.also_connectable);
+    const connectable = connector.setup === "one_click" || connector.also_connectable;
+    // Workspace has it, this member does not: they may still add their own.
+    const canAddForMe = perPerson && connectable && !connector.setup_url && connector.connected_by !== "me" && connector.connected_by !== "both";
+    const whose = connector.connected_by === "both" ? "Mine · Workspace" : connector.connected_by === "me" ? "Mine" : connector.connected_by === "workspace" ? "Workspace" : null;
 
     return (
         <div className="rounded-xl px-2 py-2 hover:bg-muted/40" data-testid="connector-row">
@@ -218,26 +232,54 @@ export function ConnectorRow({
                 {error ? <p className="text-xs text-destructive">{error}</p> : null}
             </div>
             {connector.connected ? (
-                <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-700">
-                    <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                    Added
+                <span className="inline-flex shrink-0 items-center gap-2">
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
+                        <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                        {perPerson && whose ? whose : "Added"}
+                    </span>
+                    {canAddForMe ? (
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            className="rounded-full"
+                            onClick={() => connect(true)}
+                            disabled={busy}
+                            aria-label={`Add ${connector.name} for me`}
+                        >
+                            {busy ? "Opening…" : "Add for me"}
+                        </Button>
+                    ) : null}
                 </span>
             ) : connector.setup_url ? (
                 <Button asChild size="sm" variant="outline" className="shrink-0 rounded-full">
                     <Link href={connector.setup_url}>Set up</Link>
                 </Button>
             ) : canAdd ? (
-                <Button
-                    size="sm"
-                    variant="outline"
-                    className="shrink-0 rounded-full"
-                    onClick={connect}
-                    disabled={busy}
-                    aria-label={`Add ${connector.name}`}
-                >
-                    {busy ? "Opening…" : "Add"}
-                    {busy ? null : <ExternalLink className="ml-1 h-3 w-3" aria-hidden="true" />}
-                </Button>
+                <span className="inline-flex shrink-0 items-center gap-1">
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-full"
+                        onClick={() => connect(false)}
+                        disabled={busy}
+                        aria-label={`Add ${connector.name}`}
+                    >
+                        {busy ? "Opening…" : perPerson ? "Add for the workspace" : "Add"}
+                        {busy ? null : <ExternalLink className="ml-1 h-3 w-3" aria-hidden="true" />}
+                    </Button>
+                    {canAddForMe ? (
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            className="rounded-full"
+                            onClick={() => connect(true)}
+                            disabled={busy}
+                            aria-label={`Add ${connector.name} for me`}
+                        >
+                            Add for me
+                        </Button>
+                    ) : null}
+                </span>
             ) : (
                 <span className="shrink-0 text-xs text-muted-foreground">
                     {SETUP_WORD[connector.setup] ?? connector.setup}

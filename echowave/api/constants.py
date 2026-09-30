@@ -684,6 +684,13 @@ VENDOR_METERING_2026_09_ENABLED = (
 MANAGED_REALTIME_GEMINI_ONLY_ENABLED = (
     os.getenv("MANAGED_REALTIME_GEMINI_ONLY_ENABLED", "false").lower() == "true"
 )
+# Connections per person (PRD v2 WS-1): each member gets their own Composio
+# identity and connects their own apps; an agent a member talks to sends
+# from that member's mailbox, falling back to the workspace's. Off, every
+# connection is the workspace's and the tenant id is what it always was.
+CONNECTIONS_PER_PERSON_ENABLED = (
+    os.getenv("CONNECTIONS_PER_PERSON_ENABLED", "false").lower() == "true"
+)
 APPROVALS_2026_09_ENABLED = (
     os.getenv("APPROVALS_2026_09_ENABLED", "false").lower() == "true"
 )

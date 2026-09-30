@@ -2887,6 +2887,10 @@ export type ConnectedAccount = {
      * Connected At
      */
     connected_at?: string | null;
+    /**
+     * Scope
+     */
+    scope?: string;
 };
 
 /**
@@ -3019,6 +3023,10 @@ export type ConnectorResponse = {
      * Also Connectable
      */
     also_connectable?: boolean;
+    /**
+     * Connected By
+     */
+    connected_by?: string | null;
 };
 
 /**
@@ -28049,6 +28057,52 @@ export type StartConnectingApiV1ConnectorsSlugConnectPostResponses = {
 };
 
 export type StartConnectingApiV1ConnectorsSlugConnectPostResponse = StartConnectingApiV1ConnectorsSlugConnectPostResponses[keyof StartConnectingApiV1ConnectorsSlugConnectPostResponses];
+
+export type StartConnectingForMeApiV1ConnectorsSlugConnectMinePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Slug
+         *
+         * The connector's slug, e.g. gmail.
+         */
+        slug: string;
+    };
+    query?: never;
+    url: '/api/v1/connectors/{slug}/connect/mine';
+};
+
+export type StartConnectingForMeApiV1ConnectorsSlugConnectMinePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StartConnectingForMeApiV1ConnectorsSlugConnectMinePostError = StartConnectingForMeApiV1ConnectorsSlugConnectMinePostErrors[keyof StartConnectingForMeApiV1ConnectorsSlugConnectMinePostErrors];
+
+export type StartConnectingForMeApiV1ConnectorsSlugConnectMinePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ConnectLinkResponse;
+};
+
+export type StartConnectingForMeApiV1ConnectorsSlugConnectMinePostResponse = StartConnectingForMeApiV1ConnectorsSlugConnectMinePostResponses[keyof StartConnectingForMeApiV1ConnectorsSlugConnectMinePostResponses];
 
 export type ListAppToolsApiV1ConnectorsSlugToolsGetData = {
     body?: never;

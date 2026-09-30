@@ -35,6 +35,7 @@ from api.constants import (
     COMPOSIO_TIMEOUT_SECS,
 )
 from api.services.billing import model_usage
+from api.services.integrations.composio import members
 
 #: Prefix on every identifier we hand Composio. Namespaced because the id space
 #: is shared across everything one Composio project ever sees: a bare "7" is a
@@ -56,8 +57,14 @@ def is_configured() -> bool:
     return bool(COMPOSIO_API_KEY)
 
 
-def tenant_user_id(organization_id: int) -> str:
-    """The Composio identity for one organization.
+def tenant_user_id(organization_id: int, user_id: Optional[int] = None) -> str:
+    """The Composio identity for one organization, or one member of it.
+
+    ``user_id`` narrows the identity to a member behind
+    ``connections_per_person`` (WS-1): ``decibyl_org_7_user_3`` holds what
+    member 3 connected for themselves, ``decibyl_org_7`` what the workspace
+    connected for everyone. Off, or with no member, the answer is the
+    organization's and nothing about it changes.
 
     The only place a tenant boundary is drawn for Composio, so it is strict
     about its input rather than forgiving: a ``None`` organization_id reaching
@@ -78,7 +85,10 @@ def tenant_user_id(organization_id: int) -> str:
         raise ComposioNotConfigured(
             "Composio tools need a positive organization_id to scope the call"
         )
-    return f"{TENANT_PREFIX}{organization_id}"
+    member = members.member_scope(user_id)
+    if member is None:
+        return f"{TENANT_PREFIX}{organization_id}"
+    return f"{TENANT_PREFIX}{organization_id}_user_{member}"
 
 
 def _headers() -> dict[str, str]:
@@ -100,8 +110,15 @@ async def execute_tool(
     organization_id: Optional[int],
     connected_account_id: Optional[str] = None,
     timeout_secs: float = COMPOSIO_TIMEOUT_SECS,
+    user_id: Optional[int] = None,
 ) -> dict[str, Any]:
-    """Run one Composio tool on behalf of one organization.
+    """Run one Composio tool on behalf of one organization, or one member.
+
+    ``user_id`` is the member the call acts as (WS-1). With the flag on the
+    call carries their own tenant, and a ``connected_account_id`` the
+    registry knows to be another member's is refused here, before any
+    network I/O: the boundary between two colleagues' mailboxes is drawn
+    by us, not left to the vendor's error message.
 
     Returns the same ``{"status": "success"|"error", ...}`` envelope the HTTP
     and Calendar tools return, so the model sees one contract regardless of
@@ -111,11 +128,28 @@ async def execute_tool(
     that 500s mid-conversation should leave the agent able to say "I couldn't
     do that just now", which it cannot do if the exception unwinds the turn.
     """
-    user_id = tenant_user_id(organization_id)  # raises before any network I/O
+    member = members.member_scope(user_id)
+    tenant = tenant_user_id(organization_id, member)  # raises before any I/O
     headers = _headers()
 
+    if connected_account_id and members.enabled():
+        owner = await members.owner_of(organization_id, connected_account_id)
+        if owner is not None and owner != member:
+            logger.warning(
+                "Refused {} for org {}: connected account belongs to member {}, not {}",
+                tool_slug,
+                organization_id,
+                owner,
+                member,
+            )
+            return {
+                "status": "error",
+                "error": "That connection belongs to another member of the "
+                "workspace and cannot be used here.",
+            }
+
     url = f"{COMPOSIO_BASE_URL}/api/v3.1/tools/execute/{tool_slug}"
-    payload: dict[str, Any] = {"arguments": arguments or {}, "user_id": user_id}
+    payload: dict[str, Any] = {"arguments": arguments or {}, "user_id": tenant}
     if connected_account_id:
         # Names one of this organization's connections. `user_id` still decides
         # whose data is reachable at all, so a wrong id here fails rather than
@@ -208,9 +242,13 @@ def _error_message(body: Any) -> Optional[str]:
 async def connected_toolkits(
     organization_id: Optional[int],
     *,
+    user_id: Optional[int] = None,
     timeout_secs: float = COMPOSIO_TIMEOUT_SECS,
 ) -> list[str]:
     """Which apps this organization has actually authorized, upper-cased.
+
+    With ``user_id``, which apps that member authorised for themselves
+    (WS-1); without it, the workspace's. Two questions, two calls.
 
     Read separately from execution because the two answer different questions
     at different times: this one is for the editor, so an operator is told
@@ -218,7 +256,7 @@ async def connected_toolkits(
     apologising to a caller.
     """
     try:
-        user_id = tenant_user_id(organization_id)
+        tenant = tenant_user_id(organization_id, user_id)
         headers = _headers()
     except ComposioNotConfigured as exc:
         # A deployment with no Composio key has nothing connected, which is
@@ -247,7 +285,7 @@ async def connected_toolkits(
         return []
 
     url = f"{COMPOSIO_BASE_URL}/api/v3.1/connected_accounts"
-    params = {"user_ids": user_id, "statuses": "ACTIVE"}
+    params = {"user_ids": tenant, "statuses": "ACTIVE"}
 
     try:
         async with httpx.AsyncClient(timeout=timeout_secs) as client:
@@ -455,9 +493,13 @@ async def connect_link(
     *,
     toolkit: str,
     organization_id: Optional[int],
+    user_id: Optional[int] = None,
     timeout_secs: float = COMPOSIO_TIMEOUT_SECS,
 ) -> dict[str, Any]:
     """A URL this organization's owner opens to authorize one app.
+
+    With ``user_id`` the link authorises the app under that member's own
+    tenant (WS-1): theirs to use, nobody else's to reach.
 
     The whole OAuth dance belongs to Composio: we never see the provider's
     tokens, never hold a refresh token, and never implement a callback. What we
@@ -468,7 +510,7 @@ async def connect_link(
     not on the v3.1 ``connected_accounts`` endpoint, which now refuses them and
     says so -- keep the version difference rather than tidying it away.
     """
-    user_id = tenant_user_id(organization_id)
+    tenant = tenant_user_id(organization_id, user_id)
     headers = _headers()
 
     config_id = await _managed_auth_config_id(toolkit, timeout_secs=timeout_secs)
@@ -480,7 +522,7 @@ async def connect_link(
             response = await client.post(
                 f"{COMPOSIO_BASE_URL}/api/v3/connected_accounts/link",
                 headers=headers,
-                json={"auth_config_id": config_id, "user_id": user_id},
+                json={"auth_config_id": config_id, "user_id": tenant},
             )
     except httpx.HTTPError as exc:
         logger.warning("Could not mint a Composio connect link: {}", exc)
@@ -510,6 +552,7 @@ async def connect_link(
 async def connected_accounts(
     organization_id: Optional[int],
     *,
+    user_id: Optional[int] = None,
     timeout_secs: float = COMPOSIO_TIMEOUT_SECS,
 ) -> list[dict[str, Any]]:
     """Every app account this organization has authorized, individually.
@@ -524,7 +567,7 @@ async def connected_accounts(
     operator's to give, in their own words: "Dr Ramesh's calendar" beats a
     Google address in a clinic anyway.
     """
-    user_id = tenant_user_id(organization_id)
+    tenant = tenant_user_id(organization_id, user_id)
     headers = _headers()
 
     try:
@@ -532,7 +575,7 @@ async def connected_accounts(
             response = await client.get(
                 f"{COMPOSIO_BASE_URL}/api/v3.1/connected_accounts",
                 headers=headers,
-                params={"user_ids": user_id, "statuses": "ACTIVE"},
+                params={"user_ids": tenant, "statuses": "ACTIVE"},
             )
             response.raise_for_status()
             body = response.json()

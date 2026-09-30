@@ -814,6 +814,37 @@ class IntegrationModel(Base):
     organization = relationship("OrganizationModel", back_populates="integrations")
 
 
+class MemberConnectionModel(Base):
+    """A Composio connection one member authorised for themselves (WS-1).
+
+    The credentials stay with Composio under the member's own tenant
+    (``decibyl_org_{org}_user_{user}``); this row is the local record of
+    whose it is, so cross-use is refused before a network call. A row with
+    no ``connected_account_id`` is a Connect the member started; the id is
+    learned the next time their accounts are listed.
+    """
+
+    __tablename__ = "member_connections"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    toolkit = Column(String(64), nullable=False)
+    connected_account_id = Column(String(128), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    __table_args__ = (
+        Index("ix_member_connections_org_user", "organization_id", "user_id"),
+        Index(
+            "ix_member_connections_account", "organization_id", "connected_account_id"
+        ),
+    )
+
+
 class WorkflowDefinitionModel(Base):
     __tablename__ = "workflow_definitions"
     id = Column(Integer, primary_key=True, index=True)

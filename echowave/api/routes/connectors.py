@@ -16,8 +16,9 @@ from pydantic import BaseModel
 from api.db import db_client
 from api.db.models import UserModel
 from api.enums import OrganizationRole
+from api.services import features
 from api.services.auth.depends import get_user, require_organization_role
-from api.services.integrations.composio import catalogue, tool_sync
+from api.services.integrations.composio import catalogue, members, tool_sync
 from api.services.integrations.composio.client import (
     connect_link,
     connected_accounts,
@@ -55,6 +56,10 @@ class ConnectorResponse(BaseModel):
     #: Whether this vendor can also be connected here as an agent tool, on top
     #: of the native integration ``setup_url`` points at.
     also_connectable: bool = False
+    #: Whose connection ``connected`` reports, behind ``connections_per_person``:
+    #: ``me`` (the signed-in member's own), ``workspace`` (an admin's, for
+    #: everyone), ``both``. None when not connected, or with the flag off.
+    connected_by: str | None = None
 
 
 class ConnectorGroupResponse(BaseModel):
@@ -85,6 +90,18 @@ class ConnectorCatalogueResponse(BaseModel):
     other: list[ConnectorResponse] = []
     connected_count: int
     total: int = 0
+
+
+def _connected_by(slug: str, *, mine: set[str], workspace: set[str]) -> str | None:
+    if not members.enabled():
+        return None
+    if slug in mine and slug in workspace:
+        return "both"
+    if slug in mine:
+        return "me"
+    if slug in workspace:
+        return "workspace"
+    return None
 
 
 @router.get("", response_model=ConnectorCatalogueResponse)
@@ -118,9 +135,16 @@ async def list_connectors(
     # Best-effort: a catalogue we can show with every row marked unconnected is
     # far better than no screen, and the Connect flow re-checks anyway.
     connected = set(await connected_toolkits(organization_id))
+    # The member's own connections count as connected on their screen
+    # (WS-1): the app they authorised for themselves is one their agents
+    # can use, whatever the workspace has.
+    mine: set[str] = set()
+    if members.enabled():
+        mine = set(await connected_toolkits(organization_id, user_id=user.id))
 
     grouped: dict[str, list[ConnectorResponse]] = {}
     for row in rows:
+        slug = row.slug.upper()
         grouped.setdefault(row.group, []).append(
             ConnectorResponse(
                 slug=row.slug,
@@ -129,9 +153,10 @@ async def list_connectors(
                 logo=row.logo,
                 setup=row.setup,
                 tools_count=row.tools_count,
-                connected=row.slug.upper() in connected,
+                connected=slug in connected or slug in mine,
                 setup_url=row.setup_url,
                 also_connectable=row.also_connectable,
+                connected_by=_connected_by(slug, mine=mine, workspace=connected),
             )
         )
 
@@ -281,6 +306,67 @@ async def start_connecting(
     link = await connect_link(toolkit=wanted, organization_id=organization_id)
     if "error" in link:
         raise HTTPException(status_code=502, detail=link["error"])
+
+    return ConnectLinkResponse(
+        app=wanted,
+        app_name=display_name,
+        connect_url=link["url"],
+        expires_at=link.get("expires_at"),
+    )
+
+
+@router.post(
+    "/{slug}/connect/mine",
+    response_model=ConnectLinkResponse,
+    dependencies=[Depends(features.require(members.FLAG))],
+)
+async def start_connecting_for_me(
+    slug: str = Path(description="The connector's slug, e.g. gmail."),
+    # A member, not an admin: this authorisation binds only the member's own
+    # account, under their own tenant. Nobody else's agent can reach it, so
+    # the reason the workspace-wide Connect above is admin-only does not
+    # apply. Using it stays as open as it always was.
+    user: UserModel = Depends(get_user),
+) -> ConnectLinkResponse:
+    """A link this member opens to authorize one app for themselves (WS-1).
+
+    Behind ``connections_per_person``; 404 when off, so the screen never
+    offers a button the backend would refuse. Refuses an app this member
+    has already connected for the same reason the workspace route does.
+    """
+    organization_id = user.selected_organization_id
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+    if not is_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Connecting outside apps is not switched on for this platform.",
+        )
+
+    wanted = slug.strip().lower()
+    already = set(await connected_toolkits(organization_id, user_id=user.id))
+    if wanted.upper() in already:
+        raise HTTPException(
+            status_code=409, detail=f"You have already connected {wanted}."
+        )
+    display_name = await toolkit_name(wanted)
+    if not display_name:
+        raise HTTPException(status_code=404, detail=f"No app called '{wanted}'.")
+
+    link = await connect_link(
+        toolkit=wanted, organization_id=organization_id, user_id=user.id
+    )
+    if "error" in link:
+        raise HTTPException(status_code=502, detail=link["error"])
+
+    # The registry learns the account id when the member's accounts are next
+    # listed; the row now says a Connect was started, and by whom.
+    try:
+        await db_client.record_member_connection(
+            organization_id=organization_id, user_id=user.id, toolkit=wanted
+        )
+    except Exception as exc:  # noqa: BLE001 - the link is still good
+        logger.warning("Could not record a member connection: {}", exc)
 
     return ConnectLinkResponse(
         app=wanted,
@@ -447,6 +533,10 @@ class ConnectedAccount(BaseModel):
     #: Google address in a clinic anyway.
     label: str
     connected_at: str | None = None
+    #: ``mine`` for an account the signed-in member connected for themselves,
+    #: ``workspace`` for one an admin connected for everyone (WS-1). Always
+    #: ``workspace`` with the flag off.
+    scope: str = "workspace"
 
 
 class ConnectedAccountsResponse(BaseModel):
@@ -469,5 +559,16 @@ async def list_connected_accounts(
     if not is_configured():
         return ConnectedAccountsResponse(accounts=[])
 
-    rows = await connected_accounts(organization_id)
-    return ConnectedAccountsResponse(accounts=[ConnectedAccount(**row) for row in rows])
+    accounts = [
+        ConnectedAccount(**row, scope="workspace")
+        for row in await connected_accounts(organization_id)
+    ]
+    if members.enabled():
+        mine = await connected_accounts(organization_id, user_id=user.id)
+        # The registry learns which ids are this member's here, so a tool
+        # pinned to one of them is refused for anybody else before a call.
+        await members.learn(
+            organization_id=organization_id, user_id=user.id, accounts=mine
+        )
+        accounts = [ConnectedAccount(**row, scope="mine") for row in mine] + accounts
+    return ConnectedAccountsResponse(accounts=accounts)
