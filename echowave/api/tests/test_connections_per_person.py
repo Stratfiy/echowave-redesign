@@ -17,6 +17,7 @@ from uuid import uuid4
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 
 from api import constants
 from api.db import db_client
@@ -134,8 +135,27 @@ class TestOwnershipRegistry:
         )
         return org.id, a.id, b.id
 
+    @staticmethod
+    async def _forget(org: int) -> None:
+        """Creating an organisation grants it a committed onboarding credit,
+        and test_payments asserts the ledger is empty across the database.
+        Leave nothing behind that another test could read as its own."""
+        async with db_client.async_session() as session:
+            for table in ("credit_ledger", "member_connections"):
+                await session.execute(
+                    text(f"DELETE FROM {table} WHERE organization_id = :org"),
+                    {"org": org},
+                )
+            await session.commit()
+
     async def test_a_started_connect_is_a_row_and_the_id_is_learned_later(self):
         org, a, b = await self._org_and_two_members()
+        try:
+            await self._registry_round_trip(org, a, b)
+        finally:
+            await self._forget(org)
+
+    async def _registry_round_trip(self, org: int, a: int, b: int) -> None:
         row = await db_client.record_member_connection(
             organization_id=org, user_id=a, toolkit="GMAIL"
         )
