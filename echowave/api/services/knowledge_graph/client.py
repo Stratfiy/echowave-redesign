@@ -41,6 +41,7 @@ from api.constants import (
     KNOWLEDGE_GRAPH_SMALL_MODEL,
     KNOWLEDGE_GRAPH_URL,
 )
+from api.services.billing import model_usage
 from api.services.knowledge_graph.episodes import SOURCE_TEXT
 
 #: Built once per process, on first use. ``None`` means either not yet built or
@@ -142,6 +143,74 @@ async def _platform_openai_key() -> str | None:
         return await resolve_api_key(session, component="llm", provider="openai")
 
 
+#: OpenAI paths whose reply carries a ``usage`` block worth recording.
+_COMPLETION_PATHS = ("/chat/completions", "/responses")
+_EMBEDDING_PATH = "/embeddings"
+
+
+async def _record_openai_reply(response: Any) -> None:
+    """An httpx response hook: write what one of the graph's own OpenAI
+    calls used. Graphiti talks to OpenAI with its own client, not the
+    builder client, so nothing else sees these tokens.
+
+    Reads the body here; the SDK reads it again from the same buffer. A
+    reply that is not JSON, or an error, is left alone."""
+    path = str(getattr(response.url, "path", "") or "")
+    is_completion = any(path.endswith(p) for p in _COMPLETION_PATHS)
+    if response.status_code >= 400 or not (
+        is_completion or path.endswith(_EMBEDDING_PATH)
+    ):
+        return
+    try:
+        await response.aread()
+        data = response.json()
+    except Exception:  # noqa: BLE001 - a body we cannot read is not our reply
+        return
+    if not isinstance(data, dict):
+        return
+    usage = data.get("usage") or {}
+    model = str(data.get("model") or "")
+    if not is_completion:
+        await model_usage.record_units(
+            provider="openai",
+            model=model,
+            unit="embed_tokens",
+            quantity=usage.get("prompt_tokens") or usage.get("total_tokens") or 0,
+        )
+        return
+    details = usage.get("prompt_tokens_details") or usage.get("input_tokens_details")
+    cached = (details or {}).get("cached_tokens") or 0
+    await model_usage.record(
+        provider="openai",
+        model=model,
+        usage={
+            "prompt_tokens": usage.get("prompt_tokens")
+            or usage.get("input_tokens")
+            or 0,
+            "completion_tokens": usage.get("completion_tokens")
+            or usage.get("output_tokens")
+            or 0,
+            "cache_read_input_tokens": cached,
+        },
+    )
+
+
+def metered_openai(api_key: str) -> Any | None:
+    """An OpenAI client whose every reply is recorded, or ``None`` when the
+    ``vendor_metering`` flag is off and Graphiti should build its own."""
+    from api.services import features
+
+    if not features.is_on("vendor_metering"):
+        return None
+    import httpx
+    from openai import AsyncOpenAI
+
+    return AsyncOpenAI(
+        api_key=api_key,
+        http_client=httpx.AsyncClient(event_hooks={"response": [_record_openai_reply]}),
+    )
+
+
 async def _construct_graphiti(uri: str) -> Any:
     """Build the library's client. One of only two places that name it.
 
@@ -161,20 +230,27 @@ async def _construct_graphiti(uri: str) -> Any:
     api_key = await _platform_openai_key()
     if not api_key:
         raise RuntimeError("no managed OpenAI key for the graph's extraction")
+    # One recorded client for all three when metering is on; Graphiti's own
+    # otherwise. Every extraction, embedding and rerank is spend on the
+    # platform key that no receipt carries.
+    metered = metered_openai(api_key)
     llm = OpenAIClient(
         config=LLMConfig(
             api_key=api_key,
             model=KNOWLEDGE_GRAPH_MODEL,
             small_model=KNOWLEDGE_GRAPH_SMALL_MODEL,
-        )
+        ),
+        client=metered,
     )
     embedder = OpenAIEmbedder(
         config=OpenAIEmbedderConfig(
             api_key=api_key, embedding_model=KNOWLEDGE_GRAPH_EMBEDDING_MODEL
-        )
+        ),
+        client=metered,
     )
     reranker = OpenAIRerankerClient(
-        config=LLMConfig(api_key=api_key, model=KNOWLEDGE_GRAPH_SMALL_MODEL)
+        config=LLMConfig(api_key=api_key, model=KNOWLEDGE_GRAPH_SMALL_MODEL),
+        client=metered,
     )
     target = parse_graph_url(uri)
     common = dict(

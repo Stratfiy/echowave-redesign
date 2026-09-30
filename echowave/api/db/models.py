@@ -2782,6 +2782,12 @@ class ModelUsageModel(Base):
     #: Unknown length (a vendor that does not report it) is 0, and the row is
     #: still written so the call is counted.
     audio_seconds = Column(Float, nullable=False, default=0, server_default="0")
+    #: Everything else a vendor bills by: a Composio tool call, characters
+    #: of Sarvam translation, a Meta WhatsApp message. ``unit`` names what
+    #: ``quantity`` counts ("calls", "characters", "messages"); a token or
+    #: audio row leaves both empty. See ``model_usage.record_units``.
+    quantity = Column(Float, nullable=False, default=0, server_default="0")
+    unit = Column(String(16), nullable=False, default="", server_default="")
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,

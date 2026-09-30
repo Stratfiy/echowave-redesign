@@ -668,6 +668,22 @@ DECIBYL_PRIVATE_THREADS_ENABLED = (
 # every workspace had. On, a workspace's rules (who must approve what, by
 # subject and amount band) are checked at those three moments, and the
 # rules and the audit log get their routes.
+# Record every vendor unit we pay for that is not a token or a call minute --
+# Composio tool calls, Sarvam translation characters, Meta WhatsApp messages,
+# voice-sample characters, the knowledge graph's own OpenAI calls -- so the
+# costing report can price what was actually spent. Recording only; nothing
+# here charges anyone. Off until the operator switches it on.
+VENDOR_METERING_2026_09_ENABLED = (
+    os.getenv("VENDOR_METERING_2026_09_ENABLED", "false").lower() == "true"
+)
+# Take OpenAI's realtime model off the managed speech-to-speech tiers: every
+# managed realtime tier resolves to Gemini Live and the "premium" tier is not
+# offered. Bring-your-own-key OpenAI realtime is untouched. The costing audit
+# of 29 Sep 2026 found the OpenAI minute costs about Rs8.70 before markup,
+# above any flat voice price under discussion.
+MANAGED_REALTIME_GEMINI_ONLY_ENABLED = (
+    os.getenv("MANAGED_REALTIME_GEMINI_ONLY_ENABLED", "false").lower() == "true"
+)
 APPROVALS_2026_09_ENABLED = (
     os.getenv("APPROVALS_2026_09_ENABLED", "false").lower() == "true"
 )
