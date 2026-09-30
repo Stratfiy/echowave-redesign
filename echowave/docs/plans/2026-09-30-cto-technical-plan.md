@@ -90,7 +90,7 @@ Horizons follow the board's phases. Each item names the Jira key it lives under;
 - Harsha T0: test workspace and accounts (KAN-222), then T1 flags-off regression (KAN-223).
 
 ### H1 — October to November (Phase 1, KAN-193): pilots run on a platform we can trust
-Product slices (already on the board, order unchanged): WS-1 → MEM-1 → E-1 verification → M-1 → POL-1 → ACT-1 → VER-1 → PROC-1 → OPS-1 → DEC-1.
+Product slices (already on the board; OPS-1 pulled forward on the founder's direction of 30 September): WS-1 → MEM-1 → **OPS-1 + pilot plan** → E-1 verification → M-1 → BYOK-1 → POL-1 → ACT-1 → VER-1 → PROC-1 → DEC-1.
 
 Platform work to run alongside, one engineer-equivalent:
 1. **ENG-2 Images built on merge, deploy pulls from GHCR** (closes R1). Re-add the push trigger, flip `IMAGE_SOURCE=pull`, rollback = previous SHA. Two days.
@@ -158,6 +158,7 @@ Existing issues these depend on or feed: KAN-204 (INFRA-A), KAN-212 (OBS-1), KAN
 | Pricing (outcomes vs consumables) is still to be planned | BILL-1 stays the owner; OUT-1 builds the outcome and consumables machinery so it works under either reading | KAN-207, KAN-253 |
 | BYOK for models is a requirement | Voice already resolves the account's keys for STT, LLM, TTS, realtime and embeddings; the text paths (Decibyl, builder, routines, channels) do not and run on the platform key. One resolver for text, model choice per surface, no silent fallback to the platform key | KAN-254 (BYOK-1, Phase 1) |
 | No Free plan, only a trial | "Free" is the fallback plan for any account without a mandate, the bottom of the limits ladder and the sandbox gate; the onboarding tranches are already trial-kind ledger rows. A time-boxed `trial` replaces it, `expired` keeps read access, pilots get an explicit plan | KAN-255 (PLAN-1, Phase 2 shape, pilot part now) |
+| Pilots are built in the pilot's own account, never in ours | Each pilot is its own organisation: its ledger, keys, outcomes and audit log. The studio works inside it through an operator session (OPS-1: time-boxed, logged, admin but never owner). OPS-1 moves from slice 6 to right after WS-1/MEM-1; the staff-granted pilot plan (PLAN-1 item 4) moves into Phase 1. Interim for Netoyed: create the organisation, grant the plan, invite the operators as admin members | KAN-201, KAN-255, KAN-231 |
 
 **Still open:**
 
