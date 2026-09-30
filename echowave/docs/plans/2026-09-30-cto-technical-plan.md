@@ -24,6 +24,14 @@ What exists, measured on this checkout:
 | Deploy | One EC2 box (ap-south-1), docker-compose, SSM-driven deploy from `main`; images still **built on the production box** |
 | SDK / MCP | Python + TS SDK (17 methods), MCP server with 25 tools at `/api/v1/mcp` |
 
+**Founder direction, 30 September (after the first draft).** Three sentences, and how the code answers each:
+
+| Direction | State in code | What it changes in this plan |
+|---|---|---|
+| Decibyl is your assistant with work; it builds or edits the agents that do the work, end to end | The office model is shipped and in Testing (KAN-140); Decibyl proposes cards, `actions.settle` does the doing | Nothing to add to the spine; the E2E journeys (ENG-1) become the proof that it works end to end |
+| Outcomes are the result of the product; consumables are API keys | Outcomes exist as post-call actions and a per-bot board; BYOK components carry no vendor line; consumables are metered per vendor unit under M-1 | New story OUT-1 (KAN-253): outcome definitions per bot, cost per outcome with both denominators, a consumables ledger per key. One question for the founder is on the issue |
+| The sandbox must work for functions | Own runner built (Step 20), hardened beyond Daytona, wired to Decibyl and hired bots; 21 unit tests on the local path; never verified live; invisible on a Free plan | New task SBX-1 (KAN-252) in Phase 1: live verification on the pilot workspace and a container-path test in CI |
+
 ## 2. Architecture as found
 
 ```
