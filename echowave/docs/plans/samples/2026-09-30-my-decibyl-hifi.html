@@ -117,6 +117,24 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .skills{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .skills span{padding:3px 9px;border:1px solid var(--line);border-radius:999px;font-size:12.5px;background:var(--paper)}
 .composer.typing .followups{display:none}
+.steps{display:flex;flex-direction:column;gap:8px}
+.step{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--paper)}
+.step b{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-size:11px;font-weight:500;background:var(--line);color:var(--ink);flex:none}
+.step.done b{background:var(--live);color:#fff}
+.step.now{border-color:var(--teal)}
+.step.now b{background:var(--teal);color:var(--teal-ink)}
+.step span{flex:1;min-width:0}
+.step small{display:block;color:var(--ink-3);font-size:11.5px}
+.btn.sm{padding:5px 10px;font-size:12.5px}
+.chan-row{display:flex;justify-content:space-between;gap:10px;font-size:13px}
+.mono{font-family:var(--mono);font-size:11.5px;color:var(--ink-3)}
+.rule{font-size:13px;line-height:1.5}
+.tag{display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;padding:1px 6px;border-radius:4px;background:var(--line);color:var(--ink);margin-right:6px}
+.tag.never{background:#F1D6D2;color:#7A2A1F}
+.tag.ask{background:var(--haldi-soft);color:var(--haldi)}
+.tag.ok{background:var(--teal-soft);color:var(--teal)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .tag.never{background:#3B1F1B;color:#F0A899}}
+:root[data-theme="dark"] .tag.never{background:#3B1F1B;color:#F0A899}
 .composer.typing{padding-bottom:12px}
 @media (prefers-reduced-motion:reduce){.face *{animation:none!important;transition:none!important}}
 @media (max-width:900px){
@@ -279,9 +297,18 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
     <details class="sec" open><summary><span class="lbl">Role &amp; persona</span><span class="sum">Clinic receptionist</span></summary>
       <div class="in"><div>Warm, brief, never guesses a price. Confirms the date back in the caller's language.</div><button class="adv">Advanced: full prompt, variables, voicemail</button></div></details>
     <details class="sec"><summary><span class="lbl">Skills</span><span class="sum">Book · Reschedule · Confirm</span></summary>
-      <div class="in"><div class="skills"><span>Book an appointment</span><span>Reschedule</span><span>Send confirmation</span><span>Hand over to a person</span><button class="adv" style="display:inline">Add from marketplace</button></div></div></details>
-    <details class="sec"><summary><span class="lbl">Channels</span><span class="sum">None yet</span></summary>
-      <div class="in"><div>Phone number · WhatsApp · Web widget · Email</div></div></details>
+      <div class="in"><div class="skills"><span>Book an appointment</span><span>Reschedule</span><span>Send confirmation</span><span>Hand over to a person</span><button class="adv" style="display:inline">Add from marketplace</button></div><div style="font-size:12px;color:var(--ink-3)">"Send confirmation" is shared with the whole office; edit it once, every colleague gets it.</div></div></details>
+    <details class="sec" open><summary><span class="lbl">Channels</span><span class="sum">Not on a number yet</span></summary>
+      <div class="in">
+        <div class="steps" aria-label="Give it a number">
+          <div class="step done"><b>1</b><span>Verify the clinic <small>done · GSTIN on file</small></span></div>
+          <div class="step now"><b>2</b><span>Pick a number <small>Chennai 044 · ₹559 / month · 3 available</small></span><button class="btn primary sm">Give it a number</button></div>
+          <div class="step"><b>3</b><span>Put @reception on it <small>rings after 12 s, and after 7 pm</small></span></div>
+        </div>
+        <div class="chan-row"><span>WhatsApp</span><button class="adv" style="display:inline">Connect a WhatsApp number</button></div>
+        <div class="chan-row"><span>Web widget</span><button class="adv" style="display:inline">Copy embed</button></div>
+        <div class="chan-row"><span>Email</span><span class="mono">reception@srilakshmi.decibyl.ai</span></div>
+      </div></details>
     <details class="sec" open><summary><span class="lbl">Brain &amp; voice</span><span class="sum">Everyday · Tamil, English</span></summary>
       <div class="in">
         <div class="tier" role="group" aria-label="Voice tier"><button aria-pressed="true">Everyday</button><button aria-pressed="false">Natural</button><button aria-pressed="false">Premium</button></div>
@@ -291,7 +318,14 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
     <details class="sec"><summary><span class="lbl">Apps &amp; tools</span><span class="sum">Google Sheets</span></summary><div class="in"><div>Appointment sheet (connected by Priya). Add Zoho Books, Razorpay…</div></div></details>
     <details class="sec"><summary><span class="lbl">Knowledge &amp; memory</span><span class="sum">Clinic FAQ · learns</span></summary><div class="in"><div>Opening hours, treatments, doctors. Remembers repeat callers.</div></div></details>
     <details class="sec"><summary><span class="lbl">Triggers &amp; routines</span><span class="sum">Missed call · 12 s</span></summary><div class="in"><div>When the desk does not pick up in 12 seconds, and after 7 pm.</div></div></details>
-    <details class="sec"><summary><span class="lbl">Permissions</span><span class="sum">Asks before sending</span></summary><div class="in"><div>Books: allowed. Sends WhatsApp: asks. Refunds: hands over.</div></div></details>
+    <details class="sec" open><summary><span class="lbl">Guardrails &amp; approvals</span><span class="sum">Asks before sending · ₹500 / month</span></summary>
+      <div class="in">
+        <div class="rule"><span class="tag never">Never</span> quotes a treatment price · promises a doctor · calls a DND number</div>
+        <div class="rule"><span class="tag ask">Asks first</span> sending WhatsApp · rescheduling more than once · anything after 9 pm</div>
+        <div class="rule"><span class="tag ok">Alone</span> booking · confirming · answering hours and directions</div>
+        <div class="rule"><span class="tag">Budget</span> ₹500 a month, warns at 80%, stops at 100% <button class="adv" style="display:inline">Change</button></div>
+        <div class="rule"><span class="tag">Hours</span> Mon–Sat 8:00–21:00 · Sunday off</div>
+      </div></details>
     <details class="sec"><summary><span class="lbl">Quality</span><span class="sum">Outcome: booking</span></summary><div class="in"><div>Counted as done when a row lands in the sheet. Check it runs 12 caller scripts before Publish.</div></div></details>
     <details class="sec"><summary><span class="lbl">Versions</span><span class="sum">Draft 1</span></summary><div class="in"><div>Nothing published yet.</div></div></details>
   </aside>
