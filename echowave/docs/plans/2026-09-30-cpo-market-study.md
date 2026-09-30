@@ -170,10 +170,10 @@ Paperclip's README and site, every feature they name, against what Decibyl has i
 | Mobile-ready | Have | PWA (K1), mobile thread (K2) |
 | MCP servers and tool access | Have | Tools, MCP server, connectors |
 | Multi-organization, complete data isolation | Have | Org scoping; RLS in ENG-7 |
-| Workspaces and runtime: git worktrees, dev servers, preview URLs | Not ours | Developer runtime; our sandbox covers scripts |
+| Workspaces and runtime: git worktrees, dev servers, preview URLs | Miss, wanted | Founder: "have them too, we will use there." Filed DEV-1 (KAN-265): persistent per-agent workspace, worktrees, dev servers with preview URLs, for our own agents first (Phase 4), customers later |
 | **Company portability: export and import entire organizations, templates with secret scrubbing** | Miss | Workspace roles strip IDs for one bot; no whole-workspace export/import. Filed PORT-1 |
 | Plugin system, out-of-process workers; recovery of orphaned runs | Half | Worker health exists; orphan recovery for text runs to be confirmed in ENG-5 |
 | Onboarding: "hire a team of agents in one command" | Have | The Build card; first ten minutes in the UI plan |
 | UI: agent cost table, heartbeat timeline, ticket with trace log, org structure | Have / Planned | Activity spend, Schedules tab, run detail with tool timeline, ORG-1 |
 
-Net: four genuine misses (bring-your-own agent, pause with cancel, performance reviews, company portability) and two under-specified items (agent identity, overspend cancelling queued work). None blocks the launch; pause-with-cancel and the budget rule join the gate through POL-2 and OUT-1; the other three are Phase 3.
+Net: five genuine misses (bring-your-own agent, pause with cancel, performance reviews, company portability, developer runtime) and two under-specified items (agent identity, overspend cancelling queued work). None blocks the launch; pause-with-cancel and the budget rule join the gate through POL-2 and OUT-1; the other three are Phase 3.
