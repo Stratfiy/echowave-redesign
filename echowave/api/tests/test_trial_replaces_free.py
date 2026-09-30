@@ -229,3 +229,86 @@ async def test_an_ended_trial_refuses_new_runs(monkeypatch):
     assert result.error_code == "trial_ended"
     assert "18 October" in result.error_message
     minted.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# Notices: 3 days before, 1 day before, and the day it ends
+# ---------------------------------------------------------------------------
+
+
+def _status(*, active: bool, ends_in: timedelta) -> trial.TrialStatus:
+    now = datetime.now(UTC)
+    return trial.TrialStatus(
+        on_trial=True,
+        active=active,
+        starts_at=now - timedelta(days=10),
+        ends_at=now + ends_in,
+    )
+
+
+def test_which_notice_is_due_table():
+    cases = [
+        (_status(active=True, ends_in=timedelta(days=2, hours=12)), "3_days"),
+        (_status(active=True, ends_in=timedelta(days=1, hours=12)), None),
+        (_status(active=True, ends_in=timedelta(hours=12)), "1_day"),
+        (_status(active=True, ends_in=timedelta(days=9)), None),
+        (_status(active=False, ends_in=-timedelta(hours=5)), "ended"),
+        (_status(active=False, ends_in=-timedelta(days=30)), None),
+        (trial.NOT_ON_TRIAL, None),
+    ]
+    for status_, expected in cases:
+        assert trial.stage_for(status_) == expected, (status_, expected)
+
+
+def test_notice_words_and_dedupe_follow_the_end_date():
+    ends = datetime(2026, 10, 18, tzinfo=UTC)
+    soon = trial.notice_for("3_days", ends)
+    assert "in 3 days" in soon.subject and "18 October" in soon.subject
+    assert soon.dedupe_key == "trial:2026-10-18:3_days"
+    ended = trial.notice_for("ended", ends)
+    assert "nothing has been deleted" in ended.body
+    # An extension moves the end date, so every stage fires again.
+    later = trial.notice_for("3_days", ends + timedelta(days=14))
+    assert later.dedupe_key != soon.dedupe_key
+
+
+async def test_send_notices_announces_the_due_stage_once_per_account(
+    monkeypatch, trial_on
+):
+    ends = datetime.now(UTC) + timedelta(hours=10)
+    status_ = trial.TrialStatus(
+        on_trial=True, active=True, starts_at=None, ends_at=ends
+    )
+
+    class _Session:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def execute(self, _q):
+            class _R:
+                def scalars(self_inner):
+                    class _S:
+                        def all(self_s):
+                            return [1, 2]
+
+                    return _S()
+
+            return _R()
+
+    from api.db import db_client
+
+    monkeypatch.setattr(db_client, "async_session", lambda: _Session())
+    monkeypatch.setattr(trial, "status_in_own_session", AsyncMock(return_value=status_))
+    announced = AsyncMock(return_value=True)
+    import api.services.messaging.announce as announce_module
+
+    monkeypatch.setattr(announce_module, "announce", announced)
+
+    counts = await trial.send_notices()
+
+    assert counts == {"checked": 2, "sent": 2}
+    kinds = {call.kwargs["notice"].dedupe_key for call in announced.await_args_list}
+    assert kinds == {f"trial:{ends.date().isoformat()}:1_day"}

@@ -155,3 +155,92 @@ def ended_message(ends_at: datetime | None) -> str:
         f"Your Decibyl trial ended on {when}. Your agents, threads and reports "
         "are all still here. Choose a plan in Billing to switch them back on."
     )
+
+
+# ---------------------------------------------------------------------------
+# Notices: 3 days before, 1 day before, and the day it ends (PLAN-1).
+# ---------------------------------------------------------------------------
+
+#: days_left -> stage name. ``ended`` fires once the window has closed.
+NOTICE_STAGES: dict[int, str] = {3: "3_days", 1: "1_day"}
+NOTICE_KIND = "trial_ending"
+
+
+def notice_for(stage: str, ends_at: datetime):
+    """The words for one stage. Keyed on the end date, so an extension
+    re-arms every stage instead of being silenced by the old notice."""
+    from api.constants import UI_APP_URL
+    from api.services.messaging.announce import Notice
+
+    day = ends_at.strftime("%-d %B")
+    plans = f"{UI_APP_URL}/billing"
+    if stage == "ended":
+        subject = "Your Decibyl trial has ended"
+        body = (
+            f"Your Decibyl trial ended on {day}. Your agents, threads, reports "
+            "and numbers are all still here, and nothing has been deleted. New "
+            "calls, messages and routines are paused until you choose a plan.\n\n"
+            f"Choose a plan: {plans}"
+        )
+    else:
+        when = "in 3 days" if stage == "3_days" else "tomorrow"
+        subject = f"Your Decibyl trial ends {when} ({day})"
+        body = (
+            f"Your Decibyl trial ends on {day}. After that your agents stop "
+            "taking new calls and messages until you choose a plan; everything "
+            "you have built stays.\n\n"
+            f"Choose a plan now and nothing pauses: {plans}"
+        )
+    return Notice(
+        subject=subject,
+        body=body,
+        dedupe_key=f"trial:{ends_at.date().isoformat()}:{stage}",
+        link="/billing",
+    )
+
+
+def stage_for(status_: TrialStatus) -> str | None:
+    """Which notice is due for this status today, if any."""
+    if not status_.on_trial or status_.ends_at is None:
+        return None
+    if not status_.active:
+        # Only in the first week after the end: an account that lapsed a
+        # month before the notices shipped is not told about it today.
+        if datetime.now(UTC) - status_.ends_at > timedelta(days=7):
+            return None
+        return "ended"
+    return NOTICE_STAGES.get(status_.days_left or 0)
+
+
+async def send_notices() -> dict[str, int]:
+    """Daily. Every account on the trial gets the notice due today, once.
+
+    Never raises for one account: a bad row is logged and the rest go out.
+    """
+    from sqlalchemy import select
+
+    from api.db import db_client
+    from api.db.models import OrganizationModel
+    from api.services.messaging.announce import announce
+
+    counts = {"checked": 0, "sent": 0}
+    async with db_client.async_session() as session:
+        ids = (await session.execute(select(OrganizationModel.id))).scalars().all()
+    for organization_id in ids:
+        if not applies(organization_id):
+            continue
+        counts["checked"] += 1
+        try:
+            status_ = await status_in_own_session(organization_id=organization_id)
+            stage = stage_for(status_)
+            if stage is None:
+                continue
+            if await announce(
+                organization_id=organization_id,
+                kind=NOTICE_KIND,
+                notice=notice_for(stage, status_.ends_at),
+            ):
+                counts["sent"] += 1
+        except Exception:
+            logger.exception("Trial notice failed for org {}", organization_id)
+    return counts
