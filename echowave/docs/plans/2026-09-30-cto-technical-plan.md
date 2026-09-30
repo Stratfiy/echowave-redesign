@@ -6,6 +6,26 @@ Status: **proposal for the founder's decision.** Nothing in the code, the server
 
 ---
 
+## 0. Plan of record, end of 30 September
+
+**What Decibyl is.** A business hires named colleagues (`@reception`, `@accounts`) that work its customers on phone, WhatsApp, email and routines, coordinated by Decibyl in one thread; every action is a card the owner confirms; billed in rupees with a GST invoice. Outcomes are the product; API keys are the consumable. Studio pilots come after the self-serve launch.
+
+**Launch shape.** Self-serve first, invite-only, free trial with metered credits, BYOK on every surface, no purchase path and no price decision until the first cohort's usage is measured. Pilots are built inside the pilot's own account through operator sessions.
+
+**The launch gate (KAN-194), in order.**
+1. Week 1: images off the production box (ENG-2), security fixes and key rotation (ENG-6, AWS-3), Gemini 2.5 Flash-Lite retired by 16 Oct (I7), UI-0 cut and rename with tokens from the hi-fi set.
+2. Weeks 2–4: verify the forty issues in Testing with evidence; trial replaces Free (PLAN-1); BYOK on text paths (BYOK-1); the five E2E journeys green (ENG-1); sandbox verified (SBX-1); voice proven end to end with "Give it a number" on the bot page (VOICE-1); approval grant scopes, pause and retire (POL-2).
+3. Weeks 4–6: UI-1 shell (seven homes, Projects in the rail), UI-2 bot page (ten sections), UI-4 faces, PRJ-1 Projects, CH-0 WhatsApp, MKT-1 marketplace publishing from the NAutomation org, OUT-1 outcomes and per-bot budgets, REV-1 weekly review, ORG-1 light (mission and goals), SIG-1 invite onboarding, UI-3 settings, COPY-1, OBS-1 trace IDs, INFRA-A staging and restore drill.
+4. After launch: pilots (OPS-1 first), BILL-1 pricing from real usage, EXT-1, PORT-1, DEV-1, ENG-3/4/7/8/10/11/12, INFRA-B.
+
+**The documents.** This plan; `2026-09-30-ui-end-to-end-plan.md` (rules, seven homes, bot page, dictionary, library decision, faces, Projects, placements); `2026-09-30-cpo-market-study.md` (Dots, Muse, Grok Bot, Buzz, Agentforce, the Indian field, OpenBot, Paperclip, the gap check); `2026-09-30-hifi-screens-plan.md` and `samples/2026-09-30-decibyl-screens.html` (eleven screens).
+
+**The board.** Epic KAN-239 (twelve ENG tasks) plus KAN-252 to KAN-266: SBX-1, OUT-1, BYOK-1, PLAN-1, MKT-1, UI-0, CH-0, POL-2, UI-4, VOICE-1, REV-1, PORT-1, EXT-1, DEV-1, PRJ-1; comments on KAN-194/193 (phase swap), KAN-207, KAN-208/209/211, KAN-140, KAN-152, KAN-200, KAN-201, KAN-213, KAN-219, KAN-222, KAN-231, KAN-233, KAN-249, KAN-253, KAN-255.
+
+**Open for the founder.** Launch date; trial length; the lead positioning line; whether to name Sarvam in the stack; INFRA-A ownership; Helm keep or archive; repository visibility; Harsha's access.
+
+---
+
 ## 1. Where the product is
 
 Decibyl is no longer a voice-bot builder. The code and the board both say the same thing: a business hires named bots (`@reception`, `@retention`) that work on phone, WhatsApp, email, web chat and routines, coordinated by Decibyl, the manager in the Home thread. Voice is the hardest channel, not the product (`AGENTS.md`). Commercially the company runs a **studio model**: NAutomation Labs sells the work; the self-serve plan ladder is unlisted behind `studio_mode` (KAN-188, done). The first pilot (Netoyed, KAN-229 / KAN-231) is blocked only on merging PR #490 and flipping two flags.
