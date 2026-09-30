@@ -31,6 +31,21 @@ def no_default_model_config():
         yield
 
 
+def _request():
+    """A bare request, as FastAPI would hand the callback."""
+    from starlette.requests import Request
+
+    return Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/api/v1/auth/google/callback",
+            "headers": [(b"user-agent", b"pytest")],
+            "client": ("203.0.113.9", 443),
+        }
+    )
+
+
 def _identity(email: str):
     return google_oauth.GoogleIdentity(
         subject="google-subject",
@@ -76,7 +91,9 @@ class TestAnExistingAccountCanSignInWithGoogle:
             "complete_sign_in",
             new=AsyncMock(return_value=(_identity(user.email), None, None)),
         ):
-            response = await auth_routes.google_callback(code="c", state="s")
+            response = await auth_routes.google_callback(
+                _request(), code="c", state="s"
+            )
 
         # A redirect carrying a token, not a 500.
         assert response.status_code == 303
@@ -95,7 +112,9 @@ class TestAnExistingAccountCanSignInWithGoogle:
             "complete_sign_in",
             new=AsyncMock(return_value=(_identity(user.email), None, None)),
         ):
-            response = await auth_routes.google_callback(code="c", state="s")
+            response = await auth_routes.google_callback(
+                _request(), code="c", state="s"
+            )
 
         assert response.status_code == 303
         assert "/auth/google?token=" in response.headers["location"]
@@ -121,8 +140,69 @@ class TestGoogleDoesNotBypassTheSecondFactor:
             "complete_sign_in",
             new=AsyncMock(return_value=(_identity(user.email), None, None)),
         ):
-            response = await auth_routes.google_callback(code="c", state="s")
+            response = await auth_routes.google_callback(
+                _request(), code="c", state="s"
+            )
 
         location = response.headers["location"]
         assert "/auth/login?error=" in location
         assert "token=" not in location
+
+
+@pytest.mark.asyncio
+class TestGoogleSignupRecordsTheAgreements:
+    async def test_a_new_google_account_has_terms_and_privacy_rows(
+        self, db_session, async_session, no_default_model_config
+    ):
+        """Both doors leave the same evidence.
+
+        The password form required the box ticked and wrote the rows; the
+        Google door provisioned the account and wrote nothing, so every Google
+        signup had no record of which Terms it agreed to.
+        """
+        from sqlalchemy import select
+
+        from api.db.models import AgreementAcceptanceModel, UserModel
+        from api.routes import auth as auth_routes
+        from api.services.auth import signup_invites
+
+        email = "fresh-google@example.com"
+        with (
+            patch.object(
+                google_oauth,
+                "complete_sign_in",
+                new=AsyncMock(return_value=(_identity(email), None, None)),
+            ),
+            patch.object(google_oauth, "invite_code_from_state", return_value=None),
+            patch.object(signup_invites, "claim", new=AsyncMock(return_value=None)),
+            patch.object(
+                signup_invites, "record_redemption", new=AsyncMock(return_value=None)
+            ),
+        ):
+            response = await auth_routes.google_callback(
+                _request(), code="c", state="s"
+            )
+
+        assert response.status_code == 303
+        assert "/auth/google?token=" in response.headers["location"], response.headers[
+            "location"
+        ]
+        user = (
+            await async_session.execute(
+                select(UserModel).where(UserModel.email == email)
+            )
+        ).scalar_one()
+        rows = (
+            (
+                await async_session.execute(
+                    select(AgreementAcceptanceModel).where(
+                        AgreementAcceptanceModel.user_id == user.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert sorted(r.agreement for r in rows) == ["privacy", "terms"]
+        assert all(r.ip_address == "203.0.113.9" for r in rows)
+        assert all(r.user_agent == "pytest" for r in rows)
