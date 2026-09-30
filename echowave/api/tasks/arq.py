@@ -64,6 +64,7 @@ from api.tasks.run_integrations import run_integrations_post_workflow_run
 from api.tasks.settlement import sweep_uncosted_runs
 from api.tasks.sunday_review import send_sunday_reviews
 from api.tasks.tax_invoices import issue_monthly_tax_invoices
+from api.tasks.trial_notices import send_trial_notices
 from api.tasks.webhook_delivery import deliver_webhook, sweep_webhook_deliveries
 from api.tasks.weekly_digest import send_weekly_digests
 from api.tasks.workflow_completion import process_workflow_completion
@@ -109,6 +110,7 @@ class WorkerSettings:
         remind_due_tasks,
         send_sunday_reviews,
         notice_connections,
+        send_trial_notices,
         sync_missing_tools,
         resurface_asked,
         run_proposed_action,
@@ -134,6 +136,9 @@ class WorkerSettings:
         # and a fact resurfaced before a related event (B6).
         cron(notice_connections, hour={4}, minute={30}, second=0, run_at_startup=False),
         cron(resurface_asked, hour={4}, minute={30}, second=30, run_at_startup=False),
+        # Daily 10:15 IST: trial ending in 3 days, tomorrow, and ended
+        # (PLAN-1). Deduplicated per end date, so a re-run sends nothing.
+        cron(send_trial_notices, hour={4}, minute={45}, second=0, run_at_startup=False),
         # Every minute, and at startup so a deployment is not indistinguishable
         # from a dead worker for the first minute. This is the only signal that
         # separates "the worker is down" from "nothing needed doing" — see

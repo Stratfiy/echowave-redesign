@@ -91,6 +91,10 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "routines",
             "tasks",
             "google-calendar",
+            # Members talking to Decibyl from Slack, Teams, Telegram and
+            # WhatsApp, and linking those accounts to themselves (KAN-277).
+            "public-decibyl-channels",
+            "channel-links",
         ),
     ),
     (

@@ -59,6 +59,9 @@ MAX_MEDIA_BYTES = 25 * 1024 * 1024
 TEXT = "text"
 DOCUMENT = "document"
 IMAGE = "image"
+#: A reply button pressed on a card Decibyl sent (DCH-1). ``text`` carries
+#: the button id, ``card:{event_id}:{verb}``.
+BUTTON = "button"
 
 
 @dataclass(frozen=True)
@@ -163,6 +166,17 @@ def parse(payload: Any) -> list[Inbound]:
                             **base,
                         )
                     )
+                elif kind == "interactive":
+                    reply = (message.get("interactive") or {}).get("button_reply") or {}
+                    if reply.get("id"):
+                        out.append(
+                            Inbound(kind=BUTTON, text=str(reply.get("id")), **base)
+                        )
+                elif kind == "button":
+                    # A template's quick-reply button: its payload is the id.
+                    payload_id = (message.get("button") or {}).get("payload")
+                    if payload_id:
+                        out.append(Inbound(kind=BUTTON, text=str(payload_id), **base))
                 else:
                     logger.info("WhatsApp {} message from {} ignored", kind, sender)
     return out
@@ -332,19 +346,54 @@ async def _first_user(organization_id: int) -> Any | None:
 
 
 async def handle(inbound: Inbound) -> str:
-    """Route one message. Returns a status word for the webhook's log."""
+    """Route one message. Returns a status word for the webhook's log.
+
+    A number linked to a member (DCH-1) is that member: their Gmail, their
+    memory, their cards. A button tap or a link code goes to the shared
+    channel dispatcher. A verified but unlinked number keeps the old
+    behaviour (the account's first member) until its owner links it.
+    """
+    from api.services.messaging.channels import base as channel_base
+    from api.services.messaging.channels import dispatch, identities
     from api.services.workflow import decibyl
 
-    organization_id = await db_client.find_organization_by_verified_number(
-        inbound.sender.lstrip("+")
-    )
+    identity = await identities.find(channel_base.WHATSAPP, inbound.sender)
+    tap = channel_base.parse_button_id(inbound.text) if inbound.kind == BUTTON else None
+    code = identities.code_in(inbound.text) if inbound.kind == TEXT else None
+    if tap is not None or (identity is None and code is not None):
+        if await seen_before(inbound.message_id):
+            return "duplicate"
+        await touch_session(inbound.sender)
+        return await dispatch.handle(
+            channel_base.Inbound(
+                channel=channel_base.WHATSAPP,
+                external_id=inbound.sender,
+                message_id=inbound.message_id,
+                text=inbound.text if tap is None else "",
+                tap=tap,
+                display_name=inbound.sender_name,
+                ref={"to": inbound.sender},
+            )
+        )
+    if inbound.kind == BUTTON:
+        return "stale_button"
+
+    if identity is not None:
+        organization_id = identity.organization_id
+    else:
+        organization_id = await db_client.find_organization_by_verified_number(
+            inbound.sender.lstrip("+")
+        )
     if organization_id is None:
         logger.info("WhatsApp message from an unverified number, dropped")
         return "unknown_number"
     if await seen_before(inbound.message_id):
         return "duplicate"
     await touch_session(inbound.sender)
-    user = await _first_user(organization_id)
+    if identity is not None:
+        user = await db_client.get_user_by_id(identity.user_id)
+    else:
+        user = await _first_user(organization_id)
     if user is None:
         return "no_user"
 
@@ -368,7 +417,11 @@ async def handle(inbound: Inbound) -> str:
         attachments=attachments,
         line=line,
         preset=None,
-        reply_to={"channel": "whatsapp", "to": inbound.sender},
+        reply_to={
+            "channel": "whatsapp",
+            "to": inbound.sender,
+            "ref": {"to": inbound.sender},
+        },
     )
     return "accepted"
 
@@ -414,6 +467,7 @@ async def reply(*, organization_id: int, to: str, body: str) -> None:
 
 
 __all__ = [
+    "BUTTON",
     "DOCUMENT",
     "IMAGE",
     "Inbound",
