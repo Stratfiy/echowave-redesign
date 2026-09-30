@@ -44,6 +44,10 @@ STARTER = "starter"
 #: bought: it exists as a row so its caps are rows like every other plan's.
 FREE = "free"
 
+#: What replaces Free while the ``trial_plan`` feature is on (PLAN-1,
+#: KAN-255): time-boxed, phone allowed, never bought. See ``trial.py``.
+TRIAL = "trial"
+
 #: What a rupee of granted balance costs us, in basis points: the provider
 #: share of a composed rupee at the rate book's list prices (pricing study
 #: section 11: Rs 2.36 of cost inside a Rs 3.81 composed minute, 62%). A
@@ -592,6 +596,26 @@ def _credits(n: int) -> int:
 #: those pages and follow the single-upload row of the caps table. Changing a
 #: published price or grant needs a note in the pricing spec and a comment
 #: on KAN-47 first.
+#: The trial's row (PLAN-1, KAN-255). Seeded on its own, not in the ladder,
+#: and never on sale (``enabled=False``): nobody picks it; an account without
+#: a plan is on it while the ``trial_plan`` feature is on.
+TRIAL_SEED: dict = dict(
+    code=TRIAL,
+    label="Trial",
+    sort_order=-1,
+    purchasable=False,
+    enabled=False,
+    blurb="Everything, including a phone number, for the length of the trial.",
+    price_paise=0,
+    balance_paise=0,
+    included_numbers=0,
+    voice_allowed=True,
+    platform_rate_mpaise=0,
+    knowledge_base_bytes=constants.FREE_KNOWLEDGE_BASE_BYTES,
+    knowledge_base_max_file_bytes=constants.FREE_KNOWLEDGE_BASE_FILE_BYTES,
+)
+
+
 LADDER_SEED: tuple[dict, ...] = (
     dict(
         code=FREE,
@@ -886,6 +910,9 @@ async def ensure_seeded(session: AsyncSession) -> Plan:
             enabled=True,
         )
 
+    if await get_plan(session, code=TRIAL) is None:
+        await save(session, **TRIAL_SEED)
+
     ladder_landed = False
     for seed in LADDER_SEED:
         if await get_plan(session, code=seed["code"]) is None:
@@ -961,6 +988,27 @@ _FREE_FALLBACK = Plan(
 )
 
 
+#: The trial when the table has not been seeded yet.
+_TRIAL_FALLBACK = Plan(
+    code=TRIAL,
+    label="Trial",
+    blurb="",
+    price_paise=0,
+    balance_paise=0,
+    included_numbers=0,
+    extra_number_price_paise=constants.NUMBER_RENTAL_PRICE_PAISE,
+    knowledge_base_bytes=constants.FREE_KNOWLEDGE_BASE_BYTES,
+    knowledge_base_max_file_bytes=constants.FREE_KNOWLEDGE_BASE_FILE_BYTES,
+    platform_rate_mpaise=None,
+    razorpay_plan_id=None,
+    razorpay_plan_id_export=None,
+    enabled=False,
+    sort_order=-1,
+    voice_allowed=True,
+    purchasable=False,
+)
+
+
 async def plan_for_organization(session: AsyncSession, *, organization_id: int) -> Plan:
     """The plan an account is on: its authorised plan mandate's, else Free.
 
@@ -982,6 +1030,13 @@ async def plan_for_organization(session: AsyncSession, *, organization_id: int) 
         plan = await resolve(session, code=mandate.plan_code)
         if plan is not None:
             return plan
+    # No Free once the trial is on (PLAN-1): a plan-less account is on the
+    # trial, and whether its window is still open is ``trial.status``'s
+    # question, asked where runs start (quota_service), not here.
+    from api.services.billing import trial
+
+    if trial.applies(organization_id):
+        return await get_plan(session, code=TRIAL) or _TRIAL_FALLBACK
     return await get_plan(session, code=FREE) or _FREE_FALLBACK
 
 
