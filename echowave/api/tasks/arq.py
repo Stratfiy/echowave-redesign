@@ -1,9 +1,6 @@
 """ARQ worker configuration - setup logging before importing tasks"""
 
-import ssl
-from urllib.parse import urlparse
-
-from api.constants import REDIS_URL
+from api.constants import REDIS_SSL_CA_CERTS, REDIS_SSL_VERIFY, REDIS_URL
 
 # Setup logging - this is now idempotent and safe to call multiple times
 from api.logging_config import setup_logging
@@ -13,30 +10,13 @@ setup_logging()
 
 # Now import ARQ and task dependencies
 from arq import create_pool, cron
-from arq.connections import ArqRedis, RedisSettings
+from arq.connections import ArqRedis
 
-parsed_url = urlparse(REDIS_URL)
+from api.tasks.redis_settings import build_redis_settings
 
-# Check if we're using TLS (rediss://)
-use_ssl = parsed_url.scheme == "rediss"
-
-# Create SSL context if using rediss://
-ssl_context = None
-if use_ssl:
-    ssl_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
-
-REDIS_SETTINGS = RedisSettings(
-    host=parsed_url.hostname or "localhost",
-    port=parsed_url.port or 6379,
-    password=parsed_url.password,
-    conn_timeout=10,
-    ssl=use_ssl,
-    ssl_ca_certs=None if not use_ssl else None,
-    ssl_certfile=None,
-    ssl_keyfile=None,
-    ssl_check_hostname=False if use_ssl else None,
+# TLS on rediss:// is verified (KAN-245); see tasks/redis_settings.py.
+REDIS_SETTINGS = build_redis_settings(
+    REDIS_URL, ca_certs=REDIS_SSL_CA_CERTS, verify=REDIS_SSL_VERIFY
 )
 
 from api.constants import ARQ_MAX_JOBS
