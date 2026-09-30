@@ -73,6 +73,9 @@ PEOPLE_COLUMNS = (
     "Source",
 )
 RULES = (
+    "- Long attachments: a deck, contract or report is shown clipped. "
+    "read_document reads it whole, a part at a time: call it again with "
+    "the next_start it gives until you have what you need.\n"
     "- Spreadsheets: an attached Excel or CSV file is shown clipped. describe_table, "
     "query_table and rank_table read every row. To say which accounts to go "
     "for, write the rules from the person's own material and show them. "
@@ -855,6 +858,30 @@ async def run(
         return {"status": "error", "error": "Could not read that table just now."}
 
 
+async def read_document(
+    organization_id: int, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    """read_document for when the procurement tools are off: reading a long
+    attachment is every workspace's job. Never raises."""
+    from api.services.documents import reading, sources
+    from api.services.documents import tools as document_tools
+
+    try:
+        return {
+            "status": "success",
+            **await reading.read(
+                organization_id,
+                str(arguments.get("document") or ""),
+                start=document_tools._start(arguments),
+            ),
+        }
+    except sources.SourceError as exc:
+        return {"status": "error", "error": str(exc)}
+    except Exception as exc:  # noqa: BLE001 - the thread must keep answering
+        logger.error("read_document failed for org {}: {}", organization_id, exc)
+        return {"status": "error", "error": "Could not read that document just now."}
+
+
 async def _export(
     organization_id: int,
     table: Table,
@@ -939,6 +966,7 @@ __all__ = [
     "parse_xlsx",
     "people_rows",
     "rank",
+    "read_document",
     "run",
     "schemas",
 ]

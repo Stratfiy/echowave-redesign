@@ -253,7 +253,14 @@ def schemas() -> list[dict[str, Any]]:
                     "document": {
                         "type": "string",
                         "description": "The document's uuid or its file name.",
-                    }
+                    },
+                    "start": {
+                        "type": "integer",
+                        "description": (
+                            "Where to read from, in characters. A long document "
+                            "comes a part at a time; the answer gives next_start."
+                        ),
+                    },
                 },
                 "required": ["document"],
             },
@@ -1363,6 +1370,19 @@ async def assess_maturity(
     }
 
 
+def _start(arguments: dict[str, Any]) -> int:
+    try:
+        return max(0, int(arguments.get("start") or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def read_schema() -> dict[str, Any]:
+    """read_document on its own, for when the rest of these tools are off:
+    reading a long attachment is not a procurement job."""
+    return next(s for s in schemas() if s["name"] == READ)
+
+
 async def run(
     name: str,
     *,
@@ -1403,7 +1423,9 @@ async def run(
             result = {
                 "status": "success",
                 **await reading.read(
-                    organization_id, str(arguments.get("document") or "")
+                    organization_id,
+                    str(arguments.get("document") or ""),
+                    start=_start(arguments),
                 ),
             }
         elif name == SAVE_ATTACHMENT:
@@ -1472,6 +1494,7 @@ __all__ = [
     "NAMES",
     "READ",
     "READS",
+    "read_schema",
     "RULES",
     "SAVE_ATTACHMENT",
     "SPREADSHEET",
