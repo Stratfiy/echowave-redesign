@@ -409,6 +409,16 @@ Pre-existing switches now also reported on `/health`: `BUDGET_POLICIES_ENABLED`,
 `PLAN_LADDER_2026_09_ENABLED`, `DECIBYL_TOOLS_2026_09_ENABLED`,
 `AGENT_BUILDER_ENABLED`, `MANAGED_TELEPHONY_ENABLED`.
 
+**Trial settings (PLAN-1, KAN-255),** read only while `trial_plan` is on:
+
+```
+TRIAL_DAYS=14                                   # length of the window
+TRIAL_PLAN_STARTS_AT=2026-10-04T00:00:00+05:30  # accounts older than this start their window here
+```
+
+Staff extend one account with `POST /api/v1/superuser/organizations/{id}/trial`
+(`{"extend_days": 14}` or `{"ends_at": null}` to go back to the computed window).
+
 **Per-organisation first.** `FEATURE_ORG_OVERRIDES` turns a feature on for
 named organisations while its global flag stays off, so a slice is tried by
 the platform organisation and one invited account before everyone:
