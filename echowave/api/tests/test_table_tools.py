@@ -7,6 +7,7 @@ for" is answered over the whole list, with the reasons kept per row.
 
 from __future__ import annotations
 
+import io
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -278,7 +279,7 @@ class TestLoading:
             custom_metadata={},
         )
         with patch.object(tables, "_find_document", AsyncMock(return_value=document)):
-            with pytest.raises(tables.TableError, match="not a CSV"):
+            with pytest.raises(tables.TableError, match="not a spreadsheet"):
                 await tables.load(7, "Netoyed Solutions Deck.pdf")
 
     async def test_a_file_in_another_workspace_is_not_found(self, db_session):
@@ -510,3 +511,127 @@ class TestAReadKeepsTheToolsOpen:
         assert not decibyl._was_a_read(
             call(name=tables.EXPORT_TOOL_NAME), {"status": "success"}
         )
+
+
+def _xlsx(sheets: dict[str, list[list]]) -> bytes:
+    """A real workbook, built the way a person's Excel file is."""
+    from openpyxl import Workbook
+
+    book = Workbook()
+    book.remove(book.active)
+    for title, rows in sheets.items():
+        sheet = book.create_sheet(title)
+        for row in rows:
+            sheet.append(row)
+    out = io.BytesIO()
+    book.save(out)
+    return out.getvalue()
+
+
+class TestExcel:
+    """U-1: most business lists arrive as Excel, not CSV. Any list -- leads,
+    vendors, invoices, stock -- is read whole, from whichever sheet."""
+
+    def _book(self):
+        from datetime import date
+
+        return _xlsx(
+            {
+                "Summary": [["Note"], ["Prepared by sales ops"]],
+                "Accounts": [
+                    ["Company", "Employees", "Revenue", "Renewal"],
+                    ["Acme Traders", 1200, 45.5, date(2027, 3, 31)],
+                    [None, None, None, None],
+                    ["Beta Foods", 80, 3, None],
+                ],
+            }
+        )
+
+    def test_the_first_sheet_is_read_by_default_and_every_sheet_is_named(self):
+        t = tables.parse_xlsx(self._book(), name="Pipeline.xlsx")
+        assert t.sheet == "Summary"
+        assert t.sheets == ("Summary", "Accounts")
+        assert t.rows == [{"Note": "Prepared by sales ops"}]
+
+    def test_a_sheet_is_chosen_by_name_whatever_the_case(self):
+        t = tables.parse_xlsx(self._book(), sheet="accounts", name="Pipeline.xlsx")
+        assert t.columns == ["Company", "Employees", "Revenue", "Renewal"]
+        assert len(t.rows) == 2
+
+    def test_cells_read_as_a_person_would_type_them(self):
+        t = tables.parse_xlsx(self._book(), sheet="Accounts", name="x.xlsx")
+        acme, beta = t.rows
+        assert acme == {
+            "Company": "Acme Traders",
+            "Employees": "1200",
+            "Revenue": "45.5",
+            "Renewal": "2027-03-31",
+        }
+        assert beta["Revenue"] == "3" and beta["Renewal"] == ""
+
+    def test_an_unknown_sheet_names_the_ones_there(self):
+        with pytest.raises(tables.TableError) as err:
+            tables.parse_xlsx(self._book(), sheet="Leads", name="x.xlsx")
+        assert "Summary" in str(err.value) and "Accounts" in str(err.value)
+
+    def test_rows_past_the_cap_are_counted(self, monkeypatch):
+        monkeypatch.setattr(tables, "MAX_ROWS", 1)
+        t = tables.parse_xlsx(self._book(), sheet="Accounts", name="x.xlsx")
+        assert len(t.rows) == 1 and t.truncated_rows == 1
+
+    def test_a_file_that_is_not_a_workbook_is_said_plainly(self):
+        with pytest.raises(tables.TableError, match="could not be opened"):
+            tables.parse_xlsx(b"not a zip", name="x.xlsx")
+
+    def test_describe_lists_the_other_sheets(self):
+        t = tables.parse_xlsx(self._book(), sheet="Accounts", name="x.xlsx")
+        out = tables.describe(t)
+        assert out["sheet"] == "Accounts"
+        assert out["sheets"] == ["Summary", "Accounts"]
+
+    def test_a_csv_has_no_sheets_in_its_description(self):
+        out = tables.describe(_table())
+        assert "sheets" not in out and "sheet" not in out
+
+    async def test_load_reads_an_uploaded_workbook_and_the_sheet_asked_for(self):
+        document = SimpleNamespace(
+            filename="Pipeline.xlsx",
+            organization_id=7,
+            document_uuid="u",
+            custom_metadata={"s3_key": "k"},
+        )
+        with (
+            patch.object(tables, "_find_document", AsyncMock(return_value=document)),
+            patch.object(tables, "_download", AsyncMock(return_value=self._book())),
+        ):
+            out = await tables.run(
+                "rank_table",
+                organization_id=7,
+                arguments={
+                    "file": "Pipeline.xlsx",
+                    "sheet": "Accounts",
+                    "rules": [
+                        {
+                            "column": "Employees",
+                            "op": "gte",
+                            "value": 500,
+                            "points": 1,
+                            "why": "large",
+                        }
+                    ],
+                },
+            )
+        assert out["status"] == "success"
+        assert out["top"][0]["row"]["Company"] == "Acme Traders"
+
+    async def test_an_old_xls_says_how_to_fix_it(self):
+        document = SimpleNamespace(
+            filename="Old.xls", organization_id=7, document_uuid="u", custom_metadata={}
+        )
+        with patch.object(tables, "_find_document", AsyncMock(return_value=document)):
+            with pytest.raises(tables.TableError, match=".xlsx"):
+                await tables.load(7, "Old.xls")
+
+    def test_every_tool_takes_a_sheet(self):
+        for schema in tables.schemas():
+            assert "sheet" in schema["parameters"]["properties"], schema["name"]
