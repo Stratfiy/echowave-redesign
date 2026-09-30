@@ -337,6 +337,7 @@ class TestPeopleToReach:
                     "source_url": "https://www.axisdemo.example/leadership",
                     "route": "Board office, number on the leadership page",
                     "why": "Owns core banking and branch IT",
+                    "opener": "Saw your Finacle upgrade in the annual report.",
                 }
             ]
         )
@@ -348,9 +349,17 @@ class TestPeopleToReach:
                 "Chief Information Officer",
                 "Owns core banking and branch IT",
                 "Board office, number on the leadership page",
+                "Saw your Finacle upgrade in the annual report.",
                 "https://www.axisdemo.example/leadership",
             ]
         ]
+
+    def test_the_sheet_has_a_column_for_every_field(self):
+        rows, _ = tables.people_rows(
+            [{"account": "A", "name": "B", "source_url": "https://a.example/b"}]
+        )
+        assert len(rows[0]) == len(tables.PEOPLE_COLUMNS)
+        assert tables.PEOPLE_COLUMNS[-1] == "Source"
 
     def test_no_source_is_rejected_with_the_reason(self):
         rows, rejected = tables.people_rows(
@@ -464,3 +473,4 @@ class TestPeopleToReach:
         prompt = decibyl.system_prompt()
         assert tables.RULES in prompt
         assert "LinkedIn" in tables.RULES and "source" in tables.RULES
+        assert "card" in tables.RULES

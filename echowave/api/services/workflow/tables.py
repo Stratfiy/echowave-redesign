@@ -60,7 +60,15 @@ MAX_EXPORT_ROWS = 5_000
 MAX_RULES = 30
 MAX_PEOPLE = 300
 PEOPLE_SHEET = "People to reach"
-PEOPLE_COLUMNS = ("Account", "Name", "Role", "Why them", "How to reach", "Source")
+PEOPLE_COLUMNS = (
+    "Account",
+    "Name",
+    "Role",
+    "Why them",
+    "How to reach",
+    "Draft opener",
+    "Source",
+)
 RULES = (
     "- Spreadsheets: an attached CSV is shown clipped. describe_table, "
     "query_table and rank_table read every row. To say which accounts to go "
@@ -73,7 +81,10 @@ RULES = (
     "source. Never guess an email or a phone number. If none is published, "
     "say how to reach them (the switchboard, the investor-relations desk, "
     "a named assistant). Put them in export_table's people so they are on "
-    "the same workbook, and tell the person which ones were refused and why.\n"
+    "the same workbook, and tell the person which ones were refused and why. "
+    "Give each person a short opener drawn from the person's own material, "
+    "written for them to send; an email you send from here goes on a card "
+    "they confirm, never straight out.\n"
 )
 MAX_CONDITIONS = 12
 #: Distinct values listed per column when describing.
@@ -561,6 +572,13 @@ def schemas() -> list[dict[str, Any]]:
                                     "type": "string",
                                     "description": "How to reach them.",
                                 },
+                                "opener": {
+                                    "type": "string",
+                                    "description": (
+                                        "Two or three sentences to open with, "
+                                        "from the person's own material."
+                                    ),
+                                },
                                 "source_url": {"type": "string"},
                             },
                             "required": ["account", "name", "source_url"],
@@ -604,7 +622,15 @@ def people_rows(raw: Any) -> tuple[list[list[str]], list[dict[str, str]]]:
             rejected.append({"name": name, "reason": f"over the limit of {MAX_PEOPLE}"})
         else:
             rows.append(
-                [account, name, field("title"), field("why"), field("route"), source]
+                [
+                    account,
+                    name,
+                    field("title"),
+                    field("why"),
+                    field("route"),
+                    field("opener", 600),
+                    source,
+                ]
             )
     return rows, rejected
 
