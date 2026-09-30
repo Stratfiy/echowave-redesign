@@ -36,6 +36,7 @@ FLAGS: dict[str, str] = {
     "approvals": "APPROVALS_2026_09_ENABLED",
     "vendor_metering": "VENDOR_METERING_2026_09_ENABLED",
     "managed_realtime_gemini_only": "MANAGED_REALTIME_GEMINI_ONLY_ENABLED",
+    "connections_per_person": "CONNECTIONS_PER_PERSON_ENABLED",
 }
 
 

@@ -1001,12 +1001,15 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
         )
         if tool is None or not connected_tools.is_connected(tool):
             raise ActionError("That app is no longer connected.")
-        confirmed_at = str((payload.get("confirmed") or {}).get("at") or "")
+        confirmed = payload.get("confirmed") or {}
+        confirmed_at = str(confirmed.get("at") or "")
         result = await connected_tools.execute(
             organization_id=organization_id,
             tool=tool,
             arguments=dict(args.get("arguments") or {}),
             ref_id=f"run_tool:{organization_id}:{tool.tool_uuid}:{confirmed_at}",
+            # The send goes from the mailbox of whoever pressed Confirm (WS-1).
+            user_id=int(confirmed.get("by") or 0) or None,
         )
         if result.get("status") != "success":
             raise ActionError(str(result.get("error") or "It did not go through."))

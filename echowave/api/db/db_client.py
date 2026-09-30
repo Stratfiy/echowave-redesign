@@ -15,6 +15,7 @@ from api.db.folder_client import FolderClient
 from api.db.integration_client import IntegrationClient
 from api.db.knowledge_base_client import KnowledgeBaseClient
 from api.db.kyc_client import KycClient
+from api.db.member_connection_client import MemberConnectionClient
 from api.db.missed_call_client import MissedCallClient
 from api.db.organisation_fact_client import OrganisationFactClient
 from api.db.organisation_skill_client import OrganisationSkillClient
@@ -62,6 +63,7 @@ class DBClient(
     OrganizationConfigurationClient,
     OrganizationUsageClient,
     IntegrationClient,
+    MemberConnectionClient,
     WorkflowTemplateClient,
     CampaignClient,
     ContactClient,
@@ -91,6 +93,7 @@ class DBClient(
     - OrganizationConfigurationClient: handles organization configuration operations
     - OrganizationUsageClient: handles organization usage reporting aggregates
     - IntegrationClient: handles integration operations
+    - MemberConnectionClient: which member owns which Composio connected account (WS-1)
     - WorkflowTemplateClient: handles workflow template operations
     - CampaignClient: handles campaign operations
     - ReportsClient: handles reports and analytics operations

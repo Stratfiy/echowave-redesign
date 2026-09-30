@@ -37,6 +37,7 @@ from api.enums import AgentEventActor, AgentEventKind
 from api.services import prompt_budget, reporting_window
 from api.services.billing import model_usage
 from api.services.documents import tools as procurement
+from api.services.integrations.composio import members as connection_members
 from api.services.knowledge_graph import quiet, recall, teach
 from api.services.organization_preferences import get_organization_preferences
 from api.services.skills import imports as skill_imports
@@ -831,7 +832,12 @@ async def answer(
     # card a tool proposes, the reply itself -- belongs to the conversation
     # it was asked in. Set once here rather than passed down through each
     # writer; see agent_timeline.in_thread for why.
-    with agent_timeline.in_thread(thread_id):
+    # And every connected-app call in it runs as the person who asked
+    # (WS-1): their Gmail, not the workspace's, when they have one.
+    with (
+        agent_timeline.in_thread(thread_id),
+        connection_members.acting_as(author_id),
+    ):
         return await _answer(
             organization_id,
             text,
