@@ -91,8 +91,12 @@ class TestTheIndexStillConstrainsTheOrganisation:
     def test_the_organisation_index_is_partial_on_a_null_workflow(self):
         """Without the predicate this index would constrain every row and a bot
         fact could never share a subject and key with an organisation fact --
-        which is the entire feature."""
-        assert _predicate(_indexes()[ORG_INDEX]) == "workflow_id IS NULL"
+        which is the entire feature. Since MEM-1 it also leaves out a member's
+        personal rows, which have an index of their own."""
+        assert (
+            _predicate(_indexes()[ORG_INDEX])
+            == "workflow_id IS NULL AND user_id IS NULL"
+        )
 
     def test_the_organisation_index_keeps_its_original_four_columns(self):
         """A second call saying the same thing must still update one row rather
@@ -143,7 +147,7 @@ class TestTheUpsertCanActuallyFindTheIndex:
         clause = _rendered_conflict(None)
         assert clause == (
             "(organization_id, subject_type, subject_key, key) "
-            "WHERE workflow_id IS NULL"
+            "WHERE workflow_id IS NULL AND user_id IS NULL"
         )
 
     def test_a_bot_upsert_names_the_bot_index(self):
@@ -163,7 +167,10 @@ class TestTheUpsertCanActuallyFindTheIndex:
 
     @pytest.mark.parametrize(
         "scope, expected",
-        [(ORG_SCOPE, "workflow_id IS NULL"), (BOT_SCOPE, "workflow_id IS NOT NULL")],
+        [
+            (ORG_SCOPE, "workflow_id IS NULL AND user_id IS NULL"),
+            (BOT_SCOPE, "workflow_id IS NOT NULL"),
+        ],
     )
     def test_the_scope_constants_render_as_the_index_predicates(self, scope, expected):
         """The constants and the schema are written in two files and have to
