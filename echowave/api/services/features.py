@@ -64,6 +64,10 @@ FLAGS: dict[str, str] = {
     "projects": "PROJECTS_ENABLED",
     "agent_faces": "AGENT_FACES_ENABLED",
     "ui_shell_v2": "UI_SHELL_V2_ENABLED",
+    "decibyl_channels": "DECIBYL_CHANNELS_ENABLED",
+    "decibyl_telegram": "DECIBYL_TELEGRAM_ENABLED",
+    "decibyl_slack": "DECIBYL_SLACK_ENABLED",
+    "decibyl_teams": "DECIBYL_TEAMS_ENABLED",
 }
 
 

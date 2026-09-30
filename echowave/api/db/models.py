@@ -6783,3 +6783,11 @@ class ProcurementDocumentModel(Base):
             "status",
         ),
     )
+
+
+# Tables kept in their own modules (launch convention, KAN-276): imported here
+# so they are on Base.metadata for alembic and the tests.
+from api.db.signup_invite_models import (  # noqa: E402,F401
+    SignupInviteModel,
+    SignupInviteRedemptionModel,
+)

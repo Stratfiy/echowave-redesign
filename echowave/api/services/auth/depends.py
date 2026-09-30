@@ -27,6 +27,23 @@ from api.services.posthog_client import (
 )
 from api.utils.auth import decode_jwt_token
 
+AUTH_INTERNAL_ERROR_DETAIL = "Sign-in failed on our side. Please try again."
+
+
+def _report_auth_failure(stage: str) -> None:
+    """Log the live exception with its traceback and hand it to Sentry.
+
+    Called from an ``except`` block. The client sees only
+    ``AUTH_INTERNAL_ERROR_DETAIL``.
+    """
+    logger.exception("Auth failure while {stage}", stage=stage)
+    try:
+        import sentry_sdk
+
+        sentry_sdk.capture_exception()
+    except Exception:  # pragma: no cover - telemetry must never break auth
+        pass
+
 
 async def require_local_auth() -> None:
     """Reject email/password auth requests outside OSS (local) deployments.
@@ -104,10 +121,11 @@ async def get_user(
                     "auth_provider": "stack",
                 },
             )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error while creating user from database {e}"
-        )
+    except Exception:
+        # The detail goes to the log and Sentry, never to the client: the
+        # exception text can carry connection strings and SQL (KAN-245).
+        _report_auth_failure("creating user from database")
+        raise HTTPException(status_code=500, detail=AUTH_INTERNAL_ERROR_DETAIL)
 
     # ------------------------------------------------------------------
     # 4. Persist Organization (team) and mapping in local database
@@ -186,11 +204,9 @@ async def get_user(
                             model_config_v2.model_dump(mode="json", exclude_none=True),
                         )
 
-    except Exception as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to map user to organization: {exc}",
-        )
+    except Exception:
+        _report_auth_failure("mapping user to organization")
+        raise HTTPException(status_code=500, detail=AUTH_INTERNAL_ERROR_DETAIL)
 
     return user_model
 
@@ -584,6 +600,46 @@ def require_organization_role(minimum: OrganizationRole):
     return _dependency
 
 
+WS_AUTH_SUBPROTOCOL = "decibyl.auth"
+WS_BEARER_PREFIX = "bearer."
+WS_API_KEY_PREFIX = "apikey."
+
+
+def ws_offered_subprotocols(websocket: WebSocket) -> list[str]:
+    raw = websocket.headers.get("sec-websocket-protocol") or ""
+    return [p.strip() for p in raw.split(",") if p.strip()]
+
+
+def ws_accept_subprotocol(websocket: WebSocket) -> str | None:
+    """The subprotocol to echo back on ``accept()``.
+
+    A browser that offered ``decibyl.auth`` closes the socket unless the
+    server selects it, so every websocket route that uses ``get_user_ws``
+    must pass this to ``websocket.accept(subprotocol=...)``.
+    """
+    offered = ws_offered_subprotocols(websocket)
+    return WS_AUTH_SUBPROTOCOL if WS_AUTH_SUBPROTOCOL in offered else None
+
+
+def ws_credentials_from_subprotocol(
+    websocket: WebSocket,
+) -> tuple[str | None, str | None]:
+    """(token, api_key) carried in ``Sec-WebSocket-Protocol``.
+
+    Browsers cannot set an Authorization header on a WebSocket, so the
+    credential rides in the subprotocol list as ``bearer.<jwt>`` or
+    ``apikey.<key>`` alongside ``decibyl.auth``. Headers stay out of nginx
+    access logs and carrier logs, unlike the query string (KAN-245).
+    """
+    token = api_key = None
+    for entry in ws_offered_subprotocols(websocket):
+        if entry.startswith(WS_BEARER_PREFIX):
+            token = entry[len(WS_BEARER_PREFIX) :] or None
+        elif entry.startswith(WS_API_KEY_PREFIX):
+            api_key = entry[len(WS_API_KEY_PREFIX) :] or None
+    return token, api_key
+
+
 async def get_user_ws(
     websocket: WebSocket,
     token: str = Query(None),
@@ -591,8 +647,23 @@ async def get_user_ws(
 ) -> UserModel:
     """
     WebSocket authentication dependency.
-    Uses token or api_key from query parameters for authentication.
+
+    The credential comes from the ``Sec-WebSocket-Protocol`` header first
+    (``decibyl.auth, bearer.<token>`` or ``apikey.<key>``). The query-string
+    form (``?token=`` / ``?api_key=``) is still accepted for one release so
+    older clients keep working, and is logged as deprecated because a URL
+    lands in nginx and carrier logs.
     """
+    header_token, header_api_key = ws_credentials_from_subprotocol(websocket)
+    if header_token or header_api_key:
+        token, api_key = header_token, header_api_key
+    elif token or api_key:
+        logger.warning(
+            "websocket auth via query string is deprecated (KAN-245); "
+            "send the credential in Sec-WebSocket-Protocol: path={path}",
+            path=websocket.url.path,
+        )
+
     if not token and not api_key:
         await websocket.close(code=1008, reason="Missing authentication token")
         raise HTTPException(status_code=401, detail="Missing authentication token")

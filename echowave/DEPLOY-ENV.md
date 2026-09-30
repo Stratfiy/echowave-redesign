@@ -403,6 +403,10 @@ APPROVAL_SCOPES_ENABLED=false         # POL-2     KAN-259  Once / This task / 7 
 PROJECTS_ENABLED=false                # PRJ-1     KAN-266  Projects on the channel
 AGENT_FACES_ENABLED=false             # UI-4      KAN-260  animated faces
 UI_SHELL_V2_ENABLED=false             # UI-1/UI-2 KAN-208/209  seven homes, ten-section bot page
+DECIBYL_CHANNELS_ENABLED=false        # DCH-1     KAN-277  Decibyl in your apps (WhatsApp rides this)
+DECIBYL_TELEGRAM_ENABLED=false        # DCH-1     KAN-277  ... on Telegram
+DECIBYL_SLACK_ENABLED=false           # DCH-1     KAN-277  ... on Slack
+DECIBYL_TEAMS_ENABLED=false           # DCH-1     KAN-277  ... on Teams
 ```
 
 Pre-existing switches now also reported on `/health`: `BUDGET_POLICIES_ENABLED`,
