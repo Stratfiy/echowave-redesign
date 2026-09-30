@@ -29,7 +29,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
-from api.services.knowledge_graph import quiet
+from api.services.knowledge_graph import personal, quiet
 from api.services.knowledge_graph.teach import subject_key
 from api.services.workflow import agent_timeline
 
@@ -82,6 +82,7 @@ async def remember_asked(organization_id: int, *, about: str, question: str) -> 
             status="learned",
             subject_type=SUBJECT_ASKED,
             subject_key=key,
+            user_id=personal.owner(),
         )
     except Exception as exc:  # noqa: BLE001
         logger.warning(
@@ -91,7 +92,10 @@ async def remember_asked(organization_id: int, *, about: str, question: str) -> 
 
 async def asked_once(organization_id: int) -> list[Any]:
     rows = await db_client.subject_facts(
-        organization_id=organization_id, subject_type=SUBJECT_ASKED, limit=200
+        organization_id=organization_id,
+        subject_type=SUBJECT_ASKED,
+        limit=200,
+        user_id=personal.viewer(),
     )
     return [
         r

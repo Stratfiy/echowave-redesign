@@ -11,9 +11,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const read = vi.hoisted(() => vi.fn());
 const setStatus = vi.hoisted(() => vi.fn());
+const share = vi.hoisted(() => vi.fn());
 vi.mock('@/client/sdk.gen', () => ({
     readMemoryApiV1OrganisationMemoryGet: read,
     setStatusApiV1OrganisationMemoryFactIdStatusPost: setStatus,
+    shareFactApiV1OrganisationMemoryFactIdSharePost: share,
 }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
 
@@ -37,6 +39,29 @@ const fact = (over: Record<string, unknown>) => ({
 beforeEach(() => {
     read.mockReset();
     setStatus.mockReset();
+    share.mockReset();
+});
+
+describe('personal memory (MEM-1)', () => {
+    it('marks your own facts and nobody else sees a share button', async () => {
+        read.mockResolvedValue({
+            data: { facts: [fact({ mine: true, key: 'Tea', value: 'no sugar' }), fact({ id: 2 })], gaps: [] },
+        });
+        render(<MemoryList />);
+        expect(await screen.findByText('no sugar')).toBeTruthy();
+        expect(screen.getAllByText('Only you')).toHaveLength(1);
+        expect(screen.getByRole('button', { name: 'Share Tea with the workspace' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Share Opening hours with the workspace' })).toBeNull();
+    });
+
+    it('shares a fact, and the row becomes the workspace\'s', async () => {
+        read.mockResolvedValue({ data: { facts: [fact({ mine: true, key: 'Tea', value: 'no sugar' })], gaps: [] } });
+        share.mockResolvedValue({ data: fact({ id: 9, mine: false, key: 'Tea', value: 'no sugar' }) });
+        render(<MemoryList />);
+        fireEvent.click(await screen.findByRole('button', { name: 'Share Tea with the workspace' }));
+        await waitFor(() => expect(screen.queryByText('Only you')).toBeNull());
+        expect(share.mock.calls[0][0]).toEqual({ path: { fact_id: 1 } });
+    });
 });
 
 describe('an agent list', () => {

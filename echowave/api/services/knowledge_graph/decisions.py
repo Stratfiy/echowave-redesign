@@ -24,7 +24,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.services.billing import model_usage
-from api.services.knowledge_graph import feed
+from api.services.knowledge_graph import feed, personal
 from api.services.knowledge_graph.teach import subject_key
 
 SUBJECT_DECISION = "decision"
@@ -165,6 +165,7 @@ async def note(
                 status="learned",
                 subject_type=SUBJECT_DECISION,
                 subject_key=subject_key(decision.what),
+                user_id=personal.owner(),
             )
             noted += 1
         except Exception as exc:  # noqa: BLE001
@@ -231,7 +232,10 @@ async def recall_decisions(
         return []
     try:
         rows = await db_client.subject_facts(
-            organization_id=organization_id, subject_type=SUBJECT_DECISION, limit=300
+            organization_id=organization_id,
+            subject_type=SUBJECT_DECISION,
+            limit=300,
+            user_id=personal.viewer(),
         )
     except Exception as exc:  # noqa: BLE001
         logger.warning(

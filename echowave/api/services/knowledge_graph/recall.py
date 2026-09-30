@@ -27,6 +27,7 @@ from typing import Any
 from loguru import logger
 
 from api.services.billing import events as billing_events
+from api.services.knowledge_graph import personal
 from api.services.knowledge_graph.client import Fact, search_facts
 
 TOOL_NAME = "recall"
@@ -171,6 +172,7 @@ async def _record_facts(organization_id: int, about: str) -> list[Fact]:
             subject_key=subject_key(about),
             status="confirmed",
             limit=20,
+            user_id=personal.viewer(),
         )
     except Exception as exc:  # noqa: BLE001
         logger.warning(

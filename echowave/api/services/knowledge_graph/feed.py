@@ -18,8 +18,20 @@ from typing import Any
 
 from loguru import logger
 
-from api.services.knowledge_graph import episodes, ingest, scoping
+from api.services.knowledge_graph import episodes, ingest, personal, scoping
 from api.services.knowledge_graph.client import graph_is_configured
+
+
+def _partition(organization_id: int) -> str:
+    """Where a line said to Decibyl is written: the member's own partition
+    when personal memory is on and the turn runs as a member (MEM-1), the
+    workspace's otherwise. Calls and documents never come through here;
+    they are the workspace's by nature."""
+    member = personal.owner()
+    if member is None:
+        return scoping.group_id_for_organization(organization_id)
+    return scoping.group_id_for_member(organization_id, member)
+
 
 #: A thread exchange shorter than this teaches the graph nothing.
 MIN_EXCHANGE_CHARS = 40
@@ -85,7 +97,7 @@ async def remember_exchange(
             source_description=f"Home thread with Decibyl"
             + (f" via {channel}" if channel else ""),
             reference_time=at,
-            group_id=scoping.group_id_for_organization(organization_id),
+            group_id=_partition(organization_id),
             source=episodes.SOURCE_MESSAGE,
         )
         return await ingest.remember(episode)
@@ -149,7 +161,7 @@ async def remember_correction(
             body=body,
             source_description="Correction on the Home thread, confirmed by the person",
             reference_time=at,
-            group_id=scoping.group_id_for_organization(organization_id),
+            group_id=_partition(organization_id),
             source=episodes.SOURCE_TEXT,
         )
         return await ingest.remember(episode)
@@ -170,7 +182,7 @@ async def remember_decision(*, organization_id: int, line: str, at: datetime) ->
             body=line,
             source_description="Decision noted from a conversation (inferred)",
             reference_time=at,
-            group_id=scoping.group_id_for_organization(organization_id),
+            group_id=_partition(organization_id),
             source=episodes.SOURCE_TEXT,
         )
         return await ingest.remember(episode)
