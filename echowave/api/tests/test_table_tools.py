@@ -474,3 +474,39 @@ class TestPeopleToReach:
         assert tables.RULES in prompt
         assert "LinkedIn" in tables.RULES and "source" in tables.RULES
         assert "card" in tables.RULES
+
+
+class TestAReadKeepsTheToolsOpen:
+    """Describe, then rank, then export is one answer. A table read that
+    ended the tool phase like a card would leave the model holding the
+    columns with no way to rank them."""
+
+    def test_describe_query_and_rank_are_reads(self):
+        from types import SimpleNamespace as call
+
+        from api.services.workflow import decibyl
+
+        for name in (
+            tables.DESCRIBE_TOOL_NAME,
+            tables.QUERY_TOOL_NAME,
+            tables.RANK_TOOL_NAME,
+        ):
+            assert decibyl._was_a_read(call(name=name), {"status": "success"}), name
+
+    def test_a_failed_export_is_a_read_so_it_can_be_tried_again(self):
+        from types import SimpleNamespace as call
+
+        from api.services.workflow import decibyl
+
+        assert decibyl._was_a_read(
+            call(name=tables.EXPORT_TOOL_NAME), {"status": "error", "error": "x"}
+        )
+
+    def test_a_workbook_handed_over_ends_the_round_like_a_card(self):
+        from types import SimpleNamespace as call
+
+        from api.services.workflow import decibyl
+
+        assert not decibyl._was_a_read(
+            call(name=tables.EXPORT_TOOL_NAME), {"status": "success"}
+        )

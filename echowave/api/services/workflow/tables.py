@@ -47,6 +47,9 @@ EXPORT_TOOL_NAME = "export_table"
 NAMES = frozenset(
     {DESCRIBE_TOOL_NAME, QUERY_TOOL_NAME, RANK_TOOL_NAME, EXPORT_TOOL_NAME}
 )
+#: Reads keep Decibyl's tools open for the next step; export hands a file
+#: over and ends the round the way a card does.
+READS = frozenset({DESCRIBE_TOOL_NAME, QUERY_TOOL_NAME, RANK_TOOL_NAME})
 
 #: Largest file read as a table. Bigger than any account list a person
 #: attaches to a chat; small enough that parsing it in the turn is instant.
@@ -824,6 +827,7 @@ __all__ = [
     "PEOPLE_COLUMNS",
     "QUERY_TOOL_NAME",
     "RANK_TOOL_NAME",
+    "READS",
     "RULES",
     "Rule",
     "Table",

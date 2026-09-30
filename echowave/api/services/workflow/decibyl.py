@@ -1322,6 +1322,10 @@ def _was_a_read(call: Any, result: Any) -> bool:
     retry with, and the turn ended on "I have nothing to add on that."
     """
     name = str(getattr(call, "name", "") or "")
+    if name in tables.NAMES and isinstance(result, dict):
+        # Describe, then rank, then export is one answer: a table read keeps
+        # the tools open. A handed-over workbook ends the round like a card.
+        return name in tables.READS or result.get("status") != "success"
     if name in procurement.NAMES and isinstance(result, dict):
         # Reading a template, a quotation or the register is a read; so is a
         # draft that came back asking for what is missing -- nothing was
