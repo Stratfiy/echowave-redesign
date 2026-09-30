@@ -343,13 +343,13 @@ async def answer_decibyl_message(
             organization_id,
             text,
             asked=asked,
-        preset=preset,
-        subjects=subjects,
-        author_id=author_id,
-        attachments=attachments,
-        # Nothing re-runs this turn after the cap, so the block must stop
-        # telling the model to promise a follow-up. A promise made on the
-        # way out is the one nobody keeps.
+            preset=preset,
+            subjects=subjects,
+            author_id=author_id,
+            attachments=attachments,
+            # Nothing re-runs this turn after the cap, so the block must stop
+            # telling the model to promise a follow-up. A promise made on the
+            # way out is the one nobody keeps.
             last_try=bool(pending) and attempt >= decibyl.UNREAD_RETRIES,
             thread_id=thread_id,
         )
