@@ -79,45 +79,30 @@ Two shapes share one process today: the **voice** half (stateful, CPU-bound, can
 4. **Price after measuring, but bill correctly now.** The founder's instruction is "keep pricing for last". The costing audit shows four code gaps that are wrong under any price (unbilled chat turns, premium chat inside the allowance, builder not pinned, metering holes). Fix those in Phase 1 as metering work; they do not wait on the number.
 5. **Do not build a mode switch, a second builder screen, or a multi-region story yet.** Each was considered and rejected in the docs; the reasoning still holds.
 
-## 5. The plan, by horizon
+## 5. The plan, by horizon (revised 30 September: self-serve first)
 
-Horizons follow the board's phases. Each item names the Jira key it lives under; keys starting `ENG-` are new (§7).
+### H0 — week 1: unblock and decide
+- **Pricing now** (BILL-1, KAN-207): plan ladder, trial length and contents, India voice price, premium-voice handling. The two measurements the costing audit asks for (TTS characters per minute, cache hit rate) start on our own workspace today.
+- **Reopen self-serve purchase**: reverse the studio-mode switch (KAN-189/190) so the ladder is listed and checkout works.
+- **ENG-2** images off the production box (KAN-241); **ENG-6** security fixes (KAN-245) and key rotation (KAN-233).
+- **I7** (KAN-58): Gemini 2.5 Flash-Lite retires 16 October. Hard date.
+- Merge PR #490 when green; Netoyed continues only if the founder says so.
 
-### H0 — this week: unblock the Netoyed pilot
-- Merge PR #490 once `pytest` finishes green (ui and drift-check are green; `mergeable_state` is `unstable` only because pytest is in progress). Harsha reviews as code owner.
-- Nithish flips `TABLE_TOOLS_ENABLED` + `DECIBYL_TOOLS_2026_09_ENABLED` per AWS-0/AWS-1 (KAN-230, KAN-231); confirm `/api/v1/health` shows `table_tools: true`.
-- Rotate the SerpApi key now; revoke the `dcb_` key when the build session ends (KAN-233, Highest).
-- Harsha T0: test workspace and accounts (KAN-222), then T1 flags-off regression (KAN-223).
+### H1 — weeks 2 to 4: verify what is built
+- The self-serve set in Testing, verified live on staging or a scratch workspace and closed with evidence: I1 to I7 and I9 to I12 (credits, ladder, markup, packs, metering, KB caps, GST, translation metering, KPI board, USD packs), O1 to O3 (onboarding tranches, referral, promo), P0 office model (KAN-140), Q1/Q2 triggers, connected apps (KAN-142), the four thread bugs (KAN-88 to 91). Harsha's T0/T1 become this pass.
+- **PLAN-1** trial replaces Free (KAN-255). **BYOK-1** the account's keys on text paths (KAN-254).
+- **ENG-1** the five E2E journeys green in CI (KAN-240), signup → first bot → Try it → publish → top-up above all.
+- **SBX-1** sandbox verified on a trial account (KAN-252).
 
-### H1 — October to November (Phase 1, KAN-193): pilots run on a platform we can trust
-Product slices (already on the board; OPS-1 pulled forward on the founder's direction of 30 September): WS-1 → MEM-1 → **OPS-1 + pilot plan** → E-1 verification → M-1 → BYOK-1 → POL-1 → ACT-1 → VER-1 → PROC-1 → DEC-1.
+### H2 — weeks 4 to 6: the self-serve surface
+- SIG-1 signup and onboarding (KAN-206), UI-1 shell (KAN-208), UI-2 editor (KAN-209), COPY-1 (KAN-213), M1 wording (KAN-74), M5 site claims (KAN-78), lifecycle emails (KAN-126), funnel instrumentation (KAN-75, KAN-122).
+- OBS-1 first half, trace IDs (KAN-212). INFRA-A staging, RDS, secrets, restore drill (KAN-204).
+- Launch gate: every row above Done, E2E green on `main`, images pulled not built, a restore drill passed, pricing live on the ladder.
 
-Platform work to run alongside, one engineer-equivalent:
-1. **ENG-2 Images built on merge, deploy pulls from GHCR** (closes R1). Re-add the push trigger, flip `IMAGE_SOURCE=pull`, rollback = previous SHA. Two days.
-2. **ENG-1 Browser E2E gate** (closes R2). Playwright against compose with fake STT/LLM/TTS and a fake carrier: signup → verify → create bot → Try it → publish → Hear it (WebRTC, fake audio) → billing top-up (Razorpay test webhook). Runs on PRs that touch `ui/` or `routes/`. Two weeks to the first five journeys.
-3. **INFRA-A** (KAN-204, closes R9): RDS + PITR restore drill, S3, secrets in SSM, staging stack, CloudWatch alarms. Founder or ops, needs the console.
-4. **ENG-6 Security fixes** (closes R4): arq TLS verification, Stack Auth error masking, WS token in header not query, key-rotation runbook. Three days.
-5. **ENG-5 Media/control split, cheap half** (halves R3): `DECIBYL_ROLE=control` for arq + singletons with a Redis lock, `media` for uvicorn with `FASTAPI_WORKERS=2`, drain verified in `rolling_update.sh`. One week.
-6. **ENG-9 Billing correctness from the costing audit** (closes R6 without deciding price): charge Decibyl chat turns, premium chat always credits, pin the builder model, record Composio / translation / graph-extraction cost lines, Deepgram batch rate row. Feeds M-1 (KAN-205) and is a prerequisite of BILL-1.
-7. **OBS-1 trace IDs** (KAN-212, first half only): one `trace_id` per run across events and ledger. The golden sets and staff Quality pages stay in Phase 2.
-
-Exit gate for Phase 1 (unchanged from KAN-193): WS-1 and MEM-1 verified on the pilot workspace. Added: E2E gate green on `main`, images pulled not built, restore drill passed.
-
-### H2 — December to January (Phase 2, KAN-194): self-serve launch
-- **BILL-1** (KAN-207) once the founder decides margin SLO, India voice price and premium-voice handling; the tests listed on the issue are the acceptance.
-- **ENG-4 Flag hygiene**: every env toggle into the registry, each with an owner and a remove-by date; flags older than two phases are removed or made permanent.
-- **ENG-3 UI quality gates**: `npm run lint` in CI, generated-client drift check against the dumped OpenAPI, a data-fetching layer (TanStack Query) introduced page by page starting with billing and the thread.
-- **ENG-8 Dead code and hotspots**: delete orphaned `SimpleAgentEditor` / `FlowAgentEditor`, consolidate the five model-config components, split `routes/workflow.py` and `routes/billing_dashboard.py` below 1k lines.
-- **OBS-1 second half**: golden sets per pack that block publish, online sampling, staff Quality pages.
-- **ENG-10 API/SDK surface**: SDK families per `docs/audits/2026-09-14-docs-and-api-plan.md` (bots, calls, campaigns, numbers, billing), a publish workflow, MCP tool annotations. This is what "Secondary — Indian SaaS embedding voice" buys.
-- UI-1/UI-2/UI-3, SIG-1, COPY-1, KNOW-1 as already planned.
-
-### H3 — from February (Phase 3, KAN-195): scale
-- **INFRA-B** (KAN-216): dedicated media tier, measured sizing, autoscaling on concurrent calls.
-- **ENG-7 Tenant isolation, hard form**: Postgres row-level security on org-scoped tables behind a session variable, after the lint-based guard from H1 has run clean for a phase.
-- **ENG-11 Helm chart decision**: either give it CI (kind cluster smoke test, parity with compose) or archive it. It has drifted already (no falkordb, embeddings, sandbox, gotenberg).
-- Native Slack/Teams (CH-1/CH-2), graph view, marketplace creators as planned.
-- Multi-region and SOC 2 only when a signed enterprise deal needs them.
+### H3 — after launch: pilots and scale
+- Pilots (KAN-193): OPS-1 operator sessions and the pilot plan first, then WS-1/MEM-1 live, E-1, M-1, POL-1, ACT-1, VER-1, PROC-1, DEC-1. Each pilot is its own organisation, built inside by the studio.
+- OUT-1 outcomes and consumables (KAN-253) once pricing has settled the reading.
+- ENG-3, ENG-4, ENG-8, ENG-10, ENG-12 (UI gates, flag hygiene, dead code, SDK, docs); OBS-1 second half; INFRA-B media tier; ENG-7 RLS; CH-1/CH-2, GV-1, KNOW-1, UI-3, S-3/S-4.
 
 ## 6. How the team works (engineering system)
 
@@ -159,6 +144,7 @@ Existing issues these depend on or feed: KAN-204 (INFRA-A), KAN-212 (OBS-1), KAN
 | BYOK for models is a requirement | Voice already resolves the account's keys for STT, LLM, TTS, realtime and embeddings; the text paths (Decibyl, builder, routines, channels) do not and run on the platform key. One resolver for text, model choice per surface, no silent fallback to the platform key | KAN-254 (BYOK-1, Phase 1) |
 | No Free plan, only a trial | "Free" is the fallback plan for any account without a mandate, the bottom of the limits ladder and the sandbox gate; the onboarding tranches are already trial-kind ledger rows. A time-boxed `trial` replaces it, `expired` keeps read access, pilots get an explicit plan | KAN-255 (PLAN-1, Phase 2 shape, pilot part now) |
 | Pilots are built in the pilot's own account, never in ours | Each pilot is its own organisation: its ledger, keys, outcomes and audit log. The studio works inside it through an operator session (OPS-1: time-boxed, logged, admin but never owner). OPS-1 moves from slice 6 to right after WS-1/MEM-1; the staff-granted pilot plan (PLAN-1 item 4) moves into Phase 1. Interim for Netoyed: create the organisation, grant the plan, invite the operators as admin members | KAN-201, KAN-255, KAN-231 |
+| Self-serve first, pilots later | Phase order swaps: KAN-194 (self-serve) is Phase 1, KAN-193 (pilots) is Phase 2. Pricing can no longer be last. The self-serve product is largely built and sitting in Testing (40 issues); the gate is verification, trial, BYOK on text, E2E, images off the box, and the surface work (SIG-1, UI-1/2, COPY-1). Self-serve purchase, closed for the studio model, is reopened | KAN-194 comment of 30 Sep carries the ordered gate |
 
 **Still open:**
 
