@@ -7595,6 +7595,32 @@ export type MiniMaxTtsConfiguration = {
 };
 
 /**
+ * MintInvitesRequest
+ */
+export type MintInvitesRequest = {
+    /**
+     * Count
+     */
+    count?: number;
+    /**
+     * Email
+     */
+    email?: string | null;
+    /**
+     * Max Uses
+     */
+    max_uses?: number;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Expires At
+     */
+    expires_at?: string | null;
+};
+
+/**
  * MissedCallOut
  */
 export type MissedCallOut = {
@@ -11319,6 +11345,10 @@ export type SignupRequest = {
      * Referral Code
      */
     referral_code?: string | null;
+    /**
+     * Invite Code
+     */
+    invite_code?: string | null;
     /**
      * Accepted Agreements
      */
@@ -16053,6 +16083,140 @@ export type GetWorkflowRunsApiV1SuperuserWorkflowRunsGetResponses = {
 };
 
 export type GetWorkflowRunsApiV1SuperuserWorkflowRunsGetResponse = GetWorkflowRunsApiV1SuperuserWorkflowRunsGetResponses[keyof GetWorkflowRunsApiV1SuperuserWorkflowRunsGetResponses];
+
+export type ListInvitesApiV1SuperuserInvitesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/superuser/invites';
+};
+
+export type ListInvitesApiV1SuperuserInvitesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListInvitesApiV1SuperuserInvitesGetError = ListInvitesApiV1SuperuserInvitesGetErrors[keyof ListInvitesApiV1SuperuserInvitesGetErrors];
+
+export type ListInvitesApiV1SuperuserInvitesGetResponses = {
+    /**
+     * Response List Invites Api V1 Superuser Invites Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListInvitesApiV1SuperuserInvitesGetResponse = ListInvitesApiV1SuperuserInvitesGetResponses[keyof ListInvitesApiV1SuperuserInvitesGetResponses];
+
+export type MintInvitesApiV1SuperuserInvitesPostData = {
+    body: MintInvitesRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/superuser/invites';
+};
+
+export type MintInvitesApiV1SuperuserInvitesPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MintInvitesApiV1SuperuserInvitesPostError = MintInvitesApiV1SuperuserInvitesPostErrors[keyof MintInvitesApiV1SuperuserInvitesPostErrors];
+
+export type MintInvitesApiV1SuperuserInvitesPostResponses = {
+    /**
+     * Response Mint Invites Api V1 Superuser Invites Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type MintInvitesApiV1SuperuserInvitesPostResponse = MintInvitesApiV1SuperuserInvitesPostResponses[keyof MintInvitesApiV1SuperuserInvitesPostResponses];
+
+export type RevokeInviteApiV1SuperuserInvitesInviteIdRevokePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Invite Id
+         */
+        invite_id: number;
+    };
+    query?: never;
+    url: '/api/v1/superuser/invites/{invite_id}/revoke';
+};
+
+export type RevokeInviteApiV1SuperuserInvitesInviteIdRevokePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RevokeInviteApiV1SuperuserInvitesInviteIdRevokePostError = RevokeInviteApiV1SuperuserInvitesInviteIdRevokePostErrors[keyof RevokeInviteApiV1SuperuserInvitesInviteIdRevokePostErrors];
+
+export type RevokeInviteApiV1SuperuserInvitesInviteIdRevokePostResponses = {
+    /**
+     * Response Revoke Invite Api V1 Superuser Invites  Invite Id  Revoke Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RevokeInviteApiV1SuperuserInvitesInviteIdRevokePostResponse = RevokeInviteApiV1SuperuserInvitesInviteIdRevokePostResponses[keyof RevokeInviteApiV1SuperuserInvitesInviteIdRevokePostResponses];
 
 export type GetOverviewApiV1AdminBillingOverviewGetData = {
     body?: never;
@@ -36633,6 +36797,10 @@ export type GoogleStartApiV1AuthGoogleStartGetData = {
          * Ref
          */
         ref?: string | null;
+        /**
+         * Invite
+         */
+        invite?: string | null;
     };
     url: '/api/v1/auth/google/start';
 };
@@ -37585,6 +37753,49 @@ export type DisconnectApiV1IntegrationsGoogleCalendarDisconnectPostResponses = {
 };
 
 export type DisconnectApiV1IntegrationsGoogleCalendarDisconnectPostResponse = DisconnectApiV1IntegrationsGoogleCalendarDisconnectPostResponses[keyof DisconnectApiV1IntegrationsGoogleCalendarDisconnectPostResponses];
+
+export type OrganizationFeaturesApiV1FeaturesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/features';
+};
+
+export type OrganizationFeaturesApiV1FeaturesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type OrganizationFeaturesApiV1FeaturesGetError = OrganizationFeaturesApiV1FeaturesGetErrors[keyof OrganizationFeaturesApiV1FeaturesGetErrors];
+
+export type OrganizationFeaturesApiV1FeaturesGetResponses = {
+    /**
+     * Response Organization Features Api V1 Features Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: boolean;
+    };
+};
+
+export type OrganizationFeaturesApiV1FeaturesGetResponse = OrganizationFeaturesApiV1FeaturesGetResponses[keyof OrganizationFeaturesApiV1FeaturesGetResponses];
 
 export type HealthApiV1HealthGetData = {
     body?: never;

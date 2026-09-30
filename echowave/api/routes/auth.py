@@ -26,6 +26,7 @@ from api.services.auth import (
     mfa,
     password_reset,
     password_reset_flow,
+    signup_invites,
 )
 from api.services.auth.depends import (
     get_user,
@@ -73,6 +74,14 @@ async def signup(request: SignupRequest, http_request: Request):
     if existing_user:
         raise HTTPException(status_code=409, detail="Email already registered")
 
+    # Invite-only (INVITE-1). After the duplicate-email check so a person who
+    # already has an account never spends a use; before the user row so a
+    # refused code creates nothing.
+    try:
+        invite = await signup_invites.claim(request.invite_code, request.email)
+    except signup_invites.InviteRefused as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
     # Hash password and create user
     hashed = hash_password(request.password)
     user = await db_client.create_user_with_email(
@@ -85,6 +94,13 @@ async def signup(request: SignupRequest, http_request: Request):
     # Google callback so both doors produce an identically-provisioned account.
     organization = await provision_new_account(
         user, referral_code=request.referral_code
+    )
+    await signup_invites.record_redemption(
+        invite,
+        email=request.email,
+        user_id=user.id,
+        organization_id=organization.id,
+        door="password",
     )
 
     # The record of the click-wrap: who, which version, from where. Written
@@ -329,7 +345,9 @@ def _redirect_uri() -> str:
 
 
 @router.get("/google/start", dependencies=[Depends(require_local_auth)])
-async def google_start(next: str | None = None, ref: str | None = None) -> dict:
+async def google_start(
+    next: str | None = None, ref: str | None = None, invite: str | None = None
+) -> dict:
     """Begin sign-in. Returns the URL to send the browser to.
 
     ``ref`` is a partner's referral code, carried in the signed state so it
@@ -339,7 +357,10 @@ async def google_start(next: str | None = None, ref: str | None = None) -> dict:
     try:
         return {
             "authorization_url": google_oauth.build_authorization_url(
-                redirect_uri=_redirect_uri(), next_path=next, referral_code=ref
+                redirect_uri=_redirect_uri(),
+                next_path=next,
+                referral_code=ref,
+                invite_code=invite,
             )
         }
     except google_oauth.GoogleAuthError as exc:
@@ -392,10 +413,23 @@ async def google_callback(
     if is_new_account:
         if not ENABLE_SIGNUP:
             return _google_failure("Signup is disabled on this deployment.")
+        try:
+            invite = await signup_invites.claim(
+                google_oauth.invite_code_from_state(state), identity.email
+            )
+        except (signup_invites.InviteRefused, google_oauth.GoogleAuthError) as exc:
+            return _google_failure(str(exc))
         user = await db_client.create_user_with_email(
             email=identity.email, password_hash=None, name=identity.name
         )
         organization = await provision_new_account(user, referral_code=referral_code)
+        await signup_invites.record_redemption(
+            invite,
+            email=identity.email,
+            user_id=user.id,
+            organization_id=organization.id,
+            door="google",
+        )
         event = PostHogEvent.SIGNED_UP
     else:
         # Linking to an existing account, which is only safe because
