@@ -1,0 +1,412 @@
+<title>Decibyl Screens</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Schibsted+Grotesk:ital,wght@0,400;0,500;0,600;1,400&family=Martian+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one shell (rail · main · inspector) for every home; a screen switcher across the top for the review. Dense, quiet, nothing centred. */
+:root{
+  --paper:#F2F3EE; --paper-2:#E9EBE4; --line:#D3D6CC; --ink:#151C19; --ink-2:#4A544F; --ink-3:#7C857F;
+  --teal:#0F6B67; --teal-ink:#FFFFFF; --teal-soft:#DCEBE8; --haldi:#C9891C; --haldi-soft:#F6E9CF;
+  --live:#2F7D4F; --bad:#9E3B2E; --bad-soft:#F1D6D2; --card:#FFFFFF;
+  --display:"Familjen Grotesk",ui-sans-serif,system-ui,sans-serif; --body:"Schibsted Grotesk",ui-sans-serif,system-ui,sans-serif; --mono:"Martian Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--paper:#111815;--paper-2:#182019;--line:#2A342E;--ink:#EDEFE9;--ink-2:#B4BBB4;--ink-3:#7F8882;--teal:#5FC2BB;--teal-ink:#0B1513;--teal-soft:#183633;--haldi:#E0A64A;--haldi-soft:#3A2D14;--live:#6FCB8F;--bad:#F0A899;--bad-soft:#3B1F1B;--card:#161E1A;color-scheme:dark}}
+:root[data-theme="dark"]{--paper:#111815;--paper-2:#182019;--line:#2A342E;--ink:#EDEFE9;--ink-2:#B4BBB4;--ink-3:#7F8882;--teal:#5FC2BB;--teal-ink:#0B1513;--teal-soft:#183633;--haldi:#E0A64A;--haldi-soft:#3A2D14;--live:#6FCB8F;--bad:#F0A899;--bad-soft:#3B1F1B;--card:#161E1A;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:14.5px;line-height:1.45;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+a{color:inherit}
+h1,h2,h3{font-family:var(--display);letter-spacing:-.01em;margin:0;text-wrap:balance}
+/* switcher */
+.switch{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;gap:4px;padding:8px 16px;background:var(--ink);color:var(--paper);overflow-x:auto;font-size:12.5px}
+.switch a{padding:5px 10px;border-radius:6px;text-decoration:none;white-space:nowrap;opacity:.75}
+.switch a.on{background:var(--paper);color:var(--ink);opacity:1}
+.switch .k{font-family:var(--mono);font-size:10.5px;opacity:.6;margin-right:4px}
+.screen{display:none}.screen.on{display:block}
+.note{padding:8px 16px;font-size:12.5px;color:var(--ink-3);border-bottom:1px solid var(--line);background:var(--paper-2)}
+.note b{color:var(--ink);font-weight:600}
+.note .j{font-family:var(--mono);font-size:11px;background:var(--paper);border:1px solid var(--line);padding:1px 6px;border-radius:4px;margin-left:6px}
+/* shell */
+.app{display:grid;grid-template-columns:224px minmax(0,1fr);min-height:640px}
+.app.three{grid-template-columns:224px minmax(0,1fr) 300px}
+.rail{background:var(--paper-2);border-right:1px solid var(--line);padding:16px 12px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.inspector{background:var(--paper-2);border-left:1px solid var(--line);padding:16px;overflow:auto;min-width:0}
+.main{min-width:0;display:flex;flex-direction:column}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--display);font-weight:600;font-size:16px}
+.brand .face{width:24px;height:24px}
+.ws{font-size:12px;color:var(--ink-3)}
+.eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.homes{display:flex;flex-direction:column;gap:2px}
+.homes a{display:flex;justify-content:space-between;padding:6px 10px;border-radius:6px;color:var(--ink-2);text-decoration:none;font-weight:500}
+.homes a[aria-current]{background:var(--paper);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+.homes .n{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.roster{display:flex;flex-direction:column;gap:2px}
+.roster button{display:flex;align-items:center;gap:9px;padding:5px 8px;border-radius:6px;width:100%;text-align:left}
+.roster .face{width:26px;height:26px;flex:none}
+.roster .h{font-weight:500;font-size:13.5px}.roster .s{font-size:11.5px;color:var(--ink-3)}
+.dot{width:7px;height:7px;border-radius:50%;margin-left:auto;background:var(--ink-3);flex:none}.dot.live{background:var(--live)}.dot.wait{background:var(--haldi)}.dot.bad{background:var(--bad)}
+.trial{margin-top:auto;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);font-size:12px;color:var(--ink-2)}
+.trial .row{display:flex;justify-content:space-between}.trial b{font-family:var(--mono);font-weight:500;color:var(--ink);font-size:11.5px}
+.meter{height:5px;background:var(--line);border-radius:3px;margin:7px 0 5px;overflow:hidden}.meter i{display:block;height:100%;background:var(--teal)}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.top h1{font-size:18px;font-weight:600}.top .sub{font-size:12.5px;color:var(--ink-3)}
+.tabs{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.tabs button{padding:5px 12px;font-size:13px;color:var(--ink-2)}.tabs button[aria-selected="true"]{background:var(--ink);color:var(--paper)}
+.body{padding:18px 20px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);font-size:12px;background:var(--paper)}
+.chip.warn{border-color:var(--haldi);background:var(--haldi-soft)}.chip.live{border-color:var(--live)}.chip.bad{border-color:var(--bad);background:var(--bad-soft)}
+.btn{padding:7px 13px;border-radius:7px;border:1px solid var(--line);background:var(--paper);font-weight:500;font-size:13.5px}
+.btn.primary{background:var(--teal);color:var(--teal-ink);border-color:var(--teal)}.btn.quiet{border-color:transparent;color:var(--ink-2)}.btn.sm{padding:4px 9px;font-size:12.5px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.card header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 13px;border-bottom:1px solid var(--line);background:var(--paper-2)}
+.card header .t{font-family:var(--display);font-weight:600;font-size:14.5px}
+.card .in{padding:13px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;padding:11px 13px;border-top:1px solid var(--line);align-items:center}
+.price,.mono{font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+.kv{display:grid;grid-template-columns:104px minmax(0,1fr);gap:5px 12px;font-size:13.5px}.kv dt{color:var(--ink-3)}.kv dd{margin:0}
+.handle{font-family:var(--mono);font-size:12.5px;background:var(--teal-soft);color:var(--teal);padding:1px 6px;border-radius:4px}
+.scope{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-left:auto;font-size:12px;color:var(--ink-3)}
+.scope button{padding:3px 8px;border-radius:999px;border:1px solid var(--line);font-size:11.5px}.scope button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.draft{border-left:3px solid var(--haldi);padding:9px 11px;margin:0;background:var(--haldi-soft);border-radius:0 6px 6px 0;font-size:13.5px}
+.draft small{display:block;color:var(--ink-3);margin-top:5px;font-family:var(--mono);font-size:10.5px}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:500;padding:6px 10px;border-bottom:1px solid var(--line)}
+td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:12.5px}
+.tblwrap{overflow-x:auto}
+.grid{display:grid;gap:12px}.g2{grid-template-columns:repeat(2,minmax(0,1fr))}.g3{grid-template-columns:repeat(3,minmax(0,1fr))}.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.tile{padding:12px 14px;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+.tile .l{font-size:12px;color:var(--ink-3)}.tile .v{font-family:var(--display);font-size:22px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}
+.tile .d{font-size:11.5px;color:var(--ink-3);margin-top:2px}
+.face svg{width:100%;height:100%;display:block}
+.sec{border-top:1px solid var(--line);padding:10px 0}
+.sec summary{list-style:none;display:flex;justify-content:space-between;align-items:baseline;cursor:pointer;gap:10px}.sec summary::-webkit-details-marker{display:none}
+.sec .lbl{font-weight:600;font-size:13px}.sec .sum{font-size:12px;color:var(--ink-3);text-align:right;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sec .in{padding:9px 0 2px;font-size:13px;color:var(--ink-2);display:flex;flex-direction:column;gap:7px}
+.adv{font-size:12px;color:var(--ink-3);text-decoration:underline dotted;background:none;padding:0;text-align:left}
+.tag{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.04em;text-transform:uppercase;padding:1px 6px;border-radius:4px;background:var(--line);color:var(--ink);margin-right:6px}
+.tag.never{background:var(--bad-soft);color:var(--bad)}.tag.ask{background:var(--haldi-soft);color:var(--haldi)}.tag.ok{background:var(--teal-soft);color:var(--teal)}
+.steps{display:flex;flex-direction:column;gap:7px}
+.step{display:flex;align-items:center;gap:10px;padding:7px 10px;border:1px solid var(--line);border-radius:7px;background:var(--paper)}
+.step b{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-size:11px;font-weight:500;background:var(--line);flex:none}
+.step.done b{background:var(--live);color:#fff}.step.now{border-color:var(--teal)}.step.now b{background:var(--teal);color:var(--teal-ink)}
+.step span{flex:1;min-width:0}.step small{display:block;color:var(--ink-3);font-size:11.5px}
+.msg{display:grid;grid-template-columns:30px minmax(0,1fr);gap:11px;max-width:720px}.msg .face{width:30px;height:30px}
+.msg .who{font-weight:600;font-size:13px}.msg .who span{font-weight:400;color:var(--ink-3);margin-left:8px;font-family:var(--mono);font-size:10.5px}.msg p{margin:3px 0 0}
+.composer{padding:10px 20px 14px;border-top:1px solid var(--line);margin-top:auto}
+.composer .box{display:flex;gap:10px;align-items:flex-end;border:1px solid var(--line);border-radius:10px;padding:9px 12px;background:var(--card)}
+.composer textarea{flex:1;resize:none;border:0;background:none;font:inherit;color:inherit;height:24px;line-height:24px;max-height:160px;outline:none;min-width:0;overflow:hidden}
+.composer .to{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);padding-top:4px;white-space:nowrap}
+.followups{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}.followups button{padding:5px 10px;border-radius:999px;border:1px dashed var(--line);font-size:12.5px;color:var(--ink-2)}
+.composer.typing .followups{display:none}
+/* directory */
+.dir{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.agent{padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--card);display:flex;gap:10px}
+.agent .face{width:40px;height:40px;flex:none}.agent .h{font-weight:600}.agent .j{font-size:12.5px;color:var(--ink-2)}.agent .m{font-size:11.5px;color:var(--ink-3);font-family:var(--mono);margin-top:4px}
+/* board */
+.board{display:grid;grid-template-columns:repeat(4,minmax(200px,1fr));gap:12px;overflow-x:auto}
+.col h3{font-size:12px;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:500;margin-bottom:8px}
+.tk{padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--card);margin-bottom:8px;font-size:13px}
+.tk .who{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:11.5px;color:var(--ink-3)}.tk .face{width:16px;height:16px}
+.tk.blocked{border-color:var(--haldi)}
+/* chart */
+.chart{padding:12px 14px;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+.chart h3{font-size:13.5px;font-weight:600}.chart .cap{font-size:12px;color:var(--ink-3)}
+.bars{display:grid;grid-template-columns:repeat(14,1fr);gap:2px;align-items:end;height:90px;margin:10px 0 4px}
+.bars i{display:block;background:var(--teal);border-radius:3px 3px 0 0;min-height:2px}
+.bars i.today{background:var(--haldi)}
+.axis{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+/* knowledge */
+.docs .row{display:grid;grid-template-columns:minmax(0,1fr) 120px 110px 90px;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px;align-items:center}
+.docs .row small{color:var(--ink-3);font-size:11.5px;display:block}
+/* team */
+.person{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}.person .face{width:28px;height:28px}
+.person .r{margin-left:auto;font-size:12px;color:var(--ink-3)}
+/* settings */
+.settings{display:grid;grid-template-columns:200px minmax(0,1fr);gap:20px}
+.snav{display:flex;flex-direction:column;gap:2px}.snav a{padding:7px 10px;border-radius:6px;text-decoration:none;color:var(--ink-2)}.snav a[aria-current]{background:var(--paper-2);color:var(--ink)}
+.keyrow{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px}.keyrow .mono{margin-left:auto}
+/* diff */
+.diff{font-family:var(--mono);font-size:12px;line-height:1.55;background:var(--paper);border:1px solid var(--line);border-radius:7px;padding:10px 12px;white-space:pre-wrap}
+.diff .del{background:var(--bad-soft);color:var(--bad)}.diff .add{background:var(--teal-soft);color:var(--teal)}
+/* phone frame */
+.phone{width:280px;border:1px solid var(--line);border-radius:26px;padding:14px 12px;background:var(--card);position:relative}
+.phone .stamp{position:absolute;top:10px;right:14px;font-family:var(--mono);font-size:10px;letter-spacing:.08em;background:var(--haldi-soft);color:var(--haldi);padding:2px 7px;border-radius:4px}
+.bubble{padding:7px 10px;border-radius:12px;font-size:13px;margin:6px 0;max-width:85%}
+.bubble.them{background:var(--paper-2)}.bubble.me{background:var(--teal-soft);margin-left:auto}
+.canvas{border:1px solid var(--line);border-radius:10px;background:var(--card);padding:16px;overflow:auto}
+.canvas svg{width:100%;max-width:700px;height:auto}
+@media (prefers-reduced-motion:reduce){.face *{animation:none!important}}
+@media (max-width:920px){
+  .app,.app.three{grid-template-columns:1fr;min-height:0}
+  .rail{border-right:0;border-bottom:1px solid var(--line);flex-direction:row;flex-wrap:wrap}
+  .rail .homes{flex-direction:row;flex-wrap:wrap}.rail .roster,.rail .trial{width:100%}.rail .trial{margin-top:0}
+  .inspector{border-left:0;border-top:1px solid var(--line)}
+  .g2,.g3,.g4{grid-template-columns:1fr 1fr}.settings{grid-template-columns:1fr}.docs .row{grid-template-columns:1fr 1fr}
+}
+@media (max-width:520px){.g2,.g3,.g4{grid-template-columns:1fr}}
+</style>
+
+<nav class="switch" aria-label="Screens">
+  <a href="#start" data-s="start"><span class="k">0</span>Start</a>
+  <a href="#home" data-s="home" class="on"><span class="k">1</span>My Decibyl</a>
+  <a href="#agents" data-s="agents"><span class="k">2</span>Agents</a>
+  <a href="#bot" data-s="bot"><span class="k">3</span>Bot page</a>
+  <a href="#tasks" data-s="tasks"><span class="k">4</span>Tasks</a>
+  <a href="#activity" data-s="activity"><span class="k">5</span>Activity</a>
+  <a href="#knowledge" data-s="knowledge"><span class="k">6</span>Knowledge</a>
+  <a href="#team" data-s="team"><span class="k">7</span>Team</a>
+  <a href="#settings" data-s="settings"><span class="k">8</span>Settings</a>
+  <a href="#staff" data-s="staff"><span class="k">9</span>Staff</a>
+</nav>
+
+<!-- ============ 0 START ============ -->
+<section class="screen" id="s-start">
+  <div class="note"><b>Start.</b> Invite code → verify → first Build card, already open. Nothing else on screen. <span class="j">SIG-1 KAN-206</span><span class="j">PLAN-1 KAN-255</span><span class="j">KAN-140</span></div>
+  <div class="app"><aside class="rail"><div><div class="brand"><span class="face" data-shape="0" data-hue="teal" data-state="idle"></span>Decibyl</div><div class="ws">Sri Lakshmi Dental · new</div></div>
+    <div class="trial"><div class="row"><span>Invite accepted</span><b>14 days</b></div><div class="meter"><i style="width:100%"></i></div><div class="row"><span>Credits to start</span><b>1,000</b></div></div></aside>
+  <main class="main"><div class="top"><div><h1>Welcome, Priya</h1><div class="sub">Tell Decibyl the job. Hear it. Put it on your number.</div></div></div>
+  <div class="body">
+    <div class="msg"><span class="face" data-shape="0" data-hue="teal" data-state="thinking"></span><div><div class="who">Decibyl <span>now</span></div>
+      <p>Three questions and you have your first colleague. What does the clinic do, and what do callers ask for most?</p>
+      <div class="card" style="margin-top:10px"><header><span class="t">Hire your first colleague</span><span class="price">from ₹4.90 / min</span></header>
+        <div class="in"><dl class="kv"><dt>Business</dt><dd>Dental clinic, Chennai · 2 doctors · Tamil and English</dd><dt>Job</dt><dd><input id="job" style="width:100%;font:inherit;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink)" value="Answer the phone and book appointments when the desk is busy"></dd><dt>Channel</dt><dd><span class="chip">Phone</span> <span class="chip">WhatsApp</span> <span class="chip">Web chat</span></dd></dl></div>
+        <div class="actions"><button class="btn primary">Draft @reception</button><button class="btn quiet">Or pick from the marketplace</button></div></div></div></div>
+    <div class="msg" style="opacity:.55"><span class="face" data-shape="3" data-hue="mint" data-state="idle"></span><div><div class="who">What happens next</div><p>A card with the name, the job and the price. Hear it in the browser. Say what to change. Give it a number or WhatsApp. Ten minutes, median.</p></div></div>
+  </div></main></div>
+</section>
+
+<!-- ============ 1 HOME ============ -->
+<section class="screen on" id="s-home">
+  <div class="note"><b>My Decibyl.</b> The thread is the front door. Pending strip, Build card, approval card with grant scopes, composer that fits. <span class="j">UI-1 KAN-208</span><span class="j">POL-2 KAN-259</span><span class="j">GV-1 KAN-215</span></div>
+  <div class="app three">
+    <aside class="rail"><div><div class="brand"><span class="face" data-shape="0" data-hue="teal" data-state="idle"></span>Decibyl</div><div class="ws">Sri Lakshmi Dental · Chennai</div></div>
+      <nav class="homes"><a aria-current="page">My Decibyl <span class="n">2</span></a><a href="#tasks">Tasks <span class="n">7</span></a><a href="#agents">Agents <span class="n">3</span></a><a href="#knowledge">Knowledge</a><a href="#activity">Activity</a><a href="#team">Team</a><a href="#settings">Settings</a></nav>
+      <div><div class="eyebrow" style="margin:0 8px 6px">Colleagues</div><div class="roster">
+        <button><span class="face" data-shape="3" data-hue="mint" data-state="speaking"></span><span><span class="h">@reception</span><br><span class="s">on a call · 0:42</span></span><span class="dot live"></span></button>
+        <button><span class="face" data-shape="5" data-hue="plum" data-state="waiting"></span><span><span class="h">@accounts</span><br><span class="s">needs a yes</span></span><span class="dot wait"></span></button>
+        <button><span class="face" data-shape="1" data-hue="sand" data-state="idle"></span><span><span class="h">@followup</span><br><span class="s">routine at 9:00</span></span><span class="dot"></span></button></div></div>
+      <div class="trial"><div class="row"><span>Trial · invite-only</span><b>11 days left</b></div><div class="meter"><i style="width:71%"></i></div><div class="row"><span>Credits</span><b>712 / 1,000</b></div></div></aside>
+    <main class="main">
+      <div class="top"><div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><div><h1>My Decibyl</h1><div class="sub">Tuesday 30 September · two things need you</div></div><div class="tabs"><button aria-selected="true">Thread</button><button>Graph</button></div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><span class="chip warn"><span class="mono">@accounts</span> wants to send 4 reminders</span><span class="chip"><span class="mono">@reception</span> booked 6 today</span></div></div>
+      <div class="body">
+        <div class="msg"><span class="face" data-shape="2" data-hue="ink" data-state="idle" data-person="true"></span><div><div class="who">Priya <span>owner · 9:14</span></div><p>I need someone to answer the phone and book appointments when the front desk is busy. Tamil and English.</p></div></div>
+        <div class="msg"><span class="face" data-shape="0" data-hue="teal" data-state="thinking"></span><div><div class="who">Decibyl <span>9:14</span></div><p>Here is who I would hire. Hear it before you decide.</p>
+          <div class="card" style="margin-top:10px"><header><span class="t">New colleague</span><span class="price">₹4.90 / min · Everyday voice</span></header>
+            <div class="in"><dl class="kv"><dt>Handle</dt><dd><span class="handle">@reception</span></dd><dt>Job</dt><dd>Answers the clinic line, checks the diary, books or reschedules, sends a WhatsApp confirmation. Hands over for billing questions.</dd><dt>Speaks</dt><dd>Tamil and English, switches mid-sentence</dd><dt>Guardrails</dt><dd>Never quotes a price · asks before sending · ₹500 a month</dd></dl></div>
+            <div class="actions"><button class="btn primary">Hear it</button><button class="btn">Try it</button><button class="btn">Check it</button><button class="btn quiet">Change something</button><button class="btn" style="margin-left:auto">Confirm and hire</button></div></div></div></div>
+        <div class="msg"><span class="face" data-shape="5" data-hue="plum" data-state="waiting"></span><div><div class="who">@accounts <span>9:31</span></div><p>Four invoices are 30 days over. I drafted the reminders. Nothing goes out until you say so.</p>
+          <div class="card" style="margin-top:10px"><header><span class="t">Send 4 WhatsApp reminders</span><span class="price">4 × ₹1.00</span></header>
+            <div class="in"><blockquote class="draft">Vanakkam Mr Raghavan, this is Sri Lakshmi Dental. Invoice 2026-0412 for ₹3,200 was due on 31 August. You can pay here: pay.decibyl.ai/x9k2. Reply if you have already paid.<small>1 of 4 · utility template · Tamil version attached · draft, not sent</small></blockquote></div>
+            <div class="actions"><button class="btn primary">Send all 4</button><button class="btn">Edit</button><button class="btn quiet">Not now</button><div class="scope" role="group"><span>Allow this</span><button aria-pressed="true">Once</button><button>This task</button><button>7 days</button><button>Always</button></div></div></div></div></div>
+      </div>
+      <div class="composer"><div class="box"><span class="to">to Decibyl</span><textarea class="ta" rows="1" placeholder="Tell Decibyl the job, or @reception to give work" aria-label="Message"></textarea><button class="btn primary sm">Send</button></div>
+        <div class="followups"><button>Put @reception on WhatsApp</button><button>Put @reception on a number</button><button>What happened this week?</button><button>Save this as a routine</button><button>Review @accounts</button></div></div>
+    </main>
+    <aside class="inspector"><div class="eyebrow" style="margin-bottom:8px">Pending for you</div>
+      <div class="card" style="margin-bottom:10px"><div class="in" style="font-size:13px"><b>@accounts</b> · send 4 reminders<br><span class="mono">4 credits · asks first</span></div></div>
+      <div class="card" style="margin-bottom:10px"><div class="in" style="font-size:13px"><b>@reception</b> · a caller asked for a price<br><span class="mono">handed over · 11:02</span></div></div>
+      <div class="eyebrow" style="margin:14px 0 8px">This week</div>
+      <div class="grid g2"><div class="tile"><div class="l">Bookings</div><div class="v">41</div><div class="d">of 212 calls</div></div><div class="tile"><div class="l">Cost per booking</div><div class="v">₹28</div><div class="d">spend ÷ bookings</div></div></div>
+      <div class="eyebrow" style="margin:14px 0 8px">Monday review</div>
+      <div class="card"><div class="in" style="font-size:13px">@reception: 3 suggestions, one with a diff ready. <button class="adv" style="display:inline">Open review</button></div></div></aside>
+  </div>
+</section>
+
+<!-- ============ 2 AGENTS ============ -->
+<section class="screen" id="s-agents">
+  <div class="note"><b>Agents.</b> Mine · Hire. The directory is the roster with faces and status; Hire is the marketplace, one card per role, tried before hired. <span class="j">UI-1</span><span class="j">UI-4 KAN-260</span><span class="j">MKT-1 KAN-256</span></div>
+  <div class="app"><aside class="rail"><div class="brand"><span class="face" data-shape="0" data-hue="teal" data-state="idle"></span>Decibyl</div><nav class="homes"><a href="#home">My Decibyl</a><a href="#tasks">Tasks</a><a aria-current="page">Agents</a><a href="#knowledge">Knowledge</a><a href="#activity">Activity</a><a href="#team">Team</a><a href="#settings">Settings</a></nav></aside>
+  <main class="main"><div class="top"><div><h1>Agents</h1><div class="sub">3 colleagues · 2 live · budget ₹1,500 / month</div></div><div style="display:flex;gap:8px;align-items:center"><div class="tabs"><button aria-selected="true">Mine</button><button>Hire</button></div><button class="btn primary">New colleague</button></div></div>
+  <div class="body">
+    <div class="dir">
+      <div class="agent"><span class="face" data-shape="3" data-hue="mint" data-state="speaking"></span><div><div class="h">@reception <span class="chip live" style="margin-left:6px">live</span></div><div class="j">Answers the line, books appointments</div><div class="m">044 4210 3388 · 41 bookings · ₹28 each</div></div></div>
+      <div class="agent"><span class="face" data-shape="5" data-hue="plum" data-state="waiting"></span><div><div class="h">@accounts <span class="chip warn" style="margin-left:6px">needs you</span></div><div class="j">Chases invoices on WhatsApp, files receipts</div><div class="m">WhatsApp · 12 promises · ₹412 of ₹500</div></div></div>
+      <div class="agent"><span class="face" data-shape="1" data-hue="sand" data-state="idle"></span><div><div class="h">@followup <span class="chip" style="margin-left:6px">routine</span></div><div class="j">Calls no-shows next morning at 9</div><div class="m">Phone · 9:00 daily · ₹60 this week</div></div></div>
+      <div class="agent" style="border-style:dashed;align-items:center;justify-content:center;color:var(--ink-3)">+ Hire from the marketplace</div>
+    </div>
+    <div class="eyebrow">Hire · from the marketplace (published by NAutomation Labs)</div>
+    <div class="dir">
+      <div class="agent"><span class="face" data-shape="4" data-hue="teal" data-state="idle"></span><div><div class="h">Clinic front desk</div><div class="j">Phone + WhatsApp · Tamil, Hindi, English · 12 caller scripts pass</div><div class="m">v3 · 214 hires · from ₹4.90/min</div><div style="margin-top:8px;display:flex;gap:6px"><button class="btn sm">Try it first</button><button class="btn primary sm">Hire</button></div></div></div>
+      <div class="agent"><span class="face" data-shape="2" data-hue="plum" data-state="idle"></span><div><div class="h">Collections executive</div><div class="j">WhatsApp reminders, payment links, promise tracking</div><div class="m">v2 · 88 hires · credits per message</div><div style="margin-top:8px;display:flex;gap:6px"><button class="btn sm">Try it first</button><button class="btn primary sm">Hire</button></div></div></div>
+      <div class="agent"><span class="face" data-shape="1" data-hue="mint" data-state="idle"></span><div><div class="h">Tele-sales executive</div><div class="j">Outbound with consent and DNC, books demos</div><div class="m">v1 · 31 hires · from ₹5.20/min</div><div style="margin-top:8px;display:flex;gap:6px"><button class="btn sm">Try it first</button><button class="btn primary sm">Hire</button></div></div></div>
+    </div>
+  </div></main></div>
+</section>
+
+<!-- ============ 3 BOT PAGE ============ -->
+<section class="screen" id="s-bot">
+  <div class="note"><b>Bot page.</b> Chat · Canvas, one definition. Test ▾ with three verbs, Publish shows the diff, "…" holds the rest. Ten inspector sections, simple by default. <span class="j">UI-2 KAN-209</span><span class="j">VOICE-1 KAN-261</span><span class="j">CH-0 KAN-258</span><span class="j">BYOK-1 KAN-254</span></div>
+  <div class="app three">
+    <aside class="rail"><div class="brand"><span class="face" data-shape="0" data-hue="teal" data-state="idle"></span>Decibyl</div><nav class="homes"><a href="#home">My Decibyl</a><a href="#tasks">Tasks</a><a aria-current="page">Agents</a><a href="#knowledge">Knowledge</a><a href="#activity">Activity</a><a href="#team">Team</a><a href="#settings">Settings</a></nav>
+      <div><div class="eyebrow" style="margin:0 8px 6px">Colleagues</div><div class="roster"><button style="background:var(--paper)"><span class="face" data-shape="3" data-hue="mint" data-state="speaking"></span><span><span class="h">@reception</span><br><span class="s">on a call</span></span><span class="dot live"></span></button><button><span class="face" data-shape="5" data-hue="plum" data-state="waiting"></span><span><span class="h">@accounts</span></span><span class="dot wait"></span></button><button><span class="face" data-shape="1" data-hue="sand" data-state="idle"></span><span><span class="h">@followup</span></span><span class="dot"></span></button></div></div></aside>
+    <main class="main">
+      <div class="top"><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span class="face" data-shape="3" data-hue="mint" data-state="speaking" style="width:36px;height:36px"></span><div><h1>@reception</h1><div class="sub">Live on 044 4210 3388 · v3 · draft has 2 changes</div></div><div class="tabs"><button aria-selected="true">Chat</button><button>Canvas</button></div></div>
+        <div style="display:flex;gap:8px"><button class="btn">Test ▾</button><button class="btn primary">Publish</button><button class="btn quiet">…</button></div></div>
+      <div class="body">
+        <div class="msg"><span class="face" data-shape="2" data-hue="ink" data-state="idle" data-person="true"></span><div><div class="who">Priya <span>10:02</span></div><p>Be shorter on the Tamil greeting, and always say the doctor's name when you confirm.</p></div></div>
+        <div class="msg"><span class="face" data-shape="3" data-hue="mint" data-state="thinking"></span><div><div class="who">@reception <span>10:02</span></div><p>Two changes. Check it ran 12 caller scripts on the draft: 12 pass.</p>
+          <div class="card" style="margin-top:10px"><header><span class="t">Publish v4</span><span class="chip live">Check it · 12 / 12</span></header>
+            <div class="in"><div class="diff"><span class="del">- Vanakkam! Sri Lakshmi Dental-ku welcome. Naan reception. Ungalukku eppadi udhava mudiyum?</span>
+<span class="add">+ Vanakkam, Sri Lakshmi Dental. Eppadi udhava?</span>
+  …
+<span class="del">- Your appointment is confirmed for {date} at {time}.</span>
+<span class="add">+ Your appointment with Dr {doctor} is confirmed for {date} at {time}.</span></div></div>
+            <div class="actions"><button class="btn primary">Publish v4</button><button class="btn">Hear the draft</button><button class="btn quiet">Keep as draft</button><span class="mono" style="margin-left:auto">rollback to v3 in Versions</span></div></div></div></div>
+        <div class="canvas" aria-label="Canvas view (the same definition)"><svg viewBox="0 0 700 170" role="img" aria-label="Call flow"><g font-family="var(--body)" font-size="12" fill="var(--ink)"><rect x="10" y="60" width="110" height="44" rx="8" fill="var(--teal-soft)" stroke="var(--teal)"/><text x="65" y="86" text-anchor="middle">Greeting</text><rect x="170" y="60" width="130" height="44" rx="8" fill="var(--card)" stroke="var(--line)"/><text x="235" y="86" text-anchor="middle">Find the slot</text><rect x="350" y="20" width="130" height="44" rx="8" fill="var(--card)" stroke="var(--line)"/><text x="415" y="46" text-anchor="middle">Book · Sheets</text><rect x="350" y="100" width="130" height="44" rx="8" fill="var(--haldi-soft)" stroke="var(--haldi)"/><text x="415" y="126" text-anchor="middle">Hand over · price</text><rect x="530" y="20" width="150" height="44" rx="8" fill="var(--card)" stroke="var(--line)"/><text x="605" y="46" text-anchor="middle">Confirm · WhatsApp</text><g stroke="var(--ink-3)" fill="none"><path d="M120 82h50"/><path d="M300 75 350 42"/><path d="M300 90 350 122"/><path d="M480 42h50"/></g></g></svg><div class="cap" style="font-size:12px;color:var(--ink-3)">Canvas is a view of the same definition. Editing a node here shows the same diff on the Publish card.</div></div>
+      </div>
+      <div class="composer"><div class="box"><span class="to">to @reception</span><textarea class="ta" rows="1" placeholder="Say what to change, or give it work" aria-label="Message"></textarea><button class="btn primary sm">Send</button></div></div>
+    </main>
+    <aside class="inspector">
+      <div style="display:flex;gap:6px;margin-bottom:12px"><button class="btn sm" style="flex:1">Hear it</button><button class="btn sm" style="flex:1">Try it</button><button class="btn sm" style="flex:1">Check it</button></div>
+      <details class="sec" open><summary><span class="lbl">Role &amp; persona</span><span class="sum">Clinic receptionist</span></summary><div class="in"><div>Warm, brief, never guesses a price. Confirms the date back in the caller's language.</div><button class="adv">Advanced: full prompt, variables, voicemail</button></div></details>
+      <details class="sec"><summary><span class="lbl">Skills</span><span class="sum">Book · Reschedule · Confirm</span></summary><div class="in"><div><span class="chip">Book</span> <span class="chip">Reschedule</span> <span class="chip">Send confirmation · shared</span> <span class="chip">Hand over</span></div><button class="adv">Add from marketplace</button></div></details>
+      <details class="sec" open><summary><span class="lbl">Channels</span><span class="sum">Number live · WhatsApp not yet</span></summary><div class="in"><div class="steps"><div class="step done"><b>✓</b><span>044 4210 3388 <small>rings after 12 s, and after 7 pm</small></span></div><div class="step now"><b>2</b><span>WhatsApp <small>connect a WhatsApp Business number</small></span><button class="btn primary sm">Connect</button></div><div class="step"><b>3</b><span>Web widget <small>copy embed</small></span></div></div></div></details>
+      <details class="sec"><summary><span class="lbl">Brain &amp; voice</span><span class="sum">Everyday · Tamil, English</span></summary><div class="in"><div class="tabs" style="display:flex"><button aria-selected="true" style="flex:1">Everyday</button><button style="flex:1">Natural</button><button style="flex:1">Premium</button></div><div class="step"><span class="mono" style="color:var(--teal)">BYOK</span><span>Chat and routines on your OpenAI key · voice on Decibyl's</span></div><button class="adv">Advanced: vendor per slot, fallbacks, turn-taking, 13 more</button></div></details>
+      <details class="sec"><summary><span class="lbl">Apps &amp; tools</span><span class="sum">Google Sheets</span></summary><div class="in"><div>Appointment sheet · connected by Priya. Add Zoho Books, Razorpay…</div></div></details>
+      <details class="sec"><summary><span class="lbl">Knowledge &amp; memory</span><span class="sum">Clinic FAQ · learns</span></summary><div class="in"><div>Opening hours, treatments, doctors. Remembers repeat callers.</div></div></details>
+      <details class="sec"><summary><span class="lbl">Triggers &amp; routines</span><span class="sum">Missed call · 12 s</span></summary><div class="in"><div>When the desk does not pick up in 12 seconds, and after 7 pm.</div></div></details>
+      <details class="sec" open><summary><span class="lbl">Guardrails &amp; approvals</span><span class="sum">Asks before sending · ₹500</span></summary><div class="in"><div><span class="tag never">Never</span>quotes a price · promises a doctor · calls a DND number</div><div><span class="tag ask">Asks first</span>sending WhatsApp · anything after 9 pm</div><div><span class="tag ok">Alone</span>booking · confirming · hours and directions</div><div><span class="tag">Budget</span>₹500 / month · warns 80% · stops 100%</div><div><span class="tag">Hours</span>Mon–Sat 8:00–21:00</div><div style="display:flex;gap:6px"><button class="btn sm">Pause</button><button class="btn sm quiet">Retire</button></div></div></details>
+      <details class="sec"><summary><span class="lbl">Quality</span><span class="sum">41 bookings · p95 640 ms</span></summary><div class="in"><div>Outcome: a row lands in the sheet. Answered 96% · first turn p95 640 ms · 0 failovers · Check it 12/12.</div></div></details>
+      <details class="sec"><summary><span class="lbl">Versions</span><span class="sum">v3 live · v4 draft</span></summary><div class="in"><div>v3 · 24 Sep · Priya · v2 · 18 Sep · rollback</div></div></details>
+    </aside>
+  </div>
+</section>
+
+<!-- ============ 4 TASKS ============ -->
+<section class="screen" id="s-tasks">
+  <div class="note"><b>Tasks.</b> Board · Contacts · Campaigns. Work bots are doing, by person and bot; a blocked card asks for the one thing it needs; delegation is a card too. <span class="j">G11 KAN-186</span><span class="j">OUT-1 KAN-253</span><span class="j">coordinator P2</span></div>
+  <div class="app"><aside class="rail"><div class="brand"><span class="face" data-shape="0" data-hue="teal" data-state="idle"></span>Decibyl</div><nav class="homes"><a href="#home">My Decibyl</a><a aria-current="page">Tasks</a><a href="#agents">Agents</a><a href="#knowledge">Knowledge</a><a href="#activity">Activity</a><a href="#team">Team</a><a href="#settings">Settings</a></nav></aside>
+  <main class="main"><div class="top"><div><h1>Tasks</h1><div class="sub">7 open · 2 waiting on you · Mission: fill every chair by October</div></div><div class="tabs"><button aria-selected="true">Board</button><button>Contacts</button><button>Campaigns</button></div></div>
+  <div class="body"><div class="board">
+    <div class="col"><h3>Waiting on you · 2</h3><div class="tk blocked">Send 4 payment reminders<div class="who"><span class="face" data-shape="5" data-hue="plum" data-state="idle"></span>@accounts · needs a yes</div></div><div class="tk blocked">Caller asked for a root-canal price<div class="who"><span class="face" data-shape="3" data-hue="mint" data-state="idle"></span>@reception · handed over 11:02</div></div></div>
+    <div class="col"><h3>In progress · 3</h3><div class="tk">Confirm tomorrow's 14 appointments<div class="who"><span class="face" data-shape="3" data-hue="mint" data-state="idle"></span>@reception · 9 of 14 sent</div></div><div class="tk">Chase September receivables<div class="who"><span class="face" data-shape="5" data-hue="plum" data-state="idle"></span>@accounts · ₹18,400 open</div></div><div class="tk">No-show calls, 9:00<div class="who"><span class="face" data-shape="1" data-hue="sand" data-state="idle"></span>@followup · routine · 3 of 5</div></div></div>
+    <div class="col"><h3>Delegated · 1</h3><div class="tk">Lead from the demo line → follow up in 3 days<div class="who"><span class="face" data-shape="3" data-hue="mint" data-state="idle"></span>@reception → @followup · due Fri</div></div></div>
+    <div class="col"><h3>Done this week · 41</h3><div class="tk">Booked Mrs Lakshmi, Tue 5 pm, Dr Anand<div class="who"><span class="face" data-shape="3" data-hue="mint" data-state="idle"></span>@reception · outcome · ₹28</div></div><div class="tk">Promise to pay: Mr Raghavan, 3 Oct<div class="who"><span class="face" data-shape="5" data-hue="plum" data-state="idle"></span>@accounts · outcome</div></div></div>
+  </div></div></main></div>
+</section>
+
+<!-- ============ 5 ACTIVITY ============ -->
+<section class="screen" id="s-activity">
+  <div class="note"><b>Activity.</b> Runs · Review · Analytics · Spend. Every run of every kind, the voice health a customer can see, one chart per question. <span class="j">VOICE-1 KAN-261</span><span class="j">OBS-1 KAN-212</span><span class="j">audit item 6</span></div>
+  <div class="app"><aside class="rail"><div class="brand"><span class="face" data-shape="0" data-hue="teal" data-state="idle"></span>Decibyl</div><nav class="homes"><a href="#home">My Decibyl</a><a href="#tasks">Tasks</a><a href="#agents">Agents</a><a href="#knowledge">Knowledge</a><a aria-current="page">Activity</a><a href="#team">Team</a><a href="#settings">Settings</a></nav></aside>
+  <main class="main"><div class="top"><div><h1>Activity</h1><div class="sub">Last 7 days · all colleagues</div></div><div class="tabs"><button aria-selected="true">Runs</button><button>Review</button><button>Analytics</button><button>Spend</button></div></div>
+  <div class="body">
+    <div class="grid g4"><div class="tile"><div class="l">Calls answered</div><div class="v">96%</div><div class="d">212 calls · 8 missed</div></div><div class="tile"><div class="l">First turn, p95</div><div class="v">640 ms</div><div class="d">target under 800</div></div><div class="tile"><div class="l">Bookings</div><div class="v">41</div><div class="d">₹28 per booking</div></div><div class="tile"><div class="l">Credits used</div><div class="v">288</div><div class="d">712 left · 11 days</div></div></div>
+    <div class="chart"><h3>Runs per day</h3><div class="cap">Calls, WhatsApp replies and routine runs, last 14 days. Today in amber.</div>
+      <div class="bars" aria-hidden="true"><i style="height:38%"></i><i style="height:44%"></i><i style="height:30%"></i><i style="height:52%"></i><i style="height:61%"></i><i style="height:22%"></i><i style="height:12%"></i><i style="height:47%"></i><i style="height:55%"></i><i style="height:66%"></i><i style="height:71%"></i><i style="height:58%"></i><i style="height:18%"></i><i class="today" style="height:40%"></i></div>
+      <div class="axis"><span>17 Sep</span><span>23 Sep</span><span>30 Sep</span></div></div>
+    <div class="tblwrap"><table><thead><tr><th>When</th><th>Colleague</th><th>Kind</th><th>What happened</th><th>Outcome</th><th class="num">Latency</th><th class="num">Cost</th></tr></thead><tbody>
+      <tr><td class="mono">11:02</td><td>@reception</td><td>Call · in</td><td>Asked a root-canal price · handed over</td><td><span class="chip warn">handed over</span></td><td class="num">590 ms</td><td class="num">₹6.10</td></tr>
+      <tr><td class="mono">10:41</td><td>@reception</td><td>Call · in</td><td>Booked Mrs Lakshmi, Tue 5 pm, Dr Anand</td><td><span class="chip live">booked</span></td><td class="num">610 ms</td><td class="num">₹4.90</td></tr>
+      <tr><td class="mono">09:31</td><td>@accounts</td><td>WhatsApp</td><td>Drafted 4 reminders · waiting</td><td><span class="chip">waiting</span></td><td class="num">—</td><td class="num">₹0.80</td></tr>
+      <tr><td class="mono">09:00</td><td>@followup</td><td>Routine</td><td>5 no-show calls · 3 reached · 1 rebooked</td><td><span class="chip live">1 rebooked</span></td><td class="num">720 ms</td><td class="num">₹22.40</td></tr>
+      <tr><td class="mono">08:12</td><td>@reception</td><td>Call · in</td><td>STT backup engaged for 20 s · call completed</td><td><span class="chip bad">failover</span></td><td class="num">1.4 s</td><td class="num">₹5.30</td></tr>
+    </tbody></table></div>
+  </div></main></div>
+</section>
+
+<!-- ============ 6 KNOWLEDGE ============ -->
+<section class="screen" id="s-knowledge">
+  <div class="note"><b>Knowledge.</b> Library · Memory · Graph. Every item says where it came from, who approved it, which colleagues use it. <span class="j">UI-3 KAN-211</span><span class="j">KNOW-1 KAN-210</span><span class="j">MEM-1 KAN-197</span></div>
+  <div class="app"><aside class="rail"><div class="brand"><span class="face" data-shape="0" data-hue="teal" data-state="idle"></span>Decibyl</div><nav class="homes"><a href="#home">My Decibyl</a><a href="#tasks">Tasks</a><a href="#agents">Agents</a><a aria-current="page">Knowledge</a><a href="#activity">Activity</a><a href="#team">Team</a><a href="#settings">Settings</a></nav></aside>
+  <main class="main"><div class="top"><div><h1>Knowledge</h1><div class="sub">9 documents · 3 shared memories · 120 MB of 2 GB</div></div><div style="display:flex;gap:8px;align-items:center"><div class="tabs"><button aria-selected="true">Library</button><button>Memory</button><button>Graph</button></div><button class="btn primary">Add</button></div></div>
+  <div class="body"><div class="docs">
+    <div class="row" style="font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);border-bottom:1px solid var(--line)"><span>Item</span><span>Source</span><span>Used by</span><span>Approved</span></div>
+    <div class="row"><span>Clinic FAQ · hours, treatments, doctors<small>stated · v4 · 12 sections</small></span><span>Priya, typed</span><span><span class="handle">@reception</span> +1</span><span>Priya · 24 Sep</span></div>
+    <div class="row"><span>Price list 2026<small>stated · never spoken by a bot (guardrail)</small></span><span>PDF upload</span><span>staff only</span><span>Priya · 2 Sep</span></div>
+    <div class="row"><span>Appointment sheet<small>live · Google Sheets</small></span><span>Connected</span><span><span class="handle">@reception</span> <span class="handle">@followup</span></span><span>—</span></div>
+    <div class="row"><span>Repeat callers prefer Tamil<small>inferred from 38 calls · shared memory</small></span><span>Learned</span><span>all</span><span><button class="adv" style="display:inline">Confirm</button></span></div>
+    <div class="row"><span>Dr Anand is away 3–10 Oct<small>stated · expires 10 Oct</small></span><span>Priya, in chat</span><span>all</span><span>Priya · today</span></div>
+  </div></div></main></div>
+</section>
+
+<!-- ============ 7 TEAM ============ -->
+<section class="screen" id="s-team">
+  <div class="note"><b>Team.</b> People and colleagues on one list with one permission model; the approvals queue; operator sessions (the studio, time-boxed and logged). <span class="j">ACT-1 KAN-200</span><span class="j">OPS-1 KAN-201</span><span class="j">ORG-1 light KAN-219</span></div>
+  <div class="app"><aside class="rail"><div class="brand"><span class="face" data-shape="0" data-hue="teal" data-state="idle"></span>Decibyl</div><nav class="homes"><a href="#home">My Decibyl</a><a href="#tasks">Tasks</a><a href="#agents">Agents</a><a href="#knowledge">Knowledge</a><a href="#activity">Activity</a><a aria-current="page">Team</a><a href="#settings">Settings</a></nav></aside>
+  <main class="main"><div class="top"><div><h1>Team</h1><div class="sub">Mission: fill every chair by October · 3 people · 3 colleagues</div></div><button class="btn">Invite a person</button></div>
+  <div class="body"><div class="grid g2">
+    <div><div class="eyebrow" style="margin-bottom:6px">People and colleagues</div>
+      <div class="person"><span class="face" data-shape="2" data-hue="ink" data-state="idle" data-person="true"></span><div>Priya · owner</div><span class="r">everything</span></div>
+      <div class="person"><span class="face" data-shape="4" data-hue="ink" data-state="idle" data-person="true"></span><div>Kavitha · front desk</div><span class="r">manager · approves @reception</span></div>
+      <div class="person"><span class="face" data-shape="0" data-hue="ink" data-state="idle" data-person="true"></span><div>Harsha · NAutomation Labs</div><span class="r">operator · session ends 18:00</span></div>
+      <div class="person"><span class="face" data-shape="3" data-hue="mint" data-state="idle"></span><div>@reception</div><span class="r">reports to Kavitha · ₹500</span></div>
+      <div class="person"><span class="face" data-shape="5" data-hue="plum" data-state="idle"></span><div>@accounts</div><span class="r">reports to Priya · ₹500</span></div>
+      <div class="person"><span class="face" data-shape="1" data-hue="sand" data-state="idle"></span><div>@followup</div><span class="r">reports to @reception · ₹500</span></div></div>
+    <div><div class="eyebrow" style="margin-bottom:6px">Approvals queue</div>
+      <div class="card" style="margin-bottom:8px"><div class="in" style="font-size:13px"><b>@accounts</b> · send 4 reminders · <span class="mono">Priya or Kavitha</span></div></div>
+      <div class="card" style="margin-bottom:8px"><div class="in" style="font-size:13px"><b>Harsha</b> asked to edit @reception's prompt · <span class="mono">operator · needs Priya</span></div></div>
+      <div class="eyebrow" style="margin:14px 0 6px">Operator sessions</div>
+      <div class="card"><div class="in" style="font-size:13px">Harsha · "build the WhatsApp channel" · started 14:10 · ends 18:00 · 12 actions logged <button class="adv" style="display:inline">Revoke</button></div></div></div>
+  </div></div></main></div>
+</section>
+
+<!-- ============ 8 SETTINGS ============ -->
+<section class="screen" id="s-settings">
+  <div class="note"><b>Settings.</b> Six sections. Billing & usage shows the trial, what a credit buys, and your keys. <span class="j">UI-3 KAN-211</span><span class="j">PLAN-1 KAN-255</span><span class="j">BYOK-1 KAN-254</span></div>
+  <div class="app"><aside class="rail"><div class="brand"><span class="face" data-shape="0" data-hue="teal" data-state="idle"></span>Decibyl</div><nav class="homes"><a href="#home">My Decibyl</a><a href="#tasks">Tasks</a><a href="#agents">Agents</a><a href="#knowledge">Knowledge</a><a href="#activity">Activity</a><a href="#team">Team</a><a aria-current="page">Settings</a></nav></aside>
+  <main class="main"><div class="top"><div><h1>Settings</h1></div></div>
+  <div class="body"><div class="settings">
+    <nav class="snav"><a>Members &amp; roles</a><a>Apps &amp; connections</a><a aria-current="page">Billing &amp; usage</a><a>Voice &amp; numbers</a><a>Privacy</a><a>Developers</a></nav>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="grid g3"><div class="tile"><div class="l">Trial</div><div class="v">11 days</div><div class="d">invite-only · ends 11 Oct</div></div><div class="tile"><div class="l">Credits</div><div class="v">712</div><div class="d">of 1,000 · pauses at 0</div></div><div class="tile"><div class="l">This month</div><div class="v">₹288</div><div class="d">at rate-card value</div></div></div>
+      <div class="card"><header><span class="t">What a credit buys</span><span class="price">1 credit = ₹0.50 · read-only during trial</span></header><div class="tblwrap"><table><thead><tr><th>Action</th><th class="num">Credits</th><th>Note</th></tr></thead><tbody><tr><td>Voice, Everyday stack</td><td class="num">9.8 / min</td><td>15-second pulses</td></tr><tr><td>WhatsApp utility message</td><td class="num">0.5</td><td>plus Meta's fee shown</td></tr><tr><td>Chat reply, default model</td><td class="num">0.8</td><td>0 on your own key</td></tr><tr><td>Routine run</td><td class="num">0.5</td><td></td></tr><tr><td>Script run</td><td class="num">4</td><td>tool calls inside not counted</td></tr></tbody></table></div></div>
+      <div class="card"><header><span class="t">Your own keys</span><span class="chip live">BYOK on</span></header><div class="in">
+        <div class="keyrow"><span class="handle">OpenAI</span><span>chat · builder · routines</span><span class="mono">sk-…9Qf · used 2 h ago · ok</span></div>
+        <div class="keyrow"><span class="handle">Sarvam</span><span>voice STT · TTS</span><span class="mono">not set · Decibyl's key</span></div>
+        <div class="keyrow"><span class="handle">ElevenLabs</span><span>premium voice</span><span class="mono">not set</span></div></div>
+        <div class="actions"><button class="btn">Add a key</button><span class="mono">Usage on your keys is recorded, never charged from the allowance.</span></div></div>
+    </div></div></div></main></div>
+</section>
+
+<!-- ============ 9 STAFF ============ -->
+<section class="screen" id="s-staff">
+  <div class="note"><b>Staff (NAutomation Labs).</b> Marketplace publishing from an agent, invites, trials. Superusers only. <span class="j">MKT-1 KAN-256</span><span class="j">S-2 KAN-190</span><span class="j">PLAN-1</span></div>
+  <div class="app"><aside class="rail"><div class="brand"><span class="face" data-shape="0" data-hue="teal" data-state="idle"></span>Decibyl <span class="chip" style="margin-left:4px">staff</span></div><nav class="homes"><a aria-current="page">Marketplace</a><a>Invites &amp; trials</a><a>Accounts</a><a>Rate card</a><a>Quality</a><a>Readiness</a></nav></aside>
+  <main class="main"><div class="top"><div><h1>Marketplace</h1><div class="sub">6 listed · 2 drafts · published by NAutomation Labs</div></div><button class="btn primary">Publish from an agent</button></div>
+  <div class="body">
+    <div class="card"><header><span class="t">Publish "Clinic front desk" v4</span><span class="chip">from @reception · Sri Lakshmi Dental (operator session)</span></header>
+      <div class="in"><div class="grid g2"><dl class="kv"><dt>Kind</dt><dd>Pack · phone + WhatsApp</dd><dt>Industry</dt><dd>Clinics · dental, GP</dd><dt>Needs</dt><dd>appointment sheet · a number · WhatsApp (optional)</dd><dt>Demo line</dt><dd>044 4210 0000 · required for a calling pack</dd><dt>Price</dt><dd>from ₹4.90 / min · Everyday</dd><dt>Scrubbed</dt><dd>3 IDs, 1 sheet, 1 number → listed as needs</dd></dl>
+        <div class="agent" style="align-self:start"><span class="face" data-shape="4" data-hue="teal" data-state="idle"></span><div><div class="h">Clinic front desk</div><div class="j">Phone + WhatsApp · Tamil, Hindi, English · 12 caller scripts pass</div><div class="m">v4 · preview of the public card</div></div></div></div></div>
+      <div class="actions"><button class="btn primary">List v4</button><button class="btn">Save as draft</button><span class="mono" style="margin-left:auto">hired copies stay on v3 · "update available" chip</span></div></div>
+    <div class="tblwrap"><table><thead><tr><th>Listing</th><th>Kind</th><th>Status</th><th class="num">Version</th><th class="num">Hires</th><th>Check it</th></tr></thead><tbody>
+      <tr><td>Clinic front desk</td><td>Pack</td><td><span class="chip live">listed</span></td><td class="num">3</td><td class="num">214</td><td>12 / 12</td></tr>
+      <tr><td>Collections executive</td><td>Pack</td><td><span class="chip live">listed</span></td><td class="num">2</td><td class="num">88</td><td>9 / 9</td></tr>
+      <tr><td>Send confirmation</td><td>Skill</td><td><span class="chip live">listed</span></td><td class="num">1</td><td class="num">302</td><td>—</td></tr>
+      <tr><td>Recruiting screener</td><td>Pack</td><td><span class="chip">draft</span></td><td class="num">1</td><td class="num">0</td><td>4 / 6</td></tr></tbody></table></div>
+    <div class="grid g2"><div class="card"><header><span class="t">Invites</span></header><div class="in" style="font-size:13px">42 on the waitlist · 18 invited · 11 active trials · 3 converted-ready<br><button class="adv" style="display:inline">Invite next 10</button></div></div>
+      <div class="card"><header><span class="t">Trials</span></header><div class="in" style="font-size:13px">Sri Lakshmi Dental · 11 days · 712 credits · <button class="adv" style="display:inline">Extend</button> · <button class="adv" style="display:inline">Top up</button></div></div></div>
+  </div></main></div>
+</section>
+
+<script>
+(function(){
+  // faces
+  const HUES={teal:['#0F6B67','#5FC2BB'],mint:['#3E8E6E','#8FD3B4'],plum:['#6E4A8E','#BFA0DD'],sand:['#B07A2A','#E4B96A'],ink:['#2B3330','#9AA5A0']};
+  const dark=()=>{const t=document.documentElement.getAttribute('data-theme');if(t)return t==='dark';return matchMedia('(prefers-color-scheme: dark)').matches};
+  const SHAPES=['M50 8C74 8 92 26 92 50S74 92 50 92 8 74 8 50 26 8 50 8Z','M20 18h60c8 0 12 4 12 12v40c0 8-4 12-12 12H20c-8 0-12-4-12-12V30c0-8 4-12 12-12Z','M50 6 90 32v36L50 94 10 68V32Z','M50 10c26 0 42 16 42 40 0 22-12 40-42 40S8 72 8 50c0-24 16-40 42-40Z','M14 24c10-14 62-14 72 0 10 14 6 44 0 54s-62 10-72 0-10-40 0-54Z','M50 6c14 0 22 10 30 22 8 12 14 24 8 40S64 94 50 94 20 84 12 68s-2-28 8-40C28 16 36 6 50 6Z'];
+  const REST=[[38,44,62,44],[36,42,64,42],[38,48,62,48],[40,40,60,40],[36,46,64,46],[38,42,62,42]];
+  const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.querySelectorAll('.face').forEach(el=>{
+    const s=+el.dataset.shape||0,h=el.dataset.hue||'teal';const [l,d]=HUES[h];const fill=dark()?d:l;const eye=dark()?'#0F1614':'#FFFFFF';const [x1,y,x2]=REST[s%6];const person=el.dataset.person==='true';
+    el.innerHTML=`<svg viewBox="0 0 100 100" role="img" aria-label="face"><path d="${SHAPES[s%6]}" fill="${fill}"/><g class="eyes"><ellipse cx="${x1}" cy="${y}" rx="${person?7:6}" ry="${person?7:9}" fill="${eye}"/><ellipse cx="${x2}" cy="${y}" rx="${person?7:6}" ry="${person?7:9}" fill="${eye}"/></g><ellipse class="mouth" cx="50" cy="66" rx="0" ry="0" fill="${eye}"/></svg>`;
+    if(reduce)return; const eyes=el.querySelector('.eyes'),mouth=el.querySelector('.mouth'),st=el.dataset.state||'idle';let t=Math.random()*1000;
+    (function tick(){t++;const blink=(t%240)<4;let tr=`scaleY(${blink?0.1:1})`;eyes.style.transformOrigin='50% 44%';
+      if(st==='thinking')tr+=` translate(${Math.sin(t/40)*3}px,${Math.cos(t/60)*2}px)`;if(st==='waiting')tr+=` translate(0,${-2+Math.sin(t/25)*1.5}px)`;eyes.style.transform=tr;
+      if(st==='speaking'){mouth.setAttribute('rx',8+((t>>2)%3)*3);mouth.setAttribute('ry',3+Math.abs(Math.sin(t/3))*4);}requestAnimationFrame(tick);})();
+  });
+  // composer fit + typing
+  document.querySelectorAll('.composer').forEach(c=>{const ta=c.querySelector('.ta');if(!ta)return;const to=c.querySelector('.to');
+    const fit=()=>{ta.style.height='24px';ta.style.height=Math.min(ta.scrollHeight,160)+'px';ta.style.overflowY=ta.scrollHeight>160?'auto':'hidden'};
+    ta.addEventListener('input',()=>{const m=ta.value.match(/^@(\w+)/);if(to&&to.textContent.startsWith('to Decibyl')||to&&m)to.textContent=m?'to @'+m[1]:(to.dataset.def||'to Decibyl');c.classList.toggle('typing',ta.value.length>0);fit();});
+    c.querySelectorAll('.followups button').forEach(b=>b.addEventListener('click',()=>{ta.value=b.textContent;ta.dispatchEvent(new Event('input'));ta.focus();}));fit();});
+  // pressed groups
+  document.querySelectorAll('.scope,.tabs').forEach(g=>g.querySelectorAll('button').forEach(b=>b.addEventListener('click',e=>{const a=b.hasAttribute('aria-selected')?'aria-selected':'aria-pressed';g.querySelectorAll('button').forEach(x=>x.setAttribute(a,'false'));b.setAttribute(a,'true');})));
+  // screen switcher
+  const links=[...document.querySelectorAll('.switch a')];
+  function show(id){id=['start','home','agents','bot','tasks','activity','knowledge','team','settings','staff'].includes(id)?id:'home';
+    document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on',s.id==='s-'+id));links.forEach(a=>a.classList.toggle('on',a.dataset.s===id));window.scrollTo(0,0);}
+  addEventListener('hashchange',()=>show(location.hash.slice(1)));show(location.hash.slice(1));
+  document.querySelectorAll('.homes a[href^="#"]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();location.hash=a.getAttribute('href').slice(1);}));
+})();
+</script>
