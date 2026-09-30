@@ -137,3 +137,9 @@ A hired agent is a colleague with a handle. It needs a face that is the same eve
 **People.** Members get a deterministic avatar from their id with zero image storage (the Blobatar idea), replacing the initials fallback; a real photo still overrides.
 
 Board: UI-4 (new). Lands with UI-1 (roster) and UI-2 (bot page header). Also becomes the marketplace card's picture in MKT-1.
+
+## 11. Hi-fi sample 1: My Decibyl (30 September)
+
+`samples/2026-09-30-my-decibyl-hifi.html`, also published as a private artifact. One screen, the first ten minutes: the roster with animated faces (states: speaking, waiting, idle), the Build card with Hear it · Try it · Check it and a price per minute before hiring, an approval card from `@accounts` with the draft shown and the grant scopes Once · This task · 7 days · Always, the trial meter (invite-only, days left, credits), the composer whose addressee changes when a line starts with a handle, follow-up chips, and the inspector with the nine sections collapsed and BYOK shown in Brain & voice.
+
+Type and surface, on the founder's instruction to avoid common faces and generated-looking design: Familjen Grotesk for display, Schibsted Grotesk for body, Martian Mono for handles, prices and counts; a cool paper ground with a green-black ink, one teal accent for actions and one haldi for "needs you"; no cream, no coral, no gradients, no cards inside cards, nothing centred. These become the tokens in UI-0 item 7 once the founder confirms the direction; Refero references are pulled in the next session (the server is registered) for the bot page and Activity samples.

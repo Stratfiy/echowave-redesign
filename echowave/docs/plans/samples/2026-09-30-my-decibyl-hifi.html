@@ -1,0 +1,304 @@
+<title>Decibyl Office</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Schibsted+Grotesk:ital,wght@0,400;0,500;0,600;1,400&family=Martian+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: an office. Roster on the left like a door list, the thread in the middle, the inspector on the right as a clipboard. Nothing centred, nothing floating. */
+:root{
+  --paper:#F2F3EE; --paper-2:#E9EBE4; --line:#D3D6CC; --ink:#151C19; --ink-2:#4A544F; --ink-3:#7C857F;
+  --teal:#0F6B67; --teal-ink:#FFFFFF; --teal-soft:#DCEBE8;
+  --haldi:#C9891C; --haldi-soft:#F6E9CF;
+  --live:#2F7D4F; --card:#FFFFFF;
+  --display:"Familjen Grotesk",ui-sans-serif,system-ui,sans-serif;
+  --body:"Schibsted Grotesk",ui-sans-serif,system-ui,sans-serif;
+  --mono:"Martian Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#111815; --paper-2:#182019; --line:#2A342E; --ink:#EDEFE9; --ink-2:#B4BBB4; --ink-3:#7F8882;
+  --teal:#5FC2BB; --teal-ink:#0B1513; --teal-soft:#183633; --haldi:#E0A64A; --haldi-soft:#3A2D14; --live:#6FCB8F; --card:#161E1A; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#111815; --paper-2:#182019; --line:#2A342E; --ink:#EDEFE9; --ink-2:#B4BBB4; --ink-3:#7F8882;
+  --teal:#5FC2BB; --teal-ink:#0B1513; --teal-soft:#183633; --haldi:#E0A64A; --haldi-soft:#3A2D14; --live:#6FCB8F; --card:#161E1A; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.app{display:grid;grid-template-columns:232px minmax(0,1fr) 300px;height:100%;min-height:640px}
+.rail,.inspector{background:var(--paper-2);border-color:var(--line)}
+.rail{border-right:1px solid var(--line);padding:18px 14px;display:flex;flex-direction:column;gap:18px;min-width:0}
+.inspector{border-left:1px solid var(--line);padding:18px 16px;overflow:auto;min-width:0}
+.thread{display:flex;flex-direction:column;min-width:0}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--display);font-weight:600;font-size:17px;letter-spacing:-.01em}
+.brand .face{width:26px;height:26px}
+.ws{font-size:12px;color:var(--ink-3);margin-top:2px}
+.eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.homes{display:flex;flex-direction:column;gap:2px}
+.homes a{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-radius:6px;color:var(--ink-2);text-decoration:none;font-weight:500}
+.homes a[aria-current]{background:var(--paper);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+.homes .n{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.roster{display:flex;flex-direction:column;gap:2px}
+.roster button{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:6px;width:100%;text-align:left}
+.roster button:hover,.roster button:focus-visible{background:var(--paper);outline:none}
+.roster .face{width:28px;height:28px;flex:none}
+.roster .h{font-weight:500}
+.roster .s{font-size:12px;color:var(--ink-3)}
+.roster .dot{width:7px;height:7px;border-radius:50%;margin-left:auto;background:var(--ink-3)}
+.roster .dot.live{background:var(--live)}
+.roster .dot.wait{background:var(--haldi)}
+.trial{margin-top:auto;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.trial .row{display:flex;justify-content:space-between;font-size:12.5px;color:var(--ink-2)}
+.meter{height:6px;background:var(--line);border-radius:3px;margin:8px 0 6px;overflow:hidden}
+.meter i{display:block;height:100%;width:71%;background:var(--teal)}
+.trial b{font-family:var(--mono);font-weight:500;color:var(--ink);font-size:12px}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 22px;border-bottom:1px solid var(--line);gap:12px;flex-wrap:wrap}
+.topbar h1{font-family:var(--display);font-size:19px;margin:0;font-weight:600;letter-spacing:-.01em}
+.topbar .sub{font-size:13px;color:var(--ink-3)}
+.pending{display:flex;gap:8px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);font-size:12.5px;background:var(--paper)}
+.chip.warn{border-color:var(--haldi);background:var(--haldi-soft)}
+.chip .k{font-family:var(--mono);font-size:11px}
+.stream{flex:1;overflow:auto;padding:22px 22px 8px;display:flex;flex-direction:column;gap:18px}
+.msg{display:grid;grid-template-columns:32px minmax(0,1fr);gap:12px;max-width:720px}
+.msg .face{width:32px;height:32px}
+.msg .who{font-weight:600;font-size:13.5px}
+.msg .who span{font-weight:400;color:var(--ink-3);margin-left:8px;font-family:var(--mono);font-size:11px}
+.msg p{margin:4px 0 0}
+.me .who{color:var(--ink-2)}
+.card{margin-top:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.card header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--paper-2)}
+.card header .t{font-family:var(--display);font-weight:600;font-size:15px}
+.card .body{padding:14px}
+.kv{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 12px;font-size:14px}
+.kv dt{color:var(--ink-3)}
+.kv dd{margin:0}
+.kv .handle{font-family:var(--mono);font-size:13px;background:var(--teal-soft);color:var(--teal);padding:1px 6px;border-radius:4px}
+.price{font-family:var(--mono);font-size:12.5px;color:var(--ink-2)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;padding:12px 14px;border-top:1px solid var(--line)}
+.btn{padding:8px 14px;border-radius:7px;border:1px solid var(--line);background:var(--paper);font-weight:500;font-size:14px}
+.btn:hover,.btn:focus-visible{border-color:var(--ink-3);outline:none}
+.btn.primary{background:var(--teal);color:var(--teal-ink);border-color:var(--teal)}
+.btn.quiet{border-color:transparent;color:var(--ink-2)}
+.scope{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-left:auto;font-size:12.5px;color:var(--ink-3)}
+.scope button{padding:4px 9px;border-radius:999px;border:1px solid var(--line);font-size:12px}
+.scope button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.draft{border-left:3px solid var(--haldi);padding:10px 12px;margin:0;background:var(--haldi-soft);border-radius:0 6px 6px 0;font-size:14px}
+.draft small{display:block;color:var(--ink-3);margin-top:6px;font-family:var(--mono);font-size:11px}
+.composer{padding:12px 22px 18px;border-top:1px solid var(--line);background:var(--paper)}
+.composer .box{display:flex;gap:10px;align-items:flex-end;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--card)}
+.composer textarea{flex:1;resize:none;border:0;background:none;font:inherit;color:inherit;min-height:24px;max-height:120px;outline:none;min-width:0}
+.composer .to{font-family:var(--mono);font-size:11px;color:var(--ink-3);padding-top:4px;white-space:nowrap}
+.followups{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.followups button{padding:6px 11px;border-radius:999px;border:1px dashed var(--line);font-size:13px;color:var(--ink-2)}
+.followups button:hover{border-style:solid;color:var(--ink)}
+.insp-head{display:flex;gap:12px;align-items:center;margin-bottom:14px}
+.insp-head .face{width:44px;height:44px}
+.insp-head h2{font-family:var(--display);font-size:17px;margin:0;font-weight:600}
+.insp-head .st{font-size:12.5px;color:var(--ink-3)}
+.test{display:flex;gap:6px;margin:0 0 16px}
+.test .btn{flex:1;text-align:center;padding:7px 8px;font-size:13px}
+.sec{border-top:1px solid var(--line);padding:11px 0}
+.sec summary{list-style:none;display:flex;justify-content:space-between;align-items:baseline;cursor:pointer;gap:10px}
+.sec summary::-webkit-details-marker{display:none}
+.sec .lbl{font-weight:600;font-size:13.5px}
+.sec .sum{font-size:12.5px;color:var(--ink-3);text-align:right;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sec .in{padding:10px 0 2px;font-size:13.5px;color:var(--ink-2);display:flex;flex-direction:column;gap:8px}
+.tier{display:flex;gap:6px}
+.tier button{flex:1;padding:6px 4px;border:1px solid var(--line);border-radius:6px;font-size:12.5px}
+.tier button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.byok{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--paper);font-size:12.5px}
+.byok .k{font-family:var(--mono);font-size:11px;color:var(--teal)}
+.adv{font-size:12px;color:var(--ink-3);text-decoration:underline dotted;background:none;padding:0;text-align:left}
+.face svg{width:100%;height:100%;display:block}
+@media (prefers-reduced-motion:reduce){.face *{animation:none!important;transition:none!important}}
+@media (max-width:900px){
+  .app{grid-template-columns:1fr;height:auto;min-height:0}
+  .rail{border-right:0;border-bottom:1px solid var(--line);flex-direction:row;flex-wrap:wrap;align-items:flex-start;padding:14px 16px}
+  .rail .homes{flex-direction:row;flex-wrap:wrap}
+  .rail .roster,.rail .trial{width:100%}
+  .rail .trial{margin-top:0}
+  .inspector{border-left:0;border-top:1px solid var(--line)}
+  .topbar,.stream,.composer{padding-left:16px;padding-right:16px}
+}
+</style>
+
+<div class="app">
+  <aside class="rail" aria-label="Office">
+    <div>
+      <div class="brand"><span class="face" data-face="decibyl" data-shape="0" data-hue="teal" data-state="idle"></span>Decibyl</div>
+      <div class="ws">Sri Lakshmi Dental · Chennai</div>
+    </div>
+    <nav class="homes" aria-label="Homes">
+      <a href="#my-decibyl" aria-current="page">My Decibyl <span class="n">2</span></a>
+      <a href="#tasks">Tasks <span class="n">7</span></a>
+      <a href="#agents">Agents <span class="n">3</span></a>
+      <a href="#knowledge">Knowledge</a>
+      <a href="#activity">Activity</a>
+      <a href="#settings">Settings</a>
+    </nav>
+    <div>
+      <div class="eyebrow" style="margin:0 8px 6px">Colleagues</div>
+      <div class="roster">
+        <button><span class="face" data-shape="3" data-hue="mint" data-state="speaking"></span><span><span class="h">@reception</span><br><span class="s">on a call · 0:42</span></span><span class="dot live"></span></button>
+        <button><span class="face" data-shape="5" data-hue="plum" data-state="waiting"></span><span><span class="h">@accounts</span><br><span class="s">needs a yes</span></span><span class="dot wait"></span></button>
+        <button><span class="face" data-shape="1" data-hue="sand" data-state="idle"></span><span><span class="h">@followup</span><br><span class="s">routine at 9:00</span></span><span class="dot"></span></button>
+      </div>
+    </div>
+    <div class="trial">
+      <div class="row"><span>Trial · invite-only</span><b>11 days left</b></div>
+      <div class="meter"><i></i></div>
+      <div class="row"><span>Credits</span><b>712 / 1,000</b></div>
+    </div>
+  </aside>
+
+  <main class="thread" id="my-decibyl">
+    <div class="topbar">
+      <div><h1>My Decibyl</h1><div class="sub">Tuesday 30 September · two things need you</div></div>
+      <div class="pending">
+        <span class="chip warn"><span class="k">@accounts</span> wants to send 4 reminders</span>
+        <span class="chip"><span class="k">@reception</span> booked 6 today</span>
+      </div>
+    </div>
+
+    <div class="stream">
+      <div class="msg me">
+        <span class="face" data-shape="2" data-hue="ink" data-state="idle" data-person="true"></span>
+        <div><div class="who">Priya <span>owner · 9:14</span></div>
+          <p>I need someone to answer the phone and book appointments when the front desk is busy. Tamil and English.</p></div>
+      </div>
+
+      <div class="msg">
+        <span class="face" data-face="decibyl" data-shape="0" data-hue="teal" data-state="thinking"></span>
+        <div><div class="who">Decibyl <span>9:14</span></div>
+          <p>Here is who I would hire. Hear it before you decide.</p>
+          <div class="card" aria-label="Build card">
+            <header><span class="t">New colleague</span><span class="price">₹4.90 / min · Everyday voice</span></header>
+            <div class="body">
+              <dl class="kv">
+                <dt>Handle</dt><dd><span class="handle">@reception</span></dd>
+                <dt>Job</dt><dd>Answers the clinic line, checks the diary, books or reschedules, sends a WhatsApp confirmation. Hands over to a person for billing questions.</dd>
+                <dt>Speaks</dt><dd>Tamil and English, switches mid-sentence</dd>
+                <dt>Hours</dt><dd>When the desk does not pick up in 12 seconds, and after 7 pm</dd>
+                <dt>Needs</dt><dd>Your appointment sheet (Google Sheets, connected) and a number</dd>
+              </dl>
+            </div>
+            <div class="actions">
+              <button class="btn primary" id="hear">Hear it</button>
+              <button class="btn" id="try">Try it</button>
+              <button class="btn" id="check">Check it</button>
+              <button class="btn quiet">Change something</button>
+              <button class="btn" style="margin-left:auto">Confirm and hire</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="msg">
+        <span class="face" data-shape="5" data-hue="plum" data-state="waiting"></span>
+        <div><div class="who">@accounts <span>9:31</span></div>
+          <p>Four invoices are 30 days over. I drafted the reminders. Nothing goes out until you say so.</p>
+          <div class="card" aria-label="Approval card">
+            <header><span class="t">Send 4 WhatsApp reminders</span><span class="price">4 × ₹1.00</span></header>
+            <div class="body">
+              <blockquote class="draft">Vanakkam Mr Raghavan, this is Sri Lakshmi Dental. Invoice 2026-0412 for ₹3,200 was due on 31 August. You can pay here: pay.decibyl.ai/x9k2. Reply if you have already paid.<small>1 of 4 · utility template · Tamil version attached</small></blockquote>
+            </div>
+            <div class="actions">
+              <button class="btn primary">Send all 4</button>
+              <button class="btn">Edit</button>
+              <button class="btn quiet">Not now</button>
+              <div class="scope" role="group" aria-label="Allow this">
+                <span>Allow this</span>
+                <button aria-pressed="true">Once</button>
+                <button aria-pressed="false">This task</button>
+                <button aria-pressed="false">7 days</button>
+                <button aria-pressed="false">Always</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="composer">
+      <div class="box">
+        <span class="to" id="to">to Decibyl</span>
+        <textarea id="composer" rows="1" placeholder="Tell Decibyl the job, or @reception to give work" aria-label="Message"></textarea>
+        <button class="btn primary" style="padding:7px 12px">Send</button>
+      </div>
+      <div class="followups">
+        <button>Put @reception on WhatsApp</button>
+        <button>Put @reception on a number</button>
+        <button>What happened this week?</button>
+        <button>Save this as a routine</button>
+      </div>
+    </div>
+  </main>
+
+  <aside class="inspector" aria-label="@reception">
+    <div class="insp-head">
+      <span class="face" data-shape="3" data-hue="mint" data-state="speaking" id="inspFace"></span>
+      <div><h2>@reception</h2><div class="st">Draft · not on a channel yet</div></div>
+    </div>
+    <div class="test">
+      <button class="btn">Hear it</button><button class="btn">Try it</button><button class="btn">Check it</button>
+    </div>
+    <details class="sec" open><summary><span class="lbl">Role &amp; persona</span><span class="sum">Clinic receptionist</span></summary>
+      <div class="in"><div>Warm, brief, never guesses a price. Confirms the date back in the caller's language.</div><button class="adv">Advanced: full prompt, variables, voicemail</button></div></details>
+    <details class="sec"><summary><span class="lbl">Channels</span><span class="sum">None yet</span></summary>
+      <div class="in"><div>Phone number · WhatsApp · Web widget · Email</div></div></details>
+    <details class="sec" open><summary><span class="lbl">Brain &amp; voice</span><span class="sum">Everyday · Tamil, English</span></summary>
+      <div class="in">
+        <div class="tier" role="group" aria-label="Voice tier"><button aria-pressed="true">Everyday</button><button aria-pressed="false">Natural</button><button aria-pressed="false">Premium</button></div>
+        <div class="byok"><span class="k">BYOK</span><span>Chat and routines run on your OpenAI key. Voice on Decibyl's. <button class="adv" style="display:inline">Change</button></span></div>
+        <button class="adv">Advanced: vendor per slot, fallbacks, turn-taking, 13 more</button>
+      </div></details>
+    <details class="sec"><summary><span class="lbl">Apps &amp; tools</span><span class="sum">Google Sheets</span></summary><div class="in"><div>Appointment sheet (connected by Priya). Add Zoho Books, Razorpay…</div></div></details>
+    <details class="sec"><summary><span class="lbl">Knowledge &amp; memory</span><span class="sum">Clinic FAQ · learns</span></summary><div class="in"><div>Opening hours, treatments, doctors. Remembers repeat callers.</div></div></details>
+    <details class="sec"><summary><span class="lbl">Triggers &amp; routines</span><span class="sum">Missed call · 12 s</span></summary><div class="in"><div>When the desk does not pick up in 12 seconds, and after 7 pm.</div></div></details>
+    <details class="sec"><summary><span class="lbl">Permissions</span><span class="sum">Asks before sending</span></summary><div class="in"><div>Books: allowed. Sends WhatsApp: asks. Refunds: hands over.</div></div></details>
+    <details class="sec"><summary><span class="lbl">Quality</span><span class="sum">Outcome: booking</span></summary><div class="in"><div>Counted as done when a row lands in the sheet. Check it runs 12 caller scripts before Publish.</div></div></details>
+    <details class="sec"><summary><span class="lbl">Versions</span><span class="sum">Draft 1</span></summary><div class="in"><div>Nothing published yet.</div></div></details>
+  </aside>
+</div>
+
+<script>
+// Faces: one morphing body, two eyes. Deterministic from shape + hue; state drives the motion.
+(function(){
+  const HUES={teal:['#0F6B67','#5FC2BB'],mint:['#3E8E6E','#8FD3B4'],plum:['#6E4A8E','#BFA0DD'],sand:['#B07A2A','#E4B96A'],ink:['#2B3330','#9AA5A0']};
+  const dark=()=>{const t=document.documentElement.getAttribute('data-theme');if(t)return t==='dark';return matchMedia('(prefers-color-scheme: dark)').matches};
+  // 6 body silhouettes as closed paths in a 100x100 box
+  const SHAPES=[
+    'M50 8C74 8 92 26 92 50S74 92 50 92 8 74 8 50 26 8 50 8Z',
+    'M20 18h60c8 0 12 4 12 12v40c0 8-4 12-12 12H20c-8 0-12-4-12-12V30c0-8 4-12 12-12Z',
+    'M50 6 90 32v36L50 94 10 68V32Z',
+    'M50 10c26 0 42 16 42 40 0 22-12 40-42 40S8 72 8 50c0-24 16-40 42-40Z',
+    'M14 24c10-14 62-14 72 0 10 14 6 44 0 54s-62 10-72 0-10-40 0-54Z',
+    'M50 6c14 0 22 10 30 22 8 12 14 24 8 40S64 94 50 94 20 84 12 68s-2-28 8-40C28 16 36 6 50 6Z'];
+  const REST=[[38,44,62,44],[36,42,64,42],[38,48,62,48],[40,40,60,40],[36,46,64,46],[38,42,62,42]];
+  const SPEECH=[[50,66,10],[50,64,14],[50,68,8]];
+  document.querySelectorAll('.face').forEach((el,i)=>{
+    const s=+el.dataset.shape||0, h=el.dataset.hue||'teal';
+    const [light,dk]=HUES[h]; const fill=dark()?dk:light; const eye=dark()?'#0F1614':'#FFFFFF';
+    const [ex1,ey,ex2]=REST[s%REST.length];
+    const person=el.dataset.person==='true';
+    el.innerHTML=`<svg viewBox="0 0 100 100" role="img" aria-label="${el.dataset.face||'agent'} face"><path d="${SHAPES[s%SHAPES.length]}" fill="${fill}"/>
+      <g class="eyes"><ellipse cx="${ex1}" cy="${ey}" rx="${person?7:6}" ry="${person?7:9}" fill="${eye}"/><ellipse cx="${ex2}" cy="${ey}" rx="${person?7:6}" ry="${person?7:9}" fill="${eye}"/></g>
+      <ellipse class="mouth" cx="50" cy="66" rx="0" ry="0" fill="${eye}"/></svg>`;
+    const eyes=el.querySelector('.eyes'), mouth=el.querySelector('.mouth');
+    const state=el.dataset.state||'idle'; let t=Math.random()*1000;
+    if(matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    (function tick(){
+      t+=1;
+      // blink every ~4s
+      const blink=(t%240)<4; eyes.style.transform=`scaleY(${blink?0.1:1})`; eyes.style.transformOrigin='50% 44%';
+      if(state==='thinking'){ eyes.style.transform+=` translate(${Math.sin(t/40)*3}px, ${Math.cos(t/60)*2}px)`; }
+      if(state==='speaking'){ const k=(t>>2)%SPEECH.length; mouth.setAttribute('rx',SPEECH[k][2]); mouth.setAttribute('ry',3+Math.abs(Math.sin(t/3))*4); }
+      if(state==='waiting'){ eyes.style.transform+=` translate(0, ${-2+Math.sin(t/25)*1.5}px)`; }
+      requestAnimationFrame(tick);
+    })();
+  });
+  // composer addressee: a leading @handle changes who the line is for
+  const ta=document.getElementById('composer'), to=document.getElementById('to');
+  ta.addEventListener('input',()=>{const m=ta.value.match(/^@(\w+)/); to.textContent=m?'to @'+m[1]:'to Decibyl';});
+  // scope buttons
+  document.querySelectorAll('.scope').forEach(g=>g.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');})));
+  document.querySelectorAll('.tier').forEach(g=>g.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');})));
+})();
+</script>
