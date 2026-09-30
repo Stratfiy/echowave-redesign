@@ -32,6 +32,7 @@ import time
 
 from loguru import logger
 
+from api.services.billing import model_usage
 from api.services.storage import get_storage
 
 #: Where samples live. Separate prefix so a retention sweep over call audio
@@ -207,6 +208,13 @@ async def ensure_sample_url(
         logger.warning("Could not record {} {}: {}", provider, voice_id, exc)
         return None
 
+    await model_usage.record_units(
+        provider=provider,
+        model=model,
+        unit="characters",
+        quantity=len(SAMPLE_LINES[language]),
+        feature="voice_sample",
+    )
     path = sample_path(
         voice_id, language, voice_synthesis.extension_for(provider), model
     )

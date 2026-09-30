@@ -202,8 +202,30 @@ def tiers_for(component: CostComponent | str) -> tuple[str, ...]:
     configuration keeps the model it was built on, but they are not on sale and
     nothing should ask whether they are available.
     """
-    key = component.value if hasattr(component, "value") else str(component)
-    return _TIERS_BY_COMPONENT.get(key.strip().lower(), ())
+    key = (
+        (component.value if hasattr(component, "value") else str(component))
+        .strip()
+        .lower()
+    )
+    tiers = _TIERS_BY_COMPONENT.get(key, ())
+    if key == REALTIME_COMPONENT and gemini_only():
+        # No OpenAI realtime on the managed offering: the tier that only
+        # ever meant "OpenAI" is not on sale. ``default`` stays, resolving
+        # to Gemini Live below.
+        return tuple(t for t in tiers if t != "premium")
+    return tiers
+
+
+def gemini_only() -> bool:
+    """Whether managed speech-to-speech is Gemini Live and nothing else.
+
+    Read at call time so the flag can be switched without a restart in the
+    same way every other feature flag is. Bring-your-own-key OpenAI
+    realtime is not a managed tier and is untouched by this.
+    """
+    from api.services import features
+
+    return features.is_on("managed_realtime_gemini_only")
 
 
 def _tier(component: str, tier: str, provider: str, model: str) -> ManagedUpstream:
@@ -456,15 +478,25 @@ def resolve(component: CostComponent | str, tier: str | None) -> ManagedUpstream
     # The operator's choice first. See ``_OVERRIDES``.
     override = _OVERRIDES.get(key)
     if override is not None:
-        return override
+        upstream = override
+    elif key in mappings:
+        upstream = mappings[key]
+    else:
+        fallback = mappings.get((component_value, "default"))
+        if fallback is None:
+            raise KeyError(f"No managed tier mapping for component {component_value!r}")
+        upstream = fallback
 
-    if key in mappings:
-        return mappings[key]
-
-    fallback = mappings.get((component_value, "default"))
-    if fallback is None:
-        raise KeyError(f"No managed tier mapping for component {component_value!r}")
-    return fallback
+    if (
+        component_value == REALTIME_COMPONENT
+        and upstream.provider == "openai_realtime"
+        and gemini_only()
+    ):
+        # A stored configuration naming "default" or "premium" keeps
+        # working; it is served by Gemini Live rather than failing at dial
+        # time because the vendor was taken off the offering.
+        return mappings[(REALTIME_COMPONENT, "natural")]
+    return upstream
 
 
 def every_tier() -> set[tuple[str, str]]:
@@ -490,10 +522,11 @@ def upstream_providers() -> set[tuple[str, str]]:
     platform key for is a managed customer whose calls will fail, and that is
     worth knowing before they dial rather than after.
     """
-    resolved = dict(_defaults())
-    # An override changes which vendor we need a key for, so the readiness
-    # check has to see it. Reading only the defaults would report a platform
+    # Through ``resolve`` so that an override, and a tier switched off by a
+    # flag, are both seen. Reading only the defaults would report a platform
     # key as present for a vendor no tier points at any more, and missing for
     # the one that now serves it.
-    resolved.update(_OVERRIDES)
-    return {(component, up.provider) for (component, _), up in resolved.items()}
+    return {
+        (component, resolve(component, tier).provider)
+        for component, tier in every_tier()
+    }

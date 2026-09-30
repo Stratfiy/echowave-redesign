@@ -34,7 +34,12 @@ from typing import Any, Iterable
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.db.models import CallCostItemModel, ModelUsageModel, WorkflowRunModel
+from api.db.models import (
+    CallCostItemModel,
+    ModelUsageModel,
+    WorkflowModel,
+    WorkflowRunModel,
+)
 from api.enums import CostComponent
 from api.services.billing.money import MPAISE_PER_PAISE
 from api.services.billing.usage import llm_split_items
@@ -310,7 +315,29 @@ async def build(
         # A transcription row carries seconds, not tokens; it is reported
         # below on its own, never as a token call with nothing in it.
         ModelUsageModel.audio_seconds == 0,
+        ModelUsageModel.quantity == 0,
         ~ModelUsageModel.feature.in_(AUDIO_FEATURES),
+    )
+    units_q = (
+        select(
+            ModelUsageModel.feature,
+            ModelUsageModel.provider,
+            ModelUsageModel.model,
+            ModelUsageModel.unit,
+            func.count(ModelUsageModel.id),
+            func.coalesce(func.sum(ModelUsageModel.quantity), 0),
+        )
+        .where(
+            ModelUsageModel.created_at >= start,
+            ModelUsageModel.created_at < end,
+            ModelUsageModel.quantity > 0,
+        )
+        .group_by(
+            ModelUsageModel.feature,
+            ModelUsageModel.provider,
+            ModelUsageModel.model,
+            ModelUsageModel.unit,
+        )
     )
     audio_q = (
         select(
@@ -332,9 +359,13 @@ async def build(
         )
     )
     if organization_id is not None:
-        run_q = run_q.where(WorkflowRunModel.organization_id == organization_id)
+        # A run has no organisation of its own; its workflow does.
+        run_q = run_q.join(
+            WorkflowModel, WorkflowModel.id == WorkflowRunModel.workflow_id
+        ).where(WorkflowModel.organization_id == organization_id)
         direct_q = direct_q.where(ModelUsageModel.organization_id == organization_id)
         audio_q = audio_q.where(ModelUsageModel.organization_id == organization_id)
+        units_q = units_q.where(ModelUsageModel.organization_id == organization_id)
 
     run_rows = (await session.execute(run_q)).all()
     direct_rows = (await session.execute(direct_q)).all()
@@ -363,6 +394,21 @@ async def build(
         }
         for feature, provider, model, calls, seconds, unknown in (
             await session.execute(audio_q)
+        ).all()
+    ]
+    # Vendor units that are not tokens: tool calls, characters, messages.
+    # Counted here; priced by the costing report against each vendor's unit.
+    report["units"] = [
+        {
+            "feature": feature,
+            "provider": provider,
+            "model": model,
+            "unit": unit,
+            "rows": int(rows),
+            "quantity": round(float(quantity or 0), 1),
+        }
+        for feature, provider, model, unit, rows, quantity in (
+            await session.execute(units_q)
         ).all()
     ]
     report["window"] = {"start": start.isoformat(), "end": end.isoformat()}

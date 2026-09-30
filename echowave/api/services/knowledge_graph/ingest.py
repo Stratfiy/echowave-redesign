@@ -18,8 +18,10 @@ import asyncio
 
 from loguru import logger
 
+from api.services.billing import model_usage
 from api.services.knowledge_graph.client import episode_source_type, get_graph
 from api.services.knowledge_graph.episodes import Episode
+from api.services.knowledge_graph.scoping import organization_of
 
 #: Seconds an ingestion may take before it is abandoned. Generous, because this
 #: runs on the queue and nobody is waiting -- but bounded, because an
@@ -47,17 +49,21 @@ async def remember(episode: Episode) -> bool:
         return False
 
     try:
-        await asyncio.wait_for(
-            graph.add_episode(
-                name=episode.name,
-                episode_body=episode.body,
-                source_description=episode.source_description,
-                reference_time=episode.reference_time,
-                source=episode_source_type(episode.source),
-                group_id=episode.group_id,
-            ),
-            timeout=INGEST_TIMEOUT_SECONDS,
-        )
+        with model_usage.scope(
+            organization_id=organization_of(episode.group_id),
+            feature="knowledge_graph",
+        ):
+            await asyncio.wait_for(
+                graph.add_episode(
+                    name=episode.name,
+                    episode_body=episode.body,
+                    source_description=episode.source_description,
+                    reference_time=episode.reference_time,
+                    source=episode_source_type(episode.source),
+                    group_id=episode.group_id,
+                ),
+                timeout=INGEST_TIMEOUT_SECONDS,
+            )
         logger.info(f"Remembered {episode.name} in {episode.group_id}")
         return True
     except Exception as exception:

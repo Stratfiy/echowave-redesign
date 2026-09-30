@@ -7,7 +7,7 @@ under the composer. Sarvam's translate takes 1000 characters a request, so
 longer text is cut at sentence ends and sent as several; the joins are what
 you would get pasting the pieces back together.
 
-Not metered yet. Sarvam bills Rs20 per 10,000 characters and the platform
+Metered behind ``vendor_metering`` (characters, per request). Sarvam bills Rs20 per 10,000 characters and the platform
 key pays it; a message is a few hundred characters. When translation is a
 line on a receipt it will be a ``translation`` cost component, priced per
 thousand characters like TTS -- see PRICING-DECISIONS.md.
@@ -23,6 +23,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import CostComponent
+from api.services.billing import model_usage
 from api.services.configuration import platform_credentials
 
 SARVAM_TRANSLATE_URL = "https://api.sarvam.ai/translate"
@@ -141,6 +142,9 @@ async def translate(
         pieces.append(str(data.get("translated_text") or ""))
         detected = detected or data.get("source_language_code")
     logger.info("Translated {} characters to {}", len(text), target)
+    await model_usage.record_units(
+        provider="sarvam", model="translate", unit="characters", quantity=len(text)
+    )
     return " ".join(p for p in pieces if p).strip(), detected
 
 
@@ -171,4 +175,7 @@ async def transliterate(
         )
         pieces.append(str(data.get("transliterated_text") or ""))
         detected = detected or data.get("source_language_code")
+    await model_usage.record_units(
+        provider="sarvam", model="transliterate", unit="characters", quantity=len(text)
+    )
     return " ".join(p for p in pieces if p).strip(), detected

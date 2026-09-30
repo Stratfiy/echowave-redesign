@@ -125,6 +125,63 @@ async def record_audio(*, provider: str, model: str, seconds: float | None) -> N
         )
 
 
+async def record_units(
+    *,
+    provider: str,
+    model: str,
+    unit: str,
+    quantity: float | int | None,
+    organization_id: int | None = None,
+    feature: str | None = None,
+) -> None:
+    """One thing a vendor bills by that is neither tokens nor audio.
+
+    A Composio tool call, characters of Sarvam translation, a Meta WhatsApp
+    message, the characters of a voice sample: spend the platform key pays
+    for and, until 30 September 2026, nothing recorded. ``unit`` names what
+    ``quantity`` counts, so the costing report can price the row against the
+    vendor's own unit rather than guessing.
+
+    Attribution follows the open scope, as ``record`` does. A caller that
+    knows the account or its purpose when no scope is open may say so with
+    ``organization_id`` and ``feature``; a scope that is open wins, because
+    the caller who opened it knew more.
+
+    Behind ``vendor_metering``: while the flag is off this writes nothing,
+    so switching it on is the only thing that changes what the table holds.
+    Nothing here charges anyone.
+    """
+    from api.services import features
+
+    if not features.is_on("vendor_metering"):
+        return
+    try:
+        amount = max(float(quantity or 0), 0.0)
+    except (TypeError, ValueError):
+        amount = 0.0
+    if amount <= 0:
+        return
+    scoped_org, scoped_feature = current()
+    row = {
+        "organization_id": scoped_org if scoped_org is not None else organization_id,
+        "feature": (
+            scoped_feature
+            if scoped_feature != UNATTRIBUTED
+            else (feature or UNATTRIBUTED)[:64]
+        ),
+        "provider": (provider or "unknown")[:64],
+        "model": (model or "")[:128],
+        "quantity": amount,
+        "unit": (unit or "")[:16],
+    }
+    try:
+        await _write(row)
+    except Exception as exc:  # noqa: BLE001 - measurement never costs the reply
+        logger.warning(
+            "Could not record {} {} for {}/{}: {}", amount, unit, provider, model, exc
+        )
+
+
 def provider_of(service: Any) -> str:
     """A transcription service's vendor, from its class name:
     ``DeepgramTranscriptionService`` is ``deepgram``."""
@@ -139,6 +196,7 @@ __all__ = [
     "labelled",
     "provider_of",
     "record",
+    "record_units",
     "record_audio",
     "scope",
 ]

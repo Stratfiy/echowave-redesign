@@ -21,6 +21,7 @@ from typing import Any, Mapping
 import httpx
 from loguru import logger
 
+from api.services.billing import model_usage
 from api.utils.phone_masking import last_four
 
 #: Carriers that can send as well as dial. Twilio and Plivo both bill messaging
@@ -374,6 +375,16 @@ async def _send_meta_whatsapp(
             status_code=response.status_code,
         )
     messages = (response.json() or {}).get("messages") or []
+    # Meta bills the accepted message by its category; the template name is
+    # what the costing report maps to a category later, and a free-text or
+    # file message inside the reply window is "text".
+    await model_usage.record_units(
+        provider="meta",
+        model=f"template:{name}" if name else "text",
+        unit="messages",
+        quantity=1,
+        feature="whatsapp",
+    )
     return SendResult(
         ok=True,
         provider=META_WHATSAPP,

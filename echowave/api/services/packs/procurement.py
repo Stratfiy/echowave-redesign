@@ -32,6 +32,7 @@ JOBS = {
     "rfq_quote_comparer": "Sourcing executive",
     "po_followup": "Purchase coordinator",
     "invoice_three_way_match": "Accounts payable executive",
+    "procurement_maturity_assessor": "Procurement consultant",
 }
 _LANGUAGES = ["en", "hi", "ta", "te", "kn", "mr"]
 
@@ -277,6 +278,29 @@ def packs(publisher) -> tuple[AgentPack, ...]:
                 ),
             ],
             required_connectors=[_GMAIL, _OUTLOOK, _DRIVE, _WHATSAPP],
+        ),
+        pack(
+            slug="procurement_maturity_assessor",
+            name="Procurement maturity assessor",
+            summary=(
+                "Interviews the procurement head across seven dimensions, "
+                "checks the answers against a sample of POs, contracts and "
+                "invoices, scores each 1 to 5 with the reason, and hands over "
+                "a maturity report, gap diagnosis and 90-day roadmap as Word, "
+                "PDF and Excel."
+            ),
+            channels=[Channel.WEB, Channel.EMAIL, Channel.WHATSAPP],
+            required_facts=[
+                _SIGNATORY_NAME,
+                _SIGNATORY_DESIGNATION,
+                RequiredFact(
+                    key="assessor_name",
+                    question="Who conducts the assessment and signs the report?",
+                    example="Nithish Kalyan, Nautomation Labs",
+                    used_for="Named on the report as who prepared it.",
+                ),
+            ],
+            required_connectors=[_GMAIL, _OUTLOOK, _DRIVE, _ONEDRIVE, _WHATSAPP],
         ),
     )
 

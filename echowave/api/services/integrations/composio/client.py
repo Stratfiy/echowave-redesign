@@ -34,6 +34,7 @@ from api.constants import (
     COMPOSIO_BASE_URL,
     COMPOSIO_TIMEOUT_SECS,
 )
+from api.services.billing import model_usage
 
 #: Prefix on every identifier we hand Composio. Namespaced because the id space
 #: is shared across everything one Composio project ever sees: a bare "7" is a
@@ -139,6 +140,17 @@ async def execute_tool(
     except httpx.HTTPError as exc:
         logger.warning("Composio tool {} could not be reached: {}", tool_slug, exc)
         return {"status": "error", "error": f"{tool_slug} could not be reached"}
+
+    # Composio counts every call that reached it, succeeded or not, against
+    # the project's allowance; so do we.
+    await model_usage.record_units(
+        provider="composio",
+        model=tool_slug,
+        unit="calls",
+        quantity=1,
+        organization_id=organization_id,
+        feature="tool_call",
+    )
 
     if response.status_code == 401 or response.status_code == 403:
         # Ours, not the customer's: our project key is wrong or revoked. Say so

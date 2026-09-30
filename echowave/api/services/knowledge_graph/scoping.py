@@ -52,6 +52,19 @@ def group_id_for_organization(organization_id: int | None) -> str:
     return f"{ORGANIZATION_PREFIX}:{organization_id}"
 
 
+def organization_of(group_id: str | None) -> int | None:
+    """The organisation a partition name was derived from, or ``None`` for
+    a name this module did not make. The inverse of
+    ``group_id_for_organization``, for attributing what an episode cost."""
+    prefix = f"{ORGANIZATION_PREFIX}:"
+    if not group_id or not group_id.startswith(prefix):
+        return None
+    try:
+        return int(group_id[len(prefix) :])
+    except ValueError:
+        return None
+
+
 def group_ids_for_search(organization_id: int | None) -> list[str]:
     """The partitions a search for this organization may read.
 
