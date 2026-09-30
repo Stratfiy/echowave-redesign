@@ -22,7 +22,6 @@ import { UnsavedChangesProvider } from "@/context/UnsavedChangesContext";
 import { useFeature } from "@/lib/features";
 
 export default function SettingsPage() {
-  const shell = useFeature("shell");
   const approvals = useFeature("approvals");
   // Several cards on this page hold editable state — preferences, telemetry
   // credentials — and until this wrapper existed, clicking away from a
@@ -51,20 +50,18 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {shell && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Appearance</CardTitle>
-              <CardDescription>
-                Light, dark, or whatever this device is set to -- and, if you
-                want one, a theme. Saved on this device.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ThemeModeSection />
-            </CardContent>
-          </Card>
-        )}
+        <Card>
+          <CardHeader>
+            <CardTitle>Appearance</CardTitle>
+            <CardDescription>
+              Light, dark, or whatever this device is set to -- and, if you
+              want one, a theme. Saved on this device.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ThemeModeSection />
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
