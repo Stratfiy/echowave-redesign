@@ -82,8 +82,7 @@ Two shapes share one process today: the **voice** half (stateful, CPU-bound, can
 ## 5. The plan, by horizon (revised 30 September: self-serve first)
 
 ### H0 — week 1: unblock and decide
-- **Pricing now** (BILL-1, KAN-207): plan ladder, trial length and contents, India voice price, premium-voice handling. The two measurements the costing audit asks for (TTS characters per minute, cache hit rate) start on our own workspace today.
-- **Reopen self-serve purchase**: reverse the studio-mode switch (KAN-189/190) so the ladder is listed and checkout works.
+- **Commercial shape, decided**: free trial with metered credits, invite-only (S-2 stays on), BYOK from day one. No price decision and no purchase path at launch; BILL-1 resumes on the first cohort's usage.
 - **ENG-2** images off the production box (KAN-241); **ENG-6** security fixes (KAN-245) and key rotation (KAN-233).
 - **I7** (KAN-58): Gemini 2.5 Flash-Lite retires 16 October. Hard date.
 - Merge PR #490 when green; Netoyed continues only if the founder says so.
@@ -162,6 +161,8 @@ Existing issues these depend on or feed: KAN-204 (INFRA-A), KAN-212 (OBS-1), KAN
 | The NAutomation org is the product's superadmin and must publish to the marketplace | Today the marketplace is a code catalogue; publishing means a PR and a deploy. MKT-1 adds stored listings, a publish-from-agent path, a superuser gate and a superadmin screen | KAN-256 |
 | The UI has too many options; plan it end to end | Measured: 8+ ways to create a bot, 9+ to test, 5 live model selectors and 4 dead ones, 11 integration entrances, 9 tab strips, WhatsApp with no UI. Plan in `2026-09-30-ui-end-to-end-plan.md`: five rules, seven homes, a nine-section bot page, one name per thing; UI-0 cut-and-rename first | KAN-257, KAN-208, KAN-209, KAN-258, KAN-211 |
 | Reference architecture: OpenBot (CopilotKit) | Same shape as ours (per-bot isolation, policy gate, audit row per action, routines, declarative packs). Borrow AG-UI as the thread wire protocol (evaluate in UI-2, ENG-10), CEL-style policy evaluation for POL-2, per-agent persistent computer as a Phase 3 option after INFRA-B; keep packs as declaration files so MKT-1 listings can be exported or imported | CPO study §10; KAN-259, KAN-249, KAN-216 |
+| Pricing is not a launch blocker: free trial with metered usage, invite-only, BYOK | BILL-1 and reopening purchase leave the gate. Every invited account lands on `trial` with an included credit allowance metered against the rate book; zero pauses with a card; invite codes via S-2; BYOK on every surface, metered but not debited. BILL-1 resumes on the first cohort's real usage | KAN-255, KAN-190, KAN-254, KAN-207 (deferred) |
+| Design references and type: no common fonts, nothing that reads as AI-generated | Refero MCP registered for references; the hi-fi sample (§10 of the UI plan) sets the type and surface language before UI-0 writes tokens | KAN-257 item 7 |
 
 **Still open:**
 
