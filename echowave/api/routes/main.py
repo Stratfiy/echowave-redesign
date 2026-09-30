@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, status
 from loguru import logger
 from pydantic import BaseModel
 
+from api.db.models import UserModel
 from api.routes.admin_kpis import router as admin_kpis_router
 from api.routes.agent_builder import router as agent_builder_router
 from api.routes.agent_graph import router as agent_graph_router
@@ -83,7 +84,6 @@ from api.routes.workflow_recording import router as workflow_recording_router
 from api.routes.workflow_spend import router as workflow_spend_router
 from api.routes.workflow_text_chat import router as workflow_text_chat_router
 from api.routes.workspace_roles import router as workspace_roles_router
-from api.db.models import UserModel
 from api.services import features
 from api.services.auth.depends import get_user
 from api.services.integrations import all_routers
