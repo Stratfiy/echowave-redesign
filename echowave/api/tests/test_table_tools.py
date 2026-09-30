@@ -281,31 +281,21 @@ class TestLoading:
             with pytest.raises(tables.TableError, match="not a CSV"):
                 await tables.load(7, "Netoyed Solutions Deck.pdf")
 
-    async def test_a_file_in_another_workspace_is_not_found(self):
+    async def test_a_file_in_another_workspace_is_not_found(self, db_session):
         """Scoped by organisation in the query: another workspace's file of
-        the same name is simply not there."""
+        the same name is simply not there. Runs in the rolled-back test
+        session, so the new organisation and its onboarding credit leave
+        nothing behind."""
         from uuid import uuid4
 
-        from api.db import db_client
-
-        user, _ = await db_client.get_or_create_user_by_provider_id(
+        user, _ = await db_session.get_or_create_user_by_provider_id(
             f"tbl-{uuid4().hex[:8]}"
         )
-        org, _ = await db_client.get_or_create_organization_by_provider_id(
+        org, _ = await db_session.get_or_create_organization_by_provider_id(
             f"tbl-org-{uuid4().hex[:8]}", user.id
         )
-        try:
-            with pytest.raises(tables.TableError, match="No file called"):
-                await tables._find_document(org.id, "Netoyed accounts.csv")
-        finally:
-            from sqlalchemy import text
-
-            async with db_client.async_session() as session:
-                await session.execute(
-                    text("DELETE FROM credit_ledger WHERE organization_id = :o"),
-                    {"o": org.id},
-                )
-                await session.commit()
+        with pytest.raises(tables.TableError, match="No file called"):
+            await tables._find_document(org.id, "Netoyed accounts.csv")
 
 
 class TestDecibylOffersThem:
