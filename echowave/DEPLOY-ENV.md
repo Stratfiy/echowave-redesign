@@ -384,6 +384,44 @@ BACKUP_MIRROR_SECRET_ACCESS_KEY=
 
 ---
 
+## 9. Launch flags, 4 October 2026 (FLAG-1, KAN-275)
+
+Every launch slice is behind one of these. All default `false`. They are
+registered in `api/services/features.py`, reported on `/health`, and read by
+the UI through `useFeature`. A flag is read once at api start, so a change
+needs `docker compose up -d --force-recreate api` (30–60 s; live calls and
+open sockets on the api drop). The runbook is `docs/deployment/feature-flags.mdx`.
+
+```
+INVITE_ONLY_SIGNUP_ENABLED=false      # INVITE-1  KAN-273  signup needs an invite code
+TRIAL_PLAN_ENABLED=false              # PLAN-1    KAN-255  trial replaces Free for new accounts
+BYOK_TEXT_ENABLED=false               # BYOK-1    KAN-254  Decibyl/builder on the account's own key
+MARKETPLACE_PUBLISHING_ENABLED=false  # MKT-1     KAN-256  publish from the platform org
+WHATSAPP_CHANNEL_UI_ENABLED=false     # CH-0      KAN-258  "Put it on WhatsApp" on the bot page
+VOICE_NUMBER_FLOW_ENABLED=false       # VOICE-1   KAN-261  "Give it a number" one flow (+ NUM-1 KAN-274)
+APPROVAL_SCOPES_ENABLED=false         # POL-2     KAN-259  Once / This task / 7 days / Always; pause
+PROJECTS_ENABLED=false                # PRJ-1     KAN-266  Projects on the channel
+AGENT_FACES_ENABLED=false             # UI-4      KAN-260  animated faces
+UI_SHELL_V2_ENABLED=false             # UI-1/UI-2 KAN-208/209  seven homes, ten-section bot page
+```
+
+Pre-existing switches now also reported on `/health`: `BUDGET_POLICIES_ENABLED`,
+`PLAN_LADDER_2026_09_ENABLED`, `DECIBYL_TOOLS_2026_09_ENABLED`,
+`AGENT_BUILDER_ENABLED`, `MANAGED_TELEPHONY_ENABLED`.
+
+**Per-organisation first.** `FEATURE_ORG_OVERRIDES` turns a feature on for
+named organisations while its global flag stays off, so a slice is tried by
+the platform organisation and one invited account before everyone:
+
+```
+FEATURE_ORG_OVERRIDES="trial_plan:1,57;projects:1"
+```
+
+Feature names are the registry keys (`trial_plan`, not `TRIAL_PLAN_ENABLED`);
+ids are `organizations.id`. An unknown name or a non-numeric id is ignored,
+never fatal. The override is visible to the signed-in organisation on
+`GET /api/v1/features` and never on `/health`.
+
 ## Not environment variables
 
 Worth stating, because they are the three things most likely to be looked for

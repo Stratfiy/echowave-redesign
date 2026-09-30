@@ -705,6 +705,51 @@ TABLE_TOOLS_ENABLED = os.getenv("TABLE_TOOLS_ENABLED", "false").lower() == "true
 APPROVALS_2026_09_ENABLED = (
     os.getenv("APPROVALS_2026_09_ENABLED", "false").lower() == "true"
 )
+
+# ---------------------------------------------------------------------------
+# Launch flags, 4 October 2026 (FLAG-1, KAN-275). Registered here and in
+# services/features.py before any of the feature branches merge, so the
+# branches never touch this file. Every one is off by default and is turned
+# on per organisation first (FEATURE_ORG_OVERRIDES), then for everyone.
+# ---------------------------------------------------------------------------
+
+
+def _flag(name: str) -> bool:
+    return os.getenv(name, "false").strip().lower() == "true"
+
+
+# INVITE-1 (KAN-273): signup needs an invite code.
+INVITE_ONLY_SIGNUP_ENABLED = _flag("INVITE_ONLY_SIGNUP_ENABLED")
+# PLAN-1 (KAN-255): a time-boxed trial plan replaces Free for new accounts.
+TRIAL_PLAN_ENABLED = _flag("TRIAL_PLAN_ENABLED")
+# BYOK-1 (KAN-254): Decibyl, the builder and Decibyl routines use the
+# account's own model key when one is in the vault.
+BYOK_TEXT_ENABLED = _flag("BYOK_TEXT_ENABLED")
+# MKT-1 (KAN-256): the platform organisation publishes to the marketplace
+# from the UI.
+MARKETPLACE_PUBLISHING_ENABLED = _flag("MARKETPLACE_PUBLISHING_ENABLED")
+# CH-0 (KAN-258): "Put it on WhatsApp" on the bot page.
+WHATSAPP_CHANNEL_UI_ENABLED = _flag("WHATSAPP_CHANNEL_UI_ENABLED")
+# VOICE-1 / NUM-1 (KAN-261, KAN-274): "Give it a number" as one flow on the
+# bot page, including a request for a platform-pool number.
+VOICE_NUMBER_FLOW_ENABLED = _flag("VOICE_NUMBER_FLOW_ENABLED")
+# POL-2 (KAN-259): grant scopes on cards (Once / This task / 7 days / Always),
+# pause and retire.
+APPROVAL_SCOPES_ENABLED = _flag("APPROVAL_SCOPES_ENABLED")
+# PRJ-1 (KAN-266): Projects (brief, files, members, checklist on a channel).
+PROJECTS_ENABLED = _flag("PROJECTS_ENABLED")
+# UI-4 (KAN-260): animated agent faces.
+AGENT_FACES_ENABLED = _flag("AGENT_FACES_ENABLED")
+# UI-1 / UI-2 (KAN-208, KAN-209): the seven homes and the bot page with ten
+# sections. UI-0 (KAN-257) ships without a flag.
+UI_SHELL_V2_ENABLED = _flag("UI_SHELL_V2_ENABLED")
+
+# Per-organisation overrides: "feature:org_id,org_id;feature2:org_id". A
+# feature listed here is on for those organisations even while its global
+# flag is off, so it can be tried by the platform organisation and one
+# invited account before everyone. Parsed at call time by
+# services/features.py, so a test can monkeypatch it.
+FEATURE_ORG_OVERRIDES = os.getenv("FEATURE_ORG_OVERRIDES", "").strip()
 WEB_FETCH_PER_DOMAIN_PER_MINUTE = int(
     os.getenv("WEB_FETCH_PER_DOMAIN_PER_MINUTE", "10")
 )

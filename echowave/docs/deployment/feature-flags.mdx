@@ -1,0 +1,67 @@
+---
+title: "Feature flags"
+description: "How a switched-off feature is turned on in production, for one organisation first, then for everyone"
+---
+
+Every new slice of Decibyl ships dark behind a flag (`api/services/features.py`).
+This page is the runbook for turning one on. It was written for the 4 October
+2026 launch and rehearsed on staging on 3 October.
+
+## What a flag is
+
+An environment variable named `<FEATURE>_ENABLED`, read once when the api
+process starts. `/api/v1/health` reports every flag, the UI reads that once at
+start-up, and every route under a flag answers 404 while it is off.
+
+There is no admin screen and no database row. That is deliberate for now: a
+flag is a deploy-time decision, and the audit trail is the `.env` history on
+the box plus this page's log.
+
+## Turning a feature on for one organisation first
+
+`FEATURE_ORG_OVERRIDES` lists organisations a feature is on for while its
+global flag stays off:
+
+```
+FEATURE_ORG_OVERRIDES="trial_plan:1,57;projects:1"
+```
+
+- names are the registry keys (`trial_plan`, `projects`, ...), not the
+  environment variable names;
+- ids are `organizations.id` (the platform organisation is `1` on production;
+  check with `SELECT id, name FROM organizations`);
+- a typo is ignored, never fatal;
+- the signed-in organisation sees its own map on `GET /api/v1/features`;
+  `/health` stays global.
+
+Use it in this order: the platform organisation, then one invited account,
+then the global flag.
+
+## The steps
+
+1. Edit `.env` on the box (`/home/ubuntu/echowave-redesign/echowave/.env`):
+   set the flag to `true`, or add the organisation to `FEATURE_ORG_OVERRIDES`.
+2. Recreate only the api: `docker compose up -d --force-recreate api`.
+   Expect 30–60 s until the health check is green. During that window live
+   calls on the api and open WebSocket sessions drop, so do it at a quiet
+   hour and never inside a customer's campaign window.
+3. Confirm: `curl -s https://app.decibyl.ai/api/v1/health | jq .features`
+   shows the global flag; sign in as the organisation and check
+   `/api/v1/features` for an override.
+4. Smoke the feature on a fresh account (the first-ten-minutes journey).
+5. Log it below: date, flag, scope, who.
+
+To turn a feature off, the same steps with `false`.
+
+## Launch-day rule (4 October 2026)
+
+- 07:45 flags on, treated as a deploy; 08:00 smoke on a fresh invited account.
+- No flag changes and no deploys after 10:00 unless a blocker.
+- A feature that fails the smoke goes back off, and onto the dark list with a
+  date; it is not fixed live.
+
+## Log
+
+| Date | Flag | Scope | Who | Note |
+| --- | --- | --- | --- | --- |
+| | | | | |
