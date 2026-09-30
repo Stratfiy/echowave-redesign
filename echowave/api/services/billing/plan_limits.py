@@ -124,6 +124,26 @@ def ladder() -> tuple[str, ...]:
 #: Section 7 of the spec, one column per plan. ``None`` is unlimited. Campus
 #: Builder carries Business's caps by decision (KAN-69).
 SEED: dict[str, dict[str, int | None]] = {
+    # PLAN-1 (KAN-255): the trial is Everyday's reach plus the phone, small
+    # enough that a trial cannot run a call centre on us.
+    "trial": {
+        "bots": 3,
+        "team_members": 2,
+        "concurrent_calls": 1,
+        "campaign_dials_per_day": 25,
+        "routines": 5,
+        "routine_min_interval_minutes": 60,
+        "knowledge_pages": 100,
+        "single_upload_mb": 10,
+        "api_requests_per_minute": 30,
+        "webhook_retries": 3,
+        "recording_retention_days": 30,
+        "desktop_steps_per_task": 0,
+        "builder_messages": 60,
+        "builder_voice_minutes": 15,
+        "topup_balance_ceiling_credits": 2_000,
+        "chat_context_tokens": 8_000,
+    },
     "free": {
         "bots": 1,
         "team_members": 1,

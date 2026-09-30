@@ -33,7 +33,7 @@ from loguru import logger
 from api.db import db_client
 from api.db.models import UserModel
 from api.enums import PostHogEvent, WorkflowRunMode
-from api.services.billing import budgets, reservations
+from api.services.billing import budgets, reservations, trial
 from api.services.configuration.ai_model_configuration import (
     get_effective_ai_model_configuration_for_workflow,
 )
@@ -534,6 +534,24 @@ async def _authorize_workflow_run_start(
                 has_quota=False,
                 error_code=budgets.ERROR_CODE,
                 error_message=budget.message,
+            )
+
+        # The trial (PLAN-1): after its window, reading stays open and new
+        # runs stop here, with the plans on offer in the message. Checked
+        # beside the budget for the same reason: every kind of run starts here.
+        trial_status = await trial.status_in_own_session(
+            organization_id=organization_id
+        )
+        if trial_status.on_trial and not trial_status.active:
+            logger.info(
+                "Workflow start authorization denied: org {} trial ended {}",
+                organization_id,
+                trial_status.ends_at,
+            )
+            return QuotaCheckResult(
+                has_quota=False,
+                error_code=trial.ERROR_CODE,
+                error_message=trial.ended_message(trial_status.ends_at),
             )
 
         user_config = await get_effective_ai_model_configuration_for_workflow(
