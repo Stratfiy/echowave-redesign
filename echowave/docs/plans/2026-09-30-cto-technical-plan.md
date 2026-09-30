@@ -95,7 +95,7 @@ Two shapes share one process today: the **voice** half (stateful, CPU-bound, can
 - **SBX-1** sandbox verified on a trial account (KAN-252).
 
 ### H2 — weeks 4 to 6: the self-serve surface
-- SIG-1 signup and onboarding (KAN-206), UI-1 shell (KAN-208), UI-2 editor (KAN-209), COPY-1 (KAN-213), M1 wording (KAN-74), M5 site claims (KAN-78), lifecycle emails (KAN-126), funnel instrumentation (KAN-75, KAN-122).
+- UI-0 cut and rename (KAN-257) from week 2; then SIG-1 signup and onboarding (KAN-206), UI-1 shell (KAN-208), UI-2 bot page (KAN-209), CH-0 WhatsApp (KAN-258), MKT-1 marketplace publishing (KAN-256), UI-3 settings (KAN-211), COPY-1 (KAN-213), M1 wording (KAN-74), M5 site claims (KAN-78), lifecycle emails (KAN-126), funnel instrumentation (KAN-75, KAN-122).
 - OBS-1 first half, trace IDs (KAN-212). INFRA-A staging, RDS, secrets, restore drill (KAN-204).
 - Launch gate: every row above Done, E2E green on `main`, images pulled not built, a restore drill passed, pricing live on the ladder.
 
@@ -145,6 +145,8 @@ Existing issues these depend on or feed: KAN-204 (INFRA-A), KAN-212 (OBS-1), KAN
 | No Free plan, only a trial | "Free" is the fallback plan for any account without a mandate, the bottom of the limits ladder and the sandbox gate; the onboarding tranches are already trial-kind ledger rows. A time-boxed `trial` replaces it, `expired` keeps read access, pilots get an explicit plan | KAN-255 (PLAN-1, Phase 2 shape, pilot part now) |
 | Pilots are built in the pilot's own account, never in ours | Each pilot is its own organisation: its ledger, keys, outcomes and audit log. The studio works inside it through an operator session (OPS-1: time-boxed, logged, admin but never owner). OPS-1 moves from slice 6 to right after WS-1/MEM-1; the staff-granted pilot plan (PLAN-1 item 4) moves into Phase 1. Interim for Netoyed: create the organisation, grant the plan, invite the operators as admin members | KAN-201, KAN-255, KAN-231 |
 | Self-serve first, pilots later | Phase order swaps: KAN-194 (self-serve) is Phase 1, KAN-193 (pilots) is Phase 2. Pricing can no longer be last. The self-serve product is largely built and sitting in Testing (40 issues); the gate is verification, trial, BYOK on text, E2E, images off the box, and the surface work (SIG-1, UI-1/2, COPY-1). Self-serve purchase, closed for the studio model, is reopened | KAN-194 comment of 30 Sep carries the ordered gate |
+| The NAutomation org is the product's superadmin and must publish to the marketplace | Today the marketplace is a code catalogue; publishing means a PR and a deploy. MKT-1 adds stored listings, a publish-from-agent path, a superuser gate and a superadmin screen | KAN-256 |
+| The UI has too many options; plan it end to end | Measured: 8+ ways to create a bot, 9+ to test, 5 live model selectors and 4 dead ones, 11 integration entrances, 9 tab strips, WhatsApp with no UI. Plan in `2026-09-30-ui-end-to-end-plan.md`: five rules, seven homes, a nine-section bot page, one name per thing; UI-0 cut-and-rename first | KAN-257, KAN-208, KAN-209, KAN-258, KAN-211 |
 
 **Still open:**
 
