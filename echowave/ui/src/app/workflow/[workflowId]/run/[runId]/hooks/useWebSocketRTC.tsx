@@ -117,8 +117,18 @@ export const useWebSocketRTC = ({ workflowId, workflowRunId, accessToken, initia
         // is no longer needed.
         const baseUrl = client.getConfig().baseUrl || resolveBrowserBackendUrl();
         const wsUrl = baseUrl.replace(/^http/, 'ws');
-        return `${wsUrl}/api/v1/ws/signaling/${workflowId}/${workflowRunId}?token=${accessToken}`;
-    }, [workflowId, workflowRunId, accessToken]);
+        // The token rides in Sec-WebSocket-Protocol (see getWebSocketProtocols),
+        // not the URL, so it stays out of nginx and carrier access logs.
+        return `${wsUrl}/api/v1/ws/signaling/${workflowId}/${workflowRunId}`;
+    }, [workflowId, workflowRunId]);
+
+    // Browsers cannot set an Authorization header on a WebSocket; the API
+    // reads `decibyl.auth, bearer.<token>` from the subprotocol list instead
+    // and echoes `decibyl.auth` back on accept.
+    const getWebSocketProtocols = useCallback(
+        () => (accessToken ? ['decibyl.auth', `bearer.${accessToken}`] : []),
+        [accessToken],
+    );
 
     const closePeerConnection = useCallback((pc: RTCPeerConnection | null, delayClose = false) => {
         if (!pc) return;
@@ -301,7 +311,7 @@ export const useWebSocketRTC = ({ workflowId, workflowRunId, accessToken, initia
         return new Promise<void>((resolve, reject) => {
             logger.info(`Connecting to WebSocket: ${wsUrl}`);
 
-            const ws = new WebSocket(wsUrl);
+            const ws = new WebSocket(wsUrl, getWebSocketProtocols());
 
             ws.onopen = () => {
                 logger.info('WebSocket connected');
@@ -605,7 +615,7 @@ export const useWebSocketRTC = ({ workflowId, workflowRunId, accessToken, initia
                 }
             };
         });
-    }, [getWebSocketUrl, cleanupConnection, setPermissionError]);
+    }, [getWebSocketUrl, getWebSocketProtocols, cleanupConnection, setPermissionError]);
 
     const negotiate = async () => {
         const pc = pcRef.current;
