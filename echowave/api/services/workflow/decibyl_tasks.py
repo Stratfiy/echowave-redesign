@@ -206,7 +206,9 @@ async def continue_task(task_id: int) -> None:
 
         with agent_timeline.in_thread(thread_id):
             async with db_client.async_session() as session:
-                model = await settings.resolve_choice(session, state.get("preset"))
+                model = await settings.resolve_for_organization(
+                    session, state.get("preset"), organization_id=organization_id
+                )
             tools = await decibyl.tools_for(organization_id, loaded)
             reply = await decibyl._speak(
                 model, conversation, organization_id, tools=tools

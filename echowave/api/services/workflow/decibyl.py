@@ -923,7 +923,9 @@ async def _answer(
 
     try:
         async with db_client.async_session() as session:
-            model = await settings.resolve_choice(session, preset)
+            model = await settings.resolve_for_organization(
+                session, preset, organization_id=organization_id
+            )
         # Schemas the model has loaded this thread, by tool name. Starts
         # empty: every connected app is a name and a line until asked for.
         loaded: dict[str, dict[str, Any]] = {}
@@ -1002,6 +1004,10 @@ async def _answer(
                 if rounds >= MAX_TOOL_ROUNDS
                 else "I have nothing to add on that."
             )
+    except settings.OwnKeyMissing as exc:
+        # BYOK-1: the account runs on its own keys and none can answer. Said
+        # plainly on the thread rather than charged to Decibyl's key.
+        body = str(exc)
     except Exception as exc:  # noqa: BLE001 - the thread must say something
         logger.error("Decibyl could not answer: {}", exc)
         body = (
@@ -1615,7 +1621,12 @@ async def _speak(
         last["at"] = now
         await reply_draft.set_draft(organization_id, text)
 
-    with model_usage.scope(organization_id=organization_id, feature="decibyl"):
+    # A turn on the account's own key is recorded apart (BYOK-1): the usage
+    # report prices "decibyl" at the platform's cost and must not price this.
+    feature = (
+        "decibyl:byok" if getattr(model, "key_source", "") == "byok" else "decibyl"
+    )
+    with model_usage.scope(organization_id=organization_id, feature=feature):
         return await client.stream(
             provider=model.provider,
             model=model.model,
