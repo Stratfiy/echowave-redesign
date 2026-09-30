@@ -23,7 +23,8 @@ from api.constants import (
 )
 from api.db import db_client
 from api.db.models import UserModel
-from api.services.auth.depends import get_user
+from api.enums import OrganizationRole
+from api.services.auth.depends import get_user, require_organization_role
 from api.services.compliance import agreements
 from api.services.messaging import announce
 from api.services.privacy import (
@@ -34,6 +35,7 @@ from api.services.privacy import (
     readiness,
     retention,
     subprocessors,
+    workspace_closure,
 )
 from api.services.privacy import notices as privacy_notices
 from api.services.readiness import as_dict
@@ -417,3 +419,72 @@ async def accept_agreement(
         )
 
     return {**recorded, "outstanding": [a.key for a in outstanding]}
+
+
+# ── Closing the workspace ────────────────────────────────────────────────────
+
+
+def _confirmation_phrase(organization: Any) -> str:
+    """What the owner types to confirm: the workspace's own name, or DELETE."""
+    return (getattr(organization, "name", None) or "").strip() or "DELETE"
+
+
+class WorkspaceClosureRequest(BaseModel):
+    confirm: str = Field(
+        ..., max_length=200, description="The workspace name, typed exactly."
+    )
+
+
+@router.get("/workspace/closure")
+async def get_workspace_closure(
+    user: UserModel = Depends(require_organization_role(OrganizationRole.OWNER)),
+) -> dict[str, Any]:
+    """Whether this workspace is scheduled for deletion, and what confirms it."""
+    organization_id = _organization_id(user)
+    organization = await db_client.get_organization_by_id(organization_id)
+    async with db_client.async_session() as session:
+        scheduled = await workspace_closure.pending(
+            session, organization_id=organization_id
+        )
+    return {
+        "scheduled": scheduled,
+        "confirmation_phrase": _confirmation_phrase(organization),
+        "grace_days": workspace_closure.GRACE_PERIOD.days,
+    }
+
+
+@router.post("/workspace/closure")
+async def schedule_workspace_closure(
+    payload: WorkspaceClosureRequest,
+    user: UserModel = Depends(require_organization_role(OrganizationRole.OWNER)),
+) -> dict[str, Any]:
+    """Schedule this workspace for deletion after the grace period. Owner only."""
+    organization_id = _organization_id(user)
+    organization = await db_client.get_organization_by_id(organization_id)
+    if payload.confirm.strip() != _confirmation_phrase(organization):
+        raise HTTPException(
+            status_code=400,
+            detail="Type the workspace name exactly to confirm.",
+        )
+    async with db_client.async_session() as session:
+        scheduled = await workspace_closure.schedule(
+            session, organization_id=organization_id, requested_by=user.id
+        )
+        await session.commit()
+    return {"scheduled": scheduled}
+
+
+@router.delete("/workspace/closure")
+async def cancel_workspace_closure(
+    user: UserModel = Depends(require_organization_role(OrganizationRole.OWNER)),
+) -> dict[str, Any]:
+    """Cancel a scheduled deletion. Owner only."""
+    organization_id = _organization_id(user)
+    async with db_client.async_session() as session:
+        cancelled = await workspace_closure.cancel(
+            session, organization_id=organization_id
+        )
+        await session.commit()
+    if not cancelled:
+        raise HTTPException(status_code=404, detail="No deletion is scheduled.")
+    return {"cancelled": True}
