@@ -122,6 +122,10 @@ UI_APP_URL = (
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 REDIS_URL = os.environ["REDIS_URL"]
+# TLS policy for rediss:// (KAN-245). Verification is on unless someone turns
+# it off on purpose; a private CA goes in REDIS_SSL_CA_CERTS (path to a PEM).
+REDIS_SSL_CA_CERTS = os.getenv("REDIS_SSL_CA_CERTS") or None
+REDIS_SSL_VERIFY = os.getenv("REDIS_SSL_VERIFY", "true").strip().lower() != "false"
 
 # The knowledge graph every organization's calls are remembered in, as a
 # FalkorDB or Neo4j URI. Unset means this deployment has no graph: writes are
@@ -743,6 +747,14 @@ AGENT_FACES_ENABLED = _flag("AGENT_FACES_ENABLED")
 # UI-1 / UI-2 (KAN-208, KAN-209): the seven homes and the bot page with ten
 # sections. UI-0 (KAN-257) ships without a flag.
 UI_SHELL_V2_ENABLED = _flag("UI_SHELL_V2_ENABLED")
+# DCH-1 (KAN-277): Decibyl in your apps. The owner talks to Decibyl and
+# confirms its cards from WhatsApp, Telegram, Slack or Teams. One switch for
+# the feature (WhatsApp rides it), one per extra platform so a platform whose
+# app registration is not approved stays dark on its own.
+DECIBYL_CHANNELS_ENABLED = _flag("DECIBYL_CHANNELS_ENABLED")
+DECIBYL_TELEGRAM_ENABLED = _flag("DECIBYL_TELEGRAM_ENABLED")
+DECIBYL_SLACK_ENABLED = _flag("DECIBYL_SLACK_ENABLED")
+DECIBYL_TEAMS_ENABLED = _flag("DECIBYL_TEAMS_ENABLED")
 
 # Per-organisation overrides: "feature:org_id,org_id;feature2:org_id". A
 # feature listed here is on for those organisations even while its global
