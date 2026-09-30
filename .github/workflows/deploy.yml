@@ -55,7 +55,10 @@ permissions:
 jobs:
   deploy:
     name: Deploy to production
-    runs-on: [self-hosted, linux, x64]
+    # Only the runner on the production box carries this label. Tests run on the
+    # separate CI machine (label `ci`), so they never compete with live calls
+    # for CPU or sit in front of a deploy.
+    runs-on: [self-hosted, linux, x64, production]
     environment: production # gate approvals/secrets here if you want them
     timeout-minutes: 45
 
