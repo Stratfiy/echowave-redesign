@@ -57,6 +57,8 @@ from api.routes.public_marketplace import router as public_marketplace_router
 from api.routes.public_triggers import router as public_triggers_router
 from api.routes.public_trust import router as public_trust_router
 from api.routes.public_whatsapp import router as public_whatsapp_router
+from api.routes.public_decibyl_channels import router as public_decibyl_channels_router
+from api.routes.channel_links import router as channel_links_router
 from api.routes.referrals import router as referrals_router
 from api.routes.reports import router as reports_router
 from api.routes.routines import all_router as all_routines_router
@@ -162,6 +164,8 @@ router.include_router(public_agent_router)
 router.include_router(public_triggers_router)
 router.include_router(public_email_router)
 router.include_router(public_whatsapp_router)
+router.include_router(public_decibyl_channels_router)
+router.include_router(channel_links_router)
 router.include_router(public_download_router)
 router.include_router(public_trust_router)
 router.include_router(public_marketplace_router)
