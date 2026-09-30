@@ -3467,7 +3467,7 @@ export type CreateToolRequest = {
      *
      * Tool category. Must match definition.type.
      */
-    category?: 'http_api' | 'end_call' | 'transfer_call' | 'calculator' | 'native' | 'integration' | 'mcp' | 'google_calendar' | 'rate_table' | 'composio' | 'web';
+    category?: 'http_api' | 'end_call' | 'transfer_call' | 'calculator' | 'native' | 'integration' | 'mcp' | 'google_calendar' | 'rate_table' | 'composio' | 'web' | 'tables';
     /**
      * Icon
      *
@@ -3503,7 +3503,9 @@ export type CreateToolRequest = {
         type: 'composio';
     } & ComposioToolDefinition) | ({
         type: 'web';
-    } & WebToolDefinition);
+    } & WebToolDefinition) | ({
+        type: 'tables';
+    } & TablesToolDefinition);
 };
 
 /**
@@ -11941,6 +11943,30 @@ export type SyncToolsResponse = {
 };
 
 /**
+ * TablesToolDefinition
+ *
+ * Tool definition for the built-in spreadsheet tools (U-3).
+ *
+ * Nothing to configure: one tool row gives the agent Decibyl's table tools
+ * (describe, query, rank and export an attached Excel or CSV file, every
+ * row) and read_document for a long attachment, on text runs only.
+ */
+export type TablesToolDefinition = {
+    /**
+     * Schema Version
+     *
+     * Schema version.
+     */
+    schema_version?: number;
+    /**
+     * Type
+     *
+     * Tool type.
+     */
+    type: 'tables';
+};
+
+/**
  * TaskEdit
  */
 export type TaskEdit = {
@@ -13447,7 +13473,9 @@ export type UpdateToolRequest = {
         type: 'composio';
     } & ComposioToolDefinition) | ({
         type: 'web';
-    } & WebToolDefinition) | null;
+    } & WebToolDefinition) | ({
+        type: 'tables';
+    } & TablesToolDefinition) | null;
     /**
      * Status
      */
