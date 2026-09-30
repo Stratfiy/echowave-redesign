@@ -107,6 +107,18 @@ class TestParsing:
 
 @pytest.mark.asyncio
 class TestRouting:
+    @pytest.fixture(autouse=True)
+    def _nobody_is_linked(self):
+        """These cover a verified but unlinked number. Linked members go
+        through the channel dispatcher and are covered in
+        test_decibyl_channels.py; without this the lookup would reach for a
+        real database these tests never set up."""
+        with patch(
+            "api.services.messaging.channels.identities.find",
+            AsyncMock(return_value=None),
+        ):
+            yield
+
     def _inbound(self, kind="text", text="where is my aadhaar", mid="wamid.1"):
         return wa.Inbound(
             message_id=mid,
