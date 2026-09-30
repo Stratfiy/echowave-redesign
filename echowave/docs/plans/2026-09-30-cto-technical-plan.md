@@ -149,7 +149,17 @@ Exit gate for Phase 1 (unchanged from KAN-193): WS-1 and MEM-1 verified on the p
 
 Existing issues these depend on or feed: KAN-204 (INFRA-A), KAN-212 (OBS-1), KAN-205 (M-1), KAN-207 (BILL-1), KAN-233 (key rotation), KAN-216 (INFRA-B), KAN-39 (rollback guard).
 
-## 8. Decisions needed from the founder
+## 8. Decisions from the founder
+
+**Decided on 30 September**, after the first draft:
+
+| Decision | Consequence | Board item |
+|---|---|---|
+| Pricing (outcomes vs consumables) is still to be planned | BILL-1 stays the owner; OUT-1 builds the outcome and consumables machinery so it works under either reading | KAN-207, KAN-253 |
+| BYOK for models is a requirement | Voice already resolves the account's keys for STT, LLM, TTS, realtime and embeddings; the text paths (Decibyl, builder, routines, channels) do not and run on the platform key. One resolver for text, model choice per surface, no silent fallback to the platform key | KAN-254 (BYOK-1, Phase 1) |
+| No Free plan, only a trial | "Free" is the fallback plan for any account without a mandate, the bottom of the limits ladder and the sandbox gate; the onboarding tranches are already trial-kind ledger rows. A time-boxed `trial` replaces it, `expired` keeps read access, pilots get an explicit plan | KAN-255 (PLAN-1, Phase 2 shape, pilot part now) |
+
+**Still open:**
 
 1. **Capacity.** Is there one engineer-equivalent for platform work in October alongside the Phase 1 slices, or does the E2E gate wait until the pilot is live? My recommendation: ENG-2 and ENG-6 this week regardless (five days total), ENG-1 starts in week two.
 2. **INFRA-A ownership and budget** (₹15–25K/month, needs the AWS console). Without it there is no staging and no restore drill; every flag is tried on production.
