@@ -63,7 +63,7 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card id="team" className="scroll-mt-4">
           <CardHeader>
             <CardTitle>Team</CardTitle>
             <CardDescription>
