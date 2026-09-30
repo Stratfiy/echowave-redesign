@@ -30,7 +30,7 @@ from api.tasks.campaign_tasks import (
 from api.tasks.connector_tools import sync_missing_tools
 from api.tasks.credential_health import check_platform_credentials
 from api.tasks.credit_reservations import sweep_credit_reservations
-from api.tasks.data_retention import purge_expired_call_data
+from api.tasks.data_retention import close_due_workspaces, purge_expired_call_data
 from api.tasks.dialer_import import import_dialer_calls, purge_imported_calls
 from api.tasks.document_fields import extract_document_fields, remind_due_tasks
 from api.tasks.email_tax_document import email_tax_document
@@ -87,6 +87,7 @@ class WorkerSettings:
         check_provider_balances,
         issue_monthly_tax_invoices,
         purge_expired_call_data,
+        close_due_workspaces,
         import_dialer_calls,
         purge_imported_calls,
         run_database_backup,
@@ -252,6 +253,15 @@ class WorkerSettings:
             purge_expired_call_data,
             hour={19},
             minute={0},
+            second=0,
+            run_at_startup=False,
+        ),
+        # Workspaces their owners asked to delete, once the seven days are up.
+        # After the call-data sweep, in the same quiet hour.
+        cron(
+            close_due_workspaces,
+            hour={19},
+            minute={30},
             second=0,
             run_at_startup=False,
         ),
