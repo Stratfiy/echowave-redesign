@@ -781,14 +781,21 @@ class TestScriptRuns:
         await self._job(async_session, org, calls=151)
         await self._job(async_session, org, calls=3, status="running")
         await self._job(async_session, org, calls=200, status="capped")
-        await self._job(
-            async_session, org, calls=50, started=datetime.now(UTC) - timedelta(days=3)
-        )
+        now = datetime.now(UTC)
+        older = now - timedelta(days=3)
+        await self._job(async_session, org, calls=50, started=older)
+        # Three days ago is last month on the 1st to 3rd, so its 50 calls
+        # count only when it falls inside this calendar month.
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        expected = 354 + (50 if older >= month_start else 0)
         check = _by_key(await assess(async_session))["script_runs_within_allowance"]
         assert check.status == READY
         assert "1 running now" in check.detail
         assert "3 in the last 24 hours, 1 of them failed" in check.detail
-        assert "404 app calls inside scripts this month of 100,000 free" in check.detail
+        assert (
+            f"{expected:,} app calls inside scripts this month of 100,000 free"
+            in check.detail
+        )
 
     async def test_last_months_calls_do_not_count(self, async_session, configured):
         org = await _org(async_session, "scripts-old")

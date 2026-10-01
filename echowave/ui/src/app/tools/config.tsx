@@ -1,6 +1,6 @@
 "use client";
 
-import { Calculator, CalendarClock, Cog, Globe, type LucideIcon, PhoneForwarded, PhoneOff, Puzzle } from "lucide-react";
+import { Calculator, CalendarClock, Cog, FileSpreadsheet, Globe, type LucideIcon, PhoneForwarded, PhoneOff, Puzzle } from "lucide-react";
 import { type ReactNode } from "react";
 
 import type {
@@ -11,13 +11,14 @@ import type {
     HttpApiToolDefinition,
     McpToolDefinition,
     PresetToolParameter,
+    TablesToolDefinition,
     ToolParameter,
     TransferCallConfig,
     TransferCallToolDefinition,
     WebToolDefinition,
 } from "@/client/types.gen";
 
-export type ToolCategory = "http_api" | "end_call" | "transfer_call" | "calculator" | "native" | "integration" | "mcp" | "google_calendar" | "web";
+export type ToolCategory = "http_api" | "end_call" | "transfer_call" | "calculator" | "native" | "integration" | "mcp" | "google_calendar" | "web" | "tables";
 
 export type EndCallMessageType = "none" | "custom" | "audio";
 export type TransferDestinationSource = "static" | "dynamic";
@@ -110,6 +111,18 @@ export const TOOL_CATEGORIES: ToolCategoryConfig[] = [
         },
     },
     {
+        value: "tables",
+        label: "Spreadsheets",
+        description: "Read an attached Excel or CSV file whole — filter, rank and export it — and a long document a part at a time",
+        icon: FileSpreadsheet,
+        iconName: "table",
+        iconColor: "#059669",
+        autoFill: {
+            name: "Spreadsheets",
+            description: "Read an attached Excel or CSV file whole -- filter, rank and export it -- and read a long document a part at a time.",
+        },
+    },
+    {
         value: "mcp",
         label: "MCP Server",
         description: "Connect a customer MCP server; its tools become available to the agent",
@@ -188,6 +201,8 @@ export function getToolTypeLabel(category: string): string {
             return "Google Calendar Tool";
         case "web":
             return "Web Search Tool";
+        case "tables":
+            return "Spreadsheet Tool";
         default:
             return "Tool";
     }
@@ -216,7 +231,8 @@ export type ToolDefinition =
     | CalculatorToolDefinition
     | McpToolDefinition
     | GoogleCalendarToolDefinition
-    | WebToolDefinition;
+    | WebToolDefinition
+    | TablesToolDefinition;
 
 export function createEndCallDefinition(config: EndCallConfig): EndCallToolDefinition {
     return {
@@ -266,6 +282,13 @@ export function createWebDefinition(): WebToolDefinition {
     };
 }
 
+export function createTablesDefinition(): TablesToolDefinition {
+    return {
+        schema_version: 1,
+        type: "tables",
+    };
+}
+
 export const MCP_URL_PATTERN = /^https?:\/\//i;
 
 export function createMcpDefinition(
@@ -300,6 +323,8 @@ export function createToolDefinition(category: ToolCategory): ToolDefinition {
             return createGoogleCalendarDefinition();
         case "web":
             return createWebDefinition();
+        case "tables":
+            return createTablesDefinition();
         case "http_api":
         default:
             return createHttpApiDefinition();

@@ -59,8 +59,12 @@ def _xlsx(data: bytes) -> tuple[str, list[list[list[Any]]], list[str]]:
     return "Sheets: " + ", ".join(names), tables, names
 
 
-def extract(data: bytes, filename: str) -> dict[str, Any]:
-    """Text and tables from a file's bytes, by its extension."""
+def extract(data: bytes, filename: str, *, start: int = 0) -> dict[str, Any]:
+    """Text and tables from a file's bytes, by its extension.
+
+    The text comes a part at a time: ``MAX_TEXT_CHARS`` from ``start``, with
+    where the next part begins, so a long document is read whole by asking
+    again rather than cut off. Tables come with the first part only."""
     from api.services.knowledge_base import extraction
 
     extension = os.path.splitext(filename)[1].lower()
@@ -85,17 +89,27 @@ def extract(data: bytes, filename: str) -> dict[str, Any]:
             )
         if extension == ".pdf":
             notes.append("A PDF's tables are read as text, line by line.")
-    if len(text) > MAX_TEXT_CHARS:
+    length = len(text)
+    start = max(0, int(start or 0))
+    end = min(length, start + MAX_TEXT_CHARS)
+    more = end < length
+    if start and start >= length:
         notes.append(
-            f"Text cut at {MAX_TEXT_CHARS:,} of {len(text):,} characters; ask for "
-            "the part you need."
+            f"Start {start:,} is past the end; the text is {length:,} characters."
         )
-        text = text[:MAX_TEXT_CHARS]
+    elif start or more:
+        notes.append(
+            f"Characters {start:,} to {end:,} of {length:,}."
+            + (f" Call again with start {end} for the next part." if more else "")
+        )
     out: dict[str, Any] = {
         "filename": filename,
-        "text": text,
-        "tables": _clip_tables(tables, notes),
+        "text": text[start:end],
+        "length": length,
+        "tables": _clip_tables(tables, notes) if start == 0 else [],
     }
+    if more:
+        out["next_start"] = end
     if sheets is not None:
         out["sheets"] = sheets
     if notes:
@@ -136,7 +150,9 @@ async def find_document(organization_id: int, document: str) -> Any:
     return row
 
 
-async def read(organization_id: int, document: str) -> dict[str, Any]:
+async def read(
+    organization_id: int, document: str, *, start: int = 0
+) -> dict[str, Any]:
     from api.services.knowledge_base.errors import KnowledgeBaseError
 
     row = await find_document(organization_id, document)
@@ -144,7 +160,7 @@ async def read(organization_id: int, document: str) -> dict[str, Any]:
         organization_id, str(row.document_uuid)
     )
     try:
-        result = extract(data, filename)
+        result = extract(data, filename, start=start)
     except KnowledgeBaseError as exc:
         raise sources.SourceError(
             getattr(exc, "user_message", None) or f"{filename} could not be read."

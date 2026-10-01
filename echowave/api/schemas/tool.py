@@ -43,6 +43,7 @@ ToolCategoryValue = Literal[
     "rate_table",
     "composio",
     "web",
+    "tables",
 ]
 
 
@@ -529,6 +530,18 @@ class WebToolDefinition(BaseModel):
     )
 
 
+class TablesToolDefinition(BaseModel):
+    """Tool definition for the built-in spreadsheet tools (U-3).
+
+    Nothing to configure: one tool row gives the agent Decibyl's table tools
+    (describe, query, rank and export an attached Excel or CSV file, every
+    row) and read_document for a long attachment, on text runs only.
+    """
+
+    schema_version: int = Field(default=1, description="Schema version.")
+    type: Literal["tables"] = Field(description="Tool type.")
+
+
 class RateTableConfig(BaseModel):
     """An operator's rate card: grids, the rules around them, and its wording.
 
@@ -653,6 +666,7 @@ ToolDefinition = Annotated[
         GoogleCalendarToolDefinition,
         ComposioToolDefinition,
         WebToolDefinition,
+        TablesToolDefinition,
     ],
     Field(discriminator="type"),
 ]

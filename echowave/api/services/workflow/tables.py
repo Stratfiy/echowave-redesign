@@ -2,7 +2,7 @@
 
 The thread reads an attachment as text, clipped at 24,000 characters, which is
 the first hundred or so rows of a real account list. Enough to talk about a
-file; not enough to answer "which of these 3,000 banks should we go for". So a
+file; not enough to answer "which of these 3,000 accounts should we go for". So a
 CSV the person attached is also readable here as a table: every row, parsed
 from the original file in storage, never the clipped text.
 
@@ -73,7 +73,10 @@ PEOPLE_COLUMNS = (
     "Source",
 )
 RULES = (
-    "- Spreadsheets: an attached CSV is shown clipped. describe_table, "
+    "- Long attachments: a deck, contract or report is shown clipped. "
+    "read_document reads it whole, a part at a time: call it again with "
+    "the next_start it gives until you have what you need.\n"
+    "- Spreadsheets: an attached Excel or CSV file is shown clipped. describe_table, "
     "query_table and rank_table read every row. To say which accounts to go "
     "for, write the rules from the person's own material and show them. "
     "export_table puts the ranked list in an .xlsx.\n"
@@ -96,6 +99,8 @@ TOP_VALUES = 8
 MAX_CELL_CHARS = 200
 
 TABLE_EXTENSIONS = {".csv": ",", ".tsv": "\t"}
+#: Read with openpyxl. The old binary .xls is not; saving it as .xlsx is.
+WORKBOOK_EXTENSIONS = frozenset({".xlsx", ".xlsm"})
 OPS = (
     "equals",
     "not_equals",
@@ -125,6 +130,9 @@ class Table:
     columns: list[str]
     rows: list[dict[str, str]]
     truncated_rows: int = 0
+    #: For a workbook: the sheet read, and every sheet it has.
+    sheet: str = ""
+    sheets: tuple[str, ...] = ()
 
 
 # --- Reading ----------------------------------------------------------------
@@ -134,10 +142,14 @@ def parse(text: str, *, delimiter: str = ",", name: str = "table") -> Table:
     """Rows as dicts keyed by the header. Blank rows are skipped; a header
     cell that is empty or repeated is named so no column is lost."""
     reader = csv.reader(io.StringIO(text), delimiter=delimiter)
+    return _from_rows(reader, name=name)
+
+
+def _from_rows(raw_rows, *, name: str) -> Table:
     header: Optional[list[str]] = None
     rows: list[dict[str, str]] = []
     extra = 0
-    for raw in reader:
+    for raw in raw_rows:
         if not any(cell.strip() for cell in raw):
             continue
         if header is None:
@@ -151,6 +163,68 @@ def parse(text: str, *, delimiter: str = ",", name: str = "table") -> Table:
     if header is None:
         raise TableError(f"{name} has no rows.")
     return Table(name=name, columns=header, rows=rows, truncated_rows=extra)
+
+
+def _cell(value: Any) -> str:
+    """A workbook cell as a person would type it: 1200 not 1200.0, a date
+    as 2027-03-31, nothing as an empty string."""
+    from datetime import date, datetime
+
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    if isinstance(value, datetime):
+        if (value.hour, value.minute, value.second) == (0, 0, 0):
+            return value.date().isoformat()
+        return value.isoformat(sep=" ", timespec="minutes")
+    if isinstance(value, date):
+        return value.isoformat()
+    return str(value)
+
+
+def parse_xlsx(
+    data: bytes, *, sheet: Optional[str] = None, name: str = "table"
+) -> Table:
+    """One sheet of a workbook, read whole: the one named (any case), or the
+    first. Formulas are read as their last saved values."""
+    from openpyxl import load_workbook
+
+    try:
+        book = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    except Exception as exc:  # noqa: BLE001 - any unreadable file says the same
+        raise TableError(f"{name} could not be opened as an Excel workbook.") from exc
+    try:
+        names = tuple(book.sheetnames)
+        if not names:
+            raise TableError(f"{name} has no sheets.")
+        wanted = str(sheet or "").strip()
+        chosen = names[0]
+        if wanted:
+            match = [n for n in names if n.lower() == wanted.lower()]
+            if not match:
+                raise TableError(
+                    f"{name} has no sheet called {wanted!r}. Its sheets: "
+                    + ", ".join(names)
+                    + "."
+                )
+            chosen = match[0]
+        rows = (
+            [_cell(v) for v in row] for row in book[chosen].iter_rows(values_only=True)
+        )
+        table = _from_rows(rows, name=name)
+    finally:
+        book.close()
+    return Table(
+        name=table.name,
+        columns=table.columns,
+        rows=table.rows,
+        truncated_rows=table.truncated_rows,
+        sheet=chosen,
+        sheets=names,
+    )
 
 
 def _unique_header(raw: list[str]) -> list[str]:
@@ -239,16 +313,25 @@ async def _download(key: str) -> bytes:
             pass
 
 
-async def load(organization_id: int, file: str) -> Table:
+async def load(
+    organization_id: int, file: str, *, sheet: Optional[str] = None
+) -> Table:
     """The whole table, parsed from the original upload."""
     document = await _find_document(organization_id, file)
     extension = os.path.splitext(document.filename or "")[1].lower()
-    if extension not in TABLE_EXTENSIONS:
+    if extension == ".xls":
         raise TableError(
-            f"{document.filename} is not a CSV or TSV. Save it as CSV and attach "
-            "it again to work with every row."
+            f"{document.filename} is the old Excel format. Save it as .xlsx "
+            "(or CSV) and attach it again to work with every row."
+        )
+    if extension not in TABLE_EXTENSIONS and extension not in WORKBOOK_EXTENSIONS:
+        raise TableError(
+            f"{document.filename} is not a spreadsheet (Excel, CSV or TSV). "
+            "Attach the list as one of those to work with every row."
         )
     data = await _download(_storage_key(document))
+    if extension in WORKBOOK_EXTENSIONS:
+        return parse_xlsx(data, sheet=sheet, name=document.filename)
     return parse(
         _decode(data),
         delimiter=TABLE_EXTENSIONS[extension],
@@ -432,6 +515,9 @@ def describe(table: Table) -> dict[str, Any]:
         columns.append(entry)
     return {
         "file": table.name,
+        **(
+            {"sheet": table.sheet, "sheets": list(table.sheets)} if table.sheets else {}
+        ),
         "rows": len(table.rows),
         "rows_not_read": table.truncated_rows,
         "columns": columns,
@@ -446,6 +532,13 @@ def _file_arg() -> dict[str, Any]:
     return {
         "type": "string",
         "description": "The attached file's name exactly as shown, or its id.",
+    }
+
+
+def _sheet_arg() -> dict[str, Any]:
+    return {
+        "type": "string",
+        "description": "For an Excel file: which sheet. Default the first.",
     }
 
 
@@ -488,14 +581,15 @@ def schemas() -> list[dict[str, Any]]:
         {
             "name": DESCRIBE_TOOL_NAME,
             "description": (
-                "Read an attached CSV/TSV as a whole table: its columns, row "
+                "Read an attached spreadsheet (Excel, CSV or TSV) as a whole "
+                "table: its sheets, its columns, row "
                 "count, how full each column is, common values and numeric "
                 "ranges. Call this first for any spreadsheet the person "
                 "attached; the text you were shown is only its first rows."
             ),
             "parameters": {
                 "type": "object",
-                "properties": {"file": _file_arg()},
+                "properties": {"file": _file_arg(), "sheet": _sheet_arg()},
                 "required": ["file"],
             },
         },
@@ -509,6 +603,7 @@ def schemas() -> list[dict[str, Any]]:
                 "type": "object",
                 "properties": {
                     "file": _file_arg(),
+                    "sheet": _sheet_arg(),
                     "where": _conditions_arg(),
                     "columns": {"type": "array", "items": {"type": "string"}},
                     "sort_by": {"type": "string"},
@@ -533,6 +628,7 @@ def schemas() -> list[dict[str, Any]]:
                 "type": "object",
                 "properties": {
                     "file": _file_arg(),
+                    "sheet": _sheet_arg(),
                     "rules": rules,
                     "where": _conditions_arg(),
                     "columns": {"type": "array", "items": {"type": "string"}},
@@ -552,6 +648,7 @@ def schemas() -> list[dict[str, Any]]:
                 "type": "object",
                 "properties": {
                     "file": _file_arg(),
+                    "sheet": _sheet_arg(),
                     "title": {"type": "string"},
                     "rules": rules,
                     "where": _conditions_arg(),
@@ -674,7 +771,11 @@ async def run(
 ) -> dict[str, Any]:
     """The tool call. Never raises: the thread must keep answering."""
     try:
-        table = await load(organization_id, str(arguments.get("file") or ""))
+        table = await load(
+            organization_id,
+            str(arguments.get("file") or ""),
+            sheet=arguments.get("sheet") or None,
+        )
         if name == DESCRIBE_TOOL_NAME:
             return {"status": "success", **describe(table)}
 
@@ -755,6 +856,30 @@ async def run(
     except Exception as exc:  # noqa: BLE001 - the thread must keep answering
         logger.error("Table tool {} failed for org {}: {}", name, organization_id, exc)
         return {"status": "error", "error": "Could not read that table just now."}
+
+
+async def read_document(
+    organization_id: int, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    """read_document for when the procurement tools are off: reading a long
+    attachment is every workspace's job. Never raises."""
+    from api.services.documents import reading, sources
+    from api.services.documents import tools as document_tools
+
+    try:
+        return {
+            "status": "success",
+            **await reading.read(
+                organization_id,
+                str(arguments.get("document") or ""),
+                start=document_tools._start(arguments),
+            ),
+        }
+    except sources.SourceError as exc:
+        return {"status": "error", "error": str(exc)}
+    except Exception as exc:  # noqa: BLE001 - the thread must keep answering
+        logger.error("read_document failed for org {}: {}", organization_id, exc)
+        return {"status": "error", "error": "Could not read that document just now."}
 
 
 async def _export(
@@ -838,8 +963,10 @@ __all__ = [
     "load",
     "number",
     "parse",
+    "parse_xlsx",
     "people_rows",
     "rank",
+    "read_document",
     "run",
     "schemas",
 ]

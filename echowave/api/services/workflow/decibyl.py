@@ -1288,6 +1288,11 @@ def office_tools() -> list[dict[str, Any]]:
         ),
         *(procurement.schemas() if procurement.enabled() else ()),
         *(tables.schemas() if tables.enabled() else ()),
+        *(
+            (procurement.read_schema(),)
+            if tables.enabled() and not procurement.enabled()
+            else ()
+        ),
     ]
 
 
@@ -1552,6 +1557,8 @@ async def _tool(
         return await tables.run(
             call.name, organization_id=organization_id, arguments=arguments
         )
+    if call.name == procurement.READ and tables.enabled() and not procurement.enabled():
+        return await tables.read_document(organization_id, arguments)
     if call.name in procurement.NAMES and procurement.enabled():
         return await procurement.run(
             call.name,

@@ -44,6 +44,7 @@ from api.services.telephony.escalation import briefing_from_config
 from api.services.telephony.factory import get_telephony_provider_for_run
 from api.services.telephony.transfer_event_protocol import TransferContext
 from api.services.workflow import (
+    agent_tables,
     agent_web,
     app_interactions,
     connected_tools,
@@ -491,6 +492,25 @@ class CustomToolManager:
                         )
                     continue
 
+                if agent_tables.is_tables_tool(tool):
+                    # Built-in spreadsheet reading (U-3): text runs only, and
+                    # nothing with the flag off.
+                    if not agent_tables.enabled():
+                        continue
+                    for tool_def in agent_tables.function_schemas(
+                        voice=bool(self._engine._is_voice)
+                    ):
+                        func = tool_def["function"]
+                        schemas.append(
+                            get_function_schema(
+                                func["name"],
+                                func["description"],
+                                properties=func["parameters"]["properties"],
+                                required=func["parameters"].get("required", []),
+                            )
+                        )
+                    continue
+
                 if team_calls_tool.is_team_calls_tool(tool):
                     # Built-in read of the team's imported dialer calls
                     # (CR-3). Offers nothing with the import switched off.
@@ -641,6 +661,11 @@ class CustomToolManager:
                 if agent_web.is_web_tool(tool):
                     if agent_web.enabled():
                         self._register_web_handlers(tool)
+                    continue
+
+                if agent_tables.is_tables_tool(tool):
+                    if agent_tables.enabled() and not self._engine._is_voice:
+                        self._register_tables_handlers()
                     continue
 
                 if team_calls_tool.is_team_calls_tool(tool):
@@ -797,6 +822,31 @@ class CustomToolManager:
             resolver_timeout = min(max(resolver_timeout, 0.5), 5.0)
 
         return float(transfer_timeout) + resolver_timeout + 15.0
+
+    def _register_tables_handlers(self) -> None:
+        """Decibyl's table tools and read_document, for this run (U-3).
+
+        The organization, the agent and the run come from the run, never
+        from the model's arguments; an exported workbook is handed over to
+        this run. Never raises: a failure is told to the model.
+        """
+
+        def handler(name: str):
+            async def run_table_tool(function_call_params: FunctionCallParams) -> None:
+                ids = await self._interaction_context()
+                result = await agent_tables.call(
+                    name,
+                    dict(function_call_params.arguments or {}),
+                    organization_id=int(ids.get("organization_id") or 0),
+                    workflow_id=ids.get("workflow_id"),
+                    workflow_run_id=ids.get("workflow_run_id"),
+                )
+                await function_call_params.result_callback(result)
+
+            return run_table_tool
+
+        for name in sorted(agent_tables.names()):
+            self._register(name, handler(name), kind=ToolCategory.TABLES.value)
 
     def _register_team_calls_handler(self) -> None:
         """The team's imported calls, for this run's organization only (CR-3).

@@ -50,6 +50,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { resolveBrowserBackendUrl } from "@/lib/apiClient";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
+import { useFeature } from "@/lib/features";
 
 import {
     createMcpDefinition,
@@ -65,6 +66,12 @@ export default function ToolsPage() {
     const integrationsTabs = useIntegrationsTabs();
     const { user, getAccessToken, redirectToLogin, loading } = useAuth();
     const router = useRouter();
+    // Spreadsheets (U-3) is listed only while its flag is on: nothing about
+    // it is visible before it is switched on.
+    const tableTools = useFeature("table_tools");
+    const toolCategories = TOOL_CATEGORIES.filter(
+        (category) => category.value !== "tables" || tableTools,
+    );
 
     const [tools, setTools] = useState<ToolResponse[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -663,7 +670,7 @@ export default function ToolsPage() {
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {TOOL_CATEGORIES.map((category) => (
+                                    {toolCategories.map((category) => (
                                         <SelectItem
                                             key={category.value}
                                             value={category.value}

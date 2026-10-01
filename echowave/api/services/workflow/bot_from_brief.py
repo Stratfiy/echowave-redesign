@@ -35,6 +35,7 @@ from loguru import logger
 from api.db import db_client
 from api.enums import BotChannel, CallType
 from api.services.workflow import (
+    agent_tables,
     agent_web,
     brief_apps,
     connected_tools,
@@ -268,6 +269,14 @@ async def build(
     # The web, when the brief names it (OP-1): a bot told to research its
     # leads online is built holding a search, on the platform's key.
     definition = await agent_web.attach_if_named(
+        definition,
+        organization_id=organization_id,
+        user_id=user_id,
+        spec=str(args.get("spec") or ""),
+    )
+    # A spreadsheet, when the brief names one (U-3): a bot told to rank the
+    # leads in an Excel file is built holding the tools that read it whole.
+    definition = await agent_tables.attach_if_named(
         definition,
         organization_id=organization_id,
         user_id=user_id,
