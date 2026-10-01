@@ -48,6 +48,10 @@ export const collections = {
         "!CLAUDE.md",
         "!README.md",
         "!DEPLOY-GITHUB-ACTIONS.md",
+        // Contributor note on where the Skills shelf files come from and how
+        // they are normalised. No nav entry and no `title`, so it broke the
+        // build as an orphan page; the credit line itself ships in the shelf.
+        "!skills-attribution.md",
         // Self-hosting and contributor material, kept in the repo and off the
         // public site.
         //
