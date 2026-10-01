@@ -104,11 +104,14 @@ export const AUTH_COPY = {
 } as const;
 
 /**
- * In-app legal routes. `/trust` is public and links the full terms;
- * `/privacy` is the in-app data-protection page. Both open in a new tab so a
- * half-finished sign-up is not lost.
+ * The published Terms and Privacy Notice on decibyl.ai: the same URLs the
+ * server records acceptance of (api/services/compliance/agreements.py), so a
+ * person agrees to exactly the page they could open. They open in a new tab
+ * so a half-finished sign-up is not lost. Never point these at in-app routes:
+ * /privacy needs a login, which a person signing up does not have yet
+ * (api/tests/test_legal_documents_are_publishable.py).
  */
 export const LEGAL_LINKS = {
-  terms: "/trust",
-  privacy: "/privacy",
+  terms: "https://decibyl.ai/legal/terms",
+  privacy: "https://decibyl.ai/legal/privacy",
 } as const;
