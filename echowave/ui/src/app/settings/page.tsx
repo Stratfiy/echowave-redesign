@@ -24,7 +24,6 @@ import { UnsavedChangesProvider } from "@/context/UnsavedChangesContext";
 import { useFeature } from "@/lib/features";
 
 export default function SettingsPage() {
-  const shell = useFeature("shell");
   const approvals = useFeature("approvals");
   const decibylApps = useFeature("decibyl_channels");
   // Several cards on this page hold editable state — preferences, telemetry
@@ -54,20 +53,18 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {shell && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Appearance</CardTitle>
-              <CardDescription>
-                Light, dark, or whatever this device is set to -- and, if you
-                want one, a theme. Saved on this device.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ThemeModeSection />
-            </CardContent>
-          </Card>
-        )}
+        <Card>
+          <CardHeader>
+            <CardTitle>Appearance</CardTitle>
+            <CardDescription>
+              Light, dark, or whatever this device is set to -- and, if you
+              want one, a theme. Saved on this device.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ThemeModeSection />
+          </CardContent>
+        </Card>
 
         {decibylApps && (
           <Card id="decibyl-apps">
