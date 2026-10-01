@@ -41,9 +41,9 @@ import {
     useAuthReady,
     useChartMode,
 } from "@/components/charts/primitives";
-import { OrgFlagsPanel } from "@/components/superadmin/OrgFlagsPanel";
 import { AuditLog } from "@/components/superadmin/AuditLog";
 import { ImpersonateOwnerButton } from "@/components/superadmin/ImpersonateOwnerButton";
+import { OrgFlagsPanel } from "@/components/superadmin/OrgFlagsPanel";
 import { COPY, type OrgHealth, type RecentFailure } from "@/components/superadmin/orgHealth";
 import { OrgHealthCard } from "@/components/superadmin/OrgHealthCard";
 import { TrialControls } from "@/components/superadmin/TrialControls";
