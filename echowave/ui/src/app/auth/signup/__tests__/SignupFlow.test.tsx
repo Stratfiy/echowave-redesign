@@ -153,15 +153,14 @@ describe("sign-up, one question per screen", () => {
     });
   });
 
-  it("links the agreement to the in-app legal pages", () => {
+  it("links the agreement to the published Terms and Privacy Notice", () => {
     render(<SignupFlow />);
     fillEmail();
     fillName();
     fillPassword();
     const hrefs = Array.from(document.querySelectorAll("a")).map((a) => a.getAttribute("href"));
-    expect(hrefs).toContain("/trust");
-    expect(hrefs).toContain("/privacy");
-    expect(hrefs.some((href) => href?.includes("decibyl.ai"))).toBe(false);
+    expect(hrefs).toContain("https://decibyl.ai/legal/terms");
+    expect(hrefs).toContain("https://decibyl.ai/legal/privacy");
   });
 
   it("returns a taken email to the email step with the reason", async () => {
