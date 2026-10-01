@@ -458,3 +458,176 @@ async def test_a_press_from_a_stranger_settles_nothing(channels_on, recorder):
         )
     assert status == "unlinked"
     settle.assert_not_awaited()
+
+
+# ── a stranger hears "link me first" (KAN-277 production fix) ─────────────────
+#
+# In production the feature is on for named organisations only
+# (FEATURE_ORG_OVERRIDES) and off globally. Asking ``channel_on`` with no
+# organisation said no to every stranger, so nobody unlinked got any reply.
+
+
+@pytest.fixture
+def flags_per_org_only(db_session, monkeypatch):
+    """Every channel flag off globally; the returned function names who has
+    them on."""
+    from api import constants
+
+    for flag in (
+        "DECIBYL_CHANNELS_ENABLED",
+        "DECIBYL_TELEGRAM_ENABLED",
+        "DECIBYL_SLACK_ENABLED",
+        "DECIBYL_TEAMS_ENABLED",
+    ):
+        monkeypatch.setattr(constants, flag, False)
+
+    def set_orgs(*org_ids: int) -> None:
+        ids = ",".join(str(i) for i in org_ids) or "0"
+        monkeypatch.setattr(
+            constants,
+            "FEATURE_ORG_OVERRIDES",
+            f"decibyl_channels:{ids};decibyl_telegram:{ids};decibyl_slack:{ids}",
+        )
+
+    set_orgs()
+    return set_orgs
+
+
+async def _install_slack(team_id: str, organization_id: int) -> None:
+    from api.db import db_client
+    from api.db.channel_identity_models import SlackInstallationModel
+
+    async with db_client.async_session() as session:
+        session.add(
+            SlackInstallationModel(
+                team_id=team_id,
+                organization_id=organization_id,
+                team_name="Acme",
+                encrypted_bot_token="not-a-real-token",
+            )
+        )
+        await session.commit()
+
+
+def _team() -> str:
+    return f"T{uuid.uuid4().hex[:10].upper()}"
+
+
+def _slack_msg(team_id: str, text: str) -> Inbound:
+    return Inbound(
+        channel=base.SLACK,
+        external_id=f"{team_id}:{uuid.uuid4().hex[:8]}",
+        message_id=uuid.uuid4().hex,
+        text=text,
+        ref={"team_id": team_id, "channel": "D1"},
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_stranger_hears_link_first_when_the_feature_is_on_per_org_only(
+    flags_per_org_only, recorder
+):
+    org_id, _ = await _member("perorg")
+    flags_per_org_only(org_id)
+    inbound = Inbound(
+        channel=base.TELEGRAM,
+        external_id=uuid.uuid4().hex,
+        message_id=uuid.uuid4().hex,
+        text="hello",
+        ref={"chat_id": "42"},
+    )
+    assert dispatch.channel_on(base.TELEGRAM) is False  # the old gate said no
+    with patch("api.services.workflow.decibyl.ask", new=AsyncMock()) as ask:
+        assert await dispatch.handle(inbound) == "unlinked"
+    assert recorder.texts == [dispatch.LINK_FIRST]
+    ask.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_stranger_in_the_slack_of_a_switched_on_org_hears_link_first(
+    flags_per_org_only, recorder
+):
+    org_id, _ = await _member("slackon")
+    flags_per_org_only(org_id)
+    team = _team()
+    await _install_slack(team, org_id)
+
+    assert await dispatch.handle(_slack_msg(team, "hi")) == "unlinked"
+    assert recorder.texts == [dispatch.LINK_FIRST]
+
+
+@pytest.mark.asyncio
+async def test_the_slack_of_a_switched_off_org_stays_quiet(
+    flags_per_org_only, recorder
+):
+    org_id, _ = await _member("slackoff")
+    other_id, _ = await _member("slackother")
+    flags_per_org_only(other_id)
+    team = _team()
+    await _install_slack(team, org_id)
+
+    assert await dispatch.handle(_slack_msg(team, "hi")) == "unlinked"
+    assert recorder.texts == []
+
+
+@pytest.mark.asyncio
+async def test_a_stranger_gets_nothing_when_the_app_is_not_set_up(
+    flags_per_org_only, recorder, monkeypatch
+):
+    monkeypatch.setattr(recorder, "enabled", lambda organization_id=None: False)
+    assert await dispatch.handle(_msg(f"T1:{uuid.uuid4().hex}", "hi")) == "unlinked"
+    assert recorder.texts == []
+
+
+# ── Settings: Slack setup state and the exact redirect URL ────────────────────
+
+
+def test_the_slack_redirect_uri_is_on_the_api_host(monkeypatch):
+    from api import constants
+    from api.routes import public_decibyl_channels
+
+    monkeypatch.setattr(constants, "BACKEND_API_ENDPOINT", "https://api.decibyl.ai/")
+    expected = "https://api.decibyl.ai/api/v1/public/slack/oauth/callback"
+    assert slack.redirect_uri() == expected
+    # The install link and the code exchange both use this one value.
+    assert public_decibyl_channels.slack_redirect_uri() == expected
+
+
+@pytest.mark.asyncio
+async def test_slack_setup_says_whether_slack_was_added_and_shows_admins_the_url(
+    db_session,
+):
+    from types import SimpleNamespace
+
+    from api.db import db_client
+    from api.db.models import OrganizationMembershipModel
+    from api.routes import channel_links
+
+    org_id, admin_id = await _member("setup")
+    _, member_id = await _member("setupmember")
+    async with db_client.async_session() as session:
+        session.add_all(
+            [
+                OrganizationMembershipModel(
+                    organization_id=org_id, user_id=admin_id, role="admin"
+                ),
+                OrganizationMembershipModel(
+                    organization_id=org_id, user_id=member_id, role="member"
+                ),
+            ]
+        )
+        await session.commit()
+
+    before = await channel_links._slack_setup(SimpleNamespace(id=admin_id), org_id)
+    assert before["installed"] is False
+    assert before["can_install"] is True
+    assert before["redirect_uri"].endswith("/api/v1/public/slack/oauth/callback")
+
+    await _install_slack(_team(), org_id)
+    after = await channel_links._slack_setup(SimpleNamespace(id=member_id), org_id)
+    assert after == {
+        "installed": True,
+        "workspace": "Acme",
+        "can_install": False,
+        "redirect_uri": None,
+    }

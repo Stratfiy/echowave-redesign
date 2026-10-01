@@ -10,8 +10,9 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from api.db import db_client
 from api.db.models import UserModel
-from api.enums import OrganizationRole
+from api.enums import ORGANIZATION_ROLE_RANK, OrganizationRole
 from api.services import features
 from api.services.auth.depends import get_user, require_organization_role
 from api.services.messaging.channels import base, dispatch, identities, slack, telegram
@@ -51,6 +52,26 @@ def _how_to(channel: str, code: str) -> dict[str, Any]:
     }
 
 
+async def _slack_setup(user: UserModel, organization_id: int) -> dict[str, Any]:
+    """Whether this organisation has added Decibyl to a Slack workspace yet.
+
+    A member cannot link Slack until it has: the code has nowhere to go. So
+    the screen leads with "Add Decibyl to your Slack" for an admin, and says
+    an admin must do it for everybody else. Admins also see the exact
+    redirect URL the Slack app must have registered.
+    """
+    installation = await slack.installation_for(organization_id)
+    membership = await db_client.get_membership(user.id, organization_id)
+    rank = ORGANIZATION_ROLE_RANK.get(membership.role if membership else "", -1)
+    is_admin = rank >= ORGANIZATION_ROLE_RANK[OrganizationRole.ADMIN.value]
+    return {
+        "installed": installation is not None,
+        "workspace": (installation.team_name or None) if installation else None,
+        "can_install": is_admin,
+        "redirect_uri": slack.redirect_uri() if is_admin else None,
+    }
+
+
 @router.get("")
 async def list_links(user: UserModel = Depends(get_user)) -> dict[str, Any]:
     organization_id = _organization_id(user)
@@ -77,6 +98,7 @@ async def list_links(user: UserModel = Depends(get_user)) -> dict[str, Any]:
             }
             for i in linked
         ],
+        "slack": await _slack_setup(user, organization_id),
     }
 
 
@@ -115,15 +137,13 @@ async def slack_install(
 ) -> dict[str, Any]:
     """The "Add to Slack" link for this workspace. Admins only: it puts an app
     into the company's Slack on the organisation's behalf."""
-    from api.routes.public_decibyl_channels import slack_redirect_uri
-
     organization_id = _organization_id(user)
     if not dispatch.channel_on(base.SLACK, organization_id):
         raise HTTPException(status_code=404, detail="Not Found")
     url = slack.install_url(
         organization_id=organization_id,
         user_id=user.id,
-        redirect_uri=slack_redirect_uri(),
+        redirect_uri=slack.redirect_uri(),
     )
     if url is None:
         raise HTTPException(status_code=503, detail="Slack is not set up yet.")
