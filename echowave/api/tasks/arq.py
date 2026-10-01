@@ -70,6 +70,19 @@ from api.tasks.weekly_digest import send_weekly_digests
 from api.tasks.workflow_completion import process_workflow_completion
 
 
+async def _worker_startup(ctx) -> None:
+    from api.services import features
+
+    await features.refresh_overrides()
+    features.start_periodic_refresh()
+
+
+async def _worker_shutdown(ctx) -> None:
+    from api.services import features
+
+    await features.stop_periodic_refresh()
+
+
 class WorkerSettings:
     functions = [
         run_integrations_post_workflow_run,
@@ -405,6 +418,11 @@ class WorkerSettings:
     # ~28 completions a minute, and a backlog here does not drop calls, it
     # delays invoicing and the dashboard silently reports yesterday's numbers.
     max_jobs = ARQ_MAX_JOBS
+    # Feature switches set from the staff console (ADMIN-1). The worker does
+    # not listen on the worker-sync channel, so it re-reads the table on a
+    # timer instead.
+    on_startup = _worker_startup
+    on_shutdown = _worker_shutdown
 
 
 LOG_CONFIG = {

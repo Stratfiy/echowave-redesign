@@ -19,6 +19,9 @@ class WorkerSyncEventType(str, Enum):
     # stay synchronous, which means a change made on one worker is invisible to
     # the others until they are told.
     MANAGED_TIERS = "managed_tiers"
+    # A feature switched on or off from the staff console (ADMIN-1). Cached
+    # per worker so `features.is_on` can stay synchronous.
+    FEATURE_OVERRIDES = "feature_overrides"
 
 
 @dataclass

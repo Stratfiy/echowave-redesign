@@ -28,6 +28,7 @@ from api.routes.dialer_connections import router as dialer_connections_router
 from api.routes.do_not_call import router as do_not_call_router
 from api.routes.evals import router as evals_router
 from api.routes.extraction_library import router as extraction_library_router
+from api.routes.feature_admin import router as feature_admin_router
 from api.routes.folder import router as folder_router
 from api.routes.knowledge_base import router as knowledge_base_router
 from api.routes.kyc import router as kyc_router
@@ -102,6 +103,7 @@ router = APIRouter(
 router.include_router(telephony_router)
 router.include_router(telephony_admin_router)
 router.include_router(superuser_router)
+router.include_router(feature_admin_router)
 router.include_router(billing_dashboard_router)
 router.include_router(admin_kpis_router)
 router.include_router(onboarding_router)
@@ -212,8 +214,9 @@ async def organization_features(
     user: UserModel = Depends(get_user),
 ) -> dict[str, bool]:
     """The switched-off features as the signed-in organisation sees them:
-    the global switches plus its ``FEATURE_ORG_OVERRIDES`` (FLAG-1). The UI
-    merges this over the global map from ``/health``."""
+    the global switches plus its overrides -- rows set from the staff console
+    (ADMIN-1) first, then ``FEATURE_ORG_OVERRIDES`` (FLAG-1). The UI merges
+    this over the global map from ``/health``."""
     return features.for_organization(user.selected_organization_id)
 
 
