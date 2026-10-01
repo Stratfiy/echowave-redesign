@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, status
 from loguru import logger
 from pydantic import BaseModel
 
+from api.db.models import UserModel
 from api.routes.admin_kpis import router as admin_kpis_router
 from api.routes.agent_builder import router as agent_builder_router
 from api.routes.agent_graph import router as agent_graph_router
@@ -18,6 +19,7 @@ from api.routes.bot_event_webhooks import router as bot_event_webhooks_router
 from api.routes.bot_triggers import router as bot_triggers_router
 from api.routes.budgets import router as budgets_router
 from api.routes.campaign import router as campaign_router
+from api.routes.channel_links import router as channel_links_router
 from api.routes.connectors import router as connectors_router
 from api.routes.contacts import router as contacts_router
 from api.routes.cost_estimate import router as cost_estimate_router
@@ -50,6 +52,7 @@ from api.routes.procurement import router as procurement_router
 from api.routes.promo_admin import router as promo_admin_router
 from api.routes.provider_keys import router as provider_keys_router
 from api.routes.public_agent import router as public_agent_router
+from api.routes.public_decibyl_channels import router as public_decibyl_channels_router
 from api.routes.public_download import router as public_download_router
 from api.routes.public_email import router as public_email_router
 from api.routes.public_embed import router as public_embed_router
@@ -83,7 +86,6 @@ from api.routes.workflow_recording import router as workflow_recording_router
 from api.routes.workflow_spend import router as workflow_spend_router
 from api.routes.workflow_text_chat import router as workflow_text_chat_router
 from api.routes.workspace_roles import router as workspace_roles_router
-from api.db.models import UserModel
 from api.services import features
 from api.services.auth.depends import get_user
 from api.services.integrations import all_routers
@@ -162,6 +164,8 @@ router.include_router(public_agent_router)
 router.include_router(public_triggers_router)
 router.include_router(public_email_router)
 router.include_router(public_whatsapp_router)
+router.include_router(public_decibyl_channels_router)
+router.include_router(channel_links_router)
 router.include_router(public_download_router)
 router.include_router(public_trust_router)
 router.include_router(public_marketplace_router)

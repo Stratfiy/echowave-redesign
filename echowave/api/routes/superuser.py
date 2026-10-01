@@ -336,3 +336,54 @@ async def revoke_invite(
     except Exception:
         logger.exception("Could not write the audit row for a revoked invite")
     return {"revoked": invite_id}
+
+
+# ---------------------------------------------------------------------------
+# Trial window (PLAN-1, KAN-255)
+# ---------------------------------------------------------------------------
+
+
+class TrialOverrideRequest(BaseModel):
+    #: The new end, or null to go back to the computed window.
+    ends_at: datetime | None = None
+    #: Or: extend by this many days from now (wins over ends_at).
+    extend_days: int | None = None
+    note: str | None = None
+
+
+@router.post("/organizations/{organization_id}/trial")
+async def set_trial_end(
+    organization_id: int,
+    body: TrialOverrideRequest,
+    user: UserModel = Depends(get_superuser),
+) -> dict:
+    """Extend or reset an account's trial. Writes an audit row."""
+    from datetime import UTC, timedelta
+
+    from api.db.models import OrganizationModel
+    from api.services.billing import trial as trial_service
+
+    if body.extend_days is not None and not (1 <= body.extend_days <= 365):
+        raise HTTPException(status_code=400, detail="extend_days must be 1-365")
+    ends_at = (
+        datetime.now(UTC) + timedelta(days=body.extend_days)
+        if body.extend_days is not None
+        else body.ends_at
+    )
+    async with db_client.async_session() as session:
+        org = await session.get(OrganizationModel, organization_id)
+        if org is None:
+            raise HTTPException(status_code=404, detail="No such organization")
+        org.trial_ends_at = ends_at
+        session.add(
+            AdminActionLogModel(
+                actor_user_id=user.id,
+                action="trial_end_set",
+                target_organization_id=organization_id,
+                note=f"ends_at={ends_at.isoformat() if ends_at else 'computed'}; "
+                f"{(body.note or '')[:300]}",
+            )
+        )
+        await session.commit()
+        status_ = await trial_service.status(session, organization_id=organization_id)
+    return {"organization_id": organization_id, "trial": status_.as_dict()}

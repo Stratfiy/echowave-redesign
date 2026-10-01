@@ -9,6 +9,12 @@ import { Button } from "@/components/ui/button";
 // is server-only and not imported here so the shell bundles no route code.
 const MARKER = "decibyl-impersonating";
 
+/** Whether a staffer is acting as this account right now. Exported for the
+ *  prompts that must never be answered on a customer's behalf. */
+export function isImpersonating(): boolean {
+  return readMarker() !== null;
+}
+
 function readMarker(): string | null {
   try {
     const hit = document.cookie

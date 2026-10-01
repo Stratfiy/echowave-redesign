@@ -498,6 +498,12 @@ class WorkflowClient(BaseDBClient):
                     # cannot be addressed at all -- reading, to the person who
                     # typed it, as the product ignoring them.
                     WorkflowModel.handle,
+                    # Read after the session closes, by the admins-only filter
+                    # and the list response (KAN-158). Left out, the first
+                    # access raises DetachedInstanceError and the whole agent
+                    # list fails -- which the browser reports as "could not
+                    # reach the server".
+                    WorkflowModel.visibility,
                 )
             )
 

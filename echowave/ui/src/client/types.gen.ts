@@ -12941,6 +12941,24 @@ export type TranslateResponse = {
 };
 
 /**
+ * TrialOverrideRequest
+ */
+export type TrialOverrideRequest = {
+    /**
+     * Ends At
+     */
+    ends_at?: string | null;
+    /**
+     * Extend Days
+     */
+    extend_days?: number | null;
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+/**
  * TriggerCallRequest
  *
  * Request model for triggering a call via API
@@ -16217,6 +16235,54 @@ export type RevokeInviteApiV1SuperuserInvitesInviteIdRevokePostResponses = {
 };
 
 export type RevokeInviteApiV1SuperuserInvitesInviteIdRevokePostResponse = RevokeInviteApiV1SuperuserInvitesInviteIdRevokePostResponses[keyof RevokeInviteApiV1SuperuserInvitesInviteIdRevokePostResponses];
+
+export type SetTrialEndApiV1SuperuserOrganizationsOrganizationIdTrialPostData = {
+    body: TrialOverrideRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/v1/superuser/organizations/{organization_id}/trial';
+};
+
+export type SetTrialEndApiV1SuperuserOrganizationsOrganizationIdTrialPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetTrialEndApiV1SuperuserOrganizationsOrganizationIdTrialPostError = SetTrialEndApiV1SuperuserOrganizationsOrganizationIdTrialPostErrors[keyof SetTrialEndApiV1SuperuserOrganizationsOrganizationIdTrialPostErrors];
+
+export type SetTrialEndApiV1SuperuserOrganizationsOrganizationIdTrialPostResponses = {
+    /**
+     * Response Set Trial End Api V1 Superuser Organizations  Organization Id  Trial Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetTrialEndApiV1SuperuserOrganizationsOrganizationIdTrialPostResponse = SetTrialEndApiV1SuperuserOrganizationsOrganizationIdTrialPostResponses[keyof SetTrialEndApiV1SuperuserOrganizationsOrganizationIdTrialPostResponses];
 
 export type GetOverviewApiV1AdminBillingOverviewGetData = {
     body?: never;

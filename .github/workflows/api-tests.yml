@@ -23,7 +23,9 @@ concurrency:
 jobs:
   pytest:
     if: ${{ !startsWith(github.head_ref, 'release-please--') }}
-    runs-on: [self-hosted, linux, x64]
+    # The CI machine, never the production box: a test run takes the CPU that
+    # live calls need, and queues deploys behind it. See deploy.yml.
+    runs-on: [self-hosted, linux, x64, ci]
     timeout-minutes: 45
 
     services:

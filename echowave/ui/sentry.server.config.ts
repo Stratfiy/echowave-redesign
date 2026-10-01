@@ -13,6 +13,8 @@ if (enableSentry) {
 
     // Setting this option to true will print useful information to the console while you're setting up Sentry.
     debug: false,
+    // Personal data stays out of error reports: no IPs, cookies or bodies.
+    sendDefaultPii: false,
     enabled: process.env.NEXT_PUBLIC_NODE_ENV === 'production'
   });
   console.log('Sentry initialized for server-side error tracking');

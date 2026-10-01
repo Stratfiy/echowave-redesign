@@ -44,6 +44,33 @@ router = APIRouter(
 )
 
 
+async def _record_signup_agreements(
+    http_request: Request, *, organization_id: int, user_id: int
+) -> None:
+    """Record Terms and Privacy acceptance for a new account, at either door.
+
+    The password form requires the box ticked; the Google button carries the
+    same Terms and Privacy line beside it. Both doors write the same rows, so no
+    account exists without a record of which version it agreed to and from
+    where.
+    """
+    forwarded = http_request.headers.get("x-forwarded-for", "")
+    ip_address = forwarded.split(",")[0].strip() or (
+        http_request.client.host if http_request.client else None
+    )
+    async with db_client.async_session() as session:
+        for key in agreements.SIGNUP_AGREEMENTS:
+            await agreements.record_acceptance(
+                session,
+                organization_id=organization_id,
+                user_id=user_id,
+                agreement=key,
+                ip_address=ip_address,
+                user_agent=http_request.headers.get("user-agent"),
+            )
+        await session.commit()
+
+
 @router.post(
     "/signup",
     response_model=AuthResponse,
@@ -105,21 +132,9 @@ async def signup(request: SignupRequest, http_request: Request):
 
     # The record of the click-wrap: who, which version, from where. Written
     # after provisioning because the row hangs off the organization.
-    forwarded = http_request.headers.get("x-forwarded-for", "")
-    ip_address = forwarded.split(",")[0].strip() or (
-        http_request.client.host if http_request.client else None
+    await _record_signup_agreements(
+        http_request, organization_id=organization.id, user_id=user.id
     )
-    async with db_client.async_session() as session:
-        for key in agreements.SIGNUP_AGREEMENTS:
-            await agreements.record_acceptance(
-                session,
-                organization_id=organization.id,
-                user_id=user.id,
-                agreement=key,
-                ip_address=ip_address,
-                user_agent=http_request.headers.get("user-agent"),
-            )
-        await session.commit()
 
     # Send the verification code, best effort.
     #
@@ -369,6 +384,7 @@ async def google_start(
 
 @router.get("/google/callback", dependencies=[Depends(require_local_auth)])
 async def google_callback(
+    http_request: Request,
     code: str | None = None,
     state: str | None = None,
     error: str | None = None,
@@ -429,6 +445,9 @@ async def google_callback(
             user_id=user.id,
             organization_id=organization.id,
             door="google",
+        )
+        await _record_signup_agreements(
+            http_request, organization_id=organization.id, user_id=user.id
         )
         event = PostHogEvent.SIGNED_UP
     else:

@@ -215,10 +215,15 @@ def summarise(
             model=model,
         )
         call_tokens, call_cost = 0, 0.0
+        # A turn on the account's own key (BYOK-1, feature "...:byok") used
+        # tokens but cost the platform nothing: counted, never priced.
+        own_key = str(feature or "").endswith(":byok")
         for item in items:
             component = getattr(item.component, "value", item.component)
             line.tokens[_LABEL[component]] += item.quantity
             call_tokens += item.quantity
+            if own_key:
+                continue
             rate = rates.get((component, provider, model)) or rates.get(
                 (component, provider, "")
             )
