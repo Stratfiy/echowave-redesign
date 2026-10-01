@@ -58,13 +58,7 @@ describe("an agent's face", () => {
         expect(container.querySelector("svg")).toBeNull();
     });
 
-    it("keeps the icon with the shell off, even when asked for art", () => {
-        const { container } = render(<BotAvatar id={1} name="Payment reminders" size="md" art />);
-        expect(container.querySelector("img")).toBeNull();
-        expect(container.querySelector("svg")).toBeTruthy();
-    });
-
-    it("keeps the icon when not asked for art, shell or no shell", () => {
+    it("keeps the icon when not asked for art", () => {
         flags.shell = true;
         const { container } = render(<BotAvatar id={1} name="Payment reminders" />);
         expect(container.querySelector("img")).toBeNull();

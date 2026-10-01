@@ -11,10 +11,16 @@ import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { useAppConfig } from "@/context/AppConfigContext";
 import { LeadFormsProvider } from "@/context/LeadFormsContext";
+import { useFeature } from "@/lib/features";
 import { applyTheme, readStoredTheme } from "@/lib/themes";
+import { cn } from "@/lib/utils";
 
 import { AppSidebar } from "./AppSidebar";
 import { TopBar } from "./TopBar";
+import { AppRailV2 } from "./v2/AppRailV2";
+
+/** The mock's rail is 224px; a touch wider for the workspace switcher. */
+const V2_RAIL_STYLE = { "--sidebar-width": "15rem" } as React.CSSProperties;
 
 function BackendStatusBanner() {
   const { config, loading, refresh } = useAppConfig();
@@ -92,6 +98,9 @@ function SidebarStateRestorer() {
 
 const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const pathname = usePathname();
+  // KAN-208 UI-1: the new shell, off unless the flag is on. With it off the
+  // tree below is exactly what it was.
+  const shellV2 = useFeature("ui_shell_v2");
 
   // Check if current route should have sidebar
   // Hide sidebar for root (/), /handler routes (Stack Auth routes), and /auth routes
@@ -117,7 +126,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   // Always render SidebarProvider to keep the component tree shape consistent
   // across route changes (avoids React hooks ordering violations during navigation).
   return (
-    <SidebarProvider defaultOpen className="app-shell">
+    <SidebarProvider
+      defaultOpen
+      className={cn("app-shell", shellV2 && "shell-v2")}
+      style={shellV2 ? V2_RAIL_STYLE : undefined}
+    >
       <SidebarStateRestorer />
       <ThemeRestorer />
       {shouldShowSidebar ? (
@@ -126,7 +139,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
               that wants to scroll its own list (a chat) can say h-full and
               have it mean something. Ordinary pages scroll inside <main>. */}
           <div className="flex h-dvh w-full">
-            <AppSidebar />
+            {shellV2 ? <AppRailV2 /> : <AppSidebar />}
             <SidebarInset className="min-h-0 min-w-0 flex-1">
               <BackendStatusBanner />
               <ImpersonationBanner />

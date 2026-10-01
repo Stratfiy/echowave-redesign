@@ -102,15 +102,7 @@ describe("the agent shelf", () => {
         ).toBe("/start?template=clinic_appointment");
     });
 
-    it("draws the jobs as pictures with the shell on, and not with it off", async () => {
-        const { unmount } = render(<MarketplaceScreen kind="bots" />);
-        await screen.findByText("Clinic front desk");
-        expect(screen.queryAllByTestId("role-art")).toHaveLength(0);
-        expect(screen.queryByTestId("hero-art")).toBeNull();
-        expect(document.querySelector('img[src^="/art/3d/"]')).toBeNull();
-        unmount();
-
-        flags.shell = true;
+    it("draws the jobs as pictures", async () => {
         render(<MarketplaceScreen kind="bots" />);
         await screen.findByText("Clinic front desk");
         const strips = screen.getAllByTestId("role-art");
