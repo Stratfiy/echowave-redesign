@@ -75,6 +75,9 @@ ON_REQUEST_KINDS = frozenset({AgentEventKind.CALLER_WANTED.value})
 #: Set per turn, never globally: each arq job and each request runs in its own
 #: task, which copies the context, so one turn cannot see another's thread.
 _THREAD: ContextVar[Optional[str]] = ContextVar("decibyl_thread", default=None)
+#: Rows written while a ``collecting()`` block is open (DCH-1): the worker
+#: sends the cards a Decibyl turn proposed back to the app it was asked on.
+_COLLECT: ContextVar[Optional[list]] = ContextVar("timeline_collect", default=None)
 
 
 @contextmanager
@@ -85,6 +88,17 @@ def in_thread(thread_id: Optional[str]) -> Iterator[None]:
         yield
     finally:
         _THREAD.reset(token)
+
+
+@contextmanager
+def collecting() -> Iterator[list]:
+    """Collect ``(kind, event_id, payload)`` for every row written inside."""
+    rows: list = []
+    token = _COLLECT.set(rows)
+    try:
+        yield rows
+    finally:
+        _COLLECT.reset(token)
 
 
 def current_thread() -> Optional[str]:
@@ -173,6 +187,10 @@ async def record(
         # linking to a timeline entry that does not exist is worse than no
         # notice.
         return
+
+    collected = _COLLECT.get()
+    if collected is not None and event_id is not None:
+        collected.append((kind, event_id, dict(payload or {})))
 
     await _ring_the_bell(
         organization_id=organization_id,

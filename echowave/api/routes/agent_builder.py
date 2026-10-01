@@ -56,7 +56,9 @@ async def edit_proposal(
         raise HTTPException(status_code=404, detail="Agent not found")
     async with db_client.async_session() as session:
         try:
-            model = await settings.resolve_model(session)
+            model = await settings.resolve_for_organization(
+                session, None, organization_id=organization_id
+            )
         except settings.BuilderUnavailable as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         state, charged_credits = await meter_builder_message(session, organization_id)
@@ -89,7 +91,9 @@ async def get_builder_config(user: UserModel = Depends(get_user)) -> dict[str, A
 
     async with db_client.async_session() as session:
         try:
-            model = await settings.resolve_model(session)
+            model = await settings.resolve_for_organization(
+                session, None, organization_id=organization_id
+            )
             available = True
             provider = model.provider
             unavailable_reason = None
@@ -201,7 +205,9 @@ async def chat(
 
     async with db_client.async_session() as session:
         try:
-            model = await settings.resolve_model(session)
+            model = await settings.resolve_for_organization(
+                session, None, organization_id=organization_id
+            )
         except settings.BuilderUnavailable as exc:
             # 503 rather than 500: nothing is broken, the feature is not
             # configured, and the message says what to configure.

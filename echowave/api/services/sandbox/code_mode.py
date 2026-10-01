@@ -81,9 +81,12 @@ def cap_paise_for(configurations: dict[str, Any] | None = None) -> int:
     return max(0, cap) * PAISE_PER_CREDIT
 
 
-#: Plans that may run scripts. Free is not one of them.
+#: Plans that may run scripts. Free is not one of them; the trial is.
 ALLOWED_PLANS = frozenset(
     {
+        # PLAN-1 (KAN-255): a trial sees the product's real shape, under the
+        # same per-run credit caps as every plan.
+        "trial",
         "everyday",
         "business",
         "growth",

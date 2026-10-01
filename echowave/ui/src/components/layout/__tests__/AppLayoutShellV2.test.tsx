@@ -13,6 +13,7 @@ vi.mock("@/context/AppConfigContext", () => ({
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/components/auth/ImpersonationBanner", () => ({ ImpersonationBanner: () => null }));
 vi.mock("@/components/auth/VerifyEmailBanner", () => ({ VerifyEmailBanner: () => null }));
+vi.mock("@/components/auth/AgreementsGate", () => ({ AgreementsGate: () => null }));
 vi.mock("@/context/LeadFormsContext", () => ({ LeadFormsProvider: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock("@/lib/themes", () => ({ applyTheme: vi.fn(), readStoredTheme: vi.fn() }));
 vi.mock("../TopBar", () => ({ TopBar: () => null }));

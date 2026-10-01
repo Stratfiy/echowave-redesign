@@ -244,3 +244,146 @@ async def get_workflow_runs(
         limit=limit,
         total_pages=total_pages,
     )
+
+
+# ---------------------------------------------------------------------------
+# Invite codes (INVITE-1, KAN-273)
+# ---------------------------------------------------------------------------
+
+
+class MintInvitesRequest(BaseModel):
+    #: How many single-address codes to mint (1-200).
+    count: int = 1
+    #: Pin the code to one address; only with count == 1.
+    email: str | None = None
+    #: Accounts one code admits; 1 unless it is a code for a group.
+    max_uses: int = 1
+    #: Who it is for or where it went ("Anna Nagar dental, via Ravi").
+    note: str | None = None
+    expires_at: datetime | None = None
+
+
+@router.post("/invites")
+async def mint_invites(
+    body: MintInvitesRequest,
+    user: UserModel = Depends(get_superuser),
+) -> dict:
+    """Mint invite codes. Each is shown once here and again in the list."""
+    from api.services.auth import signup_invites
+
+    try:
+        rows = await signup_invites.mint(
+            count=body.count,
+            created_by_user_id=user.id,
+            email=body.email,
+            max_uses=body.max_uses,
+            note=body.note,
+            expires_at=body.expires_at,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        async with db_client.async_session() as audit_session:
+            audit_session.add(
+                AdminActionLogModel(
+                    actor_user_id=user.id,
+                    action="invites_minted",
+                    note=f"{len(rows)} code(s); max_uses={body.max_uses}; "
+                    f"{(body.note or '')[:300]}",
+                )
+            )
+            await audit_session.commit()
+    except Exception:
+        logger.exception("Could not write the audit row for minted invites")
+
+    return {
+        "codes": [signup_invites.display(r.code) for r in rows],
+        "invite_only": signup_invites.required(),
+    }
+
+
+@router.get("/invites")
+async def list_invites(user: UserModel = Depends(get_superuser)) -> dict:
+    from api.services.auth import signup_invites
+
+    return {
+        "invites": await signup_invites.list_invites(),
+        "invite_only": signup_invites.required(),
+    }
+
+
+@router.post("/invites/{invite_id}/revoke")
+async def revoke_invite(
+    invite_id: int, user: UserModel = Depends(get_superuser)
+) -> dict:
+    from api.services.auth import signup_invites
+
+    if not await signup_invites.revoke(invite_id):
+        raise HTTPException(
+            status_code=404, detail="No such invite, or already revoked"
+        )
+    try:
+        async with db_client.async_session() as audit_session:
+            audit_session.add(
+                AdminActionLogModel(
+                    actor_user_id=user.id,
+                    action="invite_revoked",
+                    note=f"invite {invite_id}",
+                )
+            )
+            await audit_session.commit()
+    except Exception:
+        logger.exception("Could not write the audit row for a revoked invite")
+    return {"revoked": invite_id}
+
+
+# ---------------------------------------------------------------------------
+# Trial window (PLAN-1, KAN-255)
+# ---------------------------------------------------------------------------
+
+
+class TrialOverrideRequest(BaseModel):
+    #: The new end, or null to go back to the computed window.
+    ends_at: datetime | None = None
+    #: Or: extend by this many days from now (wins over ends_at).
+    extend_days: int | None = None
+    note: str | None = None
+
+
+@router.post("/organizations/{organization_id}/trial")
+async def set_trial_end(
+    organization_id: int,
+    body: TrialOverrideRequest,
+    user: UserModel = Depends(get_superuser),
+) -> dict:
+    """Extend or reset an account's trial. Writes an audit row."""
+    from datetime import UTC, timedelta
+
+    from api.db.models import OrganizationModel
+    from api.services.billing import trial as trial_service
+
+    if body.extend_days is not None and not (1 <= body.extend_days <= 365):
+        raise HTTPException(status_code=400, detail="extend_days must be 1-365")
+    ends_at = (
+        datetime.now(UTC) + timedelta(days=body.extend_days)
+        if body.extend_days is not None
+        else body.ends_at
+    )
+    async with db_client.async_session() as session:
+        org = await session.get(OrganizationModel, organization_id)
+        if org is None:
+            raise HTTPException(status_code=404, detail="No such organization")
+        org.trial_ends_at = ends_at
+        session.add(
+            AdminActionLogModel(
+                actor_user_id=user.id,
+                action="trial_end_set",
+                target_organization_id=organization_id,
+                note=f"ends_at={ends_at.isoformat() if ends_at else 'computed'}; "
+                f"{(body.note or '')[:300]}",
+            )
+        )
+        await session.commit()
+        status_ = await trial_service.status(session, organization_id=organization_id)
+    return {"organization_id": organization_id, "trial": status_.as_dict()}

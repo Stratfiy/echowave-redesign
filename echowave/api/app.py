@@ -10,6 +10,7 @@ from api.constants import (
     SENTRY_DSN,
 )
 from api.logging_config import ENVIRONMENT, setup_logging
+from api.utils.sentry_scrub import scrub_event
 
 # Set up logging and get the listener for cleanup
 setup_logging()
@@ -20,7 +21,8 @@ if SENTRY_DSN and (
 ):
     sentry_sdk.init(
         dsn=SENTRY_DSN,
-        send_default_pii=True,
+        send_default_pii=False,
+        before_send=scrub_event,
         environment=ENVIRONMENT,
     )
     print(f"Sentry initialized in environment: {ENVIRONMENT}")

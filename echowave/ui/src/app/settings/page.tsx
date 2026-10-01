@@ -1,9 +1,11 @@
 "use client";
 
 import { ExternalLink } from "lucide-react";
+import { Suspense } from "react";
 
 import { ApprovalsSection } from "@/components/ApprovalsSection";
 import { CredentialsSection } from "@/components/CredentialsSection";
+import { DecibylAppsSection } from "@/components/DecibylAppsSection";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { MCPSection } from "@/components/MCPSection";
 import { MfaSection } from "@/components/MfaSection";
@@ -23,6 +25,7 @@ import { useFeature } from "@/lib/features";
 
 export default function SettingsPage() {
   const approvals = useFeature("approvals");
+  const decibylApps = useFeature("decibyl_channels");
   // Several cards on this page hold editable state — preferences, telemetry
   // credentials — and until this wrapper existed, clicking away from a
   // half-filled form discarded it without a word. The provider is the same one
@@ -62,6 +65,23 @@ export default function SettingsPage() {
             <ThemeModeSection />
           </CardContent>
         </Card>
+
+        {decibylApps && (
+          <Card id="decibyl-apps">
+            <CardHeader>
+              <CardTitle>Decibyl in your apps</CardTitle>
+              <CardDescription>
+                Ask Decibyl from WhatsApp, Telegram, Slack or Teams, as
+                yourself. Actions that need your OK arrive as buttons there.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Suspense fallback={null}>
+                <DecibylAppsSection />
+              </Suspense>
+            </CardContent>
+          </Card>
+        )}
 
         <Card id="team" className="scroll-mt-4">
           <CardHeader>
