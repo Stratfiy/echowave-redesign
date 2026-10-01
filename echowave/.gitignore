@@ -3,6 +3,9 @@ __pycache__
 .env
 .env.prod
 .env.test
+# Written on the box by scripts/ops/config_sync.sh; they hold secrets.
+.env.bak-*
+.env.tmp-*
 
 # Conductor personal/per-machine overrides (settings.toml IS committed)
 .conductor/settings.local.toml

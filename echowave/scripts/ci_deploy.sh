@@ -6,10 +6,14 @@
 # when Actions is not the thing you want in the loop, and the workflow stays
 # short enough to see what it does at a glance.
 #
-# Deliberately does NOT touch .env. Configuration is the operator's, it holds
-# live Razorpay keys and the credential secret, and a deploy that rewrites it is
-# a deploy that can take the platform down by being run twice. If a release
-# needs a new variable, add it by hand first — DEPLOY.md §3.
+# Touches .env in exactly one way: scripts/ops/config_sync.sh overlays the keys
+# that live in AWS SSM Parameter Store (/decibyl/prod/<KEY>) onto it, before
+# `compose up`. Every other line is left as the operator wrote it, the write is
+# atomic with a .env.bak-<timestamp> kept, and running it twice is a no-op. If
+# Parameter Store is empty or unreachable it warns and changes nothing, and it
+# can never fail the deploy. Configuration is still the operator's: a new
+# variable goes into Parameter Store (or .env by hand) before the release that
+# needs it -- docs/deployment/parameter-store.mdx.
 #
 # Usage (normally via SSM, but a human can run it):
 #   sudo -u <owner> REF=main ./scripts/ci_deploy.sh
@@ -384,6 +388,22 @@ EOF
     say "Rolled back. The stack is on the previous commit."
 }
 trap rollback ERR
+
+# Configuration from Parameter Store, before anything is built or started:
+# compose reads .env for build args and interpolation as well as for the api's
+# environment. The checked-out (new) copy of the script runs, as root; it keeps
+# .env's owner and mode. Inside `if`, so neither its exit status nor the ERR
+# trap can turn a Parameter Store problem into a failed deploy or a rollback.
+#
+# A rollback below restores the old *code*, not the old .env: the synced values
+# stay. To undo a bad value, fix it in Parameter Store and run Ops ->
+# config-sync, or Ops -> config-rollback for the previous .env.
+say "Configuration from Parameter Store"
+if ENV_FILE="$PROJECT_DIR/.env" bash "$PROJECT_DIR/scripts/ops/config_sync.sh"; then
+    :
+else
+    say "WARNING: config sync exited $? — .env was NOT changed; deploying with it as it is"
+fi
 
 #: Where the three application images come from.
 #:

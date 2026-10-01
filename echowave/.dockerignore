@@ -1,4 +1,8 @@
 api/.env
+# .env backups and temp files written by scripts/ops/config_sync.sh: secrets,
+# and never needed in a build context.
+.env.bak-*
+.env.tmp-*
 .git
 .github
 .claude

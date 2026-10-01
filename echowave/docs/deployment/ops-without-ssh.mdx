@@ -73,10 +73,14 @@ gh run download --pattern 'ops-*'
 
 | Input | Values | Used by |
 | --- | --- | --- |
-| `action` | `status`, `logs`, `restart`, `migrate-status` | all |
-| `service` | `api`, `ui`, `sandbox`, `nginx`, `all`, `gotenberg`, `coturn`, `decibyl-init`, `redis`, `postgres`, `minio`, `falkordb` | `logs`, `restart` |
+| `action` | `status`, `logs`, `restart`, `migrate-status`, `config-check`, `config-sync`, `config-rollback`, `config-import` | all |
+| `service` | `api`, `ui`, `sandbox`, `nginx`, `all`, `gotenberg`, `coturn`, `decibyl-init`, `redis`, `postgres`, `minio`, `falkordb` | `logs`, `restart`, `config-sync`, `config-rollback` |
 | `minutes` | whole number from 1 to 120, default 15 | `logs` |
 | `grep` | optional, case-insensitive fixed string; letters, digits, space and `_ . / : -`, at most 60 characters | `logs` |
+| `confirm` | must be exactly `import` | `config-import` |
+
+The four `config-*` actions are documented in
+[Configuration from AWS Parameter Store](/deployment/parameter-store).
 
 There is no separate `worker` service. The arq worker, the campaign
 orchestrator and the ARI manager run inside the `api` container (the
@@ -166,26 +170,24 @@ differ, the next deploy runs the missing migrations.
   environment variables and are validated three times: once by the workflow's
   choice list, once by `dispatch.sh` on the runner and once by `remote.sh` on
   the box. They are shell-quoted with `jq @sh` when the SSM command is built.
-- It never runs migrations, writes to the database or edits files on the box.
+- It never runs migrations or writes to the database. The only file it edits
+  on the box is `.env`, and only through `config-sync` and `config-rollback`
+  (atomic, with a backup kept; see
+  [Parameter Store](/deployment/parameter-store)).
 
-## Changing `.env` without SSH (later)
+## Changing `.env` without SSH
 
-Editing `.env` still needs a shell today. The workflow can restart a service
-after the edit, but it cannot make the edit. The plan for removing that last
-reason to SSH in:
+Secrets and settings can now live in AWS SSM Parameter Store under
+`/decibyl/prod/<KEY>`. The deploy and **Ops → config-sync** overlay them onto
+`.env`, so changing a secret is: edit the parameter in the AWS console, then
+run `config-sync`. The one-time import, the IAM policy the instance role
+needs and rollback are in
+[Configuration from AWS Parameter Store](/deployment/parameter-store).
 
-1. **Move secrets and config to AWS SSM Parameter Store** (`SecureString`,
-   under `/decibyl/production/…`, encrypted with KMS). Parameter Store versions
-   every change, CloudTrail records who changed what, and access is controlled
-   by IAM rather than by who has a shell.
-2. **Add a `config-sync` action** to this workflow. It would render `.env` on
-   the box from Parameter Store (as root, `chmod 600`, owned by the deploy
-   user), show which **keys** changed (never values), then run the `restart`
-   path above. A change becomes "edit the parameter, run `config-sync`".
-3. **Per-org feature flags are moving to the Super admin flag console
-   (PR ADMIN-1).** Most of today's `.env` edits are flag flips, so once that
-   ships they become a toggle in the admin UI with no restart. What remains in
-   `.env` is real secrets and infrastructure endpoints, which change rarely.
+Keys that are not in Parameter Store yet still live only in `.env`. Until a key
+moves over, change it as described in
+[Rotating secrets](/deployment/secrets-rotation), then run `restart` here.
 
-Until then, follow [Rotating secrets](/deployment/secrets-rotation) for the
-edit, then run `restart` here.
+Per-org feature flags are moving to the Super admin flag console (PR ADMIN-1).
+Most of today's `.env` edits are flag flips, so once that ships they become a
+toggle in the admin UI with no restart.

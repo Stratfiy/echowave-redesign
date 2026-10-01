@@ -1,0 +1,260 @@
+---
+title: "Configuration from AWS Parameter Store"
+description: "Production secrets and settings in AWS SSM Parameter Store, overlaid onto .env by the deploy and by Ops → config-sync, so changing a secret never needs a shell on the box"
+---
+
+Production configuration used to live only in a hand-edited `.env` on the EC2
+box (`/home/ubuntu/echowave-redesign/echowave/.env`). Changing a secret meant
+opening a shell, editing the file and restarting. Now each value can live in
+**AWS SSM Parameter Store**, and the box renders it into `.env`.
+
+## Why
+
+- **No shell to change a secret.** You edit the parameter in the AWS console,
+  then run **Ops → config-sync** in GitHub.
+- **History and audit.** Parameter Store keeps every version of a parameter.
+  CloudTrail records who changed which parameter, and when.
+- **Encrypted, with access set in IAM.** Secrets are `SecureString`, encrypted
+  with the AWS-managed KMS key `alias/aws/ssm`. Who can read them depends on
+  IAM, not on who has a shell on the box.
+- **Gradual.** It is an overlay, so keys can move over one at a time, and
+  nothing breaks while Parameter Store is empty.
+
+## How it works
+
+One parameter per environment variable, under `/decibyl/prod/`, named exactly
+like the variable:
+
+| Parameter | Becomes this line in `.env` |
+| --- | --- |
+| `/decibyl/prod/SLACK_SIGNING_SECRET` | `SLACK_SIGNING_SECRET='…'` |
+| `/decibyl/prod/DATABASE_URL` | `DATABASE_URL='…'` |
+
+Use type `SecureString` (KMS key `alias/aws/ssm`) for secrets. `String` is fine
+for values that are not secret.
+
+`echowave/scripts/ops/config_sync.sh` runs **on the box**. It reads every
+parameter under the path (`get-parameters-by-path --recursive
+--with-decryption`, following every page) and, for each one, sets or replaces
+that key's line in `.env`:
+
+- **Keys that are not in Parameter Store are left exactly as they are**, and so
+  are comments and blank lines. A key in Parameter Store that `.env` does not
+  have yet is added at the end, under a `# --- from AWS Parameter Store ---`
+  marker.
+- **If Parameter Store cannot be read, or has no parameters,** the script
+  prints a warning, leaves `.env` untouched and exits 0. The same happens when
+  the IAM permission, the instance role or the `aws` CLI is missing. A deploy
+  never fails because of it.
+- **It is all or nothing.** If any parameter cannot be written to `.env`
+  safely, nothing is written: the script names the parameter and exits 3. A
+  value that spans more than one line is the usual cause.
+- **The write is atomic.** The new file is written next to `.env`, set to
+  `chmod 600`, given the same owner as `.env`, then renamed over it. The
+  previous file is kept as `.env.bak-<UTC timestamp>` (`chmod 600`). Only the
+  last 3 backups are kept.
+- **It never prints a value.** It prints only `updated KEY`, `added KEY`,
+  `unchanged KEY` and counts.
+- **Running it twice changes nothing.** If every key already matches,
+  `.env` is not rewritten and no backup is made.
+
+### How values are written
+
+Every value is written in single quotes: `KEY='value'`. Both docker compose
+(for `env_file` and `${VAR}` interpolation) and a bash `. .env` read a
+single-quoted value literally:
+
+- `$` is not interpolated;
+- `#` does not start a comment;
+- spaces, `=`, `@` and `\` are kept as they are.
+
+A value that contains a single quote is written in double quotes instead,
+which is only literal if the value has no `\`, `$`, `"` or backtick. A value
+that has both kinds of character cannot be written unambiguously, so it is
+refused. So is a value with a line break, and a value that ends in `\`.
+`.env` holds one line per key, so store a multi-line value (a PEM key, say)
+base64-encoded.
+
+### When it runs
+
+1. **On every deploy**, before images are built and before
+   `docker compose up`: `scripts/ci_deploy.sh` runs it. A warning or a refusal
+   is printed and the deploy carries on with `.env` as it was.
+2. **When you ask:** **Actions → Ops → Run workflow**, then pick one of these
+   actions:
+
+| Action | What it does | Restarts |
+| --- | --- | --- |
+| `config-check` | Lists the keys that differ between Parameter Store and `.env`, the keys missing from `.env`, and the `.env` keys not yet in Parameter Store. Names only. Read-only. | nothing |
+| `config-sync` | Syncs, then restarts the chosen `service` (default `api`) exactly like `restart`, with the same pinned image tag and health wait. If no key changed, it restarts nothing. If the sync is refused or cannot read Parameter Store, the run fails and nothing is restarted. | the `service` input |
+| `config-rollback` | Puts the newest `.env.bak-*` back and saves the `.env` it replaces as a new backup, so a second rollback undoes the first. Then restarts like `restart`. | the `service` input |
+| `config-import` | The one-time import (below). Needs the `confirm` input set to exactly `import`. | nothing |
+
+`config-sync` and `config-rollback` are in the deploy's concurrency group,
+like `restart`, so they never run during a deploy. `config-check` and
+`config-import` use the `ops-production` group.
+
+Which `service` to pick: `api` covers every key the API and worker read. This
+is almost every key, because `api` gets the whole `.env` through `env_file`.
+Pick `all` for keys that docker compose interpolates into other services, such
+as `TURN_SECRET`, `PUBLIC_HOST` and `PUBLIC_BASE_URL` (nginx and coturn). A
+`NEXT_PUBLIC_*` value is built into the UI image, so it needs a deploy.
+
+## FOUNDER ACTION 1: give the instance role access to Parameter Store
+
+The `aws` CLI on the box runs as the **EC2 instance's IAM role**, not as the
+GitHub deploy role. That instance role needs to read (and, for the import,
+write) parameters under `/decibyl/prod/`.
+
+1. Find your account ID: AWS console, click your account name (top right).
+   The 12-digit **Account ID** is in the menu. Use it in place of
+   `<ACCOUNT_ID>` below.
+2. Open **EC2 → Instances**, select the production instance (region
+   **Asia Pacific (Mumbai) ap-south-1**), and open the **Security** tab.
+   Click the role name under **IAM Role**.
+   - *If there is no IAM role*, SSM is reaching the box through Default Host
+     Management, and processes on the box have no AWS credentials. Create
+     one first: **IAM → Roles → Create role → AWS service → EC2 → Next**,
+     attach **AmazonSSMManagedInstanceCore**, name it `decibyl-prod-ec2`,
+     **Create role**. Then **EC2 → the instance → Actions → Security →
+     Modify IAM role**, choose `decibyl-prod-ec2`, **Update IAM role**.
+3. On the role's page: **Add permissions → Create inline policy → JSON**.
+   Paste the policy below, click **Next**, name it
+   `decibyl-prod-parameter-store`, then **Create policy**.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadDecibylProdConfig",
+      "Effect": "Allow",
+      "Action": ["ssm:GetParametersByPath", "ssm:GetParameters"],
+      "Resource": [
+        "arn:aws:ssm:ap-south-1:<ACCOUNT_ID>:parameter/decibyl/prod",
+        "arn:aws:ssm:ap-south-1:<ACCOUNT_ID>:parameter/decibyl/prod/*"
+      ]
+    },
+    {
+      "Sid": "ImportDecibylProdConfigOnce",
+      "Effect": "Allow",
+      "Action": "ssm:PutParameter",
+      "Resource": "arn:aws:ssm:ap-south-1:<ACCOUNT_ID>:parameter/decibyl/prod/*"
+    },
+    {
+      "Sid": "UseTheSsmManagedKmsKey",
+      "Effect": "Allow",
+      "Action": ["kms:Decrypt", "kms:Encrypt"],
+      "Resource": "arn:aws:kms:ap-south-1:<ACCOUNT_ID>:key/*",
+      "Condition": {
+        "StringEquals": { "kms:ViaService": "ssm.ap-south-1.amazonaws.com" }
+      }
+    }
+  ]
+}
+```
+
+Two resources are needed for reading. `GetParametersByPath` is authorised
+against the path itself (`parameter/decibyl/prod`, no trailing slash), and
+`GetParameters` against each parameter (`parameter/decibyl/prod/*`). The KMS
+statement only applies to calls that come through Parameter Store. The key
+policy of the AWS-managed `alias/aws/ssm` key already allows that use, so this
+statement is a second, explicit grant rather than the only one.
+
+**Expected result:** **Actions → Ops → config-check** no longer prints
+`AccessDeniedException` or `NoCredentials`. Once the import is done, you can
+delete the `ImportDecibylProdConfigOnce` statement so that the box can only
+read parameters.
+
+**If config-check says `the aws CLI is not installed on this box`**, install
+it without a shell: **Systems Manager → Run Command → Run command →
+AWS-RunShellScript**. Under **Commands**, enter
+`snap install aws-cli --classic`. Under **Targets**, choose the instance, then
+click **Run**.
+
+## FOUNDER ACTION 2: the one-time import
+
+This copies today's `.env` into Parameter Store. For each key that is not
+there yet, it creates `/decibyl/prod/<KEY>` as a `SecureString`. It never
+overwrites an existing parameter. It skips comments, blank lines and empty
+values. It also skips any value that docker compose would interpolate (a `$`
+outside single quotes): it lists those by name, and you add them by hand with
+the literal value.
+
+1. **Actions → Ops → Run workflow**: set `action` to `config-import` and
+   `confirm` to `import`, then click **Run workflow**.
+2. Read the output: `created /decibyl/prod/KEY`, `exists KEY`,
+   `skipped KEY (reason)`, then a summary line. Names only.
+3. Run `config-check`. Every key should be `same`, apart from the skipped ones.
+
+The script is `echowave/scripts/ops/env_to_ssm.sh`. On the box it also takes
+`--dry-run` (list what it would create) and `--overwrite` (replace existing
+parameters). The Ops action never passes `--overwrite`.
+
+## FOUNDER ACTION 3: rotate the exposed secrets
+
+These values have been exposed and must be rotated. Rotate each one at its
+source first, then put the new value into its parameter:
+
+| Parameter | Rotate at |
+| --- | --- |
+| `DATABASE_URL` (the password in it) | Postgres / RDS: change the user's password, then edit the whole URL with the new password. The API cannot connect between the change and the sync, so run the sync straight away. |
+| `MICROSOFT_APP_PASSWORD` | Azure portal → App registrations → the bot → Certificates & secrets → New client secret. Delete the old secret after the sync. |
+| `SLACK_CLIENT_SECRET` | api.slack.com → your app → Basic Information → App Credentials → Regenerate |
+| `SLACK_SIGNING_SECRET` | Same page → Signing Secret → Regenerate. Slack starts signing with the new secret immediately, so sync straight away. |
+| `COMPOSIO_API_KEY` | Composio dashboard → API keys → new key. Revoke the old one after the sync. |
+| `DECIBYL_DEVOPS_SECRET` | Ours: any long random string, for example `openssl rand -hex 32`. Update anything that sends the `X-Decibyl-Devops-Secret` header. |
+
+For each key:
+
+1. **Systems Manager → Parameter Store** (region ap-south-1), click
+   `/decibyl/prod/<KEY>`, then **Edit**. Paste the new value into **Value**,
+   keep **SecureString**, and click **Save changes**.
+2. When all six are edited, **Actions → Ops → Run workflow**: set `action` to
+   `config-sync` and `service` to `api`.
+3. **Expected result:** the output lists `updated <KEY>` for each key, the
+   restart is healthy, and `config-check` shows no `differs`. Revoke the old
+   values at the vendors last.
+
+## Changing a secret from now on
+
+1. **Systems Manager → Parameter Store →** the parameter **→ Edit →** new
+   value **→ Save changes**. To add a new key, use **Create parameter**:
+   name `/decibyl/prod/<KEY>`, tier Standard, type SecureString, KMS key
+   `alias/aws/ssm`.
+2. **Actions → Ops → config-sync** with the right `service` (see above).
+
+The next deploy would also pick up the change, but a deploy restarts more than
+it needs to.
+
+## Rollback
+
+- **A value that turned out wrong:** run **Ops → config-rollback**. It puts
+  the previous `.env` back and restarts. This is **temporary**: the next
+  deploy or `config-sync` applies Parameter Store again. To make it stick, fix
+  the parameter as well. The parameter's **History** tab has every previous
+  version; edit the parameter back to the old value.
+- **Deleting a parameter does not delete the key from `.env`.** It is an
+  overlay, so the last value written stays until you change it.
+- **Rolling back this feature:** revert the PR. `.env` keeps the values it
+  was last synced to, which is a normal hand-editable `.env`. The
+  `.env.bak-*` files can be deleted.
+- A failed deploy rolls back the code but not `.env`. The synced values
+  stay, because they are what Parameter Store says.
+
+## What it never does
+
+- It never prints a value. That covers the job log, the Ops artifact and the
+  SSM output. Errors from AWS are reduced to their error code, because a
+  validation error from `PutParameter` can quote the value back.
+- It never passes a value on a command line. The import writes each value to a
+  `chmod 600` temp file and calls `put-parameter --cli-input-json`.
+- It never touches keys that are not in Parameter Store, and it never
+  overwrites a parameter without `--overwrite`.
+
+Tests: `bash echowave/scripts/test_config_sync.sh`. It uses a fake `aws` on
+`PATH` and a throwaway `.env`, and covers paging, values with `$ = #` and
+spaces, refusing multi-line values, atomic writes, backup rotation, AWS
+failures, `--check`, the import, and a check that no value is printed. When
+docker compose is installed, it also checks that compose reads every written
+value literally.
