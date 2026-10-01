@@ -83,7 +83,7 @@ export default function SettingsPage() {
           </Card>
         )}
 
-        <Card>
+        <Card id="team" className="scroll-mt-4">
           <CardHeader>
             <CardTitle>Team</CardTitle>
             <CardDescription>
