@@ -63,13 +63,15 @@ on:
         type: string
         default: ""
 
-# Shares the deploy's group so an ops run never overlaps a deploy (a restart
-# mid-deploy would race the compose up). Not cancel-in-progress, same as
-# deploy.yml. Caveat: GitHub keeps one *pending* run per group, so a run
-# queued here while a deploy is running replaces any deploy already waiting
-# (and vice versa) -- re-run whichever was cancelled.
+# Only `restart` shares the deploy's group: a restart mid-deploy would race the
+# compose up, so it waits for the deploy. The read-only actions (status, logs,
+# migrate-status) get their own group, because GitHub keeps one *pending* run
+# per group and a queued read-only run must never replace a deploy that is
+# waiting. Caveat that remains: a queued restart can still replace a waiting
+# deploy (and vice versa), and two queued ops runs replace each other -- re-run
+# whichever was cancelled. Not cancel-in-progress, same as deploy.yml.
 concurrency:
-  group: deploy-production
+  group: ${{ inputs.action == 'restart' && 'deploy-production' || 'ops-production' }}
   cancel-in-progress: false
 
 permissions:

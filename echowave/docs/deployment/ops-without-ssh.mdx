@@ -38,11 +38,16 @@ Anyone with **write** access to the repository. That is GitHub's rule for
 button. If the `production` environment has required reviewers, every Ops run
 waits for a reviewer to approve it, just as a deploy does.
 
-Ops runs share the `deploy-production` concurrency group with deploys, so they
-never overlap. A run started during a deploy waits for the deploy to finish.
+Only `restart` shares the `deploy-production` concurrency group with deploys,
+so a restart never overlaps a deploy: a restart started during a deploy waits
+for the deploy to finish. `status`, `logs` and `migrate-status` are read-only
+and use their own group, `ops-production`, so they run even while a deploy is
+in progress and never displace a deploy.
+
 GitHub keeps only one waiting run per group, so a new waiting run replaces one
-that was already waiting (a deploy or another Ops run), and you have to re-run
-the one that was replaced.
+that was already waiting in the same group. In practice that means a queued
+`restart` can replace a waiting deploy (or the reverse), and two queued
+read-only runs can replace each other. Re-run whichever was replaced.
 
 ## Running it
 
