@@ -19279,6 +19279,162 @@ export type GetKpiCatalogueApiV1AdminKpisCatalogueGetResponses = {
 
 export type GetKpiCatalogueApiV1AdminKpisCatalogueGetResponse = GetKpiCatalogueApiV1AdminKpisCatalogueGetResponses[keyof GetKpiCatalogueApiV1AdminKpisCatalogueGetResponses];
 
+export type ReadAuditLogApiV1AdminAuditGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Organization Id
+         *
+         * Only this account
+         */
+        organization_id?: number | null;
+        /**
+         * Actor User Id
+         *
+         * Only this staff member
+         */
+        actor_user_id?: number | null;
+        /**
+         * Action
+         */
+        action?: string | null;
+        /**
+         * Before
+         *
+         * The `next_before` cursor from the previous page, or an ISO timestamp to start below
+         */
+        before?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/admin/audit';
+};
+
+export type ReadAuditLogApiV1AdminAuditGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadAuditLogApiV1AdminAuditGetError = ReadAuditLogApiV1AdminAuditGetErrors[keyof ReadAuditLogApiV1AdminAuditGetErrors];
+
+export type ReadAuditLogApiV1AdminAuditGetResponses = {
+    /**
+     * Response Read Audit Log Api V1 Admin Audit Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ReadAuditLogApiV1AdminAuditGetResponse = ReadAuditLogApiV1AdminAuditGetResponses[keyof ReadAuditLogApiV1AdminAuditGetResponses];
+
+export type ReadSystemStatusApiV1AdminSystemGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/system';
+};
+
+export type ReadSystemStatusApiV1AdminSystemGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadSystemStatusApiV1AdminSystemGetError = ReadSystemStatusApiV1AdminSystemGetErrors[keyof ReadSystemStatusApiV1AdminSystemGetErrors];
+
+export type ReadSystemStatusApiV1AdminSystemGetResponses = {
+    /**
+     * Response Read System Status Api V1 Admin System Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ReadSystemStatusApiV1AdminSystemGetResponse = ReadSystemStatusApiV1AdminSystemGetResponses[keyof ReadSystemStatusApiV1AdminSystemGetResponses];
+
+export type StopImpersonationApiV1ImpersonationStopPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/impersonation/stop';
+};
+
+export type StopImpersonationApiV1ImpersonationStopPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StopImpersonationApiV1ImpersonationStopPostError = StopImpersonationApiV1ImpersonationStopPostErrors[keyof StopImpersonationApiV1ImpersonationStopPostErrors];
+
+export type StopImpersonationApiV1ImpersonationStopPostResponses = {
+    /**
+     * Response Stop Impersonation Api V1 Impersonation Stop Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type StopImpersonationApiV1ImpersonationStopPostResponse = StopImpersonationApiV1ImpersonationStopPostResponses[keyof StopImpersonationApiV1ImpersonationStopPostResponses];
+
 export type GetOnboardingCreditsApiV1OnboardingCreditsGetData = {
     body?: never;
     headers?: {
