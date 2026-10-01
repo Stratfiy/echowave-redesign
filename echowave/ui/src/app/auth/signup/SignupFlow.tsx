@@ -214,7 +214,7 @@ export function SignupFlow() {
           }
         />
         <form onSubmit={advance} noValidate data-testid="signup-form">
-          <Label htmlFor="signup-email" className="sr-only">
+          <Label htmlFor="signup-email" className="mb-2 block text-sm text-muted-foreground">
             {copy.start.emailLabel}
           </Label>
           <Input

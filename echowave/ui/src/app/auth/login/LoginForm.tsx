@@ -156,7 +156,7 @@ export function LoginForm({ signupEnabled }: { signupEnabled: boolean }) {
       >
         <GoogleSignInButton label={copy.email.google} className="mb-6" />
         <form onSubmit={advance} noValidate data-testid="login-form">
-          <Label htmlFor="login-email" className="sr-only">
+          <Label htmlFor="login-email" className="mb-2 block text-sm text-muted-foreground">
             {AUTH_COPY.signup.start.emailLabel}
           </Label>
           <Input
