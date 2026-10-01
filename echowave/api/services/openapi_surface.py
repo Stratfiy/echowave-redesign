@@ -31,7 +31,13 @@ from fastapi.openapi.utils import get_openapi
 #: admin routers are tagged ``admin-billing``, ``admin-kyc`` and so on.
 INTERNAL_TAG_PREFIXES = ("admin", "superuser", "superadmin", "staff", "internal")
 #: A path that marks an operation as staff-only even when untagged.
-INTERNAL_PATH_PREFIXES = ("/api/v1/admin/", "/api/v1/superuser/")
+INTERNAL_PATH_PREFIXES = (
+    "/api/v1/admin/",
+    "/api/v1/superuser/",
+    # Ending an impersonation: called by the borrowed session, so it cannot
+    # carry a staff gate, and only the impersonation banner has a use for it.
+    "/api/v1/impersonation/",
+)
 
 #: The public reference, in the order a customer reads it: each group is a
 #: heading, each tag under it a router. Rendered into the public document as

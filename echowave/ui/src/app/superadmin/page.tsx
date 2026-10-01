@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { SystemStrip } from "@/components/superadmin/SystemStatus";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -88,6 +89,10 @@ export default function SuperadminPage() {
                     <h1 className="mb-2 text-[26px] leading-tight">Review queue</h1>
                     <p className="text-sm text-muted-foreground">Manage users and view system-wide data</p>
                 </div>
+
+                {/* Is the platform itself all right? Build, database, Redis,
+                    worker, queue and provider balances, refreshed while open. */}
+                <SystemStrip />
 
                 <div className="grid gap-6 md:grid-cols-2">
                         <Card>

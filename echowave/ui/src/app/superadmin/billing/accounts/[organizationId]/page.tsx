@@ -41,6 +41,11 @@ import {
     useAuthReady,
     useChartMode,
 } from "@/components/charts/primitives";
+import { AuditLog } from "@/components/superadmin/AuditLog";
+import { ImpersonateOwnerButton } from "@/components/superadmin/ImpersonateOwnerButton";
+import { COPY, type OrgHealth, type RecentFailure } from "@/components/superadmin/orgHealth";
+import { OrgHealthCard } from "@/components/superadmin/OrgHealthCard";
+import { TrialControls } from "@/components/superadmin/TrialControls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -204,6 +209,33 @@ export default function AccountDetailPage() {
                     ))}
                 </section>
             )}
+
+            {/* Org 360 (ADMIN-2): is this account healthy, and the levers
+                staff pull on a trial account, before the money below. */}
+            {account?.trial && (
+                <OrgHealthCard
+                    health={account as unknown as OrgHealth}
+                    failures={(account.recent_failures ?? []) as unknown as RecentFailure[]}
+                    actions={
+                        <>
+                            <TrialControls
+                                organizationId={organizationId}
+                                trial={(account as unknown as OrgHealth).trial}
+                                onChanged={load}
+                            />
+                            <ImpersonateOwnerButton
+                                ownerUserId={
+                                    account.owner_user_id != null ? Number(account.owner_user_id) : null
+                                }
+                                ownerEmail={account.owner_email != null ? String(account.owner_email) : null}
+                            />
+                        </>
+                    }
+                />
+            )}
+
+            {/* Flags (ADMIN-1, A1): the per-account flag section from the flag
+                console lands here once that branch merges. */}
 
             <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <StatTile label="Revenue" value={formatPaise(totals.revenue)} />
@@ -414,6 +446,16 @@ export default function AccountDetailPage() {
 
             <TelephonyPanel organizationId={organizationId} />
             <CommissionPanel organizationId={organizationId} />
+
+            {/* Every staff action and money change on this account (A6). */}
+            <Card>
+                <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">{COPY.audit}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <AuditLog organizationId={organizationId} showFilters pageSize={20} />
+                </CardContent>
+            </Card>
         </div>
     );
 }
