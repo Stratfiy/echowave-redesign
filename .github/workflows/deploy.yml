@@ -95,6 +95,9 @@ jobs:
           # not the default.
           PROJECT_DIR: ${{ vars.DEPLOY_PROJECT_DIR || '/home/ubuntu/echowave-redesign/echowave' }}
           RUN_AS: ${{ vars.DEPLOY_RUN_AS || 'ubuntu' }}
+          # Where ci_deploy.sh's config sync finds Parameter Store. Same value
+          # the step above authenticated to; the box would otherwise ask IMDS.
+          REGION: ${{ vars.AWS_REGION || 'ap-south-1' }}
         run: |
           set -euo pipefail
           # Built as a JSON file rather than inline. The inline form needs
@@ -158,6 +161,7 @@ jobs:
             --arg dir "$PROJECT_DIR" \
             --arg ref "$DEPLOY_REF" \
             --arg user "$RUN_AS" \
+            --arg region "$REGION" \
             '{commands: [
                "set -euo pipefail",
                "export HOME=\"${HOME:-/root}\"",
@@ -165,7 +169,7 @@ jobs:
                "cd \($dir)",
                "git -C \($dir) fetch --prune origin \($ref)",
                "git -C \($dir) show FETCH_HEAD:echowave/scripts/ci_deploy.sh > /tmp/ci_deploy.running.sh",
-               "REF=\($ref) PROJECT_DIR=\($dir) RUN_AS=\($user) bash /tmp/ci_deploy.running.sh"
+               "REF=\($ref) PROJECT_DIR=\($dir) RUN_AS=\($user) AWS_REGION=\($region|@sh) bash /tmp/ci_deploy.running.sh"
              ]}' > /tmp/ssm-params.json
 
           COMMAND_ID=$(aws ssm send-command \

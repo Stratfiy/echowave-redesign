@@ -9,6 +9,8 @@
 #
 # Required env: OPS_ACTION OPS_SERVICE OPS_MINUTES OPS_GREP INSTANCE_ID
 #               PROJECT_DIR RUN_ID OUT_FILE
+# Optional env: OPS_CONFIRM (config-import), AWS_REGION (set by
+#               configure-aws-credentials; tells the box where Parameter Store is)
 # Writes everything the box printed to OUT_FILE (and stdout).
 
 set -euo pipefail
@@ -21,6 +23,8 @@ REMOTE="$HERE/remote.sh"
 OPS_SERVICE="${OPS_SERVICE:-api}"
 OPS_MINUTES="${OPS_MINUTES:-15}"
 OPS_GREP="${OPS_GREP:-}"
+OPS_CONFIRM="${OPS_CONFIRM:-}"
+OPS_REGION="${AWS_REGION:-}"
 
 #: Logs bigger than this many SSM round trips are refused rather than fetched
 #: for minutes on end; narrow the window or add a filter instead.
@@ -33,7 +37,8 @@ fail() { echo "::error::$1"; exit 1; }
 # input is checked again here and once more on the box.
 case "$OPS_ACTION" in
     status | logs | restart | migrate-status) ;;
-    *) fail "action must be one of status, logs, restart, migrate-status" ;;
+    config-check | config-sync | config-import | config-rollback) ;;
+    *) fail "action must be one of status, logs, restart, migrate-status, config-check, config-sync, config-import, config-rollback" ;;
 esac
 [[ "$OPS_SERVICE" =~ ^[a-z0-9_-]{1,40}$ ]] || fail "service has disallowed characters"
 [[ "$OPS_MINUTES" =~ ^[0-9]{1,3}$ ]] && [ "$OPS_MINUTES" -ge 1 ] && [ "$OPS_MINUTES" -le 120 ] \
@@ -41,18 +46,33 @@ esac
 [[ "$OPS_GREP" =~ ^[A-Za-z0-9\ _./:-]{0,60}$ ]] \
     || fail "grep may only contain letters, digits, space and _ . / : - (max 60)"
 [[ "$RUN_ID" =~ ^[0-9]{1,20}$ ]] || fail "bad run id"
-if [ "$OPS_ACTION" = "restart" ]; then
-    case "$OPS_SERVICE" in
-        api | ui | sandbox | nginx | all) ;;
-        *) fail "restart is limited to api, ui, sandbox, nginx or all (not stateful services)" ;;
-    esac
-fi
+[[ "$OPS_REGION" =~ ^([a-z]{2}(-[a-z]+)+-[0-9])?$ ]] || fail "bad AWS region"
+case "$OPS_ACTION" in
+    restart | config-sync | config-rollback)
+        case "$OPS_SERVICE" in
+            api | ui | sandbox | nginx | all) ;;
+            *) fail "$OPS_ACTION restarts only api, ui, sandbox, nginx or all (not stateful services)" ;;
+        esac
+        ;;
+    config-import)
+        # Writes to Parameter Store; typed on purpose, never a default.
+        [ "$OPS_CONFIRM" = "import" ] || fail "config-import needs the confirm input set to exactly: import"
+        ;;
+esac
 
 # Both files travel inside the command, gzip+base64, so nothing here depends
 # on the box's checkout and no quoting survives into the remote shell: the
 # only user-derived strings are the validated inputs, passed through jq's @sh.
 REDACT_B64="$(gzip -9c "$REDACT" | base64 -w0)"
 REMOTE_B64="$(gzip -9c "$REMOTE" | base64 -w0)"
+# The Parameter Store tools, for config-* actions only (keeps the other
+# commands as small as they were).
+LIB_B64=""
+case "$OPS_ACTION" in
+    config-*)
+        LIB_B64="$(tar -C "$HERE" -czf - config_sync.sh env_to_ssm.sh ssm_env.py | base64 -w0)"
+        ;;
+esac
 
 # ssm_run <action> [chunk] [timeout-seconds] -> remote stdout on our stdout.
 # Fails when the remote command did not succeed (stderr is printed redacted).
@@ -64,19 +84,25 @@ ssm_run() {
         --arg action "$action" --arg service "$OPS_SERVICE" \
         --arg minutes "$OPS_MINUTES" --arg grep "$OPS_GREP" \
         --arg run "$RUN_ID" --arg chunk "$chunk" --arg dir "$PROJECT_DIR" \
-        '{commands: [
+        --arg lib "$LIB_B64" --arg confirm "$OPS_CONFIRM" --arg region "$OPS_REGION" \
+        '{commands: ([
             "set -euo pipefail",
             "export HOME=\"${HOME:-/root}\"",
             "D=$(mktemp -d /tmp/decibyl-ops.XXXXXX)",
             "trap '\''rm -rf \"$D\"'\'' EXIT",
             ("printf %s " + ($redact|@sh) + " | base64 -d | gunzip > \"$D/redact.sed\""),
-            ("printf %s " + ($remote|@sh) + " | base64 -d | gunzip > \"$D/remote.sh\""),
+            ("printf %s " + ($remote|@sh) + " | base64 -d | gunzip > \"$D/remote.sh\"")
+          ] + (if $lib == "" then [] else [
+            "mkdir -p \"$D/lib\"",
+            ("printf %s " + ($lib|@sh) + " | base64 -d | tar -xzf - -C \"$D/lib\"")
+          ] end) + [
             ("OPS_ACTION=" + ($action|@sh) + " OPS_SERVICE=" + ($service|@sh)
               + " OPS_MINUTES=" + ($minutes|@sh) + " OPS_GREP=" + ($grep|@sh)
               + " OPS_RUN_ID=" + ($run|@sh) + " OPS_CHUNK=" + ($chunk|@sh)
+              + " OPS_CONFIRM=" + ($confirm|@sh) + " OPS_REGION=" + ($region|@sh)
               + " PROJECT_DIR=" + ($dir|@sh)
-              + " OPS_REDACT=\"$D/redact.sed\" bash \"$D/remote.sh\"")
-          ]}' > "$params"
+              + " OPS_LIBDIR=\"$D/lib\" OPS_REDACT=\"$D/redact.sed\" bash \"$D/remote.sh\"")
+          ])}' > "$params"
 
     cid="$(aws ssm send-command \
         --instance-ids "$INSTANCE_ID" \
@@ -116,11 +142,11 @@ ssm_run() {
 
 : > "$OUT_FILE"
 case "$OPS_ACTION" in
-    status | migrate-status)
+    status | migrate-status | config-check | config-import)
         ssm_run "$OPS_ACTION" 0 120 | tee "$OUT_FILE"
         ;;
-    restart)
-        ssm_run restart 0 600 | tee "$OUT_FILE"
+    restart | config-sync | config-rollback)
+        ssm_run "$OPS_ACTION" 0 600 | tee "$OUT_FILE"
         ;;
     logs)
         header="$(ssm_run logs 0 300)"

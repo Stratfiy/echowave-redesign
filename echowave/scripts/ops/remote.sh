@@ -9,12 +9,17 @@
 #
 # Inputs, all already validated by dispatch.sh and re-validated here:
 #   OPS_ACTION   status | logs | restart | migrate-status | fetch-chunk | cleanup
+#                | config-check | config-sync | config-import | config-rollback
 #   OPS_SERVICE  a compose service, or "all"
 #   OPS_MINUTES  1..120 (logs)
 #   OPS_GREP     fixed-string filter (logs), ^[A-Za-z0-9 _./:-]{0,60}$
 #   OPS_RUN_ID   the Actions run id, numeric; names the logs spool file
 #   OPS_CHUNK    chunk index (fetch-chunk)
 #   OPS_REDACT   path to redact.sed
+#   OPS_LIBDIR   directory holding config_sync.sh, env_to_ssm.sh, ssm_env.py
+#                (config-* actions; shipped inside the command like this file)
+#   OPS_CONFIRM  must be exactly "import" for config-import
+#   OPS_REGION   AWS region for Parameter Store (default: the instance's)
 #   PROJECT_DIR  the compose directory
 #
 # Rules this file keeps: it never prints .env, never runs `docker compose
@@ -32,6 +37,9 @@ OPS_MINUTES="${OPS_MINUTES:-15}"
 OPS_GREP="${OPS_GREP:-}"
 OPS_RUN_ID="${OPS_RUN_ID:-0}"
 OPS_CHUNK="${OPS_CHUNK:-0}"
+OPS_LIBDIR="${OPS_LIBDIR:-}"
+OPS_CONFIRM="${OPS_CONFIRM:-}"
+OPS_REGION="${OPS_REGION:-}"
 HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:8000/api/v1/health}"
 
 #: SSM keeps at most 24,000 characters of a command's stdout, so logs are
@@ -51,6 +59,7 @@ redact() { sed -E -f "$OPS_REDACT"; }
     || die "minutes must be 1..120"
 [[ "$OPS_GREP" =~ ^[A-Za-z0-9\ _./:-]{0,60}$ ]] || die "grep filter has disallowed characters"
 [[ "$OPS_SERVICE" =~ ^[a-z0-9_-]{1,40}$ ]] || die "bad service name"
+[[ "$OPS_REGION" =~ ^([a-z]{2}(-[a-z]+)+-[0-9])?$ ]] || die "bad region"
 
 SPOOL="$SPOOL_DIR/logs-$OPS_RUN_ID.b64"
 
@@ -205,6 +214,62 @@ action_migrate_status() {
     compose exec -T api python -m alembic -c api/alembic.ini heads 2>&1 | redact
 }
 
+# ---- configuration from Parameter Store (scripts/ops/config_sync.sh) -------
+# The tools print key names and counts only, never values; their output still
+# goes through redact.sed like everything else that leaves the box.
+
+config_tool() {
+    local tool="$1"
+    shift
+    [ -n "$OPS_LIBDIR" ] && [ -f "$OPS_LIBDIR/$tool" ] || die "config tools were not shipped with the command"
+    ENV_FILE="$PROJECT_DIR/.env" AWS_REGION="${OPS_REGION:-${AWS_REGION:-}}" \
+        bash "$OPS_LIBDIR/$tool" "$@"
+}
+
+action_config_check() {
+    say "Parameter Store vs .env (key names only)"
+    config_tool config_sync.sh --check 2>&1 | redact
+}
+
+# Sync, then restart exactly like `restart` -- but only when a key changed.
+action_config_sync() {
+    require_service "api ui sandbox nginx"
+    say "Syncing .env from Parameter Store (key names only)"
+    local out changed
+    if ! out="$(config_tool config_sync.sh 2>&1)"; then
+        printf '%s\n' "$out" | redact
+        die "config sync refused or failed: .env NOT changed, nothing restarted"
+    fi
+    printf '%s\n' "$out" | redact
+    changed="$(sed -n 's/^CONFIG_SYNC_CHANGED=\([0-9]*\)$/\1/p' <<< "$out" | tail -1)"
+    if [ -z "$changed" ]; then
+        # The deploy treats this as a warning; here somebody asked for a sync
+        # and did not get one, so the run fails and says why above.
+        echo "Parameter Store was not applied (see the warning above); nothing restarted."
+        return 1
+    fi
+    if [ "$changed" -eq 0 ]; then
+        echo "No key changed; nothing to restart."
+        return 0
+    fi
+    action_restart
+}
+
+# Put the newest .env.bak-* back (the .env it replaces becomes a backup, so a
+# second rollback undoes the first), then restart like `restart`.
+action_config_rollback() {
+    require_service "api ui sandbox nginx"
+    say "Restoring the previous .env"
+    config_tool config_sync.sh --restore-latest 2>&1 | redact
+    action_restart
+}
+
+action_config_import() {
+    [ "$OPS_CONFIRM" = "import" ] || die "config-import needs confirm=import"
+    say "One-time import of .env into Parameter Store (names only; existing parameters kept)"
+    config_tool env_to_ssm.sh 2>&1 | redact
+}
+
 case "$OPS_ACTION" in
     status) action_status ;;
     logs) action_logs ;;
@@ -212,5 +277,9 @@ case "$OPS_ACTION" in
     cleanup) action_cleanup ;;
     restart) action_restart ;;
     migrate-status) action_migrate_status ;;
+    config-check) action_config_check ;;
+    config-sync) action_config_sync ;;
+    config-import) action_config_import ;;
+    config-rollback) action_config_rollback ;;
     *) die "unknown action" ;;
 esac

@@ -1,14 +1,18 @@
 name: Ops
 
 # Day-to-day production operations without a shell on the box: status, logs
-# (redacted), restart after a .env change, and migration status.
+# (redacted), restart after a .env change, migration status, and configuration
+# from AWS SSM Parameter Store (config-check / config-sync / config-import /
+# config-rollback; runbook: echowave/docs/deployment/parameter-store.mdx).
 #
 # Reaches the box exactly the way deploy.yml does: the job runs on the
 # self-hosted `production` runner, assumes the deploy IAM role over GitHub OIDC
 # (no stored AWS keys), and hands the work to SSM send-command with the
 # AWS-RunShellScript document. Same role, same instance, same two SSM calls --
-# no new AWS permission is needed. Every command is in CloudTrail under the
-# role session name gha-ops-<run id>.
+# no new AWS permission is needed for the runner's role. (The config-* actions
+# need Parameter Store access for the *instance* role, which is what the aws CLI
+# on the box runs as -- a one-time FOUNDER ACTION in parameter-store.mdx.)
+# Every command is in CloudTrail under the role session name gha-ops-<run id>.
 #
 # The logic is in echowave/scripts/ops/ (dispatch.sh runs here, remote.sh runs
 # on the box, redact.sed masks secrets on both sides). Runbook:
@@ -34,8 +38,12 @@ on:
           - logs
           - restart
           - migrate-status
+          - config-check
+          - config-sync
+          - config-rollback
+          - config-import
       service:
-        description: "Service (logs: any; restart: api, ui, sandbox, nginx or all). The arq worker runs inside api."
+        description: "Service (logs: any; restart/config-sync/config-rollback: api, ui, sandbox, nginx or all). The arq worker runs inside api."
         required: false
         type: choice
         default: api
@@ -62,16 +70,24 @@ on:
         required: false
         type: string
         default: ""
+      confirm:
+        description: "config-import only: type exactly 'import' to copy .env into Parameter Store (existing parameters are never overwritten)"
+        required: false
+        type: string
+        default: ""
 
-# Only `restart` shares the deploy's group: a restart mid-deploy would race the
-# compose up, so it waits for the deploy. The read-only actions (status, logs,
-# migrate-status) get their own group, because GitHub keeps one *pending* run
-# per group and a queued read-only run must never replace a deploy that is
-# waiting. Caveat that remains: a queued restart can still replace a waiting
+# Only the actions that restart containers (restart, config-sync,
+# config-rollback) share the deploy's group: a restart mid-deploy would race the
+# compose up, and a .env rewrite mid-deploy would race the deploy's own sync, so
+# they wait for the deploy. The other actions (status, logs, migrate-status,
+# config-check, config-import -- which writes to Parameter Store, never to the
+# box) get their own group, because GitHub keeps one *pending* run per group
+# and a queued ops run must never replace a deploy that is waiting. Caveat
+# that remains: a queued restart or config-sync can still replace a waiting
 # deploy (and vice versa), and two queued ops runs replace each other -- re-run
 # whichever was cancelled. Not cancel-in-progress, same as deploy.yml.
 concurrency:
-  group: ${{ inputs.action == 'restart' && 'deploy-production' || 'ops-production' }}
+  group: ${{ contains(fromJSON('["restart","config-sync","config-rollback"]'), inputs.action) && 'deploy-production' || 'ops-production' }}
   cancel-in-progress: false
 
 permissions:
@@ -111,6 +127,7 @@ jobs:
           OPS_SERVICE: ${{ inputs.service }}
           OPS_MINUTES: ${{ inputs.minutes }}
           OPS_GREP: ${{ inputs.grep }}
+          OPS_CONFIRM: ${{ inputs.confirm }}
           INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
           PROJECT_DIR: ${{ vars.DEPLOY_PROJECT_DIR || '/home/ubuntu/echowave-redesign/echowave' }}
           RUN_ID: ${{ github.run_id }}
