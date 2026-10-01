@@ -134,16 +134,24 @@ class TestTheManifestIsHonest:
 # customer could not open is worse than no record at all: it is evidence, and
 # it is evidence against us.
 
-SIGNUP_FORM = ROOT / "ui" / "src" / "app" / "auth" / "signup" / "page.tsx"
+#: The sign-up form is a step flow; its legal links are defined in the step
+#: copy and rendered by the step fields, so all of these are read together.
+SIGNUP_FORM_FILES = (
+    ROOT / "ui" / "src" / "app" / "auth" / "signup" / "page.tsx",
+    ROOT / "ui" / "src" / "app" / "auth" / "signup" / "SignupFlow.tsx",
+    ROOT / "ui" / "src" / "components" / "auth" / "steps" / "fields.tsx",
+    ROOT / "ui" / "src" / "components" / "auth" / "steps" / "copy.ts",
+)
 
 
 def _signup_form_source() -> str:
-    return SIGNUP_FORM.read_text(encoding="utf-8")
+    return "\n".join(p.read_text(encoding="utf-8") for p in SIGNUP_FORM_FILES)
 
 
 def test_signup_form_exists_where_this_test_expects_it():
     """A moved file must fail loudly rather than vacuously passing."""
-    assert SIGNUP_FORM.is_file(), f"{SIGNUP_FORM} is gone; this test is now blind"
+    for path in SIGNUP_FORM_FILES:
+        assert path.is_file(), f"{path} is gone; this test is now blind"
 
 
 def test_every_decibyl_link_on_the_signup_form_is_a_published_page():
