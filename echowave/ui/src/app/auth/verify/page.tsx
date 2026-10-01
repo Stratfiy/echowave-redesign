@@ -14,7 +14,6 @@
  * earlier) are sent straight on: the page is a door, not a wall.
  */
 
-import { MailCheck } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -23,14 +22,16 @@ import {
   resendEmailVerificationApiV1AuthEmailResendPost,
   verifyEmailApiV1AuthEmailVerifyPost,
 } from "@/client/sdk.gen";
-import { AuthShell } from "@/components/auth/AuthShell";
-import { Button } from "@/components/ui/button";
+import { AUTH_COPY } from "@/components/auth/steps/copy";
+import { STEP_INPUT_CLASS, StepAction, StepError, StepShell } from "@/components/auth/steps/StepShell";
 import { Input } from "@/components/ui/input";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { announceBalanceChanged } from "@/lib/billing/balanceEvents";
 
 const NEXT = "/after-sign-in";
+const ERROR_ID = "verify-step-error";
+const copy = AUTH_COPY.verify;
 
 export default function VerifyEmailPage() {
   const { user, loading: authLoading } = useAuth();
@@ -38,6 +39,7 @@ export default function VerifyEmailPage() {
   const [checked, setChecked] = useState(false);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const response = await getAuthUserApiV1UserAuthUserGet();
@@ -67,7 +69,7 @@ export default function VerifyEmailPage() {
     const response = await verifyEmailApiV1AuthEmailVerifyPost({ body: { code } });
     setBusy(false);
     if (response.error) {
-      toast.error(detailFromResult(response, "That code was not accepted."));
+      setError(detailFromResult(response, copy.rejected));
       return;
     }
     const granted = (response.data as { bonus_granted_paise?: number } | undefined)
@@ -76,7 +78,7 @@ export default function VerifyEmailPage() {
     toast.success(
       granted
         ? `Verified. ${Math.floor(granted / 50)} free credits are in.`
-        : "Email verified.",
+        : copy.verified,
     );
     window.location.href = NEXT;
   };
@@ -86,66 +88,72 @@ export default function VerifyEmailPage() {
     const response = await resendEmailVerificationApiV1AuthEmailResendPost({});
     setBusy(false);
     if (response.error) {
-      toast.error(detailFromResult(response, "Could not send a code."));
+      setError(detailFromResult(response, copy.resendFailed));
       return;
     }
     toast[response.data?.sent ? "success" : "message"](
-      response.data?.sent
-        ? "A new code is on its way."
-        : "A code was sent recently — check your inbox, including spam.",
+      response.data?.sent ? copy.resent : copy.recentlySent,
     );
   };
 
   if (!checked) return null;
 
   return (
-    <AuthShell>
-      <div className="space-y-1.5">
-        <h1 className="text-2xl font-semibold tracking-tight" data-testid="verify-title">
-          Check your email
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          We sent a six-digit code to{" "}
-          {address ? <strong className="font-medium text-foreground">{address}</strong> : "your address"}.
-          Enter it and your first 150 free credits land.
-        </p>
-      </div>
-
+    <StepShell
+      stepKey="verify"
+      title={<span data-testid="verify-title">{copy.title}</span>}
+      hint={
+        <>
+          {copy.sentTo}{" "}
+          {address ? <strong className="font-medium text-foreground">{address}</strong> : copy.yourAddress}.{" "}
+          {copy.bonus}
+        </>
+      }
+      footer={
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            className="underline-offset-4 hover:text-foreground hover:underline"
+            onClick={() => void resend()}
+            disabled={busy}
+          >
+            {copy.resend}
+          </button>
+          <a href={NEXT} className="underline-offset-4 hover:text-foreground hover:underline">
+            {copy.later}
+          </a>
+        </div>
+      }
+    >
       <form
-        className="space-y-4"
         onSubmit={(event) => {
           event.preventDefault();
           if (code.length === 6 && !busy) void verify();
         }}
+        noValidate
         data-testid="verify-form"
       >
-        <div className="flex items-center gap-3">
-          <MailCheck className="h-5 w-5 shrink-0 text-muted-foreground" />
-          <Input
-            value={code}
-            onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-            placeholder="000000"
-            aria-label="Six-digit verification code"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            autoFocus
-            className="h-11 font-mono text-lg tracking-[0.3em]"
-            data-testid="verify-code-input"
-          />
-        </div>
-        <Button type="submit" className="w-full" disabled={busy || code.length < 6} data-testid="verify-submit">
-          Verify and continue
-        </Button>
+        <Input
+          value={code}
+          onChange={(event) => {
+            setCode(event.target.value.replace(/\D/g, "").slice(0, 6));
+            setError(null);
+          }}
+          placeholder="000000"
+          aria-label={copy.label}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={ERROR_ID}
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          autoFocus
+          className={`${STEP_INPUT_CLASS} text-center font-mono text-xl tracking-[0.4em] md:text-xl`}
+          data-testid="verify-code-input"
+        />
+        <StepError id={ERROR_ID} message={error} />
+        <StepAction disabled={busy || code.length < 6} testId="verify-submit">
+          {copy.submit}
+        </StepAction>
       </form>
-
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <button type="button" className="underline-offset-2 hover:underline" onClick={() => void resend()} disabled={busy}>
-          Send the code again
-        </button>
-        <a href={NEXT} className="underline-offset-2 hover:underline">
-          Do this later
-        </a>
-      </div>
-    </AuthShell>
+    </StepShell>
   );
 }
