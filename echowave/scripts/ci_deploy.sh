@@ -105,7 +105,38 @@ prune_disk() {
     docker builder prune -f --keep-storage "$PRUNE_BUILD_CACHE_KEEP" 2>/dev/null ||
         docker builder prune -f --filter "until=$PRUNE_BUILD_CACHE_UNTIL" || true
     docker image prune -f || true
+    prune_old_releases || true
     df -h / || true
+}
+
+#: Released images kept on the box once it pulls from the registry: the one
+#: running plus this many before it. Every release is in the registry under its
+#: commit SHA, so an image dropped here is one `docker compose pull` away; the
+#: box only needs the few a rollback reaches for without the network.
+KEEP_RELEASES="${KEEP_RELEASES:-3}"
+
+# Drop released images older than the last KEEP_RELEASES, registry mode only.
+#
+# `docker image prune -f` never catches these: each pulled release keeps its
+# SHA tag, so none is dangling, and without this the disk holds every release
+# ever deployed. In build mode there is only ever the one `latest` tag per
+# service, which the dangling prune already handles, so this is a no-op there.
+# Never touches an image a container is using, and never fails the deploy.
+prune_old_releases() {
+    [ "${IMAGE_SOURCE:-build}" = "registry" ] || return 0
+    local repo in_use
+    in_use="$(docker ps -a --format '{{.Image}}' 2>/dev/null || true)"
+    for repo in decibyl-api decibyl-ui decibyl-sandbox; do
+        docker image ls --format '{{.CreatedAt}}\t{{.Repository}}:{{.Tag}}' 2>/dev/null |
+            grep -E "/${repo}:" | sort -r | cut -f2 |
+            tail -n +"$((KEEP_RELEASES + 1))" |
+            while read -r ref; do
+                if printf '%s\n' "$in_use" | grep -qxF "$ref"; then
+                    continue
+                fi
+                docker image rm "$ref" >/dev/null 2>&1 && say "Removed old release $ref" || true
+            done
+    done
 }
 
 #: Free gigabytes on the root filesystem, or 0 if it cannot be read.

@@ -1,7 +1,7 @@
 """tables in ToolCategory (U-3)
 
 Revision ID: b5e9c3a7d1f4
-Revises: e8b4d6f2a1c9
+Revises: 202610010100kan277
 Create Date: 2026-09-30
 
 Any agent a person builds can read a spreadsheet whole: one built-in tool
@@ -14,7 +14,7 @@ from alembic import op
 from alembic_postgresql_enum import TableReference
 
 revision: str = "b5e9c3a7d1f4"
-down_revision: Union[str, None] = "e8b4d6f2a1c9"
+down_revision: Union[str, None] = "202610010100kan277"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Gauge, KeyRound, List, Loader2, PhoneCall, ShieldCheck, Speech, Wallet } from 'lucide-react';
+import { ArrowRight, Gauge, KeyRound, List, Loader2, PhoneCall, ShieldCheck, Speech, Ticket, Wallet } from 'lucide-react';
 import Link from "next/link";
 import { useState } from "react";
 
@@ -192,6 +192,25 @@ export default function SuperadminPage() {
                                     <Button className="w-full md:w-auto">
                                         <ShieldCheck className="mr-2 h-4 w-4" />
                                         Open Review Queue
+                                        <ArrowRight className="ml-2 h-4 w-4" />
+                                    </Button>
+                                </Link>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Invite codes</CardTitle>
+                                <CardDescription>
+                                    Mint and track the codes new accounts need
+                                    while signup is invite-only
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Link href="/superadmin/invites">
+                                    <Button className="w-full md:w-auto">
+                                        <Ticket className="mr-2 h-4 w-4" />
+                                        Manage invites
                                         <ArrowRight className="ml-2 h-4 w-4" />
                                     </Button>
                                 </Link>
