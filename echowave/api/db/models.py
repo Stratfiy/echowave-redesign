@@ -133,6 +133,9 @@ class OrganizationModel(Base):
     # Distinct from billing_name, which is the legal name on the invoice.
     name = Column(String(120), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    #: Staff override of the trial's end (PLAN-1, KAN-255): an extension, or
+    #: a pilot's longer window. NULL means the computed window in trial.py.
+    trial_ends_at = Column(DateTime(timezone=True), nullable=True)
 
     # Deprecated: MPS owns quota and credit ledger state.
     quota_type = Column(
@@ -6783,3 +6786,16 @@ class ProcurementDocumentModel(Base):
             "status",
         ),
     )
+
+
+# Tables kept in their own modules (launch convention, KAN-276): imported here
+# so they are on Base.metadata for alembic and the tests.
+from api.db.channel_identity_models import (  # noqa: E402,F401
+    ChannelIdentityModel,
+    ChannelLinkCodeModel,
+    SlackInstallationModel,
+)
+from api.db.signup_invite_models import (  # noqa: E402,F401
+    SignupInviteModel,
+    SignupInviteRedemptionModel,
+)

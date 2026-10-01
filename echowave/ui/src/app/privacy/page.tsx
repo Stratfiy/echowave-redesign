@@ -44,6 +44,7 @@ import {
 } from "@/client/sdk.gen";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { COMPLIANCE_TABS } from "@/components/layout/SectionTabs";
+import { DeleteWorkspaceCard } from "@/components/privacy/DeleteWorkspaceCard";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -917,6 +918,8 @@ export default function PrivacyPage() {
                         )}
                     </CardContent>
                 </Card>
+
+                <DeleteWorkspaceCard />
             </div>
 
             <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>

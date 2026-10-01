@@ -39,6 +39,8 @@ import { useAuth } from "@/lib/auth";
 import { formatCreditsLabel, formatPaise } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
 
+import { TrialLine,type TrialState } from "./TrialNotice";
+
 type Plan = {
   code: string;
   label: string;
@@ -90,6 +92,8 @@ type PlanResponse = {
   configured: boolean;
   billing_profile_complete: boolean;
   plan_credits_expire: boolean;
+  /** PLAN-1: the trial window; on_trial false when not on it. */
+  trial?: TrialState;
 };
 
 /** Mandate states in which the customer still has to go and authorise. */
@@ -185,7 +189,7 @@ export function PlanSection({
   const { numbers, mandate, current } = data;
   const awaitingAuthorisation =
     mandate !== null && NEEDS_AUTHORISING.has(mandate.status);
-  // Every account is on some plan now (Free when it has no mandate), so
+  // Every account is on some plan now (Trial or Free when it has no mandate), so
   // "already subscribed" is the mandate, not the current plan.
   const subscribed = mandate !== null;
   const hasAnnual = data.plans.some((p) => p.annual_price_paise !== null);
@@ -193,6 +197,11 @@ export function PlanSection({
   return (
     <section className="rounded-xl border bg-card p-6">
       <h2 className="text-lg font-medium">Plan</h2>
+      {data.trial?.on_trial && (
+        <div className="mt-3">
+          <TrialLine trial={data.trial} />
+        </div>
+      )}
       <p className="mt-1 text-sm text-muted-foreground">
         Credits every month, collected by your bank. From Business up, a phone
         number too. Plan credits are for the month; top-ups you buy never
@@ -295,7 +304,7 @@ export function PlanSection({
                 <>
                   <p className="mt-3">
                     <span className="text-2xl font-semibold tabular-nums">
-                      {plan.purchasable ? formatPaise(price) : "Free"}
+                      {plan.purchasable ? formatPaise(price) : plan.code === "trial" ? "Trial" : "Free"}
                     </span>
                     {plan.purchasable && (
                       <span className="text-sm text-muted-foreground">

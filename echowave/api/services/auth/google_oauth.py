@@ -103,7 +103,11 @@ class GoogleIdentity:
 
 
 def _issue_state(
-    *, nonce: str, next_path: str | None, referral_code: str | None = None
+    *,
+    nonce: str,
+    next_path: str | None,
+    referral_code: str | None = None,
+    invite_code: str | None = None,
 ) -> str:
     """A signed, expiring state parameter.
 
@@ -124,6 +128,8 @@ def _issue_state(
             "nonce": nonce,
             "next": next_path or None,
             "ref": referral_code or None,
+            # The invite code (INVITE-1), for the same reason as ``ref``.
+            "inv": invite_code or None,
             "iat": now,
             "exp": now + timedelta(seconds=STATE_TTL_SECONDS),
         },
@@ -155,6 +161,7 @@ def build_authorization_url(
     redirect_uri: str,
     next_path: str | None = None,
     referral_code: str | None = None,
+    invite_code: str | None = None,
 ) -> str:
     """Where to send the browser to begin sign-in."""
     _require_enabled()
@@ -165,7 +172,10 @@ def build_authorization_url(
         "response_type": "code",
         "scope": " ".join(SCOPES),
         "state": _issue_state(
-            nonce=nonce, next_path=next_path, referral_code=referral_code
+            nonce=nonce,
+            next_path=next_path,
+            referral_code=referral_code,
+            invite_code=invite_code,
         ),
         "nonce": nonce,
         # Ask for an account choice rather than silently reusing whichever
@@ -275,3 +285,11 @@ async def complete_sign_in(
         )
 
     return identity, state_claims.get("next"), state_claims.get("ref")
+
+
+def invite_code_from_state(state: str) -> str | None:
+    """The invite code carried in a state ``complete_sign_in`` accepted.
+
+    Separate so ``complete_sign_in`` keeps its return shape; call it only
+    after that has verified the state (it re-checks the signature anyway)."""
+    return _read_state(state).get("inv")

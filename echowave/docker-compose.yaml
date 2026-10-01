@@ -66,8 +66,12 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    # Loopback only, like MinIO below. Nothing outside the box needs the
+    # database, Redis, or the api/ui ports directly: nginx reaches api and ui over
+    # the compose network, and the deploy health check uses 127.0.0.1:8000. Bound
+    # to 0.0.0.0 they were one security-group rule away from the internet.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -127,7 +131,7 @@ services:
     mem_limit: 512m
     image: redis:7
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     command: >
       --requirepass ${REDIS_PASSWORD:-redissecret}
     volumes:
@@ -467,7 +471,7 @@ services:
       POSTHOG_HOST: "https://us.i.posthog.com"
 
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -637,7 +641,7 @@ services:
       POSTHOG_KEY: "phc_ItizB1dP6yv7ZYobbcqrpxTdbomDA8hJFSEmAMdYvIr"
       POSTHOG_HOST: "https://us.posthog.com"
     ports:
-      - "3010:3010"
+      - "127.0.0.1:3010:3010"
     depends_on:
       api:
         condition: service_healthy
@@ -690,7 +694,7 @@ services:
     #     *.trycloudflare.com URL the API discovers from the metrics endpoint.
     command: ${CLOUDFLARED_COMMAND:-tunnel --url http://api:8000 --metrics 0.0.0.0:2000}
     ports:
-      - "2000:2000" # metrics endpoint (quick-tunnel URL discovery)
+      - "127.0.0.1:2000:2000" # metrics endpoint (quick-tunnel URL discovery)
     networks:
       - app-network
 

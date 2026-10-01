@@ -1,9 +1,6 @@
 """ARQ worker configuration - setup logging before importing tasks"""
 
-import ssl
-from urllib.parse import urlparse
-
-from api.constants import REDIS_URL
+from api.constants import REDIS_SSL_CA_CERTS, REDIS_SSL_VERIFY, REDIS_URL
 
 # Setup logging - this is now idempotent and safe to call multiple times
 from api.logging_config import setup_logging
@@ -13,30 +10,13 @@ setup_logging()
 
 # Now import ARQ and task dependencies
 from arq import create_pool, cron
-from arq.connections import ArqRedis, RedisSettings
+from arq.connections import ArqRedis
 
-parsed_url = urlparse(REDIS_URL)
+from api.tasks.redis_settings import build_redis_settings
 
-# Check if we're using TLS (rediss://)
-use_ssl = parsed_url.scheme == "rediss"
-
-# Create SSL context if using rediss://
-ssl_context = None
-if use_ssl:
-    ssl_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
-
-REDIS_SETTINGS = RedisSettings(
-    host=parsed_url.hostname or "localhost",
-    port=parsed_url.port or 6379,
-    password=parsed_url.password,
-    conn_timeout=10,
-    ssl=use_ssl,
-    ssl_ca_certs=None if not use_ssl else None,
-    ssl_certfile=None,
-    ssl_keyfile=None,
-    ssl_check_hostname=False if use_ssl else None,
+# TLS on rediss:// is verified (KAN-245); see tasks/redis_settings.py.
+REDIS_SETTINGS = build_redis_settings(
+    REDIS_URL, ca_certs=REDIS_SSL_CA_CERTS, verify=REDIS_SSL_VERIFY
 )
 
 from api.constants import ARQ_MAX_JOBS
@@ -50,7 +30,7 @@ from api.tasks.campaign_tasks import (
 from api.tasks.connector_tools import sync_missing_tools
 from api.tasks.credential_health import check_platform_credentials
 from api.tasks.credit_reservations import sweep_credit_reservations
-from api.tasks.data_retention import purge_expired_call_data
+from api.tasks.data_retention import close_due_workspaces, purge_expired_call_data
 from api.tasks.dialer_import import import_dialer_calls, purge_imported_calls
 from api.tasks.document_fields import extract_document_fields, remind_due_tasks
 from api.tasks.email_tax_document import email_tax_document
@@ -84,6 +64,7 @@ from api.tasks.run_integrations import run_integrations_post_workflow_run
 from api.tasks.settlement import sweep_uncosted_runs
 from api.tasks.sunday_review import send_sunday_reviews
 from api.tasks.tax_invoices import issue_monthly_tax_invoices
+from api.tasks.trial_notices import send_trial_notices
 from api.tasks.webhook_delivery import deliver_webhook, sweep_webhook_deliveries
 from api.tasks.weekly_digest import send_weekly_digests
 from api.tasks.workflow_completion import process_workflow_completion
@@ -106,6 +87,7 @@ class WorkerSettings:
         check_provider_balances,
         issue_monthly_tax_invoices,
         purge_expired_call_data,
+        close_due_workspaces,
         import_dialer_calls,
         purge_imported_calls,
         run_database_backup,
@@ -128,6 +110,7 @@ class WorkerSettings:
         remind_due_tasks,
         send_sunday_reviews,
         notice_connections,
+        send_trial_notices,
         sync_missing_tools,
         resurface_asked,
         run_proposed_action,
@@ -153,6 +136,9 @@ class WorkerSettings:
         # and a fact resurfaced before a related event (B6).
         cron(notice_connections, hour={4}, minute={30}, second=0, run_at_startup=False),
         cron(resurface_asked, hour={4}, minute={30}, second=30, run_at_startup=False),
+        # Daily 10:15 IST: trial ending in 3 days, tomorrow, and ended
+        # (PLAN-1). Deduplicated per end date, so a re-run sends nothing.
+        cron(send_trial_notices, hour={4}, minute={45}, second=0, run_at_startup=False),
         # Every minute, and at startup so a deployment is not indistinguishable
         # from a dead worker for the first minute. This is the only signal that
         # separates "the worker is down" from "nothing needed doing" — see
@@ -267,6 +253,15 @@ class WorkerSettings:
             purge_expired_call_data,
             hour={19},
             minute={0},
+            second=0,
+            run_at_startup=False,
+        ),
+        # Workspaces their owners asked to delete, once the seven days are up.
+        # After the call-data sweep, in the same quiet hour.
+        cron(
+            close_due_workspaces,
+            hour={19},
+            minute={30},
             second=0,
             run_at_startup=False,
         ),

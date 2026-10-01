@@ -59,10 +59,18 @@ def endpoint(monkeypatch):
         events.append("resolve")
         return model
 
+    resolve_model_mock = AsyncMock(side_effect=resolve_model)
+
+    async def resolve_for_organization(session, _choice, *, organization_id):
+        # BYOK-1: the route asks for the account's model; with the account
+        # holding no key of its own that is the platform model, as before.
+        return await resolve_model_mock(session)
+
     settings = module(
         "api.services.agent_builder.settings",
         BuilderUnavailable=BuilderUnavailable,
-        resolve_model=AsyncMock(side_effect=resolve_model),
+        resolve_model=resolve_model_mock,
+        resolve_for_organization=resolve_for_organization,
     )
     limits = module(
         "api.services.agent_builder.limits",
