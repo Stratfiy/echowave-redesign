@@ -8,7 +8,11 @@
 
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
+import { signedInAgentsDestination } from "@/lib/agentsRoute";
+import { getServerUser } from "@/lib/auth/server";
+import logger from "@/lib/logger";
 import { fetchShelf } from "@/lib/publicMarketplace";
 
 export const metadata: Metadata = {
@@ -20,6 +24,19 @@ type Props = { searchParams: Promise<{ q?: string; job?: string }> };
 
 export default async function PublicMarketplacePage({ searchParams }: Props) {
     const { q, job } = await searchParams;
+
+    // Signed in, "Agents" means your own agents: the sidebar's row of that
+    // name is /workflow, and this page has no rail to get back to it. See
+    // lib/agentsRoute.ts. A failed auth lookup shows the public page, which
+    // is what a visitor would see anyway.
+    let signedIn = false;
+    try {
+        signedIn = Boolean(await getServerUser());
+    } catch (error) {
+        logger.error("[agents] could not tell whether the visitor is signed in", error);
+    }
+    if (signedIn) redirect(signedInAgentsDestination({ q, job }));
+
     const shelf = await fetchShelf({ q, job });
 
     return (

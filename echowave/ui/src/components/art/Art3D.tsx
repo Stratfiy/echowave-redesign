@@ -2,22 +2,18 @@
 
 /**
  * One of the 3D pictures (src/lib/art.ts), as decoration: no alt text, out
- * of the accessibility tree. Drawn only with the `shell` feature on, so a
- * screen without it renders exactly as it did; callers can drop this in
- * anywhere, server components included, without asking about the flag.
+ * of the accessibility tree. Callers can drop this in anywhere, server
+ * components included.
  */
 
 import { art3d, type ArtName } from "@/lib/art";
-import { useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 export function Art3D({ name, size, className }: { name: ArtName; size: number; className?: string }) {
-    const shell = useFeature("shell");
-    if (!shell) return null;
     return <ArtImage name={name} size={size} className={className} />;
 }
 
-/** The picture itself, for a caller that has already checked the flag. */
+/** The picture itself. */
 export function ArtImage({ name, size, className }: { name: ArtName; size: number; className?: string }) {
     return (
         // A local, already-sized webp: next/image would only add a wrapper.

@@ -67,6 +67,14 @@ describe("what the rail shows", () => {
         render(<SidebarChannels collapsed={false} />);
         await waitFor(() => expect(screen.getByText("3 more")).toBeTruthy());
         expect(screen.queryByText(`c${CHANNEL_LIMIT + 1}`)).toBeNull();
+        // The rest are on the channels list, not on the agents list.
+        expect(screen.getByText("3 more").closest("a")?.getAttribute("href")).toBe("/channels");
+    });
+
+    it("links the heading to the full list at /channels", async () => {
+        render(<SidebarChannels collapsed={false} />);
+        await waitFor(() => expect(screen.getByText("operations")).toBeTruthy());
+        expect(screen.getByText("Channels").closest("a")?.getAttribute("href")).toBe("/channels");
     });
 
     it("does not take the sidebar down when the request fails", async () => {

@@ -20,7 +20,6 @@ import type { ReactNode } from "react";
 
 import { ArtImage } from "@/components/art/Art3D";
 import type { ArtName } from "@/lib/art";
-import { useFeature } from "@/lib/features";
 
 export function EmptyState({
     icon: Icon,
@@ -30,7 +29,7 @@ export function EmptyState({
     action,
 }: {
     icon?: LucideIcon;
-    /** A 3D picture in place of the icon, with the shell feature on. */
+    /** A 3D picture in place of the icon. */
     art?: ArtName;
     /** What is true, in a few words. Not "No data". */
     title: string;
@@ -39,8 +38,7 @@ export function EmptyState({
     /** The next step, when there is one worth naming. */
     action?: ReactNode;
 }) {
-    const shell = useFeature("shell");
-    const picture = shell && art ? art : null;
+    const picture = art ?? null;
     return (
         <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
             {picture && <ArtImage name={picture} size={88} className="mb-4 drop-shadow-md" />}
