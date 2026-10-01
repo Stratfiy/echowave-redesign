@@ -1,8 +1,9 @@
 "use client";
 
 import { UserCog } from "lucide-react";
-import { useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 
+import { stopImpersonationApiV1ImpersonationStopPost } from "@/client/sdk.gen";
 import { Button } from "@/components/ui/button";
 
 // Mirrors IMPERSONATION_MARKER in app/impersonate/session-cookies.ts, which
@@ -13,6 +14,31 @@ const MARKER = "decibyl-impersonating";
  *  prompts that must never be answered on a customer's behalf. */
 export function isImpersonating(): boolean {
   return readMarker() !== null;
+}
+
+/** The longest the way out waits for the audit write. Leaving must never be
+ *  held hostage by the API: past this, the session ends unaudited-at-stop and
+ *  still expires on its own within the hour. */
+export const STOP_AUDIT_TIMEOUT_MS = 2_000;
+
+/**
+ * Tell the API the impersonation is ending (ADMIN-2, A4), so the audit log
+ * has `impersonation_stopped` beside `impersonation_started`. Called with the
+ * borrowed session, which is the only one the browser holds at this point.
+ * Never throws and never takes longer than the timeout.
+ */
+export async function recordImpersonationStop(
+  timeoutMs: number = STOP_AUDIT_TIMEOUT_MS,
+): Promise<boolean> {
+  try {
+    const result = await Promise.race([
+      stopImpersonationApiV1ImpersonationStopPost(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+    ]);
+    return Boolean(result && !result.error);
+  } catch {
+    return false;
+  }
 }
 
 function readMarker(): string | null {
@@ -33,14 +59,32 @@ function readMarker(): string | null {
  */
 export function ImpersonationBanner() {
   const [who, setWho] = useState<string | null>(null);
+  const [stopping, setStopping] = useState(false);
+  const recorded = useRef(false);
   useEffect(() => {
     setWho(readMarker());
   }, []);
   if (who === null) return null;
+
+  // Record the stop first, then let the form do what it always did: the
+  // /impersonate/stop route clears the borrowed session and sends the
+  // staffer to sign in. form.submit() does not re-fire onSubmit.
+  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+    if (recorded.current) return;
+    event.preventDefault();
+    const form = event.currentTarget;
+    setStopping(true);
+    void recordImpersonationStop().finally(() => {
+      recorded.current = true;
+      form.submit();
+    });
+  };
+
   return (
     <form
       method="POST"
       action="/impersonate/stop"
+      onSubmit={onSubmit}
       role="status"
       className="flex flex-wrap items-center gap-3 border-b border-border bg-[var(--tint-amber)] px-6 py-2 text-sm"
     >
@@ -58,8 +102,9 @@ export function ImpersonationBanner() {
         size="sm"
         variant="outline"
         className="ml-auto bg-card"
+        disabled={stopping}
       >
-        Stop impersonating
+        {stopping ? "Stopping…" : "Stop impersonating"}
       </Button>
     </form>
   );

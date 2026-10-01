@@ -33,6 +33,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.db import org_health_client
 from api.db.models import (
     CallCostItemModel,
     CallTurnMetricModel,
@@ -682,6 +683,9 @@ async def accounts_summary(
     # fallback constant instead — a wrong number reported as if it were the
     # account's own.
     rates = await _effective_rates(session, [r.id for r in rows])
+    # Org 360 (ADMIN-2): plan, trial, agents, channels, KYC, own keys --
+    # grouped queries over the whole page, never one per row.
+    health = await org_health_client.health_for(session, [r.id for r in rows])
 
     return [
         {
@@ -708,6 +712,7 @@ async def accounts_summary(
             "last_active_day": (
                 r.last_active_day.isoformat() if r.last_active_day else None
             ),
+            **health.get(r.id, {}),
         }
         for r in rows
     ]
@@ -730,6 +735,7 @@ async def account_detail(session: AsyncSession, *, organization_id: int) -> dict
     people = (
         await session.execute(
             select(
+                UserModel.id,
                 UserModel.email,
                 OrganizationMembershipModel.role,
                 OrganizationMembershipModel.created_at,
@@ -752,6 +758,9 @@ async def account_detail(session: AsyncSession, *, organization_id: int) -> dict
     ).all()
     members = [
         {
+            # The id is what "Impersonate owner" sends (ADMIN-2, A4): an
+            # address can be blank or unverified, an id cannot.
+            "user_id": p.id,
             "email": p.email,
             "role": p.role,
             "joined_at": p.created_at.isoformat() if p.created_at else None,
@@ -766,6 +775,7 @@ async def account_detail(session: AsyncSession, *, organization_id: int) -> dict
         or org.provider_id,
         "provider_id": org.provider_id,
         "owner_email": members[0]["email"] if members else None,
+        "owner_user_id": members[0]["user_id"] if members else None,
         "members": members,
         "member_count": len(members),
         "account_type": org.account_type,
@@ -774,6 +784,13 @@ async def account_detail(session: AsyncSession, *, organization_id: int) -> dict
         **(await _effective_rates(session, [organization_id]))[organization_id],
         "balance_paise": int(balance or 0),
         "created_at": org.created_at.isoformat() if org.created_at else None,
+        # Org 360 (ADMIN-2): the health card at the top of the drill-down.
+        **(await org_health_client.health_for(session, [organization_id])).get(
+            organization_id, {}
+        ),
+        "recent_failures": await org_health_client.recent_failures(
+            session, organization_id=organization_id
+        ),
     }
 
 

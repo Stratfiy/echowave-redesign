@@ -1,4 +1,5 @@
 import {
+  Activity,
   Bot,
   CalendarClock,
   ChartColumnBig,
@@ -13,6 +14,7 @@ import {
   Phone,
   PhoneCall,
   Rocket,
+  ScrollText,
   Settings,
   Shield,
   ShieldCheck,
@@ -87,6 +89,22 @@ export const STAFF_SECTION: SidebarNavSection = {
       icon: UserCog,
       requiresSuperadmin: true,
       keywords: ["impersonate", "superadmin", "console", "support login"],
+    },
+    // Who did what to which account, and whether the platform is up
+    // (ADMIN-2). Both answered only by SSH and SQL before.
+    {
+      title: "Audit log",
+      url: "/superadmin/audit",
+      icon: ScrollText,
+      requiresSuperadmin: true,
+      keywords: ["audit", "impersonation", "history", "who changed", "log"],
+    },
+    {
+      title: "System status",
+      url: "/superadmin/system",
+      icon: Activity,
+      requiresSuperadmin: true,
+      keywords: ["health", "uptime", "worker", "redis", "queue", "version"],
     },
     // Its own entry rather than a tab under the KYC queue: the two are read by
     // different people for different reasons — one is a compliance check, the

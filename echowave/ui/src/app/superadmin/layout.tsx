@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { serverStaffRole } from "@/lib/auth/staff";
 
 import { SuperadminGate } from "./SuperadminGate";
+import { SuperadminNav } from "./SuperadminNav";
 
 /**
  * The staff area, closed to everyone else.
@@ -34,5 +35,10 @@ export default async function SuperadminLayout({
         redirect("/overview");
     }
 
-    return <SuperadminGate>{children}</SuperadminGate>;
+    return (
+        <SuperadminGate>
+            <SuperadminNav />
+            {children}
+        </SuperadminGate>
+    );
 }

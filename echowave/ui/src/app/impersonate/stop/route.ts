@@ -13,6 +13,11 @@ import { markerHeader, sessionClearingHeaders } from "../session-cookies";
  *
  * POST, from the banner's form: a GET that ends a session is a link anyone
  * can plant.
+ *
+ * The audit row (`impersonation_stopped`, ADMIN-2) is written by the banner
+ * just before it submits here, through `POST /api/v1/impersonation/stop`
+ * with the borrowed session's own bearer token -- this route only sees
+ * cookies, and the Stack access token is not reliably readable from them.
  */
 export async function POST(request: NextRequest) {
   const response = NextResponse.redirect(

@@ -6,6 +6,12 @@ import { useEffect, useMemo, useState } from "react";
 
 import { listAccountsApiV1AdminBillingAccountsGet } from "@/client/sdk.gen";
 import { PanelMessage, useAuthReady } from "@/components/charts/primitives";
+import {
+    channelsSummary,
+    type OrgHealth,
+    trialSummary,
+    trialTone,
+} from "@/components/superadmin/orgHealth";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -63,7 +69,7 @@ type Account = {
     platform_rate_source: string;
     platform_rate_is_override: boolean;
     last_active_day: string | null;
-};
+} & Partial<OrgHealth>;
 
 type SortKey =
     | "name"
@@ -72,7 +78,9 @@ type SortKey =
     | "revenue_paise"
     | "provider_cost_paise"
     | "margin_pct"
-    | "balance_paise";
+    | "balance_paise"
+    | "agents_count"
+    | "channels_linked";
 
 function daysSince(iso: string | null): number | null {
     if (!iso) return null;
@@ -140,6 +148,33 @@ function AccountFlags({ account }: { account: Account }) {
                 </span>
             ))}
         </span>
+    );
+}
+
+/** Plan, or where the trial stands -- the first thing support asks. */
+function PlanCell({ account }: { account: Account }) {
+    if (!account.plan || !account.trial) {
+        return (
+            <TableCell>
+                <span className="text-muted-foreground">—</span>
+            </TableCell>
+        );
+    }
+    const tone = trialTone(account.trial);
+    return (
+        <TableCell
+            className={cn(
+                "whitespace-nowrap",
+                tone === "critical" && "font-medium text-destructive",
+                tone === "warning" && "text-amber-600 dark:text-amber-400",
+            )}
+        >
+            {trialSummary({
+                plan: account.plan,
+                plan_is_paid: Boolean(account.plan_is_paid),
+                trial: account.trial,
+            })}
+        </TableCell>
     );
 }
 
@@ -302,6 +337,9 @@ export default function AccountsPage() {
                                     <SortableHead label="Account" sortBy="name" />
                                     <SortableHead label="Contact" sortBy="owner_email" />
                                     <TableHead>Type</TableHead>
+                                    <TableHead>Plan</TableHead>
+                                    <SortableHead label="Agents" sortBy="agents_count" numeric />
+                                    <SortableHead label="Apps" sortBy="channels_linked" numeric />
                                     <SortableHead label="Minutes" sortBy="billable_minutes" numeric />
                                     <SortableHead label="Revenue" sortBy="revenue_paise" numeric />
                                     <SortableHead
@@ -374,6 +412,29 @@ export default function AccountsPage() {
                                                 </Badge>
                                             ) : (
                                                 <span className="text-muted-foreground">—</span>
+                                            )}
+                                        </TableCell>
+                                        <PlanCell account={account} />
+                                        <TableCell className="text-right tabular-nums">
+                                            {account.agents_count ?? "—"}
+                                            {account.agents_count ? (
+                                                <span className="ml-1 text-xs text-muted-foreground">
+                                                    ({account.live_agents_count ?? 0} live)
+                                                </span>
+                                            ) : null}
+                                        </TableCell>
+                                        <TableCell className="text-right tabular-nums">
+                                            {account.channels ? (
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <span>{account.channels_linked ?? 0}</span>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        {channelsSummary(account.channels)}
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            ) : (
+                                                "—"
                                             )}
                                         </TableCell>
                                         <TableCell className="text-right tabular-nums">

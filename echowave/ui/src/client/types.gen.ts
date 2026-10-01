@@ -11738,6 +11738,16 @@ export type StartCampaignRequest = {
 };
 
 /**
+ * StartLink
+ */
+export type StartLink = {
+    /**
+     * Channel
+     */
+    channel: string;
+};
+
+/**
  * StartRequest
  */
 export type StartRequest = {
@@ -14928,6 +14938,18 @@ export type WorkflowVersionResponse = {
     template_context_variables?: {
         [key: string]: unknown;
     } | null;
+};
+
+/**
+ * WorkspaceClosureRequest
+ */
+export type WorkspaceClosureRequest = {
+    /**
+     * Confirm
+     *
+     * The workspace name, typed exactly.
+     */
+    confirm: string;
 };
 
 /**
@@ -18918,6 +18940,162 @@ export type GetKpiCatalogueApiV1AdminKpisCatalogueGetResponses = {
 };
 
 export type GetKpiCatalogueApiV1AdminKpisCatalogueGetResponse = GetKpiCatalogueApiV1AdminKpisCatalogueGetResponses[keyof GetKpiCatalogueApiV1AdminKpisCatalogueGetResponses];
+
+export type ReadAuditLogApiV1AdminAuditGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Organization Id
+         *
+         * Only this account
+         */
+        organization_id?: number | null;
+        /**
+         * Actor User Id
+         *
+         * Only this staff member
+         */
+        actor_user_id?: number | null;
+        /**
+         * Action
+         */
+        action?: string | null;
+        /**
+         * Before
+         *
+         * The `next_before` cursor from the previous page, or an ISO timestamp to start below
+         */
+        before?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/admin/audit';
+};
+
+export type ReadAuditLogApiV1AdminAuditGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadAuditLogApiV1AdminAuditGetError = ReadAuditLogApiV1AdminAuditGetErrors[keyof ReadAuditLogApiV1AdminAuditGetErrors];
+
+export type ReadAuditLogApiV1AdminAuditGetResponses = {
+    /**
+     * Response Read Audit Log Api V1 Admin Audit Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ReadAuditLogApiV1AdminAuditGetResponse = ReadAuditLogApiV1AdminAuditGetResponses[keyof ReadAuditLogApiV1AdminAuditGetResponses];
+
+export type ReadSystemStatusApiV1AdminSystemGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/system';
+};
+
+export type ReadSystemStatusApiV1AdminSystemGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadSystemStatusApiV1AdminSystemGetError = ReadSystemStatusApiV1AdminSystemGetErrors[keyof ReadSystemStatusApiV1AdminSystemGetErrors];
+
+export type ReadSystemStatusApiV1AdminSystemGetResponses = {
+    /**
+     * Response Read System Status Api V1 Admin System Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ReadSystemStatusApiV1AdminSystemGetResponse = ReadSystemStatusApiV1AdminSystemGetResponses[keyof ReadSystemStatusApiV1AdminSystemGetResponses];
+
+export type StopImpersonationApiV1ImpersonationStopPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/impersonation/stop';
+};
+
+export type StopImpersonationApiV1ImpersonationStopPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StopImpersonationApiV1ImpersonationStopPostError = StopImpersonationApiV1ImpersonationStopPostErrors[keyof StopImpersonationApiV1ImpersonationStopPostErrors];
+
+export type StopImpersonationApiV1ImpersonationStopPostResponses = {
+    /**
+     * Response Stop Impersonation Api V1 Impersonation Stop Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type StopImpersonationApiV1ImpersonationStopPostResponse = StopImpersonationApiV1ImpersonationStopPostResponses[keyof StopImpersonationApiV1ImpersonationStopPostResponses];
 
 export type GetOnboardingCreditsApiV1OnboardingCreditsGetData = {
     body?: never;
@@ -24382,6 +24560,135 @@ export type AcceptAgreementApiV1PrivacyAgreementsAcceptPostResponses = {
 };
 
 export type AcceptAgreementApiV1PrivacyAgreementsAcceptPostResponse = AcceptAgreementApiV1PrivacyAgreementsAcceptPostResponses[keyof AcceptAgreementApiV1PrivacyAgreementsAcceptPostResponses];
+
+export type CancelWorkspaceClosureApiV1PrivacyWorkspaceClosureDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/privacy/workspace/closure';
+};
+
+export type CancelWorkspaceClosureApiV1PrivacyWorkspaceClosureDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CancelWorkspaceClosureApiV1PrivacyWorkspaceClosureDeleteError = CancelWorkspaceClosureApiV1PrivacyWorkspaceClosureDeleteErrors[keyof CancelWorkspaceClosureApiV1PrivacyWorkspaceClosureDeleteErrors];
+
+export type CancelWorkspaceClosureApiV1PrivacyWorkspaceClosureDeleteResponses = {
+    /**
+     * Response Cancel Workspace Closure Api V1 Privacy Workspace Closure Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CancelWorkspaceClosureApiV1PrivacyWorkspaceClosureDeleteResponse = CancelWorkspaceClosureApiV1PrivacyWorkspaceClosureDeleteResponses[keyof CancelWorkspaceClosureApiV1PrivacyWorkspaceClosureDeleteResponses];
+
+export type GetWorkspaceClosureApiV1PrivacyWorkspaceClosureGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/privacy/workspace/closure';
+};
+
+export type GetWorkspaceClosureApiV1PrivacyWorkspaceClosureGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetWorkspaceClosureApiV1PrivacyWorkspaceClosureGetError = GetWorkspaceClosureApiV1PrivacyWorkspaceClosureGetErrors[keyof GetWorkspaceClosureApiV1PrivacyWorkspaceClosureGetErrors];
+
+export type GetWorkspaceClosureApiV1PrivacyWorkspaceClosureGetResponses = {
+    /**
+     * Response Get Workspace Closure Api V1 Privacy Workspace Closure Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetWorkspaceClosureApiV1PrivacyWorkspaceClosureGetResponse = GetWorkspaceClosureApiV1PrivacyWorkspaceClosureGetResponses[keyof GetWorkspaceClosureApiV1PrivacyWorkspaceClosureGetResponses];
+
+export type ScheduleWorkspaceClosureApiV1PrivacyWorkspaceClosurePostData = {
+    body: WorkspaceClosureRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/privacy/workspace/closure';
+};
+
+export type ScheduleWorkspaceClosureApiV1PrivacyWorkspaceClosurePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ScheduleWorkspaceClosureApiV1PrivacyWorkspaceClosurePostError = ScheduleWorkspaceClosureApiV1PrivacyWorkspaceClosurePostErrors[keyof ScheduleWorkspaceClosureApiV1PrivacyWorkspaceClosurePostErrors];
+
+export type ScheduleWorkspaceClosureApiV1PrivacyWorkspaceClosurePostResponses = {
+    /**
+     * Response Schedule Workspace Closure Api V1 Privacy Workspace Closure Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ScheduleWorkspaceClosureApiV1PrivacyWorkspaceClosurePostResponse = ScheduleWorkspaceClosureApiV1PrivacyWorkspaceClosurePostResponses[keyof ScheduleWorkspaceClosureApiV1PrivacyWorkspaceClosurePostResponses];
 
 export type ListNotificationsApiV1NotificationsGetData = {
     body?: never;
@@ -35231,6 +35538,347 @@ export type ReceiveApiV1PublicWhatsappWebhookPostResponses = {
 };
 
 export type ReceiveApiV1PublicWhatsappWebhookPostResponse = ReceiveApiV1PublicWhatsappWebhookPostResponses[keyof ReceiveApiV1PublicWhatsappWebhookPostResponses];
+
+export type TelegramWebhookApiV1PublicTelegramWebhookPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * X-Telegram-Bot-Api-Secret-Token
+         */
+        'X-Telegram-Bot-Api-Secret-Token'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/public/telegram/webhook';
+};
+
+export type TelegramWebhookApiV1PublicTelegramWebhookPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TelegramWebhookApiV1PublicTelegramWebhookPostError = TelegramWebhookApiV1PublicTelegramWebhookPostErrors[keyof TelegramWebhookApiV1PublicTelegramWebhookPostErrors];
+
+export type TelegramWebhookApiV1PublicTelegramWebhookPostResponses = {
+    /**
+     * Response Telegram Webhook Api V1 Public Telegram Webhook Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type TelegramWebhookApiV1PublicTelegramWebhookPostResponse = TelegramWebhookApiV1PublicTelegramWebhookPostResponses[keyof TelegramWebhookApiV1PublicTelegramWebhookPostResponses];
+
+export type SlackEventsApiV1PublicSlackEventsPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * X-Slack-Request-Timestamp
+         */
+        'X-Slack-Request-Timestamp'?: string | null;
+        /**
+         * X-Slack-Signature
+         */
+        'X-Slack-Signature'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/public/slack/events';
+};
+
+export type SlackEventsApiV1PublicSlackEventsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SlackEventsApiV1PublicSlackEventsPostError = SlackEventsApiV1PublicSlackEventsPostErrors[keyof SlackEventsApiV1PublicSlackEventsPostErrors];
+
+export type SlackEventsApiV1PublicSlackEventsPostResponses = {
+    /**
+     * Response Slack Events Api V1 Public Slack Events Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SlackEventsApiV1PublicSlackEventsPostResponse = SlackEventsApiV1PublicSlackEventsPostResponses[keyof SlackEventsApiV1PublicSlackEventsPostResponses];
+
+export type SlackInteractionsApiV1PublicSlackInteractionsPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * X-Slack-Request-Timestamp
+         */
+        'X-Slack-Request-Timestamp'?: string | null;
+        /**
+         * X-Slack-Signature
+         */
+        'X-Slack-Signature'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/public/slack/interactions';
+};
+
+export type SlackInteractionsApiV1PublicSlackInteractionsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SlackInteractionsApiV1PublicSlackInteractionsPostError = SlackInteractionsApiV1PublicSlackInteractionsPostErrors[keyof SlackInteractionsApiV1PublicSlackInteractionsPostErrors];
+
+export type SlackInteractionsApiV1PublicSlackInteractionsPostResponses = {
+    /**
+     * Response Slack Interactions Api V1 Public Slack Interactions Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SlackInteractionsApiV1PublicSlackInteractionsPostResponse = SlackInteractionsApiV1PublicSlackInteractionsPostResponses[keyof SlackInteractionsApiV1PublicSlackInteractionsPostResponses];
+
+export type TeamsMessagesApiV1PublicTeamsMessagesPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/public/teams/messages';
+};
+
+export type TeamsMessagesApiV1PublicTeamsMessagesPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TeamsMessagesApiV1PublicTeamsMessagesPostError = TeamsMessagesApiV1PublicTeamsMessagesPostErrors[keyof TeamsMessagesApiV1PublicTeamsMessagesPostErrors];
+
+export type TeamsMessagesApiV1PublicTeamsMessagesPostResponses = {
+    /**
+     * Response Teams Messages Api V1 Public Teams Messages Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type TeamsMessagesApiV1PublicTeamsMessagesPostResponse = TeamsMessagesApiV1PublicTeamsMessagesPostResponses[keyof TeamsMessagesApiV1PublicTeamsMessagesPostResponses];
+
+export type ListLinksApiV1ChannelLinksGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/channel-links';
+};
+
+export type ListLinksApiV1ChannelLinksGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListLinksApiV1ChannelLinksGetError = ListLinksApiV1ChannelLinksGetErrors[keyof ListLinksApiV1ChannelLinksGetErrors];
+
+export type ListLinksApiV1ChannelLinksGetResponses = {
+    /**
+     * Response List Links Api V1 Channel Links Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListLinksApiV1ChannelLinksGetResponse = ListLinksApiV1ChannelLinksGetResponses[keyof ListLinksApiV1ChannelLinksGetResponses];
+
+export type StartLinkApiV1ChannelLinksStartPostData = {
+    body: StartLink;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/channel-links/start';
+};
+
+export type StartLinkApiV1ChannelLinksStartPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StartLinkApiV1ChannelLinksStartPostError = StartLinkApiV1ChannelLinksStartPostErrors[keyof StartLinkApiV1ChannelLinksStartPostErrors];
+
+export type StartLinkApiV1ChannelLinksStartPostResponses = {
+    /**
+     * Response Start Link Api V1 Channel Links Start Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type StartLinkApiV1ChannelLinksStartPostResponse = StartLinkApiV1ChannelLinksStartPostResponses[keyof StartLinkApiV1ChannelLinksStartPostResponses];
+
+export type UnlinkApiV1ChannelLinksIdentityIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Identity Id
+         */
+        identity_id: number;
+    };
+    query?: never;
+    url: '/api/v1/channel-links/{identity_id}';
+};
+
+export type UnlinkApiV1ChannelLinksIdentityIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UnlinkApiV1ChannelLinksIdentityIdDeleteError = UnlinkApiV1ChannelLinksIdentityIdDeleteErrors[keyof UnlinkApiV1ChannelLinksIdentityIdDeleteErrors];
+
+export type UnlinkApiV1ChannelLinksIdentityIdDeleteResponses = {
+    /**
+     * Response Unlink Api V1 Channel Links  Identity Id  Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type UnlinkApiV1ChannelLinksIdentityIdDeleteResponse = UnlinkApiV1ChannelLinksIdentityIdDeleteResponses[keyof UnlinkApiV1ChannelLinksIdentityIdDeleteResponses];
+
+export type SlackInstallApiV1ChannelLinksSlackInstallGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/channel-links/slack/install';
+};
+
+export type SlackInstallApiV1ChannelLinksSlackInstallGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SlackInstallApiV1ChannelLinksSlackInstallGetError = SlackInstallApiV1ChannelLinksSlackInstallGetErrors[keyof SlackInstallApiV1ChannelLinksSlackInstallGetErrors];
+
+export type SlackInstallApiV1ChannelLinksSlackInstallGetResponses = {
+    /**
+     * Response Slack Install Api V1 Channel Links Slack Install Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SlackInstallApiV1ChannelLinksSlackInstallGetResponse = SlackInstallApiV1ChannelLinksSlackInstallGetResponses[keyof SlackInstallApiV1ChannelLinksSlackInstallGetResponses];
 
 export type DownloadWorkflowArtifactApiV1PublicDownloadWorkflowTokenArtifactTypeGetData = {
     body?: never;

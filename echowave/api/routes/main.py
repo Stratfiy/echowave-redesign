@@ -6,6 +6,7 @@ from loguru import logger
 from pydantic import BaseModel
 
 from api.db.models import UserModel
+from api.routes.admin_console import router as admin_console_router
 from api.routes.admin_kpis import router as admin_kpis_router
 from api.routes.agent_builder import router as agent_builder_router
 from api.routes.agent_graph import router as agent_graph_router
@@ -29,6 +30,7 @@ from api.routes.do_not_call import router as do_not_call_router
 from api.routes.evals import router as evals_router
 from api.routes.extraction_library import router as extraction_library_router
 from api.routes.folder import router as folder_router
+from api.routes.impersonation import router as impersonation_router
 from api.routes.knowledge_base import router as knowledge_base_router
 from api.routes.kyc import router as kyc_router
 from api.routes.kyc_admin import router as kyc_admin_router
@@ -104,6 +106,8 @@ router.include_router(telephony_admin_router)
 router.include_router(superuser_router)
 router.include_router(billing_dashboard_router)
 router.include_router(admin_kpis_router)
+router.include_router(admin_console_router)
+router.include_router(impersonation_router)
 router.include_router(onboarding_router)
 router.include_router(referrals_router)
 router.include_router(promo_admin_router)
