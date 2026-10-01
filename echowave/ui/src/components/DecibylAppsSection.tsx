@@ -21,7 +21,19 @@ import { detailFromResult } from "@/lib/apiError";
 
 type Channel = { channel: string; available: boolean };
 type Linked = { id: number; channel: string; display_name: string; handle: string };
-type State = { enabled: boolean; channels: Channel[]; linked: Linked[] };
+/** Whether this workspace has added Decibyl to Slack yet; absent on an older server. */
+type SlackSetup = {
+    installed: boolean;
+    workspace: string | null;
+    can_install: boolean;
+    redirect_uri: string | null;
+};
+type State = {
+    enabled: boolean;
+    channels: Channel[];
+    linked: Linked[];
+    slack?: SlackSetup;
+};
 type Pending = {
     channel: string;
     code: string;
@@ -79,15 +91,31 @@ export function DecibylAppsSection() {
         setPending({ channel, ...(response.data as unknown as Omit<Pending, "channel">) });
     };
 
+    // Asks the server for the signed Slack install link, then leaves for Slack.
+    // Any failure is said on the card: a click that silently does nothing is
+    // the one outcome nobody can act on.
     const addToSlack = async () => {
+        setBusy(true);
         setError(null);
-        const response = await client.get({ url: "/api/v1/channel-links/slack/install" });
-        if (response.error) {
-            setError(detailFromResult(response, "Could not open Slack."));
-            return;
+        try {
+            const response = await client.get({
+                url: "/api/v1/channel-links/slack/install",
+            });
+            if (response.error) {
+                setError(detailFromResult(response, "Could not open Slack."));
+                return;
+            }
+            const url = (response.data as { url?: string } | undefined)?.url;
+            if (!url) {
+                setError("Slack did not return an install link. Try again.");
+                return;
+            }
+            window.location.assign(url);
+        } catch {
+            setError("Could not reach Decibyl to open Slack. Try again.");
+        } finally {
+            setBusy(false);
         }
-        const url = (response.data as unknown as { url: string }).url;
-        window.location.assign(url);
     };
 
     const unlink = async (id: number) => {
@@ -111,6 +139,15 @@ export function DecibylAppsSection() {
     };
 
     const available = state.channels.filter((c) => c.available);
+    const slackOffered = available.some((c) => c.channel === "slack");
+    const slack = state.slack;
+    // Until Slack is added to the company's workspace a member's code has
+    // nowhere to go, so "Connect Slack" waits for the install.
+    const slackNeedsInstall = slackOffered && slack !== undefined && !slack.installed;
+    const canInstallSlack = slack === undefined || slack.can_install;
+    const connectable = available.filter(
+        (c) => !(c.channel === "slack" && slackNeedsInstall),
+    );
 
     return (
         <div className="space-y-4">
@@ -162,7 +199,17 @@ export function DecibylAppsSection() {
                 </p>
             ) : (
                 <div className="flex flex-wrap gap-2">
-                    {available.map((c) => (
+                    {slackNeedsInstall && canInstallSlack && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void addToSlack()}
+                            disabled={busy}
+                        >
+                            Add Decibyl to your Slack
+                        </Button>
+                    )}
+                    {connectable.map((c) => (
                         <Button
                             key={c.channel}
                             variant="outline"
@@ -173,10 +220,35 @@ export function DecibylAppsSection() {
                             Connect {NAMES[c.channel] ?? c.channel}
                         </Button>
                     ))}
-                    {available.some((c) => c.channel === "slack") && (
-                        <Button variant="ghost" size="sm" onClick={() => void addToSlack()}>
+                    {slackOffered && !slackNeedsInstall && canInstallSlack && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => void addToSlack()}
+                            disabled={busy}
+                        >
                             Add Decibyl to your Slack
                         </Button>
+                    )}
+                </div>
+            )}
+
+            {slackOffered && slack && (
+                <div className="space-y-1 text-xs text-muted-foreground">
+                    {slack.installed ? (
+                        <p>Decibyl is in {slack.workspace ?? "your Slack"}.</p>
+                    ) : slack.can_install ? (
+                        <p>Add Decibyl to your Slack first, then connect yourself.</p>
+                    ) : (
+                        <p>An admin needs to add Decibyl to your Slack before you can connect it.</p>
+                    )}
+                    {!slack.installed && slack.redirect_uri && (
+                        <p className="break-all">
+                            Redirect URL for the Slack app (OAuth &amp; Permissions):{" "}
+                            <code className="rounded bg-muted px-1 py-0.5 font-mono">
+                                {slack.redirect_uri}
+                            </code>
+                        </p>
                     )}
                 </div>
             )}

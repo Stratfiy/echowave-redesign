@@ -76,4 +76,104 @@ describe("DecibylAppsSection", () => {
             expect(api.del).toHaveBeenCalledWith({ url: "/api/v1/channel-links/4" }),
         );
     });
+
+    it("Add Decibyl to your Slack asks for the install link and goes there", async () => {
+        const assign = vi.fn();
+        vi.stubGlobal("location", { ...window.location, assign });
+        api.get.mockImplementation(({ url }: { url: string }) =>
+            Promise.resolve(
+                url === "/api/v1/channel-links/slack/install"
+                    ? { data: { url: "https://slack.com/oauth/v2/authorize?x=1" } }
+                    : { data: STATE },
+            ),
+        );
+        render(<DecibylAppsSection />);
+        fireEvent.click(
+            await screen.findByRole("button", { name: "Add Decibyl to your Slack" }),
+        );
+        await waitFor(() =>
+            expect(api.get).toHaveBeenCalledWith({
+                url: "/api/v1/channel-links/slack/install",
+            }),
+        );
+        await waitFor(() =>
+            expect(assign).toHaveBeenCalledWith("https://slack.com/oauth/v2/authorize?x=1"),
+        );
+        vi.unstubAllGlobals();
+    });
+
+    it("leads with Add to Slack for an admin before Slack is added, and shows the redirect URL", async () => {
+        api.get.mockResolvedValue({
+            data: {
+                ...STATE,
+                slack: {
+                    installed: false,
+                    workspace: null,
+                    can_install: true,
+                    redirect_uri: "https://api.decibyl.ai/api/v1/public/slack/oauth/callback",
+                },
+            },
+        });
+        render(<DecibylAppsSection />);
+        expect(
+            await screen.findByRole("button", { name: "Add Decibyl to your Slack" }),
+        ).toBeTruthy();
+        expect(screen.queryByRole("button", { name: "Connect Slack" })).toBeNull();
+        expect(
+            screen.getByText("https://api.decibyl.ai/api/v1/public/slack/oauth/callback"),
+        ).toBeTruthy();
+    });
+
+    it("tells a member an admin must add Slack first", async () => {
+        api.get.mockResolvedValue({
+            data: {
+                ...STATE,
+                slack: { installed: false, workspace: null, can_install: false, redirect_uri: null },
+            },
+        });
+        render(<DecibylAppsSection />);
+        expect(await screen.findByText(/An admin needs to add Decibyl to your Slack/)).toBeTruthy();
+        expect(screen.queryByRole("button", { name: "Add Decibyl to your Slack" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Connect Slack" })).toBeNull();
+    });
+
+    it("offers Connect Slack once Slack is added", async () => {
+        api.get.mockResolvedValue({
+            data: {
+                ...STATE,
+                slack: { installed: true, workspace: "Acme", can_install: false, redirect_uri: null },
+            },
+        });
+        render(<DecibylAppsSection />);
+        expect(await screen.findByRole("button", { name: "Connect Slack" })).toBeTruthy();
+        expect(screen.getByText("Decibyl is in Acme.")).toBeTruthy();
+    });
+
+    it("says so when the install link cannot be fetched", async () => {
+        api.get.mockImplementation(({ url }: { url: string }) =>
+            url === "/api/v1/channel-links/slack/install"
+                ? Promise.reject(new TypeError("Failed to fetch"))
+                : Promise.resolve({ data: STATE }),
+        );
+        render(<DecibylAppsSection />);
+        fireEvent.click(
+            await screen.findByRole("button", { name: "Add Decibyl to your Slack" }),
+        );
+        expect(await screen.findByRole("alert")).toBeTruthy();
+    });
+
+    it("shows the server's reason when the install is refused", async () => {
+        api.get.mockImplementation(({ url }: { url: string }) =>
+            Promise.resolve(
+                url === "/api/v1/channel-links/slack/install"
+                    ? { error: { detail: "Slack is not set up yet." }, response: { status: 503 } }
+                    : { data: STATE },
+            ),
+        );
+        render(<DecibylAppsSection />);
+        fireEvent.click(
+            await screen.findByRole("button", { name: "Add Decibyl to your Slack" }),
+        );
+        expect(await screen.findByText("Slack is not set up yet.")).toBeTruthy();
+    });
 });

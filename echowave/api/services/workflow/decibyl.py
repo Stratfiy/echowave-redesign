@@ -342,7 +342,7 @@ async def ask(
             )
             await agent_timeline.record_activity(
                 organization_id=organization_id,
-                summary=f"Asked {names.get(mention.workflow_id, 'a bot')}",
+                summary=f"Asked {names.get(mention.workflow_id, 'an agent')}",
                 payload={"from": NAME, "asked": mention.workflow_id},
                 in_channel=False,
                 thread_id=thread_id,

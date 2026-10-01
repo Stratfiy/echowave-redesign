@@ -66,6 +66,31 @@ def card_from_payload(event_id: int, payload: dict[str, Any]) -> Card:
     )
 
 
+async def _may_greet_stranger(adapter, inbound: Inbound) -> bool:
+    """Whether an unlinked sender gets "link me first".
+
+    Not ``channel_on(channel)`` with no organisation: the feature is usually on
+    for named organisations only (``FEATURE_ORG_OVERRIDES``) and off globally,
+    so that check said no to every stranger and they heard nothing at all.
+
+    A message that reached us came through a platform we set up, so the
+    adapter being configured is the gate. Slack knows one better: the
+    workspace was added by an organisation, and that organisation's switch
+    decides. Group chats never get here; each ``parse`` keeps to direct ones.
+    """
+    if not adapter.enabled():
+        return False
+    if inbound.channel == SLACK:
+        team_id = str((inbound.ref or {}).get("team_id") or "")
+        if team_id:
+            from . import slack
+
+            organization_id = await slack.installed_organization(team_id)
+            if organization_id is not None:
+                return channel_on(SLACK, organization_id)
+    return True
+
+
 async def handle(inbound: Inbound) -> str:
     """Route one normalised message. Returns a status word for the log."""
     adapter = adapter_for(inbound.channel)
@@ -74,7 +99,7 @@ async def handle(inbound: Inbound) -> str:
     if identity is None:
         code = identities.code_in(inbound.text)
         if code is None:
-            if channel_on(inbound.channel):
+            if await _may_greet_stranger(adapter, inbound):
                 await adapter.send_text(inbound.ref, LINK_FIRST)
             return "unlinked"
         try:

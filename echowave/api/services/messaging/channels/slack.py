@@ -148,6 +148,20 @@ def blocks(card: Card) -> list[dict[str, Any]]:
 # --- install ----------------------------------------------------------------
 
 
+def redirect_uri() -> str:
+    """Where Slack sends the browser after "Add to Slack".
+
+    Built from ``BACKEND_API_ENDPOINT`` (the API host, e.g.
+    ``https://api.decibyl.ai`` when ``DECIBYL_API_HOST`` is set), not the app
+    host. Slack compares it character for character with the Redirect URL
+    registered on the Slack app (OAuth & Permissions), so register exactly
+    this value; Settings shows it to admins until the app is added.
+    """
+    from api.constants import BACKEND_API_ENDPOINT
+
+    return f"{BACKEND_API_ENDPOINT.rstrip('/')}/api/v1/public/slack/oauth/callback"
+
+
 def install_url(*, organization_id: int, user_id: int, redirect_uri: str) -> str | None:
     from api.constants import OSS_JWT_SECRET
 
@@ -224,6 +238,35 @@ async def complete_install(*, code: str, state: str, redirect_uri: str) -> str:
         row.encrypted_bot_token = encrypted
         await session.commit()
     return str(team.get("name") or "your workspace")
+
+
+async def installed_organization(team_id: str) -> int | None:
+    """The organisation that added Decibyl to this Slack workspace, if any."""
+    async with db_client.async_session() as session:
+        return (
+            await session.execute(
+                select(SlackInstallationModel.organization_id).where(
+                    SlackInstallationModel.team_id == team_id
+                )
+            )
+        ).scalar_one_or_none()
+
+
+async def installation_for(organization_id: int) -> SlackInstallationModel | None:
+    """The newest Slack workspace this organisation added Decibyl to."""
+    async with db_client.async_session() as session:
+        return (
+            (
+                await session.execute(
+                    select(SlackInstallationModel)
+                    .where(SlackInstallationModel.organization_id == organization_id)
+                    .order_by(SlackInstallationModel.id.desc())
+                    .limit(1)
+                )
+            )
+            .scalars()
+            .first()
+        )
 
 
 async def bot_token(team_id: str) -> str | None:

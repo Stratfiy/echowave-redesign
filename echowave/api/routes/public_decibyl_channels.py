@@ -17,7 +17,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import RedirectResponse
 from loguru import logger
 
-from api.constants import BACKEND_API_ENDPOINT, UI_APP_URL
+from api.constants import UI_APP_URL
 from api.services.messaging import whatsapp_inbound
 from api.services.messaging.channels import dispatch, slack, teams, telegram
 from api.services.messaging.channels.base import Inbound
@@ -64,9 +64,10 @@ async def _handle_quietly(inbound: Inbound) -> None:
 
 
 def slack_redirect_uri() -> str:
-    """Where Slack sends the browser after "Add to Slack". Registered on the
-    Slack app exactly as written here."""
-    return f"{BACKEND_API_ENDPOINT}/api/v1/public/slack/oauth/callback"
+    """Where Slack sends the browser after "Add to Slack":
+    ``{BACKEND_API_ENDPOINT}/api/v1/public/slack/oauth/callback``, on the API
+    host. Registered on the Slack app exactly as written here."""
+    return slack.redirect_uri()
 
 
 async def _slack_body(

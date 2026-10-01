@@ -153,6 +153,60 @@ with the field `messages` subscribed. Redis holds the 24-hour window and the
 message-id dedupe; without it, receiving still works and senders take
 Meta's word on the window.
 
+## 2b-2. Decibyl in your apps — Telegram, Slack, Teams (DCH-1, KAN-277)
+
+Members talk to Decibyl as themselves from a chat app, after linking with a
+one-time code from Settings → Decibyl in your apps. Every URL below is on the
+**API host**, `BACKEND_API_ENDPOINT` — `https://api.decibyl.ai` when
+`DECIBYL_API_HOST=api.decibyl.ai` — never the app host
+(`app.decibyl.ai`). The app host does not serve `/api/v1/public/*`.
+
+```bash
+# Telegram (BotFather). The webhook secret is any random string; Telegram
+# echoes it on every update.
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_WEBHOOK_SECRET=
+TELEGRAM_BOT_USERNAME=
+
+# Slack app (api.slack.com/apps): Basic Information → App Credentials.
+SLACK_CLIENT_ID=
+SLACK_CLIENT_SECRET=
+SLACK_SIGNING_SECRET=
+
+# Azure Bot (single-tenant) for Microsoft Teams.
+MICROSOFT_APP_ID=
+MICROSOFT_APP_PASSWORD=
+MICROSOFT_APP_TENANT_ID=
+```
+
+**Slack app settings — register these exact values:**
+
+| Slack app page | Value |
+|---|---|
+| OAuth & Permissions → Redirect URLs | `{BACKEND_API_ENDPOINT}/api/v1/public/slack/oauth/callback`, e.g. `https://api.decibyl.ai/api/v1/public/slack/oauth/callback` |
+| OAuth & Permissions → Bot Token Scopes | `chat:write`, `im:history`, `im:read`, `im:write`, `users:read` |
+| Event Subscriptions → Request URL | `{BACKEND_API_ENDPOINT}/api/v1/public/slack/events`, subscribe to the bot event `message.im` |
+| Interactivity & Shortcuts → Request URL | `{BACKEND_API_ENDPOINT}/api/v1/public/slack/interactions` |
+| App Home → Messages Tab | on, with "Allow users to send messages" ticked |
+
+Slack compares the redirect URL character for character with the one the
+API sends, so an `app.decibyl.ai` entry fails with `redirect_uri did not
+match`. Until the workspace is added, Settings → Decibyl in your apps shows an
+admin the exact redirect URL this deployment sends; copy it from there.
+
+Then an **admin** presses **Add Decibyl to your Slack** in Settings once per
+company; members press **Connect Slack** and send the code to the Decibyl app
+in Slack. Teams: the Azure Bot's messaging endpoint is
+`{BACKEND_API_ENDPOINT}/api/v1/public/teams/messages`. Telegram: the webhook is
+`{BACKEND_API_ENDPOINT}/api/v1/public/telegram/webhook`.
+
+Switch the feature on per organisation first (see the flags below and
+`FEATURE_ORG_OVERRIDES`), for example
+`FEATURE_ORG_OVERRIDES="decibyl_channels:1;decibyl_slack:1"`. Somebody who
+messages the app before linking always gets "link me first" when that app's
+credentials are set, whatever the flags say, except in the Slack workspace of
+an organisation that has the feature switched off.
+
 ## 2c. The memory graph (Family B)
 
 Relations and time -- who promised what to whom, what the doctor said the
