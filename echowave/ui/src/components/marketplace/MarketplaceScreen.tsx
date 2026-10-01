@@ -32,7 +32,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { type ArtName, industryArt, jobArt } from "@/lib/art";
 import { useAuth } from "@/lib/auth";
-import { useFeature } from "@/lib/features";
 import {
     type BotTemplate,
     DIRECTION_LABELS,
@@ -80,7 +79,6 @@ const HERO_ART: { name: ArtName; size: number; className: string }[] = [
 ];
 
 function Hero({ kind }: { kind: ShelfKind }) {
-    const shell = useFeature("shell");
     const words = (
         <>
             <p className="text-xs font-semibold uppercase tracking-wider text-brand-blue">
@@ -92,9 +90,6 @@ function Hero({ kind }: { kind: ShelfKind }) {
             <p className="mt-2 max-w-xl text-sm text-muted-foreground">{HERO[kind].blurb}</p>
         </>
     );
-    if (!shell) {
-        return <div className="rounded-2xl bg-[var(--accent-brand-tint)] px-6 py-8 sm:px-10 sm:py-10">{words}</div>;
-    }
     return (
         <div className="flex items-center justify-between gap-6 overflow-hidden rounded-2xl bg-[var(--accent-brand-tint)] px-6 py-8 sm:px-10 sm:py-10">
             <div className="min-w-0">{words}</div>
@@ -126,7 +121,7 @@ function CategoryCard({
     count: number;
     noun: string;
     icon: React.ComponentType<{ className?: string }>;
-    /** A 3D picture in place of the icon (shell only; the caller decides). */
+    /** A 3D picture in place of the icon; the caller decides. */
     art?: ArtName;
     selected: boolean;
     onSelect: () => void;
@@ -179,38 +174,24 @@ function Chip({ name, tone }: { name: string; tone?: string }) {
 }
 
 function BotCard({ template }: { template: BotTemplate }) {
-    const shell = useFeature("shell");
     const industry = industryOf(template);
     const fn = functionOf(template);
-    const Icon = industryIcon(industry);
     return (
-        <Card className={cn("flex h-full flex-col", shell && "overflow-hidden")}>
-            {shell && (
-                // The job, as a picture, before any words: a shelf of cards
-                // that all opened on a line of grey text read as a form.
-                <div
-                    data-testid="role-art"
-                    className="flex h-24 items-center justify-center border-b border-border/60 bg-gradient-to-b from-muted to-background"
-                >
-                    <ArtImage
-                        name={jobArt(`${template.name} ${fn}`)}
-                        size={72}
-                        className="drop-shadow-md"
-                    />
-                </div>
-            )}
+        <Card className="flex h-full flex-col overflow-hidden">
+            {/* The job, as a picture, before any words: a shelf of cards
+                that all opened on a line of grey text read as a form. */}
+            <div
+                data-testid="role-art"
+                className="flex h-24 items-center justify-center border-b border-border/60 bg-gradient-to-b from-muted to-background"
+            >
+                <ArtImage
+                    name={jobArt(`${template.name} ${fn}`)}
+                    size={72}
+                    className="drop-shadow-md"
+                />
+            </div>
             <CardContent className="flex flex-1 flex-col gap-3 p-4">
                 <div className="flex items-start gap-3">
-                    {!shell && (
-                        <span
-                            className={cn(
-                                "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
-                                toneFor(industry),
-                            )}
-                        >
-                            <Icon className="h-5 w-5" />
-                        </span>
-                    )}
                     <div className="min-w-0">
                         <h3 className="truncate text-sm font-semibold">{template.name}</h3>
                         <p className="text-xs text-muted-foreground">
@@ -227,7 +208,7 @@ function BotCard({ template }: { template: BotTemplate }) {
                 </div>
                 <p className="line-clamp-3 text-xs text-muted-foreground">{template.summary}</p>
                 <div className="mt-auto pt-1">
-                    <Button asChild size="sm" variant={shell ? "outline" : "default"} className="w-full">
+                    <Button asChild size="sm" variant="outline" className="w-full">
                         <Link href={hireHref(template.id)}>
                             Add {template.name}
                             <ArrowRight className="ml-1 h-3 w-3" />
@@ -249,7 +230,6 @@ function SectionTitle({ children, action }: { children: React.ReactNode; action?
 }
 
 function BotsShelf({ query }: { query: string }) {
-    const shell = useFeature("shell");
     const { user, loading: authLoading } = useAuth();
     const [templates, setTemplates] = useState<BotTemplate[] | null>(null);
     const [failed, setFailed] = useState(false);
@@ -310,7 +290,7 @@ function BotsShelf({ query }: { query: string }) {
                             count={shelf.count}
                             noun="agent"
                             icon={industryIcon(shelf.name)}
-                            art={shell ? industryArt(shelf.name) : undefined}
+                            art={industryArt(shelf.name)}
                             selected={industry === shelf.name}
                             onSelect={() => setIndustry((cur) => (cur === shelf.name ? null : shelf.name))}
                         />

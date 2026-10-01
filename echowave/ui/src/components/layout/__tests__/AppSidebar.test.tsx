@@ -34,7 +34,7 @@ describe("stable workspace sidebar", () => {
     mount();
     expect(screen.getByRole("navigation", { name: "Workspace" }).querySelector('[aria-current="page"]')).toBeNull();
   });
-  it.each(["Activity", "Team channel", "Agent DM"])("closes mobile navigation after following %s", (name) => {
+  it.each(["Calls", "Team channel", "Agent DM"])("closes mobile navigation after following %s", (name) => {
     state.mobile = true;
     render(<SidebarProvider><MobileOpener /><AppSidebar /></SidebarProvider>);
     fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
@@ -46,41 +46,30 @@ describe("stable workspace sidebar", () => {
     state.pathname = path;
     mount();
     const nav = screen.getByRole("navigation", { name: "Workspace" });
-    expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual(["Decibyl", "Tasks", "Agents", "Knowledge", "Activity"]);
+    expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual(["Decibyl", "Tasks", "Agents", "Knowledge", "Calls"]);
     expect(screen.getByRole("link", { name: "Team channel" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Agent DM" })).toBeTruthy();
     expect(screen.queryByRole("tablist")).toBeNull();
     expect(document.querySelectorAll('a[aria-current="page"]').length).toBeLessThanOrEqual(1);
   });
-  it("makes Activity navigate instead of changing the selection on Knowledge", () => {
+  it("makes Calls navigate instead of changing the selection on Knowledge", () => {
     state.pathname = "/files";
     mount();
-    const activity = screen.getByRole("link", { name: "Activity" });
-    expect(activity.getAttribute("href")).toBe("/usage");
-    expect(activity.hasAttribute("aria-current")).toBe(false);
+    const calls = screen.getByRole("link", { name: "Calls" });
+    expect(calls.getAttribute("href")).toBe("/usage");
+    expect(calls.hasAttribute("aria-current")).toBe(false);
     expect(screen.getByRole("link", { name: "Knowledge" }).getAttribute("aria-current")).toBe("page");
-    expect(screen.getByRole("link", { name: "Campaigns" }).getAttribute("href")).toBe("/campaigns");
   });
-  it("highlights only Activity for call detail routes", () => {
+  it("highlights only Calls for call detail routes", () => {
     state.pathname = "/review";
     mount();
-    expect(screen.getByRole("link", { name: "Activity" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("link", { name: "Calls" }).getAttribute("aria-current")).toBe("page");
     expect(document.querySelectorAll('a[aria-current="page"]')).toHaveLength(1);
   });
   it("keeps all five direct destinations when collapsed", () => {
     mount(true);
     expect(within(screen.getByRole("navigation", { name: "Workspace" })).getAllByRole("link")).toHaveLength(5);
     expect(screen.getByRole("button", { name: "Account menu" })).toBeTruthy();
-  });
-  it("opens setup, marketplace and account destinations directly in the menu", () => {
-    state.pathname = "/do-not-call";
-    mount();
-    openAccount();
-    for (const name of ["Marketplace", "Your tools", "Phone numbers", "Web widget", "API keys", "Connect", "Billing", "Settings", "Compliance"]) {
-      expect(screen.getByRole("menuitem", { name }).hasAttribute("href")).toBe(true);
-    }
-    expect(screen.getByRole("menuitem", { name: "Compliance" }).getAttribute("aria-current")).toBe("page");
-    expect(screen.queryByRole("menuitem", { name: "Review queue" })).toBeNull();
   });
   it("retains staff tier gates in direct account links", () => {
     state.staff = true;
@@ -92,11 +81,7 @@ describe("stable workspace sidebar", () => {
   });
 });
 
-describe("the shell sidebar (SHELL_2026_09_ENABLED)", () => {
-  beforeEach(() => {
-    state.shell = true;
-  });
-
+describe("every destination on the sidebar (the shell, on for everyone since UI-0)", () => {
   it("shows every destination on the sidebar, none hidden in the profile menu", () => {
     mount();
     const manage = screen.getByRole("navigation", { name: "Manage" });

@@ -38,7 +38,7 @@ import { useAuth } from "@/lib/auth";
 /**
  * How many the rail will hold. Same reasoning as the bot cap: an account with
  * forty channels would otherwise push Billing and Settings off a laptop
- * screen, and `/workflow` lists them all.
+ * screen, and `/channels` lists them all.
  */
 export const CHANNEL_LIMIT = 8;
 
@@ -89,13 +89,15 @@ export function SidebarChannels({ collapsed }: { collapsed: boolean }) {
 
   return (
     <SidebarGroup className="py-1">
-      {/* A heading that carries its own action: the label names the list,
-          the plus makes a new one. It used to link to /workflow -- the third
-          copy of that destination on one panel, after the pinned row and the
-          bots' own label. Shown even with nothing under it: an account with
-          no channels needs the plus more than one with eight. */}
+      {/* A heading that carries its own action: the label opens the full
+          list at /channels, the plus makes a new one. It once linked to
+          /workflow -- the third copy of that destination on one panel -- and
+          /channels itself was a 404. Shown even with nothing under it: an
+          account with no channels needs the plus more than one with eight. */}
       <SidebarGroupLabel className="h-8 justify-between text-[15px] font-normal text-sidebar-foreground/70">
-        <span>Channels</span>
+        <Link href="/channels" className="hover:text-sidebar-foreground">
+          Channels
+        </Link>
         <button
           type="button"
           aria-label="New chat"
@@ -144,7 +146,7 @@ export function SidebarChannels({ collapsed }: { collapsed: boolean }) {
         {channels.length > shown.length ? (
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
-              <Link href="/workflow" className="text-sidebar-foreground/60">
+              <Link href="/channels" className="text-sidebar-foreground/60">
                 <span className="h-4 w-4 shrink-0" aria-hidden="true" />
                 <span className="truncate">
                   {channels.length - shown.length} more

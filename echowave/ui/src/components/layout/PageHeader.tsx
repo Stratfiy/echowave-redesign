@@ -90,7 +90,7 @@ export function PageHeader({
     // On the floor, not a white band over it: the ivory runs from the rail to
     // the content and only cards are white. A bordered white strip here read
     // as a second top bar and split the screen into three tones.
-    <div className={cn("app-glass sticky top-0 z-30", className)}>
+    <div className={cn("page-header app-glass sticky top-0 z-30", className)}>
       {/* Tight on a phone, roomy on a desk. The title, its explanation and a
           five-tab strip were together taking the top third of a 390px screen,
           so the thread they head got a sliver and the reader scrolled before
@@ -98,12 +98,12 @@ export function PageHeader({
           the rest to the messages. The explanation is the part that goes:
           it is orientation for a first visit, and it costs two lines on
           every visit after. */}
-      <div className="px-4 pt-3 pb-2 sm:px-6 sm:pt-5 sm:pb-4">
+      <div className="page-header-inner px-4 pt-3 pb-2 sm:px-6 sm:pt-5 sm:pb-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="truncate text-lg leading-tight text-foreground sm:text-[26px]">{title}</h1>
+            <h1 className="page-header-title truncate text-lg leading-tight text-foreground sm:text-[26px]">{title}</h1>
             {description && (
-              <p className="mt-1 hidden text-sm text-muted-foreground sm:block">{description}</p>
+              <p className="page-header-sub mt-1 hidden text-sm text-muted-foreground sm:block">{description}</p>
             )}
           </div>
           {actions && (

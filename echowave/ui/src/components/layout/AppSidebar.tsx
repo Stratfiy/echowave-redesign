@@ -37,7 +37,6 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -57,7 +56,6 @@ import { useTelephonyConfigWarnings } from "@/context/TelephonyConfigWarningsCon
 import { useAccessRoles } from "@/hooks/useAccessRoles";
 import { useLatestReleaseVersion } from "@/hooks/useLatestReleaseVersion";
 import { useAuth } from "@/lib/auth";
-import { useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 import {
@@ -145,22 +143,17 @@ export function AppSidebar() {
   });
   const activeUrl = getActiveNavUrl(pathname, navSections);
 
-  // The shell puts every destination on the sidebar itself; the profile menu
-  // keeps only what is about the person -- and, for staff, the staff screens.
-  const shell = useFeature("shell");
+  // Every destination is on the sidebar itself; the profile menu keeps only
+  // what is about the person -- and, for staff, the staff screens.
   const staffUrls = new Set(STAFF_SECTION.items.map((item) => item.url));
   const accountGroups = PERSONAL_CONTEXTS.map((id) => ({
     id,
     title: NAV_CONTEXTS.find((context) => context.id === id)!.title,
     items: getContextSections(id, navSections).flatMap((section) => section.items)
       .filter((item) => !PINNED_ROWS.some((row) => row.url === item.url))
-      .filter((item) => !shell || staffUrls.has(item.url)),
-  })).map((group) => (shell && group.id === "account" ? { ...group, title: "Staff" } : group));
-  const activityLinks = shell
-    ? []
-    : getContextSections("activity", navSections)
-        .flatMap((section) => section.items).filter((item) => item.url !== "/usage");
-  const manage = shell ? visibleShellManage(navSections) : [];
+      .filter((item) => staffUrls.has(item.url)),
+  })).map((group) => (group.id === "account" ? { ...group, title: "Staff" } : group));
+  const manage = visibleShellManage(navSections);
   const navItemByUrl = new Map(navSections.flatMap((section) => section.items).map((item) => [item.url, item]));
   const activeLinkRef = useRef<HTMLAnchorElement | null>(null);
   useEffect(() => {
@@ -362,19 +355,15 @@ export function AppSidebar() {
           <SidebarMenu>
             {PINNED_ROWS.map((item) => (
               <SidebarMenuItem key={item.url}>
-                {/* The row opens a page titled Calls that lists calls; the
-                    shell names it for what is there. */}
-                <SidebarLink item={shell && item.url === "/usage" ? { ...item, title: "Calls" } : item} />
+                {/* The row opens a page titled Calls that lists calls; name
+                    it for what is there. */}
+                <SidebarLink item={item.url === "/usage" ? { ...item, title: "Calls" } : item} />
               </SidebarMenuItem>
             ))}
           </SidebarMenu>
         </nav>
         <div className={cn("min-w-0 flex-1 overflow-y-auto px-1 py-1", isCollapsed && "hidden")}
           onClick={(event) => { if ((event.target as HTMLElement).closest("a[href]")) handleMobileNavClick(); }}>
-          {activityLinks.length > 0 && <SidebarGroup aria-label="Activity tools" className="px-0 py-1">
-            <p className="px-2 py-1 text-xs text-sidebar-foreground/60">Activity tools</p>
-            <SidebarMenu>{activityLinks.map((item) => <SidebarMenuItem key={item.url}><SidebarLink item={item} /></SidebarMenuItem>)}</SidebarMenu>
-          </SidebarGroup>}
           <SidebarChannels collapsed={isCollapsed} />
           <SidebarBots collapsed={isCollapsed} />
         </div>

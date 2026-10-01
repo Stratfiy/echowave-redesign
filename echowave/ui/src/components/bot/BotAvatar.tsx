@@ -36,7 +36,6 @@ import {
 
 import { ArtImage } from "@/components/art/Art3D";
 import { jobArt } from "@/lib/art";
-import { useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 /** Name fragment to icon, first match wins. Ordered most specific first:
@@ -101,15 +100,13 @@ export function BotAvatar({
     id: number | string;
     name: string;
     size?: keyof typeof SIZES;
-    /** Draw the job as a 3D picture on a soft tile instead of an icon.
-     *  Only with the shell feature on; without it, the icon as before. */
+    /** Draw the job as a 3D picture on a soft tile instead of an icon. */
     art?: boolean;
     className?: string;
 }) {
-    const shell = useFeature("shell");
     const Icon = botIcon(name);
     const { box, glyph, picture } = SIZES[size];
-    if (art && shell) {
+    if (art) {
         return (
             <span
                 aria-hidden="true"
