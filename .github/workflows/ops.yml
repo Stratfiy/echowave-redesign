@@ -1,0 +1,153 @@
+name: Ops
+
+# Day-to-day production operations without a shell on the box: status, logs
+# (redacted), restart after a .env change, and migration status.
+#
+# Reaches the box exactly the way deploy.yml does: the job runs on the
+# self-hosted `production` runner, assumes the deploy IAM role over GitHub OIDC
+# (no stored AWS keys), and hands the work to SSM send-command with the
+# AWS-RunShellScript document. Same role, same instance, same two SSM calls --
+# no new AWS permission is needed. Every command is in CloudTrail under the
+# role session name gha-ops-<run id>.
+#
+# The logic is in echowave/scripts/ops/ (dispatch.sh runs here, remote.sh runs
+# on the box, redact.sed masks secrets on both sides). Runbook:
+# echowave/docs/deployment/ops-without-ssh.mdx.
+#
+# Who can run it: anyone with write access to the repository (GitHub's rule
+# for workflow_dispatch). The job uses `environment: production`, so required
+# reviewers on that environment gate it the same way they gate deploys.
+#
+# Never prints .env or any environment value. Inputs reach the shell only via
+# `env:` and are validated in dispatch.sh and again on the box.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "What to do"
+        required: true
+        type: choice
+        default: status
+        options:
+          - status
+          - logs
+          - restart
+          - migrate-status
+      service:
+        description: "Service (logs: any; restart: api, ui, sandbox, nginx or all). The arq worker runs inside api."
+        required: false
+        type: choice
+        default: api
+        options:
+          - api
+          - ui
+          - sandbox
+          - nginx
+          - all
+          - gotenberg
+          - coturn
+          - decibyl-init
+          - redis
+          - postgres
+          - minio
+          - falkordb
+      minutes:
+        description: "logs: how many minutes back (1-120)"
+        required: false
+        type: string
+        default: "15"
+      grep:
+        description: "logs: optional case-insensitive filter, letters/digits/space and _ . / : - only, max 60"
+        required: false
+        type: string
+        default: ""
+
+# Shares the deploy's group so an ops run never overlaps a deploy (a restart
+# mid-deploy would race the compose up). Not cancel-in-progress, same as
+# deploy.yml. Caveat: GitHub keeps one *pending* run per group, so a run
+# queued here while a deploy is running replaces any deploy already waiting
+# (and vice versa) -- re-run whichever was cancelled.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # OIDC token for the AWS role, as in deploy.yml
+
+jobs:
+  ops:
+    name: "${{ inputs.action }} (${{ inputs.service }})"
+    runs-on: [self-hosted, linux, x64, production]
+    # Also what the IAM trust policy matches on: the role trusts
+    # `environment:production` (see docs/DEPLOY-GITHUB-ACTIONS.md), so this
+    # job can assume it from any branch only through this environment.
+    environment: production
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out the ops scripts
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: echowave/scripts/ops
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Authenticate to AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          # Keep equal to deploy.yml; see the comment there on why the
+          # fallback is ap-south-1.
+          aws-region: ${{ vars.AWS_REGION || 'ap-south-1' }}
+          role-session-name: gha-ops-${{ github.run_id }}
+
+      - name: Run on the production box
+        env:
+          OPS_ACTION: ${{ inputs.action }}
+          OPS_SERVICE: ${{ inputs.service }}
+          OPS_MINUTES: ${{ inputs.minutes }}
+          OPS_GREP: ${{ inputs.grep }}
+          INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
+          PROJECT_DIR: ${{ vars.DEPLOY_PROJECT_DIR || '/home/ubuntu/echowave-redesign/echowave' }}
+          RUN_ID: ${{ github.run_id }}
+          OUT_FILE: ${{ runner.temp }}/ops-output.txt
+        run: bash echowave/scripts/ops/dispatch.sh
+
+      - name: Upload output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ops-${{ inputs.action }}-${{ inputs.service }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/ops-output.txt
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Clean up
+        if: always()
+        env:
+          OUT_FILE: ${{ runner.temp }}/ops-output.txt
+        run: rm -f "$OUT_FILE"
+
+      - name: Summary
+        if: always()
+        env:
+          OPS_ACTION: ${{ inputs.action }}
+          OPS_SERVICE: ${{ inputs.service }}
+          OPS_MINUTES: ${{ inputs.minutes }}
+          JOB_STATUS: ${{ job.status }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          {
+            echo "### Ops: ${OPS_ACTION} (${OPS_SERVICE}) -- ${JOB_STATUS}"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Action | \`${OPS_ACTION}\` |"
+            echo "| Service | \`${OPS_SERVICE}\` |"
+            echo "| Minutes (logs) | \`${OPS_MINUTES}\` |"
+            echo "| Actor | @${ACTOR} |"
+            echo ""
+            echo "Output is in the job log and in the artifact (kept 3 days)."
+          } >> "$GITHUB_STEP_SUMMARY"

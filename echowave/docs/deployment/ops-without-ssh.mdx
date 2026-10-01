@@ -1,0 +1,186 @@
+---
+title: "Production ops without SSH"
+description: "Status, logs, restarts and migration status for the production box from GitHub Actions instead of a shell"
+---
+
+Four things used to need a shell on the production box (AWS SSM Session
+Manager): reading the API logs, restarting a container after a `.env` change,
+checking `docker compose ps`, and checking which migration the database is at.
+All four are now a button in GitHub: the **Ops** workflow
+(`.github/workflows/ops.yml`).
+
+## How it reaches the box
+
+Exactly the way a deploy does, with the same credentials and nothing new to set
+up:
+
+1. The job runs on the self-hosted runner labelled `production`, in the GitHub
+   Environment `production`.
+2. It assumes the deploy IAM role (`AWS_DEPLOY_ROLE_ARN`) through GitHub OIDC.
+   There are no stored AWS keys.
+3. It sends `echowave/scripts/ops/remote.sh` to the instance
+   (`EC2_INSTANCE_ID`) with `aws ssm send-command` and the
+   `AWS-RunShellScript` document, then reads the output back.
+
+The script travels inside the command, so what runs is the version on the
+branch you dispatched from, not whatever is checked out on the box. Every run
+is in CloudTrail under the role session `gha-ops-<run id>`.
+
+SSM returns at most 24,000 characters of output per command. For logs the box
+therefore redacts, compresses and spools the text under
+`/var/tmp/decibyl-ops/` (root only). The workflow fetches it in chunks and
+deletes the spool file when it is done.
+
+## Who can run it
+
+Anyone with **write** access to the repository. That is GitHub's rule for
+`workflow_dispatch`, and read-only collaborators do not get the Run workflow
+button. If the `production` environment has required reviewers, every Ops run
+waits for a reviewer to approve it, just as a deploy does.
+
+Ops runs share the `deploy-production` concurrency group with deploys, so they
+never overlap. A run started during a deploy waits for the deploy to finish.
+GitHub keeps only one waiting run per group, so a new waiting run replaces one
+that was already waiting (a deploy or another Ops run), and you have to re-run
+the one that was replaced.
+
+## Running it
+
+**From the GitHub UI:** go to **Actions → Ops → Run workflow**, choose the
+inputs and click **Run workflow**. The output is printed in the job log and
+also saved as an artifact named `ops-<action>-<service>-<run id>`, which is
+kept for 3 days and can be downloaded from the run summary page.
+
+**From the terminal** (needs `gh auth login`):
+
+```bash
+gh workflow run ops.yml -f action=status
+gh workflow run ops.yml -f action=logs -f service=api -f minutes=15 -f grep=slack
+gh workflow run ops.yml -f action=restart -f service=api
+gh workflow run ops.yml -f action=migrate-status
+
+# follow the run you just started, then download its output
+gh run watch "$(gh run list --workflow ops.yml --limit 1 --json databaseId -q '.[0].databaseId')"
+gh run download --pattern 'ops-*'
+```
+
+### Inputs
+
+| Input | Values | Used by |
+| --- | --- | --- |
+| `action` | `status`, `logs`, `restart`, `migrate-status` | all |
+| `service` | `api`, `ui`, `sandbox`, `nginx`, `all`, `gotenberg`, `coturn`, `decibyl-init`, `redis`, `postgres`, `minio`, `falkordb` | `logs`, `restart` |
+| `minutes` | whole number from 1 to 120, default 15 | `logs` |
+| `grep` | optional, case-insensitive fixed string; letters, digits, space and `_ . / : -`, at most 60 characters | `logs` |
+
+There is no separate `worker` service. The arq worker, the campaign
+orchestrator and the ARI manager run inside the `api` container (the
+`DECIBYL_ROLE=all` default), so use `service=api` for worker logs and worker
+restarts.
+
+### `status`
+
+- `docker compose ps`: service, state, health and image.
+- `GET /api/v1/health`: HTTP code and body, redacted.
+- Free disk on `/` (and on `/var/lib/docker` if it is a separate mount).
+- The deployed commit: the SHA, date, author and subject of the commit the box
+  is checked out on. A deploy, or a deploy's rollback, leaves the box on this
+  commit.
+
+### `logs`
+
+The last `minutes` of one service, or of every service with `service=all`,
+with timestamps. If `grep` is set, only lines that contain it are kept.
+
+Every line is redacted **on the box, before the filter runs and before
+anything leaves the instance**, and again on the runner. The filter runs on
+the redacted text, so you cannot use `grep` to find out whether a secret is in
+the logs. The rules are in `echowave/scripts/ops/redact.sed` and mask:
+
+- the password in any `scheme://user:password@host` URL (`postgres`,
+  `postgresql+asyncpg`, `redis`, and others)
+- `Bearer …` and `Basic …` credentials
+- JWTs (`eyJ….….…`)
+- Slack tokens (`xoxb-`, `xoxp-`, `xoxa-`, `xapp-`), `sk-…` keys, Razorpay keys
+  and AWS access key IDs
+- the value of anything named `password`, `secret`, `token`, `api_key`,
+  `access_key`, `client_secret` and similar, written as `key=value`,
+  `key: value` or `"key": "value"`
+- any run of 32 or more hex or base64url characters that contains a digit
+
+UUIDs, file paths and long Python identifiers are not masked. A git SHA in a
+log line is masked, because it has the same shape as a token.
+
+Redaction is a best effort, not a guarantee. If a secret ever appears in the
+output, rotate it ([Rotating secrets](/deployment/secrets-rotation)) and add a
+case for it to `echowave/scripts/test_ops_redact.sh`.
+
+A run is limited to roughly 5 MB of redacted log text. If you hit that limit,
+use fewer minutes or add a `grep` filter.
+
+### `restart`
+
+Use this after changing `.env`. Only `api`, `ui`, `sandbox`, `nginx` and `all`
+can be restarted. Stateful services (`postgres`, `redis`, `minio`, `falkordb`)
+are refused, because restarting them is an incident decision, not a routine one.
+
+- **A single service:**
+  `docker compose --profile remote up -d --no-deps --force-recreate <service>`.
+  The container is recreated, so it reads the new `.env`, and its dependencies
+  are left alone. Restarting `api` also restarts `nginx`.
+- **`all`:** `docker compose --profile remote up -d`, then a restart of
+  `nginx`. This is the same as the deploy: compose recreates only the services
+  whose configuration changed, and `decibyl-init` renders the nginx and coturn
+  config again.
+
+Image tags are pinned. The restart uses the image tag that the `api` container
+is running now, so it can never switch the box to a different release.
+
+After the restart the workflow polls `/api/v1/health` for up to 3 minutes. If
+the API does not become healthy, the run fails and prints the last 80 lines of
+redacted `api` logs.
+
+<Warning>
+Restarting `api` drops every call in progress. Do it outside calling hours if
+you can. `ui` only reads `NEXT_PUBLIC_*` values when its image is built, so a
+change to one of those needs a deploy, not a restart.
+</Warning>
+
+### `migrate-status`
+
+Runs `alembic current` and `alembic heads` inside the `api` container. Both
+commands are read-only. If the database is at the head, the two match. If they
+differ, the next deploy runs the missing migrations.
+
+## What it never does
+
+- It never prints `.env` or any environment value, and it never runs
+  `docker compose config`, which would print interpolated values. Only
+  `config --services` runs, which prints service names.
+- It never interpolates inputs into a shell. Inputs reach the scripts as
+  environment variables and are validated three times: once by the workflow's
+  choice list, once by `dispatch.sh` on the runner and once by `remote.sh` on
+  the box. They are shell-quoted with `jq @sh` when the SSM command is built.
+- It never runs migrations, writes to the database or edits files on the box.
+
+## Changing `.env` without SSH (later)
+
+Editing `.env` still needs a shell today. The workflow can restart a service
+after the edit, but it cannot make the edit. The plan for removing that last
+reason to SSH in:
+
+1. **Move secrets and config to AWS SSM Parameter Store** (`SecureString`,
+   under `/decibyl/production/…`, encrypted with KMS). Parameter Store versions
+   every change, CloudTrail records who changed what, and access is controlled
+   by IAM rather than by who has a shell.
+2. **Add a `config-sync` action** to this workflow. It would render `.env` on
+   the box from Parameter Store (as root, `chmod 600`, owned by the deploy
+   user), show which **keys** changed (never values), then run the `restart`
+   path above. A change becomes "edit the parameter, run `config-sync`".
+3. **Per-org feature flags are moving to the Super admin flag console
+   (PR ADMIN-1).** Most of today's `.env` edits are flag flips, so once that
+   ships they become a toggle in the admin UI with no restart. What remains in
+   `.env` is real secrets and infrastructure endpoints, which change rarely.
+
+Until then, follow [Rotating secrets](/deployment/secrets-rotation) for the
+edit, then run `restart` here.
