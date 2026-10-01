@@ -43,6 +43,7 @@ import {
 } from "@/components/charts/primitives";
 import { AuditLog } from "@/components/superadmin/AuditLog";
 import { ImpersonateOwnerButton } from "@/components/superadmin/ImpersonateOwnerButton";
+import { OrgFlagsPanel } from "@/components/superadmin/OrgFlagsPanel";
 import { COPY, type OrgHealth, type RecentFailure } from "@/components/superadmin/orgHealth";
 import { OrgHealthCard } from "@/components/superadmin/OrgHealthCard";
 import { TrialControls } from "@/components/superadmin/TrialControls";
@@ -446,6 +447,7 @@ export default function AccountDetailPage() {
 
             <TelephonyPanel organizationId={organizationId} />
             <CommissionPanel organizationId={organizationId} />
+            <OrgFlagsPanel organizationId={organizationId} />
 
             {/* Every staff action and money change on this account (A6). */}
             <Card>

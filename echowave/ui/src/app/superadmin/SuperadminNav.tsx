@@ -17,6 +17,7 @@ export const SUPERADMIN_LINKS: Array<{ href: string; label: string; exact?: bool
     { href: "/superadmin/billing/accounts", label: "Accounts" },
     { href: "/superadmin/audit", label: "Audit log" },
     { href: "/superadmin/system", label: "System" },
+    { href: "/superadmin/flags", label: "Feature flags" },
     { href: "/superadmin/runs", label: "Runs" },
     { href: "/superadmin/invites", label: "Invites" },
     { href: "/superadmin/verification", label: "KYC queue" },

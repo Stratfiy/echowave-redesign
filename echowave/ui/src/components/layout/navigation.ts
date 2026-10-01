@@ -4,6 +4,7 @@ import {
   CalendarClock,
   ChartColumnBig,
   Database,
+  Flag,
   Globe,
   Handshake,
   Home,
@@ -89,6 +90,16 @@ export const STAFF_SECTION: SidebarNavSection = {
       icon: UserCog,
       requiresSuperadmin: true,
       keywords: ["impersonate", "superadmin", "console", "support login"],
+    },
+    // Per-account and global feature switches (ADMIN-1). Its own entry because
+    // it replaced an SSH session, and the person reaching for it is usually
+    // mid-call with the account that asked.
+    {
+      title: "Feature flags",
+      url: "/superadmin/flags",
+      icon: Flag,
+      requiresSuperadmin: true,
+      keywords: ["flag", "feature", "switch", "toggle", "pilot", "rollout"],
     },
     // Who did what to which account, and whether the platform is up
     // (ADMIN-2). Both answered only by SSH and SQL before.

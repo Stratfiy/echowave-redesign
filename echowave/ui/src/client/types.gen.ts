@@ -5387,6 +5387,28 @@ export type GladiaSttConfiguration = {
 };
 
 /**
+ * GlobalOverrideRequest
+ */
+export type GlobalOverrideRequest = {
+    /**
+     * Enabled
+     */
+    enabled: boolean;
+    /**
+     * Confirm
+     */
+    confirm: string;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Expires At
+     */
+    expires_at?: string | null;
+};
+
+/**
  * GoogleCalendarToolDefinition
  *
  * Tool definition for creating an event on the organization's connected
@@ -8443,6 +8465,24 @@ export type OrganizationModelServicesContext = {
      * Uses Managed Service V2
      */
     uses_managed_service_v2: boolean;
+};
+
+/**
+ * OrganizationOverrideRequest
+ */
+export type OrganizationOverrideRequest = {
+    /**
+     * Enabled
+     */
+    enabled: boolean;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Expires At
+     */
+    expires_at?: string | null;
 };
 
 /**
@@ -16305,6 +16345,304 @@ export type SetTrialEndApiV1SuperuserOrganizationsOrganizationIdTrialPostRespons
 };
 
 export type SetTrialEndApiV1SuperuserOrganizationsOrganizationIdTrialPostResponse = SetTrialEndApiV1SuperuserOrganizationsOrganizationIdTrialPostResponses[keyof SetTrialEndApiV1SuperuserOrganizationsOrganizationIdTrialPostResponses];
+
+export type ListFeaturesApiV1AdminFeaturesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/features';
+};
+
+export type ListFeaturesApiV1AdminFeaturesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListFeaturesApiV1AdminFeaturesGetError = ListFeaturesApiV1AdminFeaturesGetErrors[keyof ListFeaturesApiV1AdminFeaturesGetErrors];
+
+export type ListFeaturesApiV1AdminFeaturesGetResponses = {
+    /**
+     * Response List Features Api V1 Admin Features Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListFeaturesApiV1AdminFeaturesGetResponse = ListFeaturesApiV1AdminFeaturesGetResponses[keyof ListFeaturesApiV1AdminFeaturesGetResponses];
+
+export type OrganizationFeaturesApiV1AdminFeaturesOrganizationsOrganizationIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/features/organizations/{organization_id}';
+};
+
+export type OrganizationFeaturesApiV1AdminFeaturesOrganizationsOrganizationIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type OrganizationFeaturesApiV1AdminFeaturesOrganizationsOrganizationIdGetError = OrganizationFeaturesApiV1AdminFeaturesOrganizationsOrganizationIdGetErrors[keyof OrganizationFeaturesApiV1AdminFeaturesOrganizationsOrganizationIdGetErrors];
+
+export type OrganizationFeaturesApiV1AdminFeaturesOrganizationsOrganizationIdGetResponses = {
+    /**
+     * Response Organization Features Api V1 Admin Features Organizations  Organization Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type OrganizationFeaturesApiV1AdminFeaturesOrganizationsOrganizationIdGetResponse = OrganizationFeaturesApiV1AdminFeaturesOrganizationsOrganizationIdGetResponses[keyof OrganizationFeaturesApiV1AdminFeaturesOrganizationsOrganizationIdGetResponses];
+
+export type ClearOrganizationOverrideApiV1AdminFeaturesNameOrganizationsOrganizationIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Name
+         */
+        name: string;
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/features/{name}/organizations/{organization_id}';
+};
+
+export type ClearOrganizationOverrideApiV1AdminFeaturesNameOrganizationsOrganizationIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ClearOrganizationOverrideApiV1AdminFeaturesNameOrganizationsOrganizationIdDeleteError = ClearOrganizationOverrideApiV1AdminFeaturesNameOrganizationsOrganizationIdDeleteErrors[keyof ClearOrganizationOverrideApiV1AdminFeaturesNameOrganizationsOrganizationIdDeleteErrors];
+
+export type ClearOrganizationOverrideApiV1AdminFeaturesNameOrganizationsOrganizationIdDeleteResponses = {
+    /**
+     * Response Clear Organization Override Api V1 Admin Features  Name  Organizations  Organization Id  Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ClearOrganizationOverrideApiV1AdminFeaturesNameOrganizationsOrganizationIdDeleteResponse = ClearOrganizationOverrideApiV1AdminFeaturesNameOrganizationsOrganizationIdDeleteResponses[keyof ClearOrganizationOverrideApiV1AdminFeaturesNameOrganizationsOrganizationIdDeleteResponses];
+
+export type SetOrganizationOverrideApiV1AdminFeaturesNameOrganizationsOrganizationIdPutData = {
+    body: OrganizationOverrideRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Name
+         */
+        name: string;
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/features/{name}/organizations/{organization_id}';
+};
+
+export type SetOrganizationOverrideApiV1AdminFeaturesNameOrganizationsOrganizationIdPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetOrganizationOverrideApiV1AdminFeaturesNameOrganizationsOrganizationIdPutError = SetOrganizationOverrideApiV1AdminFeaturesNameOrganizationsOrganizationIdPutErrors[keyof SetOrganizationOverrideApiV1AdminFeaturesNameOrganizationsOrganizationIdPutErrors];
+
+export type SetOrganizationOverrideApiV1AdminFeaturesNameOrganizationsOrganizationIdPutResponses = {
+    /**
+     * Response Set Organization Override Api V1 Admin Features  Name  Organizations  Organization Id  Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetOrganizationOverrideApiV1AdminFeaturesNameOrganizationsOrganizationIdPutResponse = SetOrganizationOverrideApiV1AdminFeaturesNameOrganizationsOrganizationIdPutResponses[keyof SetOrganizationOverrideApiV1AdminFeaturesNameOrganizationsOrganizationIdPutResponses];
+
+export type ClearGlobalOverrideApiV1AdminFeaturesNameGlobalDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Name
+         */
+        name: string;
+    };
+    query: {
+        /**
+         * Confirm
+         *
+         * The flag's name, typed again
+         */
+        confirm: string;
+    };
+    url: '/api/v1/admin/features/{name}/global';
+};
+
+export type ClearGlobalOverrideApiV1AdminFeaturesNameGlobalDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ClearGlobalOverrideApiV1AdminFeaturesNameGlobalDeleteError = ClearGlobalOverrideApiV1AdminFeaturesNameGlobalDeleteErrors[keyof ClearGlobalOverrideApiV1AdminFeaturesNameGlobalDeleteErrors];
+
+export type ClearGlobalOverrideApiV1AdminFeaturesNameGlobalDeleteResponses = {
+    /**
+     * Response Clear Global Override Api V1 Admin Features  Name  Global Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ClearGlobalOverrideApiV1AdminFeaturesNameGlobalDeleteResponse = ClearGlobalOverrideApiV1AdminFeaturesNameGlobalDeleteResponses[keyof ClearGlobalOverrideApiV1AdminFeaturesNameGlobalDeleteResponses];
+
+export type SetGlobalOverrideApiV1AdminFeaturesNameGlobalPutData = {
+    body: GlobalOverrideRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Name
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/api/v1/admin/features/{name}/global';
+};
+
+export type SetGlobalOverrideApiV1AdminFeaturesNameGlobalPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetGlobalOverrideApiV1AdminFeaturesNameGlobalPutError = SetGlobalOverrideApiV1AdminFeaturesNameGlobalPutErrors[keyof SetGlobalOverrideApiV1AdminFeaturesNameGlobalPutErrors];
+
+export type SetGlobalOverrideApiV1AdminFeaturesNameGlobalPutResponses = {
+    /**
+     * Response Set Global Override Api V1 Admin Features  Name  Global Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetGlobalOverrideApiV1AdminFeaturesNameGlobalPutResponse = SetGlobalOverrideApiV1AdminFeaturesNameGlobalPutResponses[keyof SetGlobalOverrideApiV1AdminFeaturesNameGlobalPutResponses];
 
 export type GetOverviewApiV1AdminBillingOverviewGetData = {
     body?: never;

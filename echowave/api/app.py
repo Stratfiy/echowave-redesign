@@ -37,6 +37,7 @@ from loguru import logger
 from api.constants import REDIS_URL
 from api.mcp_server import mcp
 from api.routes.main import router as main_router
+from api.services import features
 from api.services.configuration.managed_tiers import (
     refresh_overrides as refresh_managed_tier_overrides,
 )
@@ -95,6 +96,11 @@ async def _handle_managed_tier_sync(event) -> None:
     await refresh_managed_tier_overrides()
 
 
+async def _handle_feature_override_sync(event) -> None:
+    """A feature was switched from the staff console; re-read the table."""
+    await features.refresh_overrides()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with mcp_app.lifespan(app):
@@ -121,6 +127,12 @@ async def lifespan(app: FastAPI):
         # default and bill against a vendor nobody selected.
         await refresh_managed_tier_overrides()
 
+        # Feature switches set from the staff console (ADMIN-1), before any
+        # request can ask whether a feature is on. Re-read every 30 s as a
+        # backstop for a missed sync event.
+        await features.refresh_overrides()
+        features.start_periodic_refresh()
+
         # Start cross-worker sync manager so config changes propagate to all workers
         sync_manager = WorkerSyncManager(REDIS_URL)
         sync_manager.register(
@@ -132,6 +144,9 @@ async def lifespan(app: FastAPI):
         sync_manager.register(
             WorkerSyncEventType.MANAGED_TIERS, _handle_managed_tier_sync
         )
+        sync_manager.register(
+            WorkerSyncEventType.FEATURE_OVERRIDES, _handle_feature_override_sync
+        )
         await sync_manager.start()
         set_worker_sync_manager(sync_manager)
 
@@ -140,6 +155,7 @@ async def lifespan(app: FastAPI):
         # Shutdown sequence - this runs when FastAPI is shutting down
         logger.info("Starting graceful shutdown...")
         await sync_manager.stop()
+        await features.stop_periodic_refresh()
 
 
 app = FastAPI(
