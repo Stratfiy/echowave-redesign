@@ -1,7 +1,14 @@
 import "./globals.css";
+import "./shell-v2.css";
 
 import type { Metadata } from "next";
-import { Geist_Mono, Inter } from "next/font/google";
+import {
+  Familjen_Grotesk,
+  Geist_Mono,
+  Inter,
+  Martian_Mono,
+  Schibsted_Grotesk,
+} from "next/font/google";
 import { Suspense } from "react";
 
 import ChatwootWidget from "@/components/ChatwootWidget";
@@ -47,6 +54,35 @@ const appMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// The v2 shell's three faces (KAN-208, behind `ui_shell_v2`), self-hosted like
+// the rest. `preload: false`: nothing is fetched on first paint, and a browser
+// downloads a face only when text on the page is set in it -- which happens
+// only inside `.shell-v2` (see shell-v2.css). With the flag off they cost a
+// few @font-face rules and no bytes.
+const v2Display = Familjen_Grotesk({
+  variable: "--font-v2-display",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  preload: false,
+});
+
+const v2Body = Schibsted_Grotesk({
+  variable: "--font-v2-body",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  display: "swap",
+  preload: false,
+});
+
+const v2Mono = Martian_Mono({
+  variable: "--font-v2-mono",
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  display: "swap",
+  preload: false,
+});
+
 export const metadata: Metadata = {
   title: "Decibyl — AI teammates for Indian businesses",
   description:
@@ -66,7 +102,7 @@ export default function RootLayout({
     // like a font bug and is actually a scoping bug.
     <html
       lang="en"
-      className={`${appSans.variable} ${appMono.variable}`}
+      className={`${appSans.variable} ${appMono.variable} ${v2Display.variable} ${v2Body.variable} ${v2Mono.variable}`}
       suppressHydrationWarning
     >
       <head>

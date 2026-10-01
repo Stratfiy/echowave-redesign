@@ -777,14 +777,17 @@ class TestScriptRuns:
     async def test_it_counts_running_today_failed_and_this_months_calls(
         self, async_session, configured
     ):
+        # Pinned to mid-month: "three days ago" must still be this month,
+        # which it is not on the 1st to the 3rd of a real month.
+        now = datetime.now(UTC).replace(day=15, hour=12, minute=0, second=0)
         org = await _org(async_session, "scripts")
-        await self._job(async_session, org, calls=151)
-        await self._job(async_session, org, calls=3, status="running")
-        await self._job(async_session, org, calls=200, status="capped")
-        await self._job(
-            async_session, org, calls=50, started=datetime.now(UTC) - timedelta(days=3)
-        )
-        check = _by_key(await assess(async_session))["script_runs_within_allowance"]
+        await self._job(async_session, org, calls=151, started=now)
+        await self._job(async_session, org, calls=3, status="running", started=now)
+        await self._job(async_session, org, calls=200, status="capped", started=now)
+        await self._job(async_session, org, calls=50, started=now - timedelta(days=3))
+        check = _by_key(await assess(async_session, now=now))[
+            "script_runs_within_allowance"
+        ]
         assert check.status == READY
         assert "1 running now" in check.detail
         assert "3 in the last 24 hours, 1 of them failed" in check.detail

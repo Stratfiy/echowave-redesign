@@ -25,7 +25,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { detailFromResult } from "@/lib/apiError";
-import { useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 import { LabelChip, LabelPicker, SubtaskProgress } from "./TaskInputs";
@@ -301,11 +300,9 @@ export function TaskBoard({ initial, tabs }: Props) {
     );
 }
 
-/** An empty list. With the shell on, a picture over the words, so an empty
- *  board reads as a place to start rather than a failed load. */
+/** An empty list: a picture over the words, so an empty board reads as a
+ *  place to start rather than a failed load. */
 function NothingHere() {
-    const shell = useFeature("shell");
-    if (!shell) return <p className="mt-6 text-sm text-muted-foreground">Nothing here.</p>;
     return (
         <div className="mt-10 flex flex-col items-center text-center">
             <ArtImage name="target" size={88} className="mb-3 drop-shadow-md" />
