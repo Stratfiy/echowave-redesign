@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Gauge, KeyRound, List, Loader2, PhoneCall, ShieldCheck, Speech, Ticket, Wallet } from 'lucide-react';
+import { ArrowRight, Flag, Gauge, KeyRound, List, Loader2, PhoneCall, ShieldCheck, Speech, Ticket, Wallet } from 'lucide-react';
 import Link from "next/link";
 import { useState } from "react";
 
@@ -211,6 +211,25 @@ export default function SuperadminPage() {
                                     <Button className="w-full md:w-auto">
                                         <Ticket className="mr-2 h-4 w-4" />
                                         Manage invites
+                                        <ArrowRight className="ml-2 h-4 w-4" />
+                                    </Button>
+                                </Link>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Feature flags</CardTitle>
+                                <CardDescription>
+                                    Turn a feature on for one account, or for
+                                    everyone, without a restart
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Link href="/superadmin/flags">
+                                    <Button className="w-full md:w-auto">
+                                        <Flag className="mr-2 h-4 w-4" />
+                                        Manage flags
                                         <ArrowRight className="ml-2 h-4 w-4" />
                                     </Button>
                                 </Link>

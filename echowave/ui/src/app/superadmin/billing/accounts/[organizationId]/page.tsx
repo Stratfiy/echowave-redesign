@@ -41,6 +41,7 @@ import {
     useAuthReady,
     useChartMode,
 } from "@/components/charts/primitives";
+import { OrgFlagsPanel } from "@/components/superadmin/OrgFlagsPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -414,6 +415,7 @@ export default function AccountDetailPage() {
 
             <TelephonyPanel organizationId={organizationId} />
             <CommissionPanel organizationId={organizationId} />
+            <OrgFlagsPanel organizationId={organizationId} />
         </div>
     );
 }

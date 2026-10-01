@@ -3,6 +3,7 @@ import {
   CalendarClock,
   ChartColumnBig,
   Database,
+  Flag,
   Globe,
   Handshake,
   Home,
@@ -87,6 +88,16 @@ export const STAFF_SECTION: SidebarNavSection = {
       icon: UserCog,
       requiresSuperadmin: true,
       keywords: ["impersonate", "superadmin", "console", "support login"],
+    },
+    // Per-account and global feature switches (ADMIN-1). Its own entry because
+    // it replaced an SSH session, and the person reaching for it is usually
+    // mid-call with the account that asked.
+    {
+      title: "Feature flags",
+      url: "/superadmin/flags",
+      icon: Flag,
+      requiresSuperadmin: true,
+      keywords: ["flag", "feature", "switch", "toggle", "pilot", "rollout"],
     },
     // Its own entry rather than a tab under the KYC queue: the two are read by
     // different people for different reasons — one is a compliance check, the
