@@ -466,3 +466,45 @@ async def test_a_waiting_sandbox_is_said_plainly_in_the_chat(monkeypatch):
     site = SimpleNamespace(files={"package.json": "{}"}, framework="vite-react")
     with pytest.raises(sites.SiteError, match="still downloading"):
         await sites._request_build(site)
+
+
+def test_api_and_sandbox_agree_on_a_secret_nobody_set(monkeypatch):
+    """Production ran with SANDBOX_SECRET unset and every build was a 401.
+    Both sides now derive the same value from OSS_JWT_SECRET."""
+    from fastapi.testclient import TestClient
+
+    from api import constants
+
+    server = _sandbox(monkeypatch)
+    monkeypatch.delenv("SANDBOX_SECRET", raising=False)
+    monkeypatch.setenv("SANDBOX_SECRET_SEED", "the-jwt-secret")
+    monkeypatch.setattr(server, "SECRET", server._secret())
+
+    derived = constants._derived_sandbox_secret("the-jwt-secret")
+    assert derived and derived == server.SECRET
+    assert "the-jwt-secret" not in derived
+
+    client = TestClient(server.app)
+    body = {"files": {"index.js": "x"}}
+    assert (
+        client.post(
+            "/builds", json=body, headers={"x-sandbox-secret": derived}
+        ).status_code
+        != 401
+    )
+    assert (
+        client.post(
+            "/builds", json=body, headers={"x-sandbox-secret": "wrong"}
+        ).status_code
+        == 401
+    )
+
+
+def test_an_explicit_sandbox_secret_still_wins(monkeypatch):
+    server = _sandbox(monkeypatch)
+    monkeypatch.setenv("SANDBOX_SECRET", "explicit")
+    monkeypatch.setenv("SANDBOX_SECRET_SEED", "seed")
+    assert server._secret() == "explicit"
+    monkeypatch.delenv("SANDBOX_SECRET")
+    monkeypatch.delenv("SANDBOX_SECRET_SEED")
+    assert server._secret() == ""

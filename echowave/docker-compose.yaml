@@ -562,6 +562,10 @@ services:
         max-file: "3"
     environment:
       SANDBOX_SECRET: ${SANDBOX_SECRET:-}
+      # With SANDBOX_SECRET unset, the sandbox and the api derive the same
+      # secret from this (sandbox/server.py, api/constants.py), so nothing
+      # has to be set by hand for the two to trust each other.
+      SANDBOX_SECRET_SEED: ${OSS_JWT_SECRET:-}
       SANDBOX_MAX_JOBS: ${SANDBOX_MAX_JOBS:-2}
       SANDBOX_IMAGE: ${SANDBOX_IMAGE:-python:3.12-slim}
       # Studio site builds (npm install + build). They run on the network

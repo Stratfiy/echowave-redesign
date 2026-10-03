@@ -146,7 +146,29 @@ KNOWLEDGE_GRAPH_URL = os.getenv("KNOWLEDGE_GRAPH_URL") or None
 #: may run scripts as a plain subprocess instead (see
 #: ``services/sandbox/runner.py``).
 SANDBOX_URL = os.getenv("SANDBOX_URL") or None
-SANDBOX_SECRET = os.getenv("SANDBOX_SECRET") or None
+
+
+def _derived_sandbox_secret(seed: str | None) -> str | None:
+    """The secret the api and the sandbox share when none is configured.
+
+    Production ran with SANDBOX_SECRET unset, and the sandbox refuses every
+    request without one, so builds and scripts failed with a bare 401. Both
+    services already have OSS_JWT_SECRET (the sandbox as
+    SANDBOX_SECRET_SEED, see docker-compose.yaml), so each derives the same
+    value from it. Hashed with a label rather than used as is: the login
+    signing key itself never travels in a request header. Keep the formula
+    in step with ``_secret`` in ``sandbox/server.py``.
+    """
+    if not seed:
+        return None
+    import hashlib
+
+    return hashlib.sha256(b"decibyl-sandbox/v1:" + seed.encode("utf-8")).hexdigest()
+
+
+SANDBOX_SECRET = os.getenv("SANDBOX_SECRET") or _derived_sandbox_secret(
+    os.getenv("OSS_JWT_SECRET")
+)
 # What the graph extracts and embeds with, on the platform's own OpenAI key
 # (the vault's llm/openai credential). Small and cheap on purpose: every
 # call, thread message and channel document becomes an extraction.
