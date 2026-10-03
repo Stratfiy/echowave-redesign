@@ -390,3 +390,79 @@ def test_screenshots_refuse_a_site_with_no_page(monkeypatch):
         headers={"x-sandbox-secret": "s"},
     )
     assert response.status_code == 400
+
+
+async def test_the_sandbox_fetches_its_images_itself(monkeypatch):
+    server = _sandbox(monkeypatch)
+    present = {"node:22-slim": False}
+    pulled: list[str] = []
+
+    async def image_present(image):
+        return present.get(image, True)
+
+    async def pull(image):
+        pulled.append(image)
+        present[image] = True
+        return True
+
+    monkeypatch.setattr(server, "_image_present", image_present)
+    monkeypatch.setattr(server, "_pull", pull)
+    await server._ensure_image("node:22-slim")
+    await server._ensure_image(server.SHOT_IMAGE)
+    assert pulled == ["node:22-slim"]
+    assert server.IMAGE_STATE["node:22-slim"] == "ready"
+    assert server.IMAGE_STATE[server.SHOT_IMAGE] == "ready"
+    assert server.BUILD_IMAGE in server._studio_images()
+    assert server.SHOT_IMAGE in server._studio_images()
+
+
+def test_a_request_before_the_images_arrive_is_told_to_wait(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    server = _sandbox(monkeypatch)
+    monkeypatch.setitem(server.IMAGE_STATE, server.SHOT_IMAGE, "pulling")
+    monkeypatch.setitem(server.IMAGE_STATE, server.BUILD_IMAGE, "pulling")
+    client = TestClient(server.app)
+    headers = {"x-sandbox-secret": "s"}
+    shot = client.post(
+        "/screenshots", json={"files": {"index.html": "eA=="}}, headers=headers
+    )
+    build = client.post(
+        "/builds", json={"files": {"package.json": "{}"}}, headers=headers
+    )
+    for response in (shot, build):
+        assert response.status_code == 503
+        assert "still downloading" in response.json()["detail"]
+    health = client.get("/health").json()
+    assert health["images"][server.SHOT_IMAGE] == "pulling"
+
+
+async def test_a_waiting_sandbox_is_said_plainly_in_the_chat(monkeypatch):
+    import httpx
+
+    from api import constants
+
+    monkeypatch.setattr(constants, "SANDBOX_URL", "http://sandbox.test")
+
+    class FakeClient:
+        def __init__(self, *a, **k):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def post(self, *a, **k):
+            return httpx.Response(
+                503, json={"detail": "The sandbox is still downloading what it needs"}
+            )
+
+    monkeypatch.setattr(sites.httpx, "AsyncClient", FakeClient)
+
+    from types import SimpleNamespace
+
+    site = SimpleNamespace(files={"package.json": "{}"}, framework="vite-react")
+    with pytest.raises(sites.SiteError, match="still downloading"):
+        await sites._request_build(site)

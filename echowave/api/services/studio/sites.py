@@ -296,6 +296,15 @@ def summarize_log(log: str) -> str:
     return picked
 
 
+def _sandbox_detail(response: httpx.Response) -> str:
+    """The reason the sandbox gave, when it gave one."""
+    try:
+        detail = response.json().get("detail")
+    except (ValueError, AttributeError):
+        return ""
+    return detail if isinstance(detail, str) else ""
+
+
 async def _request_build(site: SiteProjectModel) -> dict[str, Any]:
     if not constants.SANDBOX_URL:
         raise SiteError(
@@ -321,7 +330,8 @@ async def _request_build(site: SiteProjectModel) -> dict[str, Any]:
         )
     if response.status_code == 503:
         raise SiteError(
-            "Site builds are not switched on in this deployment's sandbox "
+            _sandbox_detail(response)
+            or "Site builds are not switched on in this deployment's sandbox "
             "(SANDBOX_BUILD_NETWORK)."
         )
     if response.status_code >= 400:
@@ -521,6 +531,8 @@ async def _request_screenshots(dist: dict[str, str]) -> dict[str, Any]:
         response = await client.post("/screenshots", json={"files": dist})
     if response.status_code == 429:
         raise SiteError("The sandbox is busy. Try the review again in a minute.")
+    if response.status_code == 503 and _sandbox_detail(response):
+        raise SiteError(_sandbox_detail(response))
     if response.status_code >= 400:
         raise SiteError(
             f"The sandbox could not take screenshots: {response.text[:300]}"

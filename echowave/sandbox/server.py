@@ -36,6 +36,7 @@ import shlex
 import tarfile
 import time
 import uuid
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -48,7 +49,93 @@ IMAGE = os.environ.get("SANDBOX_IMAGE", "python:3.12-slim")
 SENTINEL = "@@decibyl-tool@@"
 MAX_OUTPUT_CHARS = 64_000
 
-app = FastAPI(title="Decibyl sandbox", docs_url=None, redoc_url=None)
+# --- Images, pulled on start ---------------------------------------------------
+#
+# Studio's build and screenshot boxes run images that are not on a fresh host,
+# and the screenshot one is about 2 GB. Pulled inside a request, that download
+# would count against the request's timeout and fail it, again and again, until
+# somebody logged in to the server to pull it by hand. So the service pulls
+# them itself when it starts, reports progress on /health, and a request that
+# arrives first is told to wait rather than timing out.
+
+IMAGE_STATE: dict[str, str] = {}  # image -> "pulling" | "ready" | "failed"
+_PULL_RETRY_SECONDS = 300
+
+
+async def _image_present(image: str) -> bool:
+    proc = await asyncio.create_subprocess_exec(
+        "docker",
+        "image",
+        "inspect",
+        image,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    return await proc.wait() == 0
+
+
+async def _pull(image: str) -> bool:
+    proc = await asyncio.create_subprocess_exec(
+        "docker",
+        "pull",
+        "-q",
+        image,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    return await proc.wait() == 0
+
+
+async def _ensure_image(image: str) -> None:
+    """Pull ``image`` until it is present; retried, never raises."""
+    while True:
+        try:
+            if await _image_present(image):
+                IMAGE_STATE[image] = "ready"
+                return
+            IMAGE_STATE[image] = "pulling"
+            if await _pull(image):
+                IMAGE_STATE[image] = "ready"
+                return
+        except OSError:
+            # No docker binary or socket: the boxes cannot run either, and
+            # /health says so rather than this task dying unseen.
+            pass
+        IMAGE_STATE[image] = "failed"
+        await asyncio.sleep(_PULL_RETRY_SECONDS)
+
+
+def _studio_images() -> list[str]:
+    images = [IMAGE] if IMAGE else []
+    if BUILD_NETWORK:
+        images += [BUILD_IMAGE, SHOT_IMAGE]
+    return list(dict.fromkeys(images))
+
+
+def _require_image(image: str) -> None:
+    """Refuse, with the reason, while an image is still being fetched."""
+    state = IMAGE_STATE.get(image)
+    if state in ("pulling", "failed"):
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "The sandbox is still downloading what it needs for this "
+                "(first start on this server). Try again in a few minutes."
+            ),
+        )
+
+
+@asynccontextmanager
+async def _lifespan(_app):
+    tasks = [asyncio.create_task(_ensure_image(image)) for image in _studio_images()]
+    yield
+    for task in tasks:
+        task.cancel()
+
+
+app = FastAPI(
+    title="Decibyl sandbox", docs_url=None, redoc_url=None, lifespan=_lifespan
+)
 
 
 class JobRequest(BaseModel):
@@ -417,6 +504,7 @@ async def build(
         raise HTTPException(status_code=400, detail="bad output_dir")
     if "package.json" not in {_clean_path(p) for p in request.files}:
         raise HTTPException(status_code=400, detail="package.json is missing")
+    _require_image(BUILD_IMAGE)
     live = sum(1 for j in JOBS.values() if j.done is None) + len(BUILDS)
     if live >= MAX_JOBS:
         raise HTTPException(status_code=429, detail="sandbox is full")
@@ -577,6 +665,7 @@ async def screenshots(
     _check(x_sandbox_secret)
     if "index.html" not in {_clean_path(p) for p in request.files}:
         raise HTTPException(status_code=400, detail="index.html is missing")
+    _require_image(SHOT_IMAGE)
     live = sum(1 for j in JOBS.values() if j.done is None) + len(BUILDS)
     if live >= MAX_JOBS:
         raise HTTPException(status_code=429, detail="sandbox is full")
@@ -642,6 +731,7 @@ async def health():
         "running": live,
         "capacity": MAX_JOBS,
         "builds": bool(BUILD_NETWORK),
+        "images": dict(IMAGE_STATE),
     }
 
 

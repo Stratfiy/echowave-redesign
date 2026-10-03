@@ -32,9 +32,7 @@ network: `SANDBOX_BUILD_NETWORK`, which compose declares `internal` with the
 packages and reach nothing else — no api, no database, no metadata endpoint,
 no internet. With `SANDBOX_BUILD_NETWORK` unset, builds are refused.
 
-Pull the build image once so the first build does not wait on it:
-
-    docker pull node:22-slim
+The service pulls the build image itself when it starts (see `/health`).
 
 ## Screenshots (Studio's design review)
 
@@ -42,6 +40,6 @@ Pull the build image once so the first build does not wait on it:
 phone (390px) screenshot, the script errors the page threw, and how far it
 scrolls sideways. The box has **no network**: Python's static server serves
 the site on loopback and Chromium, driven by `shoot.mjs` over the DevTools
-protocol, renders it with real mobile emulation. Pull the image once:
-
-    docker pull mcr.microsoft.com/playwright:v1.56.0-noble
+protocol, renders it with real mobile emulation. The service pulls this image
+itself on start; until it has, a screenshot request answers 503 and says to
+try again in a few minutes.
