@@ -14,8 +14,9 @@ vi.mock("@/client/client.gen", () => ({
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
 
 import type { Site } from "../api";
+import { blocksOf } from "../RichReply";
 import { SitePanel } from "../SitePanel";
-import { describeActions, StudioChat } from "../StudioChat";
+import { describeActions, StudioChat, suggestNext } from "../StudioChat";
 import { StudioWorkspace } from "../StudioWorkspace";
 
 const SITE: Site = {
@@ -68,6 +69,26 @@ describe("describeActions", () => {
     });
 });
 
+describe("suggestNext and blocksOf", () => {
+    it("offers next steps about what exists", () => {
+        expect(suggestNext({ hasSite: true, hasAgents: true })).toContain(
+            "Connect the contact form to my agent",
+        );
+        expect(suggestNext({ hasSite: false, hasAgents: true })).toContain(
+            "Make a website for my agents",
+        );
+        expect(suggestNext({ hasSite: true, hasAgents: false }).length).toBeLessThanOrEqual(4);
+    });
+
+    it("reads paragraphs and lists out of a reply", () => {
+        expect(blocksOf("Done.\n\n- one\n- two\n1. a\n2. b")).toEqual([
+            { kind: "p", lines: ["Done."] },
+            { kind: "ul", items: ["one", "two"] },
+            { kind: "ol", items: ["a", "b"] },
+        ]);
+    });
+});
+
 describe("connect links", () => {
     it("shows an app to connect as a button in the thread, never a trip elsewhere", async () => {
         api.post.mockResolvedValueOnce({
@@ -102,6 +123,7 @@ describe("StudioChat", () => {
                 history: [{ role: "user", content: "hi" }],
                 actions: ["create_site", "build_site", "create_agent"],
                 created_workflow_ids: [41],
+                created_agents: [{ id: 41, name: "Front desk", live: true, archived: false }],
                 site_id: 7,
                 usage: USAGE,
             },
@@ -119,9 +141,14 @@ describe("StudioChat", () => {
             body: { message: "Build a site for my clinic", history: [] },
         });
         expect(screen.getByText("Built the site")).toBeTruthy();
-        expect(screen.getByText("Open agent 41").closest("a")?.getAttribute("href")).toBe(
+        expect(screen.getByText("Front desk").closest("a")?.getAttribute("href")).toBe(
             "/workflow/41",
         );
+        // The next move is offered under the reply, and fills the box.
+        fireEvent.click(screen.getByText("Send me an email when a customer books"));
+        expect(
+            (screen.getByLabelText("Message Studio") as HTMLTextAreaElement).value,
+        ).toBe("Send me an email when a customer books");
         expect(onTurn).toHaveBeenCalledWith(expect.objectContaining({ site_id: 7 }));
     });
 
@@ -142,7 +169,7 @@ describe("StudioChat", () => {
 
     it("an opener fills the box and never sends", () => {
         render(<StudioChat usage={USAGE} onTurn={vi.fn()} />);
-        fireEvent.click(screen.getByText(/Build a website for my dental clinic/));
+        fireEvent.click(screen.getByText("Clinic website + receptionist"));
         expect(
             (screen.getByLabelText("Message Studio") as HTMLTextAreaElement).value,
         ).toContain("dental clinic");
@@ -220,6 +247,22 @@ describe("SitePanel", () => {
         expect(onChanged).toHaveBeenCalled();
     });
 
+    it("sizes the preview to a phone and lists the team by name", () => {
+        render(
+            <SitePanel
+                site={{
+                    ...SITE,
+                    agents: [{ id: 41, name: "Front desk", live: false, archived: false }],
+                }}
+                onChanged={vi.fn()}
+            />,
+        );
+        fireEvent.click(screen.getByLabelText("Phone"));
+        const frame = screen.getByTitle("Preview of Sunrise Dental") as HTMLIFrameElement;
+        expect(frame.style.width).toBe("390px");
+        expect(screen.getByLabelText("Phone").getAttribute("aria-pressed")).toBe("true");
+    });
+
     it("says what to do when nothing has been built", () => {
         render(
             <SitePanel
@@ -262,11 +305,17 @@ describe("StudioWorkspace", () => {
         expect(await screen.findByTitle("Preview of Sunrise Dental")).toBeTruthy();
     });
 
+    it("opens on one question when there is nothing yet", async () => {
+        serve([]);
+        render(<StudioWorkspace />);
+        expect(await screen.findByText("What do you want to build?")).toBeTruthy();
+        expect(screen.queryByText(/Your site appears here/)).toBeNull();
+    });
+
     it("says plainly when builds are not set up", async () => {
         serve([], { builds_configured: false });
         render(<StudioWorkspace />);
         expect(await screen.findByText(/Site builds are not set up/)).toBeTruthy();
-        expect(screen.getByText(/Your site appears here/)).toBeTruthy();
     });
 
     it("says why Studio cannot run when no model is set", async () => {

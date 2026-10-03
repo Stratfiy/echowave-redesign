@@ -354,9 +354,11 @@ def _packs(
             name="Outbound Prospecting",
             job="Business development executive",
             summary=(
-                "Finds businesses that fit your ideal customer on the public "
-                "web, reads their own pages, and drafts one email per prospect "
-                "that you approve before it goes -- from your own mailbox."
+                "Runs your outreach end to end: reads the replies and hands "
+                "you the interested ones, follows up once with people who "
+                "went quiet, finds new businesses that fit on the public web, "
+                "and writes each a short email you approve before it goes -- "
+                "from your own mailbox."
             ),
             publisher=DECIBYL,
             # No calling channel: on the plan, no seat, nothing to hear. It
@@ -401,6 +403,24 @@ def _packs(
                     required=False,
                     example="10",
                     used_for="Where a run stops. Ten if you skip this.",
+                ),
+                RequiredFact(
+                    key="booking_link",
+                    question="Where can an interested prospect book a call?",
+                    required=False,
+                    example="https://calendly.com/priya-raman/20min",
+                    used_for=(
+                        "The link in the answer to somebody who replies "
+                        "interested. Without one it asks which day suits them."
+                    ),
+                ),
+                RequiredFact(
+                    key="follow_up_days",
+                    question="How many quiet days before the one follow-up?",
+                    kind=FactKind.NUMBER,
+                    required=False,
+                    example="4",
+                    used_for="When the single follow-up goes. Four if you skip this.",
                 ),
             ],
             required_connectors=[

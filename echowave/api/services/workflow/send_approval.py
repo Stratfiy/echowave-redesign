@@ -22,7 +22,7 @@ prospect declined once is not proposed again as new.
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from typing import Any
 
@@ -141,11 +141,29 @@ def subject_of(arguments: Mapping[str, Any]) -> str:
     return ""
 
 
+#: A status a send must not overwrite. A reply to somebody who answered is
+#: still a conversation, and somebody who said stop stays stopped.
+_KEEP_STATUSES = frozenset(
+    {
+        "replied",
+        "interested",
+        "meeting_booked",
+        "not_interested",
+        "unsubscribed",
+        "bounced",
+        "declined",
+    }
+)
+
+
 async def _stamp(
-    organization_id: int, arguments: Mapping[str, Any], fields: dict[str, Any]
+    organization_id: int,
+    arguments: Mapping[str, Any],
+    fields: dict[str, Any] | Callable[[dict[str, Any]], dict[str, Any]],
 ) -> bool:
     """Write ``fields`` onto the contact the mail was addressed to, if the
-    book has them. Never raises. False when nobody matched."""
+    book has them. Never raises. False when nobody matched. ``fields`` may
+    be a function of what the contact already carries."""
     address = recipient_of(arguments)
     if not address:
         return False
@@ -160,6 +178,9 @@ async def _stamp(
         )
         if row is None:
             return False
+        if callable(fields):
+            existing = getattr(row, "attributes", None)
+            fields = fields(dict(existing) if isinstance(existing, dict) else {})
         await db_client.touch_contact(
             row.id, organization_id=organization_id, attributes=fields
         )
@@ -170,17 +191,31 @@ async def _stamp(
 
 
 async def note_sent(organization_id: int, arguments: Mapping[str, Any]) -> bool:
-    """The mail went: record when and what on the prospect."""
+    """The mail went: record when and what on the prospect.
+
+    Counts the emails, so a run can tell a first email from a follow-up and
+    stop at the follow-up limit, and keeps a status that says the person
+    has already answered.
+    """
     now = datetime.now(UTC).isoformat(timespec="seconds")
-    return await _stamp(
-        organization_id,
-        arguments,
-        {
+    subject = subject_of(arguments)
+
+    def fields(existing: dict[str, Any]) -> dict[str, Any]:
+        try:
+            sent = int(existing.get("emails_sent") or 0)
+        except (TypeError, ValueError):
+            sent = 0
+        out: dict[str, Any] = {
             "last_emailed_at": now,
-            "last_subject": subject_of(arguments),
-            "status": "emailed",
-        },
-    )
+            "last_subject": subject,
+            "emails_sent": sent + 1,
+            "first_emailed_at": existing.get("first_emailed_at") or now,
+        }
+        if str(existing.get("status") or "") not in _KEEP_STATUSES:
+            out["status"] = "emailed"
+        return out
+
+    return await _stamp(organization_id, arguments, fields)
 
 
 async def note_declined(organization_id: int, arguments: Mapping[str, Any]) -> bool:
