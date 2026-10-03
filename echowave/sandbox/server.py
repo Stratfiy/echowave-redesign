@@ -28,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import binascii
+import hashlib
 import io
 import json
 import os
@@ -43,7 +44,24 @@ from typing import Any
 from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
-SECRET = os.environ.get("SANDBOX_SECRET", "")
+
+def _secret() -> str:
+    """SANDBOX_SECRET, or the value the api derives when it is unset.
+
+    Kept in step with ``_derived_sandbox_secret`` in ``api/constants.py``:
+    both hash OSS_JWT_SECRET (here SANDBOX_SECRET_SEED) with the same label,
+    so a deployment that never set SANDBOX_SECRET still has one shared value.
+    """
+    explicit = os.environ.get("SANDBOX_SECRET", "")
+    if explicit:
+        return explicit
+    seed = os.environ.get("SANDBOX_SECRET_SEED", "")
+    if not seed:
+        return ""
+    return hashlib.sha256(b"decibyl-sandbox/v1:" + seed.encode("utf-8")).hexdigest()
+
+
+SECRET = _secret()
 MAX_JOBS = int(os.environ.get("SANDBOX_MAX_JOBS", "2"))
 IMAGE = os.environ.get("SANDBOX_IMAGE", "python:3.12-slim")
 SENTINEL = "@@decibyl-tool@@"
