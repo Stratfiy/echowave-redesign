@@ -28,11 +28,22 @@ export interface StudioConfig {
     usage: StudioUsage & { resets_at?: string };
 }
 
+/** An agent Studio made, by name (api/services/studio/sites.py agents_of). */
+export interface StudioAgent {
+    id: number;
+    name: string;
+    /** Answering right now; false is paused. */
+    live: boolean;
+    archived: boolean;
+}
+
 export interface StudioChatResponse {
     reply: string;
     history: Record<string, unknown>[];
     actions: string[];
     created_workflow_ids: number[];
+    /** The same agents by name; absent from an older api. */
+    created_agents?: StudioAgent[];
     site_id: number | null;
     /** App-connection links, shown as buttons in the thread. */
     connect_links?: { app: string; url: string }[];
@@ -56,6 +67,8 @@ export interface Site {
     preview_url: string | null;
     files?: SiteFile[];
     build_log?: string | null;
+    /** The site's agents by name; only on a single site's read. */
+    agents?: StudioAgent[];
 }
 
 export interface BuildResult {

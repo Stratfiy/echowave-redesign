@@ -20,7 +20,7 @@ export default function StudioPage() {
         <div className="flex min-h-0 flex-1 flex-col">
             <PageHeader
                 title="Studio"
-                description="Describe your business. Studio makes the agents and a website for them, builds it and shows you the preview."
+                description="Agents and a website for them, from one chat."
             />
             <div className="w-full px-4 py-4 sm:px-6">
                 {on ? (
