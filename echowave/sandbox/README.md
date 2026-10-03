@@ -35,3 +35,13 @@ no internet. With `SANDBOX_BUILD_NETWORK` unset, builds are refused.
 Pull the build image once so the first build does not wait on it:
 
     docker pull node:22-slim
+
+## Screenshots (Studio's design review)
+
+`POST /screenshots` takes a built site and returns a laptop (1280px) and a
+phone (390px) screenshot, the script errors the page threw, and how far it
+scrolls sideways. The box has **no network**: Python's static server serves
+the site on loopback and Chromium, driven by `shoot.mjs` over the DevTools
+protocol, renders it with real mobile emulation. Pull the image once:
+
+    docker pull mcr.microsoft.com/playwright:v1.56.0-noble

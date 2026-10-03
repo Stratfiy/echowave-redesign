@@ -42,6 +42,11 @@ class SiteProjectModel(Base):
     files = Column(JSONB, nullable=False, default=dict)
     #: The agents this site carries, as workflow ids, in the order shown.
     agent_workflow_ids = Column(JSONB, nullable=False, default=list)
+    #: The bot trigger the site's contact form rings: the agent that handles
+    #: a lead. NULL until somebody connects the form.
+    form_trigger_id = Column(
+        Integer, ForeignKey("bot_triggers.id", ondelete="SET NULL"), nullable=True
+    )
     #: Unguessable; the preview URL is the only thing it unlocks.
     preview_token = Column(String(64), nullable=False, unique=True, index=True)
     #: ``none`` | ``building`` | ``succeeded`` | ``failed``.

@@ -520,6 +520,20 @@ SANDBOX_BUILD_REGISTRY=http://sandbox-registry:4873/
 
 Pull `node:22-slim` on the host once so the first build does not wait on it.
 
+The design review takes screenshots in a box with no network at all:
+
+```bash
+SANDBOX_SHOT_IMAGE=mcr.microsoft.com/playwright:v1.56.0-noble
+```
+
+Pull it on the host once as well (about 2 GB). Photo search uses Openverse's
+public API (`api.openverse.org`) from the api host; no key is needed, and only
+photos licensed for commercial use are returned.
+
+A site's contact form posts to `/api/v1/public/sites/<token>/form` on
+`BACKEND_API_ENDPOINT`, from whatever domain the site is published on: the
+form sends `text/plain`, so no CORS preflight is involved.
+
 ## Not environment variables
 
 Worth stating, because they are the three things most likely to be looked for

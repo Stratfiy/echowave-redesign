@@ -29,6 +29,7 @@ import asyncio
 import base64
 import binascii
 import io
+import json
 import os
 import re
 import shlex
@@ -472,6 +473,165 @@ async def build(
                 -MAX_BUILD_LOG_CHARS:
             ]
     return result
+
+
+# --- Screenshots of a built site (Studio's design review) --------------------
+#
+# The built files go in, two PNGs come out: a desktop and a phone view, with
+# any script errors the page threw and how far it scrolls sideways. The box
+# is the stricter kind again -- ``--network none`` -- because nothing in it
+# needs more than loopback: Python's own static server and Chromium, driven
+# by shoot.mjs over the DevTools protocol.
+
+SHOT_IMAGE = os.environ.get(
+    "SANDBOX_SHOT_IMAGE", "mcr.microsoft.com/playwright:v1.56.0-noble"
+)
+with open(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "shoot.mjs"), "rb"
+) as _shoot:
+    _SHOOT_JS = _shoot.read()
+MAX_SHOT_OUTPUT_BYTES = 12 * 1024 * 1024
+
+
+class ScreenshotRequest(BaseModel):
+    #: Relative path -> base64 of the built file, as /builds returned it.
+    files: dict[str, str]
+    timeout_seconds: int = Field(default=60, ge=10, le=120)
+
+
+def _dist_tarball(files: dict[str, str]) -> bytes:
+    buffer = io.BytesIO()
+    total = 0
+    with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
+        for raw_path, encoded in files.items():
+            try:
+                data = base64.b64decode(encoded)
+            except (binascii.Error, ValueError) as exc:
+                raise HTTPException(status_code=400, detail="bad file data") from exc
+            total += len(data)
+            if total > MAX_BUILD_OUTPUT_BYTES:
+                raise HTTPException(status_code=413, detail="site too large")
+            info = tarfile.TarInfo(name=_clean_path(raw_path))
+            info.size = len(data)
+            info.mode = 0o644
+            tar.addfile(info, io.BytesIO(data))
+    return buffer.getvalue()
+
+
+def _shot_command(shot_id: str) -> list[str]:
+    script = (
+        'echo "$SHOOT" | base64 -d > /tmp/shoot.mjs\n'
+        "mkdir -p /work/site\n"
+        "tar -xzf - -C /work/site\n"
+        "cd /work/site\n"
+        "python3 -m http.server 4173 --bind 127.0.0.1 >/dev/null 2>&1 &\n"
+        "sleep 0.5\n"
+        "node /tmp/shoot.mjs\n"
+    )
+    return [
+        "docker",
+        "run",
+        "-i",
+        "--rm",
+        "--name",
+        f"sandbox-shot-{shot_id}",
+        "--network",
+        "none",
+        "--memory",
+        "1024m",
+        "--memory-swap",
+        "1024m",
+        "--cpus",
+        "1.0",
+        "--pids-limit",
+        "256",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges",
+        "--read-only",
+        "--tmpfs",
+        "/work:rw,size=128m,uid=1000,gid=1000",
+        # Chromium keeps its profile and shared memory under /tmp.
+        "--tmpfs",
+        "/tmp:rw,exec,size=512m,uid=1000,gid=1000",
+        "--shm-size",
+        "256m",
+        "--user",
+        "1000:1000",
+        "--env",
+        "HOME=/tmp",
+        "--env",
+        f"SHOOT={base64.b64encode(_SHOOT_JS).decode('ascii')}",
+        SHOT_IMAGE,
+        "sh",
+        "-c",
+        script,
+    ]
+
+
+@app.post("/screenshots")
+async def screenshots(
+    request: ScreenshotRequest, x_sandbox_secret: str | None = Header(default=None)
+):
+    _check(x_sandbox_secret)
+    if "index.html" not in {_clean_path(p) for p in request.files}:
+        raise HTTPException(status_code=400, detail="index.html is missing")
+    live = sum(1 for j in JOBS.values() if j.done is None) + len(BUILDS)
+    if live >= MAX_JOBS:
+        raise HTTPException(status_code=429, detail="sandbox is full")
+
+    source = _dist_tarball(request.files)
+    shot_id = uuid.uuid4().hex[:12]
+    BUILDS.add(shot_id)
+    try:
+        process = await asyncio.create_subprocess_exec(
+            *_shot_command(shot_id),
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout, _ = await asyncio.wait_for(
+                process.communicate(source), timeout=request.timeout_seconds
+            )
+        except asyncio.TimeoutError:
+            try:
+                process.kill()
+            except ProcessLookupError:
+                pass
+            remover = await asyncio.create_subprocess_exec(
+                "docker",
+                "rm",
+                "-f",
+                f"sandbox-shot-{shot_id}",
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await remover.wait()
+            return {
+                "shots": [],
+                "errors": ["The page took too long to render."],
+                "overflow": {},
+            }
+    finally:
+        BUILDS.discard(shot_id)
+
+    line = stdout.strip().splitlines()[-1] if stdout.strip() else b""
+    if not line or len(line) > MAX_SHOT_OUTPUT_BYTES:
+        return {
+            "shots": [],
+            "errors": ["The screenshot could not be taken."],
+            "overflow": {},
+        }
+    try:
+        return json.loads(line)
+    except ValueError:
+        return {
+            "shots": [],
+            "errors": ["The screenshot could not be read."],
+            "overflow": {},
+        }
 
 
 @app.get("/health")

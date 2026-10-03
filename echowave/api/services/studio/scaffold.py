@@ -1,24 +1,34 @@
-"""The starting point of every Studio site: a React app built by Vite.
+"""The starting point of every Studio site: a designed React app built by Vite.
 
-One framework, chosen because it builds in seconds inside the sandbox, needs
-no server at runtime, and its output is a folder of static files that can be
-previewed here and hosted anywhere. The model starts from this tree and edits
-it; it never has to remember how to set up a bundler.
+The tree lives on disk under ``starter/<framework>/`` so it is maintained as
+code, not as strings. It is not a blank page: Tailwind CSS v4 with design
+tokens, typefaces bundled from npm, lucide icons, motion, and a set of
+finished sections (navbar, hero, features, steps, stats, testimonials,
+pricing, FAQ, call to action, contact form, footer) that render the content
+in ``src/site.js``. The model starts from something that already looks
+professional and spends its effort on the business's words, pictures and
+the sections it adds -- the floor is the design, not a blank ``<h1>``.
 
-Two choices here are load-bearing rather than taste:
+Three choices here are load-bearing rather than taste:
 
 - ``base: './'`` in the Vite config. The preview serves a site from a path
-  (``/api/v1/public/sites/<token>/``), not from the root of a domain, so asset
-  URLs must be relative or the page loads with no script and no styles.
+  (``/api/v1/public/sites/<token>/``), so asset URLs must be relative or the
+  page loads with no script and no styles.
 - The agents block in ``index.html``. :func:`set_agents_block` rewrites the
   text between the two markers and nothing else, so the model can redesign
   the page freely without being trusted to paste an embed script correctly.
+- ``src/lib/config.js``. :func:`set_form_endpoint` writes the one line the
+  contact form posts to, for the same reason.
 """
 
 from __future__ import annotations
 
 import json
 import re
+from functools import cache
+from pathlib import Path
+
+from api.services.studio import themes
 
 FRAMEWORK_VITE_REACT = "vite-react"
 FRAMEWORKS = (FRAMEWORK_VITE_REACT,)
@@ -28,106 +38,58 @@ OUTPUT_DIR = {FRAMEWORK_VITE_REACT: "dist"}
 
 AGENTS_START = "<!-- decibyl-agents:start -->"
 AGENTS_END = "<!-- decibyl-agents:end -->"
+CONFIG_PATH = "src/lib/config.js"
 
-_PACKAGE_JSON = {
-    "name": "decibyl-site",
-    "private": True,
-    "version": "0.1.0",
-    "type": "module",
-    "scripts": {"dev": "vite", "build": "vite build", "preview": "vite preview"},
-    "dependencies": {"react": "^19.3.0", "react-dom": "^19.3.0"},
-    "devDependencies": {"@vitejs/plugin-react": "^6.1.1", "vite": "^8.3.2"},
-}
-
-_INDEX_HTML = f"""<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{{title}}</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-    {AGENTS_START}
-    {AGENTS_END}
-  </body>
-</html>
-"""
-
-_VITE_CONFIG = """import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-
-// base: "./" keeps every asset URL relative, so the built site works from
-// any path -- the Studio preview, a sub-folder, or the root of a domain.
-export default defineConfig({
-  plugins: [react()],
-  base: "./",
-});
-"""
-
-_MAIN_JSX = """import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-import App from "./App.jsx";
-import "./index.css";
-
-createRoot(document.getElementById("root")).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
-"""
-
-_APP_JSX = """export default function App() {
-  return (
-    <main className="page">
-      <h1>{title}</h1>
-      <p>Your site is ready. Ask in the Studio chat to design it.</p>
-    </main>
-  );
-}
-"""
-
-_INDEX_CSS = """:root {
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  color: #111827;
-  background: #ffffff;
-}
-
-body {
-  margin: 0;
-}
-
-.page {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 64px 16px;
-}
-"""
-
-_GITIGNORE = "node_modules\ndist\n"
+_STARTER_ROOT = Path(__file__).resolve().parent / "starter"
 
 
-def starter_files(framework: str, *, title: str) -> dict[str, str]:
-    """The tree a new site starts from."""
-    if framework != FRAMEWORK_VITE_REACT:
+@cache
+def _starter(framework: str) -> dict[str, str]:
+    root = _STARTER_ROOT / framework
+    if not root.is_dir():
         raise ValueError(
             f"Unknown framework {framework!r}; choose one of {', '.join(FRAMEWORKS)}."
         )
-    safe_title = (title or "My site").strip()[:120]
-    html_title = (
-        safe_title.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    )
     return {
-        "package.json": json.dumps(_PACKAGE_JSON, indent=2) + "\n",
-        "index.html": _INDEX_HTML.replace("{title}", html_title),
-        "vite.config.js": _VITE_CONFIG,
-        "src/main.jsx": _MAIN_JSX,
-        # json.dumps gives a valid JS string literal for any title.
-        "src/App.jsx": _APP_JSX.replace("{title}", "{" + json.dumps(safe_title) + "}"),
-        "src/index.css": _INDEX_CSS,
-        ".gitignore": _GITIGNORE,
+        path.relative_to(root).as_posix(): path.read_text(encoding="utf-8")
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
     }
+
+
+def _html(text: str) -> str:
+    return (
+        text.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+
+
+def starter_files(
+    framework: str, *, title: str, theme: str = themes.DEFAULT_THEME
+) -> dict[str, str]:
+    """The tree a new site starts from, named and themed."""
+    if framework not in FRAMEWORKS:
+        raise ValueError(
+            f"Unknown framework {framework!r}; choose one of {', '.join(FRAMEWORKS)}."
+        )
+    chosen = themes.get(theme)
+    name = (title or "My site").strip()[:120] or "My site"
+    initial = _html(name[:1].upper())
+    files: dict[str, str] = {}
+    for path, text in _starter(framework).items():
+        text = (
+            text.replace("{{title}}", _html(name))
+            .replace("{{description}}", _html(f"{name} — talk to us any time."))
+            .replace("{{theme_color}}", chosen.colors["brand"])
+            .replace("{{initial}}", initial)
+            # json.dumps gives a valid JS string literal for any name.
+            .replace("__NAME__", json.dumps(name, ensure_ascii=False))
+        )
+        files[path] = text
+    files[".gitignore"] = "node_modules\ndist\n"
+    return themes.apply(files, chosen)
 
 
 _BLOCK = re.compile(re.escape(AGENTS_START) + r".*?" + re.escape(AGENTS_END), re.DOTALL)
@@ -148,3 +110,10 @@ def set_agents_block(index_html: str, snippets: list[str]) -> str:
     if at == -1:
         return index_html.rstrip("\n") + "\n" + block + "\n"
     return index_html[:at] + block + "\n" + index_html[at:]
+
+
+def config_js(form_endpoint: str) -> str:
+    return (
+        "// Written by Studio. FORM_ENDPOINT is where the contact form posts.\n"
+        f"export const FORM_ENDPOINT = {json.dumps(form_endpoint)};\n"
+    )

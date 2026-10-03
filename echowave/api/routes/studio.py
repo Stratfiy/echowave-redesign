@@ -124,6 +124,7 @@ async def studio_chat(
         "actions": result.actions,
         "created_workflow_ids": result.created_workflow_ids,
         "site_id": result.site_id,
+        "connect_links": result.connect_links,
         "usage": builder_routes._usage(state, charged_credits=charged_credits),
     }
 
@@ -293,6 +294,95 @@ async def _serve_preview(token: str, path: str, request: Request) -> Response:
         media_type=media_type,
         headers=_preview_headers(request, path),
     )
+
+
+#: Enquiries one visitor may send to one site in ten minutes. A person sends
+#: one, maybe two; anything past this is a script.
+FORM_SENDS_PER_WINDOW = 5
+FORM_WINDOW_SECS = 600
+_FORM_HEADERS = {"Access-Control-Allow-Origin": "*", "Cache-Control": "no-store"}
+
+
+def _visitor(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    return forwarded or (request.client.host if request.client else "unknown")
+
+
+@public_router.post("/{token}/form", include_in_schema=False)
+async def submit_form(token: str, request: Request) -> Response:
+    """A visitor sent the site's contact form: start the agent it is connected to.
+
+    Public and cross-origin by design -- the site lives on the business's own
+    domain. The page sends ``text/plain`` so the browser needs no preflight;
+    the body is JSON either way. Answers 202 once the run is queued; a bot
+    that filled the hidden field gets the same 202 and nothing happens.
+    """
+    import json
+
+    from api.services.rate_limit import rate_limiter
+    from api.services.workflow import bot_triggers
+    from api.services.workflow.triggered_calls import (
+        TriggerRateLimited,
+        count_trigger,
+    )
+    from api.tasks.arq import enqueue_job
+    from api.tasks.function_names import FunctionNames
+
+    def answer(status: int, body: dict) -> Response:
+        return Response(
+            content=json.dumps(body),
+            status_code=status,
+            media_type="application/json",
+            headers=_FORM_HEADERS,
+        )
+
+    site = await db_client.get_site_project_by_preview_token(token)
+    if site is None or not features.is_on("studio", site.organization_id):
+        return answer(404, {"detail": "Not Found"})
+    if not site.form_trigger_id:
+        return answer(409, {"detail": "This form is not connected yet."})
+
+    raw = await request.body()
+    if len(raw) > 32_000:
+        return answer(413, {"detail": "That is too long to send."})
+    try:
+        submitted = json.loads(raw.decode("utf-8") or "{}")
+    except (ValueError, UnicodeDecodeError):
+        return answer(400, {"detail": "Send the form's fields as JSON."})
+    try:
+        fields = sites.clean_submission(submitted)
+    except sites.FormRejected as exc:
+        return answer(exc.status, {"detail": str(exc)})
+    if fields is None:
+        return answer(202, {"status": "accepted"})
+
+    allowed, retry_after = await rate_limiter.check(
+        bucket=f"studio-form:{site.id}",
+        identity=_visitor(request),
+        limit=FORM_SENDS_PER_WINDOW,
+        window_secs=FORM_WINDOW_SECS,
+    )
+    if not allowed:
+        return answer(
+            429, {"detail": f"Too many messages; try again in {retry_after} seconds."}
+        )
+
+    trigger = await db_client.get_form_trigger_for_site(site)
+    if trigger is None or not trigger.is_active:
+        return answer(409, {"detail": "This form is not connected yet."})
+    try:
+        await count_trigger(f"bt:{trigger.uuid}", bot_triggers.MAX_TRIGGERS_PER_HOUR)
+    except TriggerRateLimited:
+        return answer(
+            429, {"detail": "We are getting a lot of messages; try again soon."}
+        )
+
+    payload = {"source": "website_form", "site": site.name, **fields}
+    try:
+        await enqueue_job(FunctionNames.RUN_BOT_TRIGGER, trigger.id, payload, None)
+    except Exception:  # noqa: BLE001 - the visitor gets a retry, not a 500
+        return answer(503, {"detail": "Could not take your message just now; retry."})
+    return answer(202, {"status": "accepted"})
 
 
 @public_router.get("/{token}/", include_in_schema=False)

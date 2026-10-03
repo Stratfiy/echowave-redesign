@@ -55,8 +55,41 @@ describe("describeActions", () => {
                 "write_site_files",
                 "build_site",
                 "create_agent",
+                "review_site_design",
+                "review_site_design",
             ]),
-        ).toEqual(["Started a site", "Wrote files", "Built the site", "Made an agent"]);
+        ).toEqual([
+            "Started a site",
+            "Wrote files",
+            "Built the site",
+            "Made an agent",
+            "Checked the design",
+        ]);
+    });
+});
+
+describe("connect links", () => {
+    it("shows an app to connect as a button in the thread, never a trip elsewhere", async () => {
+        api.post.mockResolvedValueOnce({
+            data: {
+                reply: "Connect Gmail and I will attach it.",
+                history: [],
+                actions: ["connect_app"],
+                created_workflow_ids: [],
+                site_id: null,
+                connect_links: [{ app: "Gmail", url: "https://connect.example/x" }],
+                usage: USAGE,
+            },
+        });
+        render(<StudioChat usage={USAGE} onTurn={vi.fn()} />);
+        fireEvent.change(screen.getByLabelText("Message Studio"), {
+            target: { value: "send confirmations by email" },
+        });
+        fireEvent.click(screen.getByLabelText("Send"));
+        const link = await screen.findByRole("link", { name: /Connect Gmail/ });
+        expect(link.getAttribute("href")).toBe("https://connect.example/x");
+        expect(link.getAttribute("target")).toBe("_blank");
+        expect(link.getAttribute("rel")).toContain("noopener");
     });
 });
 

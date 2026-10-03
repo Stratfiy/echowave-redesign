@@ -34,6 +34,8 @@ export interface StudioChatResponse {
     actions: string[];
     created_workflow_ids: number[];
     site_id: number | null;
+    /** App-connection links, shown as buttons in the thread. */
+    connect_links?: { app: string; url: string }[];
     usage: StudioUsage;
 }
 

@@ -34,8 +34,9 @@ keep on their release trains.
 from __future__ import annotations
 
 import json
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 import httpx
 from loguru import logger
@@ -162,8 +163,29 @@ def _strip_for_gemini(schema: Any) -> Any:
     return schema
 
 
+#: The key a tool result carries pictures under: a list of
+#: ``{"media_type": "image/png", "data": <base64>, "label": "..."}``. Studio's
+#: design review returns screenshots this way. Each adapter below sends them
+#: the way its vendor accepts pictures, and never as text.
+IMAGES_KEY = "_images"
+
+
+def _split_images(content: Any) -> tuple[Any, list[dict[str, Any]]]:
+    """``content`` without its pictures, and the pictures."""
+    if isinstance(content, dict) and isinstance(content.get(IMAGES_KEY), list):
+        images = [
+            image
+            for image in content[IMAGES_KEY]
+            if isinstance(image, dict) and image.get("data") and image.get("media_type")
+        ]
+        rest = {key: value for key, value in content.items() if key != IMAGES_KEY}
+        return rest, images
+    return content, []
+
+
 def _as_text(content: Any) -> str:
     """A tool result as a string, for vendors that will not take an object."""
+    content, _ = _split_images(content)
     if isinstance(content, str):
         return content
     try:
@@ -203,6 +225,21 @@ def _anthropic_request(
         elif role == "tool":
             # Tool results come back as a *user* turn here, which is the
             # difference most likely to be got wrong when porting from OpenAI.
+            _, images = _split_images(entry["content"])
+            result: Any = _as_text(entry["content"])
+            if images:
+                # A tool result may hold pictures directly.
+                result = [{"type": "text", "text": result}] + [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": image["media_type"],
+                            "data": image["data"],
+                        },
+                    }
+                    for image in images
+                ]
             messages.append(
                 {
                     "role": "user",
@@ -210,7 +247,7 @@ def _anthropic_request(
                         {
                             "type": "tool_result",
                             "tool_use_id": entry["tool_call_id"],
-                            "content": _as_text(entry["content"]),
+                            "content": result,
                         }
                     ],
                 }
@@ -338,8 +375,33 @@ def _openai_request(
     *, model: str, system: str, conversation: Conversation, tools: list[dict[str, Any]]
 ) -> dict[str, Any]:
     messages: list[dict[str, Any]] = [{"role": "system", "content": system}]
+    # A tool message cannot hold a picture, and nothing but tool messages may
+    # follow the assistant turn that called them -- so pictures wait here and
+    # go in one user turn after the last result of the round.
+    pending: list[dict[str, Any]] = []
+
+    def flush() -> None:
+        if not pending:
+            return
+        parts: list[dict[str, Any]] = [
+            {"type": "text", "text": "The pictures the tool results above refer to."}
+        ]
+        parts += [
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:{image['media_type']};base64,{image['data']}"
+                },
+            }
+            for image in pending
+        ]
+        messages.append({"role": "user", "content": parts})
+        pending.clear()
+
     for entry in conversation.messages:
         role = entry["role"]
+        if role != "tool":
+            flush()
         if role == "user":
             messages.append({"role": "user", "content": entry["content"]})
         elif role == "assistant":
@@ -370,6 +432,8 @@ def _openai_request(
                     "content": _as_text(entry["content"]),
                 }
             )
+            pending.extend(_split_images(entry["content"])[1])
+    flush()
 
     payload: dict[str, Any] = {
         "model": model,
@@ -434,8 +498,34 @@ def _gemini_request(
     *, system: str, conversation: Conversation, tools: list[dict[str, Any]]
 ) -> dict[str, Any]:
     contents: list[dict[str, Any]] = []
+    # Same as OpenAI's: pictures follow the round's function responses as one
+    # user turn of inline data.
+    pending: list[dict[str, Any]] = []
+
+    def flush() -> None:
+        if not pending:
+            return
+        contents.append(
+            {
+                "role": "user",
+                "parts": [{"text": "The pictures the tool results above refer to."}]
+                + [
+                    {
+                        "inlineData": {
+                            "mimeType": image["media_type"],
+                            "data": image["data"],
+                        }
+                    }
+                    for image in pending
+                ],
+            }
+        )
+        pending.clear()
+
     for entry in conversation.messages:
         role = entry["role"]
+        if role != "tool":
+            flush()
         if role == "user":
             contents.append({"role": "user", "parts": [{"text": entry["content"]}]})
         elif role == "assistant":
@@ -454,7 +544,8 @@ def _gemini_request(
             if parts:
                 contents.append({"role": "model", "parts": parts})
         elif role == "tool":
-            content = entry["content"]
+            content, images = _split_images(entry["content"])
+            pending.extend(images)
             contents.append(
                 {
                     "role": "function",
@@ -475,6 +566,7 @@ def _gemini_request(
                 }
             )
 
+    flush()
     payload: dict[str, Any] = {
         "contents": contents,
         "systemInstruction": {"parts": [{"text": system}]},

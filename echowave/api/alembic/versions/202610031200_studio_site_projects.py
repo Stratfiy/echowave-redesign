@@ -37,6 +37,12 @@ def upgrade() -> None:
         sa.Column("framework", sa.String(32), nullable=False),
         sa.Column("files", postgresql.JSONB(), nullable=False),
         sa.Column("agent_workflow_ids", postgresql.JSONB(), nullable=False),
+        sa.Column(
+            "form_trigger_id",
+            sa.Integer(),
+            sa.ForeignKey("bot_triggers.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
         sa.Column("preview_token", sa.String(64), nullable=False),
         sa.Column("build_status", sa.String(16), nullable=False),
         sa.Column("build_log", sa.Text(), nullable=True),

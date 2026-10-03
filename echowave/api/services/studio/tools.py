@@ -1,10 +1,14 @@
-"""What the Studio chat can do: make agents, and make a website for them.
+"""What the Studio chat can do: make agents, connect them to everything the
+account has, and make a website for them.
 
 Two halves. The agent half is the builder's own tools, reused by name, so an
-agent made in Studio is assembled, validated and priced exactly like one made
-in the builder (``services/agent_builder/tools.py``). The site half is new:
-create a site, read and write its files, build it in the sandbox, and put
-agents on it.
+agent made in Studio is assembled, validated, priced and connected exactly
+like one made in the builder (``services/agent_builder/tools.py``) --
+including the outside apps: connect one with a link in the thread, list what
+it can do, and attach that action to an agent. The site half is new: create
+a site, theme it, find photos for it, write its files, build it in the
+sandbox, look at screenshots of it, put agents on it, and send its contact
+form to an agent.
 
 The same boundaries as the builder hold, for the same reasons: nothing here
 buys a number, publishes an agent or deletes a site. Writing files is the one
@@ -22,13 +26,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db import db_client
 from api.services.agent_builder import tools as builder_tools
-from api.services.studio import sites
+from api.services.studio import images, sites, themes
 from api.services.studio.scaffold import FRAMEWORKS
 
 #: The builder's tools Studio offers, by name. Checked against the builder's
 #: catalogue at import (below): a rename there fails here, loudly, rather than
 #: quietly leaving Studio unable to make agents.
 AGENT_TOOLS: tuple[str, ...] = (
+    "suggest_roles",
+    "set_business_type",
     "list_agent_templates",
     "get_agent_template",
     "estimate_agent_cost",
@@ -38,6 +44,15 @@ AGENT_TOOLS: tuple[str, ...] = (
     "set_voice_and_brain",
     "revise_agent_prompt",
     "revise_agent_facts",
+    "list_phone_numbers",
+    # Everything the account connects to, through Composio: what is connected,
+    # a link to connect more, what each app can do, and giving an agent one
+    # of those actions.
+    "list_connected_apps",
+    "connect_app",
+    "list_app_actions",
+    "list_app_accounts",
+    "attach_app_tool",
 )
 
 _builder_schemas = {schema["name"]: schema for schema in builder_tools.tool_schemas()}
@@ -56,10 +71,11 @@ SITE_TOOLS: list[dict[str, Any]] = [
     {
         "name": "create_site",
         "description": (
-            "Start a new website. It begins as a working React app built by "
-            "Vite (index.html, vite.config.js, src/main.jsx, src/App.jsx, "
-            "src/index.css, package.json) which you then edit. Call this once "
-            "per website, not per change."
+            "Start a new website, already designed: React + Vite + Tailwind "
+            "CSS v4, a theme, and finished sections (Navbar, Hero, Features, "
+            "Stats, Steps, Testimonials, Pricing, FAQ, CTA, Contact, Footer) "
+            "that render the content in src/site.js. Call this once per "
+            "website, not per change."
         ),
         "parameters": {
             "type": "object",
@@ -72,6 +88,10 @@ SITE_TOOLS: list[dict[str, Any]] = [
                     "type": "string",
                     "enum": list(FRAMEWORKS),
                     "description": "Leave as the default.",
+                },
+                "theme": {
+                    "type": "string",
+                    "description": "A name from list_design_themes.",
                 },
             },
             "required": ["name"],
@@ -169,6 +189,96 @@ SITE_TOOLS: list[dict[str, Any]] = [
             "required": ["site_id", "workflow_ids", "domains"],
         },
     },
+    {
+        "name": "list_design_themes",
+        "description": (
+            "List the design themes: a palette and a font pair each, chosen "
+            "for a kind of business and checked for readable contrast. Pick "
+            "the one that fits the business before writing the site."
+        ),
+        "parameters": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "apply_design_theme",
+        "description": (
+            "Apply a theme to a site: its colours become the Tailwind tokens "
+            "(bg-brand, text-ink, text-muted, bg-surface, bg-canvas, ring-line, "
+            "text-brand-ink on brand) and its typefaces font-display and "
+            "font-body. Build afterwards."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "site_id": _SITE_ID,
+                "theme": {
+                    "type": "string",
+                    "description": "A name from list_design_themes.",
+                },
+            },
+            "required": ["site_id", "theme"],
+        },
+    },
+    {
+        "name": "find_images",
+        "description": (
+            "Search openly licensed photos that may be used on a business "
+            "site. Returns image URLs with their size and the credit each "
+            "needs. Use the url as an <img src>, give it real alt text, and "
+            "add each credit to site.credits in src/site.js when needs_credit "
+            "is true. Search in plain English for what the photo shows "
+            "('smiling dentist with patient', 'fresh bread on wooden table')."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "orientation": {"type": "string", "enum": ["wide", "tall", "square"]},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "review_site_design",
+        "description": (
+            "Look at the site: returns screenshots of the last successful "
+            "build on a laptop (1280px) and a phone (390px), any script "
+            "errors the page threw, and whether it scrolls sideways. Call it "
+            "after every successful build of a new site or a visible change, "
+            "judge the pictures against the checklist it returns, and fix "
+            "what is off before telling the user it is ready."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {"site_id": _SITE_ID},
+            "required": ["site_id"],
+        },
+    },
+    {
+        "name": "connect_form_to_agent",
+        "description": (
+            "Send the site's contact form to an agent: each enquiry starts "
+            "that agent with the instruction you give, and it acts with the "
+            "tools attached to it (for example a WhatsApp or email action "
+            "from attach_app_tool, or a calendar). Ask the user what should "
+            "happen to an enquiry, then call this. Build afterwards."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "site_id": _SITE_ID,
+                "workflow_id": {"type": "integer", "description": "The agent."},
+                "instruction": {
+                    "type": "string",
+                    "description": (
+                        "What the agent does with each enquiry, e.g. 'Reply on "
+                        "WhatsApp within a minute, thank them by name, and "
+                        "offer the next three free slots.'"
+                    ),
+                },
+            },
+            "required": ["site_id", "workflow_id", "instruction"],
+        },
+    },
 ]
 
 SITE_TOOL_NAMES = frozenset(tool["name"] for tool in SITE_TOOLS)
@@ -222,8 +332,23 @@ async def _dispatch_site_tool(
             user_id=user_id,
             name=str(arguments.get("name") or ""),
             framework=str(arguments.get("framework") or FRAMEWORKS[0]),
+            theme=str(arguments.get("theme") or themes.DEFAULT_THEME),
         )
         return {"created": True, **sites.summary(site)}
+    if name == "list_design_themes":
+        return {"themes": themes.catalogue()}
+    if name == "find_images":
+        try:
+            found = await images.search(
+                str(arguments.get("query") or ""),
+                orientation=arguments.get("orientation"),
+            )
+        except images.ImageSearchError as exc:
+            raise sites.SiteError(str(exc)) from exc
+        return {
+            "images": found,
+            "note": "No photos matched; try simpler words." if not found else "",
+        }
 
     site = await sites.get_site(
         arguments.get("site_id"), organization_id=organization_id
@@ -258,5 +383,21 @@ async def _dispatch_site_tool(
             user_id=user_id,
             workflow_ids=workflow_ids,
             domains=[str(d) for d in domains],
+        )
+    if name == "apply_design_theme":
+        return await sites.apply_theme(
+            site,
+            organization_id=organization_id,
+            theme_name=str(arguments.get("theme") or ""),
+        )
+    if name == "review_site_design":
+        return await sites.review_design(site)
+    if name == "connect_form_to_agent":
+        return await sites.connect_form(
+            site,
+            organization_id=organization_id,
+            user_id=user_id,
+            workflow_id=arguments.get("workflow_id"),
+            instruction=str(arguments.get("instruction") or ""),
         )
     raise sites.SiteError(f"Unknown tool {name!r}.")  # pragma: no cover

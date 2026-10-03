@@ -35,7 +35,8 @@ from api import constants
 from api.db import db_client
 from api.db.site_project_models import SiteProjectModel
 from api.services.embed_script import generate_embed_script
-from api.services.studio import scaffold
+from api.services.studio import scaffold, themes
+from api.services.workflow import bot_triggers
 
 # --- ceilings ---------------------------------------------------------------
 
@@ -201,12 +202,17 @@ async def create_site(
     user_id: int | None,
     name: str,
     framework: str = scaffold.FRAMEWORK_VITE_REACT,
+    theme: str = themes.DEFAULT_THEME,
 ) -> SiteProjectModel:
     name = (name or "").strip()[:MAX_NAME_CHARS] or "My site"
     if framework not in scaffold.FRAMEWORKS:
         raise SiteError(
             f"Unknown framework {framework!r}; Studio builds "
             f"{', '.join(scaffold.FRAMEWORKS)}."
+        )
+    if theme not in themes.THEMES:
+        raise SiteError(
+            f"No theme {theme!r}. Choose one of: {', '.join(themes.THEMES)}."
         )
     existing = await db_client.list_site_projects(organization_id)
     if len(existing) >= MAX_SITES_PER_ORGANIZATION:
@@ -219,7 +225,7 @@ async def create_site(
         created_by_user_id=user_id,
         name=name,
         framework=framework,
-        files=scaffold.starter_files(framework, title=name),
+        files=scaffold.starter_files(framework, title=name, theme=theme),
         preview_token=secrets.token_urlsafe(24),
     )
 
@@ -487,6 +493,245 @@ async def put_agents_on_site(
             "listed; rebuild the site for the change to show."
         ),
     }
+
+
+# --- design ------------------------------------------------------------------
+
+#: What the model is asked to check in every review, so a review is a look
+#: at named things rather than "looks good".
+REVIEW_CHECKLIST = (
+    "Hierarchy: one clear headline per screen; the eye knows where to go first.",
+    "Spacing: generous and even; nothing cramped, nothing floating alone.",
+    "Contrast: every piece of text is easy to read on what it sits on.",
+    "Phone: nothing cut off, nothing side by side that should stack, tap targets large.",
+    "Content: no placeholder words left ('Service one', 'A short line on...').",
+    "Images: every photo relevant, sharp, and not stretched.",
+    "Consistency: one button style, one card style, aligned edges.",
+)
+
+
+async def _request_screenshots(dist: dict[str, str]) -> dict[str, Any]:
+    if not constants.SANDBOX_URL:
+        raise SiteError("Design review needs the sandbox service (SANDBOX_URL).")
+    async with httpx.AsyncClient(
+        base_url=constants.SANDBOX_URL.rstrip("/"),
+        headers={"x-sandbox-secret": constants.SANDBOX_SECRET or ""},
+        timeout=180,
+    ) as client:
+        response = await client.post("/screenshots", json={"files": dist})
+    if response.status_code == 429:
+        raise SiteError("The sandbox is busy. Try the review again in a minute.")
+    if response.status_code >= 400:
+        raise SiteError(
+            f"The sandbox could not take screenshots: {response.text[:300]}"
+        )
+    return response.json()
+
+
+async def review_design(site: SiteProjectModel) -> dict[str, Any]:
+    """Screenshots of the last good build, for the model to look at.
+
+    Returned with the pictures under ``IMAGES_KEY``, which the model client
+    sends as images (``agent_builder/client.py``) and the transcript drops
+    once the turn is over (``studio/session.compact``).
+    """
+    from api.services.agent_builder.client import IMAGES_KEY
+
+    if not site.dist:
+        raise SiteError("Build the site first; there is nothing to look at yet.")
+    try:
+        shot = await _request_screenshots(site.dist)
+    except httpx.HTTPError as exc:
+        raise SiteError(f"The sandbox could not be reached: {exc}") from exc
+    shots = shot.get("shots") or []
+    if not shots:
+        raise SiteError(
+            "No screenshot came back: " + "; ".join(shot.get("errors") or ["unknown"])
+        )
+    overflow = shot.get("overflow") or {}
+    return {
+        "views": [f"{s['name']} {s['width']}x{s['height']}" for s in shots],
+        "page_errors": shot.get("errors") or [],
+        "scrolls_sideways_by_px": overflow,
+        "check": list(REVIEW_CHECKLIST),
+        "note": (
+            "Look at both pictures against each check. Fix what is wrong in "
+            "the files, build, and review again -- at most twice more. Fonts "
+            "and photos from the web may be missing in the pictures; that "
+            "alone is not a problem."
+        ),
+        IMAGES_KEY: [
+            {"media_type": "image/png", "data": s["png"], "label": s["name"]}
+            for s in shots
+            if s.get("png")
+        ],
+    }
+
+
+async def apply_theme(
+    site: SiteProjectModel, *, organization_id: int, theme_name: str
+) -> dict[str, Any]:
+    try:
+        theme = themes.get(theme_name)
+    except KeyError as exc:
+        raise SiteError(
+            f"No theme {theme_name!r}. Choose one of: {', '.join(themes.THEMES)}."
+        ) from exc
+    files = themes.apply(dict(site.files or {}), theme)
+    _check_tree(files)
+    await db_client.update_site_project(
+        site.id, organization_id=organization_id, files=files
+    )
+    return {
+        "theme": theme.name,
+        "fonts": f"{theme.display.family} / {theme.body.family}",
+        "colors": theme.colors,
+        "note": "Written to src/theme.css and src/fonts.js. Build to see it.",
+    }
+
+
+# --- the contact form, to an agent -------------------------------------------
+
+
+def form_endpoint(site: SiteProjectModel) -> str:
+    base = str(constants.BACKEND_API_ENDPOINT).rstrip("/")
+    return f"{base}/api/v1/public/sites/{site.preview_token}/form"
+
+
+async def connect_form(
+    site: SiteProjectModel,
+    *,
+    organization_id: int,
+    user_id: int,
+    workflow_id: Any,
+    instruction: str,
+) -> dict[str, Any]:
+    """Make the site's contact form start ``workflow_id`` with each lead.
+
+    The agent is rung through an ordinary bot trigger, so a lead runs exactly
+    like any other trigger: the same queue, the same hourly ceiling, the same
+    run history. The trigger's secret never reaches the page -- the form
+    posts to this site's own address, and the server rings the trigger.
+    """
+    try:
+        workflow_id = int(workflow_id)
+    except (TypeError, ValueError) as exc:
+        raise SiteError(f"{workflow_id!r} is not an agent id.") from exc
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=organization_id
+    )
+    if workflow is None:
+        raise SiteError(f"No agent {workflow_id} in this workspace.")
+    instruction = (instruction or "").strip()
+    if not instruction:
+        raise SiteError(
+            "Say what the agent should do with each enquiry -- for example "
+            "'Send them a WhatsApp confirming we got it and offer three slots'."
+        )
+
+    fields = {
+        "name": f"Website form: {site.name}"[:120],
+        "sentence": f"Someone sends the contact form on the {site.name} website.",
+        "instruction": instruction[:4000],
+        # The shape schemas/bot_trigger.TriggerField declares. None is
+        # required: a visitor may leave a phone and no email, or the other
+        # way round, and the agent works with what came.
+        "fields": [
+            {"name": "name", "description": "Who sent it", "required": False},
+            {"name": "phone", "description": "Their phone number", "required": False},
+            {"name": "email", "description": "Their email address", "required": False},
+            {"name": "message", "description": "What they asked", "required": False},
+        ],
+        "filter": [],
+    }
+    existing = None
+    if site.form_trigger_id:
+        existing = await db_client.get_bot_trigger(
+            site.form_trigger_id,
+            organization_id=organization_id,
+            workflow_id=workflow_id,
+        )
+    if existing is not None:
+        trigger = await db_client.update_bot_trigger(
+            existing.id,
+            organization_id=organization_id,
+            workflow_id=workflow_id,
+            is_active=True,
+            **fields,
+        )
+    else:
+        current = await db_client.bot_triggers_for_workflow(
+            workflow_id, organization_id=organization_id
+        )
+        if len(current) >= bot_triggers.MAX_PER_WORKFLOW:
+            raise SiteError(
+                f"Agent {workflow_id} already has {bot_triggers.MAX_PER_WORKFLOW} "
+                "triggers; remove one on its Triggers screen first."
+            )
+        trigger = await db_client.create_bot_trigger(
+            organization_id=organization_id,
+            workflow_id=workflow_id,
+            uuid=bot_triggers.new_uuid(),
+            secret=bot_triggers.new_secret(),
+            source=bot_triggers.SOURCE_WEBHOOK,
+            created_by=user_id,
+            **fields,
+        )
+    files = dict(site.files or {})
+    files[scaffold.CONFIG_PATH] = scaffold.config_js(form_endpoint(site))
+    await db_client.update_site_project(
+        site.id,
+        organization_id=organization_id,
+        files=files,
+        form_trigger_id=trigger.id,
+    )
+    return {
+        "connected": True,
+        "agent": workflow.name,
+        "form_posts_to": form_endpoint(site),
+        "note": (
+            "Each enquiry now starts the agent with that instruction. It uses "
+            "the tools attached to it -- attach WhatsApp, email or calendar "
+            "actions if the instruction needs them. Build the site for the "
+            "form to go live."
+        ),
+    }
+
+
+#: What a form may carry: a handful of short fields, nothing that looks like
+#: a file upload or a pasted book.
+MAX_FORM_FIELDS = 12
+MAX_FORM_VALUE_CHARS = 2000
+HONEYPOT_FIELD = "website"
+
+
+class FormRejected(ValueError):
+    """A submission refused, with the status to answer."""
+
+    def __init__(self, status: int, message: str):
+        super().__init__(message)
+        self.status = status
+
+
+def clean_submission(raw: Any) -> dict[str, str] | None:
+    """The fields worth passing on, or None for a bot (the honeypot filled)."""
+    if not isinstance(raw, dict):
+        raise FormRejected(400, "Send the form's fields as a JSON object.")
+    if str(raw.get(HONEYPOT_FIELD) or "").strip():
+        return None
+    fields: dict[str, str] = {}
+    for key, value in raw.items():
+        if key == HONEYPOT_FIELD or not isinstance(key, str):
+            continue
+        if len(fields) >= MAX_FORM_FIELDS:
+            break
+        name = re.sub(r"[^a-z0-9_]", "", key.lower())[:40]
+        text = str(value if value is not None else "").strip()[:MAX_FORM_VALUE_CHARS]
+        if name and text:
+            fields[name] = text
+    if not fields:
+        raise FormRejected(400, "The form was empty.")
+    return fields
 
 
 # --- export -----------------------------------------------------------------

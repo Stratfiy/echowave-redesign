@@ -570,6 +570,9 @@ services:
       SANDBOX_BUILD_NETWORK: ${SANDBOX_BUILD_NETWORK:-decibyl_sandbox_build}
       SANDBOX_BUILD_IMAGE: ${SANDBOX_BUILD_IMAGE:-node:22-slim}
       SANDBOX_BUILD_REGISTRY: ${SANDBOX_BUILD_REGISTRY:-http://sandbox-registry:4873/}
+      # Studio's design review: screenshots of a built site, taken by
+      # Chromium in a box with no network at all.
+      SANDBOX_SHOT_IMAGE: ${SANDBOX_SHOT_IMAGE:-mcr.microsoft.com/playwright:v1.56.0-noble}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     mem_limit: 256m

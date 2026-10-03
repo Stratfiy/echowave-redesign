@@ -425,3 +425,283 @@ async def test_one_message_creates_writes_and_builds_a_site(
     assert site.build_status == "succeeded"
     # The code is on the site, not in the transcript the browser carries.
     assert app_code not in str(result.conversation)
+
+
+# --- the contact form, to an agent -------------------------------------------
+
+
+@pytest.fixture
+def queued(monkeypatch):
+    """Jobs the form endpoint queues, instead of a worker."""
+    jobs: list[tuple] = []
+
+    async def enqueue(name, *args):
+        jobs.append((name, *args))
+
+    import api.tasks.arq as arq
+
+    monkeypatch.setattr(arq, "enqueue_job", enqueue)
+    return jobs
+
+
+async def _client():
+    from httpx import ASGITransport, AsyncClient
+
+    from api.app import app
+
+    return AsyncClient(transport=ASGITransport(app=app), base_url="http://t")
+
+
+async def test_a_form_reaches_its_agent_and_never_anyone_elses(
+    studio_on, queued, db_session, async_session
+):
+    import json
+
+    from api.schemas.bot_trigger import TriggerField
+    from api.services.studio import scaffold
+
+    org, user = await _account(async_session, "form")
+    other_org, other_user = await _account(async_session, "form-other")
+    site = await sites.create_site(
+        organization_id=org.id, user_id=user.id, name="Clinic"
+    )
+    agent = await db_session.create_workflow(
+        "Reception", {"nodes": [], "edges": []}, user.id, org.id
+    )
+    theirs = await db_session.create_workflow(
+        "Theirs", {"nodes": [], "edges": []}, other_user.id, other_org.id
+    )
+    url = f"/api/v1/public/sites/{site.preview_token}/form"
+
+    async with await _client() as c:
+        # Not connected yet: said so, nothing queued.
+        r = await c.post(url, content=json.dumps({"name": "Asha"}))
+        assert r.status_code == 409 and not queued
+
+    with pytest.raises(sites.SiteError, match=f"No agent {theirs.id}"):
+        await sites.connect_form(
+            site,
+            organization_id=org.id,
+            user_id=user.id,
+            workflow_id=theirs.id,
+            instruction="x",
+        )
+    with pytest.raises(sites.SiteError, match="what the agent should do"):
+        await sites.connect_form(
+            site,
+            organization_id=org.id,
+            user_id=user.id,
+            workflow_id=agent.id,
+            instruction=" ",
+        )
+
+    out = await sites.connect_form(
+        site,
+        organization_id=org.id,
+        user_id=user.id,
+        workflow_id=agent.id,
+        instruction="Reply on WhatsApp and offer three slots.",
+    )
+    assert out["connected"] and out["form_posts_to"].endswith(url)
+    site = await sites.get_site(site.id, organization_id=org.id)
+    assert url in site.files[scaffold.CONFIG_PATH]
+    trigger = await db_session.get_form_trigger_for_site(site)
+    assert trigger.workflow_id == agent.id and trigger.is_active
+    # The trigger screen can render what was written.
+    for spec in trigger.fields:
+        TriggerField.model_validate(spec)
+
+    # Connecting again reuses the trigger rather than piling up new ones.
+    await sites.connect_form(
+        site,
+        organization_id=org.id,
+        user_id=user.id,
+        workflow_id=agent.id,
+        instruction="Call back.",
+    )
+    assert (
+        len(
+            await db_session.bot_triggers_for_workflow(agent.id, organization_id=org.id)
+        )
+        == 1
+    )
+
+    async with await _client() as c:
+        sent = await c.post(
+            url,
+            content=json.dumps({"name": "Asha", "phone": "98765", "website": ""}),
+            headers={
+                "content-type": "text/plain",
+                "origin": "https://clinic.example.com",
+                "x-forwarded-for": "10.0.0.1",
+            },
+        )
+        assert sent.status_code == 202
+        assert sent.headers["access-control-allow-origin"] == "*"
+        name, trigger_id, payload, _ = queued[-1]
+        assert trigger_id == trigger.id
+        assert payload["name"] == "Asha" and payload["source"] == "website_form"
+
+        # A bot that filled the hidden field is answered the same and goes nowhere.
+        before = len(queued)
+        bot = await c.post(
+            url, content=json.dumps({"name": "x", "website": "spam.example"})
+        )
+        assert bot.status_code == 202 and len(queued) == before
+
+        # Five from one visitor, then a pause.
+        statuses = [
+            (
+                await c.post(
+                    url,
+                    content=json.dumps({"name": f"n{i}"}),
+                    headers={"x-forwarded-for": "10.9.9.9"},
+                )
+            ).status_code
+            for i in range(7)
+        ]
+        assert statuses[:5] == [202] * 5 and statuses[-1] == 429
+
+        assert (await c.post(url, content="not json")).status_code == 400
+        assert (await c.post(url, content="x" * 40_000)).status_code == 413
+
+
+async def test_a_pointer_to_another_workspaces_trigger_rings_nothing(
+    studio_on, queued, db_session, async_session
+):
+    import json
+
+    from api.db.models import BotTriggerModel
+
+    org, user = await _account(async_session, "ptr")
+    other_org, other_user = await _account(async_session, "ptr-other")
+    theirs = await db_session.create_workflow(
+        "T", {"nodes": [], "edges": []}, other_user.id, other_org.id
+    )
+    trigger = BotTriggerModel(
+        organization_id=other_org.id,
+        workflow_id=theirs.id,
+        uuid="u-ptr",
+        secret="s",
+        name="t",
+    )
+    async_session.add(trigger)
+    await async_session.flush()
+    site = await sites.create_site(organization_id=org.id, user_id=user.id, name="S")
+    # A row pointing across workspaces, however it got there.
+    await db_session.update_site_project(
+        site.id, organization_id=org.id, form_trigger_id=trigger.id
+    )
+
+    async with await _client() as c:
+        r = await c.post(
+            f"/api/v1/public/sites/{site.preview_token}/form",
+            content=json.dumps({"name": "x"}),
+        )
+    assert r.status_code == 409 and not queued
+
+
+# --- design review ----------------------------------------------------------
+
+
+async def test_a_review_returns_pictures_and_a_checklist(
+    studio_on, sandbox, monkeypatch, db_session, async_session
+):
+    from api.services.agent_builder.client import IMAGES_KEY
+
+    queue, _ = sandbox
+    org, user = await _account(async_session, "review")
+    site = await sites.create_site(organization_id=org.id, user_id=user.id, name="S")
+    with pytest.raises(sites.SiteError, match="Build the site first"):
+        await sites.review_design(site)
+
+    queue.append(_built())
+    site, _ = await sites.build_site(site, organization_id=org.id)
+
+    async def shots(dist):
+        assert "index.html" in dist
+        return {
+            "shots": [
+                {"name": "desktop", "width": 1280, "height": 900, "png": "AAA"},
+                {"name": "mobile", "width": 390, "height": 844, "png": "BBB"},
+            ],
+            "errors": ["Uncaught TypeError: x is undefined"],
+            "overflow": {"desktop": 0, "mobile": 37},
+        }
+
+    monkeypatch.setattr(sites, "_request_screenshots", shots)
+    review = await sites.review_design(site)
+    assert [i["data"] for i in review[IMAGES_KEY]] == ["AAA", "BBB"]
+    assert review["page_errors"] == ["Uncaught TypeError: x is undefined"]
+    assert review["scrolls_sideways_by_px"]["mobile"] == 37
+    assert any("placeholder" in line for line in review["check"])
+
+
+async def test_a_turn_stops_reviewing_after_four_looks(
+    studio_on, monkeypatch, db_session, async_session
+):
+    org, user = await _account(async_session, "cap")
+    looks = []
+
+    async def fake_dispatch(name, arguments, **_):
+        looks.append(name)
+        return {"ok": True}
+
+    calls = iter(
+        [
+            ModelReply("", (ToolCall(str(i), "review_site_design", {"site_id": 1}),))
+            for i in range(6)
+        ]
+        + [ModelReply("Here it is.")]
+    )
+
+    async def fake_complete(**_):
+        return next(calls)
+
+    monkeypatch.setattr(studio_session.studio_tools, "dispatch", fake_dispatch)
+    monkeypatch.setattr(studio_session, "complete", fake_complete)
+    result = await studio_session.run_turn(
+        session=None,
+        model=BuilderModel(provider="openai", model="m", api_key="k"),
+        organization_id=org.id,
+        user_id=user.id,
+        message="polish it",
+    )
+    assert looks == ["review_site_design"] * studio_session.MAX_REVIEWS_PER_TURN
+    assert result.reply == "Here it is."
+
+
+async def test_a_connect_link_comes_back_for_the_thread_to_show(
+    studio_on, monkeypatch, db_session, async_session
+):
+    org, user = await _account(async_session, "link")
+
+    async def fake_dispatch(name, arguments, **_):
+        return {
+            "app": "gmail",
+            "app_name": "Gmail",
+            "connect_url": "https://connect.example/x",
+        }
+
+    calls = iter(
+        [
+            ModelReply("", (ToolCall("1", "connect_app", {"app": "gmail"}),)),
+            ModelReply("Open the link."),
+        ]
+    )
+
+    async def fake_complete(**_):
+        return next(calls)
+
+    monkeypatch.setattr(studio_session.studio_tools, "dispatch", fake_dispatch)
+    monkeypatch.setattr(studio_session, "complete", fake_complete)
+    result = await studio_session.run_turn(
+        session=None,
+        model=BuilderModel(provider="openai", model="m", api_key="k"),
+        organization_id=org.id,
+        user_id=user.id,
+        message="connect gmail",
+    )
+    assert result.connect_links == [
+        {"app": "Gmail", "url": "https://connect.example/x"}
+    ]

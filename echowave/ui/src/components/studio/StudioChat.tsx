@@ -12,7 +12,7 @@
  * chat then simply starts empty.
  */
 
-import { Bot, Hammer, Loader2, Send, Wand2 } from "lucide-react";
+import { Bot, Hammer, Link2, Loader2, Send, Wand2 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -29,6 +29,8 @@ export interface StudioTurn {
     agents?: number[];
     /** What the turn did, in words: "Built the site", "Wrote 4 files". */
     did?: string[];
+    /** Apps to connect, opened from here rather than another screen. */
+    links?: { app: string; url: string }[];
 }
 
 const STORAGE_KEY = "decibyl.studio.chat.v1";
@@ -44,7 +46,12 @@ const ACTION_WORDS: Record<string, string> = {
     write_site_files: "Wrote files",
     build_site: "Built the site",
     put_agents_on_site: "Put agents on the site",
+    apply_design_theme: "Changed the theme",
+    find_images: "Found photos",
+    review_site_design: "Checked the design",
+    connect_form_to_agent: "Connected the form",
     create_agent: "Made an agent",
+    attach_app_tool: "Gave an agent an app action",
     set_voice_and_brain: "Set a voice",
     revise_agent_prompt: "Reworded an agent",
     revise_agent_facts: "Updated an agent's facts",
@@ -150,6 +157,7 @@ export function StudioChat({
                     text: data.reply,
                     agents: data.created_workflow_ids ?? [],
                     did: describeActions(data.actions ?? []),
+                    links: data.connect_links ?? [],
                 },
             ]);
             onTurn(data);
@@ -238,6 +246,22 @@ export function StudioChat({
                                             <Hammer className="h-3 w-3" />
                                             {words}
                                         </span>
+                                    ))}
+                                </div>
+                            ) : null}
+                            {turn.links && turn.links.length > 0 ? (
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                    {turn.links.map((link) => (
+                                        <a
+                                            key={link.url}
+                                            href={link.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:opacity-90"
+                                        >
+                                            <Link2 className="h-3 w-3" />
+                                            Connect {link.app}
+                                        </a>
                                     ))}
                                 </div>
                             ) : null}

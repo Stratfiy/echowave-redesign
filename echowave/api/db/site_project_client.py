@@ -83,6 +83,7 @@ class SiteProjectClient(BaseDBClient):
         name: str | None = None,
         files: dict[str, str] | None = None,
         agent_workflow_ids: list[int] | None = None,
+        form_trigger_id: int | None = None,
     ) -> SiteProjectModel | None:
         values: dict[str, Any] = {"updated_at": datetime.now(UTC)}
         if name is not None:
@@ -91,6 +92,8 @@ class SiteProjectClient(BaseDBClient):
             values["files"] = files
         if agent_workflow_ids is not None:
             values["agent_workflow_ids"] = agent_workflow_ids
+        if form_trigger_id is not None:
+            values["form_trigger_id"] = form_trigger_id
         async with self.async_session() as session:
             await session.execute(
                 update(SiteProjectModel)
@@ -161,6 +164,22 @@ class SiteProjectClient(BaseDBClient):
                 .values(**values)
             )
             await session.commit()
+
+    async def get_form_trigger_for_site(self, site: SiteProjectModel):
+        """The trigger a site's form rings, only if it is the site's own
+        organisation's: a trigger id on a row is a pointer, not a proof."""
+        from api.db.models import BotTriggerModel
+
+        if not site.form_trigger_id:
+            return None
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(BotTriggerModel).where(
+                    BotTriggerModel.id == site.form_trigger_id,
+                    BotTriggerModel.organization_id == site.organization_id,
+                )
+            )
+            return result.scalar_one_or_none()
 
     async def delete_site_project(self, site_id: int, *, organization_id: int) -> bool:
         async with self.async_session() as session:
