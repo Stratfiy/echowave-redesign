@@ -90,6 +90,8 @@ FLAGS: dict[str, str] = {
     "decibyl_telegram": "DECIBYL_TELEGRAM_ENABLED",
     "decibyl_slack": "DECIBYL_SLACK_ENABLED",
     "decibyl_teams": "DECIBYL_TEAMS_ENABLED",
+    # Studio: agents and a website for them, built from one chat.
+    "studio": "STUDIO_ENABLED",
 }
 
 
@@ -132,6 +134,7 @@ DESCRIPTIONS: dict[str, str] = {
     "decibyl_telegram": "Decibyl in Telegram.",
     "decibyl_slack": "Decibyl in Slack.",
     "decibyl_teams": "Decibyl in Microsoft Teams.",
+    "studio": "Studio: build agents and a website for them from one chat.",
 }
 
 

@@ -14,6 +14,7 @@ import {
   LifeBuoy,
   LogOut,
   Settings,
+  Wand2,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -56,6 +57,7 @@ import { useTelephonyConfigWarnings } from "@/context/TelephonyConfigWarningsCon
 import { useAccessRoles } from "@/hooks/useAccessRoles";
 import { useLatestReleaseVersion } from "@/hooks/useLatestReleaseVersion";
 import { useAuth } from "@/lib/auth";
+import { useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 import {
@@ -81,6 +83,10 @@ const PINNED_ROWS: SidebarNavItem[] = [
   { title: "Knowledge", icon: Database, url: "/files" },
   { title: "Activity", icon: ChartColumnBig, url: "/usage" },
 ];
+
+/** Studio: agents and a website for them, from one chat. Shown only while
+ *  the `studio` flag is on for the workspace, after Agents. */
+const STUDIO_ROW: SidebarNavItem = { title: "Studio", icon: Wand2, url: "/studio" };
 
 /** Marketplace, setup and account controls remain available from the account menu. */
 const PERSONAL_CONTEXTS: NavContextId[] = ["marketplace", "setup", "account"];
@@ -141,7 +147,15 @@ export function AppSidebar() {
     isOrganizationAdmin: roles.isOrganizationAdmin,
     isSuperadmin: roles.staffRole === "superadmin",
   });
-  const activeUrl = getActiveNavUrl(pathname, navSections);
+  const studioOn = useFeature("studio");
+  const pinnedRows = studioOn
+    ? PINNED_ROWS.flatMap((row) => (row.url === "/workflow" ? [row, STUDIO_ROW] : [row]))
+    : PINNED_ROWS;
+  // Studio is not one of the navigation sections, so it is matched here.
+  const activeUrl =
+    studioOn && (pathname === "/studio" || pathname.startsWith("/studio/"))
+      ? STUDIO_ROW.url
+      : getActiveNavUrl(pathname, navSections);
 
   // Every destination is on the sidebar itself; the profile menu keeps only
   // what is about the person -- and, for staff, the staff screens.
@@ -353,7 +367,7 @@ export function AppSidebar() {
 
         <nav aria-label="Workspace" data-rail="" className="px-1 pt-1">
           <SidebarMenu>
-            {PINNED_ROWS.map((item) => (
+            {pinnedRows.map((item) => (
               <SidebarMenuItem key={item.url}>
                 {/* The row opens a page titled Calls that lists calls; name
                     it for what is there. */}

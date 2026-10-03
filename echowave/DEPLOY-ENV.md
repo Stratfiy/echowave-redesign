@@ -490,6 +490,36 @@ ids are `organizations.id`. An unknown name or a non-numeric id is ignored,
 never fatal. The override is visible to the signed-in organisation on
 `GET /api/v1/features` and never on `/health`.
 
+## 9a. Studio — agents and a website from one chat
+
+Off until `STUDIO_ENABLED=true`, or switched on for one workspace from
+Super admin → Flags (`studio`). A Studio message is a builder message: same
+model key, same monthly allowance, same charge past it.
+
+```bash
+STUDIO_ENABLED=false
+# Tool calls one Studio turn may make (write, build, fix, build again).
+STUDIO_MAX_TOOL_CALLS_PER_TURN=40
+# Optional. A host of its own for site previews (e.g. https://sites.decibyl.ai,
+# proxied to the api). Unset, previews are served from BACKEND_API_ENDPOINT
+# under a CSP sandbox, which isolates them from the app but also stops an
+# agent widget on the site connecting in the preview.
+SITE_PREVIEW_BASE_URL=
+```
+
+Builds run in the sandbox service (`SANDBOX_URL`, `SANDBOX_SECRET`) and need
+its build network, which `docker-compose.yaml` creates with the
+`sandbox-registry` npm mirror as its only other member:
+
+```bash
+# On the sandbox service. Unset, builds are refused.
+SANDBOX_BUILD_NETWORK=decibyl_sandbox_build
+SANDBOX_BUILD_IMAGE=node:22-slim
+SANDBOX_BUILD_REGISTRY=http://sandbox-registry:4873/
+```
+
+Pull `node:22-slim` on the host once so the first build does not wait on it.
+
 ## Not environment variables
 
 Worth stating, because they are the three things most likely to be looked for

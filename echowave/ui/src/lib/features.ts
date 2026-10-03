@@ -45,7 +45,8 @@ export type Feature =
     | "decibyl_channels"
     | "decibyl_telegram"
     | "decibyl_slack"
-    | "decibyl_teams";
+    | "decibyl_teams"
+    | "studio";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

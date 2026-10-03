@@ -6,10 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 
 import { AppSidebar } from "../AppSidebar";
-const state = vi.hoisted(() => ({ pathname: "/overview", staff: false, admin: false, staffRole: "", mobile: false, shell: false }));
+const state = vi.hoisted(() => ({ pathname: "/overview", staff: false, admin: false, staffRole: "", mobile: false, shell: false, studio: false }));
 vi.mock("next/navigation", () => ({ usePathname: () => state.pathname, useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ provider: "local", logout: vi.fn() }) }));
-vi.mock("@/context/AppConfigContext", () => ({ useAppConfig: () => ({ config: state.shell ? { features: { shell: true } } : null }) }));
+vi.mock("@/context/AppConfigContext", () => ({ useAppConfig: () => ({ config: state.shell || state.studio ? { features: { shell: state.shell, studio: state.studio } } : null }) }));
 vi.mock("@/context/TelephonyConfigWarningsContext", () => ({ useTelephonyConfigWarnings: () => ({}) }));
 vi.mock("@/hooks/useAccessRoles", () => ({ useAccessRoles: () => ({ isStaff: state.staff, isOrganizationAdmin: state.admin, staffRole: state.staffRole }) }));
 vi.mock("@/hooks/useLatestReleaseVersion", () => ({ useLatestReleaseVersion: () => ({}) }));
@@ -20,7 +20,7 @@ vi.mock("@/components/layout/SidebarBots", () => ({ SidebarBots: () => <Link hre
 afterEach(cleanup);
 beforeEach(() => {
   localStorage.clear();
-  Object.assign(state, { pathname: "/overview", staff: false, admin: false, staffRole: "", mobile: false, shell: false });
+  Object.assign(state, { pathname: "/overview", staff: false, admin: false, staffRole: "", mobile: false, shell: false, studio: false });
   Element.prototype.scrollIntoView = vi.fn();
   window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() });
 });
@@ -51,6 +51,18 @@ describe("stable workspace sidebar", () => {
     expect(screen.getByRole("link", { name: "Agent DM" })).toBeTruthy();
     expect(screen.queryByRole("tablist")).toBeNull();
     expect(document.querySelectorAll('a[aria-current="page"]').length).toBeLessThanOrEqual(1);
+  });
+  it("shows Studio after Agents only while the studio flag is on", () => {
+    mount();
+    expect(screen.queryByRole("link", { name: "Studio" })).toBeNull();
+    cleanup();
+    state.studio = true;
+    state.pathname = "/studio";
+    mount();
+    const nav = screen.getByRole("navigation", { name: "Workspace" });
+    expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual(["Decibyl", "Tasks", "Agents", "Studio", "Knowledge", "Calls"]);
+    expect(screen.getByRole("link", { name: "Studio" }).getAttribute("aria-current")).toBe("page");
+    expect(document.querySelectorAll('a[aria-current="page"]')).toHaveLength(1);
   });
   it("makes Calls navigate instead of changing the selection on Knowledge", () => {
     state.pathname = "/files";
