@@ -26,6 +26,7 @@ from api.db.password_reset_client import PasswordResetClient
 from api.db.reports_client import ReportsClient
 from api.db.routine_client import RoutineClient
 from api.db.sandbox_job_client import SandboxJobClient
+from api.db.site_project_client import SiteProjectClient
 from api.db.telephony_configuration_client import TelephonyConfigurationClient
 from api.db.telephony_phone_number_client import TelephonyPhoneNumberClient
 from api.db.tool_client import ToolClient
@@ -69,6 +70,7 @@ class DBClient(
     ContactClient,
     ReportsClient,
     SandboxJobClient,
+    SiteProjectClient,
     APIKeyClient,
     EmbedTokenClient,
     AgentTriggerClient,

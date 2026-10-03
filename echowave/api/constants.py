@@ -831,6 +831,24 @@ AGENT_BUILDER_MAX_TOOL_CALLS_PER_TURN = int(
 # our key, so switching it on is a deliberate act.
 AGENT_BUILDER_ENABLED = os.getenv("AGENT_BUILDER_ENABLED", "false").lower() == "true"
 
+# Studio: the chat that builds several agents and a website for them, and
+# builds the site in the sandbox. Off by default for the same reason as the
+# builder -- it spends on our key -- and because a site build needs the
+# sandbox's build network (SANDBOX_BUILD_NETWORK) to exist.
+STUDIO_ENABLED = os.getenv("STUDIO_ENABLED", "false").lower() == "true"
+
+# How many tool calls one Studio turn may make. Higher than the builder's:
+# writing a site is write, build, read the error, fix, build again, and a
+# turn that stops halfway leaves a broken build on screen.
+STUDIO_MAX_TOOL_CALLS_PER_TURN = int(os.getenv("STUDIO_MAX_TOOL_CALLS_PER_TURN", "40"))
+
+# Where previews of Studio sites are served from. Set it to a host of its own
+# (https://sites.example.com, proxied to this api) so a generated site runs on
+# an origin that shares nothing with the app. Unset, previews are served from
+# the api's own public URL under a CSP sandbox, which keeps the page away from
+# the app's cookies but also stops an embedded agent connecting in preview.
+SITE_PREVIEW_BASE_URL = (os.getenv("SITE_PREVIEW_BASE_URL") or "").rstrip("/") or None
+
 
 # Whether customers can start telephony verification at all.
 #

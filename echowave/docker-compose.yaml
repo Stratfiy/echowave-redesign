@@ -564,6 +564,15 @@ services:
       SANDBOX_SECRET: ${SANDBOX_SECRET:-}
       SANDBOX_MAX_JOBS: ${SANDBOX_MAX_JOBS:-2}
       SANDBOX_IMAGE: ${SANDBOX_IMAGE:-python:3.12-slim}
+      # Studio site builds (npm install + build). They run on the network
+      # below, whose only other member is the registry mirror, so a build can
+      # fetch packages and reach nothing else. Unset, builds are refused.
+      SANDBOX_BUILD_NETWORK: ${SANDBOX_BUILD_NETWORK:-decibyl_sandbox_build}
+      SANDBOX_BUILD_IMAGE: ${SANDBOX_BUILD_IMAGE:-node:22-slim}
+      SANDBOX_BUILD_REGISTRY: ${SANDBOX_BUILD_REGISTRY:-http://sandbox-registry:4873/}
+      # Studio's design review: screenshots of a built site, taken by
+      # Chromium in a box with no network at all.
+      SANDBOX_SHOT_IMAGE: ${SANDBOX_SHOT_IMAGE:-mcr.microsoft.com/playwright:v1.56.0-noble}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     mem_limit: 256m
@@ -576,6 +585,26 @@ services:
       retries: 3
     networks:
       - app-network
+
+  sandbox-registry:
+    # The npm mirror Studio site builds install from. A build box joins only
+    # sandbox-build, which is internal (no route out); this service is on that
+    # network and on registry-egress, which can reach registry.npmjs.org. It
+    # is the one door a build has, and it only speaks npm.
+    image: verdaccio/verdaccio:6
+    container_name: decibyl_sandbox_registry
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    mem_limit: 512m
+    expose:
+      - "4873"
+    networks:
+      - sandbox-build
+      - registry-egress
 
   gotenberg:
     # Word to PDF for the purchase orders, RFQs and letters an agent drafts
@@ -712,4 +741,12 @@ volumes:
 
 networks:
   app-network:
+    driver: bridge
+  # Studio build boxes and the registry mirror, and nothing else. Named
+  # explicitly because the sandbox service starts the boxes on it by name.
+  sandbox-build:
+    name: decibyl_sandbox_build
+    driver: bridge
+    internal: true
+  registry-egress:
     driver: bridge

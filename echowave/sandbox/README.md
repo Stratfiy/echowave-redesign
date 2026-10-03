@@ -19,3 +19,29 @@ Pull the box image once on the host so the first job does not wait on it:
 
 Set `SANDBOX_URL=http://sandbox:8080` and `SANDBOX_SECRET` in `.env` for the
 api; `SANDBOX_MAX_JOBS` (default 2) is how many boxes run at once.
+
+## Site builds (Studio)
+
+`POST /builds` installs and builds one Studio site: the files go in as a
+tarball on the box's stdin, `npm install && npm run build` runs, and the
+output folder comes back as base64 on stdout. A build box gets the same
+hardening as a script box (unprivileged, no capabilities, read-only root,
+tmpfs to work in) with more room (2 GB, two CPUs, a 1.5 GB `/work`) and one
+network: `SANDBOX_BUILD_NETWORK`, which compose declares `internal` with the
+`sandbox-registry` npm mirror as its only other member. A build can install
+packages and reach nothing else — no api, no database, no metadata endpoint,
+no internet. With `SANDBOX_BUILD_NETWORK` unset, builds are refused.
+
+Pull the build image once so the first build does not wait on it:
+
+    docker pull node:22-slim
+
+## Screenshots (Studio's design review)
+
+`POST /screenshots` takes a built site and returns a laptop (1280px) and a
+phone (390px) screenshot, the script errors the page threw, and how far it
+scrolls sideways. The box has **no network**: Python's static server serves
+the site on loopback and Chromium, driven by `shoot.mjs` over the DevTools
+protocol, renders it with real mobile emulation. Pull the image once:
+
+    docker pull mcr.microsoft.com/playwright:v1.56.0-noble

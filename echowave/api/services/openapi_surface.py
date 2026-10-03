@@ -50,6 +50,8 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
         (
             "bots",
             "agent-builder",
+            # Agents and a website for them, built from one chat.
+            "studio",
             "agent-templates",
             # A workspace's own saved roles, and sharing them (MP-2, MP-3).
             "workspace-roles",

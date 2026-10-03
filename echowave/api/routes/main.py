@@ -70,6 +70,8 @@ from api.routes.routines import router as routines_router
 from api.routes.s3_signed_url import router as s3_router
 from api.routes.service_keys import router as service_keys_router
 from api.routes.skills import router as skills_router
+from api.routes.studio import public_router as public_studio_router
+from api.routes.studio import router as studio_router
 from api.routes.superuser import router as superuser_router
 from api.routes.tasks import router as tasks_router
 from api.routes.team import router as team_router
@@ -114,6 +116,7 @@ router.include_router(onboarding_router)
 router.include_router(referrals_router)
 router.include_router(promo_admin_router)
 router.include_router(agent_builder_router)
+router.include_router(studio_router)
 router.include_router(agent_templates_router)
 router.include_router(agent_options_router)
 router.include_router(cost_estimate_router)
@@ -173,6 +176,7 @@ router.include_router(public_whatsapp_router)
 router.include_router(public_decibyl_channels_router)
 router.include_router(channel_links_router)
 router.include_router(public_download_router)
+router.include_router(public_studio_router)
 router.include_router(public_trust_router)
 router.include_router(public_marketplace_router)
 router.include_router(workflow_embed_router)
