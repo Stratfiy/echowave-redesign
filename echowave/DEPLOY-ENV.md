@@ -518,7 +518,8 @@ SANDBOX_BUILD_IMAGE=node:22-slim
 SANDBOX_BUILD_REGISTRY=http://sandbox-registry:4873/
 ```
 
-Pull `node:22-slim` on the host once so the first build does not wait on it.
+The sandbox pulls `node:22-slim` itself when it starts; `/health` on the
+sandbox reports each image as `pulling`, `ready` or `failed`.
 
 The design review takes screenshots in a box with no network at all:
 
@@ -526,7 +527,8 @@ The design review takes screenshots in a box with no network at all:
 SANDBOX_SHOT_IMAGE=mcr.microsoft.com/playwright:v1.56.0-noble
 ```
 
-Pull it on the host once as well (about 2 GB). Photo search uses Openverse's
+The sandbox pulls this one itself on start too (about 2 GB, so allow a few
+minutes after the first deploy; until then a review says to try again shortly). Photo search uses Openverse's
 public API (`api.openverse.org`) from the api host; no key is needed, and only
 photos licensed for commercial use are returned.
 
