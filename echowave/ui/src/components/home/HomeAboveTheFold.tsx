@@ -31,6 +31,7 @@ import { ChannelStream } from "@/components/channel/ChannelStream";
 import { ThreadList } from "@/components/home/ThreadList";
 import { jobArt } from "@/lib/art";
 import { useAuth } from "@/lib/auth";
+import { cn } from "@/lib/utils";
 
 /** The fallback when the server sends no cards of its own: the two
  *  questions an owner arrives with. The server's cards (`openers` on the
@@ -194,6 +195,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   // No bot yet: the door has just closed behind them. The two questions
   // about what happened have no answer, so the cards are the first job.
   const brandNew = headline !== null && headline.agents === 0;
+  const empty = rows === 0;
 
   useEffect(() => {
     if (authLoading || !user) return;
@@ -245,14 +247,21 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   return (
     // Fills what the shell gives it, rather than guessing the header's
     // height in `vh` -- the guess was wrong the moment the header changed.
+    //
+    // Empty, it is Grok's first screen: the hello, the box right under it,
+    // and the first questions as cards beneath -- one column in the middle
+    // of the page. Talking, it is a reading column with the box docked at
+    // the bottom. The stream and the box keep their places in the tree in
+    // both, so nothing remounts when the first reply lands.
     <div className="flex h-full min-h-0 flex-col gap-3">
-      {/* The way Slackbot opens: the mark, a hello, one line on what
-                happened, and the two questions as cards you press. Centred,
-                because this is a greeting and not a form. Only while the
-                thread is empty: once you are talking, the thread is the
-                screen. */}
-      {rows === 0 && (
-      <div className="flex shrink-0 flex-col items-center overflow-y-auto px-2 pt-2 text-center">
+      <div
+        className={cn(
+          "mx-auto flex min-h-0 w-full flex-1 flex-col",
+          empty ? "max-w-2xl justify-center overflow-y-auto py-6" : "max-w-4xl",
+        )}
+      >
+      {empty && (
+      <div className="flex shrink-0 flex-col items-center px-2 pb-6 text-center">
         {/* The real mark, on a round tile with a soft grey halo: the
             greeting's face. */}
         <div
@@ -263,56 +272,16 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/decibyl-mark.svg" alt="" width={56} height={56} className="h-14 w-14" />
         </div>
-        <h2 className="mt-4 text-2xl font-bold tracking-tight">
+        <h2 className="mt-5 text-3xl font-semibold tracking-tight sm:text-4xl">
           Hi, I&apos;m Decibyl!
         </h2>
-        <p className="mt-1 max-w-md text-sm text-muted-foreground">
+        <p className="mt-2 max-w-lg text-[15px] text-muted-foreground">
           {greeting}
           {firstName ? `, ${firstName}` : ""}.{" "}
           {brandNew
             ? "Say hi, or tell me one thing you'd love off your plate this week. I'll set up an agent for it and you can hear it in a minute."
             : `${headline ? summarise(headline, span) : ""} I know your agents, your numbers and your company's documents.`}
         </p>
-        <div
-          className="mt-4 flex w-full max-w-lg flex-col gap-2"
-          aria-label="Ask Decibyl"
-        >
-          {(openers.length > 0
-            ? openers
-            : (brandNew ? FIRST_JOBS : OPENERS).map((text, index) => ({
-                kind: brandNew || index === 0 ? "time" : "attention",
-                text,
-              }))
-          ).map(({ text }) => {
-            return (
-              <button
-                key={text}
-                type="button"
-                disabled={sendingOpener !== null}
-                onClick={() => void sendOpener(text)}
-                className="group flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left text-[15px] font-medium shadow-[var(--shadow-card)] transition-colors hover:bg-muted/40 disabled:opacity-60"
-              >
-                <ArtImage name={jobArt(text, "sphere")} size={28} />
-                <span className="min-w-0 flex-1 truncate">
-                  {sendingOpener === text ? "Asking…" : text}
-                </span>
-                <span
-                  aria-hidden="true"
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent-brand)] text-white transition-transform group-hover:translate-x-0.5"
-                >
-                  <ArrowRight className="h-4 w-4" />
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        {suggestions.length > 0 ? (
-          <div className="mt-3 flex flex-wrap justify-center gap-2">
-            {suggestions.map((chip) => (
-              <Chip key={`${chip.kind}-${chip.text}`} chip={chip} />
-            ))}
-          </div>
-        ) : null}
       </div>
       )}
       {rows !== null && rows > 0 && (
@@ -331,7 +300,15 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
       {/* No card around the room. Buzz gives the whole pane to the
           messages; a bordered, tinted box inside a bordered, tinted page was
           three surfaces deep before a word of the conversation. */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div
+        className={cn(
+          "flex min-h-0 flex-col overflow-hidden",
+          // Empty: the stream stays mounted (it reports the count) but is
+          // not drawn -- "This channel is quiet" under a greeting that says
+          // hello is the same thing said twice.
+          empty ? "hidden" : "flex-1",
+        )}
+      >
         {/* Keyed on the chat, so switching remounts the stream clean:
             no rows from the last chat showing until the poll catches up,
             no cursor pointing into a different conversation. */}
@@ -345,18 +322,64 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
           onCountChange={onCountChange}
           waitingFor={waitingFor}
         />
-        <ChannelComposer
-          assistant
-          threadId={threadId}
-          bots={bots}
-          initialText={prefill || undefined}
-          channelName="Decibyl"
-          onSent={() => {
-            asked();
-            setThreadsVersion((v) => v + 1);
-            refreshStream.current();
-          }}
-        />
+      </div>
+      <ChannelComposer
+        hero={empty}
+        assistant
+        threadId={threadId}
+        bots={bots}
+        initialText={prefill || undefined}
+        channelName="Decibyl"
+        onSent={() => {
+          asked();
+          setThreadsVersion((v) => v + 1);
+          refreshStream.current();
+        }}
+      />
+      {empty && (
+        <div className="flex flex-col items-center">
+        <div
+          className="mt-4 grid w-full gap-2 sm:grid-cols-2"
+          aria-label="Ask Decibyl"
+        >
+          {(openers.length > 0
+            ? openers
+            : (brandNew ? FIRST_JOBS : OPENERS).map((text, index) => ({
+                kind: brandNew || index === 0 ? "time" : "attention",
+                text,
+              }))
+          ).map(({ text }) => {
+            return (
+              <button
+                key={text}
+                type="button"
+                disabled={sendingOpener !== null}
+                onClick={() => void sendOpener(text)}
+                className="group flex w-full items-center gap-3 rounded-2xl border border-border bg-card/70 px-3.5 py-3 text-left text-sm font-medium transition-colors hover:border-[var(--accent-brand)]/40 hover:bg-card disabled:opacity-60"
+              >
+                <ArtImage name={jobArt(text, "sphere")} size={28} />
+                <span className="line-clamp-2 min-w-0 flex-1">
+                  {sendingOpener === text ? "Asking…" : text}
+                </span>
+                <span
+                  aria-hidden="true"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-all group-hover:translate-x-0.5 group-hover:bg-[var(--accent-brand)] group-hover:text-white"
+                >
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {suggestions.length > 0 ? (
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
+            {suggestions.map((chip) => (
+              <Chip key={`${chip.kind}-${chip.text}`} chip={chip} />
+            ))}
+          </div>
+        ) : null}
+        </div>
+      )}
       </div>
       {/* Under the composer, out of the thread's way. */}
       <ThreadList

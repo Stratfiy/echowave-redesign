@@ -142,6 +142,7 @@ export function ChannelComposer({
     channelName,
     onSent,
     initialText,
+    hero = false,
 }: {
     /** A channel, or -- with `workflowId` instead -- one bot's own chat, where
      *  there is nobody to @ because the bot is implied. */
@@ -160,6 +161,9 @@ export function ChannelComposer({
     /** Words already in the box when it opens -- "Build me a bot that " from
      *  the door -- with the caret at the end, so the person just carries on. */
     initialText?: string;
+    /** Drawn as the centre of an empty screen, Grok's way: no docked edge,
+     *  a larger, lifted box. Docked under a thread otherwise. */
+    hero?: boolean;
 }) {
     const [text, setText] = useState(initialText ?? '');
     const [sending, setSending] = useState(false);
@@ -442,7 +446,14 @@ export function ChannelComposer({
         // A hairline above it: without the card that used to hold the two
         // together, the thread scrolls under the composer and needs an edge
         // to stop against.
-        <div className="shrink-0 border-t border-border/70 bg-background px-4 pb-3 pt-2 sm:px-6">
+        <div
+            className={cn(
+                "shrink-0",
+                hero
+                    ? "px-0 pb-0 pt-0"
+                    : "border-t border-border/70 bg-background px-4 pb-3 pt-2 sm:px-6",
+            )}
+        >
             {(error || dictation.error) && (
                 <p className="mb-2 text-sm text-destructive" role="alert">
                     {error || dictation.error}
@@ -547,7 +558,14 @@ export function ChannelComposer({
                     on top, the tools in a row beneath, the send arrow at the
                     right. The old row put the tools beside a bordered input,
                     which read as a form; this reads as a place to write. */}
-                <div className="rounded-2xl border border-border/60 bg-card px-3 pb-2 pt-3 shadow-none transition-colors focus-within:border-ring/60 sm:px-4">
+                <div
+                    className={cn(
+                        "border border-border/60 bg-card px-3 pb-2 pt-3 transition-colors focus-within:border-ring/60 sm:px-4",
+                        hero
+                            ? "rounded-3xl pt-4 shadow-md focus-within:shadow-lg"
+                            : "rounded-2xl shadow-none",
+                    )}
+                >
                     {dictation.listening && (
                         <div className="flex min-h-[38px] items-center gap-3 rounded-lg border border-[var(--accent-brand)]/50 bg-background px-3 text-sm text-muted-foreground">
                             <Waveform levels={dictation.levels} />
