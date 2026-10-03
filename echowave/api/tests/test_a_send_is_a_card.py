@@ -470,3 +470,121 @@ class TestTheProspectingTemplate:
                 definition, template=t, organization_id=1, user_id=5
             )
         assert out["nodes"][0]["data"] == {}
+
+
+class TestTheOutreachUpgrade:
+    """Replies first, one follow-up, junk addresses refused, and nothing a
+    send recorded is lost when a prospect is found again."""
+
+    def test_junk_addresses_are_refused_with_the_reason(self):
+        assert prospects.junk_reason("logo@2x.png") is not None
+        assert "tracking" in prospects.junk_reason("abc123@sentry.wixpress.com")
+        assert "placeholder" in prospects.junk_reason("you@example.com")
+        assert "no-reply" in prospects.junk_reason("noreply@clinic.example")
+        assert prospects.junk_reason("not an address@") is not None
+        assert prospects.junk_reason("dr.priya@sunrise-dental.in") is None
+        assert prospects.junk_reason("info@x.example") is None
+
+    def test_a_junk_address_is_said_back_to_the_model(self):
+        rows, rejected = prospects.rows_and_rejects(
+            {"prospects": [{"name": "Wix site", "email": "x@sentry.wixpress.com"}]}
+        )
+        assert rows == []
+        assert rejected[0]["who"] == "Wix site"
+        assert "tracking" in rejected[0]["why"]
+
+    def test_fit_hook_and_a_reply_are_recorded(self):
+        rows, _ = prospects.rows_from(
+            {
+                "prospects": [
+                    {
+                        "email": "a@x.example",
+                        "fit_score": 9,
+                        "hook": "Opened a second branch in Adyar",
+                        "status": "interested",
+                        "reply_note": "Asked about pricing",
+                    },
+                    {"email": "b@x.example", "status": "emailed", "fit_score": "x"},
+                ]
+            }
+        )
+        first, second = (r["attributes"] for r in rows)
+        assert first["fit_score"] == 5
+        assert first["hook"].startswith("Opened")
+        assert first["status"] == "interested" and first["status_at"]
+        assert first["reply_note"] == "Asked about pricing"
+        # The model cannot claim a send happened, and a bad score is dropped.
+        assert "status" not in second and "fit_score" not in second
+
+    async def test_saving_merges_rather_than_replaces(self):
+        db = SimpleNamespace(
+            get_contact_lists=AsyncMock(
+                return_value=[SimpleNamespace(id=8, name="Prospects")]
+            ),
+            upsert_contacts=AsyncMock(return_value=(1, 0)),
+        )
+        with patch("api.db.db_client", db):
+            out = await prospects.save(
+                1,
+                {
+                    "prospects": [
+                        {"email": "a@x.example"},
+                        {"name": "Logo", "email": "logo@2x.png"},
+                    ]
+                },
+            )
+        assert db.upsert_contacts.call_args.kwargs["merge_attributes"] is True
+        assert out["saved"] == 1 and out["skipped"] == 1
+        assert out["rejected"][0]["who"] == "Logo"
+
+    def test_the_merge_keeps_what_a_send_recorded_and_a_stop(self):
+        from api.db import contact_client
+
+        sql = str(contact_client._MERGED_ATTRIBUTES)
+        assert "contacts.attributes::jsonb || excluded.attributes::jsonb" in sql
+        assert "'found_at'" in sql
+        for status in ("declined", "unsubscribed", "bounced", "not_interested"):
+            assert status in contact_client.STOP_STATUSES
+            assert f"'{status}'" in sql
+
+    async def _sent(self, existing):
+        row = SimpleNamespace(id=9, email_normalized="p@x.example", attributes=existing)
+        db = SimpleNamespace(
+            search_contacts_for_organization=AsyncMock(return_value=[row]),
+            touch_contact=AsyncMock(return_value=True),
+        )
+        with patch("api.db.db_client", db):
+            await send_approval.note_sent(1, {"to": "p@x.example", "subject": "Re: hi"})
+        return db.touch_contact.call_args.kwargs["attributes"]
+
+    async def test_a_send_counts_the_emails(self):
+        first = await self._sent({})
+        assert first["emails_sent"] == 1 and first["status"] == "emailed"
+        assert first["first_emailed_at"] == first["last_emailed_at"]
+        second = await self._sent(
+            {"emails_sent": 1, "first_emailed_at": "2026-09-01T09:00:00+00:00"}
+        )
+        assert second["emails_sent"] == 2
+        assert second["first_emailed_at"] == "2026-09-01T09:00:00+00:00"
+
+    async def test_answering_a_reply_keeps_the_conversation_status(self):
+        out = await self._sent({"status": "interested", "emails_sent": 1})
+        assert "status" not in out
+        assert out["emails_sent"] == 2
+
+    def test_the_template_runs_replies_then_follow_ups_then_new(self):
+        t = get_template("outbound_prospecting")
+        names = [n.name for n in t.nodes]
+        assert names[0] == "Check replies" and t.nodes[0].type == "startCall"
+        assert names.index("Follow up") < names.index("Find prospects")
+        assert names.index("Find prospects") < names.index("Draft first emails")
+        # Every edge names a step that exists.
+        for edge in t.edges:
+            assert edge.source in names and edge.target in names
+        rails = " ".join(t.guardrails).lower()
+        assert "never a third" in rails
+        assert "unsubscribed" in rails
+        joined = " ".join(n.prompt for n in t.nodes)
+        assert "{{booking_link}}" in joined and "{{follow_up_days}}" in joined
+        # An optional fact left blank must not reach a prospect as braces.
+        assert joined.count("still in double braces") >= 3

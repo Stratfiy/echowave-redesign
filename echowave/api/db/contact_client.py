@@ -10,12 +10,29 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import delete, func, or_
+from sqlalchemy import delete, func, literal_column, or_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.future import select
 
 from api.db.base_client import BaseDBClient
 from api.db.models import ContactListModel, ContactModel
+
+#: Statuses that mean "never write to this person again". Kept through any
+#: refresh by ``upsert_contacts(merge_attributes=True)``.
+STOP_STATUSES = ("declined", "unsubscribed", "bounced", "not_interested")
+
+_STOP_SQL = ", ".join(f"'{status}'" for status in STOP_STATUSES)
+_MERGED_ATTRIBUTES = literal_column(
+    # Old keys, new keys over them, then the two that a refresh never moves:
+    # when the row was first found, and a status that means stop.
+    "(contacts.attributes::jsonb || excluded.attributes::jsonb"
+    " || jsonb_strip_nulls(jsonb_build_object("
+    "'found_at', contacts.attributes::jsonb -> 'found_at'))"
+    " || (CASE WHEN (contacts.attributes::jsonb ->> 'status') IN ("
+    + _STOP_SQL
+    + ") THEN jsonb_build_object('status', contacts.attributes::jsonb -> 'status')"
+    " ELSE '{}'::jsonb END))::json"
+)
 
 
 class ContactClient(BaseDBClient):
@@ -227,6 +244,7 @@ class ContactClient(BaseDBClient):
         *,
         organization_id: int,
         rows: list[dict[str, Any]],
+        merge_attributes: bool = False,
     ) -> tuple[int, int]:
         """Insert or refresh contacts, returning ``(written, skipped)``.
 
@@ -240,6 +258,14 @@ class ContactClient(BaseDBClient):
         Chunked because a contact list is the one table here an account fills
         by uploading a file, and a single statement carrying 50,000 rows is how
         a well-meaning import takes the database down.
+
+        ``merge_attributes`` keeps what the row already carries and lays the
+        new keys over it, instead of replacing the lot. An agent re-saving a
+        prospect it found again must not wipe what the send recorded on it
+        (``status: emailed``, when, which subject) -- that wipe is how the
+        same person would get the same cold email twice. And a status that
+        means stop (``STOP_STATUSES``) survives any refresh: only a person
+        clears it.
         """
         if not rows:
             return 0, 0
@@ -287,7 +313,11 @@ class ContactClient(BaseDBClient):
                                 col: getattr(statement.excluded, col) for col in refresh
                             },
                             "name": statement.excluded.name,
-                            "attributes": statement.excluded.attributes,
+                            "attributes": (
+                                _MERGED_ATTRIBUTES
+                                if merge_attributes
+                                else statement.excluded.attributes
+                            ),
                         },
                     )
                     await session.execute(statement)
