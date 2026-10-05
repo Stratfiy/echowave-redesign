@@ -88,7 +88,7 @@ describe("the new-agent picker", () => {
     it("sends describing it to the wizard", async () => {
         await openDialog();
         fireEvent.click(await screen.findByText("Describe what you want instead"));
-        await waitFor(() => expect(push).toHaveBeenCalledWith("/workflow/create"));
+        await waitFor(() => expect(push).toHaveBeenCalledWith("/start"));
     });
 
     it("opens the agent a template made, rather than dropping the reader back on the list", async () => {

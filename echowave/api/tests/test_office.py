@@ -472,7 +472,7 @@ class TestTheCheckVerb:
         check = row["payload"]["check"]
         assert check["passed"] is False and check["handle"] == "reception"
         assert check["verdict"] == "Never said the Saturday hours."
-        assert check["evals_url"] == "/workflow/3/evals"
+        assert check["evals_url"] == "/workflow/3/settings?tab=analysis"
         assert "did not handle" in row["summary"]
 
     async def test_a_result_from_the_evals_screen_posts_nothing(self):

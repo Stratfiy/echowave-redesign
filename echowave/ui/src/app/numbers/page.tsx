@@ -29,7 +29,8 @@ import {
     ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -44,6 +45,7 @@ import { AgreementsDialog, useAgreements } from "@/components/AgreementsDialog";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { TELEPHONY_TABS } from "@/components/layout/SectionTabs";
 import { KeepYourNumber } from "@/components/telephony/KeepYourNumber";
+import { VerificationForm } from "@/components/telephony/VerificationForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -184,7 +186,20 @@ function Step({
 }
 
 export default function BuyNumberPage() {
+    // useSearchParams needs a Suspense boundary to build statically.
+    return (
+        <Suspense>
+            <BuyNumber />
+        </Suspense>
+    );
+}
+
+function BuyNumber() {
     const { user, loading: authLoading } = useAuth();
+    // Step 1's form opens in place; ?verify=1 opens it on arrival (where
+    // /verification, which it replaced, now lands).
+    const params = useSearchParams();
+    const [verifying, setVerifying] = useState(() => params?.get("verify") === "1");
     const ready = !authLoading && Boolean(user);
 
     const [loading, setLoading] = useState(true);
@@ -470,9 +485,15 @@ export default function BuyNumberPage() {
                                 ? `Currently ${kycStatus.replace(/_/g, " ")}.`
                                 : "Not started."}
                         </p>
-                        <Button asChild size="sm">
-                            <Link href="/verification">Go to verification</Link>
-                        </Button>
+                        {verifying ? (
+                            <div className="pt-2">
+                                <VerificationForm />
+                            </div>
+                        ) : (
+                            <Button size="sm" onClick={() => setVerifying(true)}>
+                                Verify your business
+                            </Button>
+                        )}
                     </div>
                 )}
             </Step>

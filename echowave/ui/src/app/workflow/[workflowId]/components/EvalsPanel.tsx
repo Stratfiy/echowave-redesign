@@ -7,18 +7,18 @@
  * a text session on the agent — same prompts, tools and model as a call,
  * no phone minute — graded by phrase rules first and the agent's own model
  * second. The reason a prompt edit can be trusted.
+ *
+ * Shown in the agent's settings under Quality (?tab=analysis). It was a page
+ * of its own reached only by a button on that tab; the redesign (UI-0) put it
+ * where the button was.
  */
 
 import { ChevronDown, ChevronRight, FlaskConical, Loader2, Play, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { AgentHeader } from "@/app/workflow/[workflowId]/components/AgentHeader";
-import { AgentTabs } from "@/app/workflow/[workflowId]/components/AgentTabs";
 import { client } from "@/client/client.gen";
-import { getWorkflowApiV1WorkflowFetchWorkflowIdGet } from "@/client/sdk.gen";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,10 +65,8 @@ function StatusPill({ result }: { result: Result | null }) {
   );
 }
 
-export default function EvalsPage() {
-  const workflowId = Number(useParams<{ workflowId: string }>().workflowId);
+export function EvalsPanel({ workflowId }: { workflowId: number }) {
   const { user, loading: authLoading } = useAuth();
-  const [name, setName] = useState("");
   const [listing, setListing] = useState<Listing | null>(null);
   const [open, setOpen] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
@@ -85,11 +83,7 @@ export default function EvalsPage() {
   useEffect(() => {
     if (authLoading || !user || fetched.current) return;
     fetched.current = true;
-    void (async () => {
-      const wf = await getWorkflowApiV1WorkflowFetchWorkflowIdGet({ path: { workflow_id: workflowId } });
-      setName(wf.data?.name ?? "");
-      await load();
-    })();
+    void load();
   }, [authLoading, user, workflowId, load]);
 
   // While anything is queued or running, keep the list fresh.
@@ -144,13 +138,14 @@ export default function EvalsPage() {
   };
 
   return (
-    <>
-      <AgentHeader workflowId={workflowId} name={name} />
-      <AgentTabs workflowId={workflowId} />
-      <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
+    <section id="evals" aria-labelledby="evals-heading">
+      <div>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold">Evals</h2>
+            <h2 id="evals-heading" className="flex items-center gap-2 text-base font-semibold">
+              <FlaskConical className="h-4 w-4" aria-hidden="true" />
+              Evals
+            </h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Scripted callers, rerun after every edit. Each run is a text conversation with the
               agent, paid like one, graded by your rules first and the model second.
@@ -268,6 +263,6 @@ export default function EvalsPage() {
           </ul>
         )}
       </div>
-    </>
+    </section>
   );
 }

@@ -1,10 +1,10 @@
-/** The routines, on their own tab once the board is a board (TB-1). */
+/** The routines: what the agents do on a clock, a tab beside Tasks. */
 
 "use client";
 
 import { SchedulesBoard } from "@/components/desk/SchedulesBoard";
-import { deskTabs } from "@/components/layout/SectionTabs";
+import { DESK_TABS } from "@/components/layout/SectionTabs";
 
 export default function SchedulesPage() {
-    return <SchedulesBoard tabs={deskTabs(true)} />;
+    return <SchedulesBoard tabs={DESK_TABS} />;
 }

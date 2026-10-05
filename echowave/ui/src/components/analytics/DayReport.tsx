@@ -23,9 +23,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/lib/auth';
 
-import { DispositionChart } from './components/DispositionChart';
-import { DurationChart } from './components/DurationChart';
-import { MetricsCards } from './components/MetricsCards';
+import { DispositionChart } from './day/DispositionChart';
+import { DurationChart } from './day/DurationChart';
+import { MetricsCards } from './day/MetricsCards';
 
 interface WorkflowOption {
   id: number;
@@ -79,7 +79,10 @@ function dateFromQuery(raw: string | null): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-export default function ReportsPage() {
+/** One day's calls in detail: /analytics?date=YYYY-MM-DD. It was /reports,
+ *  a page of its own reachable only by pressing a day on Analytics; it is
+ *  that page's day view now (UI-0). */
+export function DayReport() {
   const params = useSearchParams();
   const [selectedDate, setSelectedDate] = useState<Date>(
     () => dateFromQuery(params?.get('date') ?? null) ?? new Date(),

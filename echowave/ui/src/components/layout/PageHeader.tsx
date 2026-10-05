@@ -27,6 +27,28 @@ export type PageTab = {
   also?: string[];
 };
 
+/**
+ * The one tab a path lights: the most specific match. /billing carries
+ * prefix, so /billing/spend matches both Billing and Spend; the longer href
+ * wins and only Spend is lit. `also` routes count as matches of their tab.
+ */
+export function activeTab(tabs: PageTab[], pathname: string): string | undefined {
+  let best: { href: string; length: number } | undefined;
+  for (const tab of tabs) {
+    const routes = [
+      ...(tab.prefix ? [tab.href] : []),
+      ...(tab.also ?? []),
+    ];
+    const lengths = [
+      ...(pathname === tab.href ? [tab.href.length] : []),
+      ...routes.filter((route) => pathname === route || pathname.startsWith(route)).map((route) => route.length),
+    ];
+    const length = Math.max(-1, ...lengths);
+    if (length >= 0 && (!best || length > best.length)) best = { href: tab.href, length };
+  }
+  return best?.href;
+}
+
 interface PageHeaderProps {
   title: ReactNode;
   description?: ReactNode;
@@ -39,6 +61,7 @@ export function PageTabs({ tabs }: { tabs: PageTab[] }) {
   // Null outside the app router (unit tests render pages bare), and a strip
   // with nothing lit is the right answer there.
   const pathname = usePathname() ?? "";
+  const active = activeTab(tabs, pathname);
 
   return (
     // The strip carries the rule under it, so a page needs only to hand
@@ -50,21 +73,19 @@ export function PageTabs({ tabs }: { tabs: PageTab[] }) {
     >
       <ul className="-mb-px flex min-w-max items-center gap-1 px-4 sm:px-6">
       {tabs.map((tab) => {
-        const active =
-          (tab.prefix ? pathname.startsWith(tab.href) : pathname === tab.href) ||
-          (tab.also ?? []).some((route) => pathname.startsWith(route));
+        const isActive = tab.href === active;
         return (
           <li key={tab.href}>
             <Link
               href={tab.href}
-              aria-current={active ? "page" : undefined}
+              aria-current={isActive ? "page" : undefined}
               className={cn(
                 "-mb-px inline-block border-b-2 px-3 py-2.5 text-sm whitespace-nowrap transition-colors",
                 // The brand coral, not `--primary`. `--primary` is #171717 —
                 // near-black, and a near-black underline on a near-black label
                 // does not read as "this one". The section strip already used
                 // the accent; this is the same strip now.
-                active
+                isActive
                   ? "border-[var(--accent-brand)] font-medium text-foreground"
                   : "border-transparent text-muted-foreground hover:text-foreground"
               )}

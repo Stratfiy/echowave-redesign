@@ -1,5 +1,8 @@
 /**
- * The office's task board (KAN-140 P1).
+ * The office's task board (KAN-140 P1), shown on /tasks while the task board
+ * flag (TB-1) is off. It was /requests, a second door to the same tasks; the
+ * redesign (UI-0) made /tasks the one door, with this board behind it until
+ * the full board replaces it.
  *
  * One surface people and bots both work from. A bot that needs a
  * colleague's help files a task; the colleague runs it and the result
@@ -11,7 +14,6 @@
 "use client";
 
 import { Bot, Loader2, Plus, RotateCcw, Trash2, Users } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
@@ -20,8 +22,8 @@ import {
     listTasksApiV1TasksGet,
     setTaskStatusApiV1TasksTaskIdStatusPost,
 } from "@/client/sdk.gen";
+import type { PageTab } from "@/components/layout/PageHeader";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { DESK_TABS } from "@/components/layout/SectionTabs";
 import SpinLoader from "@/components/SpinLoader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -30,7 +32,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
-import { useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 type Task = {
@@ -76,9 +77,8 @@ function when(iso: string | null): string {
     return d.toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
-function LegacyRequests() {
+export function SimpleTaskBoard({ tabs }: { tabs: PageTab[] }) {
     const { user, loading: authLoading, redirectToLogin } = useAuth();
-    const router = useRouter();
     const hasFetched = useRef(false);
     const [tasks, setTasks] = useState<Task[]>([]);
     const [bots, setBots] = useState<BotRow[]>([]);
@@ -102,17 +102,12 @@ function LegacyRequests() {
             setError(detailFromResult(result, "Could not load the board"));
             return;
         }
-        const data = result.data as
-            | { tasks?: Task[]; bots?: BotRow[]; board?: { enabled?: boolean } }
-            | undefined;
-        if (data?.board?.enabled) {
-            // The board is a board (TB-1): this list is the Tasks tab now.
-            router.replace("/tasks");
-            return;
-        }
+        // /tasks chose this board because the full one is off; it reads
+        // the same tasks either way.
+        const data = result.data as { tasks?: Task[]; bots?: BotRow[] } | undefined;
         setTasks(data?.tasks ?? []);
         setBots(data?.bots ?? []);
-    }, [router]);
+    }, []);
 
     useEffect(() => {
         if (authLoading || !user || hasFetched.current) return;
@@ -188,9 +183,9 @@ function LegacyRequests() {
         {/* The board sits beside the schedules: both are work that is not a
             conversation, and neither belongs inside the assistant's thread. */}
         <PageHeader
-            title="Requests"
+            title="Tasks"
             description="What the agents and the team have been handed, and what came of it. An agent files a task for a colleague or for you; you file one for an agent or for the team."
-            tabs={DESK_TABS}
+            tabs={tabs}
         />
         <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
 
@@ -334,16 +329,4 @@ function LegacyRequests() {
         </div>
         </>
     );
-}
-
-/** Retired by TB-2: with the board on, a request is a task on the board, and
- *  this door leads there. Until the flag is on the old list stands. */
-export default function RequestsPage() {
-    const router = useRouter();
-    const board = useFeature("task_board");
-    useEffect(() => {
-        if (board) router.replace("/tasks");
-    }, [board, router]);
-    if (board) return <SpinLoader />;
-    return <LegacyRequests />;
 }

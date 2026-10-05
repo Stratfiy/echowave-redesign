@@ -1,5 +1,5 @@
 /**
- * The shell's sidebar (SHELL_2026_09_ENABLED): every destination on it.
+ * The navigation: every destination is on the rail or in its account menu.
  *
  * Before it, ten screens were reachable only from the profile menu. The test
  * that matters is the first: a new nav item placed nowhere fails here, rather
@@ -13,8 +13,8 @@ import { getVisibleNavSections, SHELL_MANAGE, shellUrls, STAFF_SECTION, visibleS
 const ALL = { isStaff: true, isOrganizationAdmin: true, isSuperadmin: true };
 const MEMBER = { isStaff: false, isOrganizationAdmin: false };
 
-describe("the shell sidebar", () => {
-    it("puts every non-staff destination on the sidebar", () => {
+describe("the navigation", () => {
+    it("puts every non-staff destination on the rail or in the account menu", () => {
         const staff = new Set(STAFF_SECTION.items.map((i) => i.url));
         const onSidebar = new Set(shellUrls());
         const missing = getVisibleNavSections(ALL)
@@ -30,7 +30,8 @@ describe("the shell sidebar", () => {
     });
 
     it("points only at destinations that exist", () => {
-        const known = new Set(getVisibleNavSections(ALL).flatMap((s) => s.items.map((i) => i.url)));
+        // Company and Studio are homes of the rail alone, with no legacy nav item.
+        const known = new Set([...getVisibleNavSections(ALL).flatMap((s) => s.items.map((i) => i.url)), "/company", "/studio"]);
         for (const url of shellUrls()) expect(known.has(url), url).toBe(true);
     });
 

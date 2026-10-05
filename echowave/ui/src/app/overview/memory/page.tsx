@@ -26,6 +26,7 @@ import {
     ReactFlow,
 } from "@xyflow/react";
 import { Download, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -62,13 +63,6 @@ import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
 const PHRASE = "delete everything";
-
-const TABS = [
-    { href: "/overview", label: "Messages" },
-    { href: "/review", label: "History", prefix: true },
-    { href: "/overview/memory", label: "Memory" },
-    { href: "/overview/about", label: "About" },
-];
 
 /**
  * Concentric rings by how connected a node is: the busiest in the middle,
@@ -215,11 +209,15 @@ export default function MemoryPage() {
     return (
         <>
             <PageHeader
-                title="Decibyl"
-                description="Your team's assistant. Ask what happened, or build a new agent."
-                tabs={TABS}
+                title="Decibyl's memory"
+                description="What the assistant has learned about your business, and how it connects."
                 actions={
                     <>
+                        {/* Reached from About; a tab strip here was a third
+                            copy of Home's doors, two of them since removed. */}
+                        <Button asChild variant="ghost" size="sm">
+                            <Link href="/overview?about=1">Back to Decibyl</Link>
+                        </Button>
                         <Button variant="outline" size="sm" onClick={requestExport}>
                             <Download className="mr-1.5 h-4 w-4" aria-hidden />
                             Export to Obsidian

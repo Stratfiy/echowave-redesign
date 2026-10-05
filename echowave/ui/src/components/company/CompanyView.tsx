@@ -298,7 +298,7 @@ function OrgChart({ teams, onEditFace }: { teams: OrgTeam[]; onEditFace: (agent:
                     Org chart
                 </h2>
                 <Link
-                    href="/workflow/create"
+                    href="/start"
                     className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-sm hover:bg-muted"
                 >
                     <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Hire an agent

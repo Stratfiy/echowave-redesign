@@ -22,14 +22,14 @@ const query = vi.hoisted(() => ({ value: "" }));
 vi.mock("next/navigation", () => ({
     useSearchParams: () => new URLSearchParams(query.value),
     useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-    usePathname: () => "/reports",
+    usePathname: () => "/analytics",
 }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ isAuthenticated: true, user: { id: 1 }, loading: false }) }));
-vi.mock("../components/DispositionChart", () => ({ DispositionChart: () => <div /> }));
-vi.mock("../components/DurationChart", () => ({ DurationChart: () => <div /> }));
-vi.mock("../components/MetricsCards", () => ({ MetricsCards: () => <div /> }));
+vi.mock("../day/DispositionChart", () => ({ DispositionChart: () => <div /> }));
+vi.mock("../day/DurationChart", () => ({ DurationChart: () => <div /> }));
+vi.mock("../day/MetricsCards", () => ({ MetricsCards: () => <div /> }));
 
-import ReportsPage from "../page";
+import { DayReport as ReportsPage } from "../DayReport";
 
 const here = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata";
 

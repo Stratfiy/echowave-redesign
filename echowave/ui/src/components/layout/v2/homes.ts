@@ -8,10 +8,13 @@ import {
   Home,
   Settings,
   Users,
+  Wand2,
 } from "lucide-react";
 
+import type { Feature } from "@/lib/features";
+
 /**
- * The eight homes of the v2 shell (KAN-208, UI-1), behind `ui_shell_v2`.
+ * The homes of the v2 shell (KAN-208, UI-1), the app's only shell.
  *
  * Every home maps onto a page that already exists; none is a new route. The
  * rail's copy lives here, in one place, for copy review.
@@ -20,8 +23,10 @@ import {
  * - My Decibyl -> /overview: the current Decibyl home (greeting + composer).
  * - Company    -> /company: the agents as a company (Paperclip-style): org
  *                 chart, what needs you, spend, heartbeats and activity.
- * - Tasks      -> /tasks.
+ * - Tasks      -> /tasks, with its tabs: schedules, contacts, handed over.
  * - Agents     -> /workflow: the list of every agent, folders and archive.
+ * - Studio     -> /studio, only with the `studio` flag: agents and a site
+ *                 for them from one chat.
  * - Knowledge  -> /files.
  * - Activity   -> /usage: calls, with campaigns, reports, review, analytics
  *                 and missed calls lighting it too.
@@ -36,6 +41,7 @@ export type HomeId =
   | "company"
   | "tasks"
   | "agents"
+  | "studio"
   | "knowledge"
   | "activity"
   | "team"
@@ -48,13 +54,22 @@ export type Home = {
   icon: LucideIcon;
   /** Other path prefixes that light this home. */
   activePaths?: string[];
+  /** Shown only while this feature is on for the workspace. */
+  flag?: Feature;
 };
 
 export const HOMES: readonly Home[] = [
   { id: "home", title: "My Decibyl", url: "/overview", icon: Home },
   { id: "company", title: "Company", url: "/company", icon: Building2 },
-  { id: "tasks", title: "Tasks", url: "/tasks", icon: CalendarClock },
+  {
+    id: "tasks",
+    title: "Tasks",
+    url: "/tasks",
+    icon: CalendarClock,
+    activePaths: ["/schedules", "/contacts", "/deliverables"],
+  },
   { id: "agents", title: "Agents", url: "/workflow", icon: Bot, activePaths: ["/channels"] },
+  { id: "studio", title: "Studio", url: "/studio", icon: Wand2, flag: "studio" },
   { id: "knowledge", title: "Knowledge", url: "/files", icon: Database },
   {
     id: "activity",
@@ -77,7 +92,6 @@ export const HOMES: readonly Home[] = [
       "/api-keys",
       "/deploy",
       "/telephony-configurations",
-      "/model-configurations",
     ],
   },
 ];

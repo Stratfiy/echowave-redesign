@@ -123,7 +123,7 @@ class TestMatchingIsHardToGetWrong:
 
     def test_a_spaced_or_hyphenated_name_matches(self):
         rows = curate([_toolkit("gcal_x", "Google Calendar", auth_schemes=["API_KEY"])])
-        assert _by_slug(rows, "gcal_x").setup_url == "/integrations/apps"
+        assert _by_slug(rows, "gcal_x").setup_url == "/marketplace/integrations"
 
     def test_every_telephony_provider_we_support_has_an_entry(self):
         # A provider in services/telephony/providers/ with no entry here is a

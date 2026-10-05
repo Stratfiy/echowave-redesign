@@ -1,8 +1,9 @@
 /**
- * The Tasks door. Until the board is a board (TB-1), it opens on the
- * schedules, as it always has. With the flag on, it opens on the kanban and
- * the schedules move to their own tab. The server says which, on the same
- * call that loads the board, so the page never guesses.
+ * The Tasks door: the work people and agents hand each other, on a board.
+ * The full board (TB-1) when its flag is on, the simpler one (which was
+ * /requests) until then. Schedules have their own tab either way. The server
+ * says which board, on the same call that loads it, so the page never
+ * guesses.
  */
 
 "use client";
@@ -10,9 +11,9 @@
 import { useEffect, useState } from "react";
 
 import { listTasksApiV1TasksGet } from "@/client/sdk.gen";
-import { SchedulesBoard } from "@/components/desk/SchedulesBoard";
-import { type BoardPayload,TaskBoard } from "@/components/desk/TaskBoard";
-import { deskTabs } from "@/components/layout/SectionTabs";
+import { SimpleTaskBoard } from "@/components/desk/SimpleTaskBoard";
+import { type BoardPayload, TaskBoard } from "@/components/desk/TaskBoard";
+import { DESK_TABS } from "@/components/layout/SectionTabs";
 import SpinLoader from "@/components/SpinLoader";
 import { useAuth } from "@/lib/auth";
 
@@ -33,6 +34,6 @@ export default function TasksPage() {
     }, [authLoading, user]);
 
     if (authLoading || payload === undefined) return <SpinLoader />;
-    if (payload?.board?.enabled) return <TaskBoard initial={payload} tabs={deskTabs(true)} />;
-    return <SchedulesBoard />;
+    if (payload?.board?.enabled) return <TaskBoard initial={payload} tabs={DESK_TABS} />;
+    return <SimpleTaskBoard tabs={DESK_TABS} />;
 }

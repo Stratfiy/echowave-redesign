@@ -95,8 +95,8 @@ OURS: dict[str, str] = {
     # Ours end to end: our OAuth application, our token table, no third party
     # between the agent and the booking. It already has its own card at the
     # top of the same screen.
-    "googlecalendar": "/integrations/apps",
-    "google_calendar": "/integrations/apps",
+    "googlecalendar": "/marketplace/integrations",
+    "google_calendar": "/marketplace/integrations",
 }
 
 

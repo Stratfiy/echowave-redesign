@@ -68,7 +68,7 @@ class TestEverySuggestionCarriesItsEvidence:
     def test_a_broken_connector_opens_the_screen_that_fixes_it(self):
         found = improvements.from_gaps([_gap(subject="app_failed", value="shopify")])
         assert found[0]["action"] == improvements.ACTION_OPEN
-        assert found[0]["href"] == "/integrations/apps"
+        assert found[0]["href"] == "/marketplace/integrations"
 
     def test_nothing_applies_itself(self):
         """A suggestion opens a screen or fills the chat box. It never edits an

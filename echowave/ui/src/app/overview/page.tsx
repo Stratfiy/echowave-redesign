@@ -18,7 +18,8 @@
  */
 
 import { Info } from "lucide-react";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 
 import { DecibylAbout } from "@/components/home/DecibylAbout";
 import { HomeAboveTheFold } from "@/components/home/HomeAboveTheFold";
@@ -27,9 +28,22 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 
 export default function OverviewPage() {
+  // useSearchParams needs a Suspense boundary to build statically.
+  return (
+    <Suspense>
+      <Overview />
+    </Suspense>
+  );
+}
+
+function Overview() {
   const { user } = useAuth();
   const firstName = user?.displayName?.split(" ")[0];
-  const [aboutOpen, setAboutOpen] = useState(false);
+  // ?about=1 opens About: where /overview/about and the memory page's back
+  // link land. On a phone the panel takes the whole screen, which is what the
+  // separate About page was for.
+  const params = useSearchParams();
+  const [aboutOpen, setAboutOpen] = useState(() => params?.get("about") === "1");
 
   return (
     <div className="flex h-full min-h-0 flex-col">

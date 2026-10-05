@@ -112,7 +112,7 @@ def build(
                     "connector_failing",
                     f"{_app_label(app)} failed {failures} times this week — reconnect it",
                     action=ACTION_LINK,
-                    href="/integrations/apps",
+                    href="/marketplace/integrations",
                 )
             )
             break

@@ -136,14 +136,14 @@ describe("home is Decibyl's thread", () => {
                 hours: 24,
                 headline,
                 suggestions: [
-                    { kind: "connector_failing", text: "Googlecalendar failed 6 times this week — reconnect it", action: "link", prompt: null, href: "/integrations/apps" },
+                    { kind: "connector_failing", text: "Googlecalendar failed 6 times this week — reconnect it", action: "link", prompt: null, href: "/marketplace/integrations" },
                     { kind: "hire", text: "What else could an agent take off my hands?", action: "prompt", prompt: "x", href: null },
                 ],
                 members: [],
             },
         });
         render(<HomeAboveTheFold />);
-        expect((await screen.findByRole("link", { name: /googlecalendar failed/i })).getAttribute("href")).toBe("/integrations/apps");
+        expect((await screen.findByRole("link", { name: /googlecalendar failed/i })).getAttribute("href")).toBe("/marketplace/integrations");
         expect(screen.getByRole("link", { name: /what else could an agent/i }).getAttribute("href")).toBe("/marketplace");
     });
 

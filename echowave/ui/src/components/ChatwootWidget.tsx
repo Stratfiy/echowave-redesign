@@ -28,10 +28,8 @@ const CHATWOOT_WEBSITE_TOKEN = process.env.NEXT_PUBLIC_CHATWOOT_TOKEN;
 
 // Hide the support bubble only on the workflow builder (/workflow/<id> and its
 // sub-routes), where the in-app chat tester occupies the same bottom-right
-// corner. It stays visible everywhere else, including the /workflow list and
-// /workflow/create.
-const isBuilderPath = (pathname: string) =>
-  /^\/workflow\/(?!create(?:$|\/))[^/]+(?:\/.*)?$/.test(pathname);
+// corner. It stays visible everywhere else, including the /workflow list.
+const isBuilderPath = (pathname: string) => /^\/workflow\/[^/]+(?:\/.*)?$/.test(pathname);
 
 export default function ChatwootWidget() {
   const pathname = usePathname();

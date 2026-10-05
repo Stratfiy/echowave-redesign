@@ -1,7 +1,9 @@
 "use client";
 
 /**
- * Customer-facing telephony verification.
+ * Customer-facing telephony verification: step 1 of getting a number, opened
+ * in place on /numbers. It was /verification, a page of its own with a tab
+ * strip that lit "Get a number" anyway; the redesign (UI-0) folded it in.
  *
  * Two things this screen has to get right. First, it must never suggest that
  * uploading documents unlocks calling — the licensed operator decides that, and
@@ -21,7 +23,6 @@ import {
     Trash2,
     Upload,
 } from "lucide-react";
-import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
@@ -31,8 +32,6 @@ import {
     submitKycApiV1KycSubmitPost,
     uploadDocumentApiV1KycDocumentsPost,
 } from "@/client/sdk.gen";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { TELEPHONY_TABS } from "@/components/layout/SectionTabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -148,7 +147,7 @@ const STAGE: Record<
 
 const EDITABLE = new Set(["not_started", "rejected", "carrier_rejected"]);
 
-export default function VerificationPage() {
+export function VerificationForm() {
     const { user, loading: authLoading } = useAuth();
     const authReady = !authLoading && Boolean(user);
 
@@ -269,23 +268,12 @@ export default function VerificationPage() {
     );
 
     return (
-        <div className="glass-canvas min-h-full">
-            <PageHeader
-                tabs={TELEPHONY_TABS}
-                title="Verify your business"
-                description={
-                    <>
-                        Step 1 of{" "}
-                        <Link href="/numbers" className="underline underline-offset-4">
-                            getting a number
-                        </Link>
-                        . Indian regulation requires the licensed telecom
-                        operator to verify every business using a phone number.
-                        Testing your agent in the browser needs none of this.
-                    </>
-                }
-            />
-            <div className="mx-auto w-full max-w-3xl px-6 pb-12 pt-6">
+            <div>
+                <p className="mb-4 text-sm text-muted-foreground">
+                    Indian regulation requires the licensed telecom operator to
+                    verify every business using a phone number. Testing your
+                    agent in the browser needs none of this.
+                </p>
                 {loading ? (
                     <Skeleton className="h-[420px] w-full rounded-2xl" />
                 ) : view && !view.verification_open ? (
@@ -527,7 +515,6 @@ export default function VerificationPage() {
                     </>
                 )}
             </div>
-        </div>
     );
 }
 

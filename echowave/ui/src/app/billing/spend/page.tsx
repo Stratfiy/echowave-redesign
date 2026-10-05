@@ -28,6 +28,7 @@ import {
 } from "recharts";
 
 import { getSpendBreakdownApiV1OrganizationsUsageSpendGet } from "@/client/sdk.gen";
+import { RangeFrame } from "@/components/analytics/RangeFrame";
 import { COST_COMPONENTS, seriesColor } from "@/components/charts/chartTheme";
 import {
     axisProps,
@@ -41,6 +42,7 @@ import {
     useAuthReady,
     useChartMode,
 } from "@/components/charts/primitives";
+import { BILLING_TABS } from "@/components/layout/SectionTabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     Table,
@@ -72,7 +74,21 @@ type Spend = {
     };
 };
 
+/** Spend, under Billing: it was /analytics/spend, wearing Billing's tabs
+ *  from a folder that belonged to calls (UI-0 moved it). */
 export default function CustomerSpendPage() {
+    return (
+        <RangeFrame
+            title="Spend"
+            description="What your agents consumed, and what it cost."
+            tabs={BILLING_TABS}
+        >
+            <CustomerSpend />
+        </RangeFrame>
+    );
+}
+
+function CustomerSpend() {
     const mode = useChartMode();
     const authReady = useAuthReady();
     const searchParams = useSearchParams();
