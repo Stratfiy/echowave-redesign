@@ -53,13 +53,13 @@ beforeEach(() => {
 });
 
 describe("v2 rail", () => {
-  it("renders the seven homes in order", () => {
+  it("renders the eight homes in order", () => {
     mount();
     const nav = screen.getByRole("navigation", { name: "Homes" });
     const labels = within(nav)
       .getAllByRole("link")
       .map((link) => link.textContent);
-    expect(labels).toEqual(["My Decibyl", "Tasks", "Agents", "Knowledge", "Activity", "Team", "Settings"]);
+    expect(labels).toEqual(["My Decibyl", "Company", "Tasks", "Agents", "Knowledge", "Activity", "Team", "Settings"]);
   });
 
   it("maps each home onto an existing route", () => {
@@ -68,7 +68,7 @@ describe("v2 rail", () => {
     const hrefs = within(nav)
       .getAllByRole("link")
       .map((link) => link.getAttribute("href"));
-    expect(hrefs).toEqual(["/overview", "/tasks", "/workflow", "/files", "/usage", "/settings#team", "/settings"]);
+    expect(hrefs).toEqual(["/overview", "/company", "/tasks", "/workflow", "/files", "/usage", "/settings#team", "/settings"]);
   });
 
   it("lights Activity on a campaigns page", () => {

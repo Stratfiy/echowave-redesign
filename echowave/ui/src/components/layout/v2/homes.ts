@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   Activity,
   Bot,
+  Building2,
   CalendarClock,
   Database,
   Home,
@@ -10,13 +11,15 @@ import {
 } from "lucide-react";
 
 /**
- * The seven homes of the v2 shell (KAN-208, UI-1), behind `ui_shell_v2`.
+ * The eight homes of the v2 shell (KAN-208, UI-1), behind `ui_shell_v2`.
  *
  * Every home maps onto a page that already exists; none is a new route. The
  * rail's copy lives here, in one place, for copy review.
  *
  * Mapping, and why:
  * - My Decibyl -> /overview: the current Decibyl home (greeting + composer).
+ * - Company    -> /company: the agents as a company (Paperclip-style): org
+ *                 chart, what needs you, spend, heartbeats and activity.
  * - Tasks      -> /tasks.
  * - Agents     -> /workflow: the list of every agent, folders and archive.
  * - Knowledge  -> /files.
@@ -30,6 +33,7 @@ import {
 
 export type HomeId =
   | "home"
+  | "company"
   | "tasks"
   | "agents"
   | "knowledge"
@@ -48,6 +52,7 @@ export type Home = {
 
 export const HOMES: readonly Home[] = [
   { id: "home", title: "My Decibyl", url: "/overview", icon: Home },
+  { id: "company", title: "Company", url: "/company", icon: Building2 },
   { id: "tasks", title: "Tasks", url: "/tasks", icon: CalendarClock },
   { id: "agents", title: "Agents", url: "/workflow", icon: Bot, activePaths: ["/channels"] },
   { id: "knowledge", title: "Knowledge", url: "/files", icon: Database },

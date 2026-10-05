@@ -203,7 +203,8 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         title: "Agents",
         url: "/workflow",
         // The old models page redirects here; keep it lit while it does.
-        activePaths: ["/model-configurations"],
+        // Company is the agents seen as an org chart, so it lights here too.
+        activePaths: ["/model-configurations", "/company"],
         icon: Bot,
         keywords: [
           // "bots" first: it is what the rail used to say and what most

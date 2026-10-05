@@ -27,7 +27,7 @@ import { useRailData } from "./useRailData";
 
 /**
  * The v2 rail (KAN-208, UI-1), shown in place of AppSidebar when
- * `ui_shell_v2` is on: brand and workspace, the seven homes, the colleague
+ * `ui_shell_v2` is on: brand and workspace, the eight homes, the colleague
  * roster and the trial box, per the founder-approved mock.
  *
  * Built on the same shadcn Sidebar as the old rail, so a phone gets the same
@@ -120,7 +120,7 @@ export function AppRailV2() {
 }
 
 /**
- * The person, and every manage page the seven homes do not name (billing,
+ * The person, and every manage page the eight homes do not name (billing,
  * apps & tools, deploy, compliance, marketplace), so no existing route is
  * lost from the rail. Role filtering is the old rail's own.
  */
