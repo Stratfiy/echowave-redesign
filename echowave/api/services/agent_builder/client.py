@@ -34,6 +34,7 @@ keep on their release trains.
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -75,6 +76,98 @@ _GEMINI_UNSUPPORTED_SCHEMA_KEYS = frozenset(
 
 class BuilderClientError(RuntimeError):
     """The model could not be reached, or replied with something unusable."""
+
+
+class ProviderOutOfCredit(BuilderClientError):
+    """The vendor refused the turn because the account behind the key has no
+    credit left -- Anthropic's "credit balance is too low", OpenAI's
+    ``insufficient_quota``, Google's billing quota. Not a rate limit: waiting
+    does not fix it, a top-up or another vendor does."""
+
+    def __init__(self, provider: str):
+        super().__init__(
+            "The AI provider's account is out of credit. An administrator needs "
+            "to top it up, or add another provider key in the provider keys screen."
+        )
+        self.provider = provider
+
+
+#: How long a vendor that said "out of credit" is skipped before it is tried
+#: again. Long enough not to pay a failed request on every turn, short enough
+#: that a top-up is picked up without a deploy.
+EXHAUSTED_FOR_SECONDS = 30 * 60
+_exhausted_until: dict[str, float] = {}
+
+_CREDIT_PHRASES = (
+    "credit balance is too low",
+    "insufficient_quota",
+    "exceeded your current quota",
+    "billing",
+    "purchase credits",
+)
+
+
+def _out_of_credit(status: int, body: str) -> bool:
+    if status not in (400, 402, 403, 429):
+        return False
+    text = (body or "").lower()
+    return any(phrase in text for phrase in _CREDIT_PHRASES)
+
+
+def mark_exhausted(provider: str) -> None:
+    _exhausted_until[provider] = time.monotonic() + EXHAUSTED_FOR_SECONDS
+
+
+def is_exhausted(provider: str) -> bool:
+    until = _exhausted_until.get(provider)
+    if until is None:
+        return False
+    if time.monotonic() >= until:
+        _exhausted_until.pop(provider, None)
+        return False
+    return True
+
+
+async def _fallback_model(provider: str, api_key: str) -> tuple[str, str, str] | None:
+    """Another vendor the platform holds a key for, as (provider, model, key).
+
+    Only for a turn that ran on the platform's own key: a workspace that
+    brought its own key (BYOK) is never moved onto Decibyl's keys here,
+    because that would bill it for a turn it asked to run on its own
+    account. None when there is nowhere to go.
+    """
+    from api import constants
+    from api.db import db_client
+    from api.enums import CostComponent
+    from api.services.configuration import platform_credentials
+
+    try:
+        async with db_client.async_session() as session:
+            own = await platform_credentials.resolve_api_key(
+                session, component=CostComponent.LLM, provider=provider
+            )
+            if own != api_key:
+                return None
+            order = [
+                p for p in constants.AGENT_BUILDER_PROVIDER_PREFERENCE if p != provider
+            ]
+            order += [
+                p for p in SUPPORTED_PROVIDERS if p not in order and p != provider
+            ]
+            for candidate in order:
+                if candidate not in SUPPORTED_PROVIDERS or is_exhausted(candidate):
+                    continue
+                model = constants.AGENT_BUILDER_MODELS.get(candidate)
+                if not model:
+                    continue
+                key = await platform_credentials.resolve_api_key(
+                    session, component=CostComponent.LLM, provider=candidate
+                )
+                if key:
+                    return candidate, model, key
+    except Exception as exc:  # noqa: BLE001 - no fallback is the old behaviour
+        logger.warning("Could not look for a fallback to {}: {}", provider, exc)
+    return None
 
 
 @dataclass(frozen=True)
@@ -622,7 +715,7 @@ def _gemini_parse(body: dict[str, Any]) -> ModelReply:
 # --- the seam ---------------------------------------------------------------
 
 
-async def complete(
+async def _complete_once(
     *,
     provider: str,
     model: str,
@@ -693,6 +786,8 @@ async def complete(
             response.status_code,
             response.text[:2000],
         )
+        if _out_of_credit(response.status_code, response.text):
+            raise ProviderOutOfCredit(provider)
         if response.status_code == 429:
             raise BuilderClientError(
                 "The assistant is rate limited right now. Try again shortly."
@@ -846,7 +941,7 @@ def _stream_payload(provider: str, payload: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-async def stream(
+async def _stream_once(
     *,
     provider: str,
     model: str,
@@ -913,6 +1008,8 @@ async def stream(
                         response.status_code,
                         body[:2000],
                     )
+                    if _out_of_credit(response.status_code, body):
+                        raise ProviderOutOfCredit(provider)
                     if response.status_code == 429:
                         raise BuilderClientError(
                             "The assistant is rate limited right now. Try again shortly."
@@ -951,3 +1048,98 @@ async def stream(
     return ModelReply(
         text=state.text().strip(), tool_calls=state.tool_calls(), usage=usage
     )
+
+
+# --- falling back when a vendor is out of credit ------------------------------
+
+
+async def complete(
+    *,
+    provider: str,
+    model: str,
+    api_key: str,
+    system: str,
+    conversation: Conversation,
+    tools: list[dict[str, Any]],
+) -> ModelReply:
+    """One turn against whichever vendor's key is installed.
+
+    ``tools`` are in OpenAI's shape — ``{"name", "description", "parameters"}``
+    — because it is the one all three can be derived from without loss.
+
+    If the vendor says its account is out of credit and the platform holds a
+    key for another vendor, the same turn is asked there instead, and the
+    empty vendor is skipped for a while (``is_exhausted``). Out of credit
+    with nowhere to go raises :class:`ProviderOutOfCredit`, which says so.
+
+    Raises :class:`BuilderClientError` for anything the caller should show the
+    user rather than retry blindly. The vendor's own error text is logged but
+    never returned: it can quote the request, and the request contains the
+    account's prompts.
+    """
+    try:
+        return await _complete_once(
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            system=system,
+            conversation=conversation,
+            tools=tools,
+        )
+    except ProviderOutOfCredit:
+        mark_exhausted(provider)
+        other = await _fallback_model(provider, api_key)
+        if other is None:
+            raise
+        logger.warning(
+            "{} is out of credit; answering this turn on {}", provider, other[0]
+        )
+        return await _complete_once(
+            provider=other[0],
+            model=other[1],
+            api_key=other[2],
+            system=system,
+            conversation=conversation,
+            tools=tools,
+        )
+
+
+async def stream(
+    *,
+    provider: str,
+    model: str,
+    api_key: str,
+    system: str,
+    conversation: Conversation,
+    on_text: Callable[[str], Awaitable[None]],
+    tools: list[dict[str, Any]] | None = None,
+) -> ModelReply:
+    """One turn, word by word; see :func:`_stream_once`. Falls back to
+    another vendor on out-of-credit exactly as :func:`complete` does."""
+    try:
+        return await _stream_once(
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            system=system,
+            conversation=conversation,
+            on_text=on_text,
+            tools=tools,
+        )
+    except ProviderOutOfCredit:
+        mark_exhausted(provider)
+        other = await _fallback_model(provider, api_key)
+        if other is None:
+            raise
+        logger.warning(
+            "{} is out of credit; answering this turn on {}", provider, other[0]
+        )
+        return await _stream_once(
+            provider=other[0],
+            model=other[1],
+            api_key=other[2],
+            system=system,
+            conversation=conversation,
+            on_text=on_text,
+            tools=tools,
+        )

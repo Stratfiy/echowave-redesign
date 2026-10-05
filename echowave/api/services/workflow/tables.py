@@ -111,8 +111,10 @@ OPS = (
 )
 
 
-def enabled() -> bool:
-    return features.is_on(FLAG)
+def enabled(organization_id: int | None = None) -> bool:
+    """On for this account: its own switch in the console first, then the
+    global one. Without an account, only the global switch counts."""
+    return features.is_on(FLAG, organization_id)
 
 
 class TableError(Exception):

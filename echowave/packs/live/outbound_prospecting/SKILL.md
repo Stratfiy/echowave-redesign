@@ -238,6 +238,8 @@ Ideal customer: {{ideal_customer}}.
 
 Everybody already on the Prospects list is not new, whatever their status. Match on the email and on the website's domain, so a second address at the same business is not a new prospect.
 
+Accounts saved to the list from a ranked account list (an Apollo or CRM export) come first: any with a website but no email yet, read their own contact and leadership pages for the address and the right person, and save it to the same prospect with save_prospects. Each one completed counts towards this run's total.
+
 Search the public web the way a good researcher would: a few different searches, not one -- the kind of business plus the place, directories and association member lists for that trade, 'best <kind> in <place>' round-ups. Then read each candidate's own website with web_fetch -- the contact, about and team pages -- asking for the contact email, who runs it, and one specific, recent or particular thing about them. Take the email and the name from the business's own page and nowhere else; never guess an address from a pattern. Prefer a named person's address to info@, and info@ to nothing. Never read or search LinkedIn or any social network; the rule is enforced and you will be refused.
 
 Score each one 1 to 5 for fit against the ideal customer -- kind, size and place each count -- and keep only 3 and above. Save them with save_prospects: name, company, website, the source_url each came from, fit_score, a one-line note on why they fit, and the hook -- the specific thing from their page the email will open with. If an address is refused as junk, go back to the page for the real one or drop the prospect.

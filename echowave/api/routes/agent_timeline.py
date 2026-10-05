@@ -218,7 +218,9 @@ async def timeline(
         workflow_id=workflow_id,
         workflow_run_id=workflow_run_id,
         folder_id=folder_id,
-        kinds=(kinds or None) if not assistant else decibyl.thread_filter()["kinds"],
+        kinds=(kinds or None)
+        if not assistant
+        else decibyl.thread_filter(organization_id)["kinds"],
         assistant_thread=assistant,
         thread_id=thread_id if assistant else None,
         deliverables_only=deliverables_only,
