@@ -6,9 +6,13 @@ import { useMemo, useRef, useState } from 'react';
 
 import type { FolderResponse, TeamMember, WorkflowListResponse } from '@/client/types.gen';
 import { ArtImage } from '@/components/art/Art3D';
+import { AgentAvatar } from '@/components/avatar/AgentAvatar';
+import { type Avatar, faceOf } from '@/components/avatar/avatar';
+import { AvatarCustomizer } from '@/components/avatar/AvatarCustomizer';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { jobArt } from '@/lib/art';
+import { useFeature } from '@/lib/features';
 import { cn } from '@/lib/utils';
 
 import { type Tone, toneOf, useTeamStatus } from '../useTeamStatus';
@@ -49,10 +53,13 @@ function ago(at: string | null | undefined): string | null {
 function TeamCard({
     agent,
     member,
+    face,
     onOpen,
 }: {
     agent: WorkflowListResponse;
     member: TeamMember | undefined;
+    /** The agent's face, when faces are on (agent_faces); the job's picture otherwise. */
+    face: Avatar | null;
     onOpen: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }) {
     const tone = TONES[toneOf(member, agent.is_live)];
@@ -69,9 +76,13 @@ function TeamCard({
                 className="absolute inset-0 z-10 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
             <div className="flex items-start gap-3">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted/60">
-                    <ArtImage name={jobArt(agent.name)} size={36} />
-                </div>
+                {face ? (
+                    <AgentAvatar avatar={face} tone={toneOf(member, agent.is_live)} size={48} />
+                ) : (
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted/60">
+                        <ArtImage name={jobArt(agent.name)} size={36} />
+                    </div>
+                )}
                 <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{agent.name}</p>
                     <p className="truncate text-xs text-muted-foreground">
@@ -127,6 +138,12 @@ export function AgentFolderView({ workflows, folders }: AgentFolderViewProps) {
     const listButton = useRef<HTMLButtonElement | null>(null);
     const selected = workflows.find((agent) => agent.id === selectedId);
     const roster = useTeamStatus();
+    // Faces changed on this page, ahead of the list being fetched again.
+    const [faces, setFaces] = useState<Record<number, Avatar | null>>({});
+    const [editingFace, setEditingFace] = useState(false);
+    const facesOn = useFeature('agent_faces');
+    const faceFor = (agent: WorkflowListResponse) =>
+        faceOf(agent.id, agent.id in faces ? faces[agent.id] : (agent.avatar as Avatar | null | undefined));
 
     const counts = useMemo(() => {
         const out: Record<Tone, number> = { attention: 0, working: 0, idle: 0, paused: 0 };
@@ -193,6 +210,7 @@ export function AgentFolderView({ workflows, folders }: AgentFolderViewProps) {
                             key={agent.id}
                             agent={agent}
                             member={roster[agent.id]}
+                            face={facesOn ? faceFor(agent) : null}
                             onOpen={(event) => { profileOpener.current = event.currentTarget; setSelectedId(agent.id); }}
                         />
                     ))}
@@ -208,6 +226,17 @@ export function AgentFolderView({ workflows, folders }: AgentFolderViewProps) {
                     </SheetHeader>
                     {selected && (
                         <div className="space-y-6 px-4 pb-6">
+                            {facesOn && (
+                                <div className="flex flex-col items-center gap-2">
+                                    <AgentAvatar
+                                        avatar={faceFor(selected)}
+                                        tone={toneOf(selectedMember, selected.is_live)}
+                                        size={120}
+                                        label={`${selected.name}'s face`}
+                                    />
+                                    <Button variant="outline" size="sm" onClick={() => setEditingFace(true)}>Change face</Button>
+                                </div>
+                            )}
                             <div className="space-y-3 rounded-2xl border border-border bg-muted/30 p-4">
                                 <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium', TONES[toneOf(selectedMember, selected.is_live)].pill)}>
                                     <span className={cn('h-1.5 w-1.5 rounded-full', TONES[toneOf(selectedMember, selected.is_live)].dot)} />
@@ -239,6 +268,17 @@ export function AgentFolderView({ workflows, folders }: AgentFolderViewProps) {
                     )}
                 </SheetContent>
             </Sheet>
+            {facesOn && selected && (
+                <AvatarCustomizer
+                    key={selected.id}
+                    workflowId={selected.id}
+                    name={selected.name}
+                    avatar={faceFor(selected)}
+                    open={editingFace}
+                    onOpenChange={setEditingFace}
+                    onSaved={(avatar) => setFaces((current) => ({ ...current, [selected.id]: avatar }))}
+                />
+            )}
         </div>
     );
 }

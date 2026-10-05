@@ -97,6 +97,7 @@ def _row(id: int, vis: str):
         is_live=True,
         handle=f"agent-{id}",
         visibility=vis,
+        avatar=None,
     )
 
 

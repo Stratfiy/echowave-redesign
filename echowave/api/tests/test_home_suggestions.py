@@ -139,8 +139,12 @@ class TestTheHomeEndpoint:
     @pytest.mark.asyncio
     async def test_the_headline_adds_up_what_the_team_did(self):
         workflows = [
-            SimpleNamespace(id=1, name="A", is_live=True, workflow_uuid="a"),
-            SimpleNamespace(id=2, name="B", is_live=False, workflow_uuid="b"),
+            SimpleNamespace(
+                id=1, name="A", is_live=True, workflow_uuid="a", avatar=None
+            ),
+            SimpleNamespace(
+                id=2, name="B", is_live=False, workflow_uuid="b", avatar=None
+            ),
         ]
         activity = {
             1: {

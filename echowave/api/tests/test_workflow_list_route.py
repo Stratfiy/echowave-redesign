@@ -33,6 +33,7 @@ def test_workflow_fetch_list_includes_workflow_uuid():
         workflow_uuid="workflow-uuid-123",
         is_live=True,
         handle="sales-agent",
+        avatar={"shape": "galet", "color": "bleu", "expression": "heureux"},
     )
 
     with patch("api.routes.workflow.db_client") as mock_db:
@@ -65,6 +66,8 @@ def test_workflow_fetch_list_includes_workflow_uuid():
             # Read from the agent's current version, so the list can show
             # squads apart from single agents without loading definitions.
             "is_squad": True,
+            # The face every card draws, read from the row like the handle.
+            "avatar": {"shape": "galet", "color": "bleu", "expression": "heureux"},
         }
     ]
 

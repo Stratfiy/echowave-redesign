@@ -144,7 +144,7 @@ class TestTheTeamEndpoint:
 
     def _workflow(self, id, name, is_live=True):
         return SimpleNamespace(
-            id=id, name=name, is_live=is_live, workflow_uuid=f"uuid-{id}"
+            id=id, name=name, is_live=is_live, workflow_uuid=f"uuid-{id}", avatar=None
         )
 
     @pytest.mark.asyncio

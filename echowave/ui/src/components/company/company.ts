@@ -17,6 +17,7 @@ import type {
     TeamMember,
     WorkflowListResponse,
 } from "@/client/types.gen";
+import type { Avatar } from "@/components/avatar/avatar";
 import type { Task } from "@/components/desk/tasks";
 
 export type Budget = { spent: number; limit: number; percent: number; exhausted: boolean; warned: boolean };
@@ -35,6 +36,8 @@ export type OrgAgent = {
     failures: number;
     openTasks: number;
     budget: Budget | null;
+    /** The agent's chosen face; null draws its starter face. */
+    avatar: Avatar | null;
 };
 
 export type OrgTeam = { id: number | null; name: string; agents: OrgAgent[] };
@@ -104,6 +107,7 @@ export function buildOrg(input: {
             failures: member.failures,
             openTasks: openByWorkflow.get(member.workflow_id) ?? 0,
             budget: budgetOf(policyByWorkflow.get(member.workflow_id)),
+            avatar: ((member.avatar ?? workflow?.avatar ?? null) as Avatar | null),
         });
     }
 

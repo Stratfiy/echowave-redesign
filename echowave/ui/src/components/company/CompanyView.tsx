@@ -13,6 +13,7 @@
 import {
     ArrowUp,
     Ban,
+    Brush,
     CircleAlert,
     FileCheck2,
     HeartPulse,
@@ -27,7 +28,11 @@ import { type FormEvent, useMemo, useState } from "react";
 
 import { postMessageApiV1TimelineMessagePost } from "@/client/sdk.gen";
 import type { RoutineResponse, TimelineEvent } from "@/client/types.gen";
+import { AgentAvatar } from "@/components/avatar/AgentAvatar";
+import { type Avatar, faceOf } from "@/components/avatar/avatar";
+import { AvatarCustomizer } from "@/components/avatar/AvatarCustomizer";
 import { detailFromError } from "@/lib/apiError";
+import { useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 import {
@@ -49,22 +54,28 @@ const ASKS = [
     "Which agent should I hire next?",
 ];
 
-const TONE: Record<string, { dot: string; label: string; ring: string }> = {
-    attention: { dot: "bg-amber-500", label: "Needs you", ring: "ring-amber-500/60" },
-    working: { dot: "bg-emerald-500", label: "Working", ring: "ring-emerald-500/50" },
-    idle: { dot: "bg-slate-400", label: "Idle", ring: "ring-border" },
-    paused: { dot: "bg-slate-300 dark:bg-slate-600", label: "Paused", ring: "ring-border" },
+const TONE: Record<string, { dot: string; label: string }> = {
+    attention: { dot: "bg-amber-500", label: "Needs you" },
+    working: { dot: "bg-emerald-500", label: "Working" },
+    idle: { dot: "bg-slate-400", label: "Idle" },
+    paused: { dot: "bg-slate-300 dark:bg-slate-600", label: "Paused" },
 };
 const toneOf = (tone: string) => TONE[tone] ?? TONE.idle;
 
 export function CompanyView() {
     const { data, error, dismissIncident } = useCompany();
+    // Faces changed here, ahead of the next refresh bringing them back.
+    const [faces, setFaces] = useState<Record<number, Avatar | null>>({});
+    const [editing, setEditing] = useState<OrgAgent | null>(null);
 
     const view = useMemo(() => {
         if (!data) return null;
         const names = new Map(data.members.map((m) => [m.workflow_id, m.name]));
         return {
-            teams: buildOrg(data),
+            teams: buildOrg(data).map((team) => ({
+                ...team,
+                agents: team.agents.map((agent) => (agent.id in faces ? { ...agent, avatar: faces[agent.id] } : agent)),
+            })),
             head: headline(data.members, data.tasks, data.policies),
             items: inbox({
                 incidents: data.incidents,
@@ -75,7 +86,7 @@ export function CompanyView() {
             beats: heartbeats(data.routines).slice(0, 6),
             events: data.events,
         };
-    }, [data]);
+    }, [data, faces]);
 
     return (
         <div className="mx-auto w-full max-w-6xl px-4 pb-16 pt-8 sm:px-6">
@@ -116,7 +127,7 @@ export function CompanyView() {
                     </section>
 
                     <div className="mt-8 grid gap-6 lg:grid-cols-3">
-                        <OrgChart teams={view.teams} />
+                        <OrgChart teams={view.teams} onEditFace={setEditing} />
                         <Inbox items={view.items} onDismiss={dismissIncident} />
                     </div>
 
@@ -125,6 +136,20 @@ export function CompanyView() {
                         <Activity events={view.events} />
                     </div>
                 </>
+            )}
+
+            {editing && (
+                <AvatarCustomizer
+                    key={editing.id}
+                    workflowId={editing.id}
+                    name={editing.name}
+                    avatar={faceOf(editing.id, editing.avatar)}
+                    open
+                    onOpenChange={(open) => {
+                        if (!open) setEditing(null);
+                    }}
+                    onSaved={(avatar) => setFaces((current) => ({ ...current, [editing.id]: avatar }))}
+                />
             )}
         </div>
     );
@@ -265,7 +290,7 @@ function Meter({ percent, className }: { percent: number; className?: string }) 
 
 // --- the org chart ---------------------------------------------------------
 
-function OrgChart({ teams }: { teams: OrgTeam[] }) {
+function OrgChart({ teams, onEditFace }: { teams: OrgTeam[]; onEditFace: (agent: OrgAgent) => void }) {
     return (
         <section aria-labelledby="org-chart" className="rounded-3xl border bg-card p-5 lg:col-span-2">
             <div className="flex items-center justify-between">
@@ -298,7 +323,7 @@ function OrgChart({ teams }: { teams: OrgTeam[] }) {
                                 <ul className="space-y-2">
                                     {team.agents.map((agent) => (
                                         <li key={agent.id}>
-                                            <AgentNode agent={agent} />
+                                            <AgentNode agent={agent} onEditFace={() => onEditFace(agent)} />
                                         </li>
                                     ))}
                                 </ul>
@@ -311,50 +336,70 @@ function OrgChart({ teams }: { teams: OrgTeam[] }) {
     );
 }
 
-function AgentNode({ agent }: { agent: OrgAgent }) {
+function AgentNode({ agent, onEditFace }: { agent: OrgAgent; onEditFace: () => void }) {
     const tone = toneOf(agent.tone);
+    const facesOn = useFeature("agent_faces");
     return (
-        <Link
-            href={`/workflow/${agent.id}`}
-            className="block rounded-2xl border bg-background p-3 transition hover:border-foreground/30 hover:shadow-sm"
-        >
-            <div className="flex items-center gap-3">
-                <span
-                    className={cn(
-                        "relative grid h-9 w-9 shrink-0 place-items-center rounded-full bg-muted text-sm font-medium ring-2",
-                        tone.ring,
-                    )}
-                    aria-hidden="true"
+        <div className="group relative">
+            <Link
+                href={`/workflow/${agent.id}`}
+                className="block rounded-2xl border bg-background p-3 transition hover:border-foreground/30 hover:shadow-sm"
+            >
+                <div className="flex items-center gap-3 pr-6">
+                    <span className="relative shrink-0">
+                        {facesOn ? (
+                            <AgentAvatar avatar={faceOf(agent.id, agent.avatar)} tone={agent.tone} size={40} />
+                        ) : (
+                            <span
+                                className="grid h-10 w-10 place-items-center rounded-full bg-muted text-sm font-medium"
+                                aria-hidden="true"
+                            >
+                                {agent.name.slice(0, 1).toUpperCase()}
+                            </span>
+                        )}
+                        <span
+                            className={cn("absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2 ring-background", tone.dot)}
+                            aria-hidden="true"
+                        />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                            <span className="truncate text-sm font-medium">{agent.name}</span>
+                            <span className="sr-only">, {tone.label}</span>
+                        </div>
+                        <div className="truncate text-xs text-muted-foreground">
+                            {agent.handle ? `@${agent.handle} · ` : ""}
+                            {agent.status}
+                        </div>
+                    </div>
+                </div>
+                <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
+                    <span>{agent.openTasks} open</span>
+                    <span>{agent.outcomes} done today</span>
+                    {agent.failures > 0 && <span className="text-red-600 dark:text-red-400">{agent.failures} failed</span>}
+                    {agent.lastAt && <span className="ml-auto">{relative(agent.lastAt)}</span>}
+                </div>
+                {agent.budget && (
+                    <div className="mt-2">
+                        <Meter percent={agent.budget.percent} />
+                        <div className="mt-1 text-[11px] text-muted-foreground tabular-nums">
+                            {agent.budget.spent} / {agent.budget.limit} credits
+                        </div>
+                    </div>
+                )}
+            </Link>
+            {facesOn && (
+                <button
+                    type="button"
+                    onClick={onEditFace}
+                    aria-label={`Change ${agent.name}'s face`}
+                    title="Change face"
+                    className="absolute right-2 top-2 rounded-full p-1.5 text-muted-foreground opacity-0 transition hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
                 >
-                    {agent.name.slice(0, 1).toUpperCase()}
-                    <span className={cn("absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-background", tone.dot)} />
-                </span>
-                <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                        <span className="truncate text-sm font-medium">{agent.name}</span>
-                        <span className="sr-only">, {tone.label}</span>
-                    </div>
-                    <div className="truncate text-xs text-muted-foreground">
-                        {agent.handle ? `@${agent.handle} · ` : ""}
-                        {agent.status}
-                    </div>
-                </div>
-            </div>
-            <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
-                <span>{agent.openTasks} open</span>
-                <span>{agent.outcomes} done today</span>
-                {agent.failures > 0 && <span className="text-red-600 dark:text-red-400">{agent.failures} failed</span>}
-                {agent.lastAt && <span className="ml-auto">{relative(agent.lastAt)}</span>}
-            </div>
-            {agent.budget && (
-                <div className="mt-2">
-                    <Meter percent={agent.budget.percent} />
-                    <div className="mt-1 text-[11px] text-muted-foreground tabular-nums">
-                        {agent.budget.spent} / {agent.budget.limit} credits
-                    </div>
-                </div>
+                    <Brush className="h-3.5 w-3.5" />
+                </button>
             )}
-        </Link>
+        </div>
     );
 }
 
