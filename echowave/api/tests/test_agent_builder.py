@@ -439,6 +439,40 @@ def test_gemini_schema_strip_is_recursive():
     assert "title" not in stripped["properties"]["inner"]
 
 
+def test_a_field_named_like_a_keyword_survives_the_gemini_strip():
+    """A calendar app's ``title`` field is a field, not the ``title`` keyword.
+    Dropping it left ``required`` naming nothing, and Gemini refused the
+    whole turn: "parameters.required[0]: property is not defined"."""
+    schema = {
+        "type": "object",
+        "title": "CreateEvent",
+        "properties": {
+            "title": {"type": "string", "title": "Title"},
+            "default": {"type": "boolean"},
+        },
+        "required": ["title"],
+    }
+    stripped = builder_client._strip_for_gemini(schema)
+    assert "title" not in stripped
+    assert set(stripped["properties"]) == {"title", "default"}
+    assert "title" not in stripped["properties"]["title"]
+    assert stripped["required"] == ["title"]
+
+
+def test_gemini_never_sees_a_required_field_that_is_not_defined():
+    """Some connected apps list required fields they never define."""
+    stripped = builder_client._strip_for_gemini(
+        {
+            "type": "object",
+            "properties": {"to": {"type": "string"}},
+            "required": ["to", "ghost"],
+            "items": {"type": "object", "required": ["nothing"]},
+        }
+    )
+    assert stripped["required"] == ["to"]
+    assert "required" not in stripped["items"]
+
+
 def test_gemini_synthesises_a_call_id():
     """Gemini assigns none, and the loop needs one to correlate results."""
     reply = builder_client._gemini_parse(
