@@ -1335,6 +1335,11 @@ def _was_a_read(call: Any, result: Any) -> bool:
     retry with, and the turn ended on "I have nothing to add on that."
     """
     name = str(getattr(call, "name", "") or "")
+    if isinstance(result, dict) and result.get("status") == "not_proposed":
+        # A proposal turned back before any card was written ("ask for these
+        # first", "which template"): the model must be able to ask or retry.
+        # Counted as a card, it lost its tools and answered with nothing.
+        return True
     if name in tables.NAMES and isinstance(result, dict):
         # Describe, then rank, then export is one answer: a table read keeps
         # the tools open. A handed-over workbook ends the round like a card.

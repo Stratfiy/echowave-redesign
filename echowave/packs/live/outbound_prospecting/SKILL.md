@@ -176,6 +176,9 @@ decibyl:
       booking_link: A link where an interested prospect can book a call, e.g. your Calendly
         page. Optional
       follow_up_days: How many days of silence before the one follow-up, e.g. 4. Optional
+    optional_variables:
+    - booking_link
+    - follow_up_days
     needs_web: true
     apps:
     - gmail
