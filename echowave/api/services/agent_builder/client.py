@@ -33,6 +33,7 @@ keep on their release trains.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from collections.abc import Awaitable, Callable
@@ -92,6 +93,36 @@ class ProviderOutOfCredit(BuilderClientError):
         self.provider = provider
 
 
+class ProviderRateLimited(BuilderClientError):
+    """The vendor refused the turn for sending too much too fast (HTTP 429).
+
+    A starter-tier key allows only so many tokens a minute, and one Decibyl
+    turn with a large attachment and a long thread can be most of a minute's
+    allowance. Waiting a few seconds usually clears it; so does another
+    vendor.
+    """
+
+    def __init__(self, provider: str, retry_after: float | None = None):
+        super().__init__("The assistant is rate limited right now. Try again shortly.")
+        self.provider = provider
+        self.retry_after = retry_after
+
+
+#: The longest a turn waits in place for a rate limit to clear before it
+#: tries another vendor instead. The person is watching the reply form.
+RATE_LIMIT_WAIT_SECONDS = 8.0
+#: How long a vendor that rate-limited a turn is tried last.
+RATE_LIMITED_FOR_SECONDS = 2 * 60
+
+
+def _retry_after(headers: Any) -> float | None:
+    try:
+        value = headers.get("retry-after") if headers is not None else None
+        return float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 #: How long a vendor that said "out of credit" is skipped before it is tried
 #: again. Long enough not to pay a failed request on every turn, short enough
 #: that a top-up is picked up without a deploy.
@@ -114,8 +145,10 @@ def _out_of_credit(status: int, body: str) -> bool:
     return any(phrase in text for phrase in _CREDIT_PHRASES)
 
 
-def mark_exhausted(provider: str) -> None:
-    _exhausted_until[provider] = time.monotonic() + EXHAUSTED_FOR_SECONDS
+def mark_exhausted(provider: str, seconds: float = EXHAUSTED_FOR_SECONDS) -> None:
+    until = time.monotonic() + seconds
+    # Never shorten a longer mark: out of credit outlasts a rate limit.
+    _exhausted_until[provider] = max(until, _exhausted_until.get(provider, 0.0))
 
 
 def is_exhausted(provider: str) -> bool:
@@ -789,9 +822,7 @@ async def _complete_once(
         if _out_of_credit(response.status_code, response.text):
             raise ProviderOutOfCredit(provider)
         if response.status_code == 429:
-            raise BuilderClientError(
-                "The assistant is rate limited right now. Try again shortly."
-            )
+            raise ProviderRateLimited(provider, _retry_after(response.headers))
         if response.status_code in (401, 403):
             raise BuilderClientError(
                 "The assistant's provider key was rejected. An administrator "
@@ -1011,8 +1042,8 @@ async def _stream_once(
                     if _out_of_credit(response.status_code, body):
                         raise ProviderOutOfCredit(provider)
                     if response.status_code == 429:
-                        raise BuilderClientError(
-                            "The assistant is rate limited right now. Try again shortly."
+                        raise ProviderRateLimited(
+                            provider, _retry_after(response.headers)
                         )
                     if response.status_code in (401, 403):
                         raise BuilderClientError(
@@ -1086,6 +1117,21 @@ async def complete(
             conversation=conversation,
             tools=tools,
         )
+    except ProviderRateLimited as exc:
+        return await _after_rate_limit(
+            exc,
+            provider,
+            model,
+            api_key,
+            lambda p, m, k: _complete_once(
+                provider=p,
+                model=m,
+                api_key=k,
+                system=system,
+                conversation=conversation,
+                tools=tools,
+            ),
+        )
     except ProviderOutOfCredit:
         mark_exhausted(provider)
         other = await _fallback_model(provider, api_key)
@@ -1126,6 +1172,22 @@ async def stream(
             on_text=on_text,
             tools=tools,
         )
+    except ProviderRateLimited as exc:
+        return await _after_rate_limit(
+            exc,
+            provider,
+            model,
+            api_key,
+            lambda p, m, k: _stream_once(
+                provider=p,
+                model=m,
+                api_key=k,
+                system=system,
+                conversation=conversation,
+                on_text=on_text,
+                tools=tools,
+            ),
+        )
     except ProviderOutOfCredit:
         mark_exhausted(provider)
         other = await _fallback_model(provider, api_key)
@@ -1143,3 +1205,30 @@ async def stream(
             on_text=on_text,
             tools=tools,
         )
+
+
+async def _after_rate_limit(
+    exc: ProviderRateLimited,
+    provider: str,
+    model: str,
+    api_key: str,
+    run: Callable[[str, str, str], Awaitable[ModelReply]],
+) -> ModelReply:
+    """A 429: wait briefly and ask the same vendor once more; if it is still
+    limited, ask another vendor the platform holds a key for. The limited
+    vendor is tried last for the next couple of minutes, so the turns after
+    this one do not queue behind it. Raises the rate limit when neither works.
+    """
+    wait = exc.retry_after if exc.retry_after is not None else 3.0
+    if wait <= RATE_LIMIT_WAIT_SECONDS:
+        await asyncio.sleep(max(0.5, wait))
+        try:
+            return await run(provider, model, api_key)
+        except ProviderRateLimited:
+            pass
+    mark_exhausted(provider, RATE_LIMITED_FOR_SECONDS)
+    other = await _fallback_model(provider, api_key)
+    if other is None:
+        raise exc
+    logger.warning("{} is rate limited; answering this turn on {}", provider, other[0])
+    return await run(other[0], other[1], other[2])

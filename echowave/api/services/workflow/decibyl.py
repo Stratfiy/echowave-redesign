@@ -1009,6 +1009,12 @@ async def _answer(
         # BYOK-1: the account runs on its own keys and none can answer. Said
         # plainly on the thread rather than charged to Decibyl's key.
         body = str(exc)
+    except client.BuilderClientError as exc:
+        # The vendor's own refusal, already said for a person to read: out
+        # of credit, rate limited, a rejected key. "I could not think that
+        # through" hid which of those it was, and each is fixed differently.
+        logger.error("Decibyl could not answer: {}", exc)
+        body = str(exc)
     except Exception as exc:  # noqa: BLE001 - the thread must say something
         logger.error("Decibyl could not answer: {}", exc)
         body = (
