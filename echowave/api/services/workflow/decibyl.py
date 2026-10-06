@@ -1009,6 +1009,12 @@ async def _answer(
         # BYOK-1: the account runs on its own keys and none can answer. Said
         # plainly on the thread rather than charged to Decibyl's key.
         body = str(exc)
+    except client.BuilderClientError as exc:
+        # The vendor's own refusal, already said for a person to read: out
+        # of credit, rate limited, a rejected key. "I could not think that
+        # through" hid which of those it was, and each is fixed differently.
+        logger.error("Decibyl could not answer: {}", exc)
+        body = str(exc)
     except Exception as exc:  # noqa: BLE001 - the thread must say something
         logger.error("Decibyl could not answer: {}", exc)
         body = (
@@ -1329,6 +1335,11 @@ def _was_a_read(call: Any, result: Any) -> bool:
     retry with, and the turn ended on "I have nothing to add on that."
     """
     name = str(getattr(call, "name", "") or "")
+    if isinstance(result, dict) and result.get("status") == "not_proposed":
+        # A proposal turned back before any card was written ("ask for these
+        # first", "which template"): the model must be able to ask or retry.
+        # Counted as a card, it lost its tools and answered with nothing.
+        return True
     if name in tables.NAMES and isinstance(result, dict):
         # Describe, then rank, then export is one answer: a table read keeps
         # the tools open. A handed-over workbook ends the round like a card.

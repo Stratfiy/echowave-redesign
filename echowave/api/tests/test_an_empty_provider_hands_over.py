@@ -41,8 +41,11 @@ GEMINI_OK = httpx.Response(
 
 @pytest.fixture(autouse=True)
 def _fresh():
+    # A successful turn meters itself; keep those rows out of the shared test
+    # DB, where test_every_model_call_is_metered counts them.
     client._exhausted_until.clear()
-    yield
+    with patch.object(client.model_usage, "record", AsyncMock()):
+        yield
     client._exhausted_until.clear()
 
 
@@ -155,3 +158,168 @@ async def test_the_next_turn_starts_on_the_vendor_that_has_credit(monkeypatch):
     monkeypatch.setattr(settings.platform_credentials, "resolve_api_key", resolve)
     chosen = await settings.resolve_model(object())
     assert chosen.provider == "google"
+
+
+RATE_LIMITED = httpx.Response(
+    429,
+    headers={"retry-after": "1"},
+    content=b'{"type":"error","error":{"type":"rate_limit_error","message":"Number of request tokens has exceeded your per-minute rate limit"}}',
+)
+ANTHROPIC_OK = httpx.Response(
+    200,
+    content=json.dumps(
+        {"content": [{"type": "text", "text": "Hello again"}], "usage": {}}
+    ).encode(),
+)
+
+
+@pytest.mark.asyncio
+class TestARateLimitIsRidden:
+    """Seen in production on 6 October 2026: a 695 KB Apollo CSV and a deck
+    on the thread, three messages in a minute, and every reply after the
+    first was "I could not think that through" -- a 429 from the vendor."""
+
+    async def test_a_short_wait_then_the_same_vendor(self, monkeypatch):
+        slept = []
+
+        async def sleep(seconds):
+            slept.append(seconds)
+
+        monkeypatch.setattr(client.asyncio, "sleep", sleep)
+        post = AsyncMock(side_effect=[RATE_LIMITED, ANTHROPIC_OK])
+        with patch.object(httpx.AsyncClient, "post", post):
+            reply = await _turn()
+        assert reply.text == "Hello again"
+        assert slept == [1.0]
+        assert not client.is_exhausted(client.ANTHROPIC)
+
+    async def test_still_limited_goes_to_the_other_vendor(self, monkeypatch):
+        async def sleep(seconds):
+            return None
+
+        monkeypatch.setattr(client.asyncio, "sleep", sleep)
+        post = AsyncMock(side_effect=[RATE_LIMITED, RATE_LIMITED, GEMINI_OK])
+        with (
+            patch.object(httpx.AsyncClient, "post", post),
+            patch.object(
+                client,
+                "_fallback_model",
+                AsyncMock(return_value=(client.GOOGLE, "gemini-x", "platform-google")),
+            ),
+        ):
+            reply = await _turn()
+        assert reply.text == "Hello from Gemini"
+        # Tried last for a couple of minutes, not the half hour of no credit.
+        assert client.is_exhausted(client.ANTHROPIC)
+        assert (
+            client._exhausted_until[client.ANTHROPIC] - client.time.monotonic()
+            <= client.RATE_LIMITED_FOR_SECONDS + 1
+        )
+
+    async def test_nowhere_to_go_says_rate_limited(self, monkeypatch):
+        async def sleep(seconds):
+            return None
+
+        monkeypatch.setattr(client.asyncio, "sleep", sleep)
+        with (
+            patch.object(
+                httpx.AsyncClient, "post", AsyncMock(return_value=RATE_LIMITED)
+            ),
+            patch.object(client, "_fallback_model", AsyncMock(return_value=None)),
+        ):
+            with pytest.raises(client.ProviderRateLimited) as caught:
+                await _turn()
+        assert "rate limited" in str(caught.value)
+
+    def test_a_rate_limit_never_shortens_an_out_of_credit_mark(self):
+        client.mark_exhausted("anthropic")
+        long_mark = client._exhausted_until["anthropic"]
+        client.mark_exhausted("anthropic", client.RATE_LIMITED_FOR_SECONDS)
+        assert client._exhausted_until["anthropic"] == long_mark
+
+
+class TestOpenAIsResetHeader:
+    """OpenAI's tokens-per-minute 429 says when it clears in
+    x-ratelimit-reset-tokens ("18.008s"), not always in retry-after."""
+
+    def test_its_durations_are_read(self):
+        assert client._retry_after({"x-ratelimit-reset-tokens": "18.008s"}) == 18.008
+        assert client._retry_after({"x-ratelimit-reset-tokens": "1m30s"}) == 90.0
+        assert client._retry_after({"x-ratelimit-reset-requests": "250ms"}) == 0.25
+
+    def test_retry_after_still_wins_and_nonsense_is_unknown(self):
+        assert (
+            client._retry_after({"retry-after": "2", "x-ratelimit-reset-tokens": "18s"})
+            == 2.0
+        )
+        assert client._retry_after({"x-ratelimit-reset-tokens": "soon"}) is None
+        assert client._retry_after({}) is None
+
+
+OPENAI_LIMITED = httpx.Response(
+    429,
+    headers={"x-ratelimit-reset-tokens": "18.008s"},
+    content=b'{"error":{"message":"Rate limit reached for gpt-4.1 on tokens per min"}}',
+)
+GEMINI_BAD_SCHEMA = httpx.Response(
+    400,
+    content=b'{"error":{"message":"parameters.required[0]: property is not defined"}}',
+)
+
+
+@pytest.mark.asyncio
+class TestALongerLimitIsWaitedOutWhenNothingElseCanAnswer:
+    """Seen on 6 October 2026: OpenAI asked for 18 s, the fallback (Gemini)
+    refused the request, and the person got "The assistant hit an error"."""
+
+    async def test_the_other_vendor_fails_so_the_turn_waits(self, monkeypatch):
+        slept = []
+
+        async def sleep(seconds):
+            slept.append(seconds)
+
+        monkeypatch.setattr(client.asyncio, "sleep", sleep)
+        post = AsyncMock(side_effect=[OPENAI_LIMITED, GEMINI_BAD_SCHEMA, ANTHROPIC_OK])
+        with (
+            patch.object(httpx.AsyncClient, "post", post),
+            patch.object(
+                client,
+                "_fallback_model",
+                AsyncMock(return_value=(client.GOOGLE, "gemini-x", "platform-google")),
+            ),
+        ):
+            reply = await _turn()
+        assert reply.text == "Hello again"
+        assert slept == [18.008]
+
+    async def test_no_other_vendor_so_the_turn_waits(self, monkeypatch):
+        slept = []
+
+        async def sleep(seconds):
+            slept.append(seconds)
+
+        monkeypatch.setattr(client.asyncio, "sleep", sleep)
+        post = AsyncMock(side_effect=[OPENAI_LIMITED, ANTHROPIC_OK])
+        with (
+            patch.object(httpx.AsyncClient, "post", post),
+            patch.object(client, "_fallback_model", AsyncMock(return_value=None)),
+        ):
+            reply = await _turn()
+        assert reply.text == "Hello again"
+        assert slept == [18.008]
+
+    async def test_a_limit_longer_than_half_a_minute_is_not_waited(self, monkeypatch):
+        slept = []
+
+        async def sleep(seconds):
+            slept.append(seconds)
+
+        monkeypatch.setattr(client.asyncio, "sleep", sleep)
+        long_limit = httpx.Response(429, headers={"retry-after": "45"}, content=b"{}")
+        with (
+            patch.object(httpx.AsyncClient, "post", AsyncMock(return_value=long_limit)),
+            patch.object(client, "_fallback_model", AsyncMock(return_value=None)),
+            pytest.raises(client.ProviderRateLimited),
+        ):
+            await _turn()
+        assert slept == []

@@ -1178,6 +1178,7 @@ def _all() -> tuple[AgentTemplate, ...]:
                     "Optional"
                 ),
             },
+            optional_variables=["booking_link", "follow_up_days"],
             nodes=[
                 TemplateNode(
                     type="startCall",

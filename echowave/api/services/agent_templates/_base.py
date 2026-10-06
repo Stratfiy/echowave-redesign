@@ -264,6 +264,10 @@ class AgentTemplate(BaseModel):
     #: Values the operator must supply before going live. Referenced in prompts
     #: as `{{name}}`, so an unfilled one is visible rather than silently spoken.
     template_variables: dict[str, str] = Field(default_factory=dict)
+    #: Keys of ``template_variables`` a person may leave blank. Not asked for
+    #: before a build; an unanswered one is filled with nothing, so its prompt
+    #: must say what to do when it is blank.
+    optional_variables: list[str] = Field(default_factory=list)
     suggested_voices: list[SuggestedVoice] = Field(default_factory=list)
     #: What the hired agent is given beyond its prompts (OP-4). ``needs_web``
     #: puts the workspace's web tool on its nodes; ``apps`` names connected
