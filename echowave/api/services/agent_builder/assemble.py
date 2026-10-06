@@ -86,7 +86,11 @@ def required_variables(template: AgentTemplate) -> list[str]:
         + [node.greeting or "" for node in template.nodes]
         + template.guardrails
     )
-    found = {name for name in PLACEHOLDER.findall(text)} - RUNTIME_VARIABLES
+    found = (
+        {name for name in PLACEHOLDER.findall(text)}
+        - RUNTIME_VARIABLES
+        - set(template.optional_variables)
+    )
     # Declared order first so the chat asks in the order the template intended,
     # then anything the prompts referenced but the template did not declare.
     declared = [key for key in template.template_variables if key in found]
@@ -148,6 +152,10 @@ def assemble(
     ask, which is a better conversation than a failed build.
     """
     variables = {k: v for k, v in (variables or {}).items() if v and v.strip()}
+    # An optional answer left blank is filled with nothing, never left as
+    # braces: the prompt says what to do when it is blank.
+    for key in template.optional_variables:
+        variables.setdefault(key, "")
     display_name = (name or template.name).strip()
     if not display_name:
         raise AssemblyError("The agent needs a name.")
