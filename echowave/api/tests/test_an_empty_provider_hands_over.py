@@ -155,3 +155,81 @@ async def test_the_next_turn_starts_on_the_vendor_that_has_credit(monkeypatch):
     monkeypatch.setattr(settings.platform_credentials, "resolve_api_key", resolve)
     chosen = await settings.resolve_model(object())
     assert chosen.provider == "google"
+
+
+RATE_LIMITED = httpx.Response(
+    429,
+    headers={"retry-after": "1"},
+    content=b'{"type":"error","error":{"type":"rate_limit_error","message":"Number of request tokens has exceeded your per-minute rate limit"}}',
+)
+ANTHROPIC_OK = httpx.Response(
+    200,
+    content=json.dumps(
+        {"content": [{"type": "text", "text": "Hello again"}], "usage": {}}
+    ).encode(),
+)
+
+
+@pytest.mark.asyncio
+class TestARateLimitIsRidden:
+    """Seen in production on 6 October 2026: a 695 KB Apollo CSV and a deck
+    on the thread, three messages in a minute, and every reply after the
+    first was "I could not think that through" -- a 429 from the vendor."""
+
+    async def test_a_short_wait_then_the_same_vendor(self, monkeypatch):
+        slept = []
+
+        async def sleep(seconds):
+            slept.append(seconds)
+
+        monkeypatch.setattr(client.asyncio, "sleep", sleep)
+        post = AsyncMock(side_effect=[RATE_LIMITED, ANTHROPIC_OK])
+        with patch.object(httpx.AsyncClient, "post", post):
+            reply = await _turn()
+        assert reply.text == "Hello again"
+        assert slept == [1.0]
+        assert not client.is_exhausted(client.ANTHROPIC)
+
+    async def test_still_limited_goes_to_the_other_vendor(self, monkeypatch):
+        async def sleep(seconds):
+            return None
+
+        monkeypatch.setattr(client.asyncio, "sleep", sleep)
+        post = AsyncMock(side_effect=[RATE_LIMITED, RATE_LIMITED, GEMINI_OK])
+        with (
+            patch.object(httpx.AsyncClient, "post", post),
+            patch.object(
+                client,
+                "_fallback_model",
+                AsyncMock(return_value=(client.GOOGLE, "gemini-x", "platform-google")),
+            ),
+        ):
+            reply = await _turn()
+        assert reply.text == "Hello from Gemini"
+        # Tried last for a couple of minutes, not the half hour of no credit.
+        assert client.is_exhausted(client.ANTHROPIC)
+        assert (
+            client._exhausted_until[client.ANTHROPIC] - client.time.monotonic()
+            <= client.RATE_LIMITED_FOR_SECONDS + 1
+        )
+
+    async def test_nowhere_to_go_says_rate_limited(self, monkeypatch):
+        async def sleep(seconds):
+            return None
+
+        monkeypatch.setattr(client.asyncio, "sleep", sleep)
+        with (
+            patch.object(
+                httpx.AsyncClient, "post", AsyncMock(return_value=RATE_LIMITED)
+            ),
+            patch.object(client, "_fallback_model", AsyncMock(return_value=None)),
+        ):
+            with pytest.raises(client.ProviderRateLimited) as caught:
+                await _turn()
+        assert "rate limited" in str(caught.value)
+
+    def test_a_rate_limit_never_shortens_an_out_of_credit_mark(self):
+        client.mark_exhausted("anthropic")
+        long_mark = client._exhausted_until["anthropic"]
+        client.mark_exhausted("anthropic", client.RATE_LIMITED_FOR_SECONDS)
+        assert client._exhausted_until["anthropic"] == long_mark
