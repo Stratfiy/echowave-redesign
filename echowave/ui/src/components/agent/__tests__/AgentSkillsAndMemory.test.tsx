@@ -108,8 +108,8 @@ describe("an agent's skills", () => {
 
 describe("an agent's memory", () => {
   it("keys a sentence by its first words", () => {
-    expect(memoryKey("Clinic is closed on Sundays!")).toBe("clinic_is_closed_on_sundays");
-    expect(memoryKey("   ")).toBe("note");
+    expect(memoryKey("Clinic is closed on Sundays!")).toBe("note_clinic_is_closed_on_sundays");
+    expect(memoryKey("   ")).toBe("note_untitled");
   });
 
   it("teaches this agent alone", async () => {
@@ -120,7 +120,7 @@ describe("an agent's memory", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(api.facts).toHaveBeenCalled());
     expect(api.facts.mock.calls[0][0]).toEqual({
-      body: { facts: { clinic_is_closed_on_sundays: "Clinic is closed on Sundays" }, workflow_id: 7 },
+      body: { facts: { note_clinic_is_closed_on_sundays: "Clinic is closed on Sundays" }, workflow_id: 7 },
     });
   });
 });

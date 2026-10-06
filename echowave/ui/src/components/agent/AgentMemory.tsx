@@ -14,6 +14,9 @@ import { writeFactsApiV1OrganisationMemoryFactsPost } from "@/client/sdk.gen";
 import { MemoryList } from "@/components/memory/MemoryList";
 import { detailFromError } from "@/lib/apiError";
 
+/** Keys of sentences taught as they are; the list shows only the sentence. */
+export const NOTE_PREFIX = "note_";
+
 /** A short, stable key for a sentence somebody typed: its first words. */
 export function memoryKey(text: string): string {
   const words = text
@@ -23,7 +26,7 @@ export function memoryKey(text: string): string {
     .filter(Boolean)
     .slice(0, 6)
     .join("_");
-  return words || "note";
+  return `${NOTE_PREFIX}${words || "untitled"}`;
 }
 
 export function AgentMemory({ workflowId, agentName }: { workflowId: number; agentName: string }) {

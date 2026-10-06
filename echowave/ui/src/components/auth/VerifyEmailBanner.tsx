@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { announceBalanceChanged } from "@/lib/billing/balanceEvents";
+import { useFeature } from "@/lib/features";
 
 /**
  * The prompt to finish email verification.
@@ -30,6 +31,8 @@ import { announceBalanceChanged } from "@/lib/billing/balanceEvents";
  */
 export function VerifyEmailBanner() {
   const { user, loading: authLoading } = useAuth();
+  // Free while we are early: no credits to promise (free_mode.py).
+  const freeMode = useFeature("free_mode");
   const [needed, setNeeded] = useState(false);
   const [address, setAddress] = useState<string | null>(null);
   const [code, setCode] = useState("");
@@ -97,7 +100,7 @@ export function VerifyEmailBanner() {
       <MailCheck className="h-4 w-4 shrink-0 text-foreground/70" />
       <span className="min-w-0">
         Verify {address ? <strong className="font-medium">{address}</strong> : "your email"} —
-        enter the six-digit code we sent you, and your first 150 free credits land.
+        enter the six-digit code we sent you{freeMode ? "." : ", and your first 150 free credits land."}
       </span>
       <div className="flex items-center gap-2">
         <Input

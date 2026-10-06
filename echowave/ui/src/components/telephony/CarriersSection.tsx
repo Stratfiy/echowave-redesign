@@ -173,9 +173,12 @@ export function CarriersSection({ onChanged }: { onChanged?: () => void } = {}) 
             </a>
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-1.5 h-4 w-4" /> Connect a carrier
-        </Button>
+        {/* The empty state below has its own button; one is enough. */}
+        {items.length > 0 && (
+          <Button variant="outline" size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus className="mr-1.5 h-4 w-4" /> Connect a carrier
+          </Button>
+        )}
       </div>
       <div>
 

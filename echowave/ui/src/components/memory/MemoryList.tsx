@@ -104,12 +104,17 @@ export function MemoryList({
             <ul className="space-y-1 text-sm" aria-label="Memory">
                 {shown.map((fact) => {
                     const gone = fact.id in forgotten;
+                    // A sentence taught as it is ("Teach Riya something")
+                    // has a made-up key; the sentence is the whole fact.
+                    const note = fact.key.startsWith("note_");
                     return (
                         <li key={fact.id} className="group flex items-center gap-2">
                             {gone ? (
                                 <span className="min-w-0 flex-1 truncate text-muted-foreground line-through">
-                                    {fact.key}
+                                    {note ? fact.value : fact.key}
                                 </span>
+                            ) : note ? (
+                                <span className="min-w-0 flex-1">{fact.value}</span>
                             ) : (
                                 <>
                                     <span className="shrink-0 text-muted-foreground">{fact.key}</span>
