@@ -273,6 +273,24 @@ LLM_RATES = (
     ),
     DefaultRate(
         "anthropic",
+        "claude-sonnet-5-5",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _blend(2.00, 10.00),
+        "$2.00/$10.00 per 1M, blended",
+        checked_on=CHECKED_ON,
+    ),
+    DefaultRate(
+        "anthropic",
+        "claude-opus-5-5",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _blend(4.00, 20.00),
+        "$4.00/$20.00 per 1M, blended",
+        checked_on=CHECKED_ON,
+    ),
+    DefaultRate(
+        "anthropic",
         "claude-sonnet-5",
         CostComponent.LLM,
         RateUnit.THOUSAND_TOKENS,
@@ -1156,6 +1174,12 @@ LLM_MODEL_PRICES: tuple[ModelPrice, ...] = (
     ),
     ModelPrice(
         "anthropic", "claude-haiku-4-5", 1.00, 5.00, "list", checked_on=CHECKED_ON
+    ),
+    ModelPrice(
+        "anthropic", "claude-sonnet-5-5", 2.00, 10.00, "list", checked_on=CHECKED_ON
+    ),
+    ModelPrice(
+        "anthropic", "claude-opus-5-5", 4.00, 20.00, "list", checked_on=CHECKED_ON
     ),
     ModelPrice(
         "anthropic", "claude-sonnet-5", 2.00, 10.00, "list", checked_on=CHECKED_ON

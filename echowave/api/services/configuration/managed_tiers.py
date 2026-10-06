@@ -56,23 +56,22 @@ _RETIRED_LLM_TIERS = {"fast": "lite", "zen": "lite"}
 #: should not have to.
 LLM_TIER_LABELS: dict[str, tuple[str, str]] = {
     "lite": (
-        "Lite",
-        "Fastest and cheapest. Good for short, scripted calls.",
+        "Fast",
+        "Cheapest and quickest. Good for short, scripted calls.",
     ),
     "default": (
-        "Normal",
-        "Handles a real conversation. The right choice for most agents.",
+        "Everyday",
+        "Claude Haiku. Quick and low-cost; the right choice for most agents.",
     ),
     "accurate": (
         "Smart",
-        "For calls where getting it wrong is expensive.",
+        "Claude Sonnet. For calls and chats where getting it wrong is expensive.",
     ),
-    # A chat brain first. It reasons before it answers, which is the point in
-    # a chat and a silence on a call; the blurb says so rather than letting
-    # somebody find out on a live line.
+    # Thinks before it answers: worth it in a chat, a pause on a call. The
+    # blurb says so rather than letting somebody find out on a live line.
     "advanced": (
-        "Advanced",
-        "The strongest model. Thinks before it answers: best in chat, slow on a call.",
+        "Deep",
+        "Claude Opus, the strongest. Thinks first: best in chat, slower on a call.",
     ),
 }
 #: Two, and the second one is a latency choice with a language price attached.
@@ -270,9 +269,15 @@ def _defaults() -> dict[tuple[str, str], ManagedUpstream]:
         # in silence for all of it. The conversational model does no reasoning,
         # reaches first content in ~0.25s, and still calls tools.
         ("llm", "lite"): _tier("llm", "lite", "sarvam", "sarvam-105b-conversations"),
-        ("llm", "default"): _tier("llm", "default", "openai", "gpt-4.1-mini"),
-        ("llm", "accurate"): _tier("llm", "accurate", "openai", "gpt-4.1"),
-        ("llm", "advanced"): _tier("llm", "advanced", "openai", "gpt-5"),
+        #
+        # Everything above Fast is Claude, cheapest first. Everyday is Haiku:
+        # $1/$5 per million, no thinking before it speaks (so no dead air on
+        # a call), and it takes tools. Sonnet and Opus are there for the
+        # workspace that chooses to pay for more; the agent's reasoning-effort
+        # setting keeps them at ``low`` on a call unless somebody raises it.
+        ("llm", "default"): _tier("llm", "default", "anthropic", "claude-haiku-4-5"),
+        ("llm", "accurate"): _tier("llm", "accurate", "anthropic", "claude-sonnet-5-5"),
+        ("llm", "advanced"): _tier("llm", "advanced", "anthropic", "claude-opus-5-5"),
         # Retired names, kept resolving to the model they always served.
         ("llm", "fast"): _tier("llm", "fast", "sarvam", "sarvam-105b-conversations"),
         ("llm", "zen"): _tier("llm", "zen", "sarvam", "sarvam-105b-conversations"),

@@ -122,9 +122,14 @@ from pipecat.utils.text.xml_function_tag_filter import XMLFunctionTagFilter
 if TYPE_CHECKING:
     from api.services.pipecat.audio_config import AudioConfig
 from api.services.pipecat.reasoning_effort import (
+    claude_effort,
+    claude_rejects_sampling,
+    claude_takes_effort,
+    takes_reasoning_effort,
+)
+from api.services.pipecat.reasoning_effort import (
     resolve as resolve_reasoning_effort,
 )
-from api.services.pipecat.reasoning_effort import takes_reasoning_effort
 
 DEEPGRAM_FLUX_LANGUAGE_HINTS = {
     "de": Language.DE,
@@ -1684,7 +1689,19 @@ def create_llm_service_from_provider(
                 # is the shape caching is for — the prefix is stable and the
                 # turn count is high.
                 enable_prompt_caching=True,
-                **_llm_tuning(temperature, max_tokens, default_temperature=0.1),
+                # Newer Claude models refuse sampling parameters (a 400 on the
+                # first turn) and take an effort level instead, which is the
+                # agent's own reasoning-effort setting. See reasoning_effort.py.
+                extra=(
+                    {"output_config": {"effort": claude_effort(reasoning_effort)}}
+                    if claude_takes_effort(model)
+                    else {}
+                ),
+                **(
+                    _llm_tuning(None, max_tokens)
+                    if claude_rejects_sampling(model)
+                    else _llm_tuning(temperature, max_tokens, default_temperature=0.1)
+                ),
             ),
         )
     elif provider == ServiceProviders.CEREBRAS.value:

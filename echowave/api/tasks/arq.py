@@ -8,6 +8,10 @@ from api.tasks.function_names import FunctionNames
 
 setup_logging()
 
+from api.observability import sentry
+
+sentry.init("worker")
+
 # Now import ARQ and task dependencies
 from arq import create_pool, cron
 from arq.connections import ArqRedis

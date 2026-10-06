@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, TypeAdapter, ValidationError, model_validator
 
 from api.services.configuration.registry import (
     DecibylEmbeddingsConfiguration,
@@ -107,6 +107,13 @@ class DecibylManagedAIModelConfiguration(BaseModel):
     #: rejecting it at load would break an agent that has been dialling
     #: happily for months.
     llm_tier: str = "default"
+
+    #: An exact model the workspace chose as its default brain, as
+    #: ``<vendor>/<model>`` from the chat catalogue (``chat_presets``), run on
+    #: our key. Empty means "the tier above decides", which is every account
+    #: that has not chosen. When set it wins over ``llm_tier`` for the
+    #: language model only; voice and transcription stay on their tiers.
+    llm_model: str = ""
 
     #: Which bundle the Simple picker was on when this was saved. Stored so the
     #: picker can show what is currently in force, which it previously could
@@ -227,6 +234,34 @@ def compile_ai_model_configuration_v2(
     )
 
 
+def _managed_llm(configuration: DecibylManagedAIModelConfiguration):
+    """The workspace's brain: the exact model it chose, else its tier."""
+    vendor, _, model = (configuration.llm_model or "").partition("/")
+    if vendor and model:
+        try:
+            # The direct managed path: a real vendor and model on our key,
+            # the same shape a chat's "More models" choice runs on.
+            return TypeAdapter(LLMConfig).validate_python(
+                {
+                    "provider": vendor,
+                    "model": model,
+                    "api_key": "",
+                    "use_platform_key": True,
+                }
+            )
+        except ValidationError:
+            # A vendor we no longer build must not stop the agent answering;
+            # it falls back to the tier, which always resolves.
+            pass
+    return DecibylLLMService(
+        provider=ServiceProviders.DECIBYL,
+        api_key=configuration.api_key,
+        # The tier, not a vendor model name — managed_resolution reads this
+        # field as the tier to resolve.
+        model=configuration.llm_tier,
+    )
+
+
 def _compile_decibyl_configuration(
     configuration: DecibylManagedAIModelConfiguration,
 ) -> EffectiveAIModelConfiguration:
@@ -260,13 +295,7 @@ def _compile_decibyl_configuration(
         )
 
     return EffectiveAIModelConfiguration(
-        llm=DecibylLLMService(
-            provider=ServiceProviders.DECIBYL,
-            api_key=configuration.api_key,
-            # The tier, not a vendor model name — managed_resolution reads this
-            # field as the tier to resolve.
-            model=configuration.llm_tier,
-        ),
+        llm=_managed_llm(configuration),
         tts=DecibylTTSService(
             provider=ServiceProviders.DECIBYL,
             api_key=configuration.api_key,

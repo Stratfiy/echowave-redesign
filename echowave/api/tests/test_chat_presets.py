@@ -58,7 +58,7 @@ class TestApplyingOne:
 
     def test_a_bot_on_the_default_gets_a_managed_stack_with_that_brain(self):
         out = chat_presets.apply({}, "deep")
-        assert out[KEY]["stack"]["llm"]["model"] == "accurate"
+        assert out[KEY]["stack"]["llm"]["model"] == "advanced"
         assert out[KEY]["stack"]["llm"]["provider"] == "decibyl"
 
     def test_nothing_chosen_changes_nothing(self):
@@ -183,10 +183,10 @@ class TestMoreModels:
         )
 
     def test_a_named_model_pins_that_vendor_on_our_key(self):
-        out = chat_presets.apply({}, "model:anthropic/claude-sonnet-5")
+        out = chat_presets.apply({}, "model:anthropic/claude-sonnet-5-5")
         assert out[KEY]["stack"]["llm"] == {
             "provider": "anthropic",
-            "model": "claude-sonnet-5",
+            "model": "claude-sonnet-5-5",
             "api_key": "",
             "use_platform_key": True,
         }
@@ -241,7 +241,7 @@ class TestDecibylHonoursTheChoice:
         from api.services.agent_builder import settings
 
         with (
-            patch.dict("os.environ", {"MANAGED_LLM_ACCURATE": "openai:gpt-4.1"}),
+            patch.dict("os.environ", {"MANAGED_LLM_ADVANCED": "openai:gpt-4.1"}),
             patch(
                 "api.services.agent_builder.settings.platform_credentials.resolve_api_key",
                 new=AsyncMock(return_value="sk"),
@@ -262,9 +262,9 @@ class TestDecibylHonoursTheChoice:
             new=AsyncMock(return_value="sk"),
         ):
             model = await settings.resolve_choice(
-                object(), "model:anthropic/claude-opus-5"
+                object(), "model:anthropic/claude-opus-5-5"
             )
-        assert (model.provider, model.model) == ("anthropic", "claude-opus-5")
+        assert (model.provider, model.model) == ("anthropic", "claude-opus-5-5")
 
     async def test_a_vendor_the_builder_cannot_drive_falls_back(self):
         from api.services.agent_builder import settings

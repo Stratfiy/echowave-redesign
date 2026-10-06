@@ -1,31 +1,12 @@
 """Set up logging before importing anything else"""
 
-import sentry_sdk
-
-from api.constants import (
-    CORS_ALLOWED_ORIGINS,
-    DEPLOYMENT_MODE,
-    ENABLE_TELEMETRY,
-    PUBLIC_BASE_URL,
-    SENTRY_DSN,
-)
-from api.logging_config import ENVIRONMENT, setup_logging
-from api.utils.sentry_scrub import scrub_event
+from api.constants import CORS_ALLOWED_ORIGINS, DEPLOYMENT_MODE, PUBLIC_BASE_URL
+from api.logging_config import setup_logging
+from api.observability import sentry
 
 # Set up logging and get the listener for cleanup
 setup_logging()
-
-
-if SENTRY_DSN and (
-    DEPLOYMENT_MODE != "oss" or (DEPLOYMENT_MODE == "oss" and ENABLE_TELEMETRY)
-):
-    sentry_sdk.init(
-        dsn=SENTRY_DSN,
-        send_default_pii=False,
-        before_send=scrub_event,
-        environment=ENVIRONMENT,
-    )
-    print(f"Sentry initialized in environment: {ENVIRONMENT}")
+sentry.init("api")
 
 
 from contextlib import asynccontextmanager

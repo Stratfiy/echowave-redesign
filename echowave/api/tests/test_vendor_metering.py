@@ -382,5 +382,7 @@ class TestManagedRealtimeWithoutOpenAI:
 
     def test_the_other_components_are_untouched(self, monkeypatch):
         monkeypatch.setattr(constants, "MANAGED_REALTIME_GEMINI_ONLY_ENABLED", True)
-        assert managed_tiers.resolve(CostComponent.LLM, "default").provider == "openai"
+        assert (
+            managed_tiers.resolve(CostComponent.LLM, "default").provider == "anthropic"
+        )
         assert managed_tiers.resolve(CostComponent.TTS, "default").provider == "sarvam"

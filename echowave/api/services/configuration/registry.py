@@ -589,6 +589,8 @@ FIREWORKS_MODELS = [
 #: exist rather than an older snapshot.
 ANTHROPIC_MODELS = [
     "claude-haiku-4-5",
+    "claude-sonnet-5-5",
+    "claude-opus-5-5",
     "claude-sonnet-5",
     "claude-opus-5",
     "claude-sonnet-4-6",
