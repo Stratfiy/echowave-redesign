@@ -1,362 +1,265 @@
 "use client";
 
-import {
-  AlertTriangle,
-  ChevronRight,
-  Copy,
-  ExternalLink,
-  Pencil,
-  Plus,
-  Star,
-  Trash2,
-} from "lucide-react";
+import { ChevronDown, Plus } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
-  deleteTelephonyConfigurationApiV1OrganizationsTelephonyConfigsConfigIdDelete,
-  getTelephonyConfigurationByIdApiV1OrganizationsTelephonyConfigsConfigIdGet,
+  getWorkflowsSummaryApiV1WorkflowSummaryGet,
+  listNumbersApiV1VerifiedNumbersGet,
+  listPhoneNumbersApiV1OrganizationsTelephonyConfigsConfigIdPhoneNumbersGet,
   listTelephonyConfigurationsApiV1OrganizationsTelephonyConfigsGet,
-  setDefaultOutboundApiV1OrganizationsTelephonyConfigsConfigIdSetDefaultOutboundPost,
+  updatePhoneNumberApiV1OrganizationsTelephonyConfigsConfigIdPhoneNumbersPhoneNumberIdPut,
 } from "@/client/sdk.gen";
-import type {
-  TelephonyConfigurationDetail,
-  TelephonyConfigurationListItem,
-} from "@/client/types.gen";
+import type { PhoneNumberResponse, TelephonyConfigurationListItem, VerifiedNumber } from "@/client/types.gen";
+import { AgentAvatar } from "@/components/avatar/AgentAvatar";
+import { faceOf } from "@/components/avatar/avatar";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
-import { TELEPHONY_TABS } from "@/components/layout/SectionTabs";
-import { ConfigFormDialog } from "@/components/telephony/ConfigFormDialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
+import { CarriersSection } from "@/components/telephony/CarriersSection";
+import { type NumberRow, numberRows, type NumberUse } from "@/components/telephony/numberRows";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useTelephonyConfigWarnings } from "@/context/TelephonyConfigWarningsContext";
-import { detailFromResult } from "@/lib/apiError";
+import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
+import { cn } from "@/lib/utils";
 
-export default function TelephonyConfigurationsPage() {
-  const { user, getAccessToken, loading: authLoading } = useAuth();
-  const {
-    telnyxMissingWebhookPublicKeyCount,
-    vonageMissingSignatureSecretCount,
-    refresh: refreshWarnings,
-  } = useTelephonyConfigWarnings();
-  const [items, setItems] = useState<TelephonyConfigurationListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<TelephonyConfigurationDetail | null>(
-    null,
-  );
-  const [editOpen, setEditOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] =
-    useState<TelephonyConfigurationListItem | null>(null);
+type Agent = { id: number; name: string };
 
-  const fetchItems = useCallback(async () => {
-    if (authLoading || !user) return;
-    setLoading(true);
-    try {
-      const token = await getAccessToken();
-      const res = await listTelephonyConfigurationsApiV1OrganizationsTelephonyConfigsGet(
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      if (res.error) throw new Error(detailFromResult(res));
-      setItems(res.data?.configurations ?? []);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load configurations");
-    } finally {
-      setLoading(false);
+const STATUS_LABEL: Record<NumberRow["status"], string> = {
+  live: "Live",
+  paused: "Paused",
+  checking: "Checking",
+  released: "Released",
+};
+
+/**
+ * Settings -> Phone numbers: every number the workspace has, on one list,
+ * each with a chip saying who uses it. Tap the chip to change who answers.
+ * Bought numbers, your own carrier's numbers and your verified caller IDs
+ * used to be three pages; carriers themselves are the section below.
+ */
+export default function PhoneNumbersPage() {
+  const { user, loading: authLoading } = useAuth();
+  const [configs, setConfigs] = useState<TelephonyConfigurationListItem[]>([]);
+  const [numbers, setNumbers] = useState<Record<number, PhoneNumberResponse[]>>({});
+  const [verified, setVerified] = useState<VerifiedNumber[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [state, setState] = useState<"loading" | "ready" | "failed">("loading");
+  const started = useRef(false);
+
+  const load = useCallback(async () => {
+    const listed = await listTelephonyConfigurationsApiV1OrganizationsTelephonyConfigsGet();
+    if (listed.error) {
+      setState("failed");
+      return;
     }
-  }, [authLoading, user, getAccessToken]);
-
-  // After a save (create/update), webhook-verification warning state may have
-  // changed — refresh the cached warning state so the page banner and nav badge
-  // update without a manual reload.
-  const onSaved = useCallback(async () => {
-    await fetchItems();
-    await refreshWarnings();
-  }, [fetchItems, refreshWarnings]);
+    const items = listed.data?.configurations ?? [];
+    const pairs = await Promise.all(
+      items.map(async (config) => {
+        const res = await listPhoneNumbersApiV1OrganizationsTelephonyConfigsConfigIdPhoneNumbersGet({
+          path: { config_id: config.id },
+        });
+        return [config.id, res.data?.phone_numbers ?? []] as const;
+      }),
+    );
+    const [verifiedRes, agentsRes] = await Promise.all([
+      listNumbersApiV1VerifiedNumbersGet(),
+      getWorkflowsSummaryApiV1WorkflowSummaryGet({ query: { status: "active" } }),
+    ]);
+    setConfigs(items);
+    setNumbers(Object.fromEntries(pairs));
+    setVerified((verifiedRes.data as VerifiedNumber[] | undefined) ?? []);
+    setAgents((agentsRes.data ?? []).map((w) => ({ id: w.id, name: w.name })));
+    setState("ready");
+  }, []);
 
   useEffect(() => {
-    fetchItems();
-  }, [fetchItems]);
+    if (authLoading || !user || started.current) return;
+    started.current = true;
+    void load();
+  }, [authLoading, user, load]);
 
-  const onEdit = async (item: TelephonyConfigurationListItem) => {
-    try {
-      const token = await getAccessToken();
-      const res = await getTelephonyConfigurationByIdApiV1OrganizationsTelephonyConfigsConfigIdGet(
-        {
-          headers: { Authorization: `Bearer ${token}` },
-          path: { config_id: item.id },
-        },
-      );
-      if (res.error) throw new Error(detailFromResult(res));
-      setEditTarget(res.data ?? null);
-      setEditOpen(true);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load configuration");
-    }
-  };
+  const names = useMemo(() => new Map(agents.map((a) => [a.id, a.name])), [agents]);
+  const rows = useMemo(
+    () =>
+      numberRows(configs, numbers, verified).map((row) => ({
+        ...row,
+        uses: row.uses.map((use) =>
+          use.kind === "answers" || use.kind === "calls_back" ? { ...use, name: names.get(use.workflowId) ?? use.name } : use,
+        ),
+      })),
+    [configs, numbers, verified, names],
+  );
 
-  const onSetDefault = async (item: TelephonyConfigurationListItem) => {
-    try {
-      const token = await getAccessToken();
-      const res = await setDefaultOutboundApiV1OrganizationsTelephonyConfigsConfigIdSetDefaultOutboundPost(
-        {
-          headers: { Authorization: `Bearer ${token}` },
-          path: { config_id: item.id },
-        },
-      );
-      if (res.error) throw new Error(detailFromResult(res));
-      toast.success(`${item.name} is now the default outbound configuration`);
-      fetchItems();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to set default");
+  const assign = async (row: NumberRow, workflowId: number | null) => {
+    if (!row.configId || !row.phoneNumberId) return;
+    const res = await updatePhoneNumberApiV1OrganizationsTelephonyConfigsConfigIdPhoneNumbersPhoneNumberIdPut({
+      path: { config_id: row.configId, phone_number_id: row.phoneNumberId },
+      body: workflowId === null ? { clear_inbound_workflow: true } : { inbound_workflow_id: workflowId },
+    });
+    if (res.error) {
+      toast.error(detailFromError(res.error, "Could not change who answers this number"));
+      return;
     }
-  };
-
-  const onConfirmDelete = async () => {
-    if (!deleteTarget) return;
-    try {
-      const token = await getAccessToken();
-      const res = await deleteTelephonyConfigurationApiV1OrganizationsTelephonyConfigsConfigIdDelete(
-        {
-          headers: { Authorization: `Bearer ${token}` },
-          path: { config_id: deleteTarget.id },
-        },
-      );
-      if (res.error) throw new Error(detailFromResult(res));
-      toast.success("Configuration deleted");
-      setDeleteTarget(null);
-      fetchItems();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete configuration");
-    }
+    toast.success(
+      workflowId === null ? `Nobody answers ${row.address} now` : `${names.get(workflowId) ?? "The agent"} answers ${row.address} now`,
+    );
+    void load();
   };
 
   return (
-    <div className="min-h-screen">
+    <>
       <PageHeader
-        tabs={TELEPHONY_TABS}
-        title="Your numbers"
-        description={
-          <>
-            Your own carrier accounts, if you bring one. Calls go out through the
-            carrier you pick, and calls to a carrier&apos;s numbers come in through it.{" "}
-            <a
-              href="https://docs.decibyl.ai/integrations/telephony/overview"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-0.5 underline"
-            >
-              Learn more <ExternalLink className="h-3 w-3" />
-            </a>
-          </>
-        }
+        title="Phone numbers"
+        description="Every number you have, and who uses it. Tap who answers a number to change it."
         actions={
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" /> Add configuration
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="rounded-full">
+                <Plus className="mr-1.5 h-4 w-4" /> Add a number
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem asChild>
+                <Link href="/numbers">Buy a number</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href="#carriers">Bring your own carrier</a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/verified-numbers">Verify a caller ID</Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         }
       />
-      <PageBody>
-
-        {telnyxMissingWebhookPublicKeyCount > 0 && (
-          <div className="mb-6 rounded-md border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
-              <div className="space-y-1 text-sm">
-                <p className="font-medium">Webhook public key not configured</p>
-                <p>
-                  {telnyxMissingWebhookPublicKeyCount === 1
-                    ? "1 Telnyx configuration is"
-                    : `${telnyxMissingWebhookPublicKeyCount} Telnyx configurations are`}{" "}
-                  missing a webhook public key. Without it, Telnyx call status
-                  updates and inbound calls are being rejected. Copy your
-                  public key from{" "}
-                  <span className="whitespace-nowrap">
-                    Mission Control Portal → Keys &amp; Credentials → Public Key
-                  </span>{" "}
-                  and paste it into the affected Telnyx configuration below.
-                </p>
-              </div>
+      <PageBody className="max-w-4xl space-y-10">
+        <section aria-label="Your numbers">
+          {state === "loading" && (
+            <div className="space-y-3">
+              <Skeleton className="h-14 w-full" />
+              <Skeleton className="h-14 w-full" />
             </div>
-          </div>
-        )}
-
-        {vonageMissingSignatureSecretCount > 0 && (
-          <div className="mb-6 rounded-md border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
-              <div className="space-y-1 text-sm">
-                <p className="font-medium">Signature secret not configured</p>
-                <p>
-                  {vonageMissingSignatureSecretCount === 1
-                    ? "1 Vonage configuration is"
-                    : `${vonageMissingSignatureSecretCount} Vonage configurations are`}{" "}
-                  missing a signature secret. Without it, Vonage signed webhooks
-                  are rejected, so inbound calls and call status updates will not
-                  work. Copy the signature secret from your Vonage account and
-                  paste it into the affected Vonage configuration below.
-                </p>
-              </div>
+          )}
+          {state === "failed" && <p className="text-sm text-muted-foreground">Could not load your numbers. Refresh to try again.</p>}
+          {state === "ready" && rows.length === 0 && (
+            <div className="rounded-2xl bg-[var(--paper-2)] p-6 text-sm">
+              <p className="font-medium">No number yet.</p>
+              <p className="mt-1 text-muted-foreground">
+                Your agents still work on chat, WhatsApp and the web. Add a number when one should take calls.
+              </p>
             </div>
-          </div>
-        )}
-
-        {loading ? (
-          <div className="grid gap-3">
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-24 w-full" />
-          </div>
-        ) : items.length === 0 ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>No carrier connected yet</CardTitle>
-              <CardDescription>
-                Connect one to make and take calls on numbers you already own. Or get a number from us instead.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button onClick={() => setCreateOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" /> Add configuration
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-3">
-            {items.map((item) => (
-              <Card key={item.id}>
-                <CardContent className="flex flex-col gap-4 py-4 sm:flex-row sm:items-center">
-                  <Link
-                    href={`/telephony-configurations/${item.id}`}
-                    className="flex flex-1 items-center gap-4 min-w-0"
-                  >
-                    <div className="flex flex-col gap-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium truncate">{item.name}</span>
-                        <Badge variant="secondary">{item.provider}</Badge>
-                        {item.is_default_outbound && (
-                          <Badge className="gap-1">
-                            <Star className="h-3 w-3 fill-current" />
-                            Default
-                          </Badge>
-                        )}
-                      </div>
-                      <span className="text-sm text-muted-foreground">
-                        {item.phone_number_count} phone{" "}
-                        {item.phone_number_count === 1 ? "number" : "numbers"}
+          )}
+          {state === "ready" && rows.length > 0 && (
+            <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)]" data-testid="number-list">
+              {rows.map((row) => (
+                <li key={row.key} className="flex flex-col gap-3 py-3.5 sm:flex-row sm:items-center sm:gap-4">
+                  <div className="w-56 shrink-0">
+                    <div className="text-[15px] tabular-nums">{row.address}</div>
+                    <div className="text-[13px] text-muted-foreground">
+                      {row.type} ·{" "}
+                      <span className={cn(row.status === "live" && "text-[var(--live)]", row.status === "checking" && "text-[var(--haldi)]")}>
+                        {STATUS_LABEL[row.status]}
                       </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          navigator.clipboard
-                            .writeText(String(item.id))
-                            .then(() => toast.success("Configuration ID copied"))
-                            .catch(() => toast.error("Failed to copy ID"));
-                        }}
-                        title="Click to copy"
-                        className="inline-flex items-center gap-1 self-start rounded font-mono text-xs text-muted-foreground hover:text-foreground"
-                      >
-                        <span className="truncate">Configuration ID: {item.id}</span>
-                        <Copy className="h-3 w-3 shrink-0" />
-                      </button>
                     </div>
-                  </Link>
-                  <div className="flex w-full flex-wrap items-center justify-end gap-1 sm:w-auto sm:flex-nowrap">
-                    {!item.is_default_outbound && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onSetDefault(item)}
-                        title="Set as default outbound"
-                      >
-                        <Star className="h-4 w-4" />
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onEdit(item)}
-                      title="Edit"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setDeleteTarget(item)}
-                      title="Delete"
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                    <Button variant="outline" size="sm" asChild>
-                      <Link
-                        href={`/telephony-configurations/${item.id}`}
-                        aria-label={`Manage phone numbers for ${item.name}`}
-                      >
-                        Manage Phone Numbers
-                        <ChevronRight className="h-4 w-4" />
-                      </Link>
-                    </Button>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+                  <div className="flex flex-1 flex-wrap gap-1.5">
+                    {row.uses.map((use, i) => (
+                      <UseChip key={`${use.kind}-${i}`} row={row} use={use} agents={agents} onAssign={assign} />
+                    ))}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <CarriersSection onChanged={() => void load()} />
       </PageBody>
+    </>
+  );
+}
 
-      <ConfigFormDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        existing={null}
-        onSaved={onSaved}
-      />
-      <ConfigFormDialog
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        existing={editTarget}
-        onSaved={onSaved}
-      />
+const CHIP = "inline-flex h-[34px] items-center gap-1.5 rounded-full pl-1.5 pr-2.5 text-sm";
 
-      <AlertDialog
-        open={!!deleteTarget}
-        onOpenChange={(o) => !o && setDeleteTarget(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete configuration?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {deleteTarget?.name} and all of its phone numbers will be removed. Any
-              campaigns that reference this configuration will block the deletion until
-              they are reassigned.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={onConfirmDelete}>Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+function UseChip({
+  row,
+  use,
+  agents,
+  onAssign,
+}: {
+  row: NumberRow;
+  use: NumberUse;
+  agents: Agent[];
+  onAssign: (row: NumberRow, workflowId: number | null) => void;
+}) {
+  if (use.kind === "test_only") {
+    return <span className={cn(CHIP, "bg-[var(--paper-2)] pl-3 text-muted-foreground")}>Test calls only</span>;
+  }
+  if (use.kind === "calls_out") {
+    return <span className={cn(CHIP, "bg-[var(--paper-2)] pl-3")}>Calls go out from here</span>;
+  }
+  if (use.kind === "calls_back") {
+    return (
+      <span className={cn(CHIP, "bg-[var(--paper-2)]")}>
+        <AgentAvatar avatar={faceOf(use.workflowId, null)} size={22} animate={false} />
+        {use.name}
+        <span className="text-xs text-muted-foreground">calls back</span>
+      </span>
+    );
+  }
+  const changeable = Boolean(row.configId && row.phoneNumberId);
+  const label = use.kind === "answers" ? `${use.name} answers ${row.address}. Change who answers` : `Nobody answers ${row.address}. Choose who answers`;
+  const chip =
+    use.kind === "answers" ? (
+      <>
+        <AgentAvatar avatar={faceOf(use.workflowId, null)} size={22} animate={false} />
+        {use.name}
+        <span className="text-xs text-muted-foreground">answers</span>
+      </>
+    ) : (
+      <span className="pl-1.5 text-muted-foreground">Not in use</span>
+    );
+  if (!changeable) return <span className={cn(CHIP, "bg-[var(--paper-2)]")}>{chip}</span>;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          className={cn(
+            CHIP,
+            "transition-colors",
+            use.kind === "answers" ? "bg-[var(--paper-2)] hover:bg-[var(--line)]" : "border border-dashed border-black/20 bg-transparent hover:bg-[var(--paper-2)] dark:border-white/20",
+          )}
+        >
+          {chip}
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="max-h-80 w-60 overflow-y-auto">
+        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Who answers this number?</DropdownMenuLabel>
+        {agents.map((agent) => (
+          <DropdownMenuItem key={agent.id} onClick={() => onAssign(row, agent.id)} className="gap-2.5">
+            <AgentAvatar avatar={faceOf(agent.id, null)} size={22} animate={false} />
+            {agent.name}
+          </DropdownMenuItem>
+        ))}
+        {agents.length === 0 && <DropdownMenuItem disabled>No agents yet</DropdownMenuItem>}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => onAssign(row, null)} disabled={use.kind === "unused"}>
+          Nobody
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
