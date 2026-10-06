@@ -26,6 +26,7 @@ import {
 } from "@/client/sdk.gen";
 import type { Headline, Opener, Suggestion } from "@/client/types.gen";
 import { ArtImage } from "@/components/art/Art3D";
+import { AgentAvatar } from "@/components/avatar/AgentAvatar";
 import { type ChannelBot, ChannelComposer } from "@/components/channel/ChannelComposer";
 import { ChannelStream } from "@/components/channel/ChannelStream";
 import { ThreadList } from "@/components/home/ThreadList";
@@ -115,6 +116,9 @@ function Chip({ chip }: { chip: Suggestion }) {
     </Link>
   );
 }
+
+/** Decibyl's own face on the hello: a plain round body in the brand's teal. */
+const DECIBYL_FACE = { shape: "cercle", color: "turquoise", expression: "neutre" };
 
 export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   const { user, loading: authLoading } = useAuth();
@@ -262,25 +266,23 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
       >
       {empty && (
       <div className="flex shrink-0 flex-col items-center px-2 pb-6 text-center">
-        {/* The real mark, on a round tile with a soft grey halo: the
-            greeting's face. */}
-        <div
-          aria-hidden="true"
-          data-testid="decibyl-mark"
-          className="mt-1.5 flex h-[72px] w-[72px] items-center justify-center rounded-full border border-border bg-card shadow-[0_0_0_6px_var(--muted),0_10px_30px_-8px_rgba(0,0,0,0.25)]"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/decibyl-mark.svg" alt="" width={56} height={56} className="h-14 w-14" />
+        {/* Grok's first screen: the assistant's own face, alive -- it
+            blinks, drifts and looks at your cursor -- then one line of
+            hello. Decibyl's face is the same engine as the agents' faces
+            (src/lib/bloub), in the brand's teal. */}
+        <div data-testid="decibyl-mark">
+          <AgentAvatar avatar={DECIBYL_FACE} size={128} follow label="Decibyl" />
         </div>
-        <h2 className="mt-5 text-3xl font-semibold tracking-tight sm:text-4xl">
-          Hi, I&apos;m Decibyl!
-        </h2>
-        <p className="mt-2 max-w-lg text-[15px] text-muted-foreground">
+        <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
           {greeting}
-          {firstName ? `, ${firstName}` : ""}.{" "}
+          {firstName ? `, ${firstName}` : ""}.
+        </h2>
+        <p className="mt-2 max-w-md text-[15px] text-muted-foreground">
           {brandNew
-            ? "Say hi, or tell me one thing you'd love off your plate this week. I'll set up an agent for it and you can hear it in a minute."
-            : `${headline ? summarise(headline, span) : ""} I know your agents, your numbers and your company's documents.`}
+            ? "Tell me one thing you'd love off your plate. I'll set up an agent for it, and you can hear it in a minute."
+            : headline
+              ? summarise(headline, span)
+              : "What can I do for you?"}
         </p>
       </div>
       )}

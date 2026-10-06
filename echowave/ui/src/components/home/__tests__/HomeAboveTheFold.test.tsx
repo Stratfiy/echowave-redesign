@@ -59,7 +59,7 @@ describe("home is Decibyl's thread", () => {
         seen.rows = 4;
         api.home.mockResolvedValue({ data: { hours: 24, headline, suggestions: [], members: [] } });
         render(<HomeAboveTheFold firstName="Nithish" />);
-        await waitFor(() => expect(screen.queryByText(/Hi, I'm Decibyl/)).toBeNull());
+        await waitFor(() => expect(screen.queryByTestId("decibyl-mark")).toBeNull());
         expect(screen.queryByRole("button", { name: "What happened this week?" })).toBeNull();
         expect(await screen.findByText(/9 calls today/)).toBeTruthy();
         expect(screen.getByTestId("composer")).toBeTruthy();
@@ -68,7 +68,9 @@ describe("home is Decibyl's thread", () => {
     it("says hello with the numbers, and mounts the thread and composer in assistant mode", async () => {
         api.home.mockResolvedValue({ data: { hours: 24, headline, suggestions: [], members: [] } });
         render(<HomeAboveTheFold firstName="Nithish" />);
-        expect(await screen.findByText(/Hi, I'm Decibyl/)).toBeTruthy();
+        // Grok's hello: the face, then the greeting with the name.
+        expect(await screen.findByRole("img", { name: "Decibyl" })).toBeTruthy();
+        expect(screen.getByRole("heading", { name: /, Nithish\./ })).toBeTruthy();
         expect(await screen.findByText(/9 calls today, 6 answered, 2 finished/)).toBeTruthy();
         expect(screen.getByTestId("stream")).toBeTruthy();
         expect(screen.getByTestId("composer")).toBeTruthy();
@@ -150,7 +152,8 @@ describe("home is Decibyl's thread", () => {
     it("still says hello when the numbers fail to load", () => {
         api.home.mockResolvedValue({ error: { detail: "boom" } });
         render(<HomeAboveTheFold />);
-        expect(screen.getByText(/Hi, I'm Decibyl/)).toBeTruthy();
+        expect(screen.getByRole("img", { name: "Decibyl" })).toBeTruthy();
+        expect(screen.getByText("What can I do for you?")).toBeTruthy();
         expect(screen.getByTestId("composer")).toBeTruthy();
     });
 });
