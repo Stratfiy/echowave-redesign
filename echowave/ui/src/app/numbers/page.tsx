@@ -427,7 +427,7 @@ function BuyNumber() {
                     </p>
                     <div className="mt-5 flex justify-center gap-2">
                         <Button asChild>
-                            <Link href="/telephony-configurations">
+                            <Link href="/settings/phone-number">
                                 Set up routing
                             </Link>
                         </Button>

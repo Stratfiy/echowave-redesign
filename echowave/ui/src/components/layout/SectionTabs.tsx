@@ -54,12 +54,12 @@ export const CALLS_TABS: PageTab[] = [
 ];
 
 export const KNOWLEDGE_TABS: PageTab[] = [
-  { href: "/files", label: "Documents", prefix: true },
+  { href: "/settings/knowledge", label: "Documents", prefix: true },
   { href: "/recordings", label: "Audio clips", prefix: true },
 ];
 
 export const COMPLIANCE_TABS: PageTab[] = [
-  { href: "/privacy", label: "Privacy", prefix: true },
+  { href: "/settings/compliance", label: "Privacy", prefix: true },
   { href: "/do-not-call", label: "Do not call", prefix: true },
 ];
 
@@ -99,7 +99,7 @@ export const TELEPHONY_TABS: PageTab[] = [
   // Named for what it holds, which is what the page has always been titled:
   // "Carriers & numbers" on the tab against "Phone numbers" on the screen
   // meant the strip and the heading disagreed about where you were.
-  { href: "/telephony-configurations", label: "Your numbers", prefix: true },
+  { href: "/settings/phone-number", label: "Your numbers", prefix: true },
   { href: "/verified-numbers", label: "Test numbers", prefix: true },
 ];
 
@@ -112,7 +112,7 @@ export const DEVELOPER_TABS: PageTab[] = [
   // read "API keys & SDKs" and "API & webhooks" while the second page called
   // itself Connect, so the row, the tab and the heading were three names for
   // two things.
-  { href: "/api-keys", label: "API keys", prefix: true },
+  { href: "/settings/developer", label: "API keys", prefix: true },
   { href: "/deploy/connect", label: "Connect", prefix: true },
 ];
 

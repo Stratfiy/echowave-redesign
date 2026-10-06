@@ -47,4 +47,4 @@ class TestErasureCompleted:
         assert "1 call and 2 recording or transcript files" in notice.body
         assert "cannot be undone" in notice.body
         assert notice.dedupe_key == "erasure:9"
-        assert notice.link == "/privacy"
+        assert notice.link == "/settings/compliance"

@@ -17,7 +17,7 @@ describe("activeHome", () => {
     expect(activeHome(path)).toBe(home);
   });
 
-  it.each(["/settings", "/billing", "/files", "/company", "/numbers"])("puts %s under Settings", (path) => {
+  it.each(["/settings", "/billing", "/settings/knowledge", "/settings/company", "/numbers"])("puts %s under Settings", (path) => {
     expect(activeHome(path)).toBe("settings");
   });
 

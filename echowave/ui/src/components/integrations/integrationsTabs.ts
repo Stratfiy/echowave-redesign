@@ -27,9 +27,9 @@ export function useIntegrationsTabs(): PageTab[] {
   return [
     // The app catalogue is the Marketplace's Integrations tab now; what is
     // left here is what this account has rather than what it could add.
-    { href: "/tools", label: "Your tools", prefix: true },
+    { href: "/settings/apps", label: "Your tools", prefix: true },
     // Exact match, or a sub-route would light this as well as itself.
-    ...(ownKeysAllowed ? [{ href: "/integrations", label: "Providers" }] : []),
+    ...(ownKeysAllowed ? [{ href: "/settings/api-keys", label: "Providers" }] : []),
     ...(dialer ? [{ href: "/integrations/dialer", label: "Dialer" }] : []),
   ];
 }

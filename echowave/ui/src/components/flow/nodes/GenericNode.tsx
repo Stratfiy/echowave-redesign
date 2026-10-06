@@ -208,7 +208,7 @@ function TriggerWebhookUrls({ endpoints }: { endpoints: TriggerEndpoints }) {
                 publishing. Production runs the published agent. Both require an
                 API key in the X-API-Key header.{" "}
                 <Link
-                    href="/api-keys"
+                    href="/settings/developer"
                     target="_blank"
                     className="text-primary underline hover:no-underline"
                 >

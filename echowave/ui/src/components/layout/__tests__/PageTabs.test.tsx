@@ -23,7 +23,7 @@ const current = () =>
 
 describe("the section strip", () => {
     it("lights the tab you are on", () => {
-        path.value = "/telephony-configurations";
+        path.value = "/settings/phone-number";
         render(<PageTabs tabs={TELEPHONY_TABS} />);
         expect(current()).toBe("Your numbers");
     });

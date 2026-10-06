@@ -9,7 +9,6 @@ import { DecibylAppsSection } from "@/components/DecibylAppsSection";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { MCPSection } from "@/components/MCPSection";
 import { MfaSection } from "@/components/MfaSection";
-import { OrganizationMembersSection } from "@/components/OrganizationMembersSection";
 import { OrganizationPreferencesSection } from "@/components/OrganizationPreferencesSection";
 import { TelemetrySection } from "@/components/TelemetrySection";
 import { ThemeModeSection } from "@/components/ThemeModeSection";
@@ -33,8 +32,8 @@ export default function SettingsPage() {
   return (
     <UnsavedChangesProvider>
       <PageHeader
-        title="Settings"
-        description="Manage your platform configuration and integrations."
+        title="General"
+        description="Your workspace's defaults, how the app looks, and how you sign in."
       />
       {/* Two columns from lg up. As a single max-w-2xl column this page put a
           670px stack of cards in the middle of a 1190px content area and left
@@ -82,18 +81,6 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
         )}
-
-        <Card id="team" className="scroll-mt-4">
-          <CardHeader>
-            <CardTitle>Team</CardTitle>
-            <CardDescription>
-              Who has access to this organization, and what they can do.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <OrganizationMembersSection />
-          </CardContent>
-        </Card>
 
         {approvals && (
           <Card>

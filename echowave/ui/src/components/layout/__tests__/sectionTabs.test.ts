@@ -69,13 +69,13 @@ describe("section tabs", () => {
   it("puts the two developer screens a tab apart", () => {
     // They were two sidebar rows that reached each other only through a
     // button in the corner of one of them.
-    expect(DEVELOPER_TABS.map((tab) => tab.href)).toEqual(["/api-keys", "/deploy/connect"]);
+    expect(DEVELOPER_TABS.map((tab) => tab.href)).toEqual(["/settings/developer", "/deploy/connect"]);
   });
 
   it("keeps the phone strip in the order the work happens", () => {
     expect(TELEPHONY_TABS.map((tab) => tab.href)).toEqual([
       "/numbers",
-      "/telephony-configurations",
+      "/settings/phone-number",
       "/verified-numbers",
     ]);
   });

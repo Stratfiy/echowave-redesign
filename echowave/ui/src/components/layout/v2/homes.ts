@@ -66,15 +66,14 @@ export const HOMES: readonly Home[] = [
     activePaths: [
       "/billing",
       "/tools",
+      "/integrations",
       "/marketplace",
-      "/privacy",
-      "/api-keys",
       "/deploy",
+      "/do-not-call",
+      "/recordings",
       "/telephony-configurations",
       "/numbers",
       "/verified-numbers",
-      "/files",
-      "/company",
     ],
   },
 ];

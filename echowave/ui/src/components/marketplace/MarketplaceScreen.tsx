@@ -470,7 +470,7 @@ function ToolsShelf({ query }: { query: string }) {
                         <p className="text-sm">Nothing here does that yet.</p>
                         <p className="text-xs text-muted-foreground">
                             Build it as a{" "}
-                            <Link href="/tools" className="underline">
+                            <Link href="/settings/apps" className="underline">
                                 custom tool
                             </Link>
                             : any HTTP endpoint your business already has.
@@ -501,7 +501,7 @@ function ToolsShelf({ query }: { query: string }) {
                                 </p>
                             </div>
                             <Button asChild size="sm" variant="outline" className="shrink-0 rounded-full">
-                                <Link href={`/tools?library=${encodeURIComponent(tool.key)}`} aria-label={`Add ${tool.display_name}`}>
+                                <Link href={`/settings/apps?library=${encodeURIComponent(tool.key)}`} aria-label={`Add ${tool.display_name}`}>
                                     Add
                                 </Link>
                             </Button>
@@ -519,7 +519,7 @@ function ToolsShelf({ query }: { query: string }) {
                         </p>
                     </div>
                     <Button asChild size="sm" variant="outline">
-                        <Link href="/tools">Build a tool</Link>
+                        <Link href="/settings/apps">Build a tool</Link>
                     </Button>
                 </CardContent>
             </Card>
@@ -690,7 +690,7 @@ function IntegrationsShelf({ query }: { query: string }) {
                         <p className="text-sm">Nothing matches &ldquo;{query.trim()}&rdquo;.</p>
                         <p className="text-xs text-muted-foreground">
                             Build it as a{" "}
-                            <Link href="/tools" className="underline">
+                            <Link href="/settings/apps" className="underline">
                                 custom tool
                             </Link>
                             , or tell us and we will look at adding it.

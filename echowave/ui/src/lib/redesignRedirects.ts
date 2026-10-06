@@ -27,4 +27,16 @@ export const REDESIGN_REDIRECTS: RedesignRedirect[] = [
     { source: "/analytics/spend", destination: "/billing/spend" },
     { source: "/verification", destination: "/numbers?verify=1" },
     { source: "/workflow/archived", destination: "/workflow?show=archived" },
+
+    // Settings holds everything set up once and left alone (October 2026):
+    // each of these is a section of it now. Detail pages (/tools/:id,
+    // /channels/:id) stay where they were.
+    { source: "/tools", destination: "/settings/apps" },
+    { source: "/files", destination: "/settings/knowledge" },
+    { source: "/channels", destination: "/settings/channels" },
+    { source: "/company", destination: "/settings/company" },
+    { source: "/api-keys", destination: "/settings/developer" },
+    { source: "/privacy", destination: "/settings/compliance" },
+    { source: "/integrations", destination: "/settings/api-keys" },
+    { source: "/telephony-configurations", destination: "/settings/phone-number" },
 ];

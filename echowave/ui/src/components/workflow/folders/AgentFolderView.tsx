@@ -198,7 +198,7 @@ export function AgentFolderView({ workflows, folders }: AgentFolderViewProps) {
                     )}
                 </div>
                 <div className="flex gap-1" role="group" aria-label="Agent directory view">
-                    <Button asChild variant="ghost" size="sm"><Link href="/company">Org chart</Link></Button>
+                    <Button asChild variant="ghost" size="sm"><Link href="/settings/company">Org chart</Link></Button>
                     <Button variant={view === 'cards' ? 'secondary' : 'ghost'} size="sm" aria-pressed={view === 'cards'} onClick={() => setView('cards')}>Cards</Button>
                     <Button ref={listButton} variant={view === 'list' ? 'secondary' : 'ghost'} size="sm" aria-pressed={view === 'list'} onClick={() => setView('list')}>List</Button>
                 </div>

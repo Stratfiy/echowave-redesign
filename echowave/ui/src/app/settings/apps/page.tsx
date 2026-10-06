@@ -6,6 +6,15 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import {
+    createMcpDefinition,
+    createToolDefinition,
+    getCategoryConfig,
+    MCP_URL_PATTERN,
+    renderToolIcon,
+    TOOL_CATEGORIES,
+    type ToolCategory,
+} from "@/app/tools/config";
+import {
     createToolApiV1ToolsPost,
     deleteToolApiV1ToolsToolUuidDelete,
     listToolsApiV1ToolsGet,
@@ -50,16 +59,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { resolveBrowserBackendUrl } from "@/lib/apiClient";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
-
-import {
-    createMcpDefinition,
-    createToolDefinition,
-    getCategoryConfig,
-    MCP_URL_PATTERN,
-    renderToolIcon,
-    TOOL_CATEGORIES,
-    type ToolCategory,
-} from "./config";
 
 export default function ToolsPage() {
     const integrationsTabs = useIntegrationsTabs();

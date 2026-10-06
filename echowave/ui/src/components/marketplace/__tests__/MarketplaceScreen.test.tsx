@@ -151,8 +151,8 @@ describe("the tools shelf", () => {
         expect(await screen.findByText("Create a lead")).toBeTruthy();
         expect(screen.getByText("Look up an order")).toBeTruthy();
         expect(screen.getByRole("button", { name: /^Zoho CRM\s*1$/ })).toBeTruthy();
-        expect(screen.getByRole("link", { name: "Add Create a lead" }).getAttribute("href")).toBe("/tools?library=zoho-lead");
-        expect(screen.getByRole("link", { name: "Build a tool" }).getAttribute("href")).toBe("/tools");
+        expect(screen.getByRole("link", { name: "Add Create a lead" }).getAttribute("href")).toBe("/settings/apps?library=zoho-lead");
+        expect(screen.getByRole("link", { name: "Build a tool" }).getAttribute("href")).toBe("/settings/apps");
     });
 
     it("a vendor chip narrows the list", async () => {

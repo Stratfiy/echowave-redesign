@@ -8,6 +8,7 @@
  */
 import { describe, expect, it } from "vitest";
 
+import { SETTINGS_SECTIONS } from "../../settings/sections";
 import { getVisibleNavSections, SHELL_MANAGE, shellUrls, STAFF_SECTION, visibleShellManage } from "../navigation";
 
 const ALL = { isStaff: true, isOrganizationAdmin: true, isSuperadmin: true };
@@ -30,23 +31,24 @@ describe("the navigation", () => {
     });
 
     it("points only at destinations that exist", () => {
-        // Company, Channels and Studio have no legacy nav item.
+        // Settings' own sections and Studio have no legacy nav item.
         const known = new Set([
             ...getVisibleNavSections(ALL).flatMap((s) => s.items.map((i) => i.url)),
-            "/company",
-            "/channels",
+            ...SETTINGS_SECTIONS.map((section) => section.href),
             "/studio",
         ]);
         for (const url of shellUrls()) expect(known.has(url), url).toBe(true);
     });
 
-    it("keeps Manage to six entries", () => {
-        expect(SHELL_MANAGE.map((e) => e.title)).toEqual(["Workspace", "Marketplace", "Apps & tools", "Deploy", "Billing", "Settings"]);
+    it("keeps the account menu to what Settings does not hold", () => {
+        expect(SHELL_MANAGE.map((e) => e.title)).toEqual(["Marketplace", "Deploy", "Billing"]);
     });
 
-    it("reaches every page the rail used to hold", () => {
+    it("reaches every page the rail used to hold, through Settings", () => {
         const urls = new Set(shellUrls());
-        for (const url of ["/company", "/files", "/channels", "/settings"]) expect(urls.has(url), url).toBe(true);
+        for (const url of ["/settings/company", "/settings/knowledge", "/settings/channels", "/settings/team", "/settings"]) {
+            expect(urls.has(url), url).toBe(true);
+        }
     });
 
     it("shows a member the whole of it -- nothing here is admin-only today", () => {
@@ -55,7 +57,6 @@ describe("the navigation", () => {
 
     it("drops a page a role hides, and a group left with nothing", () => {
         const sections = [{ items: [{ title: "Billing", url: "/billing", icon: SHELL_MANAGE[0].icon }] }];
-        // Workspace stays: Company and Channels have no nav item for a role to hide.
-        expect(visibleShellManage(sections).map((e) => e.title)).toEqual(["Workspace", "Billing"]);
+        expect(visibleShellManage(sections).map((e) => e.title)).toEqual(["Billing"]);
     });
 });

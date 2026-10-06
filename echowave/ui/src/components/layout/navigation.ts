@@ -1,7 +1,6 @@
 import {
   Activity,
   Bot,
-  Building2,
   CalendarClock,
   Database,
   Flag,
@@ -25,6 +24,7 @@ import {
   Workflow,
 } from "lucide-react";
 
+import { SETTINGS_SECTIONS } from "../settings/sections";
 import { HOMES } from "./v2/homes";
 
 export type SidebarNavItem = {
@@ -241,7 +241,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         // documents and clips a bot reads -- rather than the category the
         // industry files them under.
         title: "Knowledge",
-        url: "/files",
+        url: "/settings/knowledge",
         activePaths: ["/recordings"],
         icon: Database,
         keywords: [
@@ -294,8 +294,8 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       // the same list under a second name.
       {
         title: "Your tools",
-        url: "/tools",
-        activePaths: ["/integrations", "/provider-keys"],
+        url: "/settings/apps",
+        activePaths: ["/tools", "/integrations", "/provider-keys"],
         icon: KeyRound,
         keywords: [
           "byok",
@@ -350,7 +350,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
     items: [
       {
         title: "Phone numbers",
-        url: "/telephony-configurations",
+        url: "/settings/phone-number",
         activePaths: ["/numbers", "/verified-numbers"],
         icon: Phone,
         showsTelephonyWarning: true,
@@ -445,7 +445,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         // row beginning with the same word, and a panel where two of four
         // rows start "API" is a panel somebody reads twice.
         title: "API keys",
-        url: "/api-keys",
+        url: "/settings/developer",
         icon: Key,
         keywords: ["api", "sdk", "mcp", "token"],
       },
@@ -484,7 +484,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       // — the rights of the people being called — so they share a door.
       {
         title: "Compliance",
-        url: "/privacy",
+        url: "/settings/compliance",
         activePaths: ["/do-not-call"],
         icon: Shield,
         keywords: [
@@ -531,48 +531,27 @@ export type ShellEntry = {
 };
 
 /**
- * Everything the rail's homes do not name, in the account menu at the foot
- * of the rail (AppRailV2's AccountMenu): the workspace (company, knowledge,
- * channels), the shop, apps and tools, the deploy screens, billing and
- * settings with the team and compliance.
+ * What neither the rail's homes nor Settings' sections hold, in the account
+ * menu at the foot of the rail (AppRailV2's AccountMenu): the shop, the
+ * deploy screens and billing. Everything set up once and left alone is a
+ * section of Settings (components/settings/sections.ts).
  *
  * Urls, never copies of items: titles, icons and roles still come from
  * NAV_SECTIONS, and the reachability test (shellNavigation.test.ts) fails if
  * a new nav item is placed on neither the rail nor this menu.
  */
 export const SHELL_MANAGE: ShellEntry[] = [
-  {
-    title: "Workspace",
-    icon: Building2,
-    children: [
-      { url: "/company", title: "Company" },
-      { url: "/files", title: "Knowledge" },
-      { url: "/channels", title: "Channels" },
-    ],
-  },
   { title: "Marketplace", icon: ShoppingBag, url: "/marketplace" },
-  { title: "Apps & tools", icon: KeyRound, url: "/tools" },
   {
     title: "Deploy",
     icon: Rocket,
     children: [
-      { url: "/telephony-configurations", title: "Phone numbers" },
       { url: "/campaigns", title: "Campaigns" },
       { url: "/deploy/web-widget", title: "Web widget" },
-      { url: "/api-keys", title: "API keys" },
       { url: "/deploy/connect", title: "Webhooks & triggers" },
     ],
   },
   { title: "Billing", icon: Wallet, url: "/billing" },
-  {
-    title: "Settings",
-    icon: Settings,
-    children: [
-      { url: "/settings", title: "General" },
-      { url: "/settings#team", title: "Team" },
-      { url: "/privacy", title: "Compliance" },
-    ],
-  },
 ];
 
 const bare = (url: string) => url.split("#")[0];
@@ -591,10 +570,12 @@ export function visibleShellManage(sections: SidebarNavSection[]): ShellEntry[] 
   });
 }
 
-/** Every url the navigation reaches: the rail's homes and the account menu. */
+/** Every url the navigation reaches: the rail's homes, Settings' sections
+ *  and the account menu. */
 export function shellUrls(): string[] {
   const urls = [
     ...HOMES.map((home) => bare(home.url)),
+    ...SETTINGS_SECTIONS.map((section) => section.href),
     ...SHELL_MANAGE.flatMap((e) => (e.url ? [e.url] : (e.children ?? []).map((c) => c.url))).map(bare),
   ];
   return [...new Set(urls)];
