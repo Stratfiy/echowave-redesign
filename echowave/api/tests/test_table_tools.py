@@ -312,6 +312,24 @@ class TestDecibylOffersThem:
         names = {t["name"] for t in decibyl.office_tools()}
         assert tables.NAMES <= names
 
+    def test_on_for_one_account_from_the_console_is_on_for_that_account(self):
+        # Super admin -> Flags switches a feature on for one account. The
+        # tools read only the global switch before, so turning them on for
+        # a client's workspace did nothing.
+        from api.services import features
+        from api.services.workflow import decibyl
+
+        features.set_snapshot({("table_tools", 77): features.Override(enabled=True)})
+        try:
+            assert tables.enabled(77) and not tables.enabled(78)
+            assert tables.NAMES <= {t["name"] for t in decibyl.office_tools(77)}
+            assert not tables.NAMES & {t["name"] for t in decibyl.office_tools(78)}
+            assert tables.RULES in decibyl.system_prompt(77)
+            assert tables.RULES not in decibyl.system_prompt(78)
+            assert "deliverable" in decibyl.thread_filter(77)["kinds"]
+        finally:
+            features.set_snapshot({})
+
     def test_the_flag_is_registered_and_off_by_default(self):
         from api.services import features
 

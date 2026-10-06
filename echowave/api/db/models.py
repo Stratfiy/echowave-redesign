@@ -976,6 +976,11 @@ class WorkflowModel(Base):
     # ix_workflows_organization_handle rather than by a column constraint,
     # because NULL must stay repeatable.
     handle = Column(String(64), nullable=True, index=True)
+    # The agent's face: {"shape", "color", "expression"}, the customiser's ids
+    # (schemas/agent_avatar.py). Drawn in the browser; NULL is the default
+    # face. JSON rather than three columns because it is read and written
+    # whole and never queried by part.
+    avatar = Column(JSON, nullable=True)
     status = Column(
         Enum(*[status.value for status in WorkflowStatus], name="workflow_status"),
         nullable=False,

@@ -140,9 +140,10 @@ SYSTEM = (
     "them for what is outside the workspace and say where a fact came "
     "from. The social networks are never read, by rule; do not offer to.\n"
     "- save_prospects: save people or businesses found on the web into the "
-    "Prospects list, with the page each came from. Runs now; organising is "
-    "not a send. Read the list with search_records first so nobody already "
-    "written to or declined is saved as new.\n"
+    "Prospects list, with the page each came from, or record how one "
+    "answered (interested, unsubscribed, bounced...). Runs now; organising "
+    "is not a send. Read the list with search_records first so nobody "
+    "already written to or declined is saved as new.\n"
     "- search_records: the workspace's own contacts, documents, calls and "
     "outcomes, on demand and free. Use it for a list, a count or a date "
     "range the context does not already carry; the context's rows are "
@@ -229,7 +230,7 @@ SYSTEM = (
 )
 
 
-def system_prompt() -> str:
+def system_prompt(organization_id: int | None = None) -> str:
     """SYSTEM, plus the rules for the tools switched on for this deployment.
 
     The procurement rules are said only while those tools are offered: a
@@ -238,11 +239,11 @@ def system_prompt() -> str:
     return (
         SYSTEM
         + (procurement.RULES if procurement.enabled() else "")
-        + (tables.RULES if tables.enabled() else "")
+        + (tables.RULES if tables.enabled(organization_id) else "")
     )
 
 
-def thread_filter() -> dict[str, Any]:
+def thread_filter(organization_id: int | None = None) -> dict[str, Any]:
     """The timeline filter that is Decibyl's thread.
 
     An allowlist, and therefore the shape AGENTS.md warns about: a card
@@ -263,7 +264,7 @@ def thread_filter() -> dict[str, Any]:
             # cost-bid sheet), shown on the thread with their downloads.
             *(
                 (AgentEventKind.DELIVERABLE.value,)
-                if procurement.enabled() or tables.enabled()
+                if procurement.enabled() or tables.enabled(organization_id)
                 else ()
             ),
         ],
@@ -790,7 +791,7 @@ async def _history(
         organization_id=organization_id,
         limit=chat_memory.MAX_ROWS,
         thread_id=thread_id,
-        **thread_filter(),
+        **thread_filter(organization_id),
     )
     newest_first: list[tuple[str, str]] = []
     for row in rows:
@@ -1246,7 +1247,7 @@ RAN_OUT_OF_STEPS = (
 )
 
 
-def office_tools() -> list[dict[str, Any]]:
+def office_tools(organization_id: int | None = None) -> list[dict[str, Any]]:
     """Decibyl's own, as opposed to the workspace's connected apps.
 
     Most end in a card a person confirms. The two document verbs are the
@@ -1287,7 +1288,7 @@ def office_tools() -> list[dict[str, Any]]:
             else ()
         ),
         *(procurement.schemas() if procurement.enabled() else ()),
-        *(tables.schemas() if tables.enabled() else ()),
+        *(tables.schemas() if tables.enabled(organization_id) else ()),
     ]
 
 
@@ -1305,7 +1306,7 @@ async def tools_for(
     loads it, and ``loaded`` carries the schemas this thread has asked for
     so far, so a loaded tool is offered in full on every later round."""
     connected = await connected_tools.list_for_organization(organization_id)
-    own = office_tools()
+    own = office_tools(organization_id)
     if web_tools.enabled():
         from api.services.sandbox import code_mode
 
@@ -1548,7 +1549,7 @@ async def _tool(
             workflow_run_id=None,
             ref_id=f"decibyl:{organization_id}:{call.id or call.name}",
         )
-    if call.name in tables.NAMES and tables.enabled():
+    if call.name in tables.NAMES and tables.enabled(organization_id):
         return await tables.run(
             call.name, organization_id=organization_id, arguments=arguments
         )
@@ -1631,7 +1632,7 @@ async def _speak(
             provider=model.provider,
             model=model.model,
             api_key=model.api_key,
-            system=system_prompt(),
+            system=system_prompt(organization_id),
             conversation=conversation,
             on_text=on_text,
             tools=tools,

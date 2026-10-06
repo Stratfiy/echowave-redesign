@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from api.db import db_client
 from api.db.models import UserModel
 from api.enums import WorkflowStatus
+from api.schemas.agent_avatar import AgentAvatar, read_avatar
 from api.services import reporting_window
 from api.services.auth.depends import get_user
 from api.services.organization_preferences import get_organization_preferences
@@ -63,6 +64,8 @@ class TeamMember(BaseModel):
     last_line: Optional[str] = None
     last_at: Optional[datetime] = None
     last_actor: Optional[str] = None
+    #: The agent's face; None is the default one (schemas/agent_avatar.py).
+    avatar: Optional[AgentAvatar] = None
 
 
 class TeamResponse(BaseModel):
@@ -147,6 +150,7 @@ async def _members(
                 last_line=last.get("summary") or None,
                 last_at=last.get("at"),
                 last_actor=last.get("actor"),
+                avatar=read_avatar(workflow.avatar),
             )
         )
 

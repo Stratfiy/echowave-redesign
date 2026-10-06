@@ -415,7 +415,7 @@ async def post_check_result(result: Any) -> None:
                     "passed": passed,
                     "verdict": result.verdict or "",
                     "run_id": result.workflow_run_id,
-                    "evals_url": f"/workflow/{result.workflow_id}/evals",
+                    "evals_url": f"/workflow/{result.workflow_id}/settings?tab=analysis",
                 },
             },
             in_channel=False,

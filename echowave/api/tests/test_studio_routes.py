@@ -705,3 +705,34 @@ async def test_a_connect_link_comes_back_for_the_thread_to_show(
     assert result.connect_links == [
         {"app": "Gmail", "url": "https://connect.example/x"}
     ]
+
+
+# --- the team, by name ---------------------------------------------------------
+
+
+async def test_a_sites_agents_come_back_by_name_and_only_ours(
+    studio_on, db_session, async_session, test_client_factory
+):
+    org, user = await _account(async_session, "team")
+    other_org, other_user = await _account(async_session, "team-other")
+    mine = await db_session.create_workflow(
+        "Front desk", {"nodes": [], "edges": []}, user.id, org.id
+    )
+    theirs = await db_session.create_workflow(
+        "Theirs", {"nodes": [], "edges": []}, other_user.id, other_org.id
+    )
+
+    named = await sites.agents_of(
+        [mine.id, theirs.id, mine.id, 999999], organization_id=org.id
+    )
+    assert named == [
+        {"id": mine.id, "name": "Front desk", "live": True, "archived": False}
+    ]
+    assert await sites.agents_of([], organization_id=org.id) == []
+
+    site = await sites.create_site(organization_id=org.id, user_id=user.id, name="S")
+    site.agent_workflow_ids = [mine.id]
+    await async_session.flush()
+    async with test_client_factory(user) as client:
+        body = (await client.get(f"/api/v1/studio/sites/{site.id}")).json()
+    assert body["agents"] == named

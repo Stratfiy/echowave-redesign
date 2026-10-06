@@ -75,7 +75,7 @@ export function CreateWorkflowButton() {
 
     const handleAgentBuilder = () => {
         setOpen(false);
-        router.push('/workflow/create');
+        router.push('/start');
     };
 
     const handleBlankCanvas = async () => {

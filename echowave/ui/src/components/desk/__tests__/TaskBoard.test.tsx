@@ -275,10 +275,12 @@ describe("the Tasks door", () => {
         expect(await screen.findByRole("navigation", { name: "Inbox" })).toBeTruthy();
     });
 
-    it("opens on the schedules when it is off", async () => {
+    it("opens on the simpler board when it is off, and the schedules keep their own tab", async () => {
+        // /requests was this board; it is the Tasks door's until TB-1 is on.
         list.mockResolvedValue({ data: { tasks: [], board: { enabled: false } } });
         render(<TasksPage />);
-        await waitFor(() => expect(routines).toHaveBeenCalled());
+        expect(await screen.findByRole("heading", { name: "Tasks" })).toBeTruthy();
         expect(screen.queryByRole("navigation", { name: "Inbox" })).toBeNull();
+        expect(screen.getByRole("link", { name: "Schedules" }).getAttribute("href")).toBe("/schedules");
     });
 });

@@ -48,17 +48,9 @@ export const CALLS_TABS: PageTab[] = [
   // buy one, not to find out why nobody is getting through.
   { href: "/missed-calls", label: "Missed calls", prefix: true },
   { href: "/review", label: "Review", prefix: true },
-  // Prefix now: /analytics/spend has moved to Billing, so nothing under
-  // /analytics belongs to another tab.
+  // Prefix: everything under /analytics is this tab, including the day view
+  // (?date=), which was /reports.
   { href: "/analytics", label: "Analytics", prefix: true },
-];
-
-/** Working bots and archived ones. Archived used to be a collapsed
- *  section at the foot of a long page, which is indistinguishable from
- *  not existing: people archived a bot and could not find it again. */
-export const BOTS_TABS: PageTab[] = [
-  { href: "/workflow", label: "Agents" },
-  { href: "/workflow/archived", label: "Archived" },
 ];
 
 export const KNOWLEDGE_TABS: PageTab[] = [
@@ -77,7 +69,7 @@ export const BILLING_TABS: PageTab[] = [
   // "what did this cost" is a money question, and the person asking it is
   // already on Billing looking at the balance -- they were being sent to a
   // tab filed under the phone.
-  { href: "/analytics/spend", label: "Spend", prefix: true },
+  { href: "/billing/spend", label: "Spend", prefix: true },
   { href: "/partner", label: "Partner programme", prefix: true },
 ];
 
@@ -101,11 +93,9 @@ export const BILLING_TABS: PageTab[] = [
  */
 export const TELEPHONY_TABS: PageTab[] = [
   // Verification is not a fourth thing to do: it is step 1 of getting a
-  // number, drawn inside Get a number with its live status, and the form it
-  // links to is the only reason /verification exists. A tab of its own put
-  // the same step in two places and let somebody start with the paperwork
-  // without ever seeing what it was for, so it lights this tab instead.
-  { href: "/numbers", label: "Get a number", prefix: true, also: ["/verification"] },
+  // number, and its form opens in place inside Get a number (UI-0 folded
+  // /verification in), so somebody sees what the paperwork is for.
+  { href: "/numbers", label: "Get a number", prefix: true },
   // Named for what it holds, which is what the page has always been titled:
   // "Carriers & numbers" on the tab against "Phone numbers" on the screen
   // meant the strip and the heading disagreed about where you were.
@@ -126,24 +116,19 @@ export const DEVELOPER_TABS: PageTab[] = [
   { href: "/deploy/connect", label: "Connect", prefix: true },
 ];
 
-/** The desk: the diary, the in-tray and the contact book.
+/** The desk: the work, the clock, the contact book and what was handed over.
  *
- *  Tasks and Requests were two tabs of Decibyl, beside its thread. But the
- *  assistant is a colleague you talk to, not a container for the workspace's
- *  screens, and Tasks was a third way to reach a door the sidebar already
- *  pins.
+ *  Tasks is the board people and agents hand work on (the full board with
+ *  TB-1, the simpler one until then); Requests was a second door to the same
+ *  tasks and now redirects here (UI-0). Schedules are the routines, which
+ *  fire whether or not anybody is watching. One list for every desk page, so
+ *  the strip reads the same from each of them.
  *
- *  Contacts joins them, from Setup. It sat there beside Campaigns because a
- *  campaign dials a list -- but that is delivery, and a contact is a person
- *  you deal with, which is desk work. The page's own words already said so:
- *  "everything you know about them is loaded before the bot speaks".
- *
- *  Schedules first: a routine fires whether or not anybody is watching, a
- *  request waits for somebody, and the contact book is looked up rather than
- *  worked through. */
+ *  Contacts came from Setup: a contact is a person you deal with, which is
+ *  desk work, not delivery. */
 export const DESK_TABS: PageTab[] = [
   { href: "/tasks", label: "Tasks", prefix: true },
-  { href: "/requests", label: "Requests", prefix: true },
+  { href: "/schedules", label: "Schedules", prefix: true },
   { href: "/contacts", label: "Contacts", prefix: true },
   // What the bots handed over. The timeline has marked these rows since it
   // was built and the route has taken `deliverables_only` for as long;
@@ -151,19 +136,6 @@ export const DESK_TABS: PageTab[] = [
   // was to scroll its thread past every message it also wrote.
   { href: "/deliverables", label: "Handed over", prefix: true },
 ];
-
-/** The desk once the board is a board (TB-1): Tasks is the kanban, and the
- *  routines that used to sit under that word get a tab of their own. The
- *  server says whether the board is on; until it is, `DESK_TABS` stands. */
-export function deskTabs(boardEnabled: boolean): PageTab[] {
-  if (!boardEnabled) return DESK_TABS;
-  return [
-    { href: "/tasks", label: "Tasks", prefix: true, also: ["/requests"] },
-    { href: "/schedules", label: "Schedules", prefix: true },
-    { href: "/contacts", label: "Contacts", prefix: true },
-    { href: "/deliverables", label: "Handed over", prefix: true },
-  ];
-}
 
 /** The shop, as one screen with departments across the top.
  *

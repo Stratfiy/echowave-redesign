@@ -1,11 +1,12 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, LogOut, X } from "lucide-react";
+import { ArrowUpCircle, ChevronLeft, ChevronRight, LifeBuoy, LogOut, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";
 
 import { OrganizationSwitcher } from "@/components/layout/OrganizationSwitcher";
+import { SidebarTeamSwitcher } from "@/components/layout/SidebarTeamSwitcher";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,20 +16,27 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sidebar, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+import { SETUP_CALL_LABEL, SETUP_CALL_URL } from "@/constants/setupCall";
+import { useAppConfig } from "@/context/AppConfigContext";
 import { useAccessRoles } from "@/hooks/useAccessRoles";
+import { useLatestReleaseVersion } from "@/hooks/useLatestReleaseVersion";
 import { useAuth } from "@/lib/auth";
+import { useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 import { getVisibleNavSections, STAFF_SECTION, visibleShellManage } from "../navigation";
+import { ChannelList } from "./ChannelList";
 import { ColleagueRoster } from "./ColleagueRoster";
 import { activeHome, HOMES, RAIL_COPY } from "./homes";
 import { TrialBox } from "./TrialBox";
 import { useRailData } from "./useRailData";
 
 /**
- * The v2 rail (KAN-208, UI-1), shown in place of AppSidebar when
- * `ui_shell_v2` is on: brand and workspace, the seven homes, the colleague
- * roster and the trial box, per the founder-approved mock.
+ * The rail (KAN-208, UI-1), the app's only navigation: brand and workspace,
+ * the homes, the channels, the colleague roster and the trial box, per the
+ * founder-approved mock. It took over from the old sidebar, and with it the
+ * old sidebar's extras: the Stack team switcher, the channel list, the
+ * setup-call link and the self-hosted update notice.
  *
  * Built on the same shadcn Sidebar as the old rail, so a phone gets the same
  * sheet and the same trigger in the top bar.
@@ -42,6 +50,12 @@ export function AppRailV2() {
   const collapsed = !isMobile && state === "collapsed";
   const { colleagues, trial, creditsPaise } = useRailData();
   const current = activeHome(pathname);
+  const { provider } = useAuth();
+  const studioOn = useFeature("studio");
+  const homes = HOMES.filter((home) => !home.flag || (home.flag === "studio" && studioOn));
+  const { config } = useAppConfig();
+  // Self-hosted only: cloud is updated for the customer.
+  const release = useLatestReleaseVersion(config?.uiVersion, { enabled: config?.deploymentMode === "oss" });
   const onNavigate = () => {
     if (isMobile) setOpenMobile(false);
   };
@@ -69,12 +83,13 @@ export function AppRailV2() {
         {!collapsed && (
           <div className="v2-workspace">
             <OrganizationSwitcher collapsed={false} />
+            {provider === "stack" && <SidebarTeamSwitcher />}
           </div>
         )}
 
         <nav aria-label={RAIL_COPY.navLabel} className="v2-homes">
           <ul>
-            {HOMES.map((home) => {
+            {homes.map((home) => {
               const active = current === home.id;
               const count = counts[home.id];
               const Icon = home.icon;
@@ -98,15 +113,38 @@ export function AppRailV2() {
 
         {!collapsed && (
           <div className="v2-scroll">
+            <ChannelList pathname={pathname} onNavigate={onNavigate} />
             <ColleagueRoster colleagues={colleagues} pathname={pathname} onNavigate={onNavigate} />
             {/* TODO: Projects section, once a projects feature exists. */}
           </div>
         )}
 
         <div className="v2-foot">
+          {!collapsed && release.isBehind && release.latest && (
+            <a
+              href="https://docs.decibyl.ai/deployment/update"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="v2-trial flex items-center gap-1.5"
+              title={`Latest: ${release.latest}`}
+            >
+              <ArrowUpCircle className="h-3.5 w-3.5" aria-hidden="true" />
+              Update available ({release.latest})
+            </a>
+          )}
           {!collapsed && <TrialBox trial={trial} creditsPaise={creditsPaise} />}
           <div className={cn("v2-foot-row", collapsed && "v2-foot-col")}>
             <AccountMenu collapsed={collapsed} onNavigate={onNavigate} />
+            <a
+              href={SETUP_CALL_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Get help: ${SETUP_CALL_LABEL}`}
+              title={SETUP_CALL_LABEL}
+              className="v2-icon-button"
+            >
+              <LifeBuoy className="h-4 w-4" />
+            </a>
             {!isMobile && (
               <SidebarTrigger className="v2-icon-button" aria-label={collapsed ? "Open the panel" : "Fold the panel away"}>
                 {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
@@ -120,7 +158,7 @@ export function AppRailV2() {
 }
 
 /**
- * The person, and every manage page the seven homes do not name (billing,
+ * The person, and every manage page the homes do not name (billing,
  * apps & tools, deploy, compliance, marketplace), so no existing route is
  * lost from the rail. Role filtering is the old rail's own.
  */

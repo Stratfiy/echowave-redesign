@@ -1,6 +1,8 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
+import { REDESIGN_REDIRECTS } from "./src/lib/redesignRedirects";
+
 const nextConfig: NextConfig = {
   /* config options here */
   output: 'standalone',
@@ -48,6 +50,11 @@ const nextConfig: NextConfig = {
         destination: "/integrations",
         permanent: false,
       },
+      // UI-0 (KAN-257) parts 2-3: screens removed or merged in the redesign.
+      // Each old address lands where its content now lives, so a bookmark or
+      // a link in an old email still works. Not permanent, for the reason
+      // above.
+      ...REDESIGN_REDIRECTS.map((r) => ({ ...r, permanent: false })),
     ];
   },
   // This is required to support PostHog trailing slash API requests

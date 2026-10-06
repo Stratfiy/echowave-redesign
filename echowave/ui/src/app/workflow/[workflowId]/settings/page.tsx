@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { CalendarIcon, CheckCircle2, ChevronRight, Clipboard, Download, ExternalLink, FileDown, Fingerprint, FlaskConical, Mic, PhoneOff, Plus, Rocket, Settings, Share2, Tags, Trash2, Trash2Icon, Variable } from "lucide-react";
+import { CalendarIcon, CheckCircle2, ChevronRight, Clipboard, Download, ExternalLink, FileDown, Fingerprint, Mic, PhoneOff, Plus, Rocket, Settings, Share2, Tags, Trash2, Trash2Icon, Variable } from "lucide-react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -59,6 +59,7 @@ import {
 
 import { AgentHeader } from "../components/AgentHeader";
 import { AgentTabs } from "../components/AgentTabs";
+import { EvalsPanel } from "../components/EvalsPanel";
 import { QaCard } from "../components/QaCard";
 import { useWorkflowState } from "../hooks/useWorkflowState";
 import { NoticesCard } from "./NoticesCard";
@@ -1733,28 +1734,13 @@ function WorkflowSettingsInner({
                             {/* Report */}
                             <ReportSection workflowId={workflowId} />
 
-                            {/* Evals have their own screen; this is the way
-                                to it now that the tab strip is Vapi's five
-                                and Share. Under Analysis because that is
-                                what an eval is: a judgement on calls. */}
-                            <Card id="evals">
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2 text-base">
-                                        <FlaskConical className="h-4 w-4" />
-                                        Evals
-                                    </CardTitle>
-                                    <CardDescription>
-                                        Scripted conversations this agent is graded against, run before a change goes live.
-                                    </CardDescription>
-                                </CardHeader>
-                                <CardFooter className="border-t pt-6">
-                                    <Button variant="outline" asChild>
-                                        <Link href={`/workflow/${workflowId}/evals`}>
-                                            Open Evals
-                                            <ExternalLink className="ml-2 h-4 w-4" />
-                                        </Link>
-                                    </Button>
-                                </CardFooter>
+                            {/* Evals, here rather than a screen of their own:
+                                under Quality because that is what an eval is,
+                                a judgement on calls. */}
+                            <Card>
+                                <CardContent className="pt-6">
+                                    <EvalsPanel workflowId={workflowId} />
+                                </CardContent>
                             </Card>
                             </div>
 

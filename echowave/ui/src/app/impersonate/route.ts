@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     const redirectPath =
         (typeof form?.get("redirect_path") === "string"
             ? (form.get("redirect_path") as string)
-            : null) ?? "/workflow/create";
+            : null) ?? "/start";
 
     if (!refreshToken) {
         return new Response("Missing refresh_token", { status: 400 });
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
         return new Response("Stack auth is not configured", { status: 400 });
     }
 
-    const fallbackRedirectUrl = new URL("/workflow/create", request.url);
+    const fallbackRedirectUrl = new URL("/start", request.url);
     let redirectUrl = fallbackRedirectUrl.toString();
     try {
         const requestedRedirectUrl = new URL(redirectPath, request.url);

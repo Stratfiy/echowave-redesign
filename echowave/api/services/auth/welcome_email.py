@@ -37,7 +37,7 @@ def compose(*, account_name: str | None, app_url: str) -> Notice:
 
 Your account is ready. Three things worth knowing before your first call:
 
-1. Build an agent — {base}/workflow/create
+1. Build an agent — {base}/start
    Pick how it should sound and think. Every option shows what it costs a
    minute before you commit to it.
 

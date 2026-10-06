@@ -11,6 +11,8 @@ import type { RailData } from "../useRailData";
 const state = vi.hoisted(() => ({
   pathname: "/overview",
   data: { colleagues: [], trial: null, creditsPaise: null } as RailData,
+  features: {} as Record<string, boolean>,
+  channels: [] as { id: number; name: string; created_at: string }[],
 }));
 
 vi.mock("next/navigation", () => ({ usePathname: () => state.pathname, useRouter: () => ({ push: vi.fn() }) }));
@@ -19,6 +21,10 @@ vi.mock("@/hooks/useAccessRoles", () => ({ useAccessRoles: () => ({ isStaff: fal
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/components/layout/OrganizationSwitcher", () => ({ OrganizationSwitcher: () => <span>Sri Lakshmi Dental</span> }));
 vi.mock("../useRailData", () => ({ useRailData: () => state.data }));
+vi.mock("@/lib/features", () => ({ useFeature: (name: string) => Boolean(state.features[name]) }));
+vi.mock("@/client/sdk.gen", () => ({
+  listFoldersApiV1FolderGet: async () => ({ data: state.channels }),
+}));
 
 function member(overrides: Partial<TeamMember>): TeamMember {
   return {
@@ -48,18 +54,20 @@ function mount() {
 
 afterEach(cleanup);
 beforeEach(() => {
+  state.features = {};
+  state.channels = [];
   state.pathname = "/overview";
   state.data = { colleagues: [], trial: null, creditsPaise: null };
 });
 
 describe("v2 rail", () => {
-  it("renders the seven homes in order", () => {
+  it("renders the homes in order", () => {
     mount();
     const nav = screen.getByRole("navigation", { name: "Homes" });
     const labels = within(nav)
       .getAllByRole("link")
       .map((link) => link.textContent);
-    expect(labels).toEqual(["My Decibyl", "Tasks", "Agents", "Knowledge", "Activity", "Team", "Settings"]);
+    expect(labels).toEqual(["My Decibyl", "Company", "Tasks", "Agents", "Knowledge", "Activity", "Team", "Settings"]);
   });
 
   it("maps each home onto an existing route", () => {
@@ -68,7 +76,7 @@ describe("v2 rail", () => {
     const hrefs = within(nav)
       .getAllByRole("link")
       .map((link) => link.getAttribute("href"));
-    expect(hrefs).toEqual(["/overview", "/tasks", "/workflow", "/files", "/usage", "/settings#team", "/settings"]);
+    expect(hrefs).toEqual(["/overview", "/company", "/tasks", "/workflow", "/files", "/usage", "/settings#team", "/settings"]);
   });
 
   it("lights Activity on a campaigns page", () => {
@@ -132,5 +140,32 @@ describe("v2 rail", () => {
     mount();
     expect(document.body.textContent ?? "").not.toMatch(/\bbots?\b/i);
     expect(screen.getByText("Colleagues")).toBeTruthy();
+  });
+
+  it("shows Studio only for a workspace with the studio flag", () => {
+    mount();
+    expect(screen.queryByRole("link", { name: "Studio" })).toBeNull();
+    cleanup();
+    state.features = { studio: true };
+    mount();
+    const nav = screen.getByRole("navigation", { name: "Homes" });
+    const labels = within(nav).getAllByRole("link").map((link) => link.textContent);
+    expect(labels.indexOf("Studio")).toBe(labels.indexOf("Agents") + 1);
+  });
+
+  it("lists the channels, with a door to all of them and a new chat", async () => {
+    state.channels = [
+      { id: 3, name: "accounts", created_at: "" },
+      { id: 4, name: "front-desk", created_at: "" },
+    ];
+    mount();
+    expect((await screen.findByRole("link", { name: /accounts/ })).getAttribute("href")).toBe("/channels/3");
+    expect(screen.getByRole("link", { name: "Channels" }).getAttribute("href")).toBe("/channels");
+    expect(screen.getByRole("button", { name: "New chat" })).toBeTruthy();
+  });
+
+  it("says so when there are no channels yet", async () => {
+    mount();
+    expect(await screen.findByText("No channels yet. The plus starts one.")).toBeTruthy();
   });
 });

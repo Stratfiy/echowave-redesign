@@ -196,6 +196,38 @@ def summary(site: SiteProjectModel, *, include_files: bool = True) -> dict[str, 
     return out
 
 
+async def agents_of(ids: list[int], *, organization_id: int) -> list[dict[str, Any]]:
+    """The agents behind ``ids``, by name, in the order given.
+
+    Only this organisation's agents: an id that is not one of theirs (or no
+    longer exists) is left out rather than shown as a bare number. Never
+    raises -- a screen that cannot name its agents still shows the site.
+    """
+    wanted = [int(i) for i in ids if str(i).isdigit()]
+    if not wanted:
+        return []
+    try:
+        rows = await db_client.get_workflows_by_ids(wanted, organization_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not name Studio agents {}: {}", wanted, exc)
+        return []
+    by_id = {row.id: row for row in rows}
+    out: list[dict[str, Any]] = []
+    for workflow_id in dict.fromkeys(wanted):
+        row = by_id.get(workflow_id)
+        if row is None:
+            continue
+        out.append(
+            {
+                "id": row.id,
+                "name": row.name,
+                "live": bool(row.is_live),
+                "archived": str(row.status) == "archived",
+            }
+        )
+    return out
+
+
 async def create_site(
     *,
     organization_id: int,

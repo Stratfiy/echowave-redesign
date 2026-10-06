@@ -11,7 +11,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   BILLING_TABS,
-  BOTS_TABS,
   CALLS_TABS,
   COMPLIANCE_TABS,
   DESK_TABS,
@@ -23,7 +22,6 @@ import {
 
 const STRIPS = {
   CALLS_TABS,
-  BOTS_TABS,
   KNOWLEDGE_TABS,
   COMPLIANCE_TABS,
   BILLING_TABS,
@@ -56,8 +54,8 @@ describe("section tabs", () => {
   });
 
   it("files Spend under Billing, where the balance is", () => {
-    expect(BILLING_TABS.map((tab) => tab.href)).toContain("/analytics/spend");
-    expect(CALLS_TABS.map((tab) => tab.href)).not.toContain("/analytics/spend");
+    expect(BILLING_TABS.map((tab) => tab.href)).toContain("/billing/spend");
+    expect(CALLS_TABS.some((tab) => tab.href.includes("spend"))).toBe(false);
   });
 
   it("files Missed calls with the calls, not with buying a number", () => {
@@ -86,9 +84,8 @@ describe("section tabs", () => {
     // It is drawn as step 1 of Get a number, with its live status. A tab of
     // its own put the same step in two places and let somebody start with
     // the paperwork without seeing what it was for.
+    // Its form now opens in place on /numbers, so there is no route to light.
     expect(TELEPHONY_TABS.map((tab) => tab.href)).not.toContain("/verification");
-    const getting = TELEPHONY_TABS.find((tab) => tab.href === "/numbers");
-    expect(getting?.also).toContain("/verification");
   });
 
   it("puts the diary, the in-tray and the contact book on one desk", () => {
@@ -100,7 +97,7 @@ describe("section tabs", () => {
     // bot hands back: finished work is desk work too.
     expect(DESK_TABS.map((tab) => tab.href)).toEqual([
         "/tasks",
-        "/requests",
+        "/schedules",
         "/contacts",
         "/deliverables",
     ]);
@@ -120,10 +117,9 @@ describe("section tabs", () => {
     expect(MARKETPLACE_TABS.every((tab) => !tab.prefix)).toBe(true);
   });
 
-  it("lets /analytics light its tab from a detail page without stealing /analytics/spend", () => {
-    // /analytics carries prefix: true, so /analytics/spend would light it too
-    // if Spend were still a sibling. It is not -- it is in another strip
-    // entirely, and the two strips never appear at once.
+  it("lets /analytics light its tab from a detail page", () => {
+    // /analytics carries prefix: true; nothing under it belongs to another
+    // tab since Spend moved to /billing/spend.
     const analytics = CALLS_TABS.find((tab) => tab.href === "/analytics");
     expect(analytics?.prefix).toBe(true);
     expect(CALLS_TABS.some((tab) => tab.href.startsWith("/analytics/"))).toBe(false);

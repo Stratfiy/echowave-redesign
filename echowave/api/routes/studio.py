@@ -123,6 +123,10 @@ async def studio_chat(
         "history": result.conversation,
         "actions": result.actions,
         "created_workflow_ids": result.created_workflow_ids,
+        # By name, so the thread can say "Front desk" rather than "agent 41".
+        "created_agents": await sites.agents_of(
+            result.created_workflow_ids, organization_id=organization_id
+        ),
         "site_id": result.site_id,
         "connect_links": result.connect_links,
         "usage": builder_routes._usage(state, charged_credits=charged_credits),
@@ -159,8 +163,15 @@ async def create_site(
 async def get_site(
     site_id: int, user: Annotated[UserModel, Depends(get_user)]
 ) -> dict[str, Any]:
-    site = await _site_or_404(site_id, _organization(user))
-    return {**sites.summary(site), "build_log": site.build_log}
+    organization_id = _organization(user)
+    site = await _site_or_404(site_id, organization_id)
+    return {
+        **sites.summary(site),
+        "build_log": site.build_log,
+        "agents": await sites.agents_of(
+            list(site.agent_workflow_ids or []), organization_id=organization_id
+        ),
+    }
 
 
 @router.get("/sites/{site_id}/file")

@@ -504,6 +504,9 @@ class WorkflowClient(BaseDBClient):
                     # list fails -- which the browser reports as "could not
                     # reach the server".
                     WorkflowModel.visibility,
+                    # The face on every card and on the org chart, read after
+                    # the session closes like visibility above.
+                    WorkflowModel.avatar,
                 )
             )
 
@@ -969,6 +972,41 @@ class WorkflowClient(BaseDBClient):
             except Exception as e:
                 await session.rollback()
                 raise e
+            await session.refresh(workflow)
+        return workflow
+
+    async def set_workflow_avatar(
+        self,
+        workflow_id: int,
+        avatar: dict | None,
+        organization_id: int,
+    ) -> WorkflowModel:
+        """Set (or clear, with None) an agent's face.
+
+        Not a version of the agent: a face is not something to draft and
+        publish, so it is written on the row directly. Scoped by
+        ``organization_id`` like every mutation here.
+
+        Raises:
+            ValueError: If the workflow is not found within the organization.
+        """
+        async with self.async_session() as session:
+            workflow = (
+                (
+                    await session.execute(
+                        select(WorkflowModel).where(
+                            WorkflowModel.id == workflow_id,
+                            WorkflowModel.organization_id == organization_id,
+                        )
+                    )
+                )
+                .scalars()
+                .first()
+            )
+            if not workflow:
+                raise ValueError(f"Workflow with ID {workflow_id} not found")
+            workflow.avatar = avatar
+            await session.commit()
             await session.refresh(workflow)
         return workflow
 

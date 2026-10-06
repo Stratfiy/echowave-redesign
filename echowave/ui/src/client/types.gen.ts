@@ -289,6 +289,24 @@ export type AddNumbersResponse = {
 };
 
 /**
+ * AgentAvatar
+ */
+export type AgentAvatar = {
+    /**
+     * Shape
+     */
+    shape?: 'cercle' | 'galet' | 'squircle' | 'capsule' | 'triangle' | 'hexagone' | 'nuage' | 'goutte';
+    /**
+     * Color
+     */
+    color?: 'encre' | 'creme' | 'brun' | 'rouge' | 'orange' | 'ambre' | 'vert' | 'turquoise' | 'bleu' | 'violet' | 'rose' | 'gris';
+    /**
+     * Expression
+     */
+    expression?: 'neutre' | 'attentif' | 'surpris' | 'excite' | 'heureux' | 'hilare' | 'colere' | 'triste' | 'effraye' | 'mefiant' | 'confus' | 'curieux' | 'fier' | 'timide' | 'blase' | 'somnolent';
+};
+
+/**
  * AgentSchedule
  *
  * The hours an agent keeps, as something the platform can enforce.
@@ -3420,6 +3438,16 @@ export type CreateServiceKeyResponse = {
      * Expires At
      */
     expires_at?: string | null;
+};
+
+/**
+ * CreateSiteRequest
+ */
+export type CreateSiteRequest = {
+    /**
+     * Name
+     */
+    name: string;
 };
 
 /**
@@ -11248,6 +11276,15 @@ export type SetCredentialRequest = {
 };
 
 /**
+ * SetWorkflowAvatarRequest
+ *
+ * The face to wear; null puts the default face back.
+ */
+export type SetWorkflowAvatarRequest = {
+    avatar?: AgentAvatar | null;
+};
+
+/**
  * SettleActionRequest
  */
 export type SettleActionRequest = {
@@ -11838,6 +11875,22 @@ export type StatusRequest = {
 };
 
 /**
+ * StudioChatRequest
+ */
+export type StudioChatRequest = {
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * History
+     */
+    history?: Array<{
+        [key: string]: unknown;
+    }>;
+};
+
+/**
  * SubscribeRequest
  *
  * Which plan to start. Omitted means the starter plan, which is what the
@@ -12167,6 +12220,7 @@ export type TeamMember = {
      * Last Actor
      */
     last_actor?: string | null;
+    avatar?: AgentAvatar | null;
 };
 
 /**
@@ -14422,6 +14476,7 @@ export type WorkflowListResponse = {
      * Is Squad
      */
     is_squad?: boolean;
+    avatar?: AgentAvatar | null;
 };
 
 /**
@@ -14990,6 +15045,22 @@ export type WorkspaceClosureRequest = {
      * The workspace name, typed exactly.
      */
     confirm: string;
+};
+
+/**
+ * WriteFilesRequest
+ */
+export type WriteFilesRequest = {
+    /**
+     * Files
+     */
+    files?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Delete
+     */
+    delete?: Array<string>;
 };
 
 /**
@@ -19874,6 +19945,465 @@ export type ChatApiV1AgentBuilderChatPostResponses = {
 };
 
 export type ChatApiV1AgentBuilderChatPostResponse = ChatApiV1AgentBuilderChatPostResponses[keyof ChatApiV1AgentBuilderChatPostResponses];
+
+export type GetStudioConfigApiV1StudioConfigGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/studio/config';
+};
+
+export type GetStudioConfigApiV1StudioConfigGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetStudioConfigApiV1StudioConfigGetError = GetStudioConfigApiV1StudioConfigGetErrors[keyof GetStudioConfigApiV1StudioConfigGetErrors];
+
+export type GetStudioConfigApiV1StudioConfigGetResponses = {
+    /**
+     * Response Get Studio Config Api V1 Studio Config Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetStudioConfigApiV1StudioConfigGetResponse = GetStudioConfigApiV1StudioConfigGetResponses[keyof GetStudioConfigApiV1StudioConfigGetResponses];
+
+export type StudioChatApiV1StudioChatPostData = {
+    body: StudioChatRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/studio/chat';
+};
+
+export type StudioChatApiV1StudioChatPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StudioChatApiV1StudioChatPostError = StudioChatApiV1StudioChatPostErrors[keyof StudioChatApiV1StudioChatPostErrors];
+
+export type StudioChatApiV1StudioChatPostResponses = {
+    /**
+     * Response Studio Chat Api V1 Studio Chat Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type StudioChatApiV1StudioChatPostResponse = StudioChatApiV1StudioChatPostResponses[keyof StudioChatApiV1StudioChatPostResponses];
+
+export type ListSitesApiV1StudioSitesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/studio/sites';
+};
+
+export type ListSitesApiV1StudioSitesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListSitesApiV1StudioSitesGetError = ListSitesApiV1StudioSitesGetErrors[keyof ListSitesApiV1StudioSitesGetErrors];
+
+export type ListSitesApiV1StudioSitesGetResponses = {
+    /**
+     * Response List Sites Api V1 Studio Sites Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListSitesApiV1StudioSitesGetResponse = ListSitesApiV1StudioSitesGetResponses[keyof ListSitesApiV1StudioSitesGetResponses];
+
+export type CreateSiteApiV1StudioSitesPostData = {
+    body: CreateSiteRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/studio/sites';
+};
+
+export type CreateSiteApiV1StudioSitesPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateSiteApiV1StudioSitesPostError = CreateSiteApiV1StudioSitesPostErrors[keyof CreateSiteApiV1StudioSitesPostErrors];
+
+export type CreateSiteApiV1StudioSitesPostResponses = {
+    /**
+     * Response Create Site Api V1 Studio Sites Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CreateSiteApiV1StudioSitesPostResponse = CreateSiteApiV1StudioSitesPostResponses[keyof CreateSiteApiV1StudioSitesPostResponses];
+
+export type DeleteSiteApiV1StudioSitesSiteIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Site Id
+         */
+        site_id: number;
+    };
+    query?: never;
+    url: '/api/v1/studio/sites/{site_id}';
+};
+
+export type DeleteSiteApiV1StudioSitesSiteIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteSiteApiV1StudioSitesSiteIdDeleteError = DeleteSiteApiV1StudioSitesSiteIdDeleteErrors[keyof DeleteSiteApiV1StudioSitesSiteIdDeleteErrors];
+
+export type DeleteSiteApiV1StudioSitesSiteIdDeleteResponses = {
+    /**
+     * Response Delete Site Api V1 Studio Sites  Site Id  Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type DeleteSiteApiV1StudioSitesSiteIdDeleteResponse = DeleteSiteApiV1StudioSitesSiteIdDeleteResponses[keyof DeleteSiteApiV1StudioSitesSiteIdDeleteResponses];
+
+export type GetSiteApiV1StudioSitesSiteIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Site Id
+         */
+        site_id: number;
+    };
+    query?: never;
+    url: '/api/v1/studio/sites/{site_id}';
+};
+
+export type GetSiteApiV1StudioSitesSiteIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetSiteApiV1StudioSitesSiteIdGetError = GetSiteApiV1StudioSitesSiteIdGetErrors[keyof GetSiteApiV1StudioSitesSiteIdGetErrors];
+
+export type GetSiteApiV1StudioSitesSiteIdGetResponses = {
+    /**
+     * Response Get Site Api V1 Studio Sites  Site Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetSiteApiV1StudioSitesSiteIdGetResponse = GetSiteApiV1StudioSitesSiteIdGetResponses[keyof GetSiteApiV1StudioSitesSiteIdGetResponses];
+
+export type GetSiteFileApiV1StudioSitesSiteIdFileGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Site Id
+         */
+        site_id: number;
+    };
+    query: {
+        /**
+         * Path
+         */
+        path: string;
+    };
+    url: '/api/v1/studio/sites/{site_id}/file';
+};
+
+export type GetSiteFileApiV1StudioSitesSiteIdFileGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetSiteFileApiV1StudioSitesSiteIdFileGetError = GetSiteFileApiV1StudioSitesSiteIdFileGetErrors[keyof GetSiteFileApiV1StudioSitesSiteIdFileGetErrors];
+
+export type GetSiteFileApiV1StudioSitesSiteIdFileGetResponses = {
+    /**
+     * Response Get Site File Api V1 Studio Sites  Site Id  File Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetSiteFileApiV1StudioSitesSiteIdFileGetResponse = GetSiteFileApiV1StudioSitesSiteIdFileGetResponses[keyof GetSiteFileApiV1StudioSitesSiteIdFileGetResponses];
+
+export type WriteSiteFilesApiV1StudioSitesSiteIdFilesPutData = {
+    body: WriteFilesRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Site Id
+         */
+        site_id: number;
+    };
+    query?: never;
+    url: '/api/v1/studio/sites/{site_id}/files';
+};
+
+export type WriteSiteFilesApiV1StudioSitesSiteIdFilesPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type WriteSiteFilesApiV1StudioSitesSiteIdFilesPutError = WriteSiteFilesApiV1StudioSitesSiteIdFilesPutErrors[keyof WriteSiteFilesApiV1StudioSitesSiteIdFilesPutErrors];
+
+export type WriteSiteFilesApiV1StudioSitesSiteIdFilesPutResponses = {
+    /**
+     * Response Write Site Files Api V1 Studio Sites  Site Id  Files Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type WriteSiteFilesApiV1StudioSitesSiteIdFilesPutResponse = WriteSiteFilesApiV1StudioSitesSiteIdFilesPutResponses[keyof WriteSiteFilesApiV1StudioSitesSiteIdFilesPutResponses];
+
+export type BuildSiteApiV1StudioSitesSiteIdBuildPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Site Id
+         */
+        site_id: number;
+    };
+    query?: never;
+    url: '/api/v1/studio/sites/{site_id}/build';
+};
+
+export type BuildSiteApiV1StudioSitesSiteIdBuildPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type BuildSiteApiV1StudioSitesSiteIdBuildPostError = BuildSiteApiV1StudioSitesSiteIdBuildPostErrors[keyof BuildSiteApiV1StudioSitesSiteIdBuildPostErrors];
+
+export type BuildSiteApiV1StudioSitesSiteIdBuildPostResponses = {
+    /**
+     * Response Build Site Api V1 Studio Sites  Site Id  Build Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type BuildSiteApiV1StudioSitesSiteIdBuildPostResponse = BuildSiteApiV1StudioSitesSiteIdBuildPostResponses[keyof BuildSiteApiV1StudioSitesSiteIdBuildPostResponses];
+
+export type DownloadSiteApiV1StudioSitesSiteIdDownloadGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Site Id
+         */
+        site_id: number;
+    };
+    query?: never;
+    url: '/api/v1/studio/sites/{site_id}/download';
+};
+
+export type DownloadSiteApiV1StudioSitesSiteIdDownloadGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DownloadSiteApiV1StudioSitesSiteIdDownloadGetError = DownloadSiteApiV1StudioSitesSiteIdDownloadGetErrors[keyof DownloadSiteApiV1StudioSitesSiteIdDownloadGetErrors];
+
+export type DownloadSiteApiV1StudioSitesSiteIdDownloadGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
 
 export type ListAgentTemplatesApiV1AgentTemplatesGetData = {
     body?: never;
@@ -26832,6 +27362,50 @@ export type MoveWorkflowToFolderApiV1WorkflowWorkflowIdFolderPutResponses = {
 };
 
 export type MoveWorkflowToFolderApiV1WorkflowWorkflowIdFolderPutResponse = MoveWorkflowToFolderApiV1WorkflowWorkflowIdFolderPutResponses[keyof MoveWorkflowToFolderApiV1WorkflowWorkflowIdFolderPutResponses];
+
+export type SetWorkflowAvatarApiV1WorkflowWorkflowIdAvatarPutData = {
+    body: SetWorkflowAvatarRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/avatar';
+};
+
+export type SetWorkflowAvatarApiV1WorkflowWorkflowIdAvatarPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetWorkflowAvatarApiV1WorkflowWorkflowIdAvatarPutError = SetWorkflowAvatarApiV1WorkflowWorkflowIdAvatarPutErrors[keyof SetWorkflowAvatarApiV1WorkflowWorkflowIdAvatarPutErrors];
+
+export type SetWorkflowAvatarApiV1WorkflowWorkflowIdAvatarPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: WorkflowListResponse;
+};
+
+export type SetWorkflowAvatarApiV1WorkflowWorkflowIdAvatarPutResponse = SetWorkflowAvatarApiV1WorkflowWorkflowIdAvatarPutResponses[keyof SetWorkflowAvatarApiV1WorkflowWorkflowIdAvatarPutResponses];
 
 export type UpdateWorkflowApiV1WorkflowWorkflowIdPutData = {
     body: UpdateWorkflowRequest;

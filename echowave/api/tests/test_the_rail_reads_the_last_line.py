@@ -19,8 +19,12 @@ from api.routes.team import _members
 async def test_the_last_line_reaches_the_member():
     at = datetime(2026, 9, 14, 6, 30, tzinfo=UTC)
     workflows = [
-        SimpleNamespace(id=3, workflow_uuid="u3", name="Front desk", is_live=True),
-        SimpleNamespace(id=4, workflow_uuid="u4", name="Quiet one", is_live=False),
+        SimpleNamespace(
+            id=3, workflow_uuid="u3", name="Front desk", is_live=True, avatar=None
+        ),
+        SimpleNamespace(
+            id=4, workflow_uuid="u4", name="Quiet one", is_live=False, avatar=None
+        ),
     ]
     with (
         patch(

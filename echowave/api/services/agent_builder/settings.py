@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api import constants
 from api.enums import CostComponent
-from api.services.agent_builder.client import SUPPORTED_PROVIDERS
+from api.services.agent_builder.client import SUPPORTED_PROVIDERS, is_exhausted
 from api.services.configuration import platform_credentials
 
 
@@ -81,6 +81,11 @@ async def resolve_model(session: AsyncSession) -> BuilderModel:
             f"builder cannot drive. Supported: {', '.join(SUPPORTED_PROVIDERS)}."
         )
 
+    # A vendor that said "out of credit" a moment ago is tried last, not
+    # first: every other installed key gets the turn before it does.
+    candidates = [c for c in candidates if not is_exhausted(c)] + [
+        c for c in candidates if is_exhausted(c)
+    ]
     for provider in candidates:
         api_key = await platform_credentials.resolve_api_key(
             session, component=CostComponent.LLM, provider=provider
@@ -142,7 +147,7 @@ async def resolve_choice(session: AsyncSession, choice: str | None) -> BuilderMo
         return await resolve_model(session)
 
     provider, model = pair
-    if provider in SUPPORTED_PROVIDERS:
+    if provider in SUPPORTED_PROVIDERS and not is_exhausted(provider):
         api_key = await platform_credentials.resolve_api_key(
             session, component=CostComponent.LLM, provider=provider
         )

@@ -61,8 +61,8 @@ export default async function Home() {
         "[HomePage] Error checking workflows for local provider:",
         error,
       );
-      // Default to /workflow/create on actual errors
-      logger.debug("[HomePage] Defaulting to /workflow/create due to error");
+      // Default to /start on actual errors
+      logger.debug("[HomePage] Defaulting to /start due to error");
       redirect("/start");
     }
   }

@@ -75,18 +75,18 @@ describe("POST /impersonate", () => {
         );
     });
 
-    it("falls back to /workflow/create for a cross-origin redirect_path", async () => {
+    it("falls back to /start for a cross-origin redirect_path", async () => {
         const response = await POST(
             makeRequest(
                 "https://app.decibyl.ai/impersonate?refresh_token=rt-new&redirect_path=https://evil.com/phish",
             ),
         );
         expect(response.headers.get("location")).toBe(
-            "https://app.decibyl.ai/workflow/create",
+            "https://app.decibyl.ai/start",
         );
     });
 
-    it("falls back to /workflow/create for a malformed redirect_path", async () => {
+    it("falls back to /start for a malformed redirect_path", async () => {
         const response = await POST(
             makeRequest(
                 "https://app.decibyl.ai/impersonate?refresh_token=rt-new&redirect_path=https%3A%2F%2F",
@@ -94,7 +94,7 @@ describe("POST /impersonate", () => {
         );
         expect(response.status).toBe(303);
         expect(response.headers.get("location")).toBe(
-            "https://app.decibyl.ai/workflow/create",
+            "https://app.decibyl.ai/start",
         );
     });
 

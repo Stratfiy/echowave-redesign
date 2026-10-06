@@ -23,6 +23,7 @@ from api.enums import (
     StorageBackend,
     WorkflowStatus,
 )
+from api.schemas.agent_avatar import AgentAvatar, read_avatar
 from api.schemas.ai_model_configuration import compile_ai_model_configuration_v2
 from api.schemas.workflow import WorkflowRunResponseSchema
 from api.schemas.workflow_configurations import (
@@ -392,6 +393,16 @@ class WorkflowListResponse(BaseModel):
     # from single agents because it is a different thing to build and to
     # test: its members are agents in their own right.
     is_squad: bool = False
+    # The agent's face (shape, colour, resting expression), drawn by the
+    # browser. Null is the default face. On the list because the list and the
+    # org chart are where faces are seen, one request for every card.
+    avatar: AgentAvatar | None = None
+
+
+class SetWorkflowAvatarRequest(BaseModel):
+    """The face to wear; null puts the default face back."""
+
+    avatar: AgentAvatar | None = None
 
 
 class MoveWorkflowToFolderRequest(BaseModel):
@@ -1026,6 +1037,7 @@ async def get_workflows(
             handle=workflow.handle,
             is_squad=workflow.id in squads,
             visibility=getattr(workflow, "visibility", None) or "everyone",
+            avatar=read_avatar(workflow.avatar),
         )
         for workflow in workflows
     ]
@@ -2073,6 +2085,54 @@ async def move_workflow_to_folder(
         created_at=workflow.created_at,
         total_runs=run_count,
         folder_id=workflow.folder_id,
+    )
+
+
+@router.put("/{workflow_id}/avatar")
+async def set_workflow_avatar(
+    workflow_id: int,
+    request: SetWorkflowAvatarRequest,
+    user: UserModel = Depends(get_user),
+) -> WorkflowListResponse:
+    """Choose the agent's face: body shape, colour and resting expression.
+
+    Anyone who can see the agent may change its face, as anyone may move it
+    between folders: it changes how the agent looks, not what it does. Written
+    on the agent directly, not as a draft to publish.
+    """
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=user.selected_organization_id
+    )
+    if workflow is None or not visibility.visible(
+        workflow,
+        await visibility.role_of(
+            getattr(user, "id", None), user.selected_organization_id
+        ),
+    ):
+        raise HTTPException(
+            status_code=404, detail=f"Workflow with id {workflow_id} not found"
+        )
+    try:
+        workflow = await db_client.set_workflow_avatar(
+            workflow_id=workflow_id,
+            avatar=request.avatar.model_dump() if request.avatar else None,
+            organization_id=user.selected_organization_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    return WorkflowListResponse(
+        id=workflow.id,
+        name=workflow.name,
+        status=workflow.status,
+        is_live=workflow.is_live,
+        created_at=workflow.created_at,
+        total_runs=await db_client.get_workflow_run_count(workflow.id),
+        folder_id=workflow.folder_id,
+        workflow_uuid=workflow.workflow_uuid,
+        handle=workflow.handle,
+        visibility=getattr(workflow, "visibility", None) or "everyone",
+        avatar=read_avatar(workflow.avatar),
     )
 
 

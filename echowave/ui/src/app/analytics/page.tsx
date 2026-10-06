@@ -17,7 +17,7 @@
 import { AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import {
     Bar,
     BarChart,
@@ -31,6 +31,8 @@ import {
 } from "recharts";
 
 import { getCallAnalyticsApiV1OrganizationsUsageCallsGet } from "@/client/sdk.gen";
+import { DayReport } from "@/components/analytics/DayReport";
+import { RangeFrame } from "@/components/analytics/RangeFrame";
 import { seriesColor } from "@/components/charts/chartTheme";
 import {
     axisProps,
@@ -43,6 +45,7 @@ import {
     useAuthReady,
     useChartMode,
 } from "@/components/charts/primitives";
+import { CALLS_TABS } from "@/components/layout/SectionTabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     Table,
@@ -102,6 +105,12 @@ type CallAnalytics = {
     by_agent: AgentRow[];
 };
 
+/** Today as YYYY-MM-DD in the browser's own calendar, for the day view. */
+function todayLocal(): string {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
 function formatDuration(seconds: number | null | undefined): string {
     if (seconds === null || seconds === undefined) return "—";
     if (seconds < 60) return `${Math.round(seconds)}s`;
@@ -116,7 +125,34 @@ function formatHour(hour: number): string {
     return `${twelve}${suffix}`;
 }
 
+/**
+ * Analytics: the shape of the calls over weeks, and, with ?date=, one day in
+ * detail (DayReport, which was /reports). Pressing a day in the chart opens
+ * that day here, so the two read as one screen rather than two pages.
+ */
 export default function CallAnalyticsPage() {
+    return (
+        <Suspense>
+            <AnalyticsOrDay />
+        </Suspense>
+    );
+}
+
+function AnalyticsOrDay() {
+    const searchParams = useSearchParams();
+    if (searchParams.has("date")) return <DayReport />;
+    return (
+        <RangeFrame
+            title="Analytics"
+            description="The shape of your calls: how many, how long, when the phone rings, and how they ended. Press a day for every call on it."
+            tabs={CALLS_TABS}
+        >
+            <CallAnalytics />
+        </RangeFrame>
+    );
+}
+
+function CallAnalytics() {
     const mode = useChartMode();
     const router = useRouter();
     const authReady = useAuthReady();
@@ -239,7 +275,7 @@ export default function CallAnalyticsPage() {
                             cursor="pointer"
                             onClick={(entry: { payload?: DailyRow }) => {
                                 const day = entry?.payload?.day;
-                                if (day) router.push(`/reports?date=${day}`);
+                                if (day) router.push(`/analytics?date=${day}`);
                             }}
                         />
                         <Line
@@ -465,7 +501,7 @@ export default function CallAnalyticsPage() {
                 day, with this line as the keyboard path to the same place. */}
             <p className="text-sm text-muted-foreground">
                 Press a day in the chart above for{" "}
-                <Link href="/reports" className="font-medium underline underline-offset-4">
+                <Link href={`/analytics?date=${todayLocal()}`} className="font-medium underline underline-offset-4">
                     that day in detail
                 </Link>
                 : every call on it, with a CSV.

@@ -77,7 +77,7 @@ class TestTheWelcome:
             account_name=None, app_url="https://app.decibyl.ai/"
         )
 
-        assert "https://app.decibyl.ai/workflow/create" in notice.body
+        assert "https://app.decibyl.ai/start" in notice.body
         assert "https://app.decibyl.ai/billing" in notice.body
         assert "https://app.decibyl.ai/provider-keys" in notice.body
         # The trailing slash on the base must not survive into the links.

@@ -52,7 +52,7 @@ class TestOneRole:
         assert body["speaks"] is False
         kinds = [s["kind"] for s in body["outline"]]
         assert kinds[0] == "start" and kinds[-1] == "finish"
-        assert body["outline"][0]["name"] == "Find prospects"
+        assert body["outline"][0]["name"] == "Check replies"
         assert body["template_id"] == "outbound_prospecting"
 
     def test_the_prompt_text_is_not_published(self):

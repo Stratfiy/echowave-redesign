@@ -6,12 +6,12 @@ import { getWorkflowsApiV1WorkflowFetchGet, listFoldersApiV1FolderGet } from '@/
 import type { FolderResponse, WorkflowListResponse } from '@/client/types.gen';
 import { Art3D } from '@/components/art/Art3D';
 import { PageBody, PageHeader } from '@/components/layout/PageHeader';
-import { BOTS_TABS } from '@/components/layout/SectionTabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { CreateWorkflowButton } from "@/components/workflow/CreateWorkflowButton";
 import { AgentFolderView } from '@/components/workflow/folders/AgentFolderView';
 import { CreateFolderButton } from '@/components/workflow/folders/CreateFolderButton';
+import { FolderSection } from '@/components/workflow/folders/FolderSection';
 import { StartFromTemplate } from '@/components/workflow/StartFromTemplate';
 import { UploadWorkflowButton } from '@/components/workflow/UploadWorkflowButton';
 import { WorkflowTable } from '@/components/workflow/WorkflowTable';
@@ -21,8 +21,10 @@ import logger from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
-// Server component for workflow list
-async function WorkflowList() {
+// Server component for workflow list. `archived` shows the agents that were
+// put away instead (?show=archived): it was its own tab, /workflow/archived,
+// and is a filter of this list now (UI-0).
+async function WorkflowList({ archived }: { archived: boolean }) {
     const authProvider = await getServerAuthProvider();
     const accessToken = await getServerAccessToken();
 
@@ -59,6 +61,8 @@ async function WorkflowList() {
         const squads = allWorkflowData
             .filter((w: WorkflowListResponse) => w.status === 'active' && w.is_squad)
             .sort((a: WorkflowListResponse, b: WorkflowListResponse) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+        if (archived) return <ArchivedAgents workflows={allWorkflowData} />;
 
         // Separate active and archived workflows
         const activeWorkflows = allWorkflowData
@@ -135,14 +139,13 @@ async function WorkflowList() {
                     )}
                 </div>
 
-                {/* Archived bots are the Archived tab now. A collapsed
-                    section at the foot of this page was indistinguishable
-                    from not existing. */}
+                {/* A door to the archived ones, which a collapsed section
+                    at the foot of this page used to hide. */}
                 {archivedWorkflows.length > 0 && (
                     <p className="mb-8 text-sm text-muted-foreground">
                         {archivedWorkflows.length}{" "}
                         {archivedWorkflows.length === 1 ? "agent is" : "agents are"} archived.{" "}
-                        <Link href="/workflow/archived" className="underline underline-offset-4 hover:text-foreground">
+                        <Link href="/workflow?show=archived" className="underline underline-offset-4 hover:text-foreground">
                             See them
                         </Link>
                         .
@@ -160,8 +163,39 @@ async function WorkflowList() {
     }
 }
 
-async function PageContent() {
-    const workflowList = await WorkflowList();
+/**
+ * The agents that were put away, with what they were and a way back.
+ * Somebody who archived an agent and could not find it again concluded it
+ * was deleted; this says otherwise.
+ */
+function ArchivedAgents({ workflows }: { workflows: WorkflowListResponse[] }) {
+    const archived = workflows
+        .filter((w) => w.status === 'archived')
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return (
+        <div className="space-y-4">
+            <Link href="/workflow" className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+                ← Working agents
+            </Link>
+            {archived.length === 0 ? (
+                <Card>
+                    <CardContent className="space-y-2 py-10 text-center">
+                        <p className="text-sm">Nothing is archived.</p>
+                        <p className="text-xs text-muted-foreground">
+                            Archiving an agent stops it working and files it here. Nothing is deleted, and its
+                            calls stay on the record.
+                        </p>
+                    </CardContent>
+                </Card>
+            ) : (
+                <FolderSection kind="archived" workflows={archived} defaultOpen />
+            )}
+        </div>
+    );
+}
+
+async function PageContent({ archived }: { archived: boolean }) {
+    const workflowList = await WorkflowList({ archived });
 
     return <PageBody>{workflowList}</PageBody>;
 }
@@ -202,13 +236,21 @@ function WorkflowsLoading() {
     );
 }
 
-export default function WorkflowPage() {
+export default async function WorkflowPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ show?: string }>;
+}) {
+    const archived = (await searchParams).show === 'archived';
     return (
         <>
             <PageHeader
-                title="Your agents"
-                description="Each one does a job — on the phone, on WhatsApp, or on a schedule."
-                tabs={BOTS_TABS}
+                title={archived ? 'Archived agents' : 'Your agents'}
+                description={
+                    archived
+                        ? 'Archived agents take no calls and cost nothing. Restore one and it picks up where it was.'
+                        : 'Each one does a job — on the phone, on WhatsApp, or on a schedule.'
+                }
                 actions={
                     <>
                         <UploadWorkflowButton />
@@ -218,7 +260,7 @@ export default function WorkflowPage() {
                 }
             />
             <Suspense fallback={<WorkflowsLoading />}>
-                <PageContent />
+                <PageContent archived={archived} />
             </Suspense>
         </>
     );

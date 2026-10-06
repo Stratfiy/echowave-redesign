@@ -2,7 +2,6 @@ import {
   Activity,
   Bot,
   CalendarClock,
-  ChartColumnBig,
   Database,
   Flag,
   Globe,
@@ -20,11 +19,12 @@ import {
   Shield,
   ShieldCheck,
   ShoppingBag,
-  SlidersHorizontal,
   UserCog,
   Wallet,
   Workflow,
 } from "lucide-react";
+
+import { HOMES } from "./v2/homes";
 
 export type SidebarNavItem = {
   title: string;
@@ -177,7 +177,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         // is delivery, and a person you deal with is desk work.
         title: "Tasks",
         url: "/tasks",
-        activePaths: ["/requests", "/schedules", "/contacts", "/deliverables"],
+        activePaths: ["/schedules", "/contacts", "/deliverables"],
         icon: CalendarClock,
         keywords: [
           "desk", "tasks", "scheduled", "routine", "schedule", "every morning", "daily",
@@ -202,8 +202,8 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         // makes a destination unsearchable is a rename that loses it.
         title: "Agents",
         url: "/workflow",
-        // The old models page redirects here; keep it lit while it does.
-        activePaths: ["/model-configurations"],
+        // Company is the agents seen as an org chart, so it lights here too.
+        activePaths: ["/company"],
         icon: Bot,
         keywords: [
           // "bots" first: it is what the rail used to say and what most
@@ -266,7 +266,6 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
           "/marketplace/tools",
           "/marketplace/skills",
           "/marketplace/integrations",
-          "/integrations/apps",
         ],
         icon: ShoppingBag,
         keywords: [
@@ -325,11 +324,9 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       {
         title: "Billing",
         url: "/billing",
-        // /analytics/spend lives under /analytics for the shared date range,
-        // but it answers a money question and wears the Billing tab strip.
-        // The match is most-specific-first, so it lights Billing here while
-        // /analytics itself still lights Calls.
-        activePaths: ["/partner", "/analytics/spend"],
+        // /billing/spend sits under /billing already; the partner programme
+        // is the third Billing tab.
+        activePaths: ["/partner"],
         icon: Wallet,
         keywords: [
           "credit",
@@ -353,7 +350,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       {
         title: "Phone numbers",
         url: "/telephony-configurations",
-        activePaths: ["/numbers", "/verified-numbers", "/verification"],
+        activePaths: ["/numbers", "/verified-numbers"],
         icon: Phone,
         showsTelephonyWarning: true,
         keywords: [
@@ -519,139 +516,9 @@ export function getVisibleNavSections(roles: { isStaff: boolean; isOrganizationA
     .filter(section => section.items.length > 0);
 }
 
-/** Segment boundaries avoid matching /workflow-templates as /workflow.
- * The most specific match keeps nested staff pages from selecting two links. */
-export function getActiveNavUrl(pathname: string, sections: SidebarNavSection[]): string | undefined {
-  return sections.flatMap(section => section.items)
-    .flatMap(item => [item.url, ...(item.activePaths ?? [])].map(path => ({ path, url: item.url })))
-    .filter(({ path }) => pathname === path || pathname.startsWith(`${path}/`))
-    .sort((a, b) => b.path.length - a.path.length)[0]?.url;
-}
-
-
 /* ------------------------------------------------------------------------ *
- * The rail
+ * The account menu: every destination the rail's homes do not name
  * ------------------------------------------------------------------------ */
-
-/**
- * The five contexts the rail offers, each opening its own panel.
- *
- * Seventeen destinations in one scrolling list is a control panel. Every
- * workspace tool the market has settled on uses the same shape instead: a
- * narrow rail of a few contexts, and one wide panel that swaps entirely. Slack
- * has five — Home, DMs, Activity, More, Admin — and "Bots & tools" gets a
- * panel of its own rather than three entries in a list.
- *
- * `NAV_SECTIONS` stays the single source of truth for the items themselves, so
- * search, the role filter and the active-URL match are untouched by this. A
- * context only says which panel an item is reached through.
- */
-export type NavContextId = "home" | "activity" | "marketplace" | "setup" | "account";
-
-export type NavContext = {
-  id: NavContextId;
-  title: string;
-  icon: LucideIcon;
-  /** Item urls reached through this panel. See CONTEXT_FALLBACK for the rest. */
-  urls: string[];
-};
-
-/**
- * Where an unassigned destination goes.
- *
- * A rail built from an allowlist is the silent-absence bug with a map: add a
- * nav entry, forget to place it, and it does not appear anywhere — no error,
- * no symptom, just a screen nobody can reach. Account is the catch-all, and
- * `every nav item reaches a panel` in the tests is what proves nothing falls
- * through. Deliberately a blocklist-shaped rule: the worst case is a
- * destination filed under the wrong heading, which somebody notices.
- */
-export const CONTEXT_FALLBACK: NavContextId = "account";
-
-export const NAV_CONTEXTS: NavContext[] = [
-  {
-    id: "home",
-    title: "Home",
-    icon: Home,
-    // The bots are listed under Home by SidebarBots, which reads the roster
-    // rather than this list — this is the door to all of them.
-    urls: ["/overview", "/workflow", "/tasks", "/requests", "/schedules"],
-  },
-  {
-    id: "activity",
-    title: "Activity",
-    icon: ChartColumnBig,
-    // What the bots have been doing, and the work being pushed at them.
-    urls: ["/review", "/usage", "/analytics", "/campaigns", "/contacts"],
-  },
-  {
-    id: "marketplace",
-    title: "Marketplace",
-    icon: ShoppingBag,
-    // The whole shop -- tools, bots, the apps a bot reaches -- and beside
-    // it what this account has taken from it.
-    urls: [
-      "/marketplace",
-      "/marketplace/tools",
-      "/marketplace/skills",
-      "/marketplace/integrations",
-      "/tools",
-    ],
-  },
-  {
-    id: "setup",
-    title: "Setup",
-    icon: SlidersHorizontal,
-    // The things a bot needs before it can work: a number, what it knows,
-    // where it is embedded, and the keys other software reaches it with.
-    urls: [
-      "/telephony-configurations",
-      "/files",
-      "/deploy/web-widget",
-      "/api-keys",
-      "/deploy/connect",
-    ],
-  },
-  {
-    id: "account",
-    title: "Account",
-    icon: Settings,
-    // Plus anything unplaced, and the whole staff section.
-    urls: ["/billing", "/privacy", "/settings"],
-  },
-];
-
-/** Which panel a destination is reached through. Never undefined. */
-export function contextIdForUrl(url: string): NavContextId {
-  return NAV_CONTEXTS.find(context => context.urls.includes(url))?.id ?? CONTEXT_FALLBACK;
-}
-
-/**
- * The sections to render in one panel, keeping each section's own label and
- * order. A section contributing no items to this context is dropped rather
- * than rendered as an empty heading.
- */
-export function getContextSections(
-  contextId: NavContextId,
-  sections: SidebarNavSection[],
-): SidebarNavSection[] {
-  return sections
-    .map(section => ({
-      ...section,
-      items: section.items.filter(item => contextIdForUrl(item.url) === contextId),
-    }))
-    .filter(section => section.items.length > 0);
-}
-
-
-/* ------------------------------------------------------------------------ *
- * The shell (SHELL_2026_09_ENABLED)
- * ------------------------------------------------------------------------ */
-
-/**
- * Everyday work, always on the sidebar: the same five rows as before.
- */
-export const SHELL_WORK_URLS = ["/overview", "/tasks", "/workflow", "/files", "/usage"] as const;
 
 export type ShellEntry = {
   title: string;
@@ -663,17 +530,13 @@ export type ShellEntry = {
 };
 
 /**
- * Everything else, in one short "Manage" group at the foot of the sidebar.
+ * Everything the rail's homes do not name, in the account menu at the foot
+ * of the rail (AppRailV2's AccountMenu): the shop, apps and tools, the deploy
+ * screens, billing and compliance.
  *
- * Before this, ten destinations -- the Marketplace, phone numbers, billing,
- * settings among them -- were reachable only from the profile menu, under
- * headings (Marketplace, Setup, Account) that appeared nowhere else, and the
- * visible sidebar had an "Activity tools" heading over one row. Five entries,
- * two of which open, put every screen on the sidebar without making it long.
- *
- * Urls, never copies of items: titles, icons, roles and the active match all
- * still come from NAV_SECTIONS, and `every destination is on the sidebar` in
- * the tests fails if a new nav item is placed nowhere.
+ * Urls, never copies of items: titles, icons and roles still come from
+ * NAV_SECTIONS, and the reachability test (shellNavigation.test.ts) fails if
+ * a new nav item is placed on neither the rail nor this menu.
  */
 export const SHELL_MANAGE: ShellEntry[] = [
   { title: "Marketplace", icon: ShoppingBag, url: "/marketplace" },
@@ -711,10 +574,11 @@ export function visibleShellManage(sections: SidebarNavSection[]): ShellEntry[] 
   });
 }
 
-/** Every url the shell sidebar reaches, work rows and Manage together. */
+/** Every url the navigation reaches: the rail's homes and the account menu. */
 export function shellUrls(): string[] {
-  return [
-    ...SHELL_WORK_URLS,
+  const urls = [
+    ...HOMES.map((home) => home.url.split("#")[0]),
     ...SHELL_MANAGE.flatMap((e) => (e.url ? [e.url] : (e.children ?? []).map((c) => c.url))),
   ];
+  return [...new Set(urls)];
 }

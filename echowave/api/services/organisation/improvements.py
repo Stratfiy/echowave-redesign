@@ -129,7 +129,7 @@ def from_gaps(gaps: Iterable[Any]) -> list[dict[str, Any]]:
                     evidence=f"Failed on {times} calls",
                     severity=SEVERITY_URGENT,
                     action=ACTION_OPEN,
-                    href="/integrations/apps",
+                    href="/marketplace/integrations",
                 )
             )
     return out
@@ -151,7 +151,7 @@ def from_failures(failures_by_app: dict[str, int]) -> list[dict[str, Any]]:
                 evidence=f"{failures} failures in the last 7 days",
                 severity=SEVERITY_URGENT,
                 action=ACTION_OPEN,
-                href="/integrations/apps",
+                href="/marketplace/integrations",
             )
         )
     return out

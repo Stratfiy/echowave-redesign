@@ -6,6 +6,7 @@ import { parseTrial } from "../useRailData";
 describe("activeHome", () => {
   it.each([
     ["/overview", "home"],
+    ["/company", "company"],
     ["/tasks", "tasks"],
     ["/workflow", "agents"],
     ["/workflow/12/thread", "agents"],

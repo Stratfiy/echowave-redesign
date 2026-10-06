@@ -2,7 +2,10 @@ import { Plus } from "lucide-react";
 import Link from "next/link";
 
 import type { TeamMember } from "@/client/types.gen";
+import { AgentAvatar } from "@/components/avatar/AgentAvatar";
+import { type Avatar, faceOf } from "@/components/avatar/avatar";
 import { BotAvatar } from "@/components/bot/BotAvatar";
+import { useFeature } from "@/lib/features";
 
 import { colleagueState, RAIL_COPY } from "./homes";
 
@@ -18,11 +21,14 @@ type ColleagueRosterProps = {
 /**
  * The org's agents as colleagues, each with a dot: live, needs you, idle.
  * /team/status sorts worst-first, so the one that needs somebody is on top.
- * TODO(KAN-260): faces replace the avatar when agent_faces lands.
+ * With agent_faces on (KAN-260), each wears its own still face instead of the
+ * job icon: a still frame, because a rail of moving faces pulls the eye from
+ * the page beside it.
  */
 export function ColleagueRoster({ colleagues, pathname, onNavigate }: ColleagueRosterProps) {
   const shown = colleagues.slice(0, ROSTER_LIMIT);
   const hidden = colleagues.length - shown.length;
+  const facesOn = useFeature("agent_faces");
 
   return (
     <section aria-labelledby="v2-colleagues-label" className="v2-section">
@@ -48,7 +54,16 @@ export function ColleagueRoster({ colleagues, pathname, onNavigate }: ColleagueR
                 onClick={onNavigate}
                 data-state={state}
               >
-                <BotAvatar id={member.workflow_id} name={member.name} />
+                {facesOn ? (
+                  <AgentAvatar
+                    avatar={faceOf(member.workflow_id, member.avatar as Avatar | null | undefined)}
+                    tone={member.tone}
+                    size={28}
+                    animate={false}
+                  />
+                ) : (
+                  <BotAvatar id={member.workflow_id} name={member.name} />
+                )}
                 <span className="v2-roster-text">
                   <span className="v2-roster-name">{member.name}</span>
                   {member.status && <span className="v2-roster-sub">{member.status}</span>}
