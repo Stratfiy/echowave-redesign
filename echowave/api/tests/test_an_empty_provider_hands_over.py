@@ -41,8 +41,11 @@ GEMINI_OK = httpx.Response(
 
 @pytest.fixture(autouse=True)
 def _fresh():
+    # A successful turn meters itself; keep those rows out of the shared test
+    # DB, where test_every_model_call_is_metered counts them.
     client._exhausted_until.clear()
-    yield
+    with patch.object(client.model_usage, "record", AsyncMock()):
+        yield
     client._exhausted_until.clear()
 
 
