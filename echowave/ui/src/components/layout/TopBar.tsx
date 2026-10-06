@@ -18,6 +18,7 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { HELP_LINKS } from "@/constants/community";
 import { type AccessRoles, useAccessRoles } from "@/hooks/useAccessRoles";
+import { useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 import { BalanceChip } from "./BalanceChip";
@@ -173,6 +174,8 @@ function GlobalSearch() {
  * account controls in a persistent bar across the top of every board.
  */
 export function TopBar() {
+  // Free while we are early: no balance to watch, no credit to earn.
+  const freeMode = useFeature("free_mode");
   const { toggleSidebar } = useSidebar();
   return (
     <header className="sticky top-0 z-40 flex h-11 shrink-0 items-center gap-2 px-3 text-rail-foreground">
@@ -198,10 +201,10 @@ export function TopBar() {
             every screen, not a page you visit. It lived only on Billing, so
             most people met the number for the first time after a call had
             already been refused. */}
-        <BalanceChip />
+        {!freeMode && <BalanceChip />}
         {/* What adds to that number for free: the credit steps and the
             referral link, one tap from the chip they feed. */}
-        <GiftMenu />
+        {!freeMode && <GiftMenu />}
 
         {/* The workspace is named at the head of the panel now, the way
             Slack names it, so it is not said a second time up here. */}

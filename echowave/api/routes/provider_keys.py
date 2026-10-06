@@ -160,8 +160,11 @@ async def set_provider_key(
 
     # Staff accounts have every feature; for anyone else this is a commercial
     # arrangement switched on from the staff account page.
+    from api.services.billing import free_mode
+
     if not (
         is_superadmin(user)
+        or free_mode.on(organization_id)
         or (await get_organization_preferences(organization_id)).own_keys_allowed
     ):
         raise HTTPException(

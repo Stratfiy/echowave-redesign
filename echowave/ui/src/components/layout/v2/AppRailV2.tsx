@@ -53,6 +53,7 @@ export function AppRailV2() {
   const current = activeHome(pathname);
   const { provider } = useAuth();
   const studioOn = useFeature("studio");
+  const freeMode = useFeature("free_mode");
   const homes = HOMES.filter((home) => !home.flag || (home.flag === "studio" && studioOn));
   const { config } = useAppConfig();
   // Self-hosted only: cloud is updated for the customer.
@@ -132,7 +133,8 @@ export function AppRailV2() {
               Update available ({release.latest})
             </a>
           )}
-          {!collapsed && <TrialBox trial={trial} creditsPaise={creditsPaise} />}
+          {/* Free while we are early: no trial, no credits to count. */}
+          {!collapsed && !freeMode && <TrialBox trial={trial} creditsPaise={creditsPaise} />}
           <div className={cn("v2-foot-row", collapsed && "v2-foot-col")}>
             <AccountMenu collapsed={collapsed} onNavigate={onNavigate} />
             <a
@@ -184,7 +186,9 @@ function AccountMenu({ collapsed, onNavigate }: { collapsed: boolean; onNavigate
     isOrganizationAdmin: roles.isOrganizationAdmin,
     isSuperadmin: roles.staffRole === "superadmin",
   });
-  const manage = visibleShellManage(sections);
+  const freeMode = useFeature("free_mode");
+  // Free while we are early: nothing to pay, so no Billing in the menu.
+  const manage = visibleShellManage(sections).filter((entry) => !(freeMode && entry.url === "/billing"));
   const staffUrls = new Set(STAFF_SECTION.items.map((item) => item.url));
   const staff = sections.flatMap((section) => section.items).filter((item) => staffUrls.has(item.url));
 

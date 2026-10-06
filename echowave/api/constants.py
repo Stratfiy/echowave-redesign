@@ -778,6 +778,11 @@ DECIBYL_TELEGRAM_ENABLED = _flag("DECIBYL_TELEGRAM_ENABLED")
 DECIBYL_SLACK_ENABLED = _flag("DECIBYL_SLACK_ENABLED")
 DECIBYL_TEAMS_ENABLED = _flag("DECIBYL_TEAMS_ENABLED")
 
+# Free while we are early (October 2026): no plans, nothing charged, nothing
+# locked. On by default -- the one launch switch that is -- and reversible
+# from the environment or the staff console. See services/billing/free_mode.py.
+FREE_MODE_ENABLED = os.getenv("FREE_MODE_ENABLED", "true").strip().lower() == "true"
+
 # Per-organisation overrides: "feature:org_id,org_id;feature2:org_id". A
 # feature listed here is on for those organisations even while its global
 # flag is off, so it can be tried by the platform organisation and one

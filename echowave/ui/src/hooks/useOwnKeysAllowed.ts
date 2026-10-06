@@ -14,9 +14,12 @@ import { useEffect, useRef, useState } from "react";
 
 import { getPreferencesApiV1OrganizationsPreferencesGet } from "@/client/sdk.gen";
 import { useAuth } from "@/lib/auth";
+import { useFeature } from "@/lib/features";
 
 export function useOwnKeysAllowed(): boolean | null {
     const { user, loading } = useAuth();
+    // Free while we are early: everyone may bring their own keys.
+    const freeMode = useFeature("free_mode");
     const hasFetched = useRef(false);
     const [allowed, setAllowed] = useState<boolean | null>(null);
 
@@ -30,5 +33,5 @@ export function useOwnKeysAllowed(): boolean | null {
         })();
     }, [loading, user]);
 
-    return allowed;
+    return freeMode ? true : allowed;
 }

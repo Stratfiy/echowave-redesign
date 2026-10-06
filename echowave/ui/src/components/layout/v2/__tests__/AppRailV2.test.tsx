@@ -123,6 +123,13 @@ describe("v2 rail", () => {
     expect(screen.getByText("Credits")).toBeTruthy();
   });
 
+  it("shows no trial or credits while everything is free", () => {
+    state.features = { free_mode: true };
+    state.data = { ...state.data, trial: { onTrial: true, active: true, daysLeft: 11, days: 14 }, creditsPaise: 71_200 };
+    mount();
+    expect(screen.queryByTestId("v2-trial-box")).toBeNull();
+  });
+
   it("shows days left when the plan reports a trial", () => {
     state.data = { ...state.data, trial: { onTrial: true, active: true, daysLeft: 11, days: 14 }, creditsPaise: 71_200 };
     mount();

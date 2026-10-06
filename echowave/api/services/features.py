@@ -92,6 +92,8 @@ FLAGS: dict[str, str] = {
     "decibyl_teams": "DECIBYL_TEAMS_ENABLED",
     # Studio: agents and a website for them, built from one chat.
     "studio": "STUDIO_ENABLED",
+    # Free while we are early: no plans, nothing charged (on by default).
+    "free_mode": "FREE_MODE_ENABLED",
 }
 
 
@@ -135,6 +137,7 @@ DESCRIPTIONS: dict[str, str] = {
     "decibyl_slack": "Decibyl in Slack.",
     "decibyl_teams": "Decibyl in Microsoft Teams.",
     "studio": "Studio: build agents and a website for them from one chat.",
+    "free_mode": "Free while we are early: no plans, nothing charged, nothing locked.",
 }
 
 

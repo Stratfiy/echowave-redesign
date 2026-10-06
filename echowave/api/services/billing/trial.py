@@ -53,6 +53,9 @@ def starts_at_floor() -> datetime:
 
 
 def applies(organization_id: int | None) -> bool:
+    # No trial while everything is free, so none can end (free_mode.py).
+    if features.is_on("free_mode", organization_id):
+        return False
     return features.is_on(FLAG, organization_id)
 
 

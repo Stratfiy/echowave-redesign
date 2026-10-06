@@ -23,6 +23,10 @@ from dotenv import load_dotenv
 # Load .env.test before importing api.constants (which reads DATABASE_URL at import time)
 env_path = Path(__file__).resolve().parent / ".env.test"
 load_dotenv(env_path)
+# Free mode is on by default in a deployment (services/billing/free_mode.py);
+# the suite tests plans, trials and charges, so it runs with it off unless a
+# test turns it on (tests/test_free_mode.py).
+os.environ.setdefault("FREE_MODE_ENABLED", "false")
 
 import logging
 import sys

@@ -76,6 +76,7 @@ import {
   formatMinor,
   formatPaise,
 } from "@/lib/billing/format";
+import { useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 /** Rupee amounts offered as one click. Chosen to bracket a month of ordinary
@@ -227,6 +228,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function BillingPage() {
+  const freeMode = useFeature("free_mode");
   const { user, loading: authLoading } = useAuth();
   const hasFetched = useRef(false);
   const mounted = useRef(true);
@@ -823,6 +825,9 @@ export default function BillingPage() {
 
       <RateCardSection />
 
+      {/* Free while we are early: no plans to pick and no credit to add. */}
+      {!freeMode && (
+        <>
       <PlanSection
         onSubscribed={() => void refresh()}
         billingProfileComplete={balance?.billing_profile_complete ?? false}
@@ -1052,6 +1057,8 @@ export default function BillingPage() {
           </>
         )}
       </section>
+        </>
+      )}
 
       <section className="rounded-xl border bg-card p-6">
         <h2 className="text-lg font-medium">Billing details</h2>

@@ -46,7 +46,9 @@ export type Feature =
     | "decibyl_telegram"
     | "decibyl_slack"
     | "decibyl_teams"
-    | "studio";
+    | "studio"
+    // Free while we are early: no plans, nothing charged (on by default).
+    | "free_mode";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

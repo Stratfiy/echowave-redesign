@@ -146,6 +146,10 @@ async def meter_builder_message(
         )
     if not state.past_allowance:
         return state, 0
+    from api.services.billing import free_mode
+
+    if free_mode.on(organization_id):
+        return state, 0
     # Past the plan's allowance a message is five credits (KAN-56), taken
     # before the model runs. Refused, with the way out named, when the
     # balance cannot cover it.
