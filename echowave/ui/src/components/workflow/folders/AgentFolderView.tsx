@@ -258,11 +258,11 @@ export function AgentFolderView({ workflows, folders }: AgentFolderViewProps) {
                                 ) : null}
                             </div>
                             <div className="grid grid-cols-2 gap-2">
-                                <Button asChild><Link href={`/workflow/${selected.id}/thread`}>Message</Link></Button>
-                                <Button asChild variant="outline"><Link href={`/workflow/${selected.id}`}>Edit agent</Link></Button>
+                                <Button asChild><Link href={`/workflow/${selected.id}/thread`}>Open</Link></Button>
+                                <Button asChild variant="outline"><Link href={`/workflow/${selected.id}`}>Advanced setup</Link></Button>
                             </div>
                             <Button asChild variant="outline" className="w-full"><Link href={`/workflow/${selected.id}/runs`}>View activity · {selected.total_runs ?? 0} runs</Link></Button>
-                            <p className="text-sm text-muted-foreground">Open the editor to change instructions, skills, tools, knowledge or voice settings, and test the agent.</p>
+                            <p className="text-sm text-muted-foreground">Open it to talk to it and change its voice, skills and memory. Advanced setup holds its instructions, tools, knowledge and models.</p>
                             <Button variant="ghost" className="w-full" onClick={() => { setSelectedId(null); setView('list'); }}>Manage status, groups and archive in List</Button>
                         </div>
                     )}

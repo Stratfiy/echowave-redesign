@@ -1,7 +1,7 @@
 /**
- * On a bot's chat the About, Test and Share buttons live in the header bar,
- * and the tab strip has a row of its own. Sharing one row clipped the last
- * tabs on any laptop-sized window.
+ * The agent's page (October 2026 design): its chat, About (voice, skills,
+ * memory) beside it, Test in the header, and everything else -- sharing,
+ * activity, the advanced setup -- in one menu. No tab strip.
  */
 
 import { render, screen, within } from "@testing-library/react";
@@ -20,8 +20,12 @@ vi.mock("@/client/sdk.gen", () => ({
 vi.mock("@/components/channel/ChannelStream", () => ({ ChannelStream: () => <div data-testid="stream" /> }));
 vi.mock("@/components/channel/ChannelComposer", () => ({ ChannelComposer: () => <div data-testid="composer" /> }));
 vi.mock("@/app/workflow/[workflowId]/components/AboutPanel", () => ({ AboutPanel: () => <div /> }));
-vi.mock("@/app/workflow/[workflowId]/components/AgentTabs", () => ({
-    AgentTabs: () => <nav aria-label="Agent tabs" />,
+// The menu's items render inline, so the test can see where they go.
+vi.mock("@/components/ui/dropdown-menu", () => ({
+    DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div role="menu">{children}</div>,
+    DropdownMenuItem: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 import BotChatPage from "../page";
@@ -33,8 +37,8 @@ const params = Object.assign(Promise.resolve({ workflowId: "7" }), {
     value: { workflowId: "7" },
 }) as unknown as Promise<{ workflowId: string }>;
 
-describe("the agent's chat", () => {
-    it("keeps About, Test and Share in the header, off the tab strip's row", async () => {
+describe("the agent's page", () => {
+    it("keeps About and Test in the header and the rest in one menu", async () => {
         render(
             <React.Suspense fallback={null}>
                 <BotChatPage params={params} />
@@ -42,12 +46,20 @@ describe("the agent's chat", () => {
         );
         const bar = await screen.findByRole("banner");
         expect(within(bar).getByRole("button", { name: /About/ })).toBeTruthy();
-        expect(within(bar).getByRole("link", { name: /Test/ })).toBeTruthy();
-        expect(within(bar).getByRole("link", { name: /Share/ })).toBeTruthy();
+        expect(within(bar).getByRole("link", { name: /Call me to test/ }).getAttribute("href")).toBe("/workflow/7?onboarding=web_call");
+        const menu = within(bar).getByRole("menu");
+        expect(within(menu).getByRole("link", { name: "Share" }).getAttribute("href")).toBe("/workflow/7/settings?tab=share");
+        expect(within(menu).getByRole("link", { name: "Activity" }).getAttribute("href")).toBe("/workflow/7/runs");
+        expect(within(menu).getByRole("link", { name: "Advanced setup" }).getAttribute("href")).toBe("/workflow/7");
+    });
 
-        const tabs = screen.getByRole("navigation", { name: "Agent tabs" });
-        expect(bar.contains(tabs)).toBe(false);
-        // The strip is a direct child of the page column, so it gets the whole row.
-        expect(tabs.parentElement).toBe(bar.parentElement);
+    it("has no tab strip", async () => {
+        render(
+            <React.Suspense fallback={null}>
+                <BotChatPage params={params} />
+            </React.Suspense>,
+        );
+        await screen.findByRole("banner");
+        expect(screen.queryByRole("navigation", { name: "Agent" })).toBeNull();
     });
 });

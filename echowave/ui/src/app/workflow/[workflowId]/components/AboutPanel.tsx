@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * About this bot: the profile column the Chat tab opens at the side, the
- * way Slack opens a teammate's profile beside the conversation. Owns its
- * data so the chat page does not have to: the bot's definition for the
- * skills and documents, its configuration for the brains and voice, and a
- * save path for the pencils on those tiles.
+ * About this agent: the column beside its chat (the approved design, October
+ * 2026). Three things a person changes, and nothing else: its voice, its
+ * skills and its memory. Models, quality, triggers and the rest stay on
+ * the agent's advanced setup, behind the menu in the header. Owns its data
+ * so the chat page does not have to.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -14,11 +14,13 @@ import {
     getWorkflowApiV1WorkflowFetchWorkflowIdGet,
     updateWorkflowApiV1WorkflowWorkflowIdPut,
 } from '@/client/sdk.gen';
-import type { FlowNode } from '@/components/flow/types';
+import { AgentMemory } from '@/components/agent/AgentMemory';
+import { AgentSkills } from '@/components/agent/AgentSkills';
+import { AgentAvatar } from '@/components/avatar/AgentAvatar';
+import { type Avatar, faceOf } from '@/components/avatar/avatar';
 import { useAuth } from '@/lib/auth';
 import type { WorkflowConfigurations } from '@/types/workflow-configurations';
 
-import { AgentProfilePanel } from './AgentProfilePanel';
 import { ModelRow } from './ModelRow';
 
 export function AboutPanel({
@@ -30,9 +32,8 @@ export function AboutPanel({
 }) {
     const { user, loading: authLoading } = useAuth();
     const fetched = useRef(false);
-    const [nodes, setNodes] = useState<FlowNode[]>([]);
     const [configurations, setConfigurations] = useState<WorkflowConfigurations | null>(null);
-    const [folderId, setFolderId] = useState<number | null>(null);
+    const [avatar, setAvatar] = useState<Partial<Avatar> | null>(null);
 
     useEffect(() => {
         if (authLoading || !user || fetched.current) return;
@@ -40,10 +41,8 @@ export function AboutPanel({
         void (async () => {
             const response = await getWorkflowApiV1WorkflowFetchWorkflowIdGet({ path: { workflow_id: workflowId } });
             if (response.error || !response.data) return;
-            const definition = response.data.workflow_definition as { nodes?: FlowNode[] } | null;
-            setNodes(definition?.nodes ?? []);
             setConfigurations((response.data.workflow_configurations ?? null) as WorkflowConfigurations | null);
-            setFolderId((response.data as { folder_id?: number | null }).folder_id ?? null);
+            setAvatar((response.data as { avatar?: Partial<Avatar> | null }).avatar ?? null);
         })();
     }, [authLoading, user, workflowId]);
 
@@ -68,18 +67,25 @@ export function AboutPanel({
     );
 
     return (
-        <div className="flex h-full flex-col">
-            <div className="min-h-0 flex-1 overflow-y-auto">
-                <AgentProfilePanel workflowId={workflowId} name={name} nodes={nodes} folderId={folderId}>
-                    <ModelRow
-                        workflowId={workflowId}
-                        editable
-                        configurations={configurations}
-                        onSaveConfigurations={save}
-                        stacked
-                    />
-                </AgentProfilePanel>
+        <div className="flex h-full flex-col gap-6 overflow-y-auto px-1 pb-6" data-testid="about-agent">
+            <div className="flex items-center gap-3 pt-1">
+                <AgentAvatar avatar={faceOf(workflowId, avatar)} size={48} animate={false} />
+                <span className="min-w-0 truncate text-base font-semibold">{name}</span>
             </div>
+            <section aria-labelledby="agent-voice" className="space-y-2">
+                <h3 id="agent-voice" className="text-[13px] font-normal text-muted-foreground">
+                    Voice
+                </h3>
+                <ModelRow
+                    workflowId={workflowId}
+                    editable
+                    voiceOnly
+                    configurations={configurations}
+                    onSaveConfigurations={save}
+                />
+            </section>
+            <AgentSkills workflowId={workflowId} agentName={name} />
+            <AgentMemory workflowId={workflowId} agentName={name} />
         </div>
     );
 }

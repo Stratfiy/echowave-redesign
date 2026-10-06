@@ -342,7 +342,7 @@ function AgentNode({ agent, onEditFace }: { agent: OrgAgent; onEditFace: () => v
     return (
         <div className="group relative">
             <Link
-                href={`/workflow/${agent.id}`}
+                href={`/workflow/${agent.id}/thread`}
                 className="block rounded-2xl border bg-background p-3 transition hover:border-foreground/30 hover:shadow-sm"
             >
                 <div className="flex items-center gap-3 pr-6">

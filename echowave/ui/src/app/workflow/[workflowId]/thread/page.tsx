@@ -1,17 +1,22 @@
 'use client';
 
-import { Info, Phone, Share2 } from 'lucide-react';
+import { Info, MoreHorizontal, Phone } from 'lucide-react';
 import Link from 'next/link';
 import { use, useCallback, useEffect, useRef, useState } from 'react';
 
 import { AboutPanel } from '@/app/workflow/[workflowId]/components/AboutPanel';
 import { AgentHeader } from '@/app/workflow/[workflowId]/components/AgentHeader';
-import { AgentTabs } from '@/app/workflow/[workflowId]/components/AgentTabs';
 import { getWorkflowApiV1WorkflowFetchWorkflowIdGet } from '@/client/sdk.gen';
 import { ChannelComposer } from '@/components/channel/ChannelComposer';
 import { ChannelStream } from '@/components/channel/ChannelStream';
 import { AuxiliaryPanel } from '@/components/layout/AuxiliaryPanel';
 import { Button } from '@/components/ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/lib/auth';
 
 /**
@@ -23,9 +28,11 @@ import { useAuth } from '@/lib/auth';
  * the channel the bot sits in -- and the bot answers with this thread as its
  * context. Calls, outcomes and decisions appear in the same thread.
  *
- * Two doors at the top, because they are the two things somebody does with a
- * bot before trusting it with a real caller: **Test** rings it (the tester
- * on the editor, opened on arrival) and **Share** hands out the link.
+ * The agent's page (the approved design, October 2026): its chat, and
+ * beside it the three things a person changes -- voice, skills, memory
+ * (AboutPanel), open from the start on a wide screen. No tab strip: **Test**
+ * rings it, and the menu holds sharing, its activity and the advanced setup
+ * (instructions, models, triggers, quality) for whoever needs them.
  */
 export default function BotChatPage({
     params,
@@ -38,7 +45,11 @@ export default function BotChatPage({
     const [name, setName] = useState<string>('');
     const started = useRef(false);
     const refreshStream = useRef<() => void>(() => {});
+    // Open beside the chat on a wide screen; a button away on a narrow one.
     const [aboutOpen, setAboutOpen] = useState(false);
+    useEffect(() => {
+        if (typeof window !== 'undefined' && window.matchMedia?.('(min-width: 1024px)').matches) setAboutOpen(true);
+    }, []);
     const [waitingFor, setWaitingFor] = useState<{ since: string; bots: number[] } | null>(null);
 
     useEffect(() => {
@@ -63,36 +74,46 @@ export default function BotChatPage({
             <AgentHeader
                 workflowId={id}
                 name={name || 'Agent'}
+                backHref="/workflow"
                 actions={
                     <>
-                        {/* Who this bot is -- skills, knowledge, memory, brains
-                            and voice -- opens beside the chat, like a teammate's
-                            profile in Slack. */}
                         <Button
                             size="sm"
                             variant={aboutOpen ? 'secondary' : 'outline'}
                             aria-pressed={aboutOpen}
                             onClick={() => setAboutOpen((open) => !open)}
+                            className="rounded-full"
                         >
                             <Info className="mr-1.5 h-3.5 w-3.5" aria-hidden />
                             About
                         </Button>
-                        <Button asChild size="sm" variant="outline">
+                        <Button asChild size="sm" variant="outline" className="rounded-full">
                             <Link href={`/workflow/${id}?onboarding=web_call`}>
                                 <Phone className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-                                Test
+                                Call me to test
                             </Link>
                         </Button>
-                        <Button asChild size="sm" variant="outline">
-                            <Link href={`/workflow/${id}/settings?tab=share`}>
-                                <Share2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-                                Share
-                            </Link>
-                        </Button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button size="icon" variant="ghost" aria-label={`More for ${botName}`} className="rounded-full">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-52">
+                                <DropdownMenuItem asChild>
+                                    <Link href={`/workflow/${id}/settings?tab=share`}>Share</Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem asChild>
+                                    <Link href={`/workflow/${id}/runs`}>Activity</Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem asChild>
+                                    <Link href={`/workflow/${id}`}>Advanced setup</Link>
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </>
                 }
             />
-            <AgentTabs workflowId={id} />
             <div className="flex min-h-0 flex-1">
                 <div className="flex min-w-0 flex-1 flex-col">
                     <ChannelStream
@@ -115,14 +136,6 @@ export default function BotChatPage({
                     <AuxiliaryPanel
                         label="About this agent"
                         onClose={() => setAboutOpen(false)}
-                        // The panel's own action, opposite the control that
-                        // puts it away -- the shape Refero catalogues and the
-                        // slot AuxiliaryPanel has had since it was written.
-                        action={
-                            <Button asChild size="sm" variant="ghost">
-                                <Link href={`/workflow/${id}/settings`}>Edit</Link>
-                            </Button>
-                        }
                     >
                         <AboutPanel workflowId={id} name={botName} />
                     </AuxiliaryPanel>
