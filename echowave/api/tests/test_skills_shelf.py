@@ -151,3 +151,83 @@ class TestWhatTheBotIsTaught:
 
         monkeypatch.setattr(db_session, "list_organisation_skills", boom)
         assert await shelf.prompt_for_workflow(org.id, bots[0].id) == ""
+
+
+@pytest.mark.asyncio
+class TestASkillDescribedInPlainWords:
+    """"+ Add skill -> describe your own" on the agent's page."""
+
+    async def test_it_lands_on_that_agent_alone_and_in_its_prompt(
+        self, async_session, db_session
+    ):
+        user, org, bots = await _account(async_session, slug="own")
+        slug = await shelf.write_own(
+            org.id,
+            bots[0].id,
+            title="Check stock",
+            description="Before quoting, look the item up in the stock sheet.",
+            user_id=user.id,
+        )
+        assert slug.startswith(shelf.OWN_PREFIX)
+        assert await shelf.for_workflow(org.id, bots[0].id) == [slug]
+        assert await shelf.for_workflow(org.id, bots[1].id) == []
+        prompt = await shelf.prompt_for_workflow(org.id, bots[0].id)
+        assert '<skill name="Check stock">' in prompt
+        assert "look the item up in the stock sheet" in prompt
+
+    async def test_it_comes_off_one_agent_and_stays_on_the_shelf(
+        self, async_session, db_session
+    ):
+        user, org, bots = await _account(async_session, slug="own-off")
+        slug = await shelf.write_own(
+            org.id, bots[0].id, title="Greet", description="Say namaste first.", user_id=user.id
+        )
+        assert await shelf.take_off(org.id, slug, bots[0].id) is True
+        assert await shelf.for_workflow(org.id, bots[0].id) == []
+        assert slug in await shelf.installed(org.id)
+        assert await shelf.prompt_for_workflow(org.id, bots[0].id) == ""
+
+    async def test_an_agent_from_another_workspace_is_refused(
+        self, async_session, db_session
+    ):
+        _, org, _ = await _account(async_session, slug="own-a")
+        _, _, theirs = await _account(async_session, slug="own-b")
+        with pytest.raises(shelf.SkillError):
+            await shelf.write_own(org.id, theirs[0].id, title="x", description="y")
+
+    async def test_an_empty_description_is_refused(self, async_session, db_session):
+        _, org, bots = await _account(async_session, slug="own-empty")
+        with pytest.raises(shelf.SkillError):
+            await shelf.write_own(org.id, bots[0].id, title="x", description="  ")
+
+    async def test_an_unreviewed_import_does_not_reach_the_prompt(
+        self, async_session, db_session
+    ):
+        from api.db import db_client
+
+        _, org, bots = await _account(async_session, slug="own-import")
+        await db_client.upsert_skill_document(
+            organization_id=org.id, slug="imported-thing", title="Imported",
+            description="d", body="b", concerns=[],
+        )
+        await db_client.add_organisation_skill(
+            organization_id=org.id, slug="imported-thing", workflow_id=bots[0].id
+        )
+        assert await shelf.prompt_for_workflow(org.id, bots[0].id) == ""
+
+
+@pytest.mark.asyncio
+async def test_the_agents_own_list_names_a_skill_written_here(async_session, db_session):
+    from types import SimpleNamespace
+
+    from api.routes.skills import skills_on_workflow
+
+    user, org, bots = await _account(async_session, slug="own-card")
+    slug = await shelf.write_own(
+        org.id, bots[0].id, title="Check stock", description="Look it up first.", user_id=user.id
+    )
+    response = await skills_on_workflow(
+        bots[0].id, user=SimpleNamespace(id=user.id, selected_organization_id=org.id)
+    )
+    assert response.slugs == [slug]
+    assert [(card.title, card.division) for card in response.skills] == [("Check stock", "Yours")]

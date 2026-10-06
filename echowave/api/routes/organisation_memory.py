@@ -126,6 +126,9 @@ async def read_memory(
 class FactsRequest(BaseModel):
     #: Answers from the onboarding step, or a correction typed into the chat.
     facts: dict[str, str] = Field(default_factory=dict)
+    #: One agent's own memory rather than the business's: "Teach Riya
+    #: something" on the agent's page. True of that agent, not of the others.
+    workflow_id: Optional[int] = None
 
 
 @router.post("/facts", response_model=MemoryResponse)
@@ -144,14 +147,23 @@ async def write_facts(
     if not organization_id:
         raise HTTPException(status_code=400, detail="No organization selected")
 
+    if request.workflow_id is not None:
+        # Scoped to this workspace: an id from another tenant is not found.
+        workflow = await db_client.get_workflow(
+            request.workflow_id, organization_id=organization_id
+        )
+        if workflow is None:
+            raise HTTPException(status_code=404, detail="Agent not found")
+
     await db_client.remember_organisation_facts(
         organization_id=organization_id,
         facts={
             key: value for key, value in request.facts.items() if str(value).strip()
         },
         status=STATUS_CONFIRMED,
+        workflow_id=request.workflow_id,
     )
-    return await read_memory(workflow_id=None, user=user)
+    return await read_memory(workflow_id=request.workflow_id, user=user)
 
 
 class StatusRequest(BaseModel):

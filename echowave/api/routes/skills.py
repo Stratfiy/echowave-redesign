@@ -140,6 +140,46 @@ async def set_skill_bots(
     return {"slug": body.slug, "workflow_ids": on}
 
 
+class OwnSkillRequest(BaseModel):
+    workflow_id: int
+    title: str = Field(min_length=1, max_length=200)
+    #: What it should do and when, in the person's own words.
+    description: str = Field(min_length=1, max_length=4000)
+
+
+@router.post("/own")
+async def write_own_skill(
+    body: OwnSkillRequest, user: UserModel = Depends(get_user)
+) -> dict[str, Any]:
+    """Describe a skill in plain words and put it on one agent."""
+    organization_id = _organization_id(user)
+    try:
+        slug = await shelf.write_own(
+            organization_id,
+            body.workflow_id,
+            title=body.title,
+            description=body.description,
+            user_id=user.id,
+        )
+    except shelf.SkillError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"slug": slug, "workflow_id": body.workflow_id}
+
+
+class OffRequest(BaseModel):
+    slug: str = Field(max_length=64)
+    workflow_id: int
+
+
+@router.post("/off")
+async def take_skill_off(
+    body: OffRequest, user: UserModel = Depends(get_user)
+) -> dict[str, Any]:
+    """Take one skill off one agent, leaving it on the shelf and the others."""
+    removed = await shelf.take_off(_organization_id(user), body.slug, body.workflow_id)
+    return {"slug": body.slug, "workflow_id": body.workflow_id, "removed": removed}
+
+
 class WorkflowSkillsResponse(BaseModel):
     slugs: list[str]
     #: The same skills as cards, so a bot's own screen can name what it has
@@ -167,8 +207,28 @@ async def skills_on_workflow(
         # blank row, and it stays in ``slugs`` so nothing pretends the bot
         # was never taught it.
         skills=[
-            SkillCard(**entry.as_card())
+            card
             for slug in slugs
-            if (entry := catalogue.get(slug)) is not None
+            if (card := await _card_for(organization_id, slug)) is not None
         ],
+    )
+
+
+async def _card_for(organization_id: int, slug: str) -> SkillCard | None:
+    """A catalogue skill's card, or one for the workspace's own."""
+    entry = catalogue.get(slug)
+    if entry is not None:
+        return SkillCard(**entry.as_card())
+    own = await db_client.get_skill_document(organization_id=organization_id, slug=slug)
+    if own is None:
+        return None
+    return SkillCard(
+        slug=own.slug,
+        title=own.title,
+        description=own.description,
+        division="Yours",
+        emoji="",
+        source="",
+        license="",
+        lines=len((own.body or "").splitlines()),
     )

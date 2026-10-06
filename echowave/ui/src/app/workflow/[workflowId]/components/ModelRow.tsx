@@ -165,6 +165,7 @@ export function ModelRow({
     configurations,
     onSaveConfigurations,
     stacked = false,
+    voiceOnly = false,
 }: {
     workflowId: number;
     /** The agent's call configuration, for the settings behind each pencil. */
@@ -179,6 +180,9 @@ export function ModelRow({
     editable?: boolean;
     /** One tile under another, for a side column rather than a band. */
     stacked?: boolean;
+    /** Only the voice: one row with its name and the picker, for the agent's
+     *  side panel, where the voice is the one thing a person changes. */
+    voiceOnly?: boolean;
 }) {
     const { user, loading: authLoading } = useAuth();
     const hasFetched = useRef(false);
@@ -266,6 +270,40 @@ export function ModelRow({
         },
         [workflowId, load],
     );
+
+    if (voiceOnly) {
+        if (loading) return <Skeleton className="h-10 w-full" />;
+        const slot = data?.slots.find((s) => s.component === "tts") ?? data?.slots.find((s) => s.component === "realtime");
+        if (error || !slot) return null;
+        const named = voices.find((v) => v.voice_id === slot.voice);
+        return (
+            <div
+                className="flex items-center gap-2.5 rounded-xl border border-[var(--line)] bg-[var(--v2-card)] px-3 py-2"
+                data-testid="voice-row"
+            >
+                <Volume2 className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span className="min-w-0 flex-1 truncate text-sm">
+                    {named?.name ?? slot.voice ?? "Default voice"}
+                    {named?.description && <span className="text-muted-foreground"> · {named.description}</span>}
+                </span>
+                {editable && (
+                    <ModelSlotEditor
+                        workflowId={workflowId}
+                        component={slot.component as SlotComponent}
+                        current={{ provider: slot.provider, model: slot.model }}
+                        options={catalogue[slot.component] ?? []}
+                        voices={voices}
+                        currentVoice={slot.voice ?? undefined}
+                        latencyMs={slot.latency_ms}
+                        tuning={slot.tuning}
+                        configurations={configurations}
+                        onSaveConfigurations={onSaveConfigurations}
+                        onSaved={load}
+                    />
+                )}
+            </div>
+        );
+    }
 
     if (loading) {
         return (

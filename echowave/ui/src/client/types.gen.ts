@@ -5148,6 +5148,10 @@ export type FactsRequest = {
     facts?: {
         [key: string]: string;
     };
+    /**
+     * Workflow Id
+     */
+    workflow_id?: number | null;
 };
 
 /**
@@ -8000,6 +8004,20 @@ export type NumberSearchRequest = {
 };
 
 /**
+ * OffRequest
+ */
+export type OffRequest = {
+    /**
+     * Slug
+     */
+    slug: string;
+    /**
+     * Workflow Id
+     */
+    workflow_id: number;
+};
+
+/**
  * OfferedModelsRequest
  *
  * Exactly the models Decibyl offers for this slot on this provider.
@@ -8695,6 +8713,24 @@ export type OwnKeysRequest = {
      * Allowed
      */
     allowed: boolean;
+};
+
+/**
+ * OwnSkillRequest
+ */
+export type OwnSkillRequest = {
+    /**
+     * Workflow Id
+     */
+    workflow_id: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Description
+     */
+    description: string;
 };
 
 /**
@@ -30961,6 +30997,92 @@ export type SetSkillBotsApiV1SkillsBotsPostResponses = {
 };
 
 export type SetSkillBotsApiV1SkillsBotsPostResponse = SetSkillBotsApiV1SkillsBotsPostResponses[keyof SetSkillBotsApiV1SkillsBotsPostResponses];
+
+export type WriteOwnSkillApiV1SkillsOwnPostData = {
+    body: OwnSkillRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/skills/own';
+};
+
+export type WriteOwnSkillApiV1SkillsOwnPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type WriteOwnSkillApiV1SkillsOwnPostError = WriteOwnSkillApiV1SkillsOwnPostErrors[keyof WriteOwnSkillApiV1SkillsOwnPostErrors];
+
+export type WriteOwnSkillApiV1SkillsOwnPostResponses = {
+    /**
+     * Response Write Own Skill Api V1 Skills Own Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type WriteOwnSkillApiV1SkillsOwnPostResponse = WriteOwnSkillApiV1SkillsOwnPostResponses[keyof WriteOwnSkillApiV1SkillsOwnPostResponses];
+
+export type TakeSkillOffApiV1SkillsOffPostData = {
+    body: OffRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/skills/off';
+};
+
+export type TakeSkillOffApiV1SkillsOffPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TakeSkillOffApiV1SkillsOffPostError = TakeSkillOffApiV1SkillsOffPostErrors[keyof TakeSkillOffApiV1SkillsOffPostErrors];
+
+export type TakeSkillOffApiV1SkillsOffPostResponses = {
+    /**
+     * Response Take Skill Off Api V1 Skills Off Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type TakeSkillOffApiV1SkillsOffPostResponse = TakeSkillOffApiV1SkillsOffPostResponses[keyof TakeSkillOffApiV1SkillsOffPostResponses];
 
 export type SkillsOnWorkflowApiV1SkillsOnWorkflowIdGetData = {
     body?: never;
