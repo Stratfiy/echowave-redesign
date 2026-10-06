@@ -270,7 +270,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
           className="mt-1.5 flex h-[72px] w-[72px] items-center justify-center rounded-full border border-border bg-card shadow-[0_0_0_6px_var(--muted),0_10px_30px_-8px_rgba(0,0,0,0.25)]"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/decibyl-mark.svg" alt="" width={56} height={56} className="h-14 w-14" />
+          <img src="/decibyl-mark.svg" alt="" width={56} height={56} className="h-14 w-14 dark:invert" />
         </div>
         <h2 className="mt-5 text-3xl font-semibold tracking-tight sm:text-4xl">
           Hi, I&apos;m Decibyl!

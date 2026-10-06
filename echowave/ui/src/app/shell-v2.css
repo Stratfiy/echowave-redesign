@@ -171,8 +171,8 @@
   width: 24px;
   height: 24px;
   border-radius: 7px;
-  background: var(--teal);
-  color: var(--teal-ink);
+  background: var(--ink);
+  color: var(--paper);
   font-size: 13px;
   line-height: 1;
 }

@@ -18,7 +18,7 @@ export function BrandLogo({
   if (mark) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src="/decibyl-mark.svg" alt="Decibyl" className={cn("w-auto select-none", className)} />
+      <img src="/decibyl-mark.svg" alt="Decibyl" className={cn("w-auto select-none dark:invert", className)} />
     );
   }
   if (inverse) {
