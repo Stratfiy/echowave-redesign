@@ -138,7 +138,7 @@ def _failed(workflow_id: Optional[int], error: Optional[str] = None) -> Wall:
             ("See what happened", _run_href(workflow_id)),
             ("Check its connections", f"/workflow/{workflow_id}/settings")
             if workflow_id
-            else ("Check its connections", "/settings/api-keys"),
+            else ("Check its connections", "/settings/models"),
         ),
     )
 

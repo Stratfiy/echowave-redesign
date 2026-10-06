@@ -51,6 +51,8 @@ export const CALLS_TABS: PageTab[] = [
   // Prefix: everything under /analytics is this tab, including the day view
   // (?date=), which was /reports.
   { href: "/analytics", label: "Analytics", prefix: true },
+  // The same work added up: runs, tokens and cost per agent and per model.
+  { href: "/activity/usage", label: "Usage", prefix: true },
 ];
 
 export const KNOWLEDGE_TABS: PageTab[] = [

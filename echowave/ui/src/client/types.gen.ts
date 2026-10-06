@@ -4039,6 +4039,12 @@ export type DecibylManagedAiModelConfiguration = {
      */
     llm_tier?: string;
     /**
+     * Slots
+     */
+    slots?: {
+        [key: string]: string;
+    };
+    /**
      * Bundle
      */
     bundle?: string;
@@ -15081,6 +15087,20 @@ export type WorkspaceClosureRequest = {
      * The workspace name, typed exactly.
      */
     confirm: string;
+};
+
+/**
+ * WorkspaceModelChoice
+ */
+export type WorkspaceModelChoice = {
+    /**
+     * Slot
+     */
+    slot: string;
+    /**
+     * Value
+     */
+    value: string;
 };
 
 /**
@@ -33621,6 +33641,80 @@ export type MigrateModelConfigurationV2ApiV1OrganizationsModelConfigurationsV2Mi
 
 export type MigrateModelConfigurationV2ApiV1OrganizationsModelConfigurationsV2MigratePostResponse = MigrateModelConfigurationV2ApiV1OrganizationsModelConfigurationsV2MigratePostResponses[keyof MigrateModelConfigurationV2ApiV1OrganizationsModelConfigurationsV2MigratePostResponses];
 
+export type GetWorkspaceModelsApiV1OrganizationsModelsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations/models';
+};
+
+export type GetWorkspaceModelsApiV1OrganizationsModelsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetWorkspaceModelsApiV1OrganizationsModelsGetError = GetWorkspaceModelsApiV1OrganizationsModelsGetErrors[keyof GetWorkspaceModelsApiV1OrganizationsModelsGetErrors];
+
+export type GetWorkspaceModelsApiV1OrganizationsModelsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type SetWorkspaceModelApiV1OrganizationsModelsPutData = {
+    body: WorkspaceModelChoice;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations/models';
+};
+
+export type SetWorkspaceModelApiV1OrganizationsModelsPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetWorkspaceModelApiV1OrganizationsModelsPutError = SetWorkspaceModelApiV1OrganizationsModelsPutErrors[keyof SetWorkspaceModelApiV1OrganizationsModelsPutErrors];
+
+export type SetWorkspaceModelApiV1OrganizationsModelsPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
 export type GetPreferencesApiV1OrganizationsPreferencesGetData = {
     body?: never;
     headers?: {
@@ -35518,6 +35612,54 @@ export type GetSpendBreakdownApiV1OrganizationsUsageSpendGetResponses = {
 };
 
 export type GetSpendBreakdownApiV1OrganizationsUsageSpendGetResponse = GetSpendBreakdownApiV1OrganizationsUsageSpendGetResponses[keyof GetSpendBreakdownApiV1OrganizationsUsageSpendGetResponses];
+
+export type GetUsageByAgentApiV1OrganizationsUsageAgentsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+    };
+    url: '/api/v1/organizations/usage/agents';
+};
+
+export type GetUsageByAgentApiV1OrganizationsUsageAgentsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetUsageByAgentApiV1OrganizationsUsageAgentsGetError = GetUsageByAgentApiV1OrganizationsUsageAgentsGetErrors[keyof GetUsageByAgentApiV1OrganizationsUsageAgentsGetErrors];
+
+export type GetUsageByAgentApiV1OrganizationsUsageAgentsGetResponses = {
+    /**
+     * Response Get Usage By Agent Api V1 Organizations Usage Agents Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetUsageByAgentApiV1OrganizationsUsageAgentsGetResponse = GetUsageByAgentApiV1OrganizationsUsageAgentsGetResponses[keyof GetUsageByAgentApiV1OrganizationsUsageAgentsGetResponses];
 
 export type GetCallAnalyticsApiV1OrganizationsUsageCallsGetData = {
     body?: never;

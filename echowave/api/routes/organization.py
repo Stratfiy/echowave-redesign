@@ -613,6 +613,54 @@ async def migrate_model_configuration_v2(
     )
 
 
+class WorkspaceModelChoice(BaseModel):
+    slot: str
+    value: str
+
+
+async def _workspace_models_view(organization_id: int) -> dict:
+    from api.services.configuration import workspace_models
+
+    stored = await get_organization_ai_model_configuration_v2(organization_id)
+    async with db_client.async_session() as session:
+        keys_held = await organization_credentials.available_providers(
+            session, organization_id=organization_id
+        )
+        platform_providers = await managed_resolution.platform_provider_catalog(session)
+    return stored, workspace_models.view(
+        stored, platform_providers=platform_providers, keys_held=keys_held
+    )
+
+
+@router.get("/models")
+async def get_workspace_models(
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Settings -> Models: what runs every agent, slot by slot."""
+    _stored, view = await _workspace_models_view(user.selected_organization_id)
+    return view
+
+
+@router.put("/models")
+async def set_workspace_model(
+    request: WorkspaceModelChoice,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    from api.services.configuration import workspace_models
+
+    organization_id = user.selected_organization_id
+    stored, view = await _workspace_models_view(organization_id)
+    try:
+        configuration = workspace_models.choose(
+            stored, slot=request.slot, value=request.value, offered=view
+        )
+    except workspace_models.UnknownChoice as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    await upsert_organization_ai_model_configuration_v2(organization_id, configuration)
+    _stored, view = await _workspace_models_view(organization_id)
+    return view
+
+
 @router.get("/preferences", response_model=OrganizationPreferences)
 async def get_preferences(
     user: UserModel = Depends(get_user_with_selected_organization),

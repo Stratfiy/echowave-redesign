@@ -56,7 +56,7 @@ export const HOMES: readonly Home[] = [
     title: "Activity",
     url: "/usage",
     icon: Activity,
-    activePaths: ["/campaigns", "/reports", "/review", "/analytics", "/missed-calls", "/recordings"],
+    activePaths: ["/campaigns", "/reports", "/review", "/analytics", "/missed-calls", "/recordings", "/activity"],
   },
   {
     id: "settings",

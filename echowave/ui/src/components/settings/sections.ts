@@ -23,7 +23,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     href: "/settings/phone-number",
     activePaths: ["/numbers", "/telephony-configurations", "/verified-numbers"],
   },
-  { id: "api-keys", title: "API keys", href: "/settings/api-keys", activePaths: ["/integrations"] },
+  { id: "models", title: "Models", href: "/settings/models", activePaths: ["/integrations"] },
   { id: "apps", title: "Apps and tools", href: "/settings/apps", activePaths: ["/tools", "/marketplace"] },
   { id: "knowledge", title: "Knowledge", href: "/settings/knowledge" },
   { id: "channels", title: "Channels", href: "/settings/channels", activePaths: ["/channels"] },

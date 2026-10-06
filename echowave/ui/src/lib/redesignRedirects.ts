@@ -37,6 +37,8 @@ export const REDESIGN_REDIRECTS: RedesignRedirect[] = [
     { source: "/company", destination: "/settings/company" },
     { source: "/api-keys", destination: "/settings/developer" },
     { source: "/privacy", destination: "/settings/compliance" },
-    { source: "/integrations", destination: "/settings/api-keys" },
+    { source: "/integrations", destination: "/settings/models" },
+    // Own keys are added where they are used: Settings -> Models.
+    { source: "/settings/api-keys", destination: "/settings/models" },
     { source: "/telephony-configurations", destination: "/settings/phone-number" },
 ];

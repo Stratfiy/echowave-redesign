@@ -50,6 +50,7 @@ describe("section tabs", () => {
       "/missed-calls",
       "/review",
       "/analytics",
+      "/activity/usage",
     ]);
   });
 

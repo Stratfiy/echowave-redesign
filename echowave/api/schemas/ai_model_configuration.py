@@ -108,12 +108,12 @@ class DecibylManagedAIModelConfiguration(BaseModel):
     #: happily for months.
     llm_tier: str = "default"
 
-    #: An exact model the workspace chose as its default brain, as
-    #: ``<vendor>/<model>`` from the chat catalogue (``chat_presets``), run on
-    #: our key. Empty means "the tier above decides", which is every account
-    #: that has not chosen. When set it wins over ``llm_tier`` for the
-    #: language model only; voice and transcription stay on their tiers.
-    llm_model: str = ""
+    #: Exact choices the workspace made in Settings -> Models, per slot
+    #: (``llm``, ``stt``, ``tts``, ``embeddings``). ``<vendor>/<model>`` runs
+    #: on our key; ``own:<vendor>/<model>`` runs on the workspace's own key,
+    #: read from its vault at call time. A slot absent here runs on its tier,
+    #: which is every account that has not chosen.
+    slots: dict[str, str] = Field(default_factory=dict)
 
     #: Which bundle the Simple picker was on when this was saved. Stored so the
     #: picker can show what is currently in force, which it previously could
@@ -234,26 +234,54 @@ def compile_ai_model_configuration_v2(
     )
 
 
+#: What each slot's choice is parsed as.
+_SLOT_TYPES = {
+    "llm": LLMConfig,
+    "stt": STTConfig,
+    "tts": TTSConfig,
+    "embeddings": EmbeddingsConfig,
+}
+
+OWN_KEY_PREFIX = "own:"
+
+
+def parse_slot_choice(value: str) -> tuple[str, str, bool] | None:
+    """``(vendor, model, own_key)`` for a stored slot choice, else None."""
+    raw = (value or "").strip()
+    own = raw.startswith(OWN_KEY_PREFIX)
+    if own:
+        raw = raw[len(OWN_KEY_PREFIX) :]
+    vendor, _, model = raw.partition("/")
+    if not vendor or not model:
+        return None
+    return vendor, model, own
+
+
+def chosen_section(configuration: DecibylManagedAIModelConfiguration, slot: str):
+    """The section the workspace chose for ``slot``, or None for its tier.
+
+    Our key: a real vendor on ``use_platform_key``, the direct managed path.
+    Their key: a real vendor with no key inline, which ``byok_resolution``
+    fills from the workspace's vault -- the ordinary BYOK shape.
+    """
+    parsed = parse_slot_choice((configuration.slots or {}).get(slot, ""))
+    if parsed is None:
+        return None
+    vendor, model, own = parsed
+    section: dict = {"provider": vendor, "model": model, "api_key": ""}
+    if not own:
+        section["use_platform_key"] = True
+    try:
+        return TypeAdapter(_SLOT_TYPES[slot]).validate_python(section)
+    except ValidationError:
+        # A vendor we no longer build must not stop the agent answering; the
+        # slot falls back to its tier, which always resolves.
+        return None
+
+
 def _managed_llm(configuration: DecibylManagedAIModelConfiguration):
     """The workspace's brain: the exact model it chose, else its tier."""
-    vendor, _, model = (configuration.llm_model or "").partition("/")
-    if vendor and model:
-        try:
-            # The direct managed path: a real vendor and model on our key,
-            # the same shape a chat's "More models" choice runs on.
-            return TypeAdapter(LLMConfig).validate_python(
-                {
-                    "provider": vendor,
-                    "model": model,
-                    "api_key": "",
-                    "use_platform_key": True,
-                }
-            )
-        except ValidationError:
-            # A vendor we no longer build must not stop the agent answering;
-            # it falls back to the tier, which always resolves.
-            pass
-    return DecibylLLMService(
+    return chosen_section(configuration, "llm") or DecibylLLMService(
         provider=ServiceProviders.DECIBYL,
         api_key=configuration.api_key,
         # The tier, not a vendor model name — managed_resolution reads this
@@ -296,20 +324,22 @@ def _compile_decibyl_configuration(
 
     return EffectiveAIModelConfiguration(
         llm=_managed_llm(configuration),
-        tts=DecibylTTSService(
+        tts=chosen_section(configuration, "tts")
+        or DecibylTTSService(
             provider=ServiceProviders.DECIBYL,
             api_key=configuration.api_key,
             model=configuration.tts_tier,
             voice=configuration.voice,
             speed=configuration.speed,
         ),
-        stt=DecibylSTTService(
+        stt=chosen_section(configuration, "stt")
+        or DecibylSTTService(
             provider=ServiceProviders.DECIBYL,
             api_key=configuration.api_key,
             model=configuration.stt_tier,
             language=configuration.language,
         ),
-        embeddings=embeddings,
+        embeddings=chosen_section(configuration, "embeddings") or embeddings,
         is_realtime=False,
         managed_service_version=2,
     )

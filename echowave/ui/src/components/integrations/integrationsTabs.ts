@@ -29,7 +29,7 @@ export function useIntegrationsTabs(): PageTab[] {
     // left here is what this account has rather than what it could add.
     { href: "/settings/apps", label: "Your tools", prefix: true },
     // Exact match, or a sub-route would light this as well as itself.
-    ...(ownKeysAllowed ? [{ href: "/settings/api-keys", label: "Providers" }] : []),
+    ...(ownKeysAllowed ? [{ href: "/settings/models", label: "Providers" }] : []),
     ...(dialer ? [{ href: "/integrations/dialer", label: "Dialer" }] : []),
   ];
 }

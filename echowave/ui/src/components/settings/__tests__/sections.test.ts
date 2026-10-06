@@ -13,7 +13,7 @@ describe("Settings' sections", () => {
       "General",
       "Team",
       "Phone numbers",
-      "API keys",
+      "Models",
       "Apps and tools",
       "Knowledge",
       "Channels",
