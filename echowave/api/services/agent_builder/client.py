@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -111,16 +112,45 @@ class ProviderRateLimited(BuilderClientError):
 #: The longest a turn waits in place for a rate limit to clear before it
 #: tries another vendor instead. The person is watching the reply form.
 RATE_LIMIT_WAIT_SECONDS = 8.0
+#: The longest a turn waits when no other vendor can answer it. A slow reply
+#: beats an error, and per-minute token limits clear within a minute.
+RATE_LIMIT_LAST_WAIT_SECONDS = 30.0
 #: How long a vendor that rate-limited a turn is tried last.
 RATE_LIMITED_FOR_SECONDS = 2 * 60
 
 
 def _retry_after(headers: Any) -> float | None:
-    try:
-        value = headers.get("retry-after") if headers is not None else None
-        return float(value) if value is not None else None
-    except (TypeError, ValueError):
+    """Seconds until the vendor will take the request: ``retry-after``, or
+    OpenAI's ``x-ratelimit-reset-*`` ("18.008s", "1m30s", "250ms"), which it
+    sends on a tokens-per-minute limit instead."""
+    if headers is None:
         return None
+    try:
+        value = headers.get("retry-after")
+        if value is not None:
+            return float(value)
+    except (TypeError, ValueError):
+        pass
+    waits = [
+        _duration(headers.get(name))
+        for name in ("x-ratelimit-reset-tokens", "x-ratelimit-reset-requests")
+    ]
+    known = [w for w in waits if w is not None]
+    return max(known) if known else None
+
+
+_DURATION_PART = re.compile(r"(\d+(?:\.\d+)?)(ms|s|m|h)")
+_DURATION_UNIT = {"ms": 0.001, "s": 1.0, "m": 60.0, "h": 3600.0}
+
+
+def _duration(value: Any) -> float | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip()
+    parts = _DURATION_PART.findall(text)
+    if not parts or "".join(n + u for n, u in parts) != text:
+        return None
+    return sum(float(n) * _DURATION_UNIT[u] for n, u in parts)
 
 
 #: How long a vendor that said "out of credit" is skipped before it is tried
@@ -277,13 +307,38 @@ def _strip_for_gemini(schema: Any) -> Any:
 
     Recursive because the offending keys appear on nested object properties,
     not only at the top level — which is where this was first wrong.
+
+    The keys of a ``properties`` map are field names, not keywords: a field
+    called ``title`` or ``default`` (a calendar event's title, say) is kept.
+    Stripping it left ``required`` naming a field that no longer existed, and
+    Gemini refuses the whole request for that.
     """
     if isinstance(schema, dict):
-        return {
-            key: _strip_for_gemini(value)
-            for key, value in schema.items()
-            if key not in _GEMINI_UNSUPPORTED_SCHEMA_KEYS
-        }
+        stripped: dict[str, Any] = {}
+        for key, value in schema.items():
+            if key in _GEMINI_UNSUPPORTED_SCHEMA_KEYS:
+                continue
+            if key == "properties" and isinstance(value, dict):
+                stripped[key] = {
+                    name: _strip_for_gemini(field) for name, field in value.items()
+                }
+            else:
+                stripped[key] = _strip_for_gemini(value)
+        # A connected app's schema can also list a required field it never
+        # defines. Anthropic and OpenAI let that pass; Gemini does not.
+        required = stripped.get("required")
+        if isinstance(required, list):
+            defined = stripped.get("properties")
+            kept = [
+                name
+                for name in required
+                if isinstance(defined, dict) and name in defined
+            ]
+            if kept:
+                stripped["required"] = kept
+            else:
+                del stripped["required"]
+        return stripped
     if isinstance(schema, list):
         return [_strip_for_gemini(item) for item in schema]
     return schema
@@ -1217,7 +1272,9 @@ async def _after_rate_limit(
     """A 429: wait briefly and ask the same vendor once more; if it is still
     limited, ask another vendor the platform holds a key for. The limited
     vendor is tried last for the next couple of minutes, so the turns after
-    this one do not queue behind it. Raises the rate limit when neither works.
+    this one do not queue behind it. With no other vendor able to answer, a
+    limit that clears within RATE_LIMIT_LAST_WAIT_SECONDS is waited out once;
+    otherwise the rate limit is raised.
     """
     wait = exc.retry_after if exc.retry_after is not None else 3.0
     if wait <= RATE_LIMIT_WAIT_SECONDS:
@@ -1226,9 +1283,23 @@ async def _after_rate_limit(
             return await run(provider, model, api_key)
         except ProviderRateLimited:
             pass
+        waited = True
+    else:
+        waited = False
     mark_exhausted(provider, RATE_LIMITED_FOR_SECONDS)
     other = await _fallback_model(provider, api_key)
-    if other is None:
+    if other is not None:
+        logger.warning(
+            "{} is rate limited; answering this turn on {}", provider, other[0]
+        )
+        try:
+            return await run(other[0], other[1], other[2])
+        except BuilderClientError as fallback_error:
+            logger.warning(
+                "{} could not take the turn either: {}", other[0], fallback_error
+            )
+    # Nowhere else to go: wait out the limit once rather than fail the turn.
+    if waited or wait > RATE_LIMIT_LAST_WAIT_SECONDS:
         raise exc
-    logger.warning("{} is rate limited; answering this turn on {}", provider, other[0])
-    return await run(other[0], other[1], other[2])
+    await asyncio.sleep(wait)
+    return await run(provider, model, api_key)
