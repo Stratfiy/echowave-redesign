@@ -1,15 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import {
-  Activity,
-  Bot,
-  Building2,
-  CalendarClock,
-  Database,
-  Home,
-  Settings,
-  Users,
-  Wand2,
-} from "lucide-react";
+import { Activity, Bot, CalendarClock, Home, Wand2 } from "lucide-react";
 
 import type { Feature } from "@/lib/features";
 
@@ -19,33 +9,24 @@ import type { Feature } from "@/lib/features";
  * Every home maps onto a page that already exists; none is a new route. The
  * rail's copy lives here, in one place, for copy review.
  *
+ * Four homes and nothing else: the rail answers "where is my work", and
+ * everything that is set up once and then left alone (company, knowledge,
+ * channels, team, apps, deploy, billing, settings) is in the account menu at
+ * the foot. Nine homes, a channel list and a roster read as a control panel,
+ * not as an assistant you hand jobs to.
+ *
  * Mapping, and why:
  * - My Decibyl -> /overview: the current Decibyl home (greeting + composer).
- * - Company    -> /company: the agents as a company (Paperclip-style): org
- *                 chart, what needs you, spend, heartbeats and activity.
  * - Tasks      -> /tasks, with its tabs: schedules, contacts, handed over.
- * - Agents     -> /workflow: the list of every agent, folders and archive.
+ * - Agents     -> /workflow: the list of every agent, folders and archive;
+ *                 channels light it too, as places agents talk.
  * - Studio     -> /studio, only with the `studio` flag: agents and a site
  *                 for them from one chat.
- * - Knowledge  -> /files.
  * - Activity   -> /usage: calls, with campaigns, reports, review, analytics
  *                 and missed calls lighting it too.
- * - Team       -> /settings#team: the people live in a card on Settings;
- *                 there is no page of their own yet.
- * - Settings   -> /settings, which also lights for the manage pages
- *                 (billing, apps & tools, deploy, compliance, marketplace).
  */
 
-export type HomeId =
-  | "home"
-  | "company"
-  | "tasks"
-  | "agents"
-  | "studio"
-  | "knowledge"
-  | "activity"
-  | "team"
-  | "settings";
+export type HomeId = "home" | "tasks" | "agents" | "studio" | "activity";
 
 export type Home = {
   id: HomeId;
@@ -60,7 +41,6 @@ export type Home = {
 
 export const HOMES: readonly Home[] = [
   { id: "home", title: "My Decibyl", url: "/overview", icon: Home },
-  { id: "company", title: "Company", url: "/company", icon: Building2 },
   {
     id: "tasks",
     title: "Tasks",
@@ -70,29 +50,12 @@ export const HOMES: readonly Home[] = [
   },
   { id: "agents", title: "Agents", url: "/workflow", icon: Bot, activePaths: ["/channels"] },
   { id: "studio", title: "Studio", url: "/studio", icon: Wand2, flag: "studio" },
-  { id: "knowledge", title: "Knowledge", url: "/files", icon: Database },
   {
     id: "activity",
     title: "Activity",
     url: "/usage",
     icon: Activity,
     activePaths: ["/campaigns", "/reports", "/review", "/analytics", "/missed-calls", "/recordings"],
-  },
-  { id: "team", title: "Team", url: "/settings#team", icon: Users },
-  {
-    id: "settings",
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
-    activePaths: [
-      "/billing",
-      "/tools",
-      "/marketplace",
-      "/privacy",
-      "/api-keys",
-      "/deploy",
-      "/telephony-configurations",
-    ],
   },
 ];
 
@@ -120,13 +83,12 @@ function matches(pathname: string, path: string): boolean {
 
 /**
  * The home a pathname belongs to: the longest matching prefix wins, so
- * /workflow/12/thread is still Agents and /settings is Settings, not Team
- * (Team is a card on Settings and never lights by path alone).
+ * /workflow/12/thread is still Agents. A page of the account menu (settings,
+ * billing, knowledge...) lights no home.
  */
 export function activeHome(pathname: string): HomeId | undefined {
   let best: { id: HomeId; length: number } | undefined;
   for (const home of HOMES) {
-    if (home.id === "team") continue;
     for (const path of [home.url, ...(home.activePaths ?? [])]) {
       const bare = path.split("#")[0];
       if (matches(pathname, bare) && (!best || bare.length > best.length)) {

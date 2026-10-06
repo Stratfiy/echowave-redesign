@@ -1,6 +1,7 @@
 import {
   Activity,
   Bot,
+  Building2,
   CalendarClock,
   Database,
   Flag,
@@ -531,14 +532,24 @@ export type ShellEntry = {
 
 /**
  * Everything the rail's homes do not name, in the account menu at the foot
- * of the rail (AppRailV2's AccountMenu): the shop, apps and tools, the deploy
- * screens, billing and compliance.
+ * of the rail (AppRailV2's AccountMenu): the workspace (company, knowledge,
+ * channels), the shop, apps and tools, the deploy screens, billing and
+ * settings with the team and compliance.
  *
  * Urls, never copies of items: titles, icons and roles still come from
  * NAV_SECTIONS, and the reachability test (shellNavigation.test.ts) fails if
  * a new nav item is placed on neither the rail nor this menu.
  */
 export const SHELL_MANAGE: ShellEntry[] = [
+  {
+    title: "Workspace",
+    icon: Building2,
+    children: [
+      { url: "/company", title: "Company" },
+      { url: "/files", title: "Knowledge" },
+      { url: "/channels", title: "Channels" },
+    ],
+  },
   { title: "Marketplace", icon: ShoppingBag, url: "/marketplace" },
   { title: "Apps & tools", icon: KeyRound, url: "/tools" },
   {
@@ -558,18 +569,24 @@ export const SHELL_MANAGE: ShellEntry[] = [
     icon: Settings,
     children: [
       { url: "/settings", title: "General" },
+      { url: "/settings#team", title: "Team" },
       { url: "/privacy", title: "Compliance" },
     ],
   },
 ];
 
+const bare = (url: string) => url.split("#")[0];
+
 /** SHELL_MANAGE as this person may see it: an entry or child whose nav item
- *  their role hides is dropped, and a group left empty goes with it. */
+ *  their role hides is dropped, and a group left empty goes with it. A page
+ *  with no nav item of its own (Company, Channels) has no role to hide it. */
 export function visibleShellManage(sections: SidebarNavSection[]): ShellEntry[] {
+  const navUrls = new Set(NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.url)));
   const visible = new Set(sections.flatMap((s) => s.items.map((i) => i.url)));
+  const shows = (url: string) => !navUrls.has(bare(url)) || visible.has(bare(url));
   return SHELL_MANAGE.flatMap((entry) => {
-    if (entry.url) return visible.has(entry.url) ? [entry] : [];
-    const children = (entry.children ?? []).filter((c) => visible.has(c.url));
+    if (entry.url) return shows(entry.url) ? [entry] : [];
+    const children = (entry.children ?? []).filter((c) => shows(c.url));
     return children.length ? [{ ...entry, children }] : [];
   });
 }
@@ -577,8 +594,8 @@ export function visibleShellManage(sections: SidebarNavSection[]): ShellEntry[] 
 /** Every url the navigation reaches: the rail's homes and the account menu. */
 export function shellUrls(): string[] {
   const urls = [
-    ...HOMES.map((home) => home.url.split("#")[0]),
-    ...SHELL_MANAGE.flatMap((e) => (e.url ? [e.url] : (e.children ?? []).map((c) => c.url))),
+    ...HOMES.map((home) => bare(home.url)),
+    ...SHELL_MANAGE.flatMap((e) => (e.url ? [e.url] : (e.children ?? []).map((c) => c.url))).map(bare),
   ];
   return [...new Set(urls)];
 }

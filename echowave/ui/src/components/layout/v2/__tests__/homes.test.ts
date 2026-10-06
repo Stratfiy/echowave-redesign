@@ -6,23 +6,19 @@ import { parseTrial } from "../useRailData";
 describe("activeHome", () => {
   it.each([
     ["/overview", "home"],
-    ["/company", "company"],
     ["/tasks", "tasks"],
     ["/workflow", "agents"],
     ["/workflow/12/thread", "agents"],
-    ["/files", "knowledge"],
     ["/usage", "activity"],
     ["/reports", "activity"],
     ["/campaigns/3", "activity"],
-    ["/settings", "settings"],
-    ["/billing", "settings"],
-    ["/deploy/web-widget", "settings"],
+    ["/channels/4", "agents"],
   ])("puts %s under %s", (path, home) => {
     expect(activeHome(path)).toBe(home);
   });
 
-  it("lights nothing on an unknown page", () => {
-    expect(activeHome("/start")).toBeUndefined();
+  it.each(["/start", "/settings", "/billing", "/files", "/company"])("lights nothing on %s", (path) => {
+    expect(activeHome(path)).toBeUndefined();
   });
 });
 

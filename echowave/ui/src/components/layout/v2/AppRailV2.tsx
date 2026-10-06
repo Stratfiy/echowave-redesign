@@ -25,7 +25,6 @@ import { useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 import { getVisibleNavSections, STAFF_SECTION, visibleShellManage } from "../navigation";
-import { ChannelList } from "./ChannelList";
 import { ColleagueRoster } from "./ColleagueRoster";
 import { activeHome, HOMES, RAIL_COPY } from "./homes";
 import { TrialBox } from "./TrialBox";
@@ -33,10 +32,12 @@ import { useRailData } from "./useRailData";
 
 /**
  * The rail (KAN-208, UI-1), the app's only navigation: brand and workspace,
- * the homes, the channels, the colleague roster and the trial box, per the
- * founder-approved mock. It took over from the old sidebar, and with it the
- * old sidebar's extras: the Stack team switcher, the channel list, the
- * setup-call link and the self-hosted update notice.
+ * four homes, the colleague roster and the trial box. Everything set up once
+ * and then left alone (company, knowledge, channels, team, apps, deploy,
+ * billing, settings) is in the account menu at the foot, so the rail holds
+ * only where the work is. It took over from the old sidebar, and with it the
+ * old sidebar's extras: the Stack team switcher, the setup-call link and the
+ * self-hosted update notice.
  *
  * Built on the same shadcn Sidebar as the old rail, so a phone gets the same
  * sheet and the same trigger in the top bar.
@@ -113,7 +114,6 @@ export function AppRailV2() {
 
         {!collapsed && (
           <div className="v2-scroll">
-            <ChannelList pathname={pathname} onNavigate={onNavigate} />
             <ColleagueRoster colleagues={colleagues} pathname={pathname} onNavigate={onNavigate} />
             {/* TODO: Projects section, once a projects feature exists. */}
           </div>
@@ -158,9 +158,10 @@ export function AppRailV2() {
 }
 
 /**
- * The person, and every manage page the homes do not name (billing,
- * apps & tools, deploy, compliance, marketplace), so no existing route is
- * lost from the rail. Role filtering is the old rail's own.
+ * The person, and every page the homes do not name (company, knowledge,
+ * channels, marketplace, apps & tools, deploy, billing, settings and team),
+ * so no existing route is lost from the rail. Role filtering is the old
+ * rail's own.
  */
 function AccountMenu({ collapsed, onNavigate }: { collapsed: boolean; onNavigate: () => void }) {
   const { user, logout } = useAuth();
