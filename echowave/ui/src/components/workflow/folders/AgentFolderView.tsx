@@ -12,7 +12,6 @@ import { AvatarCustomizer } from '@/components/avatar/AvatarCustomizer';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { jobArt } from '@/lib/art';
-import { useFeature } from '@/lib/features';
 import { cn } from '@/lib/utils';
 
 import { type Tone, toneOf, useTeamStatus } from '../useTeamStatus';
@@ -141,7 +140,8 @@ export function AgentFolderView({ workflows, folders }: AgentFolderViewProps) {
     // Faces changed on this page, ahead of the list being fetched again.
     const [faces, setFaces] = useState<Record<number, Avatar | null>>({});
     const [editingFace, setEditingFace] = useState(false);
-    const facesOn = useFeature('agent_faces');
+    // Bloub faces for everyone (KAN-260): the flag is registered, no longer read.
+    const facesOn = true;
     const faceFor = (agent: WorkflowListResponse) =>
         faceOf(agent.id, agent.id in faces ? faces[agent.id] : (agent.avatar as Avatar | null | undefined));
 

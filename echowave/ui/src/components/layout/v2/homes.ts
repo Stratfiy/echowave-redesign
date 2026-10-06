@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Activity, Bot, CalendarClock, Home, Wand2 } from "lucide-react";
+import { Activity, Bot, CalendarClock, Home, Settings, Wand2 } from "lucide-react";
 
 import type { Feature } from "@/lib/features";
 
@@ -9,14 +9,14 @@ import type { Feature } from "@/lib/features";
  * Every home maps onto a page that already exists; none is a new route. The
  * rail's copy lives here, in one place, for copy review.
  *
- * Four homes and nothing else: the rail answers "where is my work", and
+ * Four homes and Settings: the rail answers "where is my work", and
  * everything that is set up once and then left alone (company, knowledge,
- * channels, team, apps, deploy, billing, settings) is in the account menu at
- * the foot. Nine homes, a channel list and a roster read as a control panel,
- * not as an assistant you hand jobs to.
+ * channels, team, apps, deploy, phone numbers, keys) is under Settings. Nine
+ * homes, a channel list and a roster read as a control panel, not as an
+ * assistant you hand jobs to.
  *
  * Mapping, and why:
- * - My Decibyl -> /overview: the current Decibyl home (greeting + composer).
+ * - Home       -> /overview: Decibyl's home (greeting + composer).
  * - Tasks      -> /tasks, with its tabs: schedules, contacts, handed over.
  * - Agents     -> /workflow: the list of every agent, folders and archive;
  *                 channels light it too, as places agents talk.
@@ -24,9 +24,10 @@ import type { Feature } from "@/lib/features";
  *                 for them from one chat.
  * - Activity   -> /usage: calls, with campaigns, reports, review, analytics
  *                 and missed calls lighting it too.
+ * - Settings   -> /settings, which also lights for every page it holds.
  */
 
-export type HomeId = "home" | "tasks" | "agents" | "studio" | "activity";
+export type HomeId = "home" | "tasks" | "agents" | "studio" | "activity" | "settings";
 
 export type Home = {
   id: HomeId;
@@ -40,7 +41,7 @@ export type Home = {
 };
 
 export const HOMES: readonly Home[] = [
-  { id: "home", title: "My Decibyl", url: "/overview", icon: Home },
+  { id: "home", title: "Home", url: "/overview", icon: Home },
   {
     id: "tasks",
     title: "Tasks",
@@ -56,6 +57,25 @@ export const HOMES: readonly Home[] = [
     url: "/usage",
     icon: Activity,
     activePaths: ["/campaigns", "/reports", "/review", "/analytics", "/missed-calls", "/recordings"],
+  },
+  {
+    id: "settings",
+    title: "Settings",
+    url: "/settings",
+    icon: Settings,
+    activePaths: [
+      "/billing",
+      "/tools",
+      "/marketplace",
+      "/privacy",
+      "/api-keys",
+      "/deploy",
+      "/telephony-configurations",
+      "/numbers",
+      "/verified-numbers",
+      "/files",
+      "/company",
+    ],
   },
 ];
 
@@ -83,8 +103,7 @@ function matches(pathname: string, path: string): boolean {
 
 /**
  * The home a pathname belongs to: the longest matching prefix wins, so
- * /workflow/12/thread is still Agents. A page of the account menu (settings,
- * billing, knowledge...) lights no home.
+ * /workflow/12/thread is still Agents, and /billing is Settings.
  */
 export function activeHome(pathname: string): HomeId | undefined {
   let best: { id: HomeId; length: number } | undefined;

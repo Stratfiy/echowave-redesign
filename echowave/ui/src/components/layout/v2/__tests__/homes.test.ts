@@ -17,8 +17,12 @@ describe("activeHome", () => {
     expect(activeHome(path)).toBe(home);
   });
 
-  it.each(["/start", "/settings", "/billing", "/files", "/company"])("lights nothing on %s", (path) => {
-    expect(activeHome(path)).toBeUndefined();
+  it.each(["/settings", "/billing", "/files", "/company", "/numbers"])("puts %s under Settings", (path) => {
+    expect(activeHome(path)).toBe("settings");
+  });
+
+  it("lights nothing on an unknown page", () => {
+    expect(activeHome("/start")).toBeUndefined();
   });
 });
 

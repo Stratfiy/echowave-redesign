@@ -62,7 +62,7 @@ describe("v2 rail", () => {
     const labels = within(nav)
       .getAllByRole("link")
       .map((link) => link.textContent);
-    expect(labels).toEqual(["My Decibyl", "Tasks", "Agents", "Activity"]);
+    expect(labels).toEqual(["Home", "Tasks", "Agents", "Activity", "Settings"]);
   });
 
   it("maps each home onto an existing route", () => {
@@ -71,7 +71,7 @@ describe("v2 rail", () => {
     const hrefs = within(nav)
       .getAllByRole("link")
       .map((link) => link.getAttribute("href"));
-    expect(hrefs).toEqual(["/overview", "/tasks", "/workflow", "/usage"]);
+    expect(hrefs).toEqual(["/overview", "/tasks", "/workflow", "/usage", "/settings"]);
   });
 
   it("lights Activity on a campaigns page", () => {
@@ -106,7 +106,7 @@ describe("v2 rail", () => {
     mount();
     const countOf = (name: RegExp) => screen.getByRole("link", { name }).querySelector(".v2-count")?.textContent;
     expect(countOf(/^Agents/)).toBe("2");
-    expect(countOf(/^My Decibyl/)).toBe("1");
+    expect(countOf(/^Home/)).toBe("1");
     expect(countOf(/^Tasks/)).toBeUndefined();
   });
 
@@ -155,9 +155,10 @@ describe("v2 rail", () => {
     expect(screen.getByRole("link", { name: "Agents" }).getAttribute("aria-current")).toBe("page");
   });
 
-  it("lights no home on a page of the account menu", () => {
+  it("lights Settings on a page it holds", () => {
     state.pathname = "/billing";
     mount();
-    expect(document.querySelectorAll('nav[aria-label="Homes"] a[aria-current="page"]')).toHaveLength(0);
+    expect(screen.getByRole("link", { name: "Settings" }).getAttribute("aria-current")).toBe("page");
+    expect(document.querySelectorAll('nav[aria-label="Homes"] a[aria-current="page"]')).toHaveLength(1);
   });
 });

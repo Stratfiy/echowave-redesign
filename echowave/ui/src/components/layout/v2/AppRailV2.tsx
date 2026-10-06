@@ -102,7 +102,7 @@ export function AppRailV2() {
                     onClick={onNavigate}
                     title={collapsed ? home.title : undefined}
                   >
-                    {collapsed && <Icon className="h-4 w-4" aria-hidden="true" />}
+                    <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.7} aria-hidden="true" />
                     <span className={cn(collapsed && "sr-only")}>{home.title}</span>
                     {!collapsed && count !== undefined && <span className="v2-count">{count}</span>}
                   </Link>
