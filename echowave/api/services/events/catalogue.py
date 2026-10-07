@@ -114,6 +114,12 @@ _ENTRIES: tuple[EventSpec, ...] = (
         "first_response_ms",
     ),
     _s("voice_session_failed", "voice", "A voice session failed."),
+    _s(
+        "voice_session_reconnected",
+        "voice",
+        "A live voice session reconnected; how much audio was lost.",
+        "lost_ms",
+    ),
     # Meetings
     _s("capture_started", "meetings", "Meeting capture began.", "audio_source"),
     _s("capture_failed", "meetings", "Meeting capture failed.", "audio_source"),

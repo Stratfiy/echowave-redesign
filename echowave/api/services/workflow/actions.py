@@ -169,6 +169,11 @@ DISCONNECT_APP = "disconnect_app"
 SEND_IDENTITY_EMAIL = "send_identity_email"
 REQUEST_NUMBER = "request_number"
 IDENTITY_ACTIONS = (DISCONNECT_APP, SEND_IDENTITY_EMAIL, REQUEST_NUMBER)
+#: Place one phone call for the person who asked ("call it for me", stream
+#: `voice`; see services/voice/call_for_me.py). Internal like the four above:
+#: Decibyl reaches it through its call_for_me tool, offered only while the
+#: flag is on. Never reversible: a call that rang cannot be unrung.
+PLACE_CALL = "place_call"
 INTERNAL_ACTIONS = (
     PLACE_ORDER,
     RUN_OUTSIDE_TOOL,
@@ -185,6 +190,7 @@ INTERNAL_ACTIONS = (
     DELETE_LEARNING_GOAL,
     MEETING_FOLLOW_UP,
     *IDENTITY_ACTIONS,
+    PLACE_CALL,
 )
 
 #: The states a proposal moves through. Terminal ones are the last four.
@@ -265,7 +271,7 @@ def _is_outbound(payload: dict[str, Any]) -> bool:
     """Whether running the card reaches somebody: a send, not a read or a
     draft. What the operational quota counts as an outbound message."""
     action = payload.get("action")
-    if action in (SEND_DOCUMENT, SEND_IDENTITY_EMAIL):
+    if action in (SEND_DOCUMENT, SEND_IDENTITY_EMAIL, PLACE_CALL):
         return True
     if action == DESKTOP_STEP:
         # A send on the person's own computer is a send all the same.
@@ -664,6 +670,20 @@ async def resolve(
             "reversible": True,
             "state": PROPOSED,
         }
+
+    if action == PLACE_CALL:
+        from api.services import acting
+        from api.services.voice import call_for_me
+
+        try:
+            card = await call_for_me.resolve(
+                organization_id=organization_id,
+                arguments=arguments,
+                user_id=acting.acting_user(),
+            )
+        except call_for_me.CallNotPossible as exc:
+            raise ActionError(str(exc)) from exc
+        return {"action": action, "why": why, "state": PROPOSED, **card}
 
     if action == DELETE_LEARNING_GOAL:
         from api.services.learning import core as learning
@@ -1659,6 +1679,17 @@ async def _execute(
             )
         except identity_cards.CardError as exc:
             raise ActionError(str(exc)) from exc
+    if action == PLACE_CALL:
+        from api.services.voice import call_for_me
+
+        try:
+            return await call_for_me.execute(
+                organization_id=organization_id,
+                payload=payload,
+                event_id=int(event_id or 0),
+            )
+        except call_for_me.CallNotPossible as exc:
+            raise ActionError(str(exc)) from exc
     if action in (TURN_BOT_ON, TURN_BOT_OFF):
         try:
             await db_client.set_workflow_live(
@@ -2103,13 +2134,15 @@ async def run(event_id: int, organization_id: int) -> None:
         return
     except Exception as exc:  # noqa: BLE001 - the card must say something
         logger.error("Action {} failed: {}", event_id, exc)
-        if payload.get("action") in OWNED_ACTIONS or (
+        if payload.get("action") in (*OWNED_ACTIONS, PLACE_CALL) or (
             ledger
             and (
                 _is_outbound(payload)
                 or payload.get("action") in (RETURN_MISSED_CALL, *IDENTITY_ACTIONS)
             )
         ):
+            # A call is never "failed" after the dial began, ledger or not:
+            # it may have rung, and a redial would ring them twice.
             # Something reached the outside service and broke: whether it
             # went is not known. Said so, and never retried blind.
             from api.services.workflow import task_ledger

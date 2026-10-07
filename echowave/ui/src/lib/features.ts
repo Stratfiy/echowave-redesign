@@ -125,7 +125,12 @@ export type Feature =
     | "memory_manager"
     | "privacy_center"
     | "saved_items"
-    | "model_inheritance";
+    | "model_inheritance"
+    // Launch stream `voice` (LAUNCH-PLAN.md, phase 2).
+    | "decibyl_voice"
+    | "voice_latency"
+    | "call_for_me"
+    | "call_appointment";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

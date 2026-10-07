@@ -957,6 +957,23 @@ MODEL_INHERITANCE_ENABLED = _flag("MODEL_INHERITANCE_ENABLED")
 TEMPORARY_CONVERSATION_HOURS = int(os.getenv("TEMPORARY_CONVERSATION_HOURS", "24"))
 #: How long a personal export can be downloaded, in days.
 PERSONAL_EXPORT_DAYS = int(os.getenv("PERSONAL_EXPORT_DAYS", "7"))
+# Launch stream `voice` (8 October 2026). Each off by default; see
+# LAUNCH-PLAN.md, VOICE.md and services/features.py.
+# Screen 05: Talk in Chat opens a live voice conversation with Decibyl itself
+# (not dictation): interruption, mute, captions, reconnect, permission states.
+DECIBYL_VOICE_ENABLED = _flag("DECIBYL_VOICE_ENABLED")
+# Handoff 12: per-turn latency stages and client-measured response and
+# interruption times, with p50/p95 and sample sizes for staff.
+VOICE_LATENCY_ENABLED = _flag("VOICE_LATENCY_ENABLED")
+# "Call it for me": Decibyl places one phone call on a person's behalf after
+# they approve the exact card, and announces itself at the start of the call.
+CALL_FOR_ME_ENABLED = _flag("CALL_FOR_ME_ENABLED")
+# The Call and Appointment runtime (handoff 6): booking policy, open slots,
+# booking within policy, caller verification and escalation on calls.
+CALL_APPOINTMENT_ENABLED = _flag("CALL_APPOINTMENT_ENABLED")
+# How long a live voice session may go without a heartbeat before it is
+# treated as lost (its microphone and slot released).
+VOICE_SESSION_STALE_SECONDS = int(os.getenv("VOICE_SESSION_STALE_SECONDS", "90"))
 
 # Free while we are early (October 2026): no plans, nothing charged, nothing
 # locked. On by default -- the one launch switch that is -- and reversible

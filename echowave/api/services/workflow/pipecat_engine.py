@@ -1190,6 +1190,15 @@ class PipecatEngine:
         """
         if not self._is_voice:
             return None
+        # A call placed on a person's behalf ("call it for me", stream
+        # `voice`) always opens by saying who is calling and for whom, even
+        # where the agent's own AI line is switched off: the announcement is
+        # the condition the person approved the call on.
+        on_behalf = str(
+            (self._call_context_vars or {}).get("on_behalf_announcement") or ""
+        ).strip()
+        if on_behalf:
+            return on_behalf
         node = self.workflow.nodes.get(node_id)
         if not node:
             return None

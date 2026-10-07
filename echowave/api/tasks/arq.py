@@ -79,6 +79,7 @@ from api.tasks.support import run_support_action, sweep_support_actions
 from api.tasks.tax_invoices import issue_monthly_tax_invoices
 from api.tasks.today import deliver_due_briefs, deliver_due_reminders
 from api.tasks.trial_notices import send_trial_notices
+from api.tasks.voice import sweep_stale_voice_sessions
 from api.tasks.webhook_delivery import deliver_webhook, sweep_webhook_deliveries
 from api.tasks.weekly_digest import send_weekly_digests
 from api.tasks.workflow_completion import process_workflow_completion
@@ -161,6 +162,7 @@ class WorkerSettings:
         reconcile_unknown_outcomes,
         build_personal_export,
         purge_temporary_conversations,
+        sweep_stale_voice_sessions,
     ]
     cron_jobs = [
         # Launch stream today: reminders and briefs at each person's own
@@ -228,6 +230,13 @@ class WorkerSettings:
             purge_temporary_conversations,
             minute=set(range(3, 60, 10)),
             second=20,
+            run_at_startup=False,
+        ),
+        # Launch stream voice: lost live sessions released. No-op while off.
+        cron(
+            sweep_stale_voice_sessions,
+            minute=set(range(0, 60)),
+            second=30,
             run_at_startup=False,
         ),
         # Reminders filed against a document's expiry (A4) go out once a day,

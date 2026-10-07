@@ -21,6 +21,7 @@ import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { SettingsSection } from "@/components/shell/SettingsSection";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { VoiceCallSettings } from "@/components/voice/VoiceCallSettings";
 import { UnsavedChangesProvider } from "@/context/UnsavedChangesContext";
 import { cn } from "@/lib/utils";
 
@@ -342,6 +343,10 @@ export function VoiceSettings() {
             <PageHeader title="Voice and language" description="How you talk with Decibyl. Speech models for agents are under Models." />
             <PageBody className="max-w-[640px]">
                 <VoiceForm />
+                {/* Stream voice: the Call and Appointment helper's policy, while on. */}
+                <div className="mt-6">
+                    <VoiceCallSettings />
+                </div>
             </PageBody>
         </UnsavedChangesProvider>
     );

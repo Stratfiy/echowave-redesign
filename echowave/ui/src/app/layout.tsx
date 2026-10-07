@@ -22,6 +22,7 @@ import SessionReplayGuard from "@/components/SessionReplayGuard";
 import SpinLoader from "@/components/SpinLoader";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Toaster } from "@/components/ui/sonner";
+import { VoiceProvider } from "@/components/voice/VoiceProvider";
 import { AppConfigProvider } from "@/context/AppConfigContext";
 import { OnboardingProvider } from "@/context/OnboardingContext";
 import { OrgConfigProvider } from "@/context/OrgConfigContext";
@@ -148,6 +149,7 @@ export default function RootLayout({
                         <DesktopSession />
                         <SessionReplayGuard />
                         <AppLayout>{children}</AppLayout>
+                        <VoiceProvider />
                         <Toaster />
                         <ChatwootWidget />
                       </OnboardingProvider>

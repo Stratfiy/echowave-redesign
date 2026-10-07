@@ -795,6 +795,140 @@ export type AppendTextChatMessageRequest = {
 };
 
 /**
+ * Appointment
+ */
+export type Appointment = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Starts At
+     */
+    starts_at: string;
+    /**
+     * Ends At
+     */
+    ends_at: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Service
+     */
+    service: string | null;
+    /**
+     * Caller Name
+     */
+    caller_name: string | null;
+    /**
+     * Caller Number
+     */
+    caller_number: string | null;
+    /**
+     * Reason
+     */
+    reason: string | null;
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * Workflow Run Id
+     */
+    workflow_run_id: number | null;
+};
+
+/**
+ * AppointmentPolicy
+ */
+export type AppointmentPolicy = {
+    /**
+     * Booking
+     */
+    booking: 'off' | 'suggest' | 'book';
+    /**
+     * Duration Minutes
+     */
+    duration_minutes: number;
+    /**
+     * Lead Minutes
+     */
+    lead_minutes: number;
+    /**
+     * Horizon Days
+     */
+    horizon_days: number;
+    /**
+     * Services
+     */
+    services: Array<string>;
+    /**
+     * Verification
+     */
+    verification: 'details' | 'known_caller';
+    /**
+     * Escalate To
+     */
+    escalate_to: string | null;
+    /**
+     * Call Workflow Id
+     */
+    call_workflow_id: number | null;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Updated At
+     */
+    updated_at: string | null;
+};
+
+/**
+ * AppointmentPolicyWrite
+ */
+export type AppointmentPolicyWrite = {
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Booking
+     */
+    booking?: 'off' | 'suggest' | 'book' | null;
+    /**
+     * Duration Minutes
+     */
+    duration_minutes?: number | null;
+    /**
+     * Lead Minutes
+     */
+    lead_minutes?: number | null;
+    /**
+     * Horizon Days
+     */
+    horizon_days?: number | null;
+    /**
+     * Services
+     */
+    services?: Array<string> | null;
+    /**
+     * Verification
+     */
+    verification?: 'details' | 'known_caller' | null;
+    /**
+     * Escalate To
+     */
+    escalate_to?: string | null;
+    /**
+     * Call Workflow Id
+     */
+    call_workflow_id?: number | null;
+};
+
+/**
  * ApprovalRuleIn
  */
 export type ApprovalRuleIn = {
@@ -6532,6 +6666,16 @@ export type EndCallToolDefinition = {
 };
 
 /**
+ * EndSession
+ */
+export type EndSession = {
+    /**
+     * Reason
+     */
+    reason?: string | null;
+};
+
+/**
  * ErasureRequest
  */
 export type ErasureRequest = {
@@ -11652,6 +11796,32 @@ export type MoneyTotal = {
 };
 
 /**
+ * MoveSession
+ */
+export type MoveSession = {
+    /**
+     * Expected Version
+     */
+    expected_version: number;
+    /**
+     * To
+     */
+    to: 'live' | 'reconnecting' | 'ended' | 'failed';
+    /**
+     * Phase
+     */
+    phase?: 'listening' | 'processing' | 'speaking' | null;
+    /**
+     * Muted
+     */
+    muted?: boolean | null;
+    /**
+     * End Reason
+     */
+    end_reason?: string | null;
+};
+
+/**
  * MoveWorkflowToFolderRequest
  *
  * Move a workflow into a folder, or to "Uncategorized" when null.
@@ -15114,6 +15284,28 @@ export type ReadinessResponse = {
 };
 
 /**
+ * ReadinessState
+ */
+export type ReadinessState = {
+    /**
+     * State
+     */
+    state: 'available' | 'needs_setup' | 'disabled_by_policy' | 'unavailable';
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Next Step
+     */
+    next_step?: string | null;
+    /**
+     * Notes
+     */
+    notes?: Array<string>;
+};
+
+/**
  * RealtimeEstimateRequest
  *
  * The call to price. Defaults describe a typical Indian outbound call —
@@ -17441,6 +17633,40 @@ export type SkillOnBot = {
 };
 
 /**
+ * Slots
+ */
+export type Slots = {
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Slots
+     */
+    slots?: Array<string>;
+    /**
+     * Date
+     */
+    date?: string | null;
+    /**
+     * Timezone
+     */
+    timezone?: string | null;
+    /**
+     * Duration Minutes
+     */
+    duration_minutes?: number | null;
+    /**
+     * May Book
+     */
+    may_book?: boolean;
+    /**
+     * Say
+     */
+    say?: string | null;
+};
+
+/**
  * Smallest AI
  *
  * Smallest AI ultralow-latency TTS (Waves) and STT (Pulse) APIs.
@@ -17842,6 +18068,16 @@ export type StartResponse = {
      * Language
      */
     language?: string | null;
+};
+
+/**
+ * StartSession
+ */
+export type StartSession = {
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
 };
 
 /**
@@ -19897,6 +20133,54 @@ export type TurnCredentialsResponse = {
 };
 
 /**
+ * TurnTiming
+ */
+export type TurnTiming = {
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+    /**
+     * Response Ms
+     */
+    response_ms?: number | null;
+    /**
+     * Interruption Ms
+     */
+    interruption_ms?: number | null;
+    /**
+     * Interrupted
+     */
+    interrupted?: boolean;
+};
+
+/**
+ * TurnTimingRecorded
+ */
+export type TurnTimingRecorded = {
+    /**
+     * Session Id
+     */
+    session_id: number;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+    /**
+     * Response Ms
+     */
+    response_ms: number | null;
+    /**
+     * Interruption Ms
+     */
+    interruption_ms: number | null;
+    /**
+     * Interrupted
+     */
+    interrupted: boolean;
+};
+
+/**
  * TwilioConfigurationRequest
  *
  * Request schema for Twilio configuration.
@@ -20621,6 +20905,100 @@ export type VoiceOption = {
      * Sample Url
      */
     sample_url?: string | null;
+};
+
+/**
+ * VoiceReadiness
+ */
+export type VoiceReadiness = {
+    live_voice: ReadinessState;
+    calls?: ReadinessState | null;
+    /**
+     * Language
+     */
+    language?: string | null;
+    /**
+     * Voice
+     */
+    voice?: string | null;
+    /**
+     * Captions
+     */
+    captions?: boolean;
+};
+
+/**
+ * VoiceSession
+ */
+export type VoiceSession = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Thread Id
+     */
+    thread_id: string | null;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Phase
+     */
+    phase: string | null;
+    /**
+     * State Version
+     */
+    state_version: number;
+    /**
+     * Muted
+     */
+    muted: boolean;
+    /**
+     * Language
+     */
+    language: string | null;
+    /**
+     * Voice
+     */
+    voice: string | null;
+    /**
+     * Config
+     */
+    config: {
+        [key: string]: unknown;
+    };
+    /**
+     * Reconnects
+     */
+    reconnects: number;
+    /**
+     * Gaps
+     */
+    gaps: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Lost Ms
+     */
+    lost_ms: number;
+    /**
+     * End Reason
+     */
+    end_reason: string | null;
+    /**
+     * Created At
+     */
+    created_at: string | null;
+    /**
+     * Connected At
+     */
+    connected_at: string | null;
+    /**
+     * Ended At
+     */
+    ended_at: string | null;
 };
 
 /**
@@ -46147,6 +46525,519 @@ export type ChooseModelDefaultApiV1SettingsModelsInheritancePutResponses = {
 };
 
 export type ChooseModelDefaultApiV1SettingsModelsInheritancePutResponse = ChooseModelDefaultApiV1SettingsModelsInheritancePutResponses[keyof ChooseModelDefaultApiV1SettingsModelsInheritancePutResponses];
+
+export type VoiceReadinessApiV1VoiceReadinessGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/voice/readiness';
+};
+
+export type VoiceReadinessApiV1VoiceReadinessGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type VoiceReadinessApiV1VoiceReadinessGetError = VoiceReadinessApiV1VoiceReadinessGetErrors[keyof VoiceReadinessApiV1VoiceReadinessGetErrors];
+
+export type VoiceReadinessApiV1VoiceReadinessGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: VoiceReadiness;
+};
+
+export type VoiceReadinessApiV1VoiceReadinessGetResponse = VoiceReadinessApiV1VoiceReadinessGetResponses[keyof VoiceReadinessApiV1VoiceReadinessGetResponses];
+
+export type StartSessionApiV1VoiceSessionsPostData = {
+    body: StartSession;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/voice/sessions';
+};
+
+export type StartSessionApiV1VoiceSessionsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StartSessionApiV1VoiceSessionsPostError = StartSessionApiV1VoiceSessionsPostErrors[keyof StartSessionApiV1VoiceSessionsPostErrors];
+
+export type StartSessionApiV1VoiceSessionsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: VoiceSession;
+};
+
+export type StartSessionApiV1VoiceSessionsPostResponse = StartSessionApiV1VoiceSessionsPostResponses[keyof StartSessionApiV1VoiceSessionsPostResponses];
+
+export type GetSessionApiV1VoiceSessionsSessionIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: number;
+    };
+    query?: never;
+    url: '/api/v1/voice/sessions/{session_id}';
+};
+
+export type GetSessionApiV1VoiceSessionsSessionIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetSessionApiV1VoiceSessionsSessionIdGetError = GetSessionApiV1VoiceSessionsSessionIdGetErrors[keyof GetSessionApiV1VoiceSessionsSessionIdGetErrors];
+
+export type GetSessionApiV1VoiceSessionsSessionIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: VoiceSession;
+};
+
+export type GetSessionApiV1VoiceSessionsSessionIdGetResponse = GetSessionApiV1VoiceSessionsSessionIdGetResponses[keyof GetSessionApiV1VoiceSessionsSessionIdGetResponses];
+
+export type MoveSessionApiV1VoiceSessionsSessionIdMovePostData = {
+    body: MoveSession;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: number;
+    };
+    query?: never;
+    url: '/api/v1/voice/sessions/{session_id}/move';
+};
+
+export type MoveSessionApiV1VoiceSessionsSessionIdMovePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MoveSessionApiV1VoiceSessionsSessionIdMovePostError = MoveSessionApiV1VoiceSessionsSessionIdMovePostErrors[keyof MoveSessionApiV1VoiceSessionsSessionIdMovePostErrors];
+
+export type MoveSessionApiV1VoiceSessionsSessionIdMovePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: VoiceSession;
+};
+
+export type MoveSessionApiV1VoiceSessionsSessionIdMovePostResponse = MoveSessionApiV1VoiceSessionsSessionIdMovePostResponses[keyof MoveSessionApiV1VoiceSessionsSessionIdMovePostResponses];
+
+export type HeartbeatApiV1VoiceSessionsSessionIdHeartbeatPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: number;
+    };
+    query?: never;
+    url: '/api/v1/voice/sessions/{session_id}/heartbeat';
+};
+
+export type HeartbeatApiV1VoiceSessionsSessionIdHeartbeatPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type HeartbeatApiV1VoiceSessionsSessionIdHeartbeatPostError = HeartbeatApiV1VoiceSessionsSessionIdHeartbeatPostErrors[keyof HeartbeatApiV1VoiceSessionsSessionIdHeartbeatPostErrors];
+
+export type HeartbeatApiV1VoiceSessionsSessionIdHeartbeatPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: VoiceSession;
+};
+
+export type HeartbeatApiV1VoiceSessionsSessionIdHeartbeatPostResponse = HeartbeatApiV1VoiceSessionsSessionIdHeartbeatPostResponses[keyof HeartbeatApiV1VoiceSessionsSessionIdHeartbeatPostResponses];
+
+export type EndSessionApiV1VoiceSessionsSessionIdEndPostData = {
+    body: EndSession;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: number;
+    };
+    query?: never;
+    url: '/api/v1/voice/sessions/{session_id}/end';
+};
+
+export type EndSessionApiV1VoiceSessionsSessionIdEndPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EndSessionApiV1VoiceSessionsSessionIdEndPostError = EndSessionApiV1VoiceSessionsSessionIdEndPostErrors[keyof EndSessionApiV1VoiceSessionsSessionIdEndPostErrors];
+
+export type EndSessionApiV1VoiceSessionsSessionIdEndPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: VoiceSession;
+};
+
+export type EndSessionApiV1VoiceSessionsSessionIdEndPostResponse = EndSessionApiV1VoiceSessionsSessionIdEndPostResponses[keyof EndSessionApiV1VoiceSessionsSessionIdEndPostResponses];
+
+export type RecordTurnApiV1VoiceSessionsSessionIdTurnsPostData = {
+    body: TurnTiming;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: number;
+    };
+    query?: never;
+    url: '/api/v1/voice/sessions/{session_id}/turns';
+};
+
+export type RecordTurnApiV1VoiceSessionsSessionIdTurnsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RecordTurnApiV1VoiceSessionsSessionIdTurnsPostError = RecordTurnApiV1VoiceSessionsSessionIdTurnsPostErrors[keyof RecordTurnApiV1VoiceSessionsSessionIdTurnsPostErrors];
+
+export type RecordTurnApiV1VoiceSessionsSessionIdTurnsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: TurnTimingRecorded;
+};
+
+export type RecordTurnApiV1VoiceSessionsSessionIdTurnsPostResponse = RecordTurnApiV1VoiceSessionsSessionIdTurnsPostResponses[keyof RecordTurnApiV1VoiceSessionsSessionIdTurnsPostResponses];
+
+export type AppointmentPolicyApiV1VoiceAppointmentsPolicyGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/voice/appointments/policy';
+};
+
+export type AppointmentPolicyApiV1VoiceAppointmentsPolicyGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AppointmentPolicyApiV1VoiceAppointmentsPolicyGetError = AppointmentPolicyApiV1VoiceAppointmentsPolicyGetErrors[keyof AppointmentPolicyApiV1VoiceAppointmentsPolicyGetErrors];
+
+export type AppointmentPolicyApiV1VoiceAppointmentsPolicyGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: AppointmentPolicy;
+};
+
+export type AppointmentPolicyApiV1VoiceAppointmentsPolicyGetResponse = AppointmentPolicyApiV1VoiceAppointmentsPolicyGetResponses[keyof AppointmentPolicyApiV1VoiceAppointmentsPolicyGetResponses];
+
+export type SaveAppointmentPolicyApiV1VoiceAppointmentsPolicyPutData = {
+    body: AppointmentPolicyWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/voice/appointments/policy';
+};
+
+export type SaveAppointmentPolicyApiV1VoiceAppointmentsPolicyPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveAppointmentPolicyApiV1VoiceAppointmentsPolicyPutError = SaveAppointmentPolicyApiV1VoiceAppointmentsPolicyPutErrors[keyof SaveAppointmentPolicyApiV1VoiceAppointmentsPolicyPutErrors];
+
+export type SaveAppointmentPolicyApiV1VoiceAppointmentsPolicyPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: AppointmentPolicy;
+};
+
+export type SaveAppointmentPolicyApiV1VoiceAppointmentsPolicyPutResponse = SaveAppointmentPolicyApiV1VoiceAppointmentsPolicyPutResponses[keyof SaveAppointmentPolicyApiV1VoiceAppointmentsPolicyPutResponses];
+
+export type UpcomingAppointmentsApiV1VoiceAppointmentsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/voice/appointments';
+};
+
+export type UpcomingAppointmentsApiV1VoiceAppointmentsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpcomingAppointmentsApiV1VoiceAppointmentsGetError = UpcomingAppointmentsApiV1VoiceAppointmentsGetErrors[keyof UpcomingAppointmentsApiV1VoiceAppointmentsGetErrors];
+
+export type UpcomingAppointmentsApiV1VoiceAppointmentsGetResponses = {
+    /**
+     * Response Upcoming Appointments Api V1 Voice Appointments Get
+     *
+     * Successful Response
+     */
+    200: Array<Appointment>;
+};
+
+export type UpcomingAppointmentsApiV1VoiceAppointmentsGetResponse = UpcomingAppointmentsApiV1VoiceAppointmentsGetResponses[keyof UpcomingAppointmentsApiV1VoiceAppointmentsGetResponses];
+
+export type AppointmentSlotsApiV1VoiceAppointmentsSlotsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query: {
+        /**
+         * Date
+         */
+        date: string;
+    };
+    url: '/api/v1/voice/appointments/slots';
+};
+
+export type AppointmentSlotsApiV1VoiceAppointmentsSlotsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AppointmentSlotsApiV1VoiceAppointmentsSlotsGetError = AppointmentSlotsApiV1VoiceAppointmentsSlotsGetErrors[keyof AppointmentSlotsApiV1VoiceAppointmentsSlotsGetErrors];
+
+export type AppointmentSlotsApiV1VoiceAppointmentsSlotsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: Slots;
+};
+
+export type AppointmentSlotsApiV1VoiceAppointmentsSlotsGetResponse = AppointmentSlotsApiV1VoiceAppointmentsSlotsGetResponses[keyof AppointmentSlotsApiV1VoiceAppointmentsSlotsGetResponses];
+
+export type LatencySummaryApiV1AdminVoiceLatencyGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+        /**
+         * Organization Id
+         */
+        organization_id?: number | null;
+    };
+    url: '/api/v1/admin/voice/latency';
+};
+
+export type LatencySummaryApiV1AdminVoiceLatencyGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LatencySummaryApiV1AdminVoiceLatencyGetError = LatencySummaryApiV1AdminVoiceLatencyGetErrors[keyof LatencySummaryApiV1AdminVoiceLatencyGetErrors];
+
+export type LatencySummaryApiV1AdminVoiceLatencyGetResponses = {
+    /**
+     * Response Latency Summary Api V1 Admin Voice Latency Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type LatencySummaryApiV1AdminVoiceLatencyGetResponse = LatencySummaryApiV1AdminVoiceLatencyGetResponses[keyof LatencySummaryApiV1AdminVoiceLatencyGetResponses];
 
 export type OrganisationApiV1OrganisationGetData = {
     body?: never;

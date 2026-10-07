@@ -175,6 +175,11 @@ FLAGS: dict[str, str] = {
     "privacy_center": "PRIVACY_CENTER_ENABLED",
     "saved_items": "SAVED_ITEMS_ENABLED",
     "model_inheritance": "MODEL_INHERITANCE_ENABLED",
+    # Launch stream `voice` (LAUNCH-PLAN.md, phase 2).
+    "decibyl_voice": "DECIBYL_VOICE_ENABLED",
+    "voice_latency": "VOICE_LATENCY_ENABLED",
+    "call_for_me": "CALL_FOR_ME_ENABLED",
+    "call_appointment": "CALL_APPOINTMENT_ENABLED",
 }
 
 
@@ -287,6 +292,10 @@ DESCRIPTIONS: dict[str, str] = {
     "privacy_center": "Privacy and security: personal export, personal deletion through a card, effective retention, MFA (screen 25).",
     "saved_items": "Saved items and search in one scope at a time (screen 15).",
     "model_inheritance": "Model defaults show where each comes from, readiness and agent overrides; saves are revision-checked (screen 26).",
+    "decibyl_voice": "Talk with Decibyl: live voice from Chat with interruption, mute, captions and reconnect (screen 05).",
+    "voice_latency": "Voice latency per turn: response and interruption times, p50/p95 by language and channel (handoff 12).",
+    "call_for_me": "Call it for me: Decibyl places one approved phone call for a person and announces itself first.",
+    "call_appointment": "Call and Appointment: booking policy, open slots, booking within policy, verification and escalation on calls.",
 }
 
 
