@@ -13,6 +13,7 @@ customer content.
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
@@ -109,7 +110,9 @@ class TestFlags:
         mine = [
             p
             for p in versions.glob("*.py")
-            if 'revision = "20261008staff' in p.read_text()
+            # A whole line: a later migration's `down_revision = "20261008staff"`
+            # names this one, it is not another one.
+            if re.search(r'^revision = "20261008staff', p.read_text(), re.M)
         ]
         assert len(mine) == 1
 

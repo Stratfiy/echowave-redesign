@@ -1040,11 +1040,17 @@ async def propose_learning_deletion(
 # --- the person's half ------------------------------------------------------
 
 
-def _visibility(payload: dict[str, Any]) -> str | None:
-    """A card private to one person is never on a shared timeline."""
+def _visibility(payload: dict[str, Any], action: str | None = None) -> str | None:
+    """Identity's cards (and the lines under them) are never on a timeline:
+    they live in Settings. Other private cards -- reach's orders and outside
+    tools -- stay on the thread and are shown to their owner alone through
+    ``private_to``, which the timeline query filters on."""
     from api.enums import AgentEventVisibility
 
-    if payload.get("private_to"):
+    if (
+        payload.get("private_to")
+        and (action or payload.get("action")) in IDENTITY_ACTIONS
+    ):
         return AgentEventVisibility.PRIVATE.value
     return None
 
@@ -1431,10 +1437,6 @@ async def _say(event: Any, line: str) -> None:
         payload["private_to"] = event.payload["private_to"]
     if event.workflow_id is None:
         payload["from"] = decibyl.NAME
-    owner = (event.payload or {}).get("private_to")
-    if owner:
-        # The line about a private card is as private as the card.
-        payload["private_to"] = owner
     await agent_timeline.record(
         organization_id=event.organization_id,
         kind=AgentEventKind.MESSAGE.value,
@@ -1444,7 +1446,7 @@ async def _say(event: Any, line: str) -> None:
         folder_id=event.folder_id,
         payload=payload,
         in_channel=event.folder_id is not None,
-        visibility=_visibility(payload),
+        visibility=_visibility(payload, (event.payload or {}).get("action")),
     )
 
 
