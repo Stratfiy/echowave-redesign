@@ -55,6 +55,9 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "agent-templates",
             # A workspace's own saved roles, and sharing them (MP-2, MP-3).
             "workspace-roles",
+            # The five launch helpers and the builder, saved reports,
+            # commitments and trackers (launch stream `agents`).
+            "helpers",
             # What starts an agent, and what its last run reached (G-1).
             "agent-graph",
             "agent-options",

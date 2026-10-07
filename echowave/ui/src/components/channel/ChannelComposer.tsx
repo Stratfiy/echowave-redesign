@@ -29,6 +29,7 @@ import {
 } from '@/client/sdk.gen';
 import { AttachMenu } from '@/components/chat/AttachMenu';
 import { PasteNotesDialog } from '@/components/chat/PasteNotesDialog';
+import { type ChosenHelper, HelperChip, HelperPicker } from '@/components/helpers/HelperPicker';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -152,6 +153,7 @@ export function ChannelComposer({
     replying = false,
     onStop,
     draftRequest,
+    initialHelper,
 }: {
     /** A channel, or -- with `workflowId` instead -- one bot's own chat, where
      *  there is nobody to @ because the bot is implied. */
@@ -183,8 +185,14 @@ export function ChannelComposer({
     /** Words to put in the box, editable, from a starter. A new id each
      *  time, so choosing the same starter twice still fills it. */
     draftRequest?: { text: string; id: number } | null;
+    /** Screen 06: a helper named on the address (`?helper=`), chosen once
+     *  the server says it is available. */
+    initialHelper?: string | null;
 }) {
     const [text, setText] = useState(initialText ?? '');
+    // Screen 06 (`launch_helpers`): Decibyl's thread only. Null is Automatic.
+    const helpersOn = useFeature('launch_helpers') && assistant;
+    const [helper, setHelper] = useState<ChosenHelper | null>(null);
     // Pasted notes and voice notes that go with the next message (screen 03).
     const [blocks, setBlocks] = useState<ComposerBlock[]>([]);
     const [pasteOpen, setPasteOpen] = useState(false);
@@ -477,7 +485,13 @@ export function ChannelComposer({
                 ? { workflow_id: workflowId }
                 : { folder_id: folderId };
         const response = await postMessageApiV1TimelineMessagePost({
-            body: { ...where, text: body, attachments, preset: preset || null },
+            body: {
+                ...where,
+                text: body,
+                attachments,
+                preset: preset || null,
+                ...(helpersOn && helper && !routeTo ? { helper: helper.key } : {}),
+            },
         });
         setSending(false);
         void readMemory();
@@ -609,8 +623,9 @@ export function ChannelComposer({
                         </button>
                     </div>
                 )}
-                {(attachments.length > 0 || uploadingFile || blocks.length > 0) && (
+                {(attachments.length > 0 || uploadingFile || blocks.length > 0 || (helpersOn && helper)) && (
                     <ul className="mb-2 flex flex-wrap gap-2" aria-label="Attachments">
+                        {helpersOn && helper && <HelperChip helper={helper} onRemove={() => setHelper(null)} />}
                         {blocks.map((block) => (
                             <li
                                 key={block.id}
@@ -850,6 +865,18 @@ export function ChannelComposer({
                             onPasteNotes={() => setPasteOpen(true)}
                             onMeetingMode={openMeeting}
                             meetingAvailable={meeting.available}
+                        />
+                    )}
+                    {helpersOn && (
+                        <HelperPicker
+                            selected={helper?.key ?? null}
+                            onChoose={setHelper}
+                            onExample={(example) => {
+                                setText(example);
+                                requestAnimationFrame(() => input.current?.focus());
+                            }}
+                            threadId={threadId}
+                            initialKey={initialHelper}
                         />
                     )}
                     {/* The mockup's affordance, and the discoverable half of
