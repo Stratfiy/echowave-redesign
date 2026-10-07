@@ -107,6 +107,12 @@ FLAGS: dict[str, str] = {
     "first_task_onboarding": "FIRST_TASK_ONBOARDING_ENABLED",
     "chat_shell": "CHAT_SHELL_ENABLED",
     "shell_mobile": "SHELL_MOBILE_ENABLED",
+    # Launch stream `agents` (LAUNCH-PLAN.md, phase 2).
+    "launch_helpers": "LAUNCH_HELPERS_ENABLED",
+    "research_reports": "RESEARCH_REPORTS_ENABLED",
+    "follow_up_ledger": "FOLLOW_UP_LEDGER_ENABLED",
+    "trading_summaries": "TRADING_SUMMARIES_ENABLED",
+    "describe_builder": "DESCRIBE_BUILDER_ENABLED",
 }
 
 
@@ -162,6 +168,11 @@ DESCRIPTIONS: dict[str, str] = {
     "first_task_onboarding": "Language, timezone and a first task; new people land in Chat (screen 02).",
     "chat_shell": "Chat: three starters, attach menu, Dictate and Talk, Stop, New content, sources and task states (screens 03-04).",
     "shell_mobile": "Phone shell: Chat and Today at the bottom, profile in the header, keyboard-aware bar, read-only workflow steps.",
+    "launch_helpers": "The helper picker in Chat: Automatic and the five helpers, each with its capability state (screen 06).",
+    "research_reports": "Research keeps saved reports with their sources; the export matches what was shown.",
+    "follow_up_ledger": "Follow-up tracks commitments a person approved, and answers who owes me.",
+    "trading_summaries": "Research summarises markets by a person's own interests: information only, never advice.",
+    "describe_builder": "Ask Decibyl to build anything: agents, routines and trackers from a description, in Chat.",
 }
 
 
