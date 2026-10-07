@@ -94,6 +94,14 @@ FLAGS: dict[str, str] = {
     "studio": "STUDIO_ENABLED",
     # Free while we are early: no plans, nothing charged (on by default).
     "free_mode": "FREE_MODE_ENABLED",
+    # Launch stream `controls` (LAUNCH-PLAN.md, phase 1).
+    "capability_checklist": "CAPABILITY_CHECKLIST_ENABLED",
+    "operational_quotas": "OPERATIONAL_QUOTAS_ENABLED",
+    "task_ledger": "TASK_LEDGER_ENABLED",
+    "personal_space": "PERSONAL_SPACE_ENABLED",
+    "member_preferences": "MEMBER_PREFERENCES_ENABLED",
+    "event_catalogue": "EVENT_CATALOGUE_ENABLED",
+    "reply_feedback": "REPLY_FEEDBACK_ENABLED",
 }
 
 
@@ -138,6 +146,13 @@ DESCRIPTIONS: dict[str, str] = {
     "decibyl_teams": "Decibyl in Microsoft Teams.",
     "studio": "Studio: build agents and a website for them from one chat.",
     "free_mode": "Free while we are early: no plans, nothing charged, nothing locked.",
+    "capability_checklist": "Staff see each capability's source, configuration and tested state.",
+    "operational_quotas": "Daily limits per person (turns, voice, sends, browser), even in free mode.",
+    "task_ledger": "One task state set, approvals bound to the exact payload, no stale updates.",
+    "personal_space": "Every person has a personal space beside the workspaces they join.",
+    "member_preferences": "A person's own language, timezone, voice and summary time.",
+    "event_catalogue": "Versioned analytics events with a private envelope, sent from an outbox.",
+    "reply_feedback": "Was this useful? Yes / Not quite under replies and finished tasks.",
 }
 
 
@@ -323,6 +338,20 @@ def is_on(name: str, organization_id: int | None = None) -> bool:
     if organization_id is None:
         return False
     return organization_id in org_overrides().get(name, frozenset())
+
+
+def on_anywhere(name: str) -> bool:
+    """Whether ``name`` is on for anyone at all: everyone, or at least one
+    organisation by a console row or ``FEATURE_ORG_OVERRIDES``. For a
+    scheduled job that would otherwise scan every workspace to find none."""
+    if is_on(name):
+        return True
+    if any(
+        feature == name and org is not None and row.enabled and row.live()
+        for (feature, org), row in _SNAPSHOT.items()
+    ):
+        return True
+    return bool(org_overrides().get(name))
 
 
 def public() -> dict[str, bool]:

@@ -326,6 +326,14 @@ async def ask(
         thread_id=thread_id,
     )
 
+    # The person's daily allowance of turns (operational quotas): held even
+    # in free mode. Over it, the answer is a line in the thread saying so,
+    # and nothing is asked of any model or bot. No-op while switched off.
+    if await turn_refused(
+        organization_id=organization_id, user_id=user_id, thread_id=thread_id
+    ):
+        return []
+
     from api.tasks.arq import enqueue_job
     from api.tasks.function_names import FunctionNames
 
@@ -379,6 +387,47 @@ async def ask(
             thread_id=thread_id,
         )
     return asked
+
+
+async def turn_refused(
+    *,
+    organization_id: int,
+    user_id: int | None,
+    thread_id: str | None = None,
+    workflow_id: int | None = None,
+    folder_id: int | None = None,
+) -> bool:
+    """Spend one of the person's turns, or say in the thread that today's are
+    used and return True. A line nobody can be charged for (no person) is
+    not refused: every person-facing entry passes the signed-in member."""
+    from api.services import member_preferences, quotas
+
+    if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id <= 0:
+        return False
+    try:
+        await quotas.consume(user_id, quotas.MODEL_TURNS)
+        return False
+    except quotas.QuotaExceeded as exc:
+        usage = exc.usage
+    line = quotas.message(usage, await member_preferences.timezone_of(user_id))
+    on_thread = workflow_id is None and folder_id is None
+    await agent_timeline.record(
+        organization_id=organization_id,
+        kind=AgentEventKind.MESSAGE.value,
+        actor=AgentEventActor.AGENT.value,
+        summary=line,
+        workflow_id=workflow_id,
+        folder_id=folder_id,
+        payload={
+            "body": line,
+            **({"from": NAME} if on_thread else {}),
+            "quota": usage.as_dict(),
+        },
+        # A bot's own chat is not its channel; a channel line is.
+        in_channel=folder_id is not None,
+        thread_id=thread_id if on_thread else None,
+    )
+    return True
 
 
 # --- the context -----------------------------------------------------------
@@ -876,6 +925,9 @@ async def _answer(
     """The turn itself, inside the thread its caller set."""
     from api.services.agent_builder import client, settings
 
+    # Which model wrote the reply, for feedback stored against it; None when
+    # the turn never reached one.
+    model = None
     context = await build_context(organization_id, text)
     context = f"{context}\n\n{await office_context(organization_id, subjects)}"
     handed = ""
@@ -1038,7 +1090,12 @@ async def _answer(
         kind=AgentEventKind.MESSAGE.value,
         actor=AgentEventActor.AGENT.value,
         summary=body[:500],
-        payload={"body": body, "from": NAME, "preset": preset},
+        payload={
+            "body": body,
+            "from": NAME,
+            "preset": preset,
+            "model": f"{model.provider}:{model.model}" if model is not None else None,
+        },
         in_channel=False,
     )
     # After the row, so the screen swaps the forming text for the row rather

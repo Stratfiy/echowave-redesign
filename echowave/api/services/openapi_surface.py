@@ -139,6 +139,9 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "organisation-memory",
             "notifications",
             "onboarding",
+            # A person's own preferences, allowances, personal space, and
+            # their feedback on replies (launch stream controls).
+            "controls",
         ),
     ),
     (

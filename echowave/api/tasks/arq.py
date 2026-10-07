@@ -32,6 +32,7 @@ from api.tasks.campaign_tasks import (
     sync_campaign_source,
 )
 from api.tasks.connector_tools import sync_missing_tools
+from api.tasks.controls import deliver_analytics_outbox, sweep_unknown_outcomes
 from api.tasks.credential_health import check_platform_credentials
 from api.tasks.credit_reservations import sweep_credit_reservations
 from api.tasks.data_retention import close_due_workspaces, purge_expired_call_data
@@ -133,8 +134,24 @@ class WorkerSettings:
         run_proposed_action,
         compact_channel_context,
         translate_knowledge_base_document,
+        deliver_analytics_outbox,
+        sweep_unknown_outcomes,
     ]
     cron_jobs = [
+        # Launch stream controls: catalogue events to analytics, and cards
+        # whose job died marked outcome unknown. Both no-ops while off.
+        cron(
+            deliver_analytics_outbox,
+            minute=set(range(0, 60, 2)),
+            second=15,
+            run_at_startup=False,
+        ),
+        cron(
+            sweep_unknown_outcomes,
+            minute=set(range(1, 60, 5)),
+            second=40,
+            run_at_startup=False,
+        ),
         # Reminders filed against a document's expiry (A4) go out once a day,
         # 09:00 IST, one message per account, and only when something is due.
         cron(remind_due_tasks, hour={3}, minute={30}, second=0, run_at_startup=False),

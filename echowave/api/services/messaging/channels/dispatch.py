@@ -63,6 +63,7 @@ def card_from_payload(event_id: int, payload: dict[str, Any]) -> Card:
         effect=str(payload.get("effect") or ""),
         state=str(payload.get("state") or "proposed"),
         reversible=bool(payload.get("reversible")),
+        version=str(payload.get("version") or ""),
     )
 
 
@@ -161,11 +162,15 @@ async def _settle(adapter, identity: identities.Identity, inbound: Inbound) -> s
 
     tap = inbound.tap
     try:
+        # The version the button carried, when it carried one: a Confirm in
+        # an app approves what that app showed (task ledger).
+        versioned = {"version": tap.version} if tap.version is not None else {}
         payload = await actions.settle(
             organization_id=identity.organization_id,
             event_id=tap.event_id,
             verb=tap.verb,
             user_id=identity.user_id,
+            **versioned,
         )
     except (actions.ActionError, Refused) as exc:
         # Includes a card of another organisation: settle only finds

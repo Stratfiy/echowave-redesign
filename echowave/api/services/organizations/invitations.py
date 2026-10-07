@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.db.models import (
     OrganizationInvitationModel,
     OrganizationMembershipModel,
+    OrganizationModel,
     UserModel,
 )
 from api.enums import ORGANIZATION_ROLE_RANK, OrganizationRole
@@ -74,6 +75,17 @@ async def invite(
         raise InvitationError(f"Unknown role: {role}")
 
     now = now or datetime.now(UTC)
+
+    # A personal space has one member, its owner (services/personal_space.py;
+    # a database trigger refuses the seat too, this is the sentence).
+    space_kind = await session.scalar(
+        select(OrganizationModel.kind).where(OrganizationModel.id == organization_id)
+    )
+    if space_kind == "personal":
+        raise InvitationError(
+            "This is a personal space. Only its owner can be in it; to work "
+            "with others, use a workspace."
+        )
 
     existing_member = await session.scalar(
         select(OrganizationMembershipModel)
@@ -260,6 +272,17 @@ async def accept(
     user.selected_organization_id = invitation.organization_id
 
     await session.flush()
+    # In the caller's transaction: the event exists exactly when the seat
+    # does (launch stream controls; no-op while the catalogue is off).
+    from api.services import events
+
+    await events.emit(
+        "invite_accepted",
+        session=session,
+        user_id=user.id,
+        organization_id=invitation.organization_id,
+        occurred_at=now,
+    )
     return invitation
 
 

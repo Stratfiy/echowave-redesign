@@ -43,6 +43,7 @@ import { type AttachedFile,AttachedFileChip } from '@/components/channel/Attache
 import { BlockedCard } from '@/components/channel/BlockedCard';
 import { tagTokens } from '@/components/channel/ChannelComposer';
 import { emphasisTokens } from '@/components/channel/emphasis';
+import { isJudgeableReply, ReplyFeedback, useMyFeedback } from '@/components/channel/ReplyFeedback';
 import { Button } from '@/components/ui/button';
 import { ActionCard } from '@/components/workflow/ActionCard';
 import { ConnectorCard } from '@/components/workflow/ConnectorCard';
@@ -52,6 +53,7 @@ import { SecretCard } from '@/components/workflow/SecretCard';
 import { detailFromResult } from '@/lib/apiError';
 import { useAuth } from '@/lib/auth';
 import { markSeen } from '@/lib/botSeen';
+import { useFeature } from '@/lib/features';
 import { hasIndicScript } from '@/lib/indic';
 import { cn } from '@/lib/utils';
 
@@ -423,6 +425,11 @@ export function ChannelStream({
           ? { workflow_id: workflowId }
           : { folder_id: folderId };
     const fallbackName = assistant ? assistantName : 'An agent';
+    // Was this useful? under Decibyl's replies (reply_feedback). Read once
+    // per batch of replies, after auth, so a reload shows what was said.
+    const feedbackOn = useFeature('reply_feedback') && assistant;
+    const judgeable = feedbackOn ? events.filter(isJudgeableReply).map((e) => e.id) : [];
+    const feedback = useMyFeedback(judgeable, feedbackOn && !authLoading && Boolean(user));
     // Whether the reader is at the bottom. Scrolling them back down while they
     // are reading something further up is worse than a missed new message.
     const pinned = useRef(true);
@@ -1211,6 +1218,13 @@ export function ChannelStream({
                                             <span className="text-xs text-muted-foreground">{testOf(event)!.bot_name}</span>
                                         )}
                                     </div>
+                                )}
+                                {feedbackOn && isJudgeableReply(event) && (
+                                    <ReplyFeedback
+                                        eventId={event.id}
+                                        answer={feedback.answers[event.id]}
+                                        onAnswered={(answer) => feedback.remember(event.id, answer)}
+                                    />
                                 )}
                                 {attachmentsOf(event).length > 0 && (
                                     <ul className="mt-1.5 flex flex-wrap gap-2" aria-label="Files">
