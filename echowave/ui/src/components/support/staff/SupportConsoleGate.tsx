@@ -33,7 +33,7 @@ export function SupportConsoleGate({
     if (loading || !user || configLoading) return <SpinLoader />;
     if (!on) return <EmptyState title="This page is not available." />;
     return (
-        <div className={cn("w-full", !wide && "mx-auto max-w-3xl px-4 py-6 md:px-6")}>
+        <div className={cn("w-full", !wide && "mx-auto max-w-3xl px-4 py-6 md:px-6")} data-testid="support-console">
             {!wide && (
                 <nav aria-label="Support" className="mb-3 flex flex-wrap gap-3 text-sm">
                     <Link href="/superadmin/support" className="min-h-11 underline-offset-2 hover:underline md:min-h-0">

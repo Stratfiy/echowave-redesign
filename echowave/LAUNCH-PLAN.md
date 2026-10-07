@@ -370,7 +370,7 @@ hourly, reviews and merges each PR, and starts the next streams.
 | meetings | 2 | claude/stream-meetings | | | | |
 | identity | 2 | claude/stream-identity | | | | |
 | settings | 2 | claude/stream-settings | | | | |
-| support | 2 | claude/stream-support | | | | |
+| support | 2 | claude/stream-support | draft | yes (SUPPORT.md) | 49 API + 36 UI; live API/worker/UI check | |
 | staff | 2 | claude/stream-staff | | | | |
 | ops | 2 | claude/stream-ops | #524 | yes | see PR | |
 | aws-gateway | 2 | claude/stream-aws-gateway | | | | |

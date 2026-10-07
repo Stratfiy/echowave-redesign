@@ -19,7 +19,11 @@ export function HelpGate({ children }: { children: ReactNode }) {
     const availability = useHelpAvailability();
     if (loading || !user || availability === "loading") return <SpinLoader />;
     if (availability === "off") return <EmptyState title="This page is not available." />;
-    return <div className="mx-auto w-full max-w-3xl px-4 py-6 md:px-6">{children}</div>;
+    return (
+        <div className="mx-auto w-full max-w-3xl px-4 py-6 md:px-6" data-testid="help-page">
+            {children}
+        </div>
+    );
 }
 
 export default HelpGate;
