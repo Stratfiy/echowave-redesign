@@ -1,5 +1,10 @@
 # Staging
 
+> Production/staging parity (same keys, different secrets, same deploy
+> script) and how to check it: **`OPS-RUNBOOK.md`** section 3 and
+> `python -m scripts.check_infra parity`. Capacity reviews with a recorded
+> verdict: `python -m scripts.capacity_review` (runbook section 10).
+
 A staging box exists to answer one question production must never be asked:
 **how many concurrent calls does a node hold before it degrades?** The fleet in
 `INFRASTRUCTURE.md` is sized on "5 concurrent calls per vCPU", which that
