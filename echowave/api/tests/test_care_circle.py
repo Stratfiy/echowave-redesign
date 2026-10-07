@@ -315,3 +315,24 @@ async def test_a_care_card_is_read_back_only_by_its_person(family):
         assert (
             await c.get(f"/api/v1/care/cards/{made['event_id']}")
         ).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_no_card_means_nothing_left_waiting(family, monkeypatch):
+    amma, priya, *_, org, _ = family
+
+    async def refuse(**_):
+        return {"status": "not_proposed", "reason": "no organisation"}
+
+    monkeypatch.setattr(actions, "propose", refuse)
+    with pytest.raises(CareError):
+        await circle.propose_member(
+            org, amma.id, name="Priya", email=priya.email, shares=["medicine_alerts"]
+        )
+    assert (await circle.my_circle(org, amma.id))["members"] == []
+    monkeypatch.undo()
+    cs.all_on(monkeypatch)
+    again = await circle.propose_member(
+        org, amma.id, name="Priya", email=priya.email, shares=["medicine_alerts"]
+    )
+    assert again["event_id"]

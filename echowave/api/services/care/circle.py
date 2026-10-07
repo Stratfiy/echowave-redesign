@@ -274,15 +274,23 @@ async def propose_member(
         member_id = row.id
     from api.services.workflow import actions
 
-    result = await _propose(
-        organization_id,
-        user_id,
-        {
-            "action": actions.CARE_FAMILY_INVITE,
-            "member_id": member_id,
-            "person_user_id": user_id,
-        },
-    )
+    try:
+        result = await _propose(
+            organization_id,
+            user_id,
+            {
+                "action": actions.CARE_FAMILY_INVITE,
+                "member_id": member_id,
+                "person_user_id": user_id,
+            },
+        )
+    except CareError:
+        # No card, no consent: the row must not sit "waiting" for a card
+        # that does not exist, or block asking again.
+        await consent_declined(
+            organization_id, {"member_id": member_id, "person_user_id": user_id}
+        )
+        raise
     event_id = result.get("event_id")
     async with db_client.async_session() as session:
         await session.execute(

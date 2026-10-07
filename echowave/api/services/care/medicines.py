@@ -270,7 +270,14 @@ async def propose(
         await session.commit()
         await session.refresh(row)
         medicine_id = row.id
-    event_id = await _propose_card(organization_id, user_id, medicine_id)
+    try:
+        event_id = await _propose_card(organization_id, user_id, medicine_id)
+    except CareError:
+        # No card, nothing to confirm: never a reminder left waiting on one.
+        await not_started(
+            organization_id, {"medicine_id": medicine_id, "person_user_id": user_id}
+        )
+        raise
     async with db_client.async_session() as session:
         row = await _own(session, organization_id, user_id, medicine_id)
         row.card_event_id = event_id
