@@ -48338,6 +48338,10 @@ export type ThreadChipsApiV1TimelineChipsGetData = {
          * Thread Id
          */
         thread_id?: string | null;
+        /**
+         * Workflow Id
+         */
+        workflow_id?: number | null;
     };
     url: '/api/v1/timeline/chips';
 };

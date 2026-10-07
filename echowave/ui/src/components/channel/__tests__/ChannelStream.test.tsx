@@ -433,15 +433,19 @@ describe('the thread carries its own next steps', () => {
         );
     });
 
-    it('shows none on an agent\'s own chat', async () => {
-        // These are the workspace's questions, and Decibyl is who answers.
+    it('on an agent\'s own chat, only its reply\'s next steps, sent to the agent', async () => {
+        // The workspace's questions are Decibyl's; the agent's chat gets the
+        // next steps of the agent's own reply (found on staging: a research
+        // agent's report had nothing to tap).
         reply();
         chips.mockResolvedValue({
-            data: { chips: [{ kind: 'asked_before', text: 'check my email' }] },
+            data: { chips: [{ kind: 'follow_up', text: 'Go deeper on point 3', helper: null }] },
         });
         render(<ChannelStream workflowId={3} botNames={{}} />);
-        await waitFor(() => expect(timeline).toHaveBeenCalled());
-        expect(chips).not.toHaveBeenCalled();
+        fireEvent.click(await screen.findByRole('button', { name: 'Go deeper on point 3' }));
+        expect(chips.mock.calls[0][0].query).toEqual({ workflow_id: 3 });
+        await waitFor(() => expect(post).toHaveBeenCalled());
+        expect(post.mock.calls[0][0].body).toEqual({ workflow_id: 3, text: 'Go deeper on point 3' });
     });
 
     it('a thread whose chips fail to load is still a thread', async () => {

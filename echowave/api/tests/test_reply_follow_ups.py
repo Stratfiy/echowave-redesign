@@ -136,3 +136,56 @@ class TestThreadChips:
         a, org = person
         chips = await _chips(a.id, org, None)
         assert not any(c["kind"] == "follow_up" for c in chips)
+
+
+class TestAnAgentsOwnChat:
+    def test_a_reply_with_sources_gets_the_research_follow_ups(self):
+        chips = follow_ups.for_agent_reply(REPORT)
+        assert [c["text"] for c in chips][:2] == [
+            "Go deeper on point 1",
+            "Go deeper on point 2",
+        ]
+        assert "Turn this into a one-page brief" in [c["text"] for c in chips]
+        assert {c["helper"] for c in chips} == {None}
+
+    def test_a_reply_without_sources_gets_none(self):
+        assert follow_ups.for_agent_reply("1. Hello\n2. There") == []
+
+
+@pytest.mark.asyncio
+class TestAgentChatChips:
+    async def test_chips_for_an_agents_own_chat_are_its_reply_only(self, person):
+        a, org = person
+        bot = await db_client.create_workflow(
+            name="Research agent",
+            workflow_definition={"nodes": [], "edges": []},
+            user_id=a.id,
+            organization_id=org,
+        )
+        await agent_timeline.record(
+            organization_id=org,
+            kind=AgentEventKind.MESSAGE.value,
+            actor=AgentEventActor.AGENT.value,
+            summary="report",
+            payload={"body": REPORT},
+            workflow_id=bot.id,
+            in_channel=False,
+        )
+        from api.app import app
+        from api.services.auth.depends import get_user
+
+        app.dependency_overrides[get_user] = lambda: SimpleNamespace(
+            id=a.id, selected_organization_id=org
+        )
+        try:
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as c:
+                got = await c.get(
+                    "/api/v1/timeline/chips", params={"workflow_id": bot.id}
+                )
+        finally:
+            app.dependency_overrides.pop(get_user, None)
+        chips = got.json()["chips"]
+        assert chips and all(c["kind"] == "follow_up" for c in chips)
+        assert chips[0]["text"] == "Go deeper on point 1"

@@ -450,12 +450,15 @@ export function ChannelStream({
     const [chips, setChips] = useState<ThreadChip[]>([]);
     const [sendingChip, setSendingChip] = useState<string | null>(null);
     const loadChips = useCallback(async () => {
-        if (!assistant) return;
-        // This thread's, so a helper's follow-ups answer the reply on screen.
-        const response = await threadChipsApiV1TimelineChipsGet({ query: { thread_id: threadId ?? undefined } });
+        if (!assistant && workflowId == null) return;
+        // This thread's, so a helper's follow-ups answer the reply on screen;
+        // on an agent's own chat, the next steps of the agent's last reply.
+        const response = await threadChipsApiV1TimelineChipsGet({
+            query: assistant ? { thread_id: threadId ?? undefined } : { workflow_id: workflowId! },
+        });
         if (response.error) return; // A thread with no chips is still a thread.
         setChips(response.data?.chips ?? []);
-    }, [assistant, threadId]);
+    }, [assistant, threadId, workflowId]);
     const sendChip = async (text: string, helper?: string | null) => {
         setSendingChip(text);
         // Cleared first: the chips answer the reply that is on screen, and
@@ -464,7 +467,9 @@ export function ChannelStream({
         setChips([]);
         // A follow-up goes back to the helper that wrote the reply it follows.
         const response = await postMessageApiV1TimelineMessagePost({
-            body: { assistant: true, thread_id: threadId, text, ...(helper ? { helper } : {}) },
+            body: assistant
+                ? { assistant: true, thread_id: threadId, text, ...(helper ? { helper } : {}) }
+                : { workflow_id: workflowId!, text },
         });
         setSendingChip(null);
         if (response.error) {
@@ -925,9 +930,9 @@ export function ChannelStream({
             {/* What to ask next, so the thread carries its own next steps.
                 Hidden while a bot is thinking: offering a follow-up to an
                 answer that has not arrived is asking somebody to interrupt.
-                Hidden on a bot's own chat too -- these are the workspace's
-                questions, and Decibyl is who answers them. */}
-            {assistant && !waiting && chips.length > 0 && (
+                On a bot's own chat only its own reply's next steps: the
+                workspace's questions are Decibyl's to answer. */}
+            {(assistant || workflowId != null) && !waiting && chips.length > 0 && (
                 <ul
                     className="mt-3 flex flex-wrap gap-2"
                     aria-label="Suggested next steps"

@@ -793,6 +793,7 @@ class ThreadChipsResponse(BaseModel):
 @router.get("/chips", response_model=ThreadChipsResponse)
 async def thread_chips(
     thread_id: Annotated[Optional[str], Query(max_length=36)] = None,
+    workflow_id: Annotated[Optional[int], Query()] = None,
     user: UserModel = Depends(get_user),
 ) -> ThreadChipsResponse:
     """What to offer under the last reply, so the thread carries its own
@@ -817,6 +818,17 @@ async def thread_chips(
     organization_id = user.selected_organization_id
     if not organization_id:
         raise HTTPException(status_code=400, detail="No organization selected")
+
+    if workflow_id is not None:
+        # An agent's own chat: only the next steps of its own last reply --
+        # the workspace's questions are Decibyl's to answer, not the agent's.
+        try:
+            return ThreadChipsResponse(
+                chips=await _agent_follow_ups(organization_id, workflow_id)
+            )
+        except Exception as exc:  # noqa: BLE001 - the chat still works
+            logger.warning("Could not build follow-ups for {}: {}", workflow_id, exc)
+            return ThreadChipsResponse(chips=[])
 
     # The reply on screen first: a helper's own next steps for what it just
     # said (services/helpers/follow_ups.py), sent back to that helper.
@@ -850,6 +862,30 @@ async def thread_chips(
             if c.get("text")
         ]
     )
+
+
+async def _agent_follow_ups(organization_id: int, workflow_id: int) -> list[ThreadChip]:
+    from api.services.helpers import follow_ups
+
+    rows = await db_client.agent_events(
+        organization_id=organization_id,
+        workflow_id=workflow_id,
+        kinds=[AgentEventKind.MESSAGE.value],
+        limit=10,
+    )
+    for row in rows:
+        if row.folder_id is not None:
+            continue
+        if row.actor != AgentEventActor.AGENT.value:
+            return []
+        payload = row.payload or {}
+        if payload.get("failed"):
+            return []
+        return [
+            ThreadChip(**chip)
+            for chip in follow_ups.for_agent_reply(str(payload.get("body") or ""))
+        ]
+    return []
 
 
 async def _follow_ups(organization_id: int, thread_id: str) -> list[ThreadChip]:

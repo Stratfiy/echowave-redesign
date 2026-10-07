@@ -43,3 +43,14 @@ def for_reply(helper: str | None, body: str) -> list[dict[str, Any]]:
         texts += [f"Go deeper on point {n}" for n in seen[:MAX_POINTS]]
     texts += list(_FIXED[helper])
     return [{"kind": "follow_up", "text": t, "helper": helper} for t in texts]
+
+
+_LINK = re.compile(r"https?://\S+")
+
+
+def for_agent_reply(body: str) -> list[dict[str, Any]]:
+    """An agent's reply in its own chat: a reply that cites sources gets the
+    research follow-ups, sent back to the same agent (``helper`` None)."""
+    if not _LINK.search(body or ""):
+        return []
+    return [{**chip, "helper": None} for chip in for_reply(C.RESEARCH, body)]
