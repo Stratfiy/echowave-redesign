@@ -342,6 +342,50 @@ class AgentEventClient(BaseDBClient):
             if visible(r.first_id)
         ]
 
+    async def recent_agent_conversations(
+        self, *, organization_id: int, limit: int = 20
+    ) -> list[dict[str, Any]]:
+        """The agents somebody has been talking to, most recent first.
+
+        Messages only, and ``ALWAYS`` only: what was *said* in an agent's
+        chat, not its activity lines, so an agent that merely ran a routine
+        is not a conversation. One row per agent with its latest message.
+        """
+        from sqlalchemy import func
+
+        ranked = (
+            select(
+                AgentEventModel.workflow_id.label("workflow_id"),
+                AgentEventModel.summary.label("summary"),
+                AgentEventModel.at.label("at"),
+                func.row_number()
+                .over(
+                    partition_by=AgentEventModel.workflow_id,
+                    order_by=(AgentEventModel.at.desc(), AgentEventModel.id.desc()),
+                )
+                .label("rank"),
+            )
+            .where(
+                AgentEventModel.organization_id == organization_id,
+                AgentEventModel.workflow_id.is_not(None),
+                AgentEventModel.kind == AgentEventKind.MESSAGE.value,
+                AgentEventModel.visibility == AgentEventVisibility.ALWAYS.value,
+            )
+            .subquery()
+        )
+        query = (
+            select(ranked)
+            .where(ranked.c.rank == 1)
+            .order_by(ranked.c.at.desc())
+            .limit(max(1, min(limit, 100)))
+        )
+        async with self.async_session() as session:
+            rows = (await session.execute(query)).all()
+        return [
+            {"workflow_id": r.workflow_id, "summary": r.summary or "", "at": r.at}
+            for r in rows
+        ]
+
     async def latest_event_per_workflow(
         self, *, organization_id: int, workflow_ids: Sequence[int]
     ) -> dict[int, dict[str, Any]]:

@@ -78,12 +78,10 @@ export const HOMES: readonly Home[] = [
   },
 ];
 
-/** Customer copy for the rail, in one place. Agents are "colleagues" here. */
+/** Customer copy for the rail, in one place. */
 export const RAIL_COPY = {
   navLabel: "Homes",
-  colleagues: "Colleagues",
-  addColleague: "Add a colleague",
-  moreColleagues: (n: number) => `${n} more`,
+  recents: "Recents",
   trialLabel: "Trial · invite-only",
   daysLeft: (n: number) => (n === 1 ? "1 day left" : `${n} days left`),
   trialEnded: "Trial ended",

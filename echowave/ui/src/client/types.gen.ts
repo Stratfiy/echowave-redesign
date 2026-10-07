@@ -32579,6 +32579,54 @@ export type ThreadsApiV1TimelineThreadsGetResponses = {
 
 export type ThreadsApiV1TimelineThreadsGetResponse = ThreadsApiV1TimelineThreadsGetResponses[keyof ThreadsApiV1TimelineThreadsGetResponses];
 
+export type RecentsApiV1TimelineRecentsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/timeline/recents';
+};
+
+export type RecentsApiV1TimelineRecentsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RecentsApiV1TimelineRecentsGetError = RecentsApiV1TimelineRecentsGetErrors[keyof RecentsApiV1TimelineRecentsGetErrors];
+
+export type RecentsApiV1TimelineRecentsGetResponses = {
+    /**
+     * Response Recents Api V1 Timeline Recents Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RecentsApiV1TimelineRecentsGetResponse = RecentsApiV1TimelineRecentsGetResponses[keyof RecentsApiV1TimelineRecentsGetResponses];
+
 export type PostMessageApiV1TimelineMessagePostData = {
     body: PostMessageRequest;
     headers?: {

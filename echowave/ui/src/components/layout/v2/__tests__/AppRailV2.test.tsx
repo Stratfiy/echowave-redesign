@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   pathname: "/overview",
   data: { colleagues: [], trial: null, creditsPaise: null } as RailData,
   features: {} as Record<string, boolean>,
+  recents: [] as unknown[],
 }));
 
 vi.mock("next/navigation", () => ({ usePathname: () => state.pathname, useRouter: () => ({ push: vi.fn() }) }));
@@ -21,6 +22,10 @@ vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/components/layout/OrganizationSwitcher", () => ({ OrganizationSwitcher: () => <span>Sri Lakshmi Dental</span> }));
 vi.mock("../useRailData", () => ({ useRailData: () => state.data }));
 vi.mock("@/lib/features", () => ({ useFeature: (name: string) => Boolean(state.features[name]) }));
+vi.mock("@/client/sdk.gen", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  recentsApiV1TimelineRecentsGet: vi.fn(async () => ({ data: { items: state.recents } })),
+}));
 
 function member(overrides: Partial<TeamMember>): TeamMember {
   return {
@@ -53,6 +58,7 @@ beforeEach(() => {
   state.features = {};
   state.pathname = "/overview";
   state.data = { colleagues: [], trial: null, creditsPaise: null };
+  state.recents = [];
 });
 
 describe("v2 rail", () => {
@@ -81,21 +87,42 @@ describe("v2 rail", () => {
     expect(document.querySelectorAll('nav[aria-label="Homes"] a[aria-current="page"]')).toHaveLength(1);
   });
 
-  it("shows a live dot for a live colleague, and needs-you for one waiting", () => {
-    state.data = {
-      ...state.data,
-      colleagues: [
-        member({ workflow_id: 7, name: "accounts", tone: "attention", is_live: true }),
-        member({ workflow_id: 3, name: "reception", tone: "working", is_live: true, status: "on a call" }),
-        member({ workflow_id: 9, name: "followup", tone: "idle", is_live: false }),
-      ],
-    };
+  it("lists recent conversations, newest first, not every agent again", async () => {
+    state.data = { ...state.data, colleagues: [member({ workflow_id: 9, name: "followup" })] };
+    state.recents = [
+      {
+        kind: "agent",
+        key: "a-3",
+        title: "Riya",
+        subtitle: "Booked Mr Rao for 4pm",
+        href: "/workflow/3/thread",
+        workflow_id: 3,
+        avatar: null,
+      },
+      {
+        kind: "decibyl",
+        key: "t-abc",
+        title: "Plan my week",
+        subtitle: null,
+        href: "/overview?thread=abc",
+        workflow_id: null,
+        avatar: null,
+      },
+    ];
     mount();
-    expect(screen.getByTestId("v2-dot-3").getAttribute("data-state")).toBe("live");
-    expect(screen.getByTestId("v2-dot-3").getAttribute("aria-label")).toBe("Live");
-    expect(screen.getByTestId("v2-dot-7").getAttribute("aria-label")).toBe("Needs you");
-    expect(screen.getByTestId("v2-dot-9").getAttribute("aria-label")).toBe("Idle");
-    expect(screen.getByRole("link", { name: /reception/ }).getAttribute("href")).toBe("/workflow/3/thread");
+    await waitFor(() => expect(screen.getByText("Recents")).toBeTruthy());
+    const list = screen.getByTestId("v2-recents");
+    const links = within(list).getAllByRole("link");
+    expect(links.map((l) => l.getAttribute("href"))).toEqual(["/workflow/3/thread", "/overview?thread=abc"]);
+    expect(within(list).getByText("Booked Mr Rao for 4pm")).toBeTruthy();
+    // An agent nobody has talked to is on the Agents page, not here.
+    expect(within(list).queryByText("followup")).toBeNull();
+    expect(screen.queryByText("Colleagues")).toBeNull();
+  });
+
+  it("shows no Recents heading before there is anything recent", () => {
+    mount();
+    expect(screen.queryByText("Recents")).toBeNull();
   });
 
   it("counts agents and what needs you on the homes", () => {
@@ -141,7 +168,6 @@ describe("v2 rail", () => {
     state.data = { ...state.data, colleagues: [member({ workflow_id: 3, is_live: true, tone: "working" })] };
     mount();
     expect(document.body.textContent ?? "").not.toMatch(/\bbots?\b/i);
-    expect(screen.getByText("Colleagues")).toBeTruthy();
   });
 
   it("shows Studio only for a workspace with the studio flag", () => {

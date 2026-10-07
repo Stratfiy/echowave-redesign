@@ -25,8 +25,8 @@ import { useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 import { getVisibleNavSections, STAFF_SECTION, visibleShellManage } from "../navigation";
-import { ColleagueRoster } from "./ColleagueRoster";
 import { activeHome, HOMES, RAIL_COPY } from "./homes";
+import { RecentsList } from "./RecentsList";
 import { TrialBox } from "./TrialBox";
 import { useRailData } from "./useRailData";
 
@@ -115,7 +115,7 @@ export function AppRailV2() {
 
         {!collapsed && (
           <div className="v2-scroll">
-            <ColleagueRoster colleagues={colleagues} pathname={pathname} onNavigate={onNavigate} />
+            <RecentsList pathname={pathname} onNavigate={onNavigate} />
             {/* TODO: Projects section, once a projects feature exists. */}
           </div>
         )}

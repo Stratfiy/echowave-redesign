@@ -473,6 +473,27 @@ async def threads(
     return ThreadsResponse(threads=[ThreadSummary(**row) for row in rows])
 
 
+@router.get("/recents")
+async def recents(
+    limit: Annotated[int, Query(ge=1, le=50)] = 12,
+    user: UserModel = Depends(get_user),
+) -> dict:
+    """The rail's Recents: Decibyl chats and agent chats, newest first."""
+    from api.services.workflow import recents as recents_service
+
+    organization_id = user.selected_organization_id
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+    private = constants.DECIBYL_PRIVATE_THREADS_ENABLED
+    items = await recents_service.recents(
+        organization_id=organization_id,
+        viewer_id=user.id if private else None,
+        viewer_is_admin=await _is_admin(user, organization_id) if private else False,
+        limit=limit,
+    )
+    return {"items": items}
+
+
 @router.post("/message", response_model=PostMessageResponse)
 async def post_message(
     body: PostMessageRequest,
