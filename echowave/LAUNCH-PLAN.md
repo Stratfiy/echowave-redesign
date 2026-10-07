@@ -1,4 +1,4 @@
-# Launch plan: Decibyl, one launch with everything, 28 October 2026
+# Launch plan: Decibyl, one launch with everything
 
 The single source of truth for the launch build. **Read this first in any new
 session**, then the two handoff documents in `handoff/`. Update the status
@@ -11,8 +11,9 @@ table at the bottom whenever a stream moves.
    `handoff/screen-design-handoff.txt` (screens 01-45, shared rules, motion,
    contracts, metrics) is in scope. The map below assigns every section and
    every screen to a stream.
-2. **All capabilities ship at launch.** No relaunch cadence. The build runs in
-   three phases, all finished before launch.
+2. **All capabilities ship at launch.** No relaunch cadence and no dates: we
+   start now and keep going, phase by phase and stream by stream, until every
+   item is done and proven. Launch is when phase 3 passes.
 3. **Anything Claude adds beyond the documents is a suggestion**, marked as
    such, and does not displace document scope.
 4. Capabilities the founder asked for in conversation are in scope too:
@@ -82,14 +83,14 @@ staging on the CI box"), `.github/workflows/deploy-staging.yml`,
 `scripts/staging_check.py`. Founder: DNS, `.env`, keys, GitHub `staging`
 environment, test accounts.
 
-## Phases (all before launch)
+## Phases (in order, no dates)
 
-| Phase | When | Streams | Why first |
-| --- | --- | --- | --- |
-| 1. Foundations | 7-11 Oct | `controls`, `shell` | Everything else builds on the task ledger, quotas, preferences, personal space, event catalogue and the shell |
-| 2. Capabilities | 11-21 Oct | `today`, `agents`, `learning`, `voice`, `meetings`, `identity`, `settings`, `support`, `staff`, `ops`, `browser`, `reach`, `care` | Independent once phase 1 has merged |
-| 3. Integrate and prove | 21-27 Oct | integrator + staging | Merge, resolve, staging checks, launch acceptance (handoff 16, 27, 38) |
-| **Launch** | **28 Oct** | Invite-only | Every capability on that has passed staging; anything not passed shows an honest "setting up" state, never a fake |
+| Phase | Streams | Why in this order |
+| --- | --- | --- |
+| 1. Foundations | `controls`, `shell` | Everything else builds on the task ledger, quotas, preferences, personal space, event catalogue and the shell |
+| 2. Capabilities | `today`, `agents`, `learning`, `voice`, `meetings`, `identity`, `settings`, `support`, `staff`, `ops`, `browser`, `reach`, `care` | Independent once phase 1 has merged; each starts as soon as the one before it is reviewed |
+| 3. Integrate and prove | integrator + staging | Merge, resolve, staging checks, launch acceptance (handoff 16, 27, 38) |
+| **Launch** | Invite-only | When phase 3 passes: every capability on; anything still waiting on a provider shows an honest "setting up" state, never a fake |
 
 ## Coverage map: every handoff section and screen
 
