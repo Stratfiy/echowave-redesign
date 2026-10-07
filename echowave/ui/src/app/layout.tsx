@@ -1,6 +1,7 @@
 import "./globals.css";
 import "./shell-v2.css";
 import "./motion.css";
+import "./simple-mode.css";
 
 import type { Metadata, Viewport } from "next";
 import {
@@ -13,9 +14,11 @@ import {
 import { Suspense } from "react";
 
 import ChatwootWidget from "@/components/ChatwootWidget";
+import { DesktopSession } from "@/components/desktop/DesktopSession";
 import AppLayout from "@/components/layout/AppLayout";
 import PostHogIdentify from "@/components/PostHogIdentify";
 import { SentryErrorBoundary } from "@/components/SentryErrorBoundary";
+import SessionReplayGuard from "@/components/SessionReplayGuard";
 import SpinLoader from "@/components/SpinLoader";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Toaster } from "@/components/ui/sonner";
@@ -142,6 +145,8 @@ export default function RootLayout({
                     <TelephonyConfigWarningsProvider>
                       <OnboardingProvider>
                         <PostHogIdentify />
+                        <DesktopSession />
+                        <SessionReplayGuard />
                         <AppLayout>{children}</AppLayout>
                         <Toaster />
                         <ChatwootWidget />

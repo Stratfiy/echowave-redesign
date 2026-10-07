@@ -58,7 +58,6 @@ _UNPRICED_BY_DESIGN = {
         "found no platform key — a misconfiguration to fix, not a rate to set"
     ),
     # --- vendors we hold no platform key for --------------------------------
-    "awsbedrock": "no platform key; per-model Bedrock pricing varies by region",
     "azure": "no platform key; Azure pricing is per-deployment",
     "groq": "no platform key",
     "openrouter": "no platform key; OpenRouter prices per underlying model",

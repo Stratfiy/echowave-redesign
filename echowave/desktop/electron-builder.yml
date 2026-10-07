@@ -1,0 +1,73 @@
+# Packaging for Windows and macOS. Nothing secret lives here: certificates
+# and passwords are read from environment variables at build time (README,
+# "Signing"). Without them `scripts/package.mjs` builds unsigned packages.
+appId: com.decibyl.desktop
+productName: Decibyl
+copyright: Copyright © 2026 Decibyl
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**
+  - build/tray*.png
+  - package.json
+  - "!**/*.map"
+asar: true
+protocols:
+  - name: Decibyl
+    schemes: [decibyl]
+
+# Where electron-updater looks for new versions. The release job uploads the
+# packages and latest*.yml here (S3 + CloudFront, or any static host).
+publish:
+  provider: generic
+  url: ${env.DECIBYL_UPDATE_URL}
+
+mac:
+  category: public.app-category.productivity
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+  icon: build/icon.png
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  # Signing identity comes from CSC_LINK / CSC_KEY_PASSWORD (Developer ID
+  # Application). Notarisation reads APPLE_API_KEY / APPLE_API_KEY_ID /
+  # APPLE_API_ISSUER (or APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD /
+  # APPLE_TEAM_ID); package.mjs turns it off when they are absent.
+  notarize: true
+  extendInfo:
+    LSUIElement: false
+    NSAppleEventsUsageDescription: Decibyl reads which app is in front and whether a field is a password field, so it only works in the apps you allow and never types into passwords.
+    NSMicrophoneUsageDescription: Decibyl uses the microphone when you talk to it.
+    NSCameraUsageDescription: Decibyl does not use the camera unless you share it in a call.
+
+dmg:
+  sign: false
+
+win:
+  target:
+    - target: nsis
+      arch: [x64, arm64]
+  icon: build/icon.png
+  # Signing: WIN_CSC_LINK / WIN_CSC_KEY_PASSWORD (a .pfx), or Azure Trusted
+  # Signing through AZURE_* variables (README). Unsigned when absent.
+  signtoolOptions:
+    publisherName: Decibyl
+    signingHashAlgorithms: [sha256]
+    rfc3161TimeStampServer: http://timestamp.digicert.com
+
+nsis:
+  oneClick: true
+  perMachine: false
+  allowElevation: false
+  deleteAppDataOnUninstall: false
+
+linux:
+  # Only for the CI smoke build in a Linux container; not shipped.
+  target: [dir]
+  category: Office

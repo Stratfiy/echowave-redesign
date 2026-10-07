@@ -27,10 +27,12 @@ from api.constants import ARQ_MAX_JOBS
 from api.tasks.auto_topup import sweep_auto_topups
 from api.tasks.backup import run_database_backup, run_ledger_snapshot
 from api.tasks.billing_rollup import refresh_billing_rollups
+from api.tasks.browser import run_browser_session_job, sweep_browser_sessions
 from api.tasks.campaign_tasks import (
     process_campaign_batch,
     sync_campaign_source,
 )
+from api.tasks.care import care_call_sweep, care_medicine_tick
 from api.tasks.connector_tools import sync_missing_tools
 from api.tasks.controls import deliver_analytics_outbox, sweep_unknown_outcomes
 from api.tasks.credential_health import check_platform_credentials
@@ -42,13 +44,16 @@ from api.tasks.email_tax_document import email_tax_document
 from api.tasks.evals import run_eval_case
 from api.tasks.fx import refresh_exchange_rate
 from api.tasks.heartbeat import record_worker_heartbeat
+from api.tasks.identity import reconcile_unknown_outcomes
 from api.tasks.knowledge_base_processing import process_knowledge_base_document
 from api.tasks.knowledge_base_translation import translate_knowledge_base_document
 from api.tasks.low_balance import notify_low_balances
 from api.tasks.margin_watch import watch_margins
+from api.tasks.meetings import finish_meeting, transcribe_meeting_segment
 from api.tasks.memory_export import export_memory
 from api.tasks.memory_notices import notice_connections, resurface_asked
 from api.tasks.missed_call_tasks import place_missed_call_callback
+from api.tasks.ops import run_ops_command, sweep_ops
 from api.tasks.plan_expiry import expire_lapsed_plan_balance
 from api.tasks.provider_balances import check_provider_balances
 from api.tasks.rental_billing import (
@@ -68,7 +73,9 @@ from api.tasks.routines import (
 from api.tasks.run_integrations import run_integrations_post_workflow_run
 from api.tasks.settings import build_personal_export, purge_temporary_conversations
 from api.tasks.settlement import sweep_uncosted_runs
+from api.tasks.staff import run_staff_command, sweep_staff_commands
 from api.tasks.sunday_review import send_sunday_reviews
+from api.tasks.support import run_support_action, sweep_support_actions
 from api.tasks.tax_invoices import issue_monthly_tax_invoices
 from api.tasks.trial_notices import send_trial_notices
 from api.tasks.webhook_delivery import deliver_webhook, sweep_webhook_deliveries
@@ -133,14 +140,44 @@ class WorkerSettings:
         sync_missing_tools,
         resurface_asked,
         run_proposed_action,
+        run_browser_session_job,
         compact_channel_context,
         translate_knowledge_base_document,
         deliver_analytics_outbox,
         sweep_unknown_outcomes,
+        run_support_action,
+        sweep_support_actions,
+        run_ops_command,
+        sweep_ops,
+        care_medicine_tick,
+        care_call_sweep,
+        transcribe_meeting_segment,
+        finish_meeting,
+        run_staff_command,
+        sweep_staff_commands,
+        reconcile_unknown_outcomes,
         build_personal_export,
         purge_temporary_conversations,
     ]
     cron_jobs = [
+        # Stream ops: expire unapproved commands, re-enqueue lost ones, lift
+        # timed pauses and check the cost-stop ceilings. Analytics delivery is
+        # the controls outbox's cron below. Each part is off behind its flag.
+        cron(
+            sweep_ops,
+            minute=set(range(0, 60, 5)),
+            second=20,
+            run_at_startup=False,
+        ),
+        # Launch stream care: medicine reminder calls on the minute, and calls
+        # that never reported back marked not answered. No-ops while off.
+        cron(care_medicine_tick, second=5, run_at_startup=False),
+        cron(
+            care_call_sweep,
+            minute=set(range(3, 60, 5)),
+            second=50,
+            run_at_startup=False,
+        ),
         # Launch stream controls: catalogue events to analytics, and cards
         # whose job died marked outcome unknown. Both no-ops while off.
         cron(
@@ -153,6 +190,30 @@ class WorkerSettings:
             sweep_unknown_outcomes,
             minute=set(range(1, 60, 5)),
             second=40,
+            run_at_startup=False,
+        ),
+        # Launch stream support: support actions whose worker died become
+        # outcome unknown; lapsed requests and approvals expire. No-op off.
+        cron(
+            sweep_support_actions,
+            minute=set(range(3, 60, 5)),
+            second=20,
+            run_at_startup=False,
+        ),
+        # Launch stream staff: expire, re-enqueue and reconcile staff
+        # commands and refunds. A no-op while staff_console is off.
+        cron(
+            sweep_staff_commands,
+            minute=set(range(0, 60, 2)),
+            second=45,
+            run_at_startup=False,
+        ),
+        # Launch stream identity: ask each provider what happened to sends
+        # whose outcome is unknown. A no-op while off.
+        cron(
+            reconcile_unknown_outcomes,
+            minute=set(range(3, 60, 5)),
+            second=20,
             run_at_startup=False,
         ),
         # Launch stream settings: temporary conversations deleted on time.
@@ -187,6 +248,14 @@ class WorkerSettings:
         # from a dead worker for the first minute. This is the only signal that
         # separates "the worker is down" from "nothing needed doing" — see
         # services/worker_health.py.
+        # A private-browser session whose job died (a deploy, a crash) is
+        # ended and its panel says so, rather than reading "working" forever.
+        cron(
+            sweep_browser_sessions,
+            minute=set(range(2, 60, 5)),
+            second=40,
+            run_at_startup=True,
+        ),
         cron(
             record_worker_heartbeat,
             minute=set(range(60)),

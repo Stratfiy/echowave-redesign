@@ -39,7 +39,9 @@ VERDICTS = (YES, NOT_QUITE)
 REASONS = ("wrong", "irrelevant", "too_late", "too_long", "wrong_language")
 REPLY = "reply"
 TASK = "task"
-SUBJECTS = (REPLY, TASK)
+#: A learning session: one lesson the learner practised (stream `learning`).
+LESSON = "lesson"
+SUBJECTS = (REPLY, TASK, LESSON)
 
 
 def enabled(organization_id: int | None = None) -> bool:
@@ -127,7 +129,18 @@ async def subject(
         return await _reply_subject(organization_id, subject_id, viewer_id)
     if kind == TASK:
         return await _task_subject(organization_id, subject_id)
-    raise FeedbackRefused("Feedback is on a reply or a task.")
+    if kind == LESSON:
+        from api.services.learning import core as learning
+
+        try:
+            return await learning.feedback_subject(
+                organization_id, viewer_id, subject_id
+            )
+        except learning.NotFound as exc:
+            raise NotFound(str(exc)) from exc
+        except learning.LearningError as exc:
+            raise FeedbackRefused(str(exc)) from exc
+    raise FeedbackRefused("Feedback is on a reply, a task or a lesson.")
 
 
 async def submit(

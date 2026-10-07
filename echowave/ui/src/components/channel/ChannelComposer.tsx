@@ -17,7 +17,25 @@
  * channel has no record of.
  */
 
-import { ArrowUp, AtSign, AudioLines, Brain, Check, ChevronDown, FileText, Hash, Loader2, Mic, NotebookPen, Paperclip, Square, WifiOff, X } from 'lucide-react';
+import {
+    ArrowUp,
+    AtSign,
+    AudioLines,
+    Brain,
+    Check,
+    ChevronDown,
+    FileText,
+    FolderOpen,
+    Hash,
+    Loader2,
+    Mic,
+    Monitor,
+    NotebookPen,
+    Paperclip,
+    Square,
+    WifiOff,
+    X,
+} from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
@@ -53,6 +71,7 @@ import {
     replyCostLabel,
     replyCredits,
 } from '@/lib/chatPresets';
+import { type DesktopBridge, desktopBridge, toFiles } from '@/lib/desktop';
 import { useFeature } from '@/lib/features';
 import { hasIndicScript } from '@/lib/indic';
 import { useEntryPoint } from '@/lib/shell/chatEntryPoints';
@@ -356,6 +375,56 @@ export function ChannelComposer({
         } finally {
             setUploadingFile(null);
             if (filePicker.current) filePicker.current.value = '';
+        }
+    };
+
+    // Inside the Windows and Mac app: files and folders from this computer,
+    // a new file from the watched folder, and "do this on my computer".
+    // Absent in a browser and while the switches are off.
+    const [desktop, setDesktop] = useState<DesktopBridge | null>(null);
+    useEffect(() => setDesktop(desktopBridge()), []);
+    const desktopFilesOn = useFeature('desktop_app');
+    const computerUseOn = useFeature('desktop_computer_use');
+    const desktopFiles = desktopFilesOn && desktop !== null && target !== null;
+    const onMyComputer = computerUseOn && desktop !== null && assistant;
+    const attachRef = useRef(attach);
+    attachRef.current = attach;
+    const attachAll = async (files: File[], skipped: string[]) => {
+        for (const file of files) await attachRef.current(file);
+        if (skipped.length > 0) setNotice(`Not attached: ${skipped.slice(0, 3).join('; ')}${skipped.length > 3 ? '…' : ''}`);
+    };
+    useEffect(() => {
+        if (!desktop || !desktopFiles) return;
+        return desktop.onFiles((result) => void attachAll(toFiles(result), result.skipped));
+
+    }, [desktop, desktopFiles]);
+    const attachFolder = async () => {
+        if (!desktop) return;
+        try {
+            const result = await desktop.pickFiles({ folders: true });
+            await attachAll(toFiles(result), result.skipped);
+        } catch (failure) {
+            setError(failure instanceof Error ? failure.message : 'Could not read that folder');
+        }
+    };
+    const [startingOnComputer, setStartingOnComputer] = useState(false);
+    const doOnMyComputer = async () => {
+        const task = text.trim();
+        if (!desktop || !task || startingOnComputer) return;
+        setStartingOnComputer(true);
+        setError(null);
+        try {
+            const result = await desktop.computer.start(task, threadId);
+            if (result.started) {
+                setText('');
+                setNotice('Decibyl is working on your computer. Stop is on the bar at the top of your screen; anything it sends, pays, deletes or submits will ask you here first.');
+            } else {
+                setError(result.reason);
+            }
+        } catch (failure) {
+            setError(failure instanceof Error ? failure.message : 'Could not start on your computer');
+        } finally {
+            setStartingOnComputer(false);
         }
     };
 
@@ -839,7 +908,35 @@ export function ChannelComposer({
                                 <Paperclip className="h-4 w-4" />
                             </Button>
                             )}
+                            {desktopFiles && (
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label="Attach a folder from this computer"
+                                    title="Attach a folder from this computer"
+                                    disabled={!!uploadingFile}
+                                    className="shrink-0 text-muted-foreground"
+                                    onClick={() => void attachFolder()}
+                                >
+                                    <FolderOpen className="h-4 w-4" />
+                                </Button>
+                            )}
                         </>
+                    )}
+                    {onMyComputer && (
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Do this on my computer"
+                            title="Do this on my computer"
+                            disabled={!text.trim() || startingOnComputer}
+                            className="shrink-0 text-muted-foreground"
+                            onClick={() => void doOnMyComputer()}
+                        >
+                            {startingOnComputer ? <Loader2 className="h-4 w-4 animate-spin" /> : <Monitor className="h-4 w-4" />}
+                        </Button>
                     )}
                     {chatShell && (
                         <AttachMenu

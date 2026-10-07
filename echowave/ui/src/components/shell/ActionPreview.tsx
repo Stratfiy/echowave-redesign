@@ -19,7 +19,8 @@ import { cn } from "@/lib/utils";
 
 export type ActionPreviewData = {
     id: string;
-    version: number;
+    /** A counter, or the payload hash the server binds approval to. */
+    version: number | string;
     /** "Send email", "Book appointment". */
     action: string;
     /** The account it acts as: "nithya@clinic.in (Gmail)". */
@@ -60,7 +61,7 @@ export function ActionPreview({
 }: {
     preview: ActionPreviewData;
     status: ApprovalStatus;
-    onApprove: (id: string, version: number) => void;
+    onApprove: (id: string, version: number | string) => void;
     onEdit?: () => void;
     onCancel?: () => void;
     /** For tests and for a screen that ticks. */
@@ -82,7 +83,7 @@ export function ActionPreview({
             <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold">{preview.action}</h3>
                 <span className="font-mono text-[11px] text-muted-foreground" title="Preview version">
-                    v{preview.version}
+                    v{String(preview.version).slice(0, 8)}
                 </span>
             </header>
             <dl className="flex flex-col gap-1.5">

@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { myQuotasApiV1MeQuotasGet } from "@/client/sdk.gen";
 import type { AllowanceRow } from "@/client/types.gen";
+import { SimpleModeSwitch } from "@/components/care/SimpleModeSwitch";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { MfaSection } from "@/components/MfaSection";
 import { SettingsSection } from "@/components/shell/SettingsSection";
@@ -21,6 +22,7 @@ import { ThemeModeSection } from "@/components/ThemeModeSection";
 import { Button } from "@/components/ui/button";
 import { UnsavedChangesProvider } from "@/context/UnsavedChangesContext";
 import { useAuth } from "@/lib/auth";
+import { useSimpleMode } from "@/lib/care/simpleMode";
 import { useFeature } from "@/lib/features";
 
 import { Field, INPUT, SettingsFormFrame } from "../SettingsForm";
@@ -89,6 +91,8 @@ function AccountForm() {
     const form = useProfileForm("settings-account", FIELDS);
     const { logout } = useAuth();
     const privacyCenter = useFeature("privacy_center");
+    // Simple mode (stream `care`) is the person's own; it saves itself.
+    const simpleMode = useSimpleMode();
     const detected = useMemo(detectedZone, []);
     const timezone = (form.draft.timezone as string | null) ?? "";
     const saved = (form.stored?.timezone as string | null) ?? "";
@@ -161,6 +165,12 @@ function AccountForm() {
             <SettingsSection id="appearance" title="Appearance" description="Light, dark, or whatever this device is set to. Saved on this device." scope="This device">
                 <ThemeModeSection />
             </SettingsSection>
+
+            {simpleMode.offered && (
+                <SettingsSection id="simple-mode" title="Simple mode" description="Large text, voice first, one thing at a time. Just for you, on every device." scope="Just you">
+                    <SimpleModeSwitch />
+                </SettingsSection>
+            )}
 
             <Allowances />
 

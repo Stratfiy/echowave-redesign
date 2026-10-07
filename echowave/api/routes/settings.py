@@ -212,7 +212,7 @@ async def my_voices(
 # --- memory manager -----------------------------------------------------------
 
 
-class MemorySource(BaseModel):
+class MemoryFactSource(BaseModel):
     kind: str
     line: str
     run_id: int | None = None
@@ -239,7 +239,7 @@ class MemoryFact(BaseModel):
     kind: str
     status: str
     scope: Literal["mine", "workspace"]
-    source: MemorySource
+    source: MemoryFactSource
     saved_at: str
     revisions: int = 0
     history: list[MemoryChange] | None = None
@@ -412,7 +412,7 @@ async def forget_memory_fact(fact_id: int, user: User) -> SettingsCard:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
-class SharePreview(BaseModel):
+class MemorySharePreview(BaseModel):
     fact_id: int
     key: str
     value: str
@@ -424,14 +424,14 @@ class SharePreview(BaseModel):
 
 @router.get(
     "/me/memory/{fact_id}/share-preview",
-    response_model=SharePreview,
+    response_model=MemorySharePreview,
     dependencies=[_flag(MEMORY_MANAGER)],
 )
 async def share_memory_preview(
     fact_id: int, user: User, destination: Annotated[int, Query()]
-) -> SharePreview:
+) -> MemorySharePreview:
     try:
-        return SharePreview(
+        return MemorySharePreview(
             **await memory.share_preview(
                 organization_id=_organization_id(user),
                 user_id=user.id,
@@ -621,7 +621,7 @@ async def my_saved(
     return SavedList(scope=scope, items=[_saved(i) for i in items])
 
 
-class SaveRequest(BaseModel):
+class SavedItemWrite(BaseModel):
     title: str = Field(max_length=400)
     kind: Literal["reply", "note", "file", "link"] = "reply"
     body: str | None = Field(default=None, max_length=saved.MAX_BODY)
@@ -631,7 +631,7 @@ class SaveRequest(BaseModel):
 
 
 @router.post("/me/saved", response_model=SavedItem, dependencies=[_flag(SAVED_ITEMS)])
-async def save_item(body: SaveRequest, user: User) -> SavedItem:
+async def save_item(body: SavedItemWrite, user: User) -> SavedItem:
     try:
         return _saved(
             await saved.save(
@@ -660,14 +660,16 @@ async def saved_item(item_id: int, user: User) -> SavedItem:
         raise _not_found() from exc
 
 
-class RenameRequest(BaseModel):
+class SavedItemRename(BaseModel):
     title: str = Field(max_length=400)
 
 
 @router.patch(
     "/me/saved/{item_id}", response_model=SavedItem, dependencies=[_flag(SAVED_ITEMS)]
 )
-async def rename_saved_item(item_id: int, body: RenameRequest, user: User) -> SavedItem:
+async def rename_saved_item(
+    item_id: int, body: SavedItemRename, user: User
+) -> SavedItem:
     try:
         return _saved(
             await saved.rename(

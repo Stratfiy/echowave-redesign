@@ -28,7 +28,7 @@ import {
     shareMemoryFactApiV1MeMemoryFactIdSharePost,
     shareMemoryPreviewApiV1MeMemoryFactIdSharePreviewGet,
 } from "@/client/sdk.gen";
-import type { MemoryFact, MemoryOverview, SettingsCard, SharePreview } from "@/client/types.gen";
+import type { MemoryFact, MemoryOverview, MemorySharePreview,SettingsCard } from "@/client/types.gen";
 import { EmptyState } from "@/components/EmptyState";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { ErrorState } from "@/components/shell/ErrorState";
@@ -163,7 +163,7 @@ function FactRow({ fact, onOpen, selected }: { fact: MemoryFact; onOpen: () => v
 function ShareFlow({ fact, onShared }: { fact: MemoryFact; onShared: () => void }) {
     const [places, setPlaces] = useState<{ organization_id: number; name: string }[] | null>(null);
     const [destination, setDestination] = useState<number | null>(null);
-    const [preview, setPreview] = useState<SharePreview | null>(null);
+    const [preview, setPreview] = useState<MemorySharePreview | null>(null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [done, setDone] = useState<string | null>(null);

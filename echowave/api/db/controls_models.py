@@ -139,6 +139,9 @@ class MemberPreferencesModel(Base):
     voice = Column(String(64), nullable=True)
     #: ``HH:MM`` local time for the daily summary, or NULL for none.
     summary_time = Column(String(5), nullable=True)
+    #: Simple mode (launch stream `care`): large text, voice first, one thing
+    #: at a time. NULL is off; read only while ``care_simple_mode`` is on.
+    simple_mode = Column(Boolean, nullable=True)
     # Launch stream `settings` (SETTINGS.md): the rest of the person's own
     # settings, in the same row and under the same revision.
     #: What the person wants to be called.

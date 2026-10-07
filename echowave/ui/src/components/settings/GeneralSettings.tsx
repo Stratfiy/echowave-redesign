@@ -3,6 +3,7 @@
 import { Suspense } from "react";
 
 import { ApprovalsSection } from "@/components/ApprovalsSection";
+import { SimpleModeSwitch } from "@/components/care/SimpleModeSwitch";
 import { DecibylAppsSection } from "@/components/DecibylAppsSection";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { MfaSection } from "@/components/MfaSection";
@@ -16,6 +17,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { UnsavedChangesProvider } from "@/context/UnsavedChangesContext";
+import { useSimpleMode } from "@/lib/care/simpleMode";
 import { useFeature } from "@/lib/features";
 
 /**
@@ -28,6 +30,9 @@ import { useFeature } from "@/lib/features";
 export default function GeneralSettings({ workspaceOnly = false }: { workspaceOnly?: boolean }) {
   const approvals = useFeature("approvals");
   const decibylApps = useFeature("decibyl_channels");
+  // Simple mode (stream `care`): a person's own preference, shown only
+  // where it is offered. In the Settings shell it is on Account instead.
+  const simpleMode = useSimpleMode();
   // Several cards on this page hold editable state — preferences, telemetry
   // credentials — and until this wrapper existed, clicking away from a
   // half-filled form discarded it without a word. The provider is the same one
@@ -72,6 +77,21 @@ export default function GeneralSettings({ workspaceOnly = false }: { workspaceOn
             <ThemeModeSection />
           </CardContent>
         </Card>
+        )}
+
+        {!workspaceOnly && simpleMode.offered && (
+          <Card id="simple-mode">
+            <CardHeader>
+              <CardTitle>Simple mode</CardTitle>
+              <CardDescription>
+                Just for you, on every device you sign in on. Nobody else in
+                the workspace is changed.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SimpleModeSwitch />
+            </CardContent>
+          </Card>
         )}
 
         {!workspaceOnly && (

@@ -20,6 +20,8 @@ export type SettingsSection<G extends string = SettingsGroup> = {
   mobileHref?: string;
   /** Other path prefixes that light this section (detail pages left where they were). */
   activePaths?: string[];
+  /** Shown only while one of these switches is on (launch streams). */
+  flags?: Feature[];
 };
 
 export const SETTINGS_GROUPS: readonly SettingsGroup[] = ["You", "Assistant", "Identity", "Advanced"];
@@ -27,6 +29,7 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = ["You", "Assistant", "I
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { id: "general", title: "General", href: "/settings", group: "You", mobileHref: "/settings/general", activePaths: ["/settings/general"] },
   { id: "team", title: "Team", href: "/settings/team", group: "You" },
+  { id: "notifications", title: "Notifications", href: "/settings/notifications", group: "You", flags: ["identity_notifications"] },
   { id: "models", title: "Models", href: "/settings/models", group: "Assistant", activePaths: ["/integrations"] },
   { id: "knowledge", title: "Knowledge", href: "/settings/knowledge", group: "Assistant" },
   { id: "apps", title: "Apps and tools", href: "/settings/apps", group: "Assistant", activePaths: ["/tools", "/marketplace"] },
@@ -39,6 +42,14 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     activePaths: ["/numbers", "/telephony-configurations", "/verified-numbers"],
   },
   { id: "company", title: "Company", href: "/settings/company", group: "Identity" },
+  { id: "connections", title: "Connections", href: "/settings/connections", group: "Identity", flags: ["identity_connections"] },
+  {
+    id: "identity",
+    title: "Decibyl identity",
+    href: "/settings/identity",
+    group: "Identity",
+    flags: ["identity_email", "identity_phone"],
+  },
   { id: "advanced", title: "Advanced", href: "/settings/advanced", group: "Advanced" },
   { id: "developer", title: "Developer", href: "/settings/developer", group: "Advanced", activePaths: ["/deploy"] },
   { id: "compliance", title: "Compliance", href: "/settings/compliance", group: "Advanced", activePaths: ["/do-not-call"] },
@@ -89,8 +100,11 @@ export const SHELL_SECTIONS: readonly ShellSection[] = [
   { id: "voice", title: "Voice and language", href: "/settings/voice", group: "Personal", blurb: "Spoken language, voice, speed, captions and microphone." },
   { id: "memory", title: "Memory", href: "/settings/memory", group: "Personal", blurb: "What Decibyl remembers, where it came from, and sharing.", feature: "memory_manager" },
   { id: "saved", title: "Saved items", href: "/settings/saved", group: "Personal", blurb: "Replies and notes you kept, and search.", feature: "saved_items" },
+  { id: "notifications", title: "Notifications", href: "/settings/notifications", group: "Personal", blurb: "How and when Decibyl lets you know.", flags: ["identity_notifications"] },
   { id: "apps", title: "Apps and tools", href: "/settings/apps", group: "Connections", blurb: "Mail, calendar and the apps Decibyl may read or act in.", activePaths: ["/tools", "/marketplace"] },
   { id: "channels", title: "Channels", href: "/settings/channels", group: "Connections", blurb: "WhatsApp, Telegram, Slack and Teams, to message Decibyl.", activePaths: ["/channels"] },
+  { id: "connections", title: "Connections", href: "/settings/connections", group: "Connections", blurb: "What each app and channel may do for you, and revoking it.", flags: ["identity_connections"] },
+  { id: "identity", title: "Decibyl identity", href: "/settings/identity", group: "Connections", blurb: "Your Decibyl email address and phone verification.", flags: ["identity_email", "identity_phone"] },
   {
     id: "phone-number",
     title: "Phone numbers",
@@ -119,6 +133,10 @@ export const SETTINGS_SEARCH: readonly { label: string; section: string; href: s
   { label: "Sign-in email", section: "account", href: "/settings#email", words: ["email", "e-mail", "mail address", "login", "sign in"] },
   { label: "Timezone", section: "account", href: "/settings#timezone", words: ["timezone", "time zone", "clock", "ist", "local time"] },
   { label: "Light or dark", section: "account", href: "/settings#appearance", words: ["dark mode", "light mode", "theme", "appearance", "colours", "colors"] },
+  { label: "Simple mode", section: "account", href: "/settings#simple-mode", words: ["simple mode", "large text", "bigger text", "easy mode", "elderly", "parents"] },
+  { label: "Notifications", section: "notifications", href: "/settings/notifications", words: ["notifications", "alerts", "push", "quiet hours", "do not disturb", "reminders"] },
+  { label: "What apps may do", section: "connections", href: "/settings/connections", words: ["revoke", "permissions", "access", "disconnect", "consent"] },
+  { label: "Your Decibyl email and phone", section: "identity", href: "/settings/identity", words: ["my email address", "decibyl email", "alias", "my number", "phone verification"] },
   { label: "Today's allowances", section: "account", href: "/settings#allowances", words: ["limit", "allowance", "quota", "usage", "how many left"] },
   { label: "Reply language", section: "personalization", href: "/settings/personalization#language", words: ["language", "hindi", "tamil", "telugu", "kannada", "bengali", "marathi", "reply language", "bhasha"] },
   { label: "Answer length", section: "personalization", href: "/settings/personalization#length", words: ["short answers", "long answers", "length", "brief", "detailed", "verbose"] },
@@ -151,8 +169,19 @@ export const SETTINGS_SEARCH: readonly { label: string; section: string; href: s
 
 /** The sections a person sees: switched on, and admin-only ones for admins. */
 export function visibleShellSections(isOn: (feature: Feature) => boolean, isAdmin: boolean): ShellSection[] {
-  return SHELL_SECTIONS.filter((s) => (!s.feature || isOn(s.feature)) && (!s.adminOnly || isAdmin));
+  return SHELL_SECTIONS.filter(
+    (s) =>
+      (!s.feature || isOn(s.feature)) &&
+      (!s.flags?.length || s.flags.some((flag) => isOn(flag))) &&
+      (!s.adminOnly || isAdmin),
+  );
 }
+
+/** Every switch the shell's list depends on, in a fixed order (the nav asks
+ *  for each one on every render). */
+export const SHELL_FLAGS: readonly Feature[] = Array.from(
+  new Set(SHELL_SECTIONS.flatMap((s) => [...(s.feature ? [s.feature] : []), ...(s.flags ?? [])])),
+);
 
 export type SettingsSearchHit = { label: string; section: ShellSection; href: string; matched: string };
 

@@ -24,7 +24,7 @@
  * every few seconds does not justify building one.
  */
 
-import { AlertTriangle, ArrowDown, BookOpen, Bot, CheckCircle2, CircleSlash, Clock, FileText, Loader2, MessageSquare, Phone, RotateCcw, Wrench } from 'lucide-react';
+import { AlertTriangle, ArrowDown, BookOpen, Bot, CheckCircle2, CircleSlash, Clock, FileText, LifeBuoy, Loader2, MessageSquare, Phone, RotateCcw, Wrench } from 'lucide-react';
 import Link from 'next/link';
 import React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -39,11 +39,14 @@ import {
 import type { ThreadChip, TimelineEvent } from '@/client/types.gen';
 import { Art3D } from '@/components/art/Art3D';
 import { BotAvatar } from '@/components/bot/BotAvatar';
+import { BrowserPanel } from '@/components/browser/BrowserPanel';
 import { type AttachedFile,AttachedFileChip } from '@/components/channel/AttachedFileChip';
 import { BlockedCard } from '@/components/channel/BlockedCard';
 import { tagTokens } from '@/components/channel/ChannelComposer';
 import { emphasisTokens } from '@/components/channel/emphasis';
 import { isJudgeableReply, ReplyFeedback, useMyFeedback } from '@/components/channel/ReplyFeedback';
+import { ComparisonCard } from '@/components/reach/ComparisonCard';
+import { ReachConnectChip } from '@/components/reach/ReachConnectChip';
 import { SaveReplyButton } from '@/components/settings/SaveReplyButton';
 import { ErrorState } from '@/components/shell/ErrorState';
 import { SourceCoverage } from '@/components/shell/SourceCoverage';
@@ -136,6 +139,9 @@ const CARDS = new Set([
     'connector_offered',
     'needs_secret',
     'needs_decision',
+    // Stream `reach`: the connect chip and the comparison table.
+    'reach_connect_offered',
+    'reach_comparison',
 ]);
 
 /** How long a pause can be and still read as one person still talking. */
@@ -458,6 +464,14 @@ export function ChannelStream({
     // Was this useful? under Decibyl's replies (reply_feedback). Read once
     // per batch of replies, after auth, so a reload shows what was said.
     const feedbackOn = useFeature('reply_feedback') && assistant;
+    // Stream `reach`. Off, its rows are not drawn (the server does not
+    // write them while off either).
+    const outsideToolsOn = useFeature('outside_tools');
+    const orderingOn = useFeature('ordering');
+    const reachChipsOn = outsideToolsOn || orderingOn;
+    const comparisonOn = useFeature('price_compare');
+    // Screen 28: a failed reply offers Help about that one reply.
+    const helpOn = useFeature('support_help');
     // Keep a reply in saved items (settings stream, screen 15).
     const savingOn = useFeature('saved_items') && assistant;
     const judgeable = feedbackOn ? events.filter(isJudgeableReply).map((e) => e.id) : [];
@@ -964,6 +978,16 @@ export function ChannelStream({
                             <RotateCcw aria-hidden className="h-3.5 w-3.5" />
                             {resending === event.id ? 'Asking again…' : 'Retry'}
                         </button>
+                        {helpOn && outcome.failed && (
+                            <Link
+                                href={`/help/new?reply=${event.id}`}
+                                className="motion-m1 inline-flex min-h-11 items-center gap-1 rounded-md px-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline md:min-h-6"
+                                data-testid="reply-get-help"
+                            >
+                                <LifeBuoy aria-hidden className="h-3.5 w-3.5" />
+                                Get help
+                            </Link>
+                        )}
                     </>
                 )}
                 {sources.length > 0 &&
@@ -1140,6 +1164,36 @@ export function ChannelStream({
                             </React.Fragment>
                         );
                     }
+                    if (event.kind === 'browser_session') {
+                        // Decibyl's private browser: the live view while it
+                        // runs, the receipt after. The row carries only the
+                        // session's id; the panel reads the rest as the
+                        // person who asked, and nobody else can.
+                        const sessionUuid = String(
+                            ((event.payload ?? {}) as { session_uuid?: string }).session_uuid ?? '',
+                        );
+                        return (
+                            <React.Fragment key={event.id}>
+                            {divider}
+                            <li className="flex gap-3">
+                                {face(event)}
+                                <div className="min-w-0 flex-1">
+                                    <p className="mb-1 text-sm">
+                                        <span className="font-medium">{fallbackName}</span>
+                                        <span className="ml-2 text-xs text-muted-foreground">
+                                            <time dateTime={event.at}>{when(event.at)}</time>
+                                        </span>
+                                    </p>
+                                    {sessionUuid ? (
+                                        <BrowserPanel sessionUuid={sessionUuid} />
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground">{event.summary}</p>
+                                    )}
+                                </div>
+                            </li>
+                            </React.Fragment>
+                        );
+                    }
                     if (event.kind === 'connector_offered') {
                         // Decibyl offered an app. The card is the whole
                         // answer: what it is, what it brings, and the
@@ -1160,6 +1214,36 @@ export function ChannelStream({
                                         </span>
                                     </p>
                                     <ConnectorCard event={event} />
+                                </div>
+                            </li>
+                            </React.Fragment>
+                        );
+                    }
+                    if (
+                        (event.kind === 'reach_connect_offered' && reachChipsOn) ||
+                        (event.kind === 'reach_comparison' && comparisonOn)
+                    ) {
+                        // An outside tool or ordering app to connect, in
+                        // the thread that needed it; or prices compared.
+                        const asker =
+                            (event.workflow_id != null && botNames[event.workflow_id]) || fallbackName;
+                        return (
+                            <React.Fragment key={event.id}>
+                            {divider}
+                            <li className="flex gap-3">
+                                {face(event)}
+                                <div className="min-w-0 flex-1">
+                                    <p className="mb-1 text-sm">
+                                        <span className="font-medium">{asker}</span>
+                                        <span className="ml-2 text-xs text-muted-foreground">
+                                            <time dateTime={event.at}>{when(event.at)}</time>
+                                        </span>
+                                    </p>
+                                    {event.kind === 'reach_connect_offered' ? (
+                                        <ReachConnectChip event={event} />
+                                    ) : (
+                                        <ComparisonCard event={event} />
+                                    )}
                                 </div>
                             </li>
                             </React.Fragment>

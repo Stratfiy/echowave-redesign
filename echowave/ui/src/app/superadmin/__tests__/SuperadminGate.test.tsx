@@ -52,6 +52,16 @@ describe("the superadmin client gate", () => {
         expect(screen.getByText("This page is not available")).toBeTruthy();
     });
 
+    it("lets a support-tier staffer into the support inbox and its cases", () => {
+        roles.value = { staffRole: "support", isStaff: true, loaded: true };
+        for (const path of ["/superadmin/support", "/superadmin/support/12", "/superadmin/support/actions/3"]) {
+            route.pathname = path;
+            const { unmount } = render(<SuperadminGate>{child()}</SuperadminGate>);
+            expect(screen.getByTestId("console")).toBeTruthy();
+            unmount();
+        }
+    });
+
     it("lets a support-tier staffer into the KYC review queue", () => {
         roles.value = { staffRole: "support", isStaff: true, loaded: true };
         route.pathname = "/superadmin/verification";

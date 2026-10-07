@@ -24,10 +24,10 @@ import { listMyOrganizationsApiV1OrganizationsMineGet } from "@/client/sdk.gen";
 import type { UserOrganizationResponse } from "@/client/types.gen";
 import { useAccessRoles } from "@/hooks/useAccessRoles";
 import { useAuth } from "@/lib/auth";
-import { type Feature, useFeature } from "@/lib/features";
+import { useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
-import { activeShellSection, searchSettings, SHELL_GROUPS, type ShellGroup, visibleShellSections } from "./sections";
+import { activeShellSection, searchSettings, SHELL_FLAGS, SHELL_GROUPS, type ShellGroup, visibleShellSections } from "./sections";
 import { isSettingsRoot } from "./SettingsNav";
 
 function useWorkspaceName(): string | null {
@@ -57,15 +57,14 @@ export function ShellSettingsNav() {
     const root = isSettingsRoot(pathname);
     const roles = useAccessRoles();
     const workspaceName = useWorkspaceName();
-    const flags: Record<Feature, boolean> = {
-        memory_manager: useFeature("memory_manager"),
-        saved_items: useFeature("saved_items"),
-        privacy_center: useFeature("privacy_center"),
-    } as Record<Feature, boolean>;
+    // One useFeature per switch, always in the same order.
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- a fixed, static list
+    const on = SHELL_FLAGS.map((flag) => [flag, useFeature(flag)] as const);
+    const key = on.map(([, value]) => (value ? "1" : "0")).join("");
     const sections = useMemo(
-        () => visibleShellSections((feature) => Boolean(flags[feature]), roles.isOrganizationAdmin),
+        () => visibleShellSections((feature) => on.some(([flag, value]) => flag === feature && value), roles.isOrganizationAdmin),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [flags.memory_manager, flags.saved_items, flags.privacy_center, roles.isOrganizationAdmin],
+        [key, roles.isOrganizationAdmin],
     );
     const current = activeShellSection(pathname, sections);
     const [query, setQuery] = useState("");

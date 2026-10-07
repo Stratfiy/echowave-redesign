@@ -76,7 +76,17 @@ _TIER_LABELS = {
     "llm": managed_tiers.LLM_TIER_LABELS,
     "stt": managed_tiers.STT_TIER_LABELS,
     "tts": managed_tiers.TTS_TIER_LABELS,
+    "embeddings": {
+        managed_tiers.BEDROCK_EMBEDDINGS_TIER: managed_tiers.EMBEDDINGS_TIER_LABELS[
+            managed_tiers.BEDROCK_EMBEDDINGS_TIER
+        ]
+    },
 }
+
+#: What a workspace reads when one of our choices is listed but not ready.
+#: The operator's own reason (an environment variable, an AWS console step)
+#: is on the staff side; a customer is told what it means for them.
+NEEDS_SETUP_NOTE = "Being set up by Decibyl. Not available to choose yet."
 
 #: What a vendor is called on screen. Anything missing reads as its id.
 _VENDOR_LABELS = {
@@ -103,6 +113,8 @@ _VENDOR_LABELS = {
     "camb": "CAMB.AI",
     "rime": "Rime",
     "xai": "xAI",
+    "anthropic_aws": "Claude on AWS",
+    "aws_bedrock": "Amazon Bedrock",
 }
 
 #: Fields a provider needs beyond a key and a model name. A vendor needing any
@@ -163,9 +175,43 @@ def _provided(slot: Slot, platform_providers: dict[str, list[str]]) -> set[str]:
     return provided
 
 
+def _tier_status(slot: str, tier: str) -> dict[str, str]:
+    """The honest state of one of our tiers, for the ones that can be listed
+    before they are ready (the AWS gateway's). Everything else is available:
+    its readiness is the platform-key check the screen already relies on."""
+    from api.services.aws_gateway import config as aws_config
+
+    status = None
+    if slot == "embeddings" and tier == managed_tiers.BEDROCK_EMBEDDINGS_TIER:
+        status = aws_config.embeddings_status()
+    if status is None or status.available:
+        return {"status": aws_config.AVAILABLE}
+    return {"status": status.state, "status_note": NEEDS_SETUP_NOTE}
+
+
+def _serves(slot: str, tier: str, upstream: managed_tiers.ManagedUpstream) -> str:
+    """Who serves a tier, as the screen says it -- including when Claude runs
+    through AWS (``CLAUDE_BACKEND``), but only once that backend is ready for
+    the model; until then it is still Anthropic serving it."""
+    if slot == "llm" and tier == managed_tiers.AUTO_LLM_TIER:
+        return "Claude Haiku, Sonnet or Opus, chosen per task"
+    vendor = upstream.provider
+    if slot == "llm" and vendor == "anthropic":
+        from api.services.aws_gateway import claude as aws_claude
+
+        marker = aws_claude.platform_credential(upstream.model)
+        if marker:
+            vendor = aws_claude.usage_provider(marker)
+    return f"{vendor_label(vendor)} · {_model_label(upstream.provider, upstream.model)}"
+
+
 def _current(slot: Slot, managed: DecibylManagedAIModelConfiguration) -> str:
     chosen = (managed.slots or {}).get(slot.key, "")
     parsed = parse_slot_choice(chosen)
+    if parsed is not None and parsed[0] == "decibyl" and not parsed[2]:
+        # One of our tiers on a slot with no tier field of its own
+        # (embeddings), stored as ``decibyl/<tier>``.
+        return f"{TIER_PREFIX}{parsed[1]}"
     if parsed is not None:
         vendor, model, own = parsed
         return (
@@ -222,11 +268,8 @@ def view(
                     "value": f"{TIER_PREFIX}{tier}",
                     "label": label,
                     "blurb": blurb,
-                    "serves": (
-                        "Claude Haiku, Sonnet or Opus, chosen per task"
-                        if slot.key == "llm" and tier == managed_tiers.AUTO_LLM_TIER
-                        else f"{vendor_label(upstream.provider)} · {_model_label(upstream.provider, upstream.model)}"
-                    ),
+                    "serves": _serves(slot.key, tier, upstream),
+                    **_tier_status(slot.key, tier),
                 }
             )
         more: list[dict[str, Any]] = []
@@ -337,6 +380,10 @@ class UnknownChoice(ValueError):
     pass
 
 
+class NotReady(UnknownChoice):
+    """Offered, but still being set up: listed honestly, never saved."""
+
+
 class LockedStack(ValueError):
     pass
 
@@ -363,10 +410,20 @@ def choose(
     managed = managed_configuration(stored)
     spec = SLOTS_BY_KEY[slot]
 
-    if choice in {o["value"] for o in entry["ours"]}:
+    ours = {o["value"]: o for o in entry["ours"]}
+    if choice in ours:
+        if ours[choice].get("status", "available") != "available":
+            raise NotReady(
+                f"{ours[choice]['label']} is not ready yet: "
+                f"{ours[choice].get('status_note') or NEEDS_SETUP_NOTE}"
+            )
         managed.slots.pop(slot, None)
+        tier = choice.removeprefix(TIER_PREFIX)
         if spec.tier_field:
-            setattr(managed, spec.tier_field, choice.removeprefix(TIER_PREFIX))
+            setattr(managed, spec.tier_field, tier)
+        elif tier != "default":
+            # No tier field to hold it: stored as a choice of ours by name.
+            managed.slots[slot] = f"decibyl/{tier}"
     elif choice in {o["value"] for o in entry["more"]}:
         managed.slots[slot] = choice.removeprefix(MODEL_PREFIX)
     elif choice.startswith(OWN_KEY_PREFIX):

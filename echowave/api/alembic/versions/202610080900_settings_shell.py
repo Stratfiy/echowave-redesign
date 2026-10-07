@@ -6,14 +6,14 @@ tables. Nothing existing is rewritten, so a downgrade drops exactly what this
 added and every earlier screen keeps working.
 
 Revision ID: 20261008settings
-Revises: 202610071500shell
+Revises: 20261008identity
 """
 
 import sqlalchemy as sa
 from alembic import op
 
 revision = "20261008settings"
-down_revision = "202610071500shell"
+down_revision = "20261008identity"
 branch_labels = None
 depends_on = None
 
