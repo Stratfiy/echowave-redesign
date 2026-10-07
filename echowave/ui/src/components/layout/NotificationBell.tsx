@@ -23,6 +23,8 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/lib/auth";
+import { desktopBridge, noticePath, noticesToForward } from "@/lib/desktop";
+import { useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 type Item = {
@@ -51,6 +53,11 @@ export function NotificationBell() {
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
   const started = useRef(false);
+  // Inside the desktop app a new notice is also a native one (desktop_app).
+  // Read through a ref: the poll is set up once, before the flags arrive.
+  const forwardToDesktop = useRef(false);
+  forwardToDesktop.current = useFeature("desktop_app");
+  const lastSeen = useRef<number | null>(null);
 
   const load = useCallback(async () => {
     const result = await client.get({ url: "/api/v1/notifications", query: { limit: 20 } });
@@ -58,6 +65,16 @@ export function NotificationBell() {
     const data = result.data as unknown as { items: Item[]; unread: number };
     setItems(data.items ?? []);
     setUnread(data.unread ?? 0);
+    const bridge = forwardToDesktop.current ? desktopBridge() : null;
+    if (bridge) {
+      const { forward, lastSeen: seen } = noticesToForward(data.items ?? [], lastSeen.current);
+      lastSeen.current = seen;
+      for (const notice of forward) {
+        void bridge
+          .notify({ title: notice.title, body: notice.body ?? undefined, url: noticePath(notice.link) })
+          .catch(() => undefined);
+      }
+    }
   }, []);
 
   useEffect(() => {

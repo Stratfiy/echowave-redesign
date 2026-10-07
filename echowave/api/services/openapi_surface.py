@@ -103,6 +103,9 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             # WhatsApp, and linking those accounts to themselves (KAN-277).
             "public-decibyl-channels",
             "channel-links",
+            # The Windows and Mac app: approval cards for steps it takes on
+            # a person's own computer, and the receipt it leaves.
+            "desktop",
         ),
     ),
     (

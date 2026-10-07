@@ -47,6 +47,10 @@ export type Feature =
     | "decibyl_slack"
     | "decibyl_teams"
     | "studio"
+    // The Windows and Mac app (echowave/desktop), and working on a person's
+    // own computer from it.
+    | "desktop_app"
+    | "desktop_computer_use"
     // Free while we are early: no plans, nothing charged (on by default).
     | "free_mode"
     // Launch stream controls (LAUNCH-PLAN.md, phase 1).

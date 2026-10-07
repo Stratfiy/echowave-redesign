@@ -1,0 +1,47 @@
+main {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 16px 20px 40px;
+}
+h1 {
+    font-size: 20px;
+}
+h2 {
+    font-size: 16px;
+    margin-top: 28px;
+}
+h3 {
+    font-size: 14px;
+    margin-top: 18px;
+}
+section {
+    border-top: 1px solid var(--border);
+}
+.row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 10px 0;
+}
+.row input[type='number'] {
+    width: 90px;
+}
+.row input:not([type]),
+.row input[type='url'],
+.row input[type='password'] {
+    flex: 1;
+}
+#apps {
+    list-style: none;
+    padding: 0;
+}
+#apps li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin: 6px 0;
+    background: var(--card);
+}

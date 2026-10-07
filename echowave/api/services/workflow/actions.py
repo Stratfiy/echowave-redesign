@@ -110,12 +110,20 @@ INSTALL_FROM_REPOSITORY = "install_from_repository"
 #: services/workflow/routines.py). Internal like the three above: Decibyl
 #: reaches it through schedule_routine, which has already read the words.
 SCHEDULE_ROUTINE = "schedule_routine"
+#: One step Decibyl wants to take on a person's own computer that sends,
+#: pays, deletes or submits (see services/workflow/desktop_steps.py and
+#: echowave/desktop). Internal like the others: only the desktop app
+#: proposes it, through /desktop/steps. Confirm does not do the step here --
+#: the computer does -- so a fired card is RELEASED, not done, and the
+#: desktop claims it exactly once for the action the person saw.
+DESKTOP_STEP = "desktop_step"
 INTERNAL_ACTIONS = (
     RUN_TOOL,
     SEND_DOCUMENT,
     BUILD_FROM_SPEC,
     INSTALL_FROM_REPOSITORY,
     SCHEDULE_ROUTINE,
+    DESKTOP_STEP,
 )
 
 #: The states a proposal moves through. Terminal ones are the last four.
@@ -131,6 +139,11 @@ FAILED = "failed"
 UNDONE = "undone"
 CANCELLED = "cancelled"
 DECLINED = "declined"
+#: A desktop step whose undo window has passed: the person's computer may
+#: now take it, once (desktop_steps.claim moves it on to RUNNING). Not done:
+#: nothing ran here, and a claimed step that never reports is swept to
+#: OUTCOME_UNKNOWN like any other card left running.
+RELEASED = "released"
 #: The job claimed the card and then lost track of it -- it died, or the
 #: outside service never said whether the send happened. Never fired again
 #: blind (task ledger, handoff 10): a person checks, and the card says so.
@@ -170,6 +183,9 @@ def _is_outbound(payload: dict[str, Any]) -> bool:
     action = payload.get("action")
     if action == SEND_DOCUMENT:
         return True
+    if action == DESKTOP_STEP:
+        # A send on the person's own computer is a send all the same.
+        return (payload.get("args") or {}).get("kind") == "send"
     if action == RUN_TOOL:
         if "reaches_people" in payload:
             return bool(payload["reaches_people"])
@@ -374,6 +390,14 @@ async def resolve(
             "reversible": False,
             "state": PROPOSED,
         }
+
+    if action == DESKTOP_STEP:
+        from api.services.workflow import desktop_steps
+
+        try:
+            return desktop_steps.resolve(arguments, why=why)
+        except desktop_steps.DesktopStepError as exc:
+            raise ActionError(str(exc)) from exc
 
     if action == BUILD_FROM_SPEC:
         from api.services.workflow import bot_from_brief
@@ -823,6 +847,12 @@ async def settle(
     payload = dict(event.payload or {})
     state = payload.get("state") or PROPOSED
 
+    if payload.get("action") == DESKTOP_STEP:
+        # Somebody's own computer: a teammate who can read the thread cannot
+        # press Do it on another person's screen.
+        if int((payload.get("args") or {}).get("user_id") or 0) != user_id:
+            raise ActionError("Only the person whose computer this is can answer this.")
+
     if verb == "confirm":
         if state != PROPOSED:
             raise ActionError("Already settled.")
@@ -1072,6 +1102,9 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
         ):
             raise ActionError("That fact is no longer in memory.")
         return f"Forgotten: {args.get('key', 'that')}."
+    if action == DESKTOP_STEP:
+        # Nothing happens on the server: the step is the computer's to take.
+        return "Approved. Your computer will do this once."
     if action == SCHEDULE_ROUTINE:
         routine = await db_client.create_routine(
             organization_id=organization_id,
@@ -1377,6 +1410,13 @@ async def run(event_id: int, organization_id: int) -> None:
             event, f"Could not: {payload['label'].lower()}. This is us, not you."
         )
         await _emit("task_failed", event, payload, confirmer)
+        return
+    if payload.get("action") == DESKTOP_STEP:
+        # Released, not done: done is what the computer reports after it
+        # took the step (desktop_steps.report). No line under the card yet.
+        payload["state"] = RELEASED
+        payload["released"] = {"at": datetime.now(UTC).isoformat(), "note": note}
+        await _write(event, payload)
         return
     payload["state"] = DONE
     payload["done"] = {"at": datetime.now(UTC).isoformat(), "note": note}
