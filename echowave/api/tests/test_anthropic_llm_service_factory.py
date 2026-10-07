@@ -165,3 +165,20 @@ def test_claude_is_still_billed_as_anthropic():
     from api.services.billing.usage import provider_from_processor
 
     assert provider_from_processor("DecibylAnthropicLLMService#0") == "anthropic"
+
+
+def test_an_opening_turn_with_no_messages_still_sends_one():
+    """Found on staging: a scheduled agent built from Chat ("a lesson a
+    day") answered nothing in its own chat -- "messages: at least one
+    message is required". Its opening turn has the instructions and no
+    message: a task graph has no greeting."""
+    from pipecat.processors.aggregators.llm_context import LLMContext
+
+    from api.services.pipecat.anthropic_llm import DecibylAnthropicLLMAdapter
+
+    params = DecibylAnthropicLLMAdapter().get_llm_invocation_params(
+        LLMContext(messages=[]),
+        enable_prompt_caching=False,
+        system_instruction="Do the task now.",
+    )
+    assert params["messages"] and params["messages"][0]["role"] == "user"

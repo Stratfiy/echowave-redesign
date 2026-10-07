@@ -48,6 +48,11 @@ class DecibylAnthropicLLMAdapter(AnthropicLLMAdapter):
         params["messages"] = [
             m for m in params["messages"] if m.get("content") not in ([], None, "")
         ]
+        if not params["messages"]:
+            # An opening turn with instructions and nothing said yet (a task
+            # graph has no greeting): Claude refuses a request with no
+            # message at all, so the turn starts with one.
+            params["messages"] = [{"role": "user", "content": "Begin."}]
         return params
 
 
