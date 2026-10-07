@@ -364,7 +364,7 @@ hourly, reviews and merges each PR, and starts the next streams.
 | controls | 1 | claude/stream-controls | | | | |
 | shell | 1 | claude/stream-shell | | | | |
 | today | 2 | claude/stream-today | | | | |
-| agents | 2 | claude/stream-agents | | | | |
+| agents | 2 | claude/stream-agents | draft | yes (AGENTS-LAUNCH.md) | 44 api + 20 ui, live check | |
 | learning | 2 | claude/stream-learning | | | | |
 | voice | 2 | claude/stream-voice | | | | |
 | meetings | 2 | claude/stream-meetings | | | | |

@@ -28,7 +28,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { useIsMobile } from "@/hooks/use-mobile";
 import { detailFromResult } from "@/lib/apiError";
 import { useFeature } from "@/lib/features";
-import { AUTOMATIC, HELPER_STATE_LABEL } from "@/lib/helpers";
+import { APP_NAMES, AUTOMATIC, HELPER_STATE_LABEL } from "@/lib/helpers";
 import { cn } from "@/lib/utils";
 
 export type ChosenHelper = { key: string; name: string };
@@ -291,7 +291,7 @@ export function HelperPicker({
                 {shown.connections.length > 0 && (
                     <div>
                         <p className="text-sm font-medium">Needs</p>
-                        <p className="text-sm text-muted-foreground">One of: {shown.connections.join(", ")}</p>
+                        <p className="text-sm text-muted-foreground">One of: {shown.connections.map((app) => APP_NAMES[app] ?? app).join(", ")}</p>
                     </div>
                 )}
                 <div>

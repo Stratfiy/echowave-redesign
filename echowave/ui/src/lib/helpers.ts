@@ -16,6 +16,16 @@ export const HELPER_STATE_LABEL: Record<string, string> = {
     unavailable: "Unavailable",
 };
 
+/** Connected-app toolkits, as people name them. Unknown ones show as sent. */
+export const APP_NAMES: Record<string, string> = {
+    gmail: "Gmail",
+    outlook: "Outlook",
+    googlecalendar: "Google Calendar",
+    calendly: "Calendly",
+    whatsapp: "WhatsApp",
+    slack: "Slack",
+};
+
 /** A follow-up card's state, as the person reads its delivery. */
 export const DELIVERY_LABEL: Record<string, string> = {
     awaiting_approval: "Waiting for your confirm",
