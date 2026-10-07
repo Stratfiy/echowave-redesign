@@ -61,7 +61,13 @@ export type Feature =
     | "early_access"
     | "first_task_onboarding"
     | "chat_shell"
-    | "shell_mobile";
+    | "shell_mobile"
+    // Launch stream `care` (LAUNCH-PLAN.md, phase 2).
+    | "care_simple_mode"
+    | "care_medicine_calls"
+    | "care_scam_check"
+    | "care_tech_help"
+    | "care_family_circle";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

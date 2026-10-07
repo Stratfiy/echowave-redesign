@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     Column,
     Date,
     DateTime,
@@ -136,6 +137,9 @@ class MemberPreferencesModel(Base):
     voice = Column(String(64), nullable=True)
     #: ``HH:MM`` local time for the daily summary, or NULL for none.
     summary_time = Column(String(5), nullable=True)
+    #: Simple mode (launch stream `care`): large text, voice first, one thing
+    #: at a time. NULL is off; read only while ``care_simple_mode`` is on.
+    simple_mode = Column(Boolean, nullable=True)
     revision = Column(Integer, nullable=False, default=0, server_default=text("0"))
     updated_at = Column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)

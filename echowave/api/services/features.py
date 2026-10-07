@@ -107,6 +107,12 @@ FLAGS: dict[str, str] = {
     "first_task_onboarding": "FIRST_TASK_ONBOARDING_ENABLED",
     "chat_shell": "CHAT_SHELL_ENABLED",
     "shell_mobile": "SHELL_MOBILE_ENABLED",
+    # Launch stream `care` (LAUNCH-PLAN.md, phase 2).
+    "care_simple_mode": "CARE_SIMPLE_MODE_ENABLED",
+    "care_medicine_calls": "CARE_MEDICINE_CALLS_ENABLED",
+    "care_scam_check": "CARE_SCAM_CHECK_ENABLED",
+    "care_tech_help": "CARE_TECH_HELP_ENABLED",
+    "care_family_circle": "CARE_FAMILY_CIRCLE_ENABLED",
 }
 
 
@@ -162,6 +168,11 @@ DESCRIPTIONS: dict[str, str] = {
     "first_task_onboarding": "Language, timezone and a first task; new people land in Chat (screen 02).",
     "chat_shell": "Chat: three starters, attach menu, Dictate and Talk, Stop, New content, sources and task states (screens 03-04).",
     "shell_mobile": "Phone shell: Chat and Today at the bottom, profile in the header, keyboard-aware bar, read-only workflow steps.",
+    "care_simple_mode": "Simple mode: large text, voice first, one thing at a time (needs member_preferences).",
+    "care_medicine_calls": "Medicine reminder calls in the person's language, with a family alert when a dose is missed.",
+    "care_scam_check": "Is this a scam? Paste or describe a message or call; a plain answer and why.",
+    "care_tech_help": "Step-by-step phone help in plain words, one step at a time, with did that work?",
+    "care_family_circle": "A family circle the older person consents to; family see only what is shared with them.",
 }
 
 

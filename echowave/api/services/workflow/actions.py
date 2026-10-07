@@ -110,12 +110,25 @@ INSTALL_FROM_REPOSITORY = "install_from_repository"
 #: services/workflow/routines.py). Internal like the three above: Decibyl
 #: reaches it through schedule_routine, which has already read the words.
 SCHEDULE_ROUTINE = "schedule_routine"
+#: Launch stream `care` (services/care/cards.py). Internal like the ones
+#: above: the care screens and Decibyl's care tools build the arguments, and
+#: the card is the older person's consent. Only that person can answer it
+#: (``only_user_id``), whoever else can read the workspace's thread.
+#: Add a family member to the circle, sharing exactly the kinds named.
+CARE_FAMILY_INVITE = "care_family_invite"
+#: Widen what an existing family member sees.
+CARE_FAMILY_SHARE = "care_family_share"
+#: Start medicine reminder calls: the number, times, language and who is
+#: told when a dose is missed, exactly as the card shows them.
+CARE_MEDICINE_CALLS = "care_medicine_calls"
+CARE_ACTIONS = (CARE_FAMILY_INVITE, CARE_FAMILY_SHARE, CARE_MEDICINE_CALLS)
 INTERNAL_ACTIONS = (
     RUN_TOOL,
     SEND_DOCUMENT,
     BUILD_FROM_SPEC,
     INSTALL_FROM_REPOSITORY,
     SCHEDULE_ROUTINE,
+    *CARE_ACTIONS,
 )
 
 #: The states a proposal moves through. Terminal ones are the last four.
@@ -169,6 +182,9 @@ def _is_outbound(payload: dict[str, Any]) -> bool:
     draft. What the operational quota counts as an outbound message."""
     action = payload.get("action")
     if action == SEND_DOCUMENT:
+        return True
+    if action == CARE_FAMILY_INVITE:
+        # The invitation is emailed to the family member when email is set up.
         return True
     if action == RUN_TOOL:
         if "reaches_people" in payload:
@@ -337,6 +353,13 @@ async def resolve(
     if action not in ACTIONS and action not in INTERNAL_ACTIONS:
         raise ActionError("That is not something I can propose.")
     why = str(arguments.get("why") or "").strip()[:MAX_WHY_CHARS]
+
+    if action in CARE_ACTIONS:
+        from api.services.care import cards as care_cards
+
+        return await care_cards.resolve(
+            action, organization_id=organization_id, arguments=arguments, why=why
+        )
 
     if action == RUN_TOOL:
         from api.services.workflow import connected_tools
@@ -748,6 +771,7 @@ async def propose(
         )
     return {
         "status": "proposed",
+        "event_id": recorded,
         "note": (
             f"Proposed: {payload['label']}. A person has to confirm it on the "
             "card before it happens. Say that you have proposed it, then end "
@@ -822,6 +846,11 @@ async def settle(
     event = await _proposal(organization_id, event_id)
     payload = dict(event.payload or {})
     state = payload.get("state") or PROPOSED
+    only = payload.get("only_user_id")
+    if only is not None and int(only) != int(user_id):
+        # A consent card (stream `care`): the person it is about answers it,
+        # not whoever else in the workspace can read the thread.
+        raise ActionError("Only the person this is about can answer this card.")
 
     if verb == "confirm":
         if state != PROPOSED:
@@ -884,6 +913,10 @@ async def settle(
         await _move(event, PROPOSED, payload)
         await _audit(event, payload, audit_log.CARD_DECLINED, user_id, state)
         await _emit("approval_rejected", event, payload, user_id)
+        if payload.get("action") in CARE_ACTIONS:
+            from api.services.care import cards as care_cards
+
+            await care_cards.declined(organization_id, payload)
         if payload.get("action") == RUN_TOOL:
             # A declined send is an outcome too (OP-4): the prospect is
             # marked, and the next run does not propose them as new.
@@ -901,6 +934,10 @@ async def settle(
             payload["cancelled"] = _stamp(user_id)
             await _move(event, ARMED, payload)
             await _audit(event, payload, audit_log.CARD_UNDONE, user_id, state)
+            if payload.get("action") in CARE_ACTIONS:
+                from api.services.care import cards as care_cards
+
+                await care_cards.declined(organization_id, payload)
             return payload
         if state == DONE and payload.get("reversible"):
             # Claim the undo first, so two presses put it back once.
@@ -1224,6 +1261,10 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
             )
         except documents.DocumentError as exc:
             raise ActionError(str(exc)) from exc
+    if action in CARE_ACTIONS:
+        from api.services.care import cards as care_cards
+
+        return await care_cards.execute(organization_id, payload)
     if action == RUN_TOOL:
         from api.services.workflow import connected_tools
 
@@ -1277,6 +1318,11 @@ async def _reverse(organization_id: int, payload: dict[str, Any]) -> None:
             status=str(args.get("was_status") or "confirmed"),
         ):
             raise ActionError("That fact is no longer in memory.")
+        return
+    if action in CARE_ACTIONS:
+        from api.services.care import cards as care_cards
+
+        await care_cards.reverse(organization_id, payload)
         return
     if action == INSTALL_FROM_REPOSITORY:
         from api.services.skills import imports

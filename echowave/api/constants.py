@@ -794,6 +794,28 @@ CHAT_SHELL_ENABLED = _flag("CHAT_SHELL_ENABLED")
 # of the workflow canvas.
 SHELL_MOBILE_ENABLED = _flag("SHELL_MOBILE_ENABLED")
 
+# Launch stream `care` (LAUNCH-PLAN.md, phase 2): older people and their
+# families. Each off by default; see CARE.md and services/features.py.
+# Simple mode: large text, voice first, one thing at a time. A preference on
+# member_preferences, so it needs MEMBER_PREFERENCES_ENABLED as well.
+CARE_SIMPLE_MODE_ENABLED = _flag("CARE_SIMPLE_MODE_ENABLED")
+# Medicine reminders by phone call in the person's language, with a family
+# alert when a dose is missed or a call is not answered.
+CARE_MEDICINE_CALLS_ENABLED = _flag("CARE_MEDICINE_CALLS_ENABLED")
+# Scam check: paste or describe a message or call; a plain verdict and why.
+CARE_SCAM_CHECK_ENABLED = _flag("CARE_SCAM_CHECK_ENABLED")
+# Step-by-step tech help in plain words, with "did that work?".
+CARE_TECH_HELP_ENABLED = _flag("CARE_TECH_HELP_ENABLED")
+# A family circle the older person consents to; family see only what is shared.
+CARE_FAMILY_CIRCLE_ENABLED = _flag("CARE_FAMILY_CIRCLE_ENABLED")
+# How long a reminder call may go without an outcome before it counts as not
+# answered and the family is told.
+CARE_CALL_ANSWER_MINUTES = int(os.getenv("CARE_CALL_ANSWER_MINUTES", "20"))
+# Test seam for reminder calls, never honoured in production: "taken",
+# "not_taken" or "no_answer" simulates that outcome instead of dialling, and
+# the care status says so ("test mode: nobody is rung").
+CARE_CALLS_FAKE = (os.getenv("CARE_CALLS_FAKE") or "").strip().lower()
+
 # Free while we are early (October 2026): no plans, nothing charged, nothing
 # locked. On by default -- the one launch switch that is -- and reversible
 # from the environment or the staff console. See services/billing/free_mode.py.

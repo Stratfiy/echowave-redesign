@@ -148,6 +148,9 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             # Where a person lands after sign-in, their first answers, and
             # Stop for a reply forming in Chat (launch stream `shell`).
             "shell",
+            # Older people and their families: medicine reminder calls,
+            # scam checks, tech help and the family circle (stream `care`).
+            "care",
         ),
     ),
     (

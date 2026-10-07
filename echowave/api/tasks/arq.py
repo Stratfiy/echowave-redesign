@@ -31,6 +31,7 @@ from api.tasks.campaign_tasks import (
     process_campaign_batch,
     sync_campaign_source,
 )
+from api.tasks.care import care_call_sweep, care_medicine_tick
 from api.tasks.connector_tools import sync_missing_tools
 from api.tasks.controls import deliver_analytics_outbox, sweep_unknown_outcomes
 from api.tasks.credential_health import check_platform_credentials
@@ -136,8 +137,19 @@ class WorkerSettings:
         translate_knowledge_base_document,
         deliver_analytics_outbox,
         sweep_unknown_outcomes,
+        care_medicine_tick,
+        care_call_sweep,
     ]
     cron_jobs = [
+        # Launch stream care: medicine reminder calls on the minute, and calls
+        # that never reported back marked not answered. No-ops while off.
+        cron(care_medicine_tick, second=5, run_at_startup=False),
+        cron(
+            care_call_sweep,
+            minute=set(range(3, 60, 5)),
+            second=50,
+            run_at_startup=False,
+        ),
         # Launch stream controls: catalogue events to analytics, and cards
         # whose job died marked outcome unknown. Both no-ops while off.
         cron(

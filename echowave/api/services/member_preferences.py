@@ -47,7 +47,12 @@ LANGUAGES = (
     "od-IN",
     "en",
 )
-FIELDS = ("language", "timezone", "voice", "summary_time")
+FIELDS = ("language", "timezone", "voice", "summary_time", "simple_mode")
+#: Simple mode (launch stream `care`) is a person's preference too, but it
+#: is only offered while ``care_simple_mode`` is on; the route refuses it
+#: while off, so a save from an older screen can never set it.
+SIMPLE_MODE = "simple_mode"
+SIMPLE_MODE_FLAG = "care_simple_mode"
 _TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 _VOICE = re.compile(r"^[A-Za-z0-9_.:\-]{1,64}$")
 
@@ -74,6 +79,7 @@ def _empty(user_id: int) -> dict[str, Any]:
         "timezone": None,
         "voice": None,
         "summary_time": None,
+        "simple_mode": None,
         "revision": 0,
         "updated_at": None,
     }
@@ -88,6 +94,7 @@ def _as_dict(row: MemberPreferencesModel | None, user_id: int) -> dict[str, Any]
         "timezone": row.timezone,
         "voice": row.voice,
         "summary_time": row.summary_time,
+        "simple_mode": row.simple_mode,
         "revision": row.revision,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
@@ -101,6 +108,11 @@ def validate(changes: dict[str, Any]) -> dict[str, Any]:
             raise PreferenceInvalid(f"{key} is not a personal preference")
         if value is None:
             out[key] = None
+            continue
+        if key == SIMPLE_MODE:
+            if not isinstance(value, bool):
+                raise PreferenceInvalid("Simple mode is on or off.")
+            out[key] = value
             continue
         if not isinstance(value, str):
             raise PreferenceInvalid(f"{key} must be text")
@@ -133,6 +145,21 @@ async def timezone_of(user_id: int | None) -> str | None:
         return (await get(int(user_id))).get("timezone")
     except Exception:  # noqa: BLE001 - a display helper
         return None
+
+
+def simple_mode_offered(organization_id: int | None = None) -> bool:
+    return features.is_on(SIMPLE_MODE_FLAG, organization_id)
+
+
+async def simple_mode_of(user_id: int | None) -> bool:
+    """Whether the person has Simple mode on. False while it is not
+    offered, or when nothing is stored. Never raises."""
+    if not user_id or not simple_mode_offered():
+        return False
+    try:
+        return bool((await get(int(user_id))).get(SIMPLE_MODE))
+    except Exception:  # noqa: BLE001 - a display helper
+        return False
 
 
 async def save(
