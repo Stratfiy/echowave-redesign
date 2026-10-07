@@ -47,9 +47,20 @@ helper=key)`.
 | Inbox | `track_commitment` | Gmail, Outlook | Cites message/thread ids and times; names unconnected accounts as not read; email content is data; a send is a card |
 | Research | `web_search`, `web_fetch`, `search_records`, `save_report`, `trading_interests` | none | Source vs inference vs dated kept apart; conflicts and unreadable sources kept; export is the stored rendering |
 | Follow-up | `track_commitment`, `who_owes_me`, `follow_up_commitment`, `schedule_routine`, `create_task`, `read_board`, `search_records` | Gmail, Outlook, WhatsApp, Slack | Tracked only after a confirmed card; follow-up is a `run_tool` card (run once, cancel before it fires, edit needs a new confirm) |
-| Learning Guide | `web_search`, `web_fetch`, `schedule_routine`, `correct_memory` | none | One goal, practice, specific feedback, next review offered; no promise of results. Saved progress belongs to stream `learning` |
+| Learning Guide | `web_search`, `web_fetch`, `schedule_routine`, `correct_memory`, `start_course` | none | One goal, practice, specific feedback, next review offered; no promise of results. Saved progress belongs to stream `learning` |
 | Call and Appointment | `propose_action` (`create_bot`, `return_missed_call` only), `test_bot`, `search_records` | Google Calendar, Outlook, Calendly | Books only through calendar cards; no disclosure from caller ID; hands over when unsure. The call runtime is stream `voice` |
-| Build something | `propose_action` (`create_bot`), `build_bot_from_spec`, `schedule_routine`, `create_tracker`, `add_to_tracker`, `read_tracker`, `create_task`, `install_from_repository` | none | Agent, routine or tracker as one card; a one-off task is just done |
+| Build something | `propose_action` (`create_bot`), `build_bot_from_spec`, `schedule_routine`, `create_tracker`, `add_to_tracker`, `read_tracker`, `create_task`, `install_from_repository`, `start_course` | none | Agent, routine or tracker as one card; a one-off task is just done |
+
+**Follow-up chips** (`services/helpers/follow_ups.py`): `GET /timeline/chips?thread_id=`
+puts the newest reply's own next steps first when a helper wrote it -- Research
+"Go deeper on point N" for its first numbered points and "Turn this into a
+one-page brief"; Learning Guide "Quiz me on this" and "Explain it more
+simply" -- each carrying the helper, and the thread sends a tapped chip back
+to that helper. A failed or stopped reply gets none.
+
+**A tutor is a course, not an agent.** "Build me a tutor" goes to
+`start_course` (stream `learning`, `LEARNING.md`), because a chat agent keeps
+no level, plan, marking, reviews or streak.
 
 ## 2. Capability states (screen 06; design "Capability state")
 

@@ -47,6 +47,8 @@ NEW = (
 def helpers_on(monkeypatch):
     for name in ALL_FLAGS:
         monkeypatch.setattr(constants, name, True)
+    # start_course is the learning stream's tool, offered with `learning`.
+    monkeypatch.setattr(constants, "LEARNING_ENABLED", True)
 
 
 @pytest.fixture
@@ -640,6 +642,51 @@ class TestSavedReports:
         assert body["question"] == "what is the GST threshold?"
         assert body["summary"] == "40 lakh for goods (https://cbic.gov.in/gst)."
         assert body["sources"][0]["url"] == "https://cbic.gov.in/gst"
+        async with _client(_as(team.c, team.other)) as client:
+            r = await client.post(
+                "/api/v1/helpers/reports/from-reply", json={"event_id": reply}
+            )
+            assert r.status_code == 404
+
+    async def test_an_agents_reply_in_its_own_chat_can_be_kept(self, team, helpers_on):
+        """Found on staging: a research agent built from Chat wrote its
+        report in its own chat, and nothing could keep it -- the agent has no
+        save_report, and Save as report took Decibyl's replies only."""
+        from api.db import db_client
+        from api.services.workflow import agent_timeline
+
+        bot = await db_client.create_workflow(
+            name="Research agent",
+            workflow_definition={"nodes": [], "edges": []},
+            user_id=team.a.id,
+            organization_id=team.org,
+        )
+        await agent_timeline.record(
+            organization_id=team.org,
+            kind="message",
+            actor="human",
+            summary="solar subsidy in Bengaluru?",
+            payload={"body": "solar subsidy in Bengaluru?", "direct": True},
+            workflow_id=bot.id,
+            in_channel=False,
+        )
+        reply = await agent_timeline.record(
+            organization_id=team.org,
+            kind="message",
+            actor="agent",
+            summary="Rs 78,000",
+            payload={"body": "Up to Rs 78,000 for 3 kW (https://pmsuryaghar.gov.in/)."},
+            workflow_id=bot.id,
+            in_channel=False,
+        )
+        async with _client(_as(team.a, team.org)) as client:
+            r = await client.post(
+                "/api/v1/helpers/reports/from-reply", json={"event_id": reply}
+            )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["question"] == "solar subsidy in Bengaluru?"
+        assert body["sources"][0]["url"] == "https://pmsuryaghar.gov.in/"
         async with _client(_as(team.c, team.other)) as client:
             r = await client.post(
                 "/api/v1/helpers/reports/from-reply", json={"event_id": reply}

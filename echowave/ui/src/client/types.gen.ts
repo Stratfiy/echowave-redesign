@@ -9646,10 +9646,36 @@ export type LearningNextStep = {
 };
 
 /**
+ * LearningPlanItem
+ */
+export type LearningPlanItem = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Skill Id
+     */
+    skill_id?: number | null;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Label
+     */
+    label: string;
+};
+
+/**
  * LearningProgress
  */
 export type LearningProgress = {
     goal: LearningGoal;
+    /**
+     * Plan
+     */
+    plan?: Array<LearningPlanItem>;
     /**
      * Practice Count
      */
@@ -9855,6 +9881,20 @@ export type LearningStatus = {
 };
 
 /**
+ * LearningStreak
+ */
+export type LearningStreak = {
+    /**
+     * Days
+     */
+    days: number;
+    /**
+     * Practised Today
+     */
+    practised_today: boolean;
+};
+
+/**
  * LearningSuggestion
  */
 export type LearningSuggestion = {
@@ -9878,6 +9918,47 @@ export type LearningSuggestion = {
      * Action
      */
     action: string;
+};
+
+/**
+ * LearningTodayLesson
+ */
+export type LearningTodayLesson = {
+    /**
+     * Goal Id
+     */
+    goal_id: string;
+    /**
+     * Goal Title
+     */
+    goal_title: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Skill Id
+     */
+    skill_id?: number | null;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Done Today
+     */
+    done_today: boolean;
+};
+
+/**
+ * LearningTodayResponse
+ */
+export type LearningTodayResponse = {
+    streak: LearningStreak;
+    /**
+     * Lessons
+     */
+    lessons: Array<LearningTodayLesson>;
 };
 
 /**
@@ -18910,6 +18991,10 @@ export type ThreadChip = {
      * Text
      */
     text: string;
+    /**
+     * Helper
+     */
+    helper?: string | null;
 };
 
 /**
@@ -48248,7 +48333,16 @@ export type ThreadChipsApiV1TimelineChipsGetData = {
         'X-API-Key'?: string | null;
     };
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Thread Id
+         */
+        thread_id?: string | null;
+        /**
+         * Workflow Id
+         */
+        workflow_id?: number | null;
+    };
     url: '/api/v1/timeline/chips';
 };
 
@@ -54050,6 +54144,45 @@ export type LearningReviewsDueApiV1LearningReviewsGetResponses = {
 };
 
 export type LearningReviewsDueApiV1LearningReviewsGetResponse = LearningReviewsDueApiV1LearningReviewsGetResponses[keyof LearningReviewsDueApiV1LearningReviewsGetResponses];
+
+export type LearningTodayApiV1LearningTodayGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/learning/today';
+};
+
+export type LearningTodayApiV1LearningTodayGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LearningTodayApiV1LearningTodayGetError = LearningTodayApiV1LearningTodayGetErrors[keyof LearningTodayApiV1LearningTodayGetErrors];
+
+export type LearningTodayApiV1LearningTodayGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: LearningTodayResponse;
+};
+
+export type LearningTodayApiV1LearningTodayGetResponse = LearningTodayApiV1LearningTodayGetResponses[keyof LearningTodayApiV1LearningTodayGetResponses];
 
 export type LearningSuggestionsApiV1LearningSuggestionsGetData = {
     body?: never;

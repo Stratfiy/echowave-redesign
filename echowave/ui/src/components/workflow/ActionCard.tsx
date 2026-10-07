@@ -73,6 +73,8 @@ export type ActionPayload = {
     result?: {
         workflow_id?: number;
         handle?: string | null;
+        /** `chat` for an agent that answers in writing (build_from_spec). */
+        channel?: string | null;
         open_url?: string | null;
         order_id?: string | null;
         payment_link?: string | null;
@@ -275,6 +277,20 @@ export function ActionCard({
                             <Undo2 aria-hidden className="mr-1 h-3.5 w-3.5" />
                             {saving === 'undo' ? 'Putting back…' : 'Put it back'}
                         </Button>
+                    ) : action.result?.workflow_id && action.result.channel === 'chat' ? (
+                        // A chat agent has no phone to hear: it is used in
+                        // its own chat, and tried in the tester.
+                        <>
+                            <Button size="sm" asChild>
+                                <Link href={`/workflow/${action.result.workflow_id}/thread`}>
+                                    <MessageSquare aria-hidden className="mr-1 h-3.5 w-3.5" />
+                                    Open its chat
+                                </Link>
+                            </Button>
+                            {action.result.handle && (
+                                <span className="text-xs text-muted-foreground">@{action.result.handle}</span>
+                            )}
+                        </>
                     ) : action.result?.workflow_id ? (
                         // A built bot is not undone; it is heard. The two
                         // test verbs go straight into the tester, marked TEST.

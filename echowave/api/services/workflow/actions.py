@@ -1938,7 +1938,11 @@ async def _execute(
                 "The agent could not be built from that spec just now."
             ) from exc
         payload.setdefault("result", {}).update(
-            {"workflow_id": built["workflow_id"], "handle": built.get("handle")}
+            {
+                "workflow_id": built["workflow_id"],
+                "handle": built.get("handle"),
+                "channel": built.get("channel"),
+            }
         )
         return str(built["note"])
 

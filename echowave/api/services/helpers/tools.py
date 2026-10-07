@@ -8,6 +8,8 @@
   connected app's send, linked to the commitment.
 * ``create_tracker`` (describe_builder) -- a card; ``add_to_tracker`` runs
   now; ``read_tracker`` is a read.
+* ``start_course`` (learning) -- starts the person's own learning record
+  and puts the lesson on the thread (services/learning/guide.py).
 
 Every tool here has a rule in ``rules`` and is offered only while its flag
 is on (``schemas``), the same contract as Decibyl's own
@@ -43,6 +45,7 @@ FLAGS: dict[str, str] = {
     C.CREATE_TRACKER: trackers.FLAG,
     C.ADD_TO_TRACKER: trackers.FLAG,
     C.READ_TRACKER: trackers.FLAG,
+    C.START_COURSE: "learning",
 }
 NAMES = frozenset(FLAGS)
 #: Reads keep Decibyl's tools open for the next step.
@@ -232,9 +235,36 @@ def _schemas() -> dict[str, dict[str, Any]]:
     }
 
 
+_COURSE_SCHEMA = {
+    "name": C.START_COURSE,
+    "description": (
+        "Start a course for the person: their own learning record with a "
+        "level check, a plan, lessons, marked quizzes, reviews, a streak and "
+        "the day's lesson in Today. The lesson opens on this thread. Runs "
+        "now; it sends nothing."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "title": {"type": "string", "description": "The course or skill."},
+            "studying_for": {
+                "type": "string",
+                "description": "A course, exam or job it is for, if they said.",
+            },
+            "material": {
+                "type": "string",
+                "description": "Their notes or syllabus, as they gave them.",
+            },
+        },
+        "required": ["title"],
+    },
+}
+
+
 def schemas(organization_id: int | None) -> list[dict[str, Any]]:
     on = enabled_names(organization_id)
-    return [s for name, s in _schemas().items() if name in on]
+    every = {**_schemas(), C.START_COURSE: _COURSE_SCHEMA}
+    return [s for name, s in every.items() if name in on]
 
 
 _RULES = {
@@ -263,6 +293,11 @@ _RULES = {
     ),
     C.ADD_TO_TRACKER: "- add_to_tracker: add a row to a tracker by name; runs now.\n",
     C.READ_TRACKER: "- read_tracker: read a tracker's latest rows; runs now.\n",
+    C.START_COURSE: (
+        "- start_course: start a course the person wants to learn over days "
+        "(plan, lessons, marked quizzes, reviews, streak, Today); the lesson "
+        "opens on the thread. Runs now.\n"
+    ),
 }
 
 
@@ -338,6 +373,7 @@ async def _run(
         C.READ_TRACKER,
         C.TRACK_COMMITMENT,
         C.CREATE_TRACKER,
+        C.START_COURSE,
     }
     if name in needs_person and not author_id:
         # A routine or a channel line with nobody signed in: these belong to
@@ -378,6 +414,13 @@ async def _run(
 
     if name == C.TRADING_INTERESTS:
         return await interests.for_tool(author_id)
+
+    if name == C.START_COURSE:
+        from api.services.learning import guide as learning_guide
+
+        return await learning_guide.start_course(
+            organization_id, author_id, arguments, thread_id=thread_id
+        )
 
     if name == C.TRACK_COMMITMENT:
         fields = commitments.clean(arguments)

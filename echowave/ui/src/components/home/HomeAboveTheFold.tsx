@@ -168,22 +168,27 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   const approvalDock = useFeature("approval_dock");
   // Screen 13: the lesson inside Chat. "?learn=<goal>" resumes one (from
   // Today, the progress page or a shared link); "?learn=new" starts one;
-  // "&review=<skill>" opens on a review. Null is the conversation.
+  // "&review=<skill>" opens on a review; "&topic=" names a new one (a course
+  // named in Chat). Null is the conversation.
   const learning = useFeature("learning");
-  const [lesson, setLesson] = useState<{ goalId: string | null; review: number | null } | null>(() => {
+  const [lesson, setLesson] = useState<{ goalId: string | null; review: number | null; topic?: string | null } | null>(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const learn = params.get("learn");
       if (!learn) return null;
       const review = Number(params.get("review"));
-      return { goalId: learn === "new" ? null : learn, review: Number.isFinite(review) && review > 0 ? review : null };
+      return {
+        goalId: learn === "new" ? null : learn,
+        review: Number.isFinite(review) && review > 0 ? review : null,
+        topic: params.get("topic"),
+      };
     } catch {
       return null;
     }
   });
   const showLesson = learning && lesson !== null;
-  const openLesson = useCallback((goalId: string | null, review: number | null = null) => {
-    setLesson({ goalId, review });
+  const openLesson = useCallback((goalId: string | null, review: number | null = null, topic: string | null = null) => {
+    setLesson({ goalId, review, topic });
     try {
       const params = new URLSearchParams(window.location.search);
       params.set("learn", goalId ?? "new");
@@ -200,6 +205,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
       const params = new URLSearchParams(window.location.search);
       params.delete("learn");
       params.delete("review");
+      params.delete("topic");
       const rest = params.toString();
       window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}`);
     } catch {
@@ -435,6 +441,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         <LearningSession
           goalId={lesson.goalId}
           reviewSkillId={lesson.review}
+          topic={lesson.topic}
           threadId={threadId}
           onGoalChange={(goalId) => openLesson(goalId)}
           onClose={closeLesson}
@@ -507,6 +514,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
           onWaitingChange={chatShell ? setReplying : undefined}
           onTurnStatus={chatShell ? onTurnStatus : undefined}
           onOpenSources={chatShell ? onOpenSources : undefined}
+          onOpenLesson={learning ? (goalId, topic) => openLesson(goalId, null, topic) : undefined}
         />
       </div>
       {approvalDock && (

@@ -77,6 +77,21 @@ describe("Evidence", () => {
         expect(document.body.textContent).not.toMatch(/%|streak|fluent|score/i);
     });
 
+    it("shows the plan in order, each lesson with its evidence", async () => {
+        api.progress.mockResolvedValue({
+            data: {
+                ...practised,
+                plan: [
+                    { name: "Adding fractions", skill_id: 1, status: "practised", label: "Practised" },
+                    { name: "Ratios", skill_id: null, status: "not_practised", label: "Not practised yet" },
+                ],
+            },
+        });
+        render(<LearningProgress goalId="g-1" />);
+        const plan = await screen.findByTestId("learning-plan");
+        expect(plan.textContent).toMatch(/1\.\s*Adding fractions.*Practised.*2\.\s*Ratios.*Not practised yet/);
+    });
+
     it("says no practice yet, not zero", async () => {
         api.progress.mockResolvedValue({ data: { ...practised, practice_count: 0, state: "no_practice", skills: [], recent: [], next_step: { kind: "continue", text: "Continue practice." } } });
         render(<LearningProgress goalId="g-1" />);

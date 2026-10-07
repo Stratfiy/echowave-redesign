@@ -264,6 +264,14 @@ function savedReportOf(event: TimelineEvent): string | null {
     return typeof saved?.uuid === 'string' ? saved.uuid : null;
 }
 
+/** A course started from the conversation (stream `learning`'s start_course). */
+function courseOf(event: TimelineEvent): { goalId: string | null; title: string; href: string } | null {
+    const course = (event.payload as { learning_course?: { goal_id?: unknown; title?: unknown; href?: unknown } } | null)
+        ?.learning_course;
+    if (!course || typeof course.title !== 'string' || typeof course.href !== 'string') return null;
+    return { goalId: typeof course.goal_id === 'string' ? course.goal_id : null, title: course.title, href: course.href };
+}
+
 /** The files a message carried, if any. */
 function attachmentsOf(event: TimelineEvent): Attached[] {
     const list = (event.payload as { attachments?: unknown } | null)?.attachments;
@@ -320,7 +328,9 @@ export function groupRows(inOrder: TimelineEvent[]): Group[] {
         const foldable =
             (event.kind === 'call_ended' && (event.payload as { answered?: boolean } | null)?.answered === false) ||
             event.kind === 'agent_acted' ||
-            event.kind === 'activity';
+            // A step with something to open (a course, a saved report) is
+            // a result, not a reading: folded, its button was out of sight.
+            (event.kind === 'activity' && !courseOf(event) && !savedReportOf(event));
         const key = foldable ? `${event.kind}:${event.workflow_id}` : '';
         const last = groups[groups.length - 1];
         if (foldable && last && last.key === key) {
@@ -357,6 +367,7 @@ export function ChannelStream({
     onWaitingChange,
     onTurnStatus,
     onOpenSources,
+    onOpenLesson,
 }: {
     /** A channel's thread, or -- with `workflowId` instead -- one bot's own
      *  chat. Exactly one of the two. */
@@ -370,6 +381,9 @@ export function ChannelStream({
      *  the account has always had, so a caller that says nothing reads what
      *  it always read. */
     threadId?: string | null;
+    /** Opens a lesson in this Chat column (Decibyl's thread). Without it a
+     *  course card is a link to the lesson. */
+    onOpenLesson?: (goalId: string | null, topic: string) => void;
     /** Bot id → display name, so an event can be attributed to a teammate
      *  rather than to an id. Missing names degrade to "A bot", never to a
      *  blank line. */
@@ -436,19 +450,26 @@ export function ChannelStream({
     const [chips, setChips] = useState<ThreadChip[]>([]);
     const [sendingChip, setSendingChip] = useState<string | null>(null);
     const loadChips = useCallback(async () => {
-        if (!assistant) return;
-        const response = await threadChipsApiV1TimelineChipsGet();
+        if (!assistant && workflowId == null) return;
+        // This thread's, so a helper's follow-ups answer the reply on screen;
+        // on an agent's own chat, the next steps of the agent's last reply.
+        const response = await threadChipsApiV1TimelineChipsGet({
+            query: assistant ? { thread_id: threadId ?? undefined } : { workflow_id: workflowId! },
+        });
         if (response.error) return; // A thread with no chips is still a thread.
         setChips(response.data?.chips ?? []);
-    }, [assistant]);
-    const sendChip = async (text: string) => {
+    }, [assistant, threadId, workflowId]);
+    const sendChip = async (text: string, helper?: string | null) => {
         setSendingChip(text);
         // Cleared first: the chips answer the reply that is on screen, and
         // leaving them under the question they just asked reads as if
         // nothing happened.
         setChips([]);
+        // A follow-up goes back to the helper that wrote the reply it follows.
         const response = await postMessageApiV1TimelineMessagePost({
-            body: { assistant: true, thread_id: threadId, text },
+            body: assistant
+                ? { assistant: true, thread_id: threadId, text, ...(helper ? { helper } : {}) }
+                : { workflow_id: workflowId!, text },
         });
         setSendingChip(null);
         if (response.error) {
@@ -483,7 +504,11 @@ export function ChannelStream({
     const feedbackOn = useFeature('reply_feedback') && assistant;
     // Launch stream `agents`: keep a reply as a saved report, and name the
     // helper a reply came from (screen 04: reports share this surface).
-    const reportsOn = useFeature('research_reports') && assistant;
+    const reportsFlag = useFeature('research_reports');
+    const reportsOn = reportsFlag && assistant;
+    // An agent's reply in its own chat can be kept too: a research agent
+    // built from Chat writes its report there, and has no save of its own.
+    const agentReportsOn = reportsFlag && workflowId != null;
     // Stream today: a routine's result carries a small ✓ chip naming it.
     const routineChip = useFeature('routine_start_on');
     // Stream `reach`. Off, its rows are not drawn (the server does not
@@ -668,6 +693,14 @@ export function ChannelStream({
             clearInterval(timer);
         };
     }, [waiting, assistant, workflowId, threadId]);
+
+    // Chips arrive after the reply they follow: keep them in view for a
+    // reader at the bottom, or on a phone they land below the fold.
+    useEffect(() => {
+        if (chips.length === 0) return;
+        const element = scroller.current;
+        if (pinned.current && element) element.scrollTop = element.scrollHeight;
+    }, [chips]);
 
     // The forming reply follows the reader only while they are at the
     // bottom; scrolled up, it waits behind New content (screen 04).
@@ -897,9 +930,9 @@ export function ChannelStream({
             {/* What to ask next, so the thread carries its own next steps.
                 Hidden while a bot is thinking: offering a follow-up to an
                 answer that has not arrived is asking somebody to interrupt.
-                Hidden on a bot's own chat too -- these are the workspace's
-                questions, and Decibyl is who answers them. */}
-            {assistant && !waiting && chips.length > 0 && (
+                On a bot's own chat only its own reply's next steps: the
+                workspace's questions are Decibyl's to answer. */}
+            {(assistant || workflowId != null) && !waiting && chips.length > 0 && (
                 <ul
                     className="mt-3 flex flex-wrap gap-2"
                     aria-label="Suggested next steps"
@@ -910,7 +943,7 @@ export function ChannelStream({
                             <button
                                 type="button"
                                 disabled={sendingChip !== null}
-                                onClick={() => void sendChip(chip.text)}
+                                onClick={() => void sendChip(chip.text, chip.helper)}
                                 className="rounded-full border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-[var(--accent-brand)] hover:text-foreground disabled:opacity-50"
                             >
                                 {chip.text}
@@ -1156,6 +1189,25 @@ export function ChannelStream({
                             {divider}
                             <li className="flex gap-3">
                                 <ActivityRow event={event} who={activityWho(event)}>
+                                    {(() => {
+                                        const course = courseOf(event);
+                                        if (!course) return null;
+                                        const style = 'ml-2 inline-flex min-h-11 items-center font-medium underline md:min-h-0';
+                                        return onOpenLesson ? (
+                                            <button
+                                                type="button"
+                                                className={style}
+                                                data-testid="open-course"
+                                                onClick={() => onOpenLesson(course.goalId, course.title)}
+                                            >
+                                                Open the lesson
+                                            </button>
+                                        ) : (
+                                            <Link href={course.href} className={style} data-testid="open-course">
+                                                Open the lesson
+                                            </Link>
+                                        );
+                                    })()}
                                     {savedReportOf(event) && (
                                         <Link
                                             href={`/saved-reports/${savedReportOf(event)}`}
@@ -1552,6 +1604,15 @@ export function ChannelStream({
                                     </ul>
                                 )}
                                 {chatShell && assistant && rowExtras(event)}
+                                {agentReportsOn &&
+                                    event.kind === 'message' &&
+                                    event.actor === 'agent' &&
+                                    event.folder_id == null &&
+                                    !(event.payload as { failed?: boolean } | null)?.failed && (
+                                        <div className="mt-1.5">
+                                            <SaveReportButton eventId={event.id} />
+                                        </div>
+                                    )}
                             </div>
                         </li>
                         </React.Fragment>

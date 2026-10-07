@@ -288,8 +288,18 @@ class LearningNextStep(BaseModel):
     skill_id: int | None = None
 
 
+class LearningPlanItem(BaseModel):
+    name: str
+    skill_id: int | None = None
+    status: str
+    label: str
+
+
 class LearningProgress(BaseModel):
     goal: LearningGoal
+    #: The lessons the teacher planned at placement, in order; empty for a
+    #: goal placed before plans existed.
+    plan: list[LearningPlanItem] = Field(default_factory=list)
     #: Evaluated practice answers. Not messages, not minutes.
     practice_count: int
     #: ``no_practice`` | ``practised``.
@@ -323,6 +333,27 @@ class LearningSuggestion(BaseModel):
     text: str
     #: ``easier`` | ``next`` | ``review``.
     action: str
+
+
+class LearningStreak(BaseModel):
+    #: Days in a row with at least one marked answer.
+    days: int
+    practised_today: bool
+
+
+class LearningTodayLesson(BaseModel):
+    goal_id: str
+    goal_title: str
+    #: ``review`` | ``retry`` | ``continue`` | ``baseline``.
+    kind: str
+    skill_id: int | None = None
+    text: str
+    done_today: bool
+
+
+class LearningTodayResponse(BaseModel):
+    streak: LearningStreak
+    lessons: list[LearningTodayLesson]
 
 
 class LearningDeletionCard(BaseModel):
@@ -591,6 +622,18 @@ async def learning_reviews_due(
     return [
         LearningReviewDue(**r) for r in await core.reviews_due(organization_id, user.id)
     ]
+
+
+@router.get("/today", response_model=LearningTodayResponse)
+async def learning_today(
+    user: Annotated[UserModel, Depends(get_user)],
+) -> LearningTodayResponse:
+    """The streak and each goal's lesson for today, for Today
+    (``learning_today``)."""
+    organization_id = _organization_id(user)
+    if not core.today_enabled(organization_id):
+        raise HTTPException(status_code=404, detail="Not Found")
+    return LearningTodayResponse(**await core.today(organization_id, user.id))
 
 
 @router.get("/suggestions", response_model=list[LearningSuggestion])

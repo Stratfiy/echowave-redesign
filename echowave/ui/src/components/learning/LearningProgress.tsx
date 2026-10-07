@@ -189,6 +189,24 @@ export function LearningProgress({ goalId }: { goalId: string }) {
                 )}
             </section>
 
+            {(progress.plan ?? []).length > 0 && (
+                <section aria-labelledby="plan">
+                    <h2 id="plan" className="text-base font-semibold">
+                        Plan
+                    </h2>
+                    <ol className="mt-3 flex flex-col divide-y divide-border rounded-lg border border-border" data-testid="learning-plan">
+                        {(progress.plan ?? []).map((item, index) => (
+                            <li key={`${index}-${item.name}`} className="flex flex-wrap items-baseline justify-between gap-x-3 px-3 py-2">
+                                <span className="min-w-0 break-words">
+                                    {index + 1}. {item.name}
+                                </span>
+                                <span className="text-sm text-muted-foreground">{item.label}</span>
+                            </li>
+                        ))}
+                    </ol>
+                </section>
+            )}
+
             <section aria-labelledby="skills">
                 <div className="flex items-baseline justify-between gap-2">
                     <h2 id="skills" className="text-base font-semibold">
