@@ -884,6 +884,12 @@ class AgentEventKind(str, Enum):
     #: is the vendor's own sign-in screen. See
     #: services/workflow/connector_offer.py.
     CONNECTOR_OFFERED = "connector_offered"
+    #: A connect chip for an outside tool or an ordering app (stream `reach`).
+    #: The person connects it in the thread; it is theirs alone.
+    REACH_CONNECT_OFFERED = "reach_connect_offered"
+    #: Prices and coupons compared across the apps a person connected,
+    #: naming which apps and when (stream `reach`).
+    REACH_COMPARISON = "reach_comparison"
     #: What a bot read or checked on the way to an answer: passages from
     #: Company knowledge, the team's numbers, a bot it handed a question to.
     #: A muted one-line row, folded when several run together, so the thread

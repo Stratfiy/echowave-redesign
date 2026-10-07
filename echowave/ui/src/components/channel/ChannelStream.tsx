@@ -44,6 +44,8 @@ import { BlockedCard } from '@/components/channel/BlockedCard';
 import { tagTokens } from '@/components/channel/ChannelComposer';
 import { emphasisTokens } from '@/components/channel/emphasis';
 import { isJudgeableReply, ReplyFeedback, useMyFeedback } from '@/components/channel/ReplyFeedback';
+import { ComparisonCard } from '@/components/reach/ComparisonCard';
+import { ReachConnectChip } from '@/components/reach/ReachConnectChip';
 import { ErrorState } from '@/components/shell/ErrorState';
 import { SourceCoverage } from '@/components/shell/SourceCoverage';
 import { TaskStatus } from '@/components/shell/TaskStatus';
@@ -135,6 +137,9 @@ const CARDS = new Set([
     'connector_offered',
     'needs_secret',
     'needs_decision',
+    // Stream `reach`: the connect chip and the comparison table.
+    'reach_connect_offered',
+    'reach_comparison',
 ]);
 
 /** How long a pause can be and still read as one person still talking. */
@@ -457,6 +462,12 @@ export function ChannelStream({
     // Was this useful? under Decibyl's replies (reply_feedback). Read once
     // per batch of replies, after auth, so a reload shows what was said.
     const feedbackOn = useFeature('reply_feedback') && assistant;
+    // Stream `reach`. Off, its rows are not drawn (the server does not
+    // write them while off either).
+    const outsideToolsOn = useFeature('outside_tools');
+    const orderingOn = useFeature('ordering');
+    const reachChipsOn = outsideToolsOn || orderingOn;
+    const comparisonOn = useFeature('price_compare');
     const judgeable = feedbackOn ? events.filter(isJudgeableReply).map((e) => e.id) : [];
     const feedback = useMyFeedback(judgeable, feedbackOn && !authLoading && Boolean(user));
     // Whether the reader is at the bottom. Scrolling them back down while they
@@ -1157,6 +1168,36 @@ export function ChannelStream({
                                         </span>
                                     </p>
                                     <ConnectorCard event={event} />
+                                </div>
+                            </li>
+                            </React.Fragment>
+                        );
+                    }
+                    if (
+                        (event.kind === 'reach_connect_offered' && reachChipsOn) ||
+                        (event.kind === 'reach_comparison' && comparisonOn)
+                    ) {
+                        // An outside tool or ordering app to connect, in
+                        // the thread that needed it; or prices compared.
+                        const asker =
+                            (event.workflow_id != null && botNames[event.workflow_id]) || fallbackName;
+                        return (
+                            <React.Fragment key={event.id}>
+                            {divider}
+                            <li className="flex gap-3">
+                                {face(event)}
+                                <div className="min-w-0 flex-1">
+                                    <p className="mb-1 text-sm">
+                                        <span className="font-medium">{asker}</span>
+                                        <span className="ml-2 text-xs text-muted-foreground">
+                                            <time dateTime={event.at}>{when(event.at)}</time>
+                                        </span>
+                                    </p>
+                                    {event.kind === 'reach_connect_offered' ? (
+                                        <ReachConnectChip event={event} />
+                                    ) : (
+                                        <ComparisonCard event={event} />
+                                    )}
                                 </div>
                             </li>
                             </React.Fragment>

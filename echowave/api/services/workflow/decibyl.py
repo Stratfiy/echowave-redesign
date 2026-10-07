@@ -241,7 +241,16 @@ def system_prompt(organization_id: int | None = None) -> str:
         SYSTEM
         + (procurement.RULES if procurement.enabled() else "")
         + (tables.RULES if tables.enabled(organization_id) else "")
+        + _reach().rules(organization_id)
     )
+
+
+def _reach():
+    """Stream `reach` (outside tools, ordering, comparison). Imported late:
+    it imports actions, which imports this module's neighbours."""
+    from api.services.reach import outside_tools
+
+    return outside_tools
 
 
 def thread_filter(organization_id: int | None = None) -> dict[str, Any]:
@@ -261,6 +270,15 @@ def thread_filter(organization_id: int | None = None) -> dict[str, Any]:
             AgentEventKind.EDIT_PROPOSED.value,
             AgentEventKind.CONNECTOR_OFFERED.value,
             AgentEventKind.ACTIVITY.value,
+            # Stream `reach`: the connect chip and the comparison table.
+            *(
+                (
+                    AgentEventKind.REACH_CONNECT_OFFERED.value,
+                    AgentEventKind.REACH_COMPARISON.value,
+                )
+                if _reach().names(organization_id)
+                else ()
+            ),
             # The files the document tools hand over (a drafted PO, a
             # cost-bid sheet), shown on the thread with their downloads.
             *(
@@ -790,7 +808,12 @@ async def build_context(organization_id: int, question: str) -> str:
         f"## From the knowledge base\n{knowledge_block(knowledge, contacts)}\n\n"
         f"{skills_section(skills, invoked)}"
         f"## Files this account has uploaded\n{documents_block(documents, bot_names)}\n"
+        + _reach_context(await _reach().context_block(organization_id))
     )
+
+
+def _reach_context(block: str) -> str:
+    return f"\n{block}\n" if block else ""
 
 
 def skills_section(installed: list[Any], invoked: list[Any]) -> str:
@@ -1457,7 +1480,11 @@ async def tools_for(
 
         if await code_mode.allowed(organization_id):
             own = [*own, code_mode.tool_schema()]
-    return own + connected_tools.schemas(connected, loaded)
+    return (
+        own
+        + connected_tools.schemas(connected, loaded)
+        + await _reach().schemas(organization_id)
+    )
 
 
 def _was_a_read(call: Any, result: Any) -> bool:
@@ -1474,6 +1501,8 @@ def _was_a_read(call: Any, result: Any) -> bool:
     retry with, and the turn ended on "I have nothing to add on that."
     """
     name = str(getattr(call, "name", "") or "")
+    if _reach().is_reach_name(name):
+        return _reach().is_read(name, result)
     if isinstance(result, dict) and result.get("status") == "not_proposed":
         # A proposal turned back before any card was written ("ask for these
         # first", "which template"): the model must be able to ask or retry.
@@ -1587,6 +1616,8 @@ async def _tool(
     request: str = "",
     thread_id: str | None = None,
 ) -> dict[str, Any]:
+    if _reach().handles(str(call.name or ""), organization_id):
+        return await _reach().run(organization_id, call)
     if str(call.name or "").startswith(connected_tools.PREFIX):
         return await _app_tool(organization_id, call, request=request)
     arguments = dict(call.arguments or {})

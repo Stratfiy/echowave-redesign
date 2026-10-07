@@ -10639,6 +10639,361 @@ export type RateTableToolDefinition = {
 };
 
 /**
+ * ReachConnectRequest
+ */
+export type ReachConnectRequest = {
+    /**
+     * Kind
+     */
+    kind: 'tool' | 'ordering';
+    /**
+     * Provider
+     */
+    provider?: string | null;
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Server Url
+     */
+    server_url?: string | null;
+    /**
+     * Token
+     */
+    token?: string | null;
+};
+
+/**
+ * ReachConnectResponse
+ */
+export type ReachConnectResponse = {
+    connection: ReachConnection;
+    /**
+     * Authorize Url
+     */
+    authorize_url?: string | null;
+};
+
+/**
+ * ReachConnection
+ */
+export type ReachConnection = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Server Url
+     */
+    server_url: string;
+    /**
+     * Auth
+     */
+    auth: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Tools
+     */
+    tools: Array<ReachToolSummary>;
+    /**
+     * Last Error
+     */
+    last_error?: string | null;
+    /**
+     * Connected At
+     */
+    connected_at?: string | null;
+};
+
+/**
+ * ReachConnectionList
+ */
+export type ReachConnectionList = {
+    /**
+     * Connections
+     */
+    connections: Array<ReachConnection>;
+};
+
+/**
+ * ReachOrderChange
+ */
+export type ReachOrderChange = {
+    /**
+     * Item Id
+     */
+    item_id: string;
+    /**
+     * Quantity
+     */
+    quantity: number;
+};
+
+/**
+ * ReachOrderCharge
+ */
+export type ReachOrderCharge = {
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Amount Paise
+     */
+    amount_paise: number;
+};
+
+/**
+ * ReachOrderDetail
+ */
+export type ReachOrderDetail = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Provider Name
+     */
+    provider_name: string;
+    /**
+     * Store
+     */
+    store: {
+        [key: string]: unknown;
+    };
+    /**
+     * Items
+     */
+    items: Array<ReachOrderItem>;
+    /**
+     * Charges
+     */
+    charges: Array<ReachOrderCharge>;
+    /**
+     * Discount Paise
+     */
+    discount_paise: number;
+    /**
+     * Subtotal Paise
+     */
+    subtotal_paise?: number | null;
+    /**
+     * Total Paise
+     */
+    total_paise?: number | null;
+    /**
+     * Currency
+     */
+    currency: string;
+    /**
+     * Coupon
+     */
+    coupon?: string | null;
+    /**
+     * Address
+     */
+    address: {
+        [key: string]: unknown;
+    };
+    /**
+     * Payment
+     */
+    payment: {
+        [key: string]: unknown;
+    };
+    /**
+     * Offers
+     */
+    offers: Array<ReachOrderOffer>;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Digest
+     */
+    digest: string;
+    /**
+     * Card Event Id
+     */
+    card_event_id?: number | null;
+    /**
+     * Quoted At
+     */
+    quoted_at?: string | null;
+    /**
+     * Provider Order Id
+     */
+    provider_order_id?: string | null;
+    /**
+     * Payment Link
+     */
+    payment_link?: string | null;
+    /**
+     * Error
+     */
+    error?: string | null;
+};
+
+/**
+ * ReachOrderItem
+ */
+export type ReachOrderItem = {
+    /**
+     * Item Id
+     */
+    item_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Quantity
+     */
+    quantity: number;
+    /**
+     * Unit Price Paise
+     */
+    unit_price_paise: number;
+    /**
+     * Line Total Paise
+     */
+    line_total_paise: number;
+};
+
+/**
+ * ReachOrderOffer
+ */
+export type ReachOrderOffer = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Description
+     */
+    description?: string;
+    /**
+     * Saving Paise
+     */
+    saving_paise?: number | null;
+};
+
+/**
+ * ReachProviderList
+ */
+export type ReachProviderList = {
+    /**
+     * Providers
+     */
+    providers: Array<ReachProviderState>;
+};
+
+/**
+ * ReachProviderState
+ */
+export type ReachProviderState = {
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Kinds
+     */
+    kinds: Array<string>;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Connection Id
+     */
+    connection_id?: string | null;
+};
+
+/**
+ * ReachReviseOrderRequest
+ */
+export type ReachReviseOrderRequest = {
+    /**
+     * Items
+     */
+    items?: Array<ReachOrderChange> | null;
+    /**
+     * Address Id
+     */
+    address_id?: string | null;
+    /**
+     * Payment Method
+     */
+    payment_method?: string | null;
+    /**
+     * Coupon
+     */
+    coupon?: string | null;
+};
+
+/**
+ * ReachReviseOrderResponse
+ */
+export type ReachReviseOrderResponse = {
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Event Id
+     */
+    event_id?: number | null;
+};
+
+/**
+ * ReachToolSummary
+ */
+export type ReachToolSummary = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Read
+     */
+    read: boolean;
+};
+
+/**
  * ReadinessItem
  */
 export type ReadinessItem = {
@@ -38694,6 +39049,343 @@ export type StopReplyApiV1ShellChatStopPostResponses = {
 };
 
 export type StopReplyApiV1ShellChatStopPostResponse = StopReplyApiV1ShellChatStopPostResponses[keyof StopReplyApiV1ShellChatStopPostResponses];
+
+export type MyConnectionsApiV1ReachConnectionsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/reach/connections';
+};
+
+export type MyConnectionsApiV1ReachConnectionsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyConnectionsApiV1ReachConnectionsGetError = MyConnectionsApiV1ReachConnectionsGetErrors[keyof MyConnectionsApiV1ReachConnectionsGetErrors];
+
+export type MyConnectionsApiV1ReachConnectionsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReachConnectionList;
+};
+
+export type MyConnectionsApiV1ReachConnectionsGetResponse = MyConnectionsApiV1ReachConnectionsGetResponses[keyof MyConnectionsApiV1ReachConnectionsGetResponses];
+
+export type ConnectApiV1ReachConnectionsPostData = {
+    body: ReachConnectRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/reach/connections';
+};
+
+export type ConnectApiV1ReachConnectionsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ConnectApiV1ReachConnectionsPostError = ConnectApiV1ReachConnectionsPostErrors[keyof ConnectApiV1ReachConnectionsPostErrors];
+
+export type ConnectApiV1ReachConnectionsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReachConnectResponse;
+};
+
+export type ConnectApiV1ReachConnectionsPostResponse = ConnectApiV1ReachConnectionsPostResponses[keyof ConnectApiV1ReachConnectionsPostResponses];
+
+export type RefreshConnectionApiV1ReachConnectionsConnectionIdRefreshPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Connection Id
+         */
+        connection_id: string;
+    };
+    query?: never;
+    url: '/api/v1/reach/connections/{connection_id}/refresh';
+};
+
+export type RefreshConnectionApiV1ReachConnectionsConnectionIdRefreshPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RefreshConnectionApiV1ReachConnectionsConnectionIdRefreshPostError = RefreshConnectionApiV1ReachConnectionsConnectionIdRefreshPostErrors[keyof RefreshConnectionApiV1ReachConnectionsConnectionIdRefreshPostErrors];
+
+export type RefreshConnectionApiV1ReachConnectionsConnectionIdRefreshPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReachConnection;
+};
+
+export type RefreshConnectionApiV1ReachConnectionsConnectionIdRefreshPostResponse = RefreshConnectionApiV1ReachConnectionsConnectionIdRefreshPostResponses[keyof RefreshConnectionApiV1ReachConnectionsConnectionIdRefreshPostResponses];
+
+export type DisconnectApiV1ReachConnectionsConnectionIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Connection Id
+         */
+        connection_id: string;
+    };
+    query?: never;
+    url: '/api/v1/reach/connections/{connection_id}';
+};
+
+export type DisconnectApiV1ReachConnectionsConnectionIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DisconnectApiV1ReachConnectionsConnectionIdDeleteError = DisconnectApiV1ReachConnectionsConnectionIdDeleteErrors[keyof DisconnectApiV1ReachConnectionsConnectionIdDeleteErrors];
+
+export type DisconnectApiV1ReachConnectionsConnectionIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DisconnectApiV1ReachConnectionsConnectionIdDeleteResponse = DisconnectApiV1ReachConnectionsConnectionIdDeleteResponses[keyof DisconnectApiV1ReachConnectionsConnectionIdDeleteResponses];
+
+export type OrderingProvidersApiV1ReachProvidersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/reach/providers';
+};
+
+export type OrderingProvidersApiV1ReachProvidersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type OrderingProvidersApiV1ReachProvidersGetError = OrderingProvidersApiV1ReachProvidersGetErrors[keyof OrderingProvidersApiV1ReachProvidersGetErrors];
+
+export type OrderingProvidersApiV1ReachProvidersGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReachProviderList;
+};
+
+export type OrderingProvidersApiV1ReachProvidersGetResponse = OrderingProvidersApiV1ReachProvidersGetResponses[keyof OrderingProvidersApiV1ReachProvidersGetResponses];
+
+export type OrderDetailApiV1ReachOrdersOrderIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Order Id
+         */
+        order_id: string;
+    };
+    query?: never;
+    url: '/api/v1/reach/orders/{order_id}';
+};
+
+export type OrderDetailApiV1ReachOrdersOrderIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type OrderDetailApiV1ReachOrdersOrderIdGetError = OrderDetailApiV1ReachOrdersOrderIdGetErrors[keyof OrderDetailApiV1ReachOrdersOrderIdGetErrors];
+
+export type OrderDetailApiV1ReachOrdersOrderIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReachOrderDetail;
+};
+
+export type OrderDetailApiV1ReachOrdersOrderIdGetResponse = OrderDetailApiV1ReachOrdersOrderIdGetResponses[keyof OrderDetailApiV1ReachOrdersOrderIdGetResponses];
+
+export type ReviseOrderApiV1ReachOrdersOrderIdRevisePostData = {
+    body: ReachReviseOrderRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Order Id
+         */
+        order_id: string;
+    };
+    query?: never;
+    url: '/api/v1/reach/orders/{order_id}/revise';
+};
+
+export type ReviseOrderApiV1ReachOrdersOrderIdRevisePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReviseOrderApiV1ReachOrdersOrderIdRevisePostError = ReviseOrderApiV1ReachOrdersOrderIdRevisePostErrors[keyof ReviseOrderApiV1ReachOrdersOrderIdRevisePostErrors];
+
+export type ReviseOrderApiV1ReachOrdersOrderIdRevisePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReachReviseOrderResponse;
+};
+
+export type ReviseOrderApiV1ReachOrdersOrderIdRevisePostResponse = ReviseOrderApiV1ReachOrdersOrderIdRevisePostResponses[keyof ReviseOrderApiV1ReachOrdersOrderIdRevisePostResponses];
+
+export type CheckOrderApiV1ReachOrdersOrderIdCheckPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Order Id
+         */
+        order_id: string;
+    };
+    query?: never;
+    url: '/api/v1/reach/orders/{order_id}/check';
+};
+
+export type CheckOrderApiV1ReachOrdersOrderIdCheckPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CheckOrderApiV1ReachOrdersOrderIdCheckPostError = CheckOrderApiV1ReachOrdersOrderIdCheckPostErrors[keyof CheckOrderApiV1ReachOrdersOrderIdCheckPostErrors];
+
+export type CheckOrderApiV1ReachOrdersOrderIdCheckPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReachOrderDetail;
+};
+
+export type CheckOrderApiV1ReachOrdersOrderIdCheckPostResponse = CheckOrderApiV1ReachOrdersOrderIdCheckPostResponses[keyof CheckOrderApiV1ReachOrdersOrderIdCheckPostResponses];
 
 export type PublicShelfApiV1PublicMarketplaceGetData = {
     body?: never;

@@ -107,6 +107,10 @@ FLAGS: dict[str, str] = {
     "first_task_onboarding": "FIRST_TASK_ONBOARDING_ENABLED",
     "chat_shell": "CHAT_SHELL_ENABLED",
     "shell_mobile": "SHELL_MOBILE_ENABLED",
+    # Launch stream `reach` (LAUNCH-PLAN.md, phase 2).
+    "outside_tools": "OUTSIDE_TOOLS_ENABLED",
+    "ordering": "ORDERING_ENABLED",
+    "price_compare": "PRICE_COMPARE_ENABLED",
 }
 
 
@@ -162,6 +166,9 @@ DESCRIPTIONS: dict[str, str] = {
     "first_task_onboarding": "Language, timezone and a first task; new people land in Chat (screen 02).",
     "chat_shell": "Chat: three starters, attach menu, Dictate and Talk, Stop, New content, sources and task states (screens 03-04).",
     "shell_mobile": "Phone shell: Chat and Today at the bottom, profile in the header, keyboard-aware bar, read-only workflow steps.",
+    "outside_tools": "Outside AI tools (MCP servers) a person connects in the Chat thread and uses from Chat; writes ask first.",
+    "ordering": "Order food and groceries from a list in Chat (Zomato; Swiggy when access arrives), always through an order card.",
+    "price_compare": "Compare prices and coupons across the ordering apps a person has connected, saying which and when.",
 }
 
 

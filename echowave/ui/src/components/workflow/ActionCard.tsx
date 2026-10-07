@@ -19,8 +19,9 @@ import { Check, CircleHelp, CircleSlash, Loader2, MessageSquare, Phone, Undo2, Z
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
-import { settleActionApiV1TimelineActionsSettlePost } from '@/client/sdk.gen';
+import { checkOrderApiV1ReachOrdersOrderIdCheckPost, settleActionApiV1TimelineActionsSettlePost } from '@/client/sdk.gen';
 import type { TimelineEvent } from '@/client/types.gen';
+import { OrderPreview } from '@/components/reach/OrderPreview';
 import { Button } from '@/components/ui/button';
 import { detailFromError } from '@/lib/apiError';
 
@@ -50,8 +51,17 @@ export type ActionPayload = {
     /** The exact payload version Confirm approves (task ledger). Sent back
      *  with Confirm; an edited card has a new one. */
     version?: string;
-    /** What a build produced (KAN-140): where Hear it and Try it go. */
-    result?: { workflow_id?: number; handle?: string | null; open_url?: string | null };
+    /** What a build produced (KAN-140): where Hear it and Try it go. An
+     *  order placed (stream `reach`): its number and the app's payment link. */
+    result?: {
+        workflow_id?: number;
+        handle?: string | null;
+        open_url?: string | null;
+        order_id?: string | null;
+        payment_link?: string | null;
+    };
+    /** An order card's draft (stream `reach`). */
+    args?: { draft?: string };
 };
 
 export function actionOf(event: TimelineEvent): ActionPayload {
@@ -117,6 +127,25 @@ export function ActionCard({
     };
 
     const label = action.label ?? event.summary;
+    const isOrder = action.action === 'place_order';
+
+    // An order waiting for its owner: the exact bill, in the shared preview.
+    if (isOrder && state === 'proposed') {
+        return <OrderPreview event={event} onSettled={onSettled} onFired={onFired} />;
+    }
+
+    const checkOrder = async () => {
+        if (!action.args?.draft) return;
+        setSaving('check');
+        setError(null);
+        const result = await checkOrderApiV1ReachOrdersOrderIdCheckPost({ path: { order_id: action.args.draft } });
+        setSaving(null);
+        if (result.error) {
+            setError(detailFromError(result.error, 'Could not check just now'));
+            return;
+        }
+        onFired?.();
+    };
 
     return (
         <div
@@ -188,7 +217,13 @@ export function ActionCard({
                         <Check aria-hidden className="h-4 w-4 text-emerald-600" />
                         <span className="font-medium">{action.done?.note ?? 'Done'}</span>
                     </span>
-                    {action.reversible ? (
+                    {isOrder && action.result?.payment_link ? (
+                        <Button size="sm" className="min-h-11 md:min-h-9" asChild>
+                            <a href={action.result.payment_link} target="_blank" rel="noopener noreferrer">
+                                Pay on the app
+                            </a>
+                        </Button>
+                    ) : action.reversible ? (
                         <Button
                             size="sm"
                             variant="outline"
@@ -240,6 +275,13 @@ export function ActionCard({
                             'We are checking whether this was delivered. Please do not send it again.'}
                     </span>
                 </p>
+            )}
+            {state === 'outcome_unknown' && isOrder && (
+                <div className="mt-2 pl-6">
+                    <Button size="sm" variant="outline" className="min-h-11 md:min-h-9" disabled={saving !== null} onClick={() => void checkOrder()}>
+                        {saving === 'check' ? 'Checking…' : 'Check with the app'}
+                    </Button>
+                </div>
             )}
 
             {(state === 'undone' || state === 'cancelled' || state === 'declined') && (

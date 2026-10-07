@@ -65,6 +65,7 @@ from api.routes.public_marketplace import router as public_marketplace_router
 from api.routes.public_triggers import router as public_triggers_router
 from api.routes.public_trust import router as public_trust_router
 from api.routes.public_whatsapp import router as public_whatsapp_router
+from api.routes.reach import router as reach_router
 from api.routes.referrals import router as referrals_router
 from api.routes.reports import router as reports_router
 from api.routes.routines import all_router as all_routines_router
@@ -186,6 +187,7 @@ router.include_router(public_studio_router)
 router.include_router(public_trust_router)
 router.include_router(public_early_access_router)
 router.include_router(shell_router)
+router.include_router(reach_router)
 router.include_router(public_marketplace_router)
 router.include_router(workflow_embed_router)
 router.include_router(knowledge_base_router)

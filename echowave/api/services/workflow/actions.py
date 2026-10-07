@@ -110,7 +110,19 @@ INSTALL_FROM_REPOSITORY = "install_from_repository"
 #: services/workflow/routines.py). Internal like the three above: Decibyl
 #: reaches it through schedule_routine, which has already read the words.
 SCHEDULE_ROUTINE = "schedule_routine"
+#: Place an order on an ordering app the person connected (stream `reach`;
+#: services/reach/ordering). Internal: reached through order_prepare, which
+#: has priced the list and saved the draft the card is bound to.
+PLACE_ORDER = "place_order"
+#: Run a write on an outside AI tool the person connected (stream `reach`;
+#: services/reach/outside_tools.py). Internal like RUN_TOOL.
+RUN_OUTSIDE_TOOL = "run_outside_tool"
+#: Cards that act in one person's own account: only that person may
+#: confirm, decline or undo them (``owner_user_id`` on the payload).
+OWNED_ACTIONS = (PLACE_ORDER, RUN_OUTSIDE_TOOL)
 INTERNAL_ACTIONS = (
+    PLACE_ORDER,
+    RUN_OUTSIDE_TOOL,
     RUN_TOOL,
     SEND_DOCUMENT,
     BUILD_FROM_SPEC,
@@ -169,6 +181,10 @@ def _is_outbound(payload: dict[str, Any]) -> bool:
     draft. What the operational quota counts as an outbound message."""
     action = payload.get("action")
     if action == SEND_DOCUMENT:
+        return True
+    if action == RUN_OUTSIDE_TOOL:
+        # What an outside write does is the server's to say; counted as a
+        # send, the conservative side for a cost limit.
         return True
     if action == RUN_TOOL:
         if "reaches_people" in payload:
@@ -337,6 +353,9 @@ async def resolve(
     if action not in ACTIONS and action not in INTERNAL_ACTIONS:
         raise ActionError("That is not something I can propose.")
     why = str(arguments.get("why") or "").strip()[:MAX_WHY_CHARS]
+
+    if action in OWNED_ACTIONS:
+        return await _resolve_owned(organization_id, action, arguments, why)
 
     if action == RUN_TOOL:
         from api.services.workflow import connected_tools
@@ -611,6 +630,69 @@ async def resolve(
     }
 
 
+async def _resolve_owned(
+    organization_id: int, action: str, arguments: dict[str, Any], why: str
+) -> dict[str, Any]:
+    """An order or an outside-tool write, in one person's own account.
+
+    The owner is the person whose turn proposed it -- the acting user, and
+    nobody else: an ``owner_user_id`` naming somebody other than the person
+    asking is refused, so a model cannot put a card in a colleague's name.
+    """
+    from api.services import acting
+
+    owner = acting.valid_member(acting.acting_user())
+    named = acting.valid_member(arguments.get("owner_user_id"))
+    if owner is None or (named is not None and named != owner):
+        raise ActionError("Only the person asking can have this done in their account.")
+    if action == PLACE_ORDER:
+        from api.services.reach.ordering import service as ordering
+
+        try:
+            card = await ordering.card_payload(
+                organization_id, str(arguments.get("draft") or ""), owner
+            )
+        except ordering.OrderError as exc:
+            raise ActionError(str(exc)) from exc
+        return {
+            "action": action,
+            "args": card["args"],
+            "label": card["label"],
+            "why": why,
+            "effect": card["effect"],
+            "owner_user_id": owner,
+            "reversible": False,
+            "state": PROPOSED,
+        }
+    from api.services.reach import connections
+
+    row = await connections.get(
+        organization_id, owner, str(arguments.get("connection") or "")
+    )
+    tool = str(arguments.get("tool") or "")
+    if row is None or tool not in {t.get("name") for t in row.tools or []}:
+        raise ActionError("That outside tool is not connected for you.")
+    return {
+        "action": action,
+        "args": {
+            "connection": row.uuid,
+            "tool": tool,
+            "arguments": dict(arguments.get("arguments") or {}),
+        },
+        "label": f"{tool} on {row.name}",
+        "why": why,
+        "effect": (
+            f"Runs {tool} on {row.name}, an outside tool you connected, from "
+            "your account. What it changes is up to that tool; it cannot be "
+            "undone from here."
+        ),
+        "owner_user_id": owner,
+        "reaches_people": True,
+        "reversible": False,
+        "state": PROPOSED,
+    }
+
+
 # --- the model's half -------------------------------------------------------
 
 
@@ -748,6 +830,7 @@ async def propose(
         )
     return {
         "status": "proposed",
+        "event_id": recorded,
         "note": (
             f"Proposed: {payload['label']}. A person has to confirm it on the "
             "card before it happens. Say that you have proposed it, then end "
@@ -822,6 +905,13 @@ async def settle(
     event = await _proposal(organization_id, event_id)
     payload = dict(event.payload or {})
     state = payload.get("state") or PROPOSED
+    if (
+        payload.get("action") in OWNED_ACTIONS
+        and payload.get("owner_user_id") != user_id
+    ):
+        # An order or an outside write acts in one person's account: a
+        # colleague who can see the card can neither approve nor stop it.
+        raise ActionError("Only the person this is for can decide on it.")
 
     if verb == "confirm":
         if state != PROPOSED:
@@ -884,6 +974,7 @@ async def settle(
         await _move(event, PROPOSED, payload)
         await _audit(event, payload, audit_log.CARD_DECLINED, user_id, state)
         await _emit("approval_rejected", event, payload, user_id)
+        await _release_order(organization_id, payload)
         if payload.get("action") == RUN_TOOL:
             # A declined send is an outcome too (OP-4): the prospect is
             # marked, and the next run does not propose them as new.
@@ -901,6 +992,7 @@ async def settle(
             payload["cancelled"] = _stamp(user_id)
             await _move(event, ARMED, payload)
             await _audit(event, payload, audit_log.CARD_UNDONE, user_id, state)
+            await _release_order(organization_id, payload)
             return payload
         if state == DONE and payload.get("reversible"):
             # Claim the undo first, so two presses put it back once.
@@ -924,6 +1016,46 @@ async def settle(
         raise ActionError("Nothing to undo.")
 
     raise ActionError("Not a thing to do with a proposal.")
+
+
+async def _release_order(organization_id: int, payload: dict[str, Any]) -> None:
+    """A declined or undone order card: its draft can never be placed."""
+    if payload.get("action") != PLACE_ORDER:
+        return
+    from api.services.reach.ordering import service as ordering
+
+    try:
+        await ordering.cancel_for_card(organization_id, dict(payload.get("args") or {}))
+    except Exception as exc:  # noqa: BLE001 - the card is already settled
+        logger.warning("Could not release an order draft: {}", exc)
+
+
+async def reconcile(
+    organization_id: int,
+    event_id: int,
+    *,
+    done: bool,
+    note: str,
+    result: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Settle a card whose outcome was unknown, once the outside service
+    has said what happened (task ledger: outcome unknown -> completed or
+    failed, never back to running)."""
+    event = await _proposal(organization_id, event_id)
+    payload = dict(event.payload or {})
+    if payload.get("state") != OUTCOME_UNKNOWN:
+        return payload
+    payload["state"] = DONE if done else FAILED
+    if done:
+        payload["done"] = {"at": datetime.now(UTC).isoformat(), "note": note}
+        if result:
+            payload.setdefault("result", {}).update(result)
+        payload.pop("error", None)
+    else:
+        payload["error"] = note
+    await _move(event, OUTCOME_UNKNOWN, payload)
+    await _say(event, note)
+    return payload
 
 
 #: The actions whose arguments a person may edit on the card before
@@ -1038,10 +1170,71 @@ async def _say(event: Any, line: str) -> None:
     )
 
 
+class OutcomeUnknown(Exception):
+    """Something reached the outside service and broke: whether it happened
+    is not known. Never retried; the card says so."""
+
+
+async def _execute_owned(organization_id: int, payload: dict[str, Any]) -> str:
+    action = payload.get("action")
+    args = payload.get("args") or {}
+    confirmed = payload.get("confirmed") or {}
+    confirmer = confirmed.get("by")
+    if confirmer != payload.get("owner_user_id"):
+        raise ActionError("Only the person this is for could approve it.")
+    if action == PLACE_ORDER:
+        from api.services.reach.ordering import service as ordering
+
+        try:
+            placed = await ordering.place(
+                organization_id=organization_id,
+                args=dict(args),
+                confirmer=confirmer,
+                idempotency_key=str(
+                    payload.get("idempotency_key")
+                    or f"card:{payload.get('event_id', '')}:{payload_version(payload)}:{confirmed.get('at', '')}"
+                ),
+            )
+        except ordering.OrderError as exc:
+            raise ActionError(str(exc)) from exc
+        except ordering.OutcomeUnknown as exc:
+            raise OutcomeUnknown(str(exc)) from exc
+        payload.setdefault("result", {}).update(placed["result"])
+        return placed["note"]
+    from api.services.reach import connections, safety, wire
+
+    row = await connections.get(
+        organization_id, confirmer, str(args.get("connection") or "")
+    )
+    if row is None:
+        raise ActionError("That outside tool is no longer connected.")
+    try:
+        data = await connections.call(
+            row, str(args.get("tool") or ""), dict(args.get("arguments") or {})
+        )
+    except wire.ToolRefused as exc:
+        raise ActionError(f"{row.name} refused: {safety.clean_text(exc, 200)}") from exc
+    except wire.NeedsSignIn as exc:
+        raise ActionError(
+            f"The {row.name} sign-in has expired; connect it again."
+        ) from exc
+    except wire.WireError as exc:
+        raise OutcomeUnknown(
+            f"{row.name} did not answer, so we do not know whether it ran. "
+            "Please check there before asking again."
+        ) from exc
+    payload.setdefault("result", {})["data"] = safety.clean_text(
+        data if isinstance(data, str) else str(data), 1_000
+    )
+    return f"Done: {args.get('tool')} on {row.name}."
+
+
 async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
     """Do it. Returns one line on what happened; raises on refusal."""
     action = payload.get("action")
     args = payload.get("args") or {}
+    if action in OWNED_ACTIONS:
+        return await _execute_owned(organization_id, payload)
     if action in (TURN_BOT_ON, TURN_BOT_OFF):
         try:
             await db_client.set_workflow_live(
@@ -1347,8 +1540,17 @@ async def run(event_id: int, organization_id: int) -> None:
             await _say(event, f"Not sent: {payload['label'].lower()}. {exc}")
             await _emit("task_failed", event, payload, confirmer)
             return
+    payload.setdefault("event_id", event.id)
     try:
         note = await _execute(organization_id, payload)
+    except OutcomeUnknown as exc:
+        # An order or an outside write that may have happened: said so
+        # whatever the ledger switch, never "failed", never fired again.
+        payload["state"] = OUTCOME_UNKNOWN
+        payload["error"] = str(exc)
+        await _write(event, payload)
+        await _say(event, f"{payload['label']}: {exc}")
+        return
     except ActionError as exc:
         payload["state"] = FAILED
         payload["error"] = str(exc)
@@ -1358,8 +1560,9 @@ async def run(event_id: int, organization_id: int) -> None:
         return
     except Exception as exc:  # noqa: BLE001 - the card must say something
         logger.error("Action {} failed: {}", event_id, exc)
-        if ledger and (
-            _is_outbound(payload) or payload.get("action") == RETURN_MISSED_CALL
+        if payload.get("action") in OWNED_ACTIONS or (
+            ledger
+            and (_is_outbound(payload) or payload.get("action") == RETURN_MISSED_CALL)
         ):
             # Something reached the outside service and broke: whether it
             # went is not known. Said so, and never retried blind.
