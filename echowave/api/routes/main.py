@@ -38,6 +38,7 @@ from api.routes.knowledge_base import router as knowledge_base_router
 from api.routes.kyc import router as kyc_router
 from api.routes.kyc_admin import router as kyc_admin_router
 from api.routes.managed_numbers import router as managed_numbers_router
+from api.routes.meetings import router as meetings_router
 from api.routes.missed_calls import router as missed_calls_router
 from api.routes.node_types import router as node_types_router
 from api.routes.notifications import router as notifications_router
@@ -186,6 +187,7 @@ router.include_router(public_studio_router)
 router.include_router(public_trust_router)
 router.include_router(public_early_access_router)
 router.include_router(shell_router)
+router.include_router(meetings_router)
 router.include_router(public_marketplace_router)
 router.include_router(workflow_embed_router)
 router.include_router(knowledge_base_router)

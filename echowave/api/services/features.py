@@ -107,6 +107,8 @@ FLAGS: dict[str, str] = {
     "first_task_onboarding": "FIRST_TASK_ONBOARDING_ENABLED",
     "chat_shell": "CHAT_SHELL_ENABLED",
     "shell_mobile": "SHELL_MOBILE_ENABLED",
+    # Launch stream `meetings` (LAUNCH-PLAN.md, phase 2).
+    "meeting_capture": "MEETING_CAPTURE_ENABLED",
 }
 
 
@@ -162,6 +164,7 @@ DESCRIPTIONS: dict[str, str] = {
     "first_task_onboarding": "Language, timezone and a first task; new people land in Chat (screen 02).",
     "chat_shell": "Chat: three starters, attach menu, Dictate and Talk, Stop, New content, sources and task states (screens 03-04).",
     "shell_mobile": "Phone shell: Chat and Today at the bottom, profile in the header, keyboard-aware bar, read-only workflow steps.",
+    "meeting_capture": "Meeting mode: record, upload or paste a meeting with consent; Sarvam transcript; summary, decisions and follow-ups confirmed one card at a time (screens 11-12).",
 }
 
 

@@ -20,6 +20,9 @@ class FunctionNames:
     EXPORT_MEMORY = "export_memory"
     #: A confirmed action fires once its undo window has passed.
     RUN_PROPOSED_ACTION = "run_proposed_action"
+    #: Launch stream `meetings`: one live segment, and the work after Stop.
+    TRANSCRIBE_MEETING_SEGMENT = "transcribe_meeting_segment"
+    FINISH_MEETING = "finish_meeting"
     COMPACT_CHANNEL_CONTEXT = "compact_channel_context"
     EMAIL_TAX_DOCUMENT = "email_tax_document"
     PLACE_MISSED_CALL_CALLBACK = "place_missed_call_callback"

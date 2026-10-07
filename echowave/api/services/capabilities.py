@@ -295,9 +295,15 @@ CAPABILITIES: tuple[Capability, ...] = (
     Capability(
         "meeting_capture",
         "Meeting capture and record",
-        "23",
-        modules=("api.services.meetings",),
-        planned_by="meetings",
+        "23, 31.6",
+        modules=(
+            "api.services.meetings.records",
+            "api.services.meetings.transcription",
+            "api.services.meetings.reading",
+            "api.services.meetings.follow_ups",
+        ),
+        flags=("meeting_capture",),
+        tests=("test_meetings.py",),
     ),
     Capability(
         "private_browser",

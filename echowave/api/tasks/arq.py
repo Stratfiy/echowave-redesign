@@ -46,6 +46,7 @@ from api.tasks.knowledge_base_processing import process_knowledge_base_document
 from api.tasks.knowledge_base_translation import translate_knowledge_base_document
 from api.tasks.low_balance import notify_low_balances
 from api.tasks.margin_watch import watch_margins
+from api.tasks.meetings import finish_meeting, transcribe_meeting_segment
 from api.tasks.memory_export import export_memory
 from api.tasks.memory_notices import notice_connections, resurface_asked
 from api.tasks.missed_call_tasks import place_missed_call_callback
@@ -136,6 +137,8 @@ class WorkerSettings:
         translate_knowledge_base_document,
         deliver_analytics_outbox,
         sweep_unknown_outcomes,
+        transcribe_meeting_segment,
+        finish_meeting,
     ]
     cron_jobs = [
         # Launch stream controls: catalogue events to analytics, and cards

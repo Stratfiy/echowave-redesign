@@ -110,12 +110,18 @@ INSTALL_FROM_REPOSITORY = "install_from_repository"
 #: services/workflow/routines.py). Internal like the three above: Decibyl
 #: reaches it through schedule_routine, which has already read the words.
 SCHEDULE_ROUTINE = "schedule_routine"
+#: Add one task from a meeting's suggested follow-up (launch stream
+#: `meetings`; see services/meetings/follow_ups.py). Internal: proposed from
+#: the meeting record, never by a model, and only the person who captured
+#: the meeting may settle it.
+MEETING_FOLLOW_UP = "meeting_follow_up"
 INTERNAL_ACTIONS = (
     RUN_TOOL,
     SEND_DOCUMENT,
     BUILD_FROM_SPEC,
     INSTALL_FROM_REPOSITORY,
     SCHEDULE_ROUTINE,
+    MEETING_FOLLOW_UP,
 )
 
 #: The states a proposal moves through. Terminal ones are the last four.
@@ -374,6 +380,11 @@ async def resolve(
             "reversible": False,
             "state": PROPOSED,
         }
+
+    if action == MEETING_FOLLOW_UP:
+        from api.services.meetings import follow_ups
+
+        return await follow_ups.resolve_card(organization_id, arguments)
 
     if action == BUILD_FROM_SPEC:
         from api.services.workflow import bot_from_brief
@@ -822,6 +833,13 @@ async def settle(
     event = await _proposal(organization_id, event_id)
     payload = dict(event.payload or {})
     state = payload.get("state") or PROPOSED
+    if payload.get("action") == MEETING_FOLLOW_UP:
+        from api.services.meetings import follow_ups
+
+        if follow_ups.owner_of(payload) != user_id:
+            # A meeting is private to whoever captured it; to anyone else
+            # its card is not there, the way a wrong tenant is not.
+            raise ActionError("That proposal is not here.")
 
     if verb == "confirm":
         if state != PROPOSED:
@@ -1023,6 +1041,11 @@ async def _say(event: Any, line: str) -> None:
     what happened without opening the card."""
     from api.services.workflow import decibyl
 
+    if (getattr(event, "payload", None) or {}).get("action") == MEETING_FOLLOW_UP:
+        # The meeting record shows the card's outcome; a line on Decibyl's
+        # shared thread would put a private meeting's words in front of the
+        # whole workspace.
+        return
     payload: dict[str, Any] = {"body": line, "action_event_id": event.id}
     if event.workflow_id is None:
         payload["from"] = decibyl.NAME
@@ -1072,6 +1095,10 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
         ):
             raise ActionError("That fact is no longer in memory.")
         return f"Forgotten: {args.get('key', 'that')}."
+    if action == MEETING_FOLLOW_UP:
+        from api.services.meetings import follow_ups
+
+        return await follow_ups.execute(organization_id, payload)
     if action == SCHEDULE_ROUTINE:
         routine = await db_client.create_routine(
             organization_id=organization_id,
@@ -1277,6 +1304,11 @@ async def _reverse(organization_id: int, payload: dict[str, Any]) -> None:
             status=str(args.get("was_status") or "confirmed"),
         ):
             raise ActionError("That fact is no longer in memory.")
+        return
+    if action == MEETING_FOLLOW_UP:
+        from api.services.meetings import follow_ups
+
+        await follow_ups.reverse(organization_id, payload)
         return
     if action == INSTALL_FROM_REPOSITORY:
         from api.services.skills import imports

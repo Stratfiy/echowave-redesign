@@ -794,6 +794,17 @@ CHAT_SHELL_ENABLED = _flag("CHAT_SHELL_ENABLED")
 # of the workflow canvas.
 SHELL_MOBILE_ENABLED = _flag("SHELL_MOBILE_ENABLED")
 
+# Launch stream `meetings` (LAUNCH-PLAN.md, phase 2; handoff 23, screens
+# 11-12). Meeting capture with consent and a stated audio source, a Sarvam
+# transcript, and follow-ups confirmed one card at a time. Off by default.
+MEETING_CAPTURE_ENABLED = _flag("MEETING_CAPTURE_ENABLED")
+# The largest recording a person may upload, checked before anything is
+# stored or processed (screen 11, "Upload limits are checked before
+# processing").
+MEETINGS_MAX_UPLOAD_MB = int(os.getenv("MEETINGS_MAX_UPLOAD_MB", "50"))
+# The longest meeting, recorded or uploaded, that is transcribed.
+MEETINGS_MAX_MINUTES = int(os.getenv("MEETINGS_MAX_MINUTES", "120"))
+
 # Free while we are early (October 2026): no plans, nothing charged, nothing
 # locked. On by default -- the one launch switch that is -- and reversible
 # from the environment or the staff console. See services/billing/free_mode.py.
