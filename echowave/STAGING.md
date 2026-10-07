@@ -102,20 +102,33 @@ and 56379; staging's are on the stack's usual loopback ports, and nginx takes
 
 ### One-time setup on the CI box
 
-1. **DNS:** point `staging.decibyl.ai` at the CI box's Elastic IP, and open
-   80/443 plus the TURN ports (UDP+TCP 3478 and 5349, UDP 49152-49200) in its
-   security group.
-2. **Checkout:** as `ubuntu`,
+1. **Public address (optional):** staging works without one: the runner is on
+   the box and checks the API on loopback. To open it in a browser or ring it,
+   give the box an Elastic IP, point `staging.decibyl.ai` at it, and open
+   80/443 plus the TURN ports (UDP+TCP 3478 and 5349, UDP 49152-49200) in
+   `decibyl-ci-sg`. Today the group has no inbound rules at all.
+2. **Checkout:** no GitHub key on the box. Each deploy fetches with that
+   job's own token. For the first copy, take the runner's checkout:
    ```bash
-   git clone --recurse-submodules https://github.com/Stratfiy/echowave-redesign.git \
+   sudo -u ubuntu cp -a /home/ubuntu/actions-runner/_work/echowave-redesign/echowave-redesign \
        /home/ubuntu/decibyl-staging
-   cd /home/ubuntu/decibyl-staging/echowave
-   sudo DEPLOY_MODE=build REPO_SOURCE=existing SERVER_IP=<elastic ip> ./scripts/setup_remote.sh
+   cd /home/ubuntu/decibyl-staging
+   git remote set-url origin https://github.com/Stratfiy/echowave-redesign.git
+   git config --unset-all http.https://github.com/.extraheader || true
+   cd echowave
+   sudo SERVER_IP=$(hostname -I | awk '{print $1}') CERT_MODE=self-signed \
+       DEPLOY_MODE=build REPO_SOURCE=existing FASTAPI_WORKERS=1 \
+       ENABLE_TELEMETRY=false ./scripts/setup_remote.sh </dev/null
    cat deploy/decibyl.env.template | sudo tee -a .env >/dev/null
    ```
-3. **`.env`:** `PUBLIC_BASE_URL=https://staging.decibyl.ai`, fresh
-   `PLATFORM_CREDENTIAL_SECRET`, `OSS_JWT_SECRET`, `POSTGRES_PASSWORD`,
-   `REDIS_PASSWORD`; Razorpay **test** keys. Never a production secret.
+   With a public address, use `SERVER_IP=<elastic ip>` and drop
+   `CERT_MODE`. Never run `./remote_up.sh` on a private IP here: it starts a
+   public Cloudflare quick tunnel. The first deploy (step 7) starts the stack.
+3. **`.env`:** setup already wrote fresh `OSS_JWT_SECRET`,
+   `POSTGRES_PASSWORD` and `REDIS_PASSWORD`. Add a fresh
+   `PLATFORM_CREDENTIAL_SECRET` (`openssl rand -hex 32`) and Razorpay **test**
+   keys; with a hostname, set `PUBLIC_BASE_URL=https://staging.decibyl.ai`.
+   Never a production secret.
 4. **Provider keys** (Super admin → Provider keys once it is up, or
    `/decibyl/staging/` in Parameter Store): Claude, Sarvam, the app connector,
    web search, a test phone number on the carrier, WhatsApp test credentials.
@@ -125,7 +138,8 @@ and 56379; staging's are on the stack's usual loopback ports, and nginx takes
    on). Staging may run ahead of production; production only follows a pass
    here.
 6. **GitHub:** create an environment named `staging`, with variables
-   `STAGING_URL` (`https://staging.decibyl.ai`) and, if config should come from
+   `STAGING_URL` (only once there is a public address; the default is the
+   API on loopback) and, if config should come from
    Parameter Store, `AWS_STAGING_ROLE_ARN`; and secrets `STAGING_EMAIL_A`,
    `STAGING_PASSWORD_A`, `STAGING_EMAIL_B`, `STAGING_PASSWORD_B` for two test
    accounts in one staging workspace (sign A up, invite B from A, once).
