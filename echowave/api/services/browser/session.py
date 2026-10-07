@@ -122,6 +122,17 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
+def without_query(url: str) -> str:
+    """Host and path only. What a form sent rides in a query string, and an
+    address on a card or the thread is read by more than the person."""
+    from urllib.parse import urlsplit
+
+    parts = urlsplit(url or "")
+    if not parts.netloc:
+        return ""
+    return f"{parts.scheme}://{parts.netloc}{parts.path}"
+
+
 # --- the tool's half --------------------------------------------------------------
 
 
@@ -495,7 +506,7 @@ class _Run:
             outcome = {
                 "ok": bool(message.get("ok")),
                 "note": str(message.get("note") or "")[:300],
-                "url": str(message.get("url") or "")[:500],
+                "url": without_query(str(message.get("url") or ""))[:500],
             }
             await channel.push_outcome(gate_id, outcome)
             if self.pending and self.pending.get("gate_id") == gate_id:
@@ -513,7 +524,10 @@ class _Run:
                 self.set_state(WORKING, "Working…")
         elif kind == "done":
             self.result = str(message.get("result") or "")[:4000]
-            self.links = [str(link)[:500] for link in (message.get("links") or [])][:10]
+            links = [
+                without_query(str(link))[:500] for link in (message.get("links") or [])
+            ]
+            self.links = [link for link in dict.fromkeys(links) if link][:10]
             if message.get("ok"):
                 await self.finish(DONE, "Finished.")
             else:
@@ -683,7 +697,11 @@ class _Run:
             "done": self.pressed,
             "refused": self.refused[-20:],
             "links": self.links
-            or ([self.current_url] if self.current_url.startswith("http") else []),
+            or (
+                [without_query(self.current_url)]
+                if self.current_url.startswith("http")
+                else []
+            ),
             "used": dict(self.used),
             "limits": dict(self.limits),
             "kept_logins": kept,
@@ -867,6 +885,63 @@ async def _drive(run: _Run) -> None:
         if message is not None and not await run.on_message(message):
             break
         await run.save()
+
+
+# --- the sweeper ---------------------------------------------------------------------
+
+
+async def sweep() -> int:
+    """End sessions whose job died: still marked live long after any limit
+    would have stopped them. Their panel says so, any card waiting on them
+    is cancelled, and they stop counting against the live ceiling. Returns
+    how many were ended."""
+    from datetime import timedelta
+
+    from api.services.workflow import actions
+
+    cutoff = _now() - timedelta(
+        minutes=constants.BROWSER_MAX_MINUTES + constants.BROWSER_WAIT_MINUTES + 5
+    )
+    ended = 0
+    for row in await db_client.stale_browser_sessions(older_than=cutoff):
+        note = "The browser stopped unexpectedly. This is us, not you."
+        pending = row.pending or {}
+        if pending.get("event_id"):
+            event = await db_client.get_agent_event(
+                pending["event_id"], organization_id=row.organization_id
+            )
+            payload = dict(event.payload or {}) if event is not None else {}
+            if payload.get("state") == actions.PROPOSED:
+                payload["state"] = actions.CANCELLED
+                payload["cancelled"] = {
+                    "by": None,
+                    "at": _now().isoformat(),
+                    "note": note,
+                }
+                await db_client.transition_agent_event_payload(
+                    event.id,
+                    organization_id=row.organization_id,
+                    from_state=actions.PROPOSED,
+                    payload=payload,
+                )
+        await db_client.update_browser_session(
+            row.id,
+            state=FAILED,
+            state_note=note,
+            pending=None,
+            ended_at=_now(),
+            receipt={
+                "state": FAILED,
+                "summary": note,
+                "note": note,
+                "done": [],
+                "refused": [],
+                "links": [],
+            },
+        )
+        await channel.drop(row.session_uuid)
+        ended += 1
+    return ended
 
 
 # --- the person's presses, from a route ---------------------------------------------

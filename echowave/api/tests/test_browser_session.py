@@ -544,3 +544,38 @@ class TestTakeOver:
 
 async def _is(state_fn, wanted):
     return (await state_fn()) == wanted
+
+
+class TestADeadJob:
+    async def test_a_session_whose_job_died_is_ended_and_its_card_cancelled(
+        self, browser_on, async_session
+    ):
+        from datetime import UTC, datetime, timedelta
+
+        from api.db.browser_models import BrowserSessionModel
+
+        fake = _form_fake()
+        org, user = await account(async_session, "dead-job")
+        row = await start(org, user, request=FORM_REQUEST, start_url=FORM_URL)
+        from api.services.browser import drivers
+
+        drivers.use(fake)
+        job = asyncio.create_task(session.run(row.session_uuid, FORM_URL))
+        waiting = await until(lambda: _pending(row))
+        card_id = waiting.pending["event_id"]
+        job.cancel()  # the worker died with a card waiting
+        with pytest.raises(asyncio.CancelledError):
+            await job
+        assert await session.sweep() == 0  # not yet past any limit
+        long_ago = datetime.now(UTC) - timedelta(hours=2)
+        stored = await async_session.get(BrowserSessionModel, row.id)
+        stored.created_at = long_ago
+        await async_session.flush()
+
+        assert await session.sweep() == 1
+        row = await db_client.get_browser_session_for_worker(row.session_uuid)
+        assert row.state == "failed"
+        assert "stopped unexpectedly" in row.state_note
+        card = await db_client.get_agent_event(card_id, organization_id=org.id)
+        assert card.payload["state"] == actions.CANCELLED
+        assert await db_client.count_live_browser_sessions() == 0

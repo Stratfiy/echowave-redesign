@@ -123,6 +123,20 @@ class BrowserClient(BaseDBClient):
             )
             return result.scalar_one_or_none()
 
+    async def stale_browser_sessions(
+        self, *, older_than: datetime
+    ) -> list[BrowserSessionModel]:
+        """Sessions still marked live that were created before ``older_than``:
+        past any limit a running job would have stopped them at."""
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(BrowserSessionModel).where(
+                    BrowserSessionModel.state.in_(LIVE_STATES),
+                    BrowserSessionModel.created_at < older_than,
+                )
+            )
+            return list(result.scalars().all())
+
     async def count_live_browser_sessions(self) -> int:
         async with self.async_session() as session:
             result = await session.execute(

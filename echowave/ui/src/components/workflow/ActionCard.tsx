@@ -17,7 +17,7 @@
 
 import { Check, CircleSlash, Loader2, MessageSquare, Phone, Undo2, Zap } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { settleActionApiV1TimelineActionsSettlePost } from '@/client/sdk.gen';
 import type { TimelineEvent } from '@/client/types.gen';
@@ -30,6 +30,8 @@ export type ActionState =
     | 'running'
     | 'done'
     | 'failed'
+    /** Handed over, and nobody can say whether it happened. */
+    | 'unknown'
     | 'undone'
     | 'cancelled'
     | 'declined';
@@ -44,6 +46,9 @@ export type ActionPayload = {
     fires_at?: string;
     error?: string;
     done?: { at?: string; note?: string };
+    /** A browser step (services/browser/): the page and what the form
+     *  sends, as the box read it, secrets already masked. */
+    args?: { page_url?: string; fields?: { name: string; value: string }[] };
     /** What a build produced (KAN-140): where Hear it and Try it go. */
     result?: { workflow_id?: number; handle?: string | null; open_url?: string | null };
 };
@@ -123,6 +128,18 @@ export function ActionCard({
                 decide whether to offer "Put it back". */}
             {action.effect && state === 'proposed' && (
                 <p className="mt-2 pl-6 text-sm font-medium text-foreground">{action.effect}</p>
+            )}
+            {/* A browser step shows exactly what the form sends, so Confirm
+                is a decision about these values and not about a label. */}
+            {action.action === 'browser_step' && state === 'proposed' && (action.args?.fields ?? []).length > 0 && (
+                <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 pl-6 text-sm" aria-label="What it sends">
+                    {(action.args?.fields ?? []).map((field) => (
+                        <React.Fragment key={field.name}>
+                            <dt className="text-muted-foreground">{field.name}</dt>
+                            <dd className="break-all">{field.value || <span className="text-muted-foreground">empty</span>}</dd>
+                        </React.Fragment>
+                    ))}
+                </dl>
             )}
 
             {state === 'proposed' && (
@@ -216,6 +233,14 @@ export function ActionCard({
                 <p className="mt-3 flex items-center gap-1.5 pl-6 text-sm">
                     <CircleSlash aria-hidden className="h-4 w-4 text-destructive" />
                     <span className="font-medium">Could not</span>
+                    {action.error && <span className="text-muted-foreground">· {action.error}</span>}
+                </p>
+            )}
+
+            {state === 'unknown' && (
+                <p className="mt-3 flex items-center gap-1.5 pl-6 text-sm">
+                    <CircleSlash aria-hidden className="h-4 w-4 text-amber-600" />
+                    <span className="font-medium">Not known whether it went through</span>
                     {action.error && <span className="text-muted-foreground">· {action.error}</span>}
                 </p>
             )}

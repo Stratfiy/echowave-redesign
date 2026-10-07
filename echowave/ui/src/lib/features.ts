@@ -48,7 +48,9 @@ export type Feature =
     | "decibyl_teams"
     | "studio"
     // Free while we are early: no plans, nothing charged (on by default).
-    | "free_mode";
+    | "free_mode"
+    // Decibyl's private browser (stream browser).
+    | "decibyl_browser";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

@@ -39,6 +39,7 @@ import {
 import type { ThreadChip, TimelineEvent } from '@/client/types.gen';
 import { Art3D } from '@/components/art/Art3D';
 import { BotAvatar } from '@/components/bot/BotAvatar';
+import { BrowserPanel } from '@/components/browser/BrowserPanel';
 import { type AttachedFile,AttachedFileChip } from '@/components/channel/AttachedFileChip';
 import { BlockedCard } from '@/components/channel/BlockedCard';
 import { tagTokens } from '@/components/channel/ChannelComposer';
@@ -943,6 +944,36 @@ export function ChannelStream({
                                         }
                                         onFired={() => void loadLatest()}
                                     />
+                                </div>
+                            </li>
+                            </React.Fragment>
+                        );
+                    }
+                    if (event.kind === 'browser_session') {
+                        // Decibyl's private browser: the live view while it
+                        // runs, the receipt after. The row carries only the
+                        // session's id; the panel reads the rest as the
+                        // person who asked, and nobody else can.
+                        const sessionUuid = String(
+                            ((event.payload ?? {}) as { session_uuid?: string }).session_uuid ?? '',
+                        );
+                        return (
+                            <React.Fragment key={event.id}>
+                            {divider}
+                            <li className="flex gap-3">
+                                {face(event)}
+                                <div className="min-w-0 flex-1">
+                                    <p className="mb-1 text-sm">
+                                        <span className="font-medium">{fallbackName}</span>
+                                        <span className="ml-2 text-xs text-muted-foreground">
+                                            <time dateTime={event.at}>{when(event.at)}</time>
+                                        </span>
+                                    </p>
+                                    {sessionUuid ? (
+                                        <BrowserPanel sessionUuid={sessionUuid} />
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground">{event.summary}</p>
+                                    )}
                                 </div>
                             </li>
                             </React.Fragment>

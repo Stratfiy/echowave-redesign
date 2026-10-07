@@ -109,6 +109,16 @@ SEARCH_URLS = {
 }
 
 
+def where(url: str) -> str:
+    """An address without its query or fragment: host and path."""
+    from urllib.parse import urlsplit
+
+    parts = urlsplit(url or "")
+    if not parts.netloc:
+        return url or ""
+    return f"{parts.scheme}://{parts.netloc}{parts.path}"
+
+
 def emit(message: dict[str, Any]) -> None:
     _PROTO.write(SENTINEL + json.dumps(message, default=str) + "\n")
     _PROTO.flush()
@@ -292,6 +302,23 @@ class Box:
         )
         return (described.get("result") or {}).get("value")
 
+    async def after_note(self) -> str:
+        """One line on where an approved press left the page. The page's
+        title, or its address without the query -- a query can carry what
+        was just typed, and this line goes on the card and the thread."""
+        url = await self.current_url()
+        try:
+            title = (await self.session.get_current_page_title() or "").strip()
+        except Exception:  # noqa: BLE001
+            title = ""
+        if (
+            title
+            and "?" not in title
+            and not title.startswith(("http", url.split("://")[-1][:20]))
+        ):
+            return f"The page now shows “{title[:120]}”."
+        return f"Now on {where(url)}." if url else "Pressed."
+
     async def current_url(self) -> str:
         try:
             return await self.session.get_current_page_url()
@@ -468,23 +495,29 @@ class Box:
             await self.screenshot()
             if self.taken_over:
                 continue
-            try:
-                blocked = bool(await self.evaluate(CAPTCHA_JS))
-            except Exception:  # noqa: BLE001
-                blocked = False
-            url = await self.current_url()
-            if blocked and url != self.captcha_seen_at:
-                self.captcha_seen_at = url
-                if self.agent is not None:
-                    self.agent.pause()
-                self.handed_back.clear()
-                emit(
-                    {
-                        "type": "state",
-                        "state": "captcha",
-                        "note": "The page asks to prove you are human.",
-                    }
-                )
+            if await self.captcha_here() and self.agent is not None:
+                self.agent.pause()
+
+    async def captcha_here(self) -> bool:
+        """Whether the page is a CAPTCHA the person has not been asked about
+        yet; if so, say so and stop handing steps over until they hand back."""
+        try:
+            blocked = bool(await self.evaluate(CAPTCHA_JS))
+        except Exception:  # noqa: BLE001
+            blocked = False
+        url = await self.current_url()
+        if not blocked or url == self.captcha_seen_at:
+            return False
+        self.captcha_seen_at = url
+        self.handed_back.clear()
+        emit(
+            {
+                "type": "state",
+                "state": "captcha",
+                "note": "The page asks to prove you are human.",
+            }
+        )
+        return True
 
 
 def gated_tools(box: Box):
@@ -498,6 +531,13 @@ def gated_tools(box: Box):
                     continue
                 if name == "ask_person":
                     break
+                # Checked here, before every step, and not only on the
+                # screenshot timer: a quick step must not slip past a
+                # CAPTCHA the person has not seen.
+                if not box.taken_over and await box.captcha_here():
+                    await box.handed_back.wait()
+                if box.taken_over:
+                    await box.handed_back.wait()
                 request = await box_request(box, name, params)
                 verdict = await LINE.ask("gate", gate=request) or {}
                 if verdict.get("decision") != "allow":
@@ -526,22 +566,16 @@ def gated_tools(box: Box):
                         )
                     result = await super().act(action, browser_session, *args, **kwargs)
                     await asyncio.sleep(1.0)
-                    title = ""
-                    try:
-                        title = await box.session.get_current_page_title()
-                    except Exception:  # noqa: BLE001
-                        pass
+                    error = getattr(result, "error", None)
                     emit(
                         {
                             "type": "gate_result",
                             "gate_id": verdict["gate_id"],
-                            "ok": not getattr(result, "error", None),
-                            "note": (
-                                f"The page now shows “{title}”."
-                                if title
-                                else "Pressed."
-                            ),
-                            "url": await box.current_url(),
+                            "ok": not error,
+                            "note": (await box.after_note())
+                            if not error
+                            else str(error)[:200],
+                            "url": where(await box.current_url()),
                         }
                     )
                     return result

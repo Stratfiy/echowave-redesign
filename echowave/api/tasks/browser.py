@@ -25,3 +25,12 @@ run_browser_session_job = func(
     timeout=constants.BROWSER_MAX_MINUTES * 60 + 300,
     max_tries=1,
 )
+
+
+async def sweep_browser_sessions(_ctx) -> None:
+    """Every few minutes: a session whose job died is ended and says so. Runs
+    whatever the flag: switching the browser off must not leave a session
+    that was running read "working" for ever."""
+    from api.services.browser import session
+
+    await session.sweep()

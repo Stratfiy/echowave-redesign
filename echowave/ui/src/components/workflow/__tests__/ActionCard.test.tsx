@@ -156,3 +156,40 @@ describe("once done", () => {
         expect(screen.getByText(/Outside calling hours/)).toBeTruthy();
     });
 });
+
+describe('an outcome nobody can confirm', () => {
+    it('says it is not known, never done', () => {
+        render(
+            <ActionCard
+                event={event({
+                    action: 'browser_step',
+                    state: 'unknown',
+                    error: 'The browser did not report back in time.',
+                })}
+            />,
+        );
+        expect(screen.getByText('Not known whether it went through')).toBeTruthy();
+        expect(screen.getByText(/did not report back in time/)).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull();
+    });
+});
+
+describe('a browser step', () => {
+    it('shows exactly what the form sends before Confirm', () => {
+        render(
+            <ActionCard
+                event={event({
+                    action: 'browser_step',
+                    label: 'Pay: press “Place order ₹649” on kirana.test',
+                    effect: 'Presses that button in your browser on kirana.test, once.',
+                    reversible: false,
+                    args: { fields: [{ name: 'name', value: 'Asha' }, { name: 'password', value: '••••••' }] },
+                })}
+            />,
+        );
+        const sends = screen.getByLabelText('What it sends');
+        expect(sends.textContent).toContain('Asha');
+        expect(sends.textContent).toContain('••••••');
+        expect(screen.getByRole('button', { name: 'Confirm' })).toBeTruthy();
+    });
+});

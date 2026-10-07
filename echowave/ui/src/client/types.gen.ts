@@ -1734,6 +1734,258 @@ export type BrainsResponse = {
 };
 
 /**
+ * BrowserHandback
+ */
+export type BrowserHandback = {
+    /**
+     * Keep Login
+     */
+    keep_login?: boolean;
+};
+
+/**
+ * BrowserInput
+ */
+export type BrowserInput = {
+    /**
+     * Kind
+     */
+    kind: 'click' | 'type' | 'key' | 'scroll';
+    /**
+     * X
+     */
+    x?: number | null;
+    /**
+     * Y
+     */
+    y?: number | null;
+    /**
+     * Text
+     */
+    text?: string | null;
+    /**
+     * Key
+     */
+    key?: string | null;
+    /**
+     * Dy
+     */
+    dy?: number | null;
+};
+
+/**
+ * BrowserLogin
+ */
+export type BrowserLogin = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Site
+     */
+    site: string;
+    /**
+     * Cookie Count
+     */
+    cookie_count: number;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Last Used At
+     */
+    last_used_at?: string | null;
+};
+
+/**
+ * BrowserLogins
+ */
+export type BrowserLogins = {
+    /**
+     * Logins
+     */
+    logins: Array<BrowserLogin>;
+    /**
+     * Can Keep Logins
+     */
+    can_keep_logins: boolean;
+};
+
+/**
+ * BrowserScreen
+ */
+export type BrowserScreen = {
+    /**
+     * Jpeg
+     */
+    jpeg?: string | null;
+    /**
+     * W
+     */
+    w?: number | null;
+    /**
+     * H
+     */
+    h?: number | null;
+    /**
+     * Url
+     */
+    url?: string | null;
+    /**
+     * Title
+     */
+    title?: string | null;
+    /**
+     * At
+     */
+    at?: string | null;
+};
+
+/**
+ * BrowserSessionView
+ */
+export type BrowserSessionView = {
+    /**
+     * Session Uuid
+     */
+    session_uuid: string;
+    /**
+     * Task
+     */
+    task: string;
+    /**
+     * Sites
+     */
+    sites: Array<string>;
+    /**
+     * Allowed Verbs
+     */
+    allowed_verbs: Array<string>;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * State Note
+     */
+    state_note?: string | null;
+    /**
+     * Limits
+     */
+    limits: {
+        [key: string]: number;
+    };
+    /**
+     * Used
+     */
+    used: {
+        [key: string]: number;
+    };
+    /**
+     * Steps
+     */
+    steps: Array<BrowserStep>;
+    /**
+     * Pending Label
+     */
+    pending_label?: string | null;
+    /**
+     * Pending Event Id
+     */
+    pending_event_id?: number | null;
+    /**
+     * Keep Login Sites
+     */
+    keep_login_sites: Array<string>;
+    /**
+     * Receipt
+     */
+    receipt?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Can Keep Logins
+     */
+    can_keep_logins: boolean;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Ended At
+     */
+    ended_at?: string | null;
+};
+
+/**
+ * BrowserSiteRule
+ */
+export type BrowserSiteRule = {
+    /**
+     * Site
+     */
+    site: string;
+    /**
+     * Rule
+     */
+    rule: 'allow' | 'deny';
+    /**
+     * Reason
+     */
+    reason?: string;
+    /**
+     * Source
+     */
+    source?: string;
+};
+
+/**
+ * BrowserSiteRuleIn
+ */
+export type BrowserSiteRuleIn = {
+    /**
+     * Site
+     */
+    site: string;
+    /**
+     * Rule
+     */
+    rule: 'allow' | 'deny';
+    /**
+     * Reason
+     */
+    reason?: string;
+};
+
+/**
+ * BrowserStep
+ */
+export type BrowserStep = {
+    /**
+     * At
+     */
+    at: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * N
+     */
+    n?: number | null;
+    /**
+     * Url
+     */
+    url?: string | null;
+};
+
+/**
  * BudgetIncidentResponse
  */
 export type BudgetIncidentResponse = {
@@ -20460,6 +20712,501 @@ export type DownloadSiteApiV1StudioSitesSiteIdDownloadGetResponses = {
      */
     200: unknown;
 };
+
+export type GetBrowserSessionApiV1BrowserSessionsSessionUuidGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Uuid
+         */
+        session_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/browser/sessions/{session_uuid}';
+};
+
+export type GetBrowserSessionApiV1BrowserSessionsSessionUuidGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetBrowserSessionApiV1BrowserSessionsSessionUuidGetError = GetBrowserSessionApiV1BrowserSessionsSessionUuidGetErrors[keyof GetBrowserSessionApiV1BrowserSessionsSessionUuidGetErrors];
+
+export type GetBrowserSessionApiV1BrowserSessionsSessionUuidGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: BrowserSessionView;
+};
+
+export type GetBrowserSessionApiV1BrowserSessionsSessionUuidGetResponse = GetBrowserSessionApiV1BrowserSessionsSessionUuidGetResponses[keyof GetBrowserSessionApiV1BrowserSessionsSessionUuidGetResponses];
+
+export type GetBrowserScreenApiV1BrowserSessionsSessionUuidScreenGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Uuid
+         */
+        session_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/browser/sessions/{session_uuid}/screen';
+};
+
+export type GetBrowserScreenApiV1BrowserSessionsSessionUuidScreenGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetBrowserScreenApiV1BrowserSessionsSessionUuidScreenGetError = GetBrowserScreenApiV1BrowserSessionsSessionUuidScreenGetErrors[keyof GetBrowserScreenApiV1BrowserSessionsSessionUuidScreenGetErrors];
+
+export type GetBrowserScreenApiV1BrowserSessionsSessionUuidScreenGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: BrowserScreen;
+};
+
+export type GetBrowserScreenApiV1BrowserSessionsSessionUuidScreenGetResponse = GetBrowserScreenApiV1BrowserSessionsSessionUuidScreenGetResponses[keyof GetBrowserScreenApiV1BrowserSessionsSessionUuidScreenGetResponses];
+
+export type TakeOverBrowserApiV1BrowserSessionsSessionUuidTakeoverPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Uuid
+         */
+        session_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/browser/sessions/{session_uuid}/takeover';
+};
+
+export type TakeOverBrowserApiV1BrowserSessionsSessionUuidTakeoverPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TakeOverBrowserApiV1BrowserSessionsSessionUuidTakeoverPostError = TakeOverBrowserApiV1BrowserSessionsSessionUuidTakeoverPostErrors[keyof TakeOverBrowserApiV1BrowserSessionsSessionUuidTakeoverPostErrors];
+
+export type TakeOverBrowserApiV1BrowserSessionsSessionUuidTakeoverPostResponses = {
+    /**
+     * Response Take Over Browser Api V1 Browser Sessions  Session Uuid  Takeover Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: boolean;
+    };
+};
+
+export type TakeOverBrowserApiV1BrowserSessionsSessionUuidTakeoverPostResponse = TakeOverBrowserApiV1BrowserSessionsSessionUuidTakeoverPostResponses[keyof TakeOverBrowserApiV1BrowserSessionsSessionUuidTakeoverPostResponses];
+
+export type SendBrowserInputApiV1BrowserSessionsSessionUuidInputPostData = {
+    body: BrowserInput;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Uuid
+         */
+        session_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/browser/sessions/{session_uuid}/input';
+};
+
+export type SendBrowserInputApiV1BrowserSessionsSessionUuidInputPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SendBrowserInputApiV1BrowserSessionsSessionUuidInputPostError = SendBrowserInputApiV1BrowserSessionsSessionUuidInputPostErrors[keyof SendBrowserInputApiV1BrowserSessionsSessionUuidInputPostErrors];
+
+export type SendBrowserInputApiV1BrowserSessionsSessionUuidInputPostResponses = {
+    /**
+     * Response Send Browser Input Api V1 Browser Sessions  Session Uuid  Input Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: boolean;
+    };
+};
+
+export type SendBrowserInputApiV1BrowserSessionsSessionUuidInputPostResponse = SendBrowserInputApiV1BrowserSessionsSessionUuidInputPostResponses[keyof SendBrowserInputApiV1BrowserSessionsSessionUuidInputPostResponses];
+
+export type HandBackBrowserApiV1BrowserSessionsSessionUuidHandbackPostData = {
+    body: BrowserHandback;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Uuid
+         */
+        session_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/browser/sessions/{session_uuid}/handback';
+};
+
+export type HandBackBrowserApiV1BrowserSessionsSessionUuidHandbackPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type HandBackBrowserApiV1BrowserSessionsSessionUuidHandbackPostError = HandBackBrowserApiV1BrowserSessionsSessionUuidHandbackPostErrors[keyof HandBackBrowserApiV1BrowserSessionsSessionUuidHandbackPostErrors];
+
+export type HandBackBrowserApiV1BrowserSessionsSessionUuidHandbackPostResponses = {
+    /**
+     * Response Hand Back Browser Api V1 Browser Sessions  Session Uuid  Handback Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: boolean;
+    };
+};
+
+export type HandBackBrowserApiV1BrowserSessionsSessionUuidHandbackPostResponse = HandBackBrowserApiV1BrowserSessionsSessionUuidHandbackPostResponses[keyof HandBackBrowserApiV1BrowserSessionsSessionUuidHandbackPostResponses];
+
+export type StopBrowserApiV1BrowserSessionsSessionUuidStopPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Uuid
+         */
+        session_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/browser/sessions/{session_uuid}/stop';
+};
+
+export type StopBrowserApiV1BrowserSessionsSessionUuidStopPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StopBrowserApiV1BrowserSessionsSessionUuidStopPostError = StopBrowserApiV1BrowserSessionsSessionUuidStopPostErrors[keyof StopBrowserApiV1BrowserSessionsSessionUuidStopPostErrors];
+
+export type StopBrowserApiV1BrowserSessionsSessionUuidStopPostResponses = {
+    /**
+     * Response Stop Browser Api V1 Browser Sessions  Session Uuid  Stop Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: boolean;
+    };
+};
+
+export type StopBrowserApiV1BrowserSessionsSessionUuidStopPostResponse = StopBrowserApiV1BrowserSessionsSessionUuidStopPostResponses[keyof StopBrowserApiV1BrowserSessionsSessionUuidStopPostResponses];
+
+export type ListBrowserLoginsApiV1BrowserLoginsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/browser/logins';
+};
+
+export type ListBrowserLoginsApiV1BrowserLoginsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListBrowserLoginsApiV1BrowserLoginsGetError = ListBrowserLoginsApiV1BrowserLoginsGetErrors[keyof ListBrowserLoginsApiV1BrowserLoginsGetErrors];
+
+export type ListBrowserLoginsApiV1BrowserLoginsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: BrowserLogins;
+};
+
+export type ListBrowserLoginsApiV1BrowserLoginsGetResponse = ListBrowserLoginsApiV1BrowserLoginsGetResponses[keyof ListBrowserLoginsApiV1BrowserLoginsGetResponses];
+
+export type DeleteBrowserLoginApiV1BrowserLoginsLoginIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Login Id
+         */
+        login_id: number;
+    };
+    query?: never;
+    url: '/api/v1/browser/logins/{login_id}';
+};
+
+export type DeleteBrowserLoginApiV1BrowserLoginsLoginIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteBrowserLoginApiV1BrowserLoginsLoginIdDeleteError = DeleteBrowserLoginApiV1BrowserLoginsLoginIdDeleteErrors[keyof DeleteBrowserLoginApiV1BrowserLoginsLoginIdDeleteErrors];
+
+export type DeleteBrowserLoginApiV1BrowserLoginsLoginIdDeleteResponses = {
+    /**
+     * Response Delete Browser Login Api V1 Browser Logins  Login Id  Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: boolean;
+    };
+};
+
+export type DeleteBrowserLoginApiV1BrowserLoginsLoginIdDeleteResponse = DeleteBrowserLoginApiV1BrowserLoginsLoginIdDeleteResponses[keyof DeleteBrowserLoginApiV1BrowserLoginsLoginIdDeleteResponses];
+
+export type ListBrowserSiteRulesApiV1AdminBrowserSitesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/browser/sites';
+};
+
+export type ListBrowserSiteRulesApiV1AdminBrowserSitesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListBrowserSiteRulesApiV1AdminBrowserSitesGetError = ListBrowserSiteRulesApiV1AdminBrowserSitesGetErrors[keyof ListBrowserSiteRulesApiV1AdminBrowserSitesGetErrors];
+
+export type ListBrowserSiteRulesApiV1AdminBrowserSitesGetResponses = {
+    /**
+     * Response List Browser Site Rules Api V1 Admin Browser Sites Get
+     *
+     * Successful Response
+     */
+    200: Array<BrowserSiteRule>;
+};
+
+export type ListBrowserSiteRulesApiV1AdminBrowserSitesGetResponse = ListBrowserSiteRulesApiV1AdminBrowserSitesGetResponses[keyof ListBrowserSiteRulesApiV1AdminBrowserSitesGetResponses];
+
+export type SetBrowserSiteRuleApiV1AdminBrowserSitesPutData = {
+    body: BrowserSiteRuleIn;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/browser/sites';
+};
+
+export type SetBrowserSiteRuleApiV1AdminBrowserSitesPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetBrowserSiteRuleApiV1AdminBrowserSitesPutError = SetBrowserSiteRuleApiV1AdminBrowserSitesPutErrors[keyof SetBrowserSiteRuleApiV1AdminBrowserSitesPutErrors];
+
+export type SetBrowserSiteRuleApiV1AdminBrowserSitesPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: BrowserSiteRule;
+};
+
+export type SetBrowserSiteRuleApiV1AdminBrowserSitesPutResponse = SetBrowserSiteRuleApiV1AdminBrowserSitesPutResponses[keyof SetBrowserSiteRuleApiV1AdminBrowserSitesPutResponses];
+
+export type DeleteBrowserSiteRuleApiV1AdminBrowserSitesSiteDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Site
+         */
+        site: string;
+    };
+    query?: never;
+    url: '/api/v1/admin/browser/sites/{site}';
+};
+
+export type DeleteBrowserSiteRuleApiV1AdminBrowserSitesSiteDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteBrowserSiteRuleApiV1AdminBrowserSitesSiteDeleteError = DeleteBrowserSiteRuleApiV1AdminBrowserSitesSiteDeleteErrors[keyof DeleteBrowserSiteRuleApiV1AdminBrowserSitesSiteDeleteErrors];
+
+export type DeleteBrowserSiteRuleApiV1AdminBrowserSitesSiteDeleteResponses = {
+    /**
+     * Response Delete Browser Site Rule Api V1 Admin Browser Sites  Site  Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: boolean;
+    };
+};
+
+export type DeleteBrowserSiteRuleApiV1AdminBrowserSitesSiteDeleteResponse = DeleteBrowserSiteRuleApiV1AdminBrowserSitesSiteDeleteResponses[keyof DeleteBrowserSiteRuleApiV1AdminBrowserSitesSiteDeleteResponses];
 
 export type ListAgentTemplatesApiV1AgentTemplatesGetData = {
     body?: never;
