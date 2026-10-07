@@ -48,6 +48,8 @@ CONTACT_DATA_TOOLKITS: frozenset[str] = frozenset(
         "findymail",
         "kaspr",
         "prospeo",
+        # A gateway over many of the above (treg.to), keyed once.
+        "treg",
     }
 )
 

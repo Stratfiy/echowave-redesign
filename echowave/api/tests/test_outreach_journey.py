@@ -132,6 +132,7 @@ async def org(test_engine, monkeypatch):
         "TASK_LEDGER_ENABLED",
     ):
         monkeypatch.setattr(constants, flag, True)
+    monkeypatch.setattr(constants, "LEAD_DATA_PROVIDER", "apollo")
     organization_id = await _org()
     async with db_client.async_session() as session:
         await organization_credentials.set_credential(
@@ -213,18 +214,43 @@ async def _cards(org: int) -> list:
 
 @pytest.mark.asyncio
 async def test_find_draft_confirm_all_send_and_follow_up(org):
-    # 1. "Find me customers" -> find_leads, then save and draft, then say so.
+    ask = {
+        "titles": ["Clinic owner", "Practice manager"],
+        "locations": ["Pune"],
+        "industries": ["dental clinics"],
+        "limit": 5,
+    }
+    # 1. "Find me customers" -> the search is priced first; nothing is spent.
+    model, patches = _turn(
+        [
+            _call(0, "find_leads", ask),
+            ModelReply(
+                text="That search uses up to 10 Apollo credits. Shall I run it?"
+            ),
+        ]
+    )
+    with ExitStack() as stack:
+        for p in patches:
+            stack.enter_context(p)
+        await decibyl.answer(
+            org,
+            "We answer calls for dental clinics. Find me customers in Pune and write to them.",
+        )
+    assert _tool_results(model)[0]["status"] == "estimate"
+    from api.enums import AgentEventActor
+    from api.services.workflow import agent_timeline
+
+    await agent_timeline.record(
+        organization_id=org,
+        kind=AgentEventKind.MESSAGE.value,
+        actor=AgentEventActor.HUMAN.value,
+        summary="Yes, run it",
+        payload={"body": "Yes, run it"},
+        in_channel=False,
+    )
+    # 2. The person agreed -> find_leads runs, then save and draft, then say so.
     replies = [
-        _call(
-            1,
-            "find_leads",
-            {
-                "titles": ["Clinic owner", "Practice manager"],
-                "locations": ["Pune"],
-                "industries": ["dental clinics"],
-                "limit": 5,
-            },
-        ),
+        _call(1, "find_leads", ask),
         _call(
             2,
             "save_prospects",
@@ -251,10 +277,7 @@ async def test_find_draft_confirm_all_send_and_follow_up(org):
     with ExitStack() as stack:
         for p in patches:
             stack.enter_context(p)
-        said = await decibyl.answer(
-            org,
-            "We answer calls for dental clinics. Find me customers in Pune and write to them.",
-        )
+        said = await decibyl.answer(org, "Yes, run it")
     assert "2 emails" in said
     # The model saw real leads from the provider, not an empty list.
     found = _tool_results(model)[0]

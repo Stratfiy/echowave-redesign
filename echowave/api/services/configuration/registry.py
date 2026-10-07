@@ -290,6 +290,9 @@ DATA_PROVIDERS: dict[str, tuple[str, ...]] = {
     # Lead data for outreach (services/outreach/leads.py): people who match
     # a business's ideal customer, with verified work addresses.
     "apollo": ("data",),
+    # Treg (treg.to): one token for many lead-data vendors; the default lead
+    # source for outreach.
+    "treg": ("data",),
 }
 
 

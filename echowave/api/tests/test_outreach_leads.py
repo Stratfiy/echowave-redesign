@@ -177,7 +177,11 @@ class TestApollo:
         assert "master" in str(caught.value).lower()
 
     def test_an_unknown_provider_setting_falls_back_loudly(self, monkeypatch):
-        monkeypatch.setattr(constants, "LEAD_DATA_PROVIDER", "treg")
+        monkeypatch.setattr(constants, "LEAD_DATA_PROVIDER", "no-such-vendor")
+        assert leads.provider().name == "treg"
+
+    def test_apollo_is_still_a_choice(self, monkeypatch):
+        monkeypatch.setattr(constants, "LEAD_DATA_PROVIDER", "apollo")
         assert leads.provider().name == "apollo"
 
 
@@ -197,6 +201,8 @@ async def _org() -> int:
 @pytest.fixture
 async def org(test_engine, monkeypatch):
     monkeypatch.setattr(constants, "OUTREACH_ENABLED", True)
+    # This file is Apollo's; Treg, the default, has test_outreach_treg.py.
+    monkeypatch.setattr(constants, "LEAD_DATA_PROVIDER", "apollo")
     organization_id = await _org()
     yield organization_id
     async with db_client.async_session() as session:
@@ -260,6 +266,10 @@ class TestFindLeads:
         fake, seen = _apollo()
         charge = AsyncMock(return_value={"charged": True, "source": "own"})
         with fake, patch("api.services.billing.lookup_source.charge", charge):
+            priced = await outreach.find(org, {"titles": ["Owner"], "limit": 5})
+            assert priced["status"] == "estimate" and not seen
+            assert "Apollo credits" in priced["estimate"]["unit"]
+            await _say(org, "yes, go ahead")
             out = await outreach.find(org, {"titles": ["Owner"], "limit": 5})
         assert out["status"] == "success"
         assert [lead["name"] for lead in out["leads"]] == ["Asha Rao", "Vikram Shah"]
@@ -283,9 +293,26 @@ class TestFindLeads:
             await session.commit()
         fake, _ = _apollo(401)
         with fake:
+            await outreach.find(org, {"titles": ["Owner"]})
+            await _say(org, "yes")
             out = await outreach.find(org, {"titles": ["Owner"]})
-        assert out["status"] == "error"
+        assert out["status"] == "key_rejected"
         assert "apollo" in out["reason"].lower()
+
+
+async def _say(org: int, text: str) -> None:
+    """The person answers on the thread (agreeing to an estimate)."""
+    from api.enums import AgentEventActor
+    from api.services.workflow import agent_timeline
+
+    await agent_timeline.record(
+        organization_id=org,
+        kind=AgentEventKind.MESSAGE.value,
+        actor=AgentEventActor.HUMAN.value,
+        summary=text,
+        payload={"body": text},
+        in_channel=False,
+    )
 
 
 def _no_platform_key():

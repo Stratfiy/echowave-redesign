@@ -77,14 +77,22 @@ RULES = (
     "Never claim an email was sent. Offer a follow-up: schedule_routine "
     "to check, after the days they choose, who has not replied and draft "
     "one follow-up each with draft_outreach.\n"
-    "- find_leads answers needs_setup when no lead-data key is added: say "
-    "which provider, that a form to add the key is on the thread, and stop. "
-    "Never invent leads, addresses or companies, and never guess an email.\n"
+    "- find_leads costs money, so it runs in two steps. The first call puts "
+    "the estimate on the thread and looks nothing up (status estimate): say "
+    "what the search is for and what it costs, ask, and stop. Only after the "
+    "person says yes, call it again with exactly the same criteria; it then "
+    "runs under its cap. Every other status is a state to say in one line "
+    "and stop: needs_setup (a form to add the key is on the thread), "
+    "out_of_balance (give the top-up link), rate_limited (try again in a "
+    "minute), cap_reached, unavailable, key_rejected. None of them means "
+    "nobody matched. Never invent leads, addresses or companies, and never "
+    "guess an email.\n"
 )
 
 DESCRIPTION_FIND = (
     "Find people who match the business's ideal customer, with verified work "
-    "emails, from the lead-data provider. Runs now. Give job titles, places, "
+    "emails, from the lead-data provider. The first call only prices the "
+    "search; the same call after the person agrees runs it. Give job titles, places, "
     "industries or keywords, and company sizes, from what the business sells "
     "and to whom. Returns each lead's name, title, company, website, email "
     "and city."
@@ -209,9 +217,24 @@ async def run(
 # --- find_leads ---------------------------------------------------------------
 
 
+#: An estimate stands this long; a run asked for after it needs a new one.
+ESTIMATE_MINUTES = 30
+#: How each provider error reads as a state in the thread.
+ERROR_STATES = {
+    "key_rejected": "key_rejected",
+    "out_of_balance": "out_of_balance",
+    "rate_limited": "rate_limited",
+    "capacity": "unavailable",
+    "cap_reached": "cap_reached",
+}
+
+
 async def find(
     organization_id: int, arguments: dict[str, Any], *, user_id: int | None = None
 ) -> dict[str, Any]:
+    """Price the search, then -- once the person has answered the price --
+    run it under its cap. Every way it can stop is its own state, never an
+    empty list that reads as "no leads"."""
     criteria = leads.Criteria.from_arguments(arguments)
     if criteria.empty():
         return {
@@ -237,23 +260,69 @@ async def find(
                 "keys, component data."
             ),
         }
+
+    estimate = provider.estimate(criteria)
+    approved = await _approved_estimate(organization_id, criteria.fingerprint())
+    if approved is None:
+        await _record_estimate(organization_id, provider, criteria, estimate)
+        return {
+            "status": "estimate",
+            "provider": provider.label,
+            "estimate": estimate.as_dict(),
+            "note": (
+                "Nothing has been looked up or charged yet. Say what this search "
+                "is for and what it will cost (the estimate is on the thread), "
+                "ask whether to run it, and stop. When they say yes, call "
+                "find_leads again with exactly the same criteria."
+            ),
+        }
+
+    budget = leads.Budget(
+        cap_micro=int(estimate.cap_usd * 1_000_000),
+        run_id=f"{organization_id}-{approved}",
+    )
     try:
-        result = await provider.search(key.value or "", criteria)
+        result = await provider.search(key.value or "", criteria, budget)
     except leads.LeadError as exc:
-        return {"status": "error", "provider": provider.label, "reason": str(exc)}
+        await _meter(organization_id, provider, budget)
+        if exc.code == "key_rejected":
+            await ask_for_key(organization_id, provider, again=True)
+        return {
+            "status": ERROR_STATES.get(exc.code, "error"),
+            "provider": provider.label,
+            "reason": str(exc),
+            **{k: v for k, v in exc.detail.items() if v not in (None, "")},
+            "spent_usd": round(budget.spent_micro / 1_000_000, 6),
+            "note": (
+                "No leads came back, and this is not 'nobody matched'. Say "
+                "what stopped it in one line"
+                + (", give the top-up link" if exc.code == "out_of_balance" else "")
+                + (
+                    ", and say a new key form is on the thread"
+                    if exc.code == "key_rejected"
+                    else ""
+                )
+                + ", then stop."
+            ),
+        }
     except Exception as exc:  # noqa: BLE001 - network and the like
+        await _meter(organization_id, provider, budget)
         logger.warning("Lead search on {} failed: {}", provider.name, exc)
         return {
             "status": "error",
             "provider": provider.label,
             "reason": f"Could not reach {provider.label} just now. Try again shortly.",
         }
+    await _meter(organization_id, provider, budget)
+    await _mark_ran(organization_id, approved, budget)
     charged = await _charge(organization_id, key, len(result.leads), user_id)
     out: dict[str, Any] = {
         "status": "success",
         "provider": provider.label,
         "leads": [lead.as_dict() for lead in result.leads],
         "count": len(result.leads),
+        "spent_usd": round(budget.spent_micro / 1_000_000, 6),
+        "cap_usd": estimate.cap_usd,
         "charged": charged,
     }
     if result.total is not None:
@@ -263,6 +332,11 @@ async def find(
             f"{result.without_email} more matched without a verified work "
             "email and are not listed."
         )
+    if result.stopped is not None:
+        out["partial"] = (
+            f"The search stopped early ({result.stopped}); these are the leads "
+            "found before it did. Say the list is partial."
+        )
     if not result.leads:
         out["note"] = (
             f"{provider.label} found nobody with a verified email for these "
@@ -270,6 +344,132 @@ async def find(
             "area, fewer keywords)."
         )
     return out
+
+
+async def _thread_rows(organization_id: int, kind: str, limit: int) -> list:
+    from api.db import db_client
+    from api.services.workflow import agent_timeline
+
+    try:
+        return await db_client.agent_events(
+            organization_id=organization_id,
+            kinds=[kind],
+            limit=limit,
+            assistant_thread=True,
+            thread_id=agent_timeline.current_thread(),
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not read the thread for org {}: {}", organization_id, exc)
+        return []
+
+
+async def _approved_estimate(organization_id: int, fingerprint: str) -> int | None:
+    """The estimate row for this exact search that the person has answered
+    since (a line of theirs after it), still fresh and not yet run; else
+    None. A price nobody has read is not agreed to."""
+    from datetime import UTC, datetime, timedelta
+
+    estimates = await _thread_rows(organization_id, AgentEventKind.ACTIVITY.value, 50)
+    row = next(
+        (
+            r
+            for r in estimates
+            if ((r.payload or {}).get("lead_search_estimate") or {}).get("fingerprint")
+            == fingerprint
+        ),
+        None,
+    )
+    if row is None:
+        return None
+    est = (row.payload or {}).get("lead_search_estimate") or {}
+    if est.get("ran_at"):
+        return None
+    at = getattr(row, "at", None) or getattr(row, "created_at", None)
+    if at is not None:
+        at = at if at.tzinfo else at.replace(tzinfo=UTC)
+        if datetime.now(UTC) - at > timedelta(minutes=ESTIMATE_MINUTES):
+            return None
+    said = await _thread_rows(organization_id, AgentEventKind.MESSAGE.value, 20)
+    answered = any(
+        getattr(m, "actor", "") == AgentEventActor.HUMAN.value
+        and int(m.id) > int(row.id)
+        for m in said
+    )
+    return int(row.id) if answered else None
+
+
+async def _record_estimate(
+    organization_id: int,
+    provider: leads.LeadProvider,
+    criteria: leads.Criteria,
+    estimate: leads.Estimate,
+) -> None:
+    from api.services.workflow import agent_timeline
+
+    if estimate.unit == "USD":
+        price = f"about ${estimate.typical_usd:.2f}, at most ${estimate.cap_usd:.2f}"
+    else:
+        price = estimate.note
+    await agent_timeline.record(
+        organization_id=organization_id,
+        kind=AgentEventKind.ACTIVITY.value,
+        actor=AgentEventActor.AGENT.value,
+        summary=f"Lead search on {provider.label}: {price}. Nothing spent yet.",
+        payload={
+            "from": "Decibyl",
+            "lead_search_estimate": {
+                "fingerprint": criteria.fingerprint(),
+                "provider": provider.name,
+                **estimate.as_dict(),
+            },
+        },
+        in_channel=False,
+    )
+
+
+async def _mark_ran(
+    organization_id: int, estimate_id: int, budget: leads.Budget
+) -> None:
+    """The estimate is spent: the same search again needs a new price."""
+    from datetime import UTC, datetime
+
+    from api.db import db_client
+
+    try:
+        row = await db_client.get_agent_event(
+            estimate_id, organization_id=organization_id
+        )
+        if row is None:
+            return
+        payload = dict(row.payload or {})
+        est = dict(payload.get("lead_search_estimate") or {})
+        est["ran_at"] = datetime.now(UTC).isoformat()
+        est["spent_micro"] = budget.spent_micro
+        payload["lead_search_estimate"] = est
+        await db_client.set_agent_event_payload(
+            estimate_id, organization_id=organization_id, payload=payload
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not mark estimate {} as run: {}", estimate_id, exc)
+
+
+async def _meter(
+    organization_id: int, provider: leads.LeadProvider, budget: leads.Budget
+) -> None:
+    """What the provider actually charged, call by call, into vendor
+    metering (``vendor_metering``): micro-USD from the provider's own
+    response header, never estimated."""
+    from api.services.billing import model_usage
+
+    for charge in budget.charges:
+        await model_usage.record_units(
+            provider=provider.name,
+            model=charge.endpoint,
+            unit="usd_micro",
+            quantity=charge.cost_micro,
+            organization_id=organization_id,
+            feature="outreach",
+        )
 
 
 async def _charge(
@@ -307,18 +507,17 @@ def _now_key() -> str:
 _RECENT_ROWS = 30
 
 
-async def ask_for_key(organization_id: int, provider: leads.LeadProvider) -> bool:
+async def ask_for_key(
+    organization_id: int, provider: leads.LeadProvider, *, again: bool = False
+) -> bool:
     """Put a key form for ``provider`` on Decibyl's thread, unless one is
-    already waiting. Returns whether a new one was written."""
-    from api.db import db_client
+    already waiting. Returns whether a new one was written. ``again`` is a
+    key that was added and then rejected: a fresh form replaces it."""
     from api.services.workflow import agent_timeline
 
     try:
-        recent = await db_client.agent_events(
-            organization_id=organization_id,
-            kinds=[AgentEventKind.NEEDS_SECRET.value],
-            limit=_RECENT_ROWS,
-            assistant_thread=True,
+        recent = await _thread_rows(
+            organization_id, AgentEventKind.NEEDS_SECRET.value, _RECENT_ROWS
         )
     except Exception:  # noqa: BLE001 - at worst, a second form
         recent = []

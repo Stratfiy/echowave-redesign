@@ -976,7 +976,10 @@ CALL_APPOINTMENT_ENABLED = _flag("CALL_APPOINTMENT_ENABLED")
 OUTREACH_ENABLED = _flag("OUTREACH_ENABLED")
 # Which lead-data provider find_leads searches (services/outreach/leads.py).
 # Its key is a provider key under component ``data``.
-LEAD_DATA_PROVIDER = os.getenv("LEAD_DATA_PROVIDER", "apollo")
+LEAD_DATA_PROVIDER = os.getenv("LEAD_DATA_PROVIDER", "treg")
+# The most one lead search may spend, in US dollars (Treg's unit). Each call
+# carries what is left as X-Treg-Route-Max-Cost, so the cap is hard.
+LEAD_SEARCH_MAX_USD = os.getenv("LEAD_SEARCH_MAX_USD", "0.50")
 # How long a live voice session may go without a heartbeat before it is
 # treated as lost (its microphone and slot released).
 VOICE_SESSION_STALE_SECONDS = int(os.getenv("VOICE_SESSION_STALE_SECONDS", "90"))

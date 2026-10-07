@@ -88,6 +88,7 @@ const PROVIDER_LABELS: Record<string, string> = {
     ultravox_realtime: "Ultravox Realtime",
     serper: "Serper (web search)",
     apollo: "Apollo (lead data)",
+    treg: "Treg (lead data: Apollo, Hunter, Lusha and more)",
 };
 
 export function providerLabel(provider: string): string {
