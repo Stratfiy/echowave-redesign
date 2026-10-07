@@ -48,7 +48,12 @@ export type Feature =
     | "decibyl_teams"
     | "studio"
     // Free while we are early: no plans, nothing charged (on by default).
-    | "free_mode";
+    | "free_mode"
+    // Launch stream `shell` (LAUNCH-PLAN.md, phase 1).
+    | "early_access"
+    | "first_task_onboarding"
+    | "chat_shell"
+    | "shell_mobile";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();
