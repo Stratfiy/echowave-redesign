@@ -17,10 +17,12 @@ from sqlalchemy import (
     Column,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
     String,
+    Text,
     UniqueConstraint,
     text,
 )
@@ -140,6 +142,25 @@ class MemberPreferencesModel(Base):
     #: Simple mode (launch stream `care`): large text, voice first, one thing
     #: at a time. NULL is off; read only while ``care_simple_mode`` is on.
     simple_mode = Column(Boolean, nullable=True)
+    # Launch stream `settings` (SETTINGS.md): the rest of the person's own
+    # settings, in the same row and under the same revision.
+    #: What the person wants to be called.
+    preferred_name = Column(String(80), nullable=True)
+    #: An optional second language for explanations (BCP 47).
+    explanation_language = Column(String(16), nullable=True)
+    #: short | balanced | detailed; NULL reads as balanced.
+    response_length = Column(String(16), nullable=True)
+    custom_instructions = Column(Text, nullable=True)
+    #: Remember things from my conversations. NULL is "not chosen", which
+    #: is off (handoff 24: memory starts off until chosen).
+    memory_enabled = Column(Boolean, nullable=True)
+    #: 0.5-2.0; NULL reads as 1.0.
+    speaking_speed = Column(Float, nullable=True)
+    #: NULL reads as on.
+    captions = Column(Boolean, nullable=True)
+    auto_detect_language = Column(Boolean, nullable=True)
+    #: When the onboarding answers (``user_onboarding``) were read in.
+    onboarding_absorbed_at = Column(DateTime(timezone=True), nullable=True)
     revision = Column(Integer, nullable=False, default=0, server_default=text("0"))
     updated_at = Column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)

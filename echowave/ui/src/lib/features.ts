@@ -119,7 +119,13 @@ export type Feature =
     | "identity_email"
     | "identity_phone"
     | "identity_notifications"
-    | "identity_reconciliation";
+    | "identity_reconciliation"
+    // Launch stream `settings` (LAUNCH-PLAN.md, phase 2; SETTINGS.md).
+    | "settings_shell"
+    | "memory_manager"
+    | "privacy_center"
+    | "saved_items"
+    | "model_inheritance";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

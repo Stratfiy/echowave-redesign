@@ -81,6 +81,7 @@ from api.routes.routines import all_router as all_routines_router
 from api.routes.routines import router as routines_router
 from api.routes.s3_signed_url import router as s3_router
 from api.routes.service_keys import router as service_keys_router
+from api.routes.settings import router as settings_router
 from api.routes.shell import public_router as public_early_access_router
 from api.routes.shell import router as shell_router
 from api.routes.skills import router as skills_router
@@ -180,6 +181,7 @@ router.include_router(care_router)
 router.include_router(controls_admin_router)
 router.include_router(today_router)
 router.include_router(staff_console_router)
+router.include_router(settings_router)
 router.include_router(organisation_router)
 router.include_router(organisation_memory_router)
 router.include_router(packs_router)

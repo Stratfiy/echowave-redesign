@@ -169,6 +169,12 @@ FLAGS: dict[str, str] = {
     "identity_phone": "IDENTITY_PHONE_ENABLED",
     "identity_notifications": "IDENTITY_NOTIFICATIONS_ENABLED",
     "identity_reconciliation": "IDENTITY_RECONCILIATION_ENABLED",
+    # Launch stream `settings` (LAUNCH-PLAN.md, phase 2).
+    "settings_shell": "SETTINGS_SHELL_ENABLED",
+    "memory_manager": "MEMORY_MANAGER_ENABLED",
+    "privacy_center": "PRIVACY_CENTER_ENABLED",
+    "saved_items": "SAVED_ITEMS_ENABLED",
+    "model_inheritance": "MODEL_INHERITANCE_ENABLED",
 }
 
 
@@ -276,6 +282,11 @@ DESCRIPTIONS: dict[str, str] = {
     "identity_phone": "Phone and verification lifecycle with the number payment flow explained (screen 24).",
     "identity_notifications": "Notification preferences per person and web push (screen 21).",
     "identity_reconciliation": "Checks with each provider whether a send whose outcome was unknown arrived.",
+    "settings_shell": "Settings grouped as Personal, Connections, Privacy, Advanced and the workspace, with search; Account, Personalization and Voice on the person's own preferences (screens 17-19).",
+    "memory_manager": "Memory manager: opt-in memory, provenance, edits as revisions, forget through a card, share to a team, temporary chats (screen 16).",
+    "privacy_center": "Privacy and security: personal export, personal deletion through a card, effective retention, MFA (screen 25).",
+    "saved_items": "Saved items and search in one scope at a time (screen 15).",
+    "model_inheritance": "Model defaults show where each comes from, readiness and agent overrides; saves are revision-checked (screen 26).",
 }
 
 

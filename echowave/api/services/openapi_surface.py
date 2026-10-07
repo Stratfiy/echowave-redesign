@@ -176,6 +176,9 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             # Help: a person's own support requests, what they share with
             # support and the replies (launch stream `support`).
             "support",
+            # A person's own settings, memory, saved items and data rights
+            # (launch stream `settings`).
+            "settings",
         ),
     ),
     (

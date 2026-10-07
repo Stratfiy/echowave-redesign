@@ -48,6 +48,7 @@ import { isJudgeableReply, ReplyFeedback, useMyFeedback } from '@/components/cha
 import { SaveReportButton } from '@/components/helpers/SaveReportButton';
 import { ComparisonCard } from '@/components/reach/ComparisonCard';
 import { ReachConnectChip } from '@/components/reach/ReachConnectChip';
+import { SaveReplyButton } from '@/components/settings/SaveReplyButton';
 import { ErrorState } from '@/components/shell/ErrorState';
 import { SourceCoverage } from '@/components/shell/SourceCoverage';
 import { TaskStatus } from '@/components/shell/TaskStatus';
@@ -493,6 +494,8 @@ export function ChannelStream({
     const comparisonOn = useFeature('price_compare');
     // Screen 28: a failed reply offers Help about that one reply.
     const helpOn = useFeature('support_help');
+    // Keep a reply in saved items (settings stream, screen 15).
+    const savingOn = useFeature('saved_items') && assistant;
     const judgeable = feedbackOn ? events.filter(isJudgeableReply).map((e) => e.id) : [];
     const feedback = useMyFeedback(judgeable, feedbackOn && !authLoading && Boolean(user));
     // Whether the reader is at the bottom. Scrolling them back down while they
@@ -1540,6 +1543,7 @@ export function ChannelStream({
                                         onAnswered={(answer) => feedback.remember(event.id, answer)}
                                     />
                                 )}
+                                {savingOn && isJudgeableReply(event) && <SaveReplyButton event={event} threadId={threadId} />}
                                 {attachmentsOf(event).length > 0 && (
                                     <ul className="mt-1.5 flex flex-wrap gap-2" aria-label="Files">
                                         {attachmentsOf(event).map((file) => (

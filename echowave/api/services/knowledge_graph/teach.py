@@ -89,6 +89,11 @@ async def correct(
             "status": "error",
             "error": "Say who or what, which point, and what is true.",
         }
+    from api.services.settings import temporary as memory_choice
+
+    if memory_choice.is_paused():
+        # Honest, not "noted": nothing is saved in this turn.
+        return {"status": "not_saved", "error": memory_choice.pause_reason()}
 
     try:
         await db_client.remember_organisation_facts(

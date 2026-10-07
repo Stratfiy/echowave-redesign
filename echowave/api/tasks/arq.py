@@ -71,6 +71,7 @@ from api.tasks.routines import (
     run_proposed_action,
 )
 from api.tasks.run_integrations import run_integrations_post_workflow_run
+from api.tasks.settings import build_personal_export, purge_temporary_conversations
 from api.tasks.settlement import sweep_uncosted_runs
 from api.tasks.staff import run_staff_command, sweep_staff_commands
 from api.tasks.sunday_review import send_sunday_reviews
@@ -158,6 +159,8 @@ class WorkerSettings:
         run_staff_command,
         sweep_staff_commands,
         reconcile_unknown_outcomes,
+        build_personal_export,
+        purge_temporary_conversations,
     ]
     cron_jobs = [
         # Launch stream today: reminders and briefs at each person's own
@@ -217,6 +220,13 @@ class WorkerSettings:
         cron(
             reconcile_unknown_outcomes,
             minute=set(range(3, 60, 5)),
+            second=20,
+            run_at_startup=False,
+        ),
+        # Launch stream settings: temporary conversations deleted on time.
+        cron(
+            purge_temporary_conversations,
+            minute=set(range(3, 60, 10)),
             second=20,
             run_at_startup=False,
         ),

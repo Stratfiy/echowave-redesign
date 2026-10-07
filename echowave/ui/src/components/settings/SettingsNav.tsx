@@ -8,6 +8,7 @@ import { type Feature, useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 import { activeSection, SETTINGS_GROUPS, SETTINGS_SECTIONS, type SettingsSection } from "./sections";
+import { ShellSettingsNav } from "./ShellSettingsNav";
 
 /** A section behind switches is listed only while one of them is on. The
  *  hooks run in a fixed order: every section asks for the same flags on
@@ -60,6 +61,13 @@ export function isSettingsRoot(pathname: string): boolean {
  * hunt through.
  */
 export function SettingsNav() {
+  // The Settings shell (screen 17) when it is on; this list, unchanged, when
+  // it is off.
+  if (useFeature("settings_shell")) return <ShellSettingsNav />;
+  return <ClassicSettingsNav />;
+}
+
+function ClassicSettingsNav() {
   const pathname = usePathname() ?? "";
   const current = activeSection(pathname);
   const root = isSettingsRoot(pathname);

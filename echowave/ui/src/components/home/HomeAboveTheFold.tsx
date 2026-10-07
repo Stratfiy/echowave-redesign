@@ -33,6 +33,7 @@ import { ThreadList } from "@/components/home/ThreadList";
 import { AuxiliaryPanel } from "@/components/layout/AuxiliaryPanel";
 import { LearningResume } from "@/components/learning/LearningResume";
 import { LearningSession } from "@/components/learning/LearningSession";
+import { TemporaryBanner } from "@/components/settings/TemporaryBanner";
 import { Announcer } from "@/components/shell/Announcer";
 import { SourceCoverage } from "@/components/shell/SourceCoverage";
 import { ApprovalDock } from "@/components/today/ApprovalDock";
@@ -205,6 +206,8 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
       // Nothing to tidy.
     }
   }, []);
+  // A temporary conversation says so above the thread (settings stream).
+  const memoryManager = useFeature("memory_manager");
   // Whether the thread's history loaded. A failure is shown as a failure
   // with Retry, never as the empty greeting (screen 03).
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
@@ -489,6 +492,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         {/* Keyed on the chat, so switching remounts the stream clean:
             no rows from the last chat showing until the poll catches up,
             no cursor pointing into a different conversation. */}
+        {memoryManager && threadId?.startsWith("tmp-") && <TemporaryBanner threadId={threadId} />}
         <ChannelStream
           key={threadId ?? "original"}
           assistant
