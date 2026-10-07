@@ -50,12 +50,14 @@ export function SettingsCardPanel({
         if (!result.error && result.data) setCard(result.data);
     }, [card.event_id, card.organization_id]);
 
-    // While armed or running, follow the server until it settles.
+    // While armed or running, follow the server until it settles. Keyed on
+    // the card itself, not its state: each read is a new object, so an
+    // "armed" read back during the undo window schedules the next one.
     useEffect(() => {
         if (card.state !== "armed" && card.state !== "running") return;
         const timer = setTimeout(() => void refresh(), pollMs);
         return () => clearTimeout(timer);
-    }, [card.state, refresh, pollMs]);
+    }, [card, refresh, pollMs]);
 
     useEffect(() => {
         if (SETTLED.has(card.state) && told.current !== card.state) {
