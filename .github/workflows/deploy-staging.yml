@@ -1,0 +1,118 @@
+name: Deploy staging
+
+# Deploys a branch to staging: the same stack as production, on the CI box,
+# with its own hostname, its own database, its own secrets, and its own
+# Parameter Store path (/decibyl/staging/). Never production's.
+#
+# Why the CI box, and what that costs. Staging exists so a feature can be
+# switched on and tried with real keys -- a real model reply, a real call, a
+# real WhatsApp message -- before a customer can see it. The CI box already has
+# a runner (label `ci`) and spare ports: CI's own Postgres and Redis listen on
+# 55432 and 56379, staging's on the stack's usual loopback ports. The cost is
+# CPU shared with test runs, which is fine for trying features and wrong for
+# the load tests in echowave/STAGING.md -- those still need a box of their own.
+#
+# Unlike the production deploy this needs no SSM hop: the runner is on the box
+# it deploys to, so it runs the deploy script directly. Everything else is the
+# production path (scripts/ci_deploy.sh: fetch, build, up, health check, roll
+# back on failure), pointed at the staging checkout and the staging config.
+#
+# One-time setup on the box is in echowave/STAGING.md, "Functional staging on
+# the CI box".
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch, tag or SHA to put on staging"
+        required: true
+        type: string
+  # A branch named `staging` deploys itself, so "put this on staging" can be a
+  # push rather than a click.
+  push:
+    branches: [staging]
+    paths-ignore:
+      - "**/*.md"
+      - "echowave/docs/**"
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # for Parameter Store, when AWS_STAGING_ROLE_ARN is set
+
+jobs:
+  deploy:
+    name: Deploy to staging
+    runs-on: [self-hosted, linux, x64, ci]
+    environment: staging
+    timeout-minutes: 45
+
+    steps:
+      # For the check script below; the deploy itself uses the staging checkout.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Resolve the ref being deployed
+        id: target
+        run: echo "ref=${{ inputs.ref || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+      # Optional: only when a staging role exists. Without it the deploy still
+      # runs, on the .env already on the box, and config_sync warns and
+      # changes nothing -- it can never fail a deploy.
+      - name: Authenticate to AWS (staging config)
+        if: ${{ vars.AWS_STAGING_ROLE_ARN != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_STAGING_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-south-1' }}
+          role-session-name: gha-staging-${{ github.run_id }}
+
+      - name: Deploy
+        env:
+          DEPLOY_REF: ${{ steps.target.outputs.ref }}
+          PROJECT_DIR: ${{ vars.STAGING_PROJECT_DIR || '/home/ubuntu/decibyl-staging/echowave' }}
+          RUN_AS: ${{ vars.STAGING_RUN_AS || 'ubuntu' }}
+          REGION: ${{ vars.AWS_REGION || 'ap-south-1' }}
+        run: |
+          set -euo pipefail
+          if [ ! -f "$PROJECT_DIR/.env" ]; then
+            echo "::error::No staging checkout with a .env at $PROJECT_DIR. Do the one-time setup in echowave/STAGING.md first."
+            exit 1
+          fi
+          # Never production's config: the staging path, always.
+          export CONFIG_SSM_PATH="/decibyl/staging/"
+          # The same guard as production: run the deploy script read straight
+          # out of the fetched commit, never the copy in the working tree it is
+          # about to rewrite (see the long note in deploy.yml).
+          git -C "$PROJECT_DIR" fetch --prune origin "$DEPLOY_REF"
+          git -C "$PROJECT_DIR" show FETCH_HEAD:echowave/scripts/ci_deploy.sh > /tmp/ci_deploy.staging.sh
+          sudo --preserve-env=CONFIG_SSM_PATH,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_SESSION_TOKEN \
+            REF="$DEPLOY_REF" PROJECT_DIR="$PROJECT_DIR" RUN_AS="$RUN_AS" AWS_REGION="$REGION" \
+            bash /tmp/ci_deploy.staging.sh
+
+      - name: Check every core flow
+        env:
+          STAGING_URL: ${{ vars.STAGING_URL || 'https://staging.decibyl.ai' }}
+          STAGING_EMAIL_A: ${{ secrets.STAGING_EMAIL_A }}
+          STAGING_PASSWORD_A: ${{ secrets.STAGING_PASSWORD_A }}
+          STAGING_EMAIL_B: ${{ secrets.STAGING_EMAIL_B }}
+          STAGING_PASSWORD_B: ${{ secrets.STAGING_PASSWORD_B }}
+        run: |
+          python3 echowave/scripts/staging_check.py
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Staging deploy: ${{ job.status }}"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Ref | \`${{ steps.target.outputs.ref }}\` |"
+            echo "| URL | ${{ vars.STAGING_URL || 'https://staging.decibyl.ai' }} |"
+            echo "| Actor | @${{ github.actor }} |"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -87,3 +87,56 @@ docker compose exec api python -m scripts.rehearse_concurrency --calls 40
 
 Only then is the per-vCPU estimate a measurement, and only then does the fleet
 in `INFRASTRUCTURE.md` rest on a tested number.
+
+## Functional staging on the CI box
+
+The load-test box above is still the right place to measure capacity. Until it
+exists, the CI box (the runner labelled `ci`) also runs a **functional**
+staging: the same stack, to switch features on and try them with real keys
+before production. Its database, secrets, hostname and Parameter Store path
+are its own. It shares CPU with test runs, so never load-test it.
+
+It does not collide with CI: the test jobs' Postgres and Redis are on 55432
+and 56379; staging's are on the stack's usual loopback ports, and nginx takes
+80/443.
+
+### One-time setup on the CI box
+
+1. **DNS:** point `staging.decibyl.ai` at the CI box's Elastic IP, and open
+   80/443 plus the TURN ports (UDP+TCP 3478 and 5349, UDP 49152-49200) in its
+   security group.
+2. **Checkout:** as `ubuntu`,
+   ```bash
+   git clone --recurse-submodules https://github.com/Stratfiy/echowave-redesign.git \
+       /home/ubuntu/decibyl-staging
+   cd /home/ubuntu/decibyl-staging/echowave
+   sudo DEPLOY_MODE=build REPO_SOURCE=existing SERVER_IP=<elastic ip> ./scripts/setup_remote.sh
+   cat deploy/decibyl.env.template | sudo tee -a .env >/dev/null
+   ```
+3. **`.env`:** `PUBLIC_BASE_URL=https://staging.decibyl.ai`, fresh
+   `PLATFORM_CREDENTIAL_SECRET`, `OSS_JWT_SECRET`, `POSTGRES_PASSWORD`,
+   `REDIS_PASSWORD`; Razorpay **test** keys. Never a production secret.
+4. **Provider keys** (Super admin → Provider keys once it is up, or
+   `/decibyl/staging/` in Parameter Store): Claude, Sarvam, the app connector,
+   web search, a test phone number on the carrier, WhatsApp test credentials.
+   Give the model keys a monthly spend cap.
+5. **Switches:** turn on the features under test in Super admin → Flags for
+   the staging workspace, or in `.env` (`PERSONAL_MEMORY_ENABLED=true` and so
+   on). Staging may run ahead of production; production only follows a pass
+   here.
+6. **GitHub:** create an environment named `staging`, with variables
+   `STAGING_URL` (`https://staging.decibyl.ai`) and, if config should come from
+   Parameter Store, `AWS_STAGING_ROLE_ARN`; and secrets `STAGING_EMAIL_A`,
+   `STAGING_PASSWORD_A`, `STAGING_EMAIL_B`, `STAGING_PASSWORD_B` for two test
+   accounts in one staging workspace (sign A up, invite B from A, once).
+7. **First deploy:** Actions → *Deploy staging* → the branch to try. Or push
+   to a branch named `staging`.
+
+### Every deploy
+
+`.github/workflows/deploy-staging.yml` runs the production deploy script
+against the staging checkout (health check and rollback included), then
+`scripts/staging_check.py`, which signs in as A and B and checks: a real model
+reply, thread and draft privacy between the two, inviting a teammate, and the
+screens the app opens on. It ends with the checks only a person can do (a call
+ringing, a WhatsApp arriving, Gmail consent) as a list to tick.
