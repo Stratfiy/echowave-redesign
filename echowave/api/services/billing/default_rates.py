@@ -1133,6 +1133,9 @@ CACHED_INPUT_SHARE: dict[str, float] = {
 #: OpenAI's newer family discounts cached input further than the rest.
 CACHED_INPUT_SHARE_BY_MODEL: dict[tuple[str, str], float] = {
     ("openai", "gpt-5"): 0.1,
+    # Opus 5.5 reads its cache at $0.20 a million against $4 input: 0.05x,
+    # not the 0.1x the rest of Anthropic's line charges.
+    ("anthropic", "claude-opus-5-5"): 0.05,
 }
 
 #: What a vendor charges to write a token into its cache, as a multiple of

@@ -60,8 +60,15 @@ class AgentEventClient(BaseDBClient):
                 thread_id=thread_id,
             )
             session.add(row)
+            # Read the id before committing: the session expires its rows on
+            # commit, and touching row.id afterwards is a lazy load outside
+            # the greenlet -- it raised MissingGreenlet on every write, so
+            # every caller lost the id it was promised (and the work hung on
+            # it: action cards, inbox notices, outbound event webhooks).
+            await session.flush()
+            event_id = int(row.id) if row.id is not None else None
             await session.commit()
-            return int(row.id) if row.id is not None else None
+            return event_id
 
     async def get_agent_event(
         self, event_id: int, *, organization_id: int

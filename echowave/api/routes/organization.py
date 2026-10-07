@@ -654,6 +654,8 @@ async def set_workspace_model(
         configuration = workspace_models.choose(
             stored, slot=request.slot, value=request.value, offered=view
         )
+    except workspace_models.LockedStack as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     except workspace_models.UnknownChoice as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     await upsert_organization_ai_model_configuration_v2(organization_id, configuration)

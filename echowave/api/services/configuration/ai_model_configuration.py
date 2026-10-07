@@ -49,6 +49,9 @@ AIModelConfigurationSource = Literal[
     "organization_v2", "legacy_user_v1", "managed_default", "empty"
 ]
 WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY = "model_configuration_v2_override"
+#: Set on an override whose brain somebody picked for this run (a chat
+#: preset): the workspace default must not replace a choice, even "Everyday".
+BRAIN_CHOSEN = "brain_chosen"
 
 
 @dataclass
@@ -288,7 +291,12 @@ async def get_effective_ai_model_configuration_for_workflow(
     )
     if model_override:
         effective = compile_workflow_model_configuration_override(model_override)
-        await _inherit_workspace_choices(effective, organization_id)
+        await _inherit_workspace_choices(
+            effective,
+            organization_id,
+            keep_brain=isinstance(model_override, dict)
+            and bool(model_override.get(BRAIN_CHOSEN)),
+        )
         _attach_backups(effective, workflow_configurations)
         await byok_resolution.apply(
             effective,
@@ -333,7 +341,10 @@ _DEFAULT_TIERS = ("", "default", "decibyl_embedding_v1")
 
 
 async def _inherit_workspace_choices(
-    effective: EffectiveAIModelConfiguration, organization_id: int | None
+    effective: EffectiveAIModelConfiguration,
+    organization_id: int | None,
+    *,
+    keep_brain: bool = False,
 ) -> None:
     """Let an agent still on the default follow the workspace's choice.
 
@@ -351,6 +362,8 @@ async def _inherit_workspace_choices(
         return
     workspace = compile_ai_model_configuration_v2(stored)
     for slot in INHERITED_SLOTS:
+        if slot == "llm" and keep_brain:
+            continue
         current = getattr(effective, slot, None)
         if current is None or not _is_managed_default(current):
             continue

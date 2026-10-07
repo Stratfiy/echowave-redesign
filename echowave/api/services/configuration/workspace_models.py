@@ -55,7 +55,7 @@ SLOTS: tuple[Slot, ...] = (
     Slot(
         "tts",
         "Voice engine",
-        "Speaks on calls. Each agent still picks its own voice.",
+        "For agents that have not picked a voice of their own.",
         ServiceType.TTS,
         "tts_tier",
     ),
@@ -177,6 +177,31 @@ def _current(slot: Slot, managed: DecibylManagedAIModelConfiguration) -> str:
     return f"{TIER_PREFIX}{tier or 'default'}"
 
 
+def locked_reason(stored: OrganizationAIModelConfigurationV2 | None) -> str | None:
+    """Why this screen must not save over the stored stack, if it must not.
+
+    Two shapes cannot round-trip through four slots without losing something:
+    an own-keys stack (custom voices, languages, endpoints and Azure-style
+    vendors would be reduced to vendor/model) and a speech-to-speech bundle
+    (one model replaces hearing, brain and voice, so the slots would not
+    run). Saving either from here would quietly rebuild the workspace, so the
+    screen shows what runs and leaves editing to the full stack editor.
+    """
+    if stored is None:
+        return None
+    if stored.mode == "byok":
+        return (
+            "This workspace runs a custom stack on its own keys, "
+            "set up in the full model editor."
+        )
+    if stored.decibyl is not None and (stored.decibyl.realtime_tier or "").strip():
+        return (
+            "This workspace uses speech-to-speech, where one model hears, "
+            "thinks and speaks."
+        )
+    return None
+
+
 def view(
     stored: OrganizationAIModelConfigurationV2 | None,
     *,
@@ -254,6 +279,7 @@ def view(
     return {
         "slots": slots,
         "credential_component": {s.key: _credential_component(s.key) for s in SLOTS},
+        "locked": locked_reason(stored),
     }
 
 
@@ -307,6 +333,10 @@ class UnknownChoice(ValueError):
     pass
 
 
+class LockedStack(ValueError):
+    pass
+
+
 def choose(
     stored: OrganizationAIModelConfigurationV2 | None,
     *,
@@ -319,6 +349,9 @@ def choose(
     Only a value the screen offered is accepted: these strings come from a
     browser, and a vendor name nobody checked must not decide what runs.
     """
+    reason = locked_reason(stored)
+    if reason:
+        raise LockedStack(reason)
     entry = next((s for s in offered["slots"] if s["key"] == slot), None)
     if entry is None:
         raise UnknownChoice(f"No setting called {slot!r}")

@@ -55,3 +55,90 @@ def test_which_models_refuse_sampling():
     assert not reasoning_effort.claude_rejects_sampling("claude-sonnet-4-6")
     assert reasoning_effort.claude_takes_effort("claude-sonnet-4-6")
     assert not reasoning_effort.claude_takes_effort("claude-haiku-4-5")
+
+
+# --- Thinking blocks and tool calls on a call --------------------------------
+
+
+def _context_after_a_thinking_turn(thought_text: str):
+    from pipecat.processors.aggregators.llm_context import (
+        LLMContext,
+        LLMSpecificMessage,
+    )
+
+    from api.services.pipecat.anthropic_llm import DecibylAnthropicLLMAdapter
+
+    llm_id = DecibylAnthropicLLMAdapter().id_for_llm_specific_messages
+    context = LLMContext(
+        messages=[
+            {"role": "system", "content": "You answer the phone."},
+            {"role": "user", "content": "Book me for four"},
+            LLMSpecificMessage(
+                llm=llm_id,
+                message={"type": "thought", "text": thought_text, "signature": "sig-1"},
+            ),
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {"name": "book", "arguments": '{"time": "16:00"}'},
+                    }
+                ],
+            },
+            {"role": "tool", "tool_call_id": "call_1", "content": "booked"},
+        ]
+    )
+    return context
+
+
+def test_an_empty_thinking_block_goes_back_signed_not_as_a_crash():
+    """Sonnet 5.5 and Opus 5.5 return thinking with empty text by default.
+    pipecat's adapter dropped it unconverted and the next turn raised
+    KeyError: 'role' -- dead air for the rest of the call."""
+    from api.services.pipecat.anthropic_llm import DecibylAnthropicLLMAdapter
+
+    params = DecibylAnthropicLLMAdapter().get_llm_invocation_params(
+        _context_after_a_thinking_turn(""),
+        enable_prompt_caching=False,
+        system_instruction=None,
+    )
+    assistant = next(m for m in params["messages"] if m["role"] == "assistant")
+    kinds = [block["type"] for block in assistant["content"]]
+    assert kinds[0] == "thinking"
+    assert assistant["content"][0]["signature"] == "sig-1"
+    assert "tool_use" in kinds
+    assert all("role" in m for m in params["messages"])
+
+
+def test_a_request_with_tools_asks_for_one_call_at_a_time():
+    """The stream parser keeps only the last tool_use block, so a second
+    call in one reply was silently lost."""
+    service = _build("claude-sonnet-5-5")
+    context = _context_after_a_thinking_turn("")
+    context.set_tools(
+        __import__(
+            "pipecat.adapters.schemas.tools_schema", fromlist=["ToolsSchema"]
+        ).ToolsSchema(
+            standard_tools=[
+                __import__(
+                    "pipecat.adapters.schemas.function_schema",
+                    fromlist=["FunctionSchema"],
+                ).FunctionSchema(
+                    name="book",
+                    description="Book a slot",
+                    properties={"time": {"type": "string"}},
+                    required=["time"],
+                )
+            ]
+        )
+    )
+    params = service._get_llm_invocation_params(context)
+    assert params["tool_choice"] == {"type": "auto", "disable_parallel_tool_use": True}
+
+
+def test_claude_is_still_billed_as_anthropic():
+    from api.services.billing.usage import provider_from_processor
+
+    assert provider_from_processor("DecibylAnthropicLLMService#0") == "anthropic"

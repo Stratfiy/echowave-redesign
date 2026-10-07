@@ -34,7 +34,6 @@ from pipecat.pipeline.service_switcher import (
     ServiceSwitcherStrategyFailover,
 )
 from pipecat.services.anthropic.llm import (
-    AnthropicLLMService,
     AnthropicLLMSettings,
 )
 from pipecat.services.assemblyai.stt import AssemblyAISTTService, AssemblyAISTTSettings
@@ -121,6 +120,7 @@ from pipecat.utils.text.xml_function_tag_filter import XMLFunctionTagFilter
 
 if TYPE_CHECKING:
     from api.services.pipecat.audio_config import AudioConfig
+from api.services.pipecat.anthropic_llm import DecibylAnthropicLLMService
 from api.services.pipecat.reasoning_effort import (
     claude_effort,
     claude_rejects_sampling,
@@ -1679,7 +1679,9 @@ def create_llm_service_from_provider(
             **kwargs,
         )
     elif provider == ServiceProviders.ANTHROPIC.value:
-        return AnthropicLLMService(
+        # Our subclass: pipecat's own drops empty thinking blocks and parallel
+        # tool calls, both of which break a call. See anthropic_llm.py.
+        return DecibylAnthropicLLMService(
             api_key=api_key,
             settings=AnthropicLLMSettings(
                 model=model,
@@ -2132,15 +2134,11 @@ def create_llm_service(user_config, correlation_id: str | None = None):
     api_key = user_config.llm.api_key
 
     kwargs: dict = {}
-    if provider == ServiceProviders.OPENAI.value:
-        _carry(kwargs, user_config.llm, "base_url")
-    elif provider == ServiceProviders.OPENROUTER.value:
+    if provider == ServiceProviders.OPENAI.value or provider == ServiceProviders.OPENROUTER.value:
         _carry(kwargs, user_config.llm, "base_url")
     elif provider == ServiceProviders.AZURE.value:
         _carry(kwargs, user_config.llm, "endpoint")
-    elif provider == ServiceProviders.SPEACHES.value:
-        _carry(kwargs, user_config.llm, "base_url")
-    elif provider == ServiceProviders.CUSTOM_LLM.value:
+    elif provider == ServiceProviders.SPEACHES.value or provider == ServiceProviders.CUSTOM_LLM.value:
         _carry(kwargs, user_config.llm, "base_url")
     elif provider == ServiceProviders.HUGGINGFACE.value:
         _carry(kwargs, user_config.llm, "base_url", "bill_to")

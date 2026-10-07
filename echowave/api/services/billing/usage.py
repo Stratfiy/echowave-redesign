@@ -94,6 +94,9 @@ _PROVIDER_ALIASES = {
     # 100%, which is precisely the silent miscosting this function's docstring
     # was written about.
     "decibylsarvam": "sarvam",
+    # Same for Claude: DecibylAnthropicLLMService fixes thinking blocks and
+    # parallel tool calls, and is billed as the Anthropic call it is.
+    "decibylanthropic": "anthropic",
 }
 
 

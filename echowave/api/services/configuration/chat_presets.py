@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from api.services.configuration.ai_model_configuration import (
+    BRAIN_CHOSEN,
     WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY,
 )
 
@@ -303,10 +304,13 @@ def apply(run_configs: dict[str, Any] | None, slug: Optional[str]) -> dict[str, 
         configs[WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY] = {
             **existing,
             "stack": new_stack,
+            BRAIN_CHOSEN: True,
         }
         return configs
 
     configs.update(managed_stack_override(voice="", llm_tier=tier))
+    override = configs[WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY]
     if pair is not None:
-        configs[WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY]["stack"]["llm"] = brain
+        override["stack"]["llm"] = brain
+    override[BRAIN_CHOSEN] = True
     return configs

@@ -273,9 +273,19 @@ def chosen_section(configuration: DecibylManagedAIModelConfiguration, slot: str)
         section["use_platform_key"] = True
     try:
         return TypeAdapter(_SLOT_TYPES[slot]).validate_python(section)
-    except ValidationError:
+    except ValidationError as exc:
         # A vendor we no longer build must not stop the agent answering; the
-        # slot falls back to its tier, which always resolves.
+        # slot falls back to its tier, which always resolves -- loudly, since
+        # that moves the workspace onto our key.
+        from loguru import logger
+
+        logger.warning(
+            "Workspace {} choice {}/{} no longer builds ({}); using its tier",
+            slot,
+            vendor,
+            model,
+            exc.error_count(),
+        )
         return None
 
 

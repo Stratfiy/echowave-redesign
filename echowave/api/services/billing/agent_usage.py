@@ -27,6 +27,7 @@ _SLOT = {
     CostComponent.LLM.value: "llm",
     CostComponent.STT.value: "stt",
     CostComponent.TTS.value: "tts",
+    CostComponent.EMBEDDING.value: "embeddings",
 }
 _TOKENS = set(TOKEN_COMPONENTS) | {CostComponent.LLM.value}
 

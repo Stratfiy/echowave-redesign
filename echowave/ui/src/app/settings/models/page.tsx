@@ -45,7 +45,7 @@ export type ModelSlot = {
   more: More[];
   own: Own[];
 };
-type View = { slots: ModelSlot[]; credential_component: Record<string, string> };
+type View = { slots: ModelSlot[]; credential_component: Record<string, string>; locked?: string | null };
 
 /**
  * Settings -> Models: what runs every agent, chosen once for the workspace.
@@ -102,6 +102,11 @@ export default function ModelsPage() {
             ))}
           </div>
         )}
+        {view?.locked && (
+          <p className="mb-4 rounded-2xl bg-[var(--paper-2)] px-4 py-3 text-sm text-muted-foreground" data-testid="models-locked">
+            {view.locked} This page shows what runs; change it in the full model editor so nothing is lost.
+          </p>
+        )}
         {view && (
           <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)]" data-testid="model-slots">
             {view.slots.map((slot) => (
@@ -112,6 +117,7 @@ export default function ModelsPage() {
                 </div>
                 <SlotPicker
                   slot={slot}
+                  locked={Boolean(view.locked)}
                   onChoose={(value, label) => void choose(slot, value, label)}
                   onOwn={(own) => setOwnFor({ slot, own })}
                 />
@@ -137,14 +143,24 @@ export default function ModelsPage() {
 
 function SlotPicker({
   slot,
+  locked,
   onChoose,
   onOwn,
 }: {
   slot: ModelSlot;
+  locked: boolean;
   onChoose: (value: string, label: string) => void;
   onOwn: (own: Own) => void;
 }) {
   const ownKey = slot.current.startsWith("own:");
+  if (locked) {
+    return (
+      <span className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-[var(--paper-2)] px-3.5 text-sm text-muted-foreground">
+        {ownKey && <KeyRound className="h-3.5 w-3.5" aria-hidden="true" />}
+        {slot.current_label}
+      </span>
+    );
+  }
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
