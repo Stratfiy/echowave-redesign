@@ -356,25 +356,36 @@ hourly, reviews and merges each PR, and starts the next streams.
 | aws-gateway | session_01K3AYRzykvKavBj3jXmZ454 |
 | browser | session_01Me1mkRqDovMsuhnAMz4NUK |
 | desktop | session_01HnRghELvdY4pxEZobCWn4Z |
+| today | session_013M4ceoY8k2xj6jMKMfWekw |
+| agents | session_01Dj9ocx4DncksTFv4f5orXr |
+| learning | session_014nHaFAYMsZUqZ9ZgB6U7vC |
+| voice | session_01Jt7GMP2KthoGRkr1S6t1WQ |
+| meetings | session_0118WbnQjCKNfd4XkJCMVmro |
+| identity | session_011VRsGQ8MpWfhhLdRv95G7G |
+| settings | session_01JwKLX85yc8BC3QFuTocXcP |
+| support | session_01YPq58BgCMr9bJxzF3wfTf1 |
+| staff | session_01RiC2NEFF9hHD3gRGrmFKVi |
+| reach | session_015bZvzcdWNkr9Ezwq39ukz8 |
+| care | session_018WSGYyj3rNjPKiMfKBZpJz |
 
 ## Status
 
 | Stream | Phase | Branch | PR | Built | Tests | Staging |
 | --- | --- | --- | --- | --- | --- | --- |
-| controls | 1 | claude/stream-controls | | | | |
-| shell | 1 | claude/stream-shell | | | | |
+| controls | 1 | claude/stream-controls | #525 merged | yes | 247 stream + core pass; UI 1414 pass | |
+| shell | 1 | claude/stream-shell | #526 merged | yes | as controls (merged together) | |
 | today | 2 | claude/stream-today | | | | |
 | agents | 2 | claude/stream-agents | | | | |
-| learning | 2 | claude/stream-learning | | | | |
-| voice | 2 | claude/stream-voice | see PR | yes (VOICE.md) | see PR | |
-| meetings | 2 | claude/stream-meetings | | | | |
+| learning | 2 | claude/stream-learning | see PR | yes (`LEARNING.md`) | see PR | |
+| voice | 2 | claude/stream-voice | #536 | yes (VOICE.md) | see PR | |
+| meetings | 2 | claude/stream-meetings | see PR | yes (MEETINGS.md) | 56 API + 38 UI; running-instance checks in PR | |
 | identity | 2 | claude/stream-identity | | | | |
 | settings | 2 | claude/stream-settings | | | | |
-| support | 2 | claude/stream-support | | | | |
+| support | 2 | claude/stream-support | draft | yes (SUPPORT.md) | 50 API + 36 UI; live API/worker/UI check | |
 | staff | 2 | claude/stream-staff | | | | |
-| ops | 2 | claude/stream-ops | #524 | yes | see PR | |
-| aws-gateway | 2 | claude/stream-aws-gateway | | | | |
-| browser | 2 | claude/stream-browser | | | | |
+| ops | 2 | claude/stream-ops | #524 merged | yes; one analytics outbox with controls | 245 stream + core pass | |
+| aws-gateway | 2 | claude/stream-aws-gateway | #528 merged | yes (flags off; Bedrock needs setup until AWS clears the account) | 66 + 250 core pass | |
+| browser | 2 | claude/stream-browser | #529 merged | yes (flag off; needs the browser box image on the server) | 403 browser + desktop + core pass | |
 | reach | 2 | claude/stream-reach | | | | |
 | care | 2 | claude/stream-care | | | | |
-| desktop | 2 | claude/stream-desktop | | | | |
+| desktop | 2 | claude/stream-desktop | #527 merged | yes (flags off; signing needs Apple and Windows certificates) | 70 app + 220 core pass | |

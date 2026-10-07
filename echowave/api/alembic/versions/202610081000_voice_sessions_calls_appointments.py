@@ -17,7 +17,7 @@ adds and every flag off leaves the schema unused.
   Appointment agent books with.
 
 Revision ID: 20261008voice
-Revises: 202610071500shell
+Revises: 20261008identity
 """
 
 import sqlalchemy as sa
@@ -25,7 +25,7 @@ from alembic import op
 from alembic_postgresql_enum import TableReference
 
 revision = "20261008voice"
-down_revision = "202610071500shell"
+down_revision = "20261008identity"
 branch_labels = None
 depends_on = None
 

@@ -887,6 +887,12 @@ class AgentEventKind(str, Enum):
     #: is the vendor's own sign-in screen. See
     #: services/workflow/connector_offer.py.
     CONNECTOR_OFFERED = "connector_offered"
+    #: A connect chip for an outside tool or an ordering app (stream `reach`).
+    #: The person connects it in the thread; it is theirs alone.
+    REACH_CONNECT_OFFERED = "reach_connect_offered"
+    #: Prices and coupons compared across the apps a person connected,
+    #: naming which apps and when (stream `reach`).
+    REACH_COMPARISON = "reach_comparison"
     #: What a bot read or checked on the way to an answer: passages from
     #: Company knowledge, the team's numbers, a bot it handed a question to.
     #: A muted one-line row, folded when several run together, so the thread
@@ -916,6 +922,11 @@ class AgentEventKind(str, Enum):
     #: lives in ``payload["body"]`` and the summary is the display line. A
     #: message quietly cut at 500 characters is the product editing somebody.
     MESSAGE = "message"
+    #: Decibyl opened its private browser for a person's task. The row is the
+    #: panel on the thread -- live view while it runs, the receipt after --
+    #: and carries only the session's id; the session row holds the rest and
+    #: is readable by the person who asked alone. See services/browser/.
+    BROWSER_SESSION = "browser_session"
 
 
 class AgentEventActor(str, Enum):
@@ -950,11 +961,17 @@ class AgentEventVisibility(str, Enum):
         for them, checked against the organisation's consent settings.
     OFF
         Suppressed for this organisation.
+    PRIVATE
+        One person's own card and the lines under it (launch stream
+        identity: disconnecting their app, sending from their address).
+        Never on a shared timeline; read only through that person's own
+        screens, which check the owner.
     """
 
     ALWAYS = "always"
     ON_REQUEST = "on_request"
     OFF = "off"
+    PRIVATE = "private"
 
 
 class KnowledgeScope(str, Enum):

@@ -27,3 +27,8 @@ async def sweep_unknown_outcomes(_ctx) -> None:
     marked = await actions.sweep_stale_running()
     if marked:
         logger.warning("Marked {} cards as outcome unknown", marked)
+    from api.services.workflow import desktop_steps
+
+    swept = await desktop_steps.sweep_unclaimed()
+    if swept:
+        logger.info("Cancelled {} desktop steps no computer took", swept)

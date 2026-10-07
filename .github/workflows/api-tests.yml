@@ -63,6 +63,10 @@ jobs:
       # MINIO is not actually contacted by tests, but storage.py constructs
       # the MinioFileSystem at import time and requires MINIO_PUBLIC_ENDPOINT.
       MINIO_PUBLIC_ENDPOINT: http://localhost:9000
+      # A test-only Fernet key, as every real deployment has one. Features that
+      # keep secrets (connections, browser logins) refuse without it; tests of
+      # that refusal set it to None themselves. Not a secret: CI only.
+      PLATFORM_CREDENTIAL_SECRET: aW1hLXRlc3Qta2V5LW5vdC1hLXJlYWwtc2VjcmV0MDA=
       DEPLOYMENT_MODE: oss
       ENVIRONMENT: test
       LOG_LEVEL: DEBUG

@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { activeSection, SETTINGS_SECTIONS, visibleSections } from "../sections";
+import { activeSection, SETTINGS_SECTIONS } from "../sections";
 
 const APP = resolve(process.cwd(), "src/app");
 
@@ -12,6 +12,7 @@ describe("Settings' sections", () => {
     expect(SETTINGS_SECTIONS.map((s) => s.title)).toEqual([
       "General",
       "Team",
+      "Notifications",
       "Voice and language",
       "Models",
       "Knowledge",
@@ -19,6 +20,8 @@ describe("Settings' sections", () => {
       "Channels",
       "Phone numbers",
       "Company",
+      "Connections",
+      "Decibyl identity",
       "Advanced",
       "Developer",
       "Compliance",
@@ -44,16 +47,26 @@ describe("Settings' sections", () => {
     ["/telephony-configurations/4", "phone-number"],
     ["/tools/abc", "apps"],
     ["/do-not-call", "compliance"],
+    ["/settings/connections", "connections"],
+    ["/settings/identity", "identity"],
+    ["/settings/notifications", "notifications"],
   ])("lights %s as %s", (path, id) => {
     expect(activeSection(path)).toBe(id);
   });
 
-  it("lists Voice and language only while its switch is on", () => {
-    const off = visibleSections(() => false).map((s) => s.id);
-    expect(off).not.toContain("voice");
-    expect(off).toHaveLength(SETTINGS_SECTIONS.length - 1);
-    const on = visibleSections((f) => f === "voice_language_settings").map((s) => s.id);
-    expect(on).toContain("voice");
+  it("lists Voice and language only behind its own switch", () => {
+    const voice = SETTINGS_SECTIONS.find((section) => section.id === "voice");
+    expect(voice?.flags).toEqual(["voice_language_settings"]);
     expect(activeSection("/settings/voice")).toBe("voice");
+  });
+});
+
+describe("Identity sections (launch stream identity)", () => {
+  it("are behind their own switches", () => {
+    const byId = Object.fromEntries(SETTINGS_SECTIONS.map((s) => [s.id, s.flags]));
+    expect(byId.connections).toEqual(["identity_connections"]);
+    expect(byId.identity).toEqual(["identity_email", "identity_phone"]);
+    expect(byId.notifications).toEqual(["identity_notifications"]);
+    expect(byId.general).toBeUndefined();
   });
 });

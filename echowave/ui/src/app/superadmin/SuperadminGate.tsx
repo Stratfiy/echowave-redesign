@@ -24,9 +24,11 @@ import { useAccessRoles } from "@/hooks/useAccessRoles";
  * console, and not handing a support agent a page that only answers in 403s.
  */
 
-// The screens support staff are meant to use: KYC review and nothing else.
-// A prefix match, so a detail route under the queue is allowed too.
-const SUPPORT_ALLOWED_PREFIXES = ["/superadmin/verification"];
+// The screens support staff are meant to use: KYC review, and the support
+// inbox and actions (launch stream `support`, backed by `get_staff`; each
+// says "not available" while its switch is off). A prefix match, so a
+// detail route under a queue is allowed too.
+const SUPPORT_ALLOWED_PREFIXES = ["/superadmin/verification", "/superadmin/support"];
 
 function isSupportAllowed(pathname: string): boolean {
     return SUPPORT_ALLOWED_PREFIXES.some(

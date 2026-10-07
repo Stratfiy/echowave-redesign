@@ -5,6 +5,8 @@
 import * as Sentry from "@sentry/nextjs";
 import posthog from "posthog-js";
 
+import { REPLAY_OPTIONS } from "@/lib/telemetry/privacy";
+
 // Drop errors originating from browser extensions (MetaMask's inpage.js,
 // injected widgets, etc.) by matching their URL scheme.
 const sharedSentryOptions = {
@@ -70,6 +72,9 @@ const initPostHog = () => {
       capture_pageleave: true,
       capture_exceptions: true,
       cross_subdomain_cookie: true,
+      // Replay starts only where SessionReplayGuard allows it (handoff 35).
+      disable_session_recording: true,
+      session_recording: REPLAY_OPTIONS,
       debug: process.env.NEXT_PUBLIC_NODE_ENV === 'development',
     });
     console.log('PostHog initialized from NEXT_PUBLIC config');
@@ -86,6 +91,8 @@ const initPostHog = () => {
             capture_pageleave: true,
             capture_exceptions: true,
             cross_subdomain_cookie: true,
+            disable_session_recording: true,
+            session_recording: REPLAY_OPTIONS,
             debug: process.env.NEXT_PUBLIC_NODE_ENV === 'development',
           });
           console.log('PostHog initialized from API config');

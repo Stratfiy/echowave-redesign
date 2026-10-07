@@ -157,6 +157,22 @@ _ENTRIES: tuple[EventSpec, ...] = (
     ),
     _s("evaluation_completed", "quality", "An evaluation run finished.", "score"),
     _s("regression_detected", "quality", "An evaluation found a regression."),
+    # Learning (stream `learning`). Codes only: never the goal, the lesson
+    # or an answer.
+    _s(
+        "learning_goal_started",
+        "learning",
+        "A person started a learning goal.",
+        "has_material",
+    ),
+    _s(
+        "learning_practice_evaluated",
+        "learning",
+        "One practice answer was marked against its rubric.",
+        "outcome",
+        "exercise_kind",
+    ),
+    _s("learning_goal_deleted", "learning", "A person deleted a learning goal."),
     # Finance
     _s("payment_succeeded", "finance", "A payment cleared.", "currency"),
     _s("payment_failed", "finance", "A payment failed.", "currency"),
@@ -170,7 +186,21 @@ _ENTRIES: tuple[EventSpec, ...] = (
         "rate_version",
         "currency",
         "cost_status",
+        # Stream ops: the amounts behind cost per success, in paise.
+        "provider_cost_paise",
+        "charged_paise",
+        "uncosted_items",
     ),
+    # Operations (stream ops): the operations themselves, so a funnel can
+    # show when an incident, a rollback or a cost stop overlapped a drop.
+    _s(
+        "ops_command_executed",
+        "ops",
+        "A typed staff operation reached a final state.",
+        "command",
+    ),
+    _s("cost_stop_engaged", "ops", "New billable work was stopped.", "scope"),
+    _s("cost_stop_released", "ops", "A cost stop was released.", "scope"),
     # Client intent. The browser may send only these.
     _c("approval_viewed", "approval", "A person opened an approval preview."),
     _c("feedback_prompt_dismissed", "quality", "A person closed 'Was this useful?'."),

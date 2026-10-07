@@ -1,5 +1,10 @@
 # Staging
 
+> Production/staging parity (same keys, different secrets, same deploy
+> script) and how to check it: **`OPS-RUNBOOK.md`** section 3 and
+> `python -m scripts.check_infra parity`. Capacity reviews with a recorded
+> verdict: `python -m scripts.capacity_review` (runbook section 10).
+
 A staging box exists to answer one question production must never be asked:
 **how many concurrent calls does a node hold before it degrades?** The fleet in
 `INFRASTRUCTURE.md` is sized on "5 concurrent calls per vCPU", which that
@@ -126,7 +131,10 @@ and 56379; staging's are on the stack's usual loopback ports, and nginx takes
    public Cloudflare quick tunnel. The first deploy (step 7) starts the stack.
 3. **`.env`:** setup already wrote fresh `OSS_JWT_SECRET`,
    `POSTGRES_PASSWORD` and `REDIS_PASSWORD`. Add a fresh
-   `PLATFORM_CREDENTIAL_SECRET` (`openssl rand -hex 32`) and Razorpay **test**
+   `PLATFORM_CREDENTIAL_SECRET`, which must be a Fernet key
+   (`python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`,
+   or the same inside the api container; a hex string is refused the first
+   time a key is saved) and Razorpay **test**
    keys; with a hostname, set `PUBLIC_BASE_URL=https://staging.decibyl.ai`.
    Never a production secret.
 4. **Provider keys** (Super admin → Provider keys once it is up, or
@@ -137,13 +145,18 @@ and 56379; staging's are on the stack's usual loopback ports, and nginx takes
    the staging workspace, or in `.env` (`PERSONAL_MEMORY_ENABLED=true` and so
    on). Staging may run ahead of production; production only follows a pass
    here.
-6. **GitHub:** create an environment named `staging`, with variables
+6. **Test accounts:** two accounts in one workspace, `staging-a@example.com`
+   and `staging-b@example.com` (B invited by A). Their passwords live only in
+   `/home/ubuntu/decibyl-staging/check.env` (root, mode 600); the deploy
+   workflow reads them from there when the GitHub secrets below are unset,
+   and masks the passwords in its log.
+7. **GitHub:** create an environment named `staging`, with variables
    `STAGING_URL` (only once there is a public address; the default is the
    API on loopback) and, if config should come from
    Parameter Store, `AWS_STAGING_ROLE_ARN`; and secrets `STAGING_EMAIL_A`,
    `STAGING_PASSWORD_A`, `STAGING_EMAIL_B`, `STAGING_PASSWORD_B` for two test
    accounts in one staging workspace (sign A up, invite B from A, once).
-7. **First deploy:** Actions → *Deploy staging* → the branch to try. Or push
+8. **First deploy:** Actions → *Deploy staging* → the branch to try. Or push
    to a branch named `staging`.
 
 ### Every deploy

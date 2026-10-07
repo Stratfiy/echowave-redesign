@@ -43,3 +43,15 @@ the site on loopback and Chromium, driven by `shoot.mjs` over the DevTools
 protocol, renders it with real mobile emulation. The service pulls this image
 itself on start; until it has, a screenshot request answers 503 and says to
 try again in a few minutes.
+
+## Browsers (Decibyl's private browser)
+
+`POST /browsers` starts one browser box -- browser-use on Chromium for one
+person's task -- and then speaks the same three calls as a job
+(`/jobs/{id}/next`, `/jobs/{id}/reply`, `DELETE /jobs/{id}`). Unlike every
+other box it has the internet, on `SANDBOX_BROWSER_NETWORK` only: a bridge
+this service creates with inter-container traffic off and nothing else on
+it. The box's own proxy refuses private addresses for every request, and it
+holds no credentials (its model calls come back to the api). With the
+network unset, browsers are refused. See `browser/README.md` for the image,
+the host egress guard and the install step.

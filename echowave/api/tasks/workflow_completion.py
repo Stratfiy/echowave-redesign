@@ -56,4 +56,11 @@ async def process_workflow_completion(
 
     await agent_timeline.record_call_ended(workflow_run_id)
 
+    # A medicine reminder call (launch stream care) settles its dose and,
+    # when it was not taken, tells the family. Never raises; a run that was
+    # not a reminder call is left alone.
+    from api.services.care import calls as care_calls
+
+    await care_calls.record_run_outcome(workflow_run_id)
+
     logger.info(f"Completed workflow completion processing for run {workflow_run_id}")

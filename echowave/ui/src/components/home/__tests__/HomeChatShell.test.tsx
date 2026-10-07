@@ -17,7 +17,7 @@ const seen = vi.hoisted(() => ({
     rows: 0,
     load: "ready" as "ready" | "error",
 }));
-const flags = vi.hoisted(() => ({ chat_shell: true }));
+const flags = vi.hoisted(() => ({ chat_shell: true, learning: false }));
 
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
 vi.mock("@/lib/features", () => ({ useFeature: (name: string) => Boolean((flags as Record<string, boolean>)[name]) }));
@@ -52,6 +52,22 @@ vi.mock("@/components/channel/ChannelStream", () => ({
     },
 }));
 vi.mock("@/components/home/ThreadList", () => ({ ThreadList: () => <div /> }));
+vi.mock("@/components/learning/LearningResume", () => ({
+    LearningResume: (props: { onOpen: (id: string) => void }) => (
+        <button type="button" onClick={() => props.onOpen("g-7")}>
+            Continue learning: Fractions
+        </button>
+    ),
+}));
+vi.mock("@/components/learning/LearningSession", () => ({
+    LearningSession: (props: { goalId: string | null; reviewSkillId?: number | null; onClose: () => void }) => (
+        <div data-testid="lesson" data-goal={props.goalId ?? "new"} data-review={props.reviewSkillId ?? ""}>
+            <button type="button" onClick={props.onClose}>
+                back
+            </button>
+        </div>
+    ),
+}));
 vi.mock("@/components/channel/ChannelComposer", () => ({
     ChannelComposer: (props: Record<string, unknown>) => {
         seen.composer.push(props);
@@ -78,6 +94,7 @@ beforeEach(() => {
     seen.rows = 0;
     seen.load = "ready";
     flags.chat_shell = true;
+    flags.learning = false;
     window.history.replaceState(null, "", "/overview");
 });
 
@@ -172,5 +189,67 @@ describe("Chat start", () => {
         expect(await screen.findByText("Help with a reply")).toBeTruthy();
         fireEvent.click(screen.getByText("Help me plan today"));
         await waitFor(() => expect(api.post).toHaveBeenCalled());
+    });
+});
+
+describe("Learning inside Chat (screen 13)", () => {
+    it("off, Teach me something fills the box as before", async () => {
+        api.home.mockResolvedValue({ data: { headline, suggestions: [], openers: [] } });
+        render(<HomeAboveTheFold />);
+        fireEvent.click(await screen.findByText("Teach me something"));
+        await waitFor(() => expect(screen.getByTestId("composer").getAttribute("data-draft")).toBe("Teach me something"));
+        expect(screen.queryByTestId("lesson")).toBeNull();
+    });
+
+    it("on, Teach me something opens a lesson in Chat and the composer steps aside", async () => {
+        flags.learning = true;
+        api.home.mockResolvedValue({ data: { headline, suggestions: [], openers: [] } });
+        render(<HomeAboveTheFold />);
+        fireEvent.click(await screen.findByText("Teach me something"));
+        const lesson = await screen.findByTestId("lesson");
+        expect(lesson.getAttribute("data-goal")).toBe("new");
+        expect(screen.getByTestId("composer").parentElement?.className).toMatch(/hidden/);
+        expect(window.location.search).toBe("?learn=new");
+        expect(api.post).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByText("back"));
+        await waitFor(() => expect(screen.queryByTestId("lesson")).toBeNull());
+        expect(window.location.search).toBe("");
+    });
+
+    it("keeps the teach starter among three when the server's cards lack it", async () => {
+        flags.learning = true;
+        const server = ["What needs my attention today?", "Help me plan today", "Help with a reply"].map((text) => ({ kind: "time", text }));
+        api.home.mockResolvedValue({ data: { headline, suggestions: [], openers: server } });
+        render(<HomeAboveTheFold />);
+        expect(await screen.findByText("Teach me something")).toBeTruthy();
+        expect(screen.getByText("What needs my attention today?")).toBeTruthy();
+        expect(screen.getByText("Help me plan today")).toBeTruthy();
+        expect(screen.queryByText("Help with a reply")).toBeNull();
+    });
+
+    it("offers a resume link that opens the lesson on that goal", async () => {
+        flags.learning = true;
+        api.home.mockResolvedValue({ data: { headline, suggestions: [], openers: [] } });
+        render(<HomeAboveTheFold />);
+        fireEvent.click(await screen.findByText("Continue learning: Fractions"));
+        expect((await screen.findByTestId("lesson")).getAttribute("data-goal")).toBe("g-7");
+    });
+
+    it("resumes a goal, on a review, from the address", async () => {
+        flags.learning = true;
+        window.history.replaceState(null, "", "/overview?learn=g-9&review=4");
+        api.home.mockResolvedValue({ data: { headline, suggestions: [], openers: [] } });
+        render(<HomeAboveTheFold />);
+        const lesson = await screen.findByTestId("lesson");
+        expect(lesson.getAttribute("data-goal")).toBe("g-9");
+        expect(lesson.getAttribute("data-review")).toBe("4");
+    });
+
+    it("off, a learn address opens nothing", async () => {
+        window.history.replaceState(null, "", "/overview?learn=g-9");
+        api.home.mockResolvedValue({ data: { headline, suggestions: [], openers: [] } });
+        render(<HomeAboveTheFold />);
+        await screen.findByTestId("composer");
+        expect(screen.queryByTestId("lesson")).toBeNull();
     });
 });

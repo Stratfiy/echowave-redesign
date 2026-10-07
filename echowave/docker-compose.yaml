@@ -577,6 +577,14 @@ services:
       # Studio's design review: screenshots of a built site, taken by
       # Chromium in a box with no network at all.
       SANDBOX_SHOT_IMAGE: ${SANDBOX_SHOT_IMAGE:-mcr.microsoft.com/playwright:v1.56.0-noble}
+      # Decibyl's private browser (sandbox/browser/). The service creates
+      # this network itself, with containers unable to reach each other;
+      # nothing else joins it. Run sandbox/browser/egress-guard.sh on the
+      # host once it exists. Unset, browsers are refused.
+      SANDBOX_BROWSER_NETWORK: ${SANDBOX_BROWSER_NETWORK:-decibyl_sandbox_browser}
+      SANDBOX_BROWSER_IMAGE: ${SANDBOX_BROWSER_IMAGE:-ghcr.io/stratfiy/decibyl-browser-box:latest}
+      SANDBOX_BROWSER_SUBNET: ${SANDBOX_BROWSER_SUBNET:-172.30.240.0/24}
+      SANDBOX_MAX_BROWSERS: ${SANDBOX_MAX_BROWSERS:-2}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     mem_limit: 256m

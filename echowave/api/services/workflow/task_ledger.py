@@ -462,6 +462,8 @@ def card_state(payload: dict[str, Any] | None) -> str:
     return {
         actions.PROPOSED: AWAITING_APPROVAL,
         actions.ARMED: SCHEDULED,
+        # Approved; the person's computer takes it next (desktop_steps).
+        actions.RELEASED: SCHEDULED,
         actions.RUNNING: RUNNING,
         actions.DONE: COMPLETED,
         actions.FAILED: FAILED,

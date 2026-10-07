@@ -57,4 +57,9 @@ async def receive(
         except Exception as exc:  # noqa: BLE001 - one bad message is not all
             logger.exception("WhatsApp inbound {} failed: {}", inbound.message_id, exc)
             statuses.append("error")
+    # Delivery statuses for messages we sent, kept as receipts so a send
+    # whose outcome was unknown can be reconciled (stream identity).
+    from api.services.identity import reconcile
+
+    await reconcile.record_whatsapp_statuses(payload)
     return {"status": "ok", "messages": statuses}

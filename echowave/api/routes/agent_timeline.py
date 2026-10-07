@@ -228,6 +228,9 @@ async def timeline(
         limit=limit,
         before_at=before_at,
         before_id=before_id,
+        # A person's own reach rows (connect chips, comparisons, order
+        # cards) are theirs alone, whatever thread they sit on.
+        viewer_id=user.id,
     )
 
     events = [_as_event(row) for row in rows]
@@ -424,6 +427,12 @@ async def _assert_thread_is_theirs(
     """A Decibyl conversation is its author's (D-1b). A thread that is not
     theirs is answered as not found, the way a wrong tenant is: a 403 would
     confirm the id names somebody else's chat."""
+    from api.services.meetings import is_meeting_thread
+
+    if is_meeting_thread(thread_id):
+        # A meeting's follow-up cards are read from the meeting record, by
+        # the person who captured it -- never as a chat, by anyone.
+        raise HTTPException(status_code=404, detail="Thread not found")
     if not constants.DECIBYL_PRIVATE_THREADS_ENABLED:
         return
     author = await db_client.thread_author(
