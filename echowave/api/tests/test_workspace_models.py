@@ -31,10 +31,11 @@ def test_every_slot_is_on_the_screen():
     assert [s["key"] for s in _view()["slots"]] == ["llm", "stt", "tts", "embeddings"]
 
 
-def test_a_new_workspace_is_on_everyday_which_is_claude():
+def test_a_new_workspace_is_on_auto_and_everyday_is_claude_haiku():
     brain = _slot(_view(), "llm")
-    assert brain["current"] == "tier:default"
-    assert brain["current_label"] == "Everyday"
+    assert brain["current"] == "tier:auto"
+    assert brain["current_label"] == "Auto"
+    assert brain["ours"][0]["value"] == "tier:auto"
     everyday = next(o for o in brain["ours"] if o["value"] == "tier:default")
     assert "Claude Haiku" in everyday["serves"]
 

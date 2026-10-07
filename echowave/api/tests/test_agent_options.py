@@ -40,7 +40,13 @@ class TestOptions:
         assert all(b.label and b.blurb for b in brains())
 
     def test_the_labels_are_the_product_not_the_key(self):
-        assert [b.label for b in brains()] == ["Fast", "Everyday", "Smart", "Deep"]
+        assert [b.label for b in brains()] == [
+            "Auto",
+            "Fast",
+            "Everyday",
+            "Smart",
+            "Deep",
+        ]
 
     def test_exactly_one_voice_is_the_default(self):
         # Derived from position rather than hardcoded, so it stays right when

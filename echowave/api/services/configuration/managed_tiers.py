@@ -43,7 +43,13 @@ from api.enums import CostComponent
 #: way the screen encouraged. The retired names still resolve — see
 #: ``_RETIRED_LLM_TIERS`` — so a stored configuration naming one keeps the
 #: cheap model it chose rather than being quietly upgraded.
-LLM_TIERS = ("lite", "default", "accurate", "advanced")
+LLM_TIERS = ("auto", "lite", "default", "accurate", "advanced")
+
+#: The tier that is not a model: each piece of work is routed to Everyday,
+#: Smart or Deep by what it is (services/routing/brain.py). Where nothing
+#: routes -- a call, which keeps one model for its whole length -- it serves
+#: what Everyday serves.
+AUTO_LLM_TIER = "auto"
 
 #: Names no longer offered, mapped to what they always were. Resolving them to
 #: ``default`` instead would move an account from the cheapest model to the
@@ -55,6 +61,10 @@ _RETIRED_LLM_TIERS = {"fast": "lite", "zen": "lite"}
 #: serves it — the buyer this is aimed at does not know one from another and
 #: should not have to.
 LLM_TIER_LABELS: dict[str, tuple[str, str]] = {
+    "auto": (
+        "Auto",
+        "Picks Claude Haiku, Sonnet or Opus for each task by how hard it is.",
+    ),
     "lite": (
         "Fast",
         "Cheapest and quickest. Good for short, scripted calls.",
@@ -276,6 +286,8 @@ def _defaults() -> dict[tuple[str, str], ManagedUpstream]:
         # workspace that chooses to pay for more; the agent's reasoning-effort
         # setting keeps them at ``low`` on a call unless somebody raises it.
         ("llm", "default"): _tier("llm", "default", "anthropic", "claude-haiku-4-5"),
+        # Auto, where no router ran: the Everyday model.
+        ("llm", "auto"): _tier("llm", "auto", "anthropic", "claude-haiku-4-5"),
         ("llm", "accurate"): _tier("llm", "accurate", "anthropic", "claude-sonnet-5-5"),
         ("llm", "advanced"): _tier("llm", "advanced", "anthropic", "claude-opus-5-5"),
         # Retired names, kept resolving to the model they always served.

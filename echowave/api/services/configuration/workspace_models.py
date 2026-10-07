@@ -222,7 +222,11 @@ def view(
                     "value": f"{TIER_PREFIX}{tier}",
                     "label": label,
                     "blurb": blurb,
-                    "serves": f"{vendor_label(upstream.provider)} · {_model_label(upstream.provider, upstream.model)}",
+                    "serves": (
+                        "Claude Haiku, Sonnet or Opus, chosen per task"
+                        if slot.key == "llm" and tier == managed_tiers.AUTO_LLM_TIER
+                        else f"{vendor_label(upstream.provider)} · {_model_label(upstream.provider, upstream.model)}"
+                    ),
                 }
             )
         more: list[dict[str, Any]] = []

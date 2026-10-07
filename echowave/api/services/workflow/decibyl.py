@@ -923,6 +923,17 @@ async def _answer(
     conversation.add_user(f"{context}\n\n## Question\n{text}{handed}")
 
     try:
+        if not preset:
+            # Auto: no brain picked for this turn, so the turn's own work
+            # picks one (services/routing/brain.py).
+            from api.services.routing import brain
+
+            routed = await brain.auto_route(
+                organization_id, text, attachments=len(attachments or [])
+            )
+            if routed is not None:
+                preset = routed.preset
+                logger.info("Decibyl turn routed {} by {}", routed.kind, routed.source)
         async with db_client.async_session() as session:
             model = await settings.resolve_for_organization(
                 session, preset, organization_id=organization_id

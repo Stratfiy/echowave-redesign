@@ -106,7 +106,7 @@ class DecibylManagedAIModelConfiguration(BaseModel):
     #: stored configuration still resolves (see ``managed_tiers``), and
     #: rejecting it at load would break an agent that has been dialling
     #: happily for months.
-    llm_tier: str = "default"
+    llm_tier: str = "auto"
 
     #: Exact choices the workspace made in Settings -> Models, per slot
     #: (``llm``, ``stt``, ``tts``, ``embeddings``). ``<vendor>/<model>`` runs

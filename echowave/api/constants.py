@@ -1402,6 +1402,20 @@ S3_ADDRESSING_STYLE = os.environ.get("S3_ADDRESSING_STYLE")
 # Sentry configuration
 SENTRY_DSN = os.getenv("SENTRY_DSN")
 
+# Auto brain routing (services/routing). Laya is a self-hosted decision model
+# (convaiinnovations/laya, Apache 2.0) served as ``laya-serve``; it answers
+# "is this quick, several steps, or deep?" in one forward pass.
+#   LAYA_ROUTING=off     rules only
+#   LAYA_ROUTING=shadow  rules decide; Laya is asked and its answer logged
+#   LAYA_ROUTING=on      Laya decides; rules when it is unsure, slow or down
+# Shadow by default, as the product handoff asks: measure before it acts.
+LAYA_URL = (os.getenv("LAYA_URL") or "").rstrip("/")
+LAYA_API_KEY = os.getenv("LAYA_API_KEY") or ""
+LAYA_ROUTING = (os.getenv("LAYA_ROUTING") or "shadow").strip().lower()
+LAYA_MODEL = os.getenv("LAYA_MODEL", "multilingual")
+LAYA_TIMEOUT_MS = int(os.getenv("LAYA_TIMEOUT_MS", "350"))
+LAYA_MIN_CONFIDENCE = float(os.getenv("LAYA_MIN_CONFIDENCE", "0.6"))
+
 # PostHog configuration
 POSTHOG_API_KEY = os.getenv("POSTHOG_API_KEY")
 POSTHOG_HOST = os.getenv("POSTHOG_HOST", "https://us.i.posthog.com")

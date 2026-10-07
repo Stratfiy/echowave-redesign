@@ -337,7 +337,7 @@ async def get_effective_ai_model_configuration_for_workflow(
 #: Slots an agent inherits from Settings -> Models. Not ``tts``: the voice is
 #: the one model choice an agent keeps for itself.
 INHERITED_SLOTS = ("llm", "stt", "embeddings")
-_DEFAULT_TIERS = ("", "default", "decibyl_embedding_v1")
+_DEFAULT_TIERS = ("", "default", "auto", "decibyl_embedding_v1")
 
 
 async def _inherit_workspace_choices(
