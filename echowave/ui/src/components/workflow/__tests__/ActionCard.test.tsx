@@ -291,3 +291,31 @@ describe("a step on the person's own computer", () => {
         expect(screen.getByText(/did not take this in time/)).toBeTruthy();
     });
 });
+
+describe('a card nobody undid', () => {
+    it('says it was not done, and why, when the system cancelled it', () => {
+        // Found in phase 3: a browser step whose browser closed read "Undone
+        // before it ran", as if somebody had pressed Undo.
+        render(
+            <ActionCard
+                event={event({
+                    action: 'browser_step',
+                    state: 'cancelled',
+                    error: 'The browser closed before you answered. Nothing was pressed.',
+                })}
+            />,
+        );
+        expect(screen.queryByText(/Undone before it ran/)).toBeNull();
+        expect(screen.getByText(/Not done/)).toBeTruthy();
+        expect(screen.getByText(/The browser closed before you answered/)).toBeTruthy();
+    });
+
+    it('still says undone when a person pressed Undo', () => {
+        render(
+            <ActionCard
+                event={event({ state: 'cancelled', cancelled: { by: 7, at: '2026-10-07T10:00:00Z' } })}
+            />,
+        );
+        expect(screen.getByText(/Undone before it ran/)).toBeTruthy();
+    });
+});
