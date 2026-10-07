@@ -375,12 +375,12 @@ hourly, reviews and merges each PR, and starts the next streams.
 | controls | 1 | claude/stream-controls | #525 merged | yes | 247 stream + core pass; UI 1414 pass | |
 | shell | 1 | claude/stream-shell | #526 merged | yes | as controls (merged together) | |
 | today | 2 | claude/stream-today | | | | |
-| agents | 2 | claude/stream-agents | | | | |
+| agents | 2 | claude/stream-agents | #532 | yes (AGENTS-LAUNCH.md) | 44 api + 20 ui, live check | |
 | learning | 2 | claude/stream-learning | see PR | yes (`LEARNING.md`) | see PR | |
 | voice | 2 | claude/stream-voice | #536 | yes (VOICE.md) | see PR | |
 | meetings | 2 | claude/stream-meetings | see PR | yes (MEETINGS.md) | 56 API + 38 UI; running-instance checks in PR | |
 | identity | 2 | claude/stream-identity | | | | |
-| settings | 2 | claude/stream-settings | | | | |
+| settings | 2 | claude/stream-settings | #538 draft | yes (SETTINGS.md) | 60 API + 89 UI new; live API/worker/UI check | |
 | support | 2 | claude/stream-support | draft | yes (SUPPORT.md) | 50 API + 36 UI; live API/worker/UI check | |
 | staff | 2 | claude/stream-staff | | | | |
 | ops | 2 | claude/stream-ops | #524 merged | yes; one analytics outbox with controls | 245 stream + core pass | |

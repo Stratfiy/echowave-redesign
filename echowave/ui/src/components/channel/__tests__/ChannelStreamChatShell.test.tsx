@@ -81,8 +81,12 @@ describe('screen 04 states', () => {
         );
         const status = await screen.findByTestId('turn-status');
         expect(status.textContent).toContain('Working');
-        expect(onWaitingChange).toHaveBeenLastCalledWith(true);
-        expect(onTurnStatus).toHaveBeenLastCalledWith(expect.objectContaining({ state: 'running', requestId: ask.id }));
+        // Both are reported from an effect after the status renders, so on a
+        // busy runner they can land a tick later than the text.
+        await waitFor(() => expect(onWaitingChange).toHaveBeenLastCalledWith(true));
+        await waitFor(() =>
+            expect(onTurnStatus).toHaveBeenLastCalledWith(expect.objectContaining({ state: 'running', requestId: ask.id })),
+        );
     });
 
     it('marks a stopped reply partial, keeps its text, and retries the request', async () => {

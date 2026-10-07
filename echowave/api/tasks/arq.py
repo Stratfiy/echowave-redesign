@@ -71,11 +71,13 @@ from api.tasks.routines import (
     run_proposed_action,
 )
 from api.tasks.run_integrations import run_integrations_post_workflow_run
+from api.tasks.settings import build_personal_export, purge_temporary_conversations
 from api.tasks.settlement import sweep_uncosted_runs
 from api.tasks.staff import run_staff_command, sweep_staff_commands
 from api.tasks.sunday_review import send_sunday_reviews
 from api.tasks.support import run_support_action, sweep_support_actions
 from api.tasks.tax_invoices import issue_monthly_tax_invoices
+from api.tasks.today import deliver_due_briefs, deliver_due_reminders
 from api.tasks.trial_notices import send_trial_notices
 from api.tasks.voice import sweep_stale_voice_sessions
 from api.tasks.webhook_delivery import deliver_webhook, sweep_webhook_deliveries
@@ -145,6 +147,8 @@ class WorkerSettings:
         translate_knowledge_base_document,
         deliver_analytics_outbox,
         sweep_unknown_outcomes,
+        deliver_due_reminders,
+        deliver_due_briefs,
         run_support_action,
         sweep_support_actions,
         run_ops_command,
@@ -156,9 +160,15 @@ class WorkerSettings:
         run_staff_command,
         sweep_staff_commands,
         reconcile_unknown_outcomes,
+        build_personal_export,
+        purge_temporary_conversations,
         sweep_stale_voice_sessions,
     ]
     cron_jobs = [
+        # Launch stream today: reminders and briefs at each person's own
+        # minute, once each. Both no-ops while their switches are off.
+        cron(deliver_due_reminders, second=5, run_at_startup=False),
+        cron(deliver_due_briefs, second=25, run_at_startup=False),
         # Stream ops: expire unapproved commands, re-enqueue lost ones, lift
         # timed pauses and check the cost-stop ceilings. Analytics delivery is
         # the controls outbox's cron below. Each part is off behind its flag.
@@ -212,6 +222,13 @@ class WorkerSettings:
         cron(
             reconcile_unknown_outcomes,
             minute=set(range(3, 60, 5)),
+            second=20,
+            run_at_startup=False,
+        ),
+        # Launch stream settings: temporary conversations deleted on time.
+        cron(
+            purge_temporary_conversations,
+            minute=set(range(3, 60, 10)),
             second=20,
             run_at_startup=False,
         ),

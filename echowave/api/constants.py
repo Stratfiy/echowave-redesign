@@ -794,6 +794,39 @@ CHAT_SHELL_ENABLED = _flag("CHAT_SHELL_ENABLED")
 # of the workflow canvas.
 SHELL_MOBILE_ENABLED = _flag("SHELL_MOBILE_ENABLED")
 
+# Launch stream `agents` (8 October 2026). Each off by default; see
+# AGENTS-LAUNCH.md and services/helpers/.
+# Screen 06: the helper picker in Chat -- Automatic and the five launch
+# helpers, each a configuration over Decibyl with a capability state.
+LAUNCH_HELPERS_ENABLED = _flag("LAUNCH_HELPERS_ENABLED")
+# Research keeps a saved report with its sources; the export is the same
+# rendering the screen shows.
+RESEARCH_REPORTS_ENABLED = _flag("RESEARCH_REPORTS_ENABLED")
+# Follow-up tracks commitments a person approved, and answers "who owes me".
+FOLLOW_UP_LEDGER_ENABLED = _flag("FOLLOW_UP_LEDGER_ENABLED")
+# Research summarises markets by a person's own interests: information only.
+TRADING_SUMMARIES_ENABLED = _flag("TRADING_SUMMARIES_ENABLED")
+# "Ask Decibyl to build or do anything": agents, routines and trackers from
+# a description, in Chat; nobody is sent to the old /start journey.
+DESCRIBE_BUILDER_ENABLED = _flag("DESCRIBE_BUILDER_ENABLED")
+# Launch stream `today` (8 October 2026). Each off by default; see
+# TODAY.md and services/features.py.
+# Screens 07-09: Today as one ordered list, the exact approval screen and
+# task detail with activity.
+TODAY_LIST_ENABLED = _flag("TODAY_LIST_ENABLED")
+# Pending approvals docked above the composer in Chat: "Decibyl wants to:
+# ..." with Do it / Don't, bound to the card's version.
+APPROVAL_DOCK_ENABLED = _flag("APPROVAL_DOCK_ENABLED")
+# Screen 10: reminders and event-linked reminders, with their delivery.
+TODAY_REMINDERS_ENABLED = _flag("TODAY_REMINDERS_ENABLED")
+# Screen 20: one daily brief with source coverage, in-app / WhatsApp / push
+# at the person's own time.
+DAILY_BRIEF_ENABLED = _flag("DAILY_BRIEF_ENABLED")
+# The end-of-day note: what was done, what is left, missed calls handled.
+END_OF_DAY_NOTE_ENABLED = _flag("END_OF_DAY_NOTE_ENABLED")
+# A routine set from chat starts on once its card is confirmed, instead of
+# being saved switched off and untested.
+ROUTINE_START_ON_ENABLED = _flag("ROUTINE_START_ON_ENABLED")
 # Launch stream `care` (LAUNCH-PLAN.md, phase 2): older people and their
 # families. Each off by default; see CARE.md and services/features.py.
 # Simple mode: large text, voice first, one thing at a time. A preference on
@@ -903,6 +936,27 @@ VAPID_SUBJECT = os.getenv("VAPID_SUBJECT", "mailto:support@decibyl.ai").strip()
 # suggestion cap comes from server policy"). A placeholder number for the
 # founder's decision, like the operational quotas.
 NOTIFY_SUGGESTION_DAILY_CAP = int(os.getenv("NOTIFY_SUGGESTION_DAILY_CAP", "2"))
+# Launch stream `settings` (8 October 2026). Each off by default; see
+# SETTINGS.md and services/features.py. Off, Settings is what it was.
+# Screen 17-19: the grouped Settings shell (Personal, Connections, Privacy,
+# Advanced, then the workspace), settings search, Account, Personalization
+# and Voice and language on the person's own preferences.
+SETTINGS_SHELL_ENABLED = _flag("SETTINGS_SHELL_ENABLED")
+# Screen 16: the memory manager -- memory opt-in, provenance, edits as
+# revisions, forget through a card, sharing to a team, temporary chats.
+MEMORY_MANAGER_ENABLED = _flag("MEMORY_MANAGER_ENABLED")
+# Screen 25: privacy and security -- personal export, personal deletion
+# through a card, effective retention and MFA in one place.
+PRIVACY_CENTER_ENABLED = _flag("PRIVACY_CENTER_ENABLED")
+# Screen 15: saved items and search in one scope at a time.
+SAVED_ITEMS_ENABLED = _flag("SAVED_ITEMS_ENABLED")
+# Screen 26: model defaults showing where each comes from, readiness, agent
+# overrides, and revision-checked saves.
+MODEL_INHERITANCE_ENABLED = _flag("MODEL_INHERITANCE_ENABLED")
+#: How long a temporary conversation is kept before it is deleted, in hours.
+TEMPORARY_CONVERSATION_HOURS = int(os.getenv("TEMPORARY_CONVERSATION_HOURS", "24"))
+#: How long a personal export can be downloaded, in days.
+PERSONAL_EXPORT_DAYS = int(os.getenv("PERSONAL_EXPORT_DAYS", "7"))
 # Launch stream `voice` (8 October 2026). Each off by default; see
 # LAUNCH-PLAN.md, VOICE.md and services/features.py.
 # Screen 05: Talk in Chat opens a live voice conversation with Decibyl itself
@@ -917,9 +971,6 @@ CALL_FOR_ME_ENABLED = _flag("CALL_FOR_ME_ENABLED")
 # The Call and Appointment runtime (handoff 6): booking policy, open slots,
 # booking within policy, caller verification and escalation on calls.
 CALL_APPOINTMENT_ENABLED = _flag("CALL_APPOINTMENT_ENABLED")
-# Screen 19: voice and language settings (language, compatible voice,
-# preview, speed and captions), with stream `settings`.
-VOICE_LANGUAGE_SETTINGS_ENABLED = _flag("VOICE_LANGUAGE_SETTINGS_ENABLED")
 # How long a live voice session may go without a heartbeat before it is
 # treated as lost (its microphone and slot released).
 VOICE_SESSION_STALE_SECONDS = int(os.getenv("VOICE_SESSION_STALE_SECONDS", "90"))

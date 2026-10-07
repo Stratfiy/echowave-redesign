@@ -12,9 +12,9 @@ catalogue, and the shell's `registerTalk` hook. Everything ships **off**.
 | `voice_latency` | `VOICE_LATENCY_ENABLED` | Per-turn timings (`/voice/sessions/{id}/turns`), staff summary `/admin/voice/latency` |
 | `call_for_me` | `CALL_FOR_ME_ENABLED` | Decibyl's `call_for_me` tool and the `place_call` card |
 | `call_appointment` | `CALL_APPOINTMENT_ENABLED` | Booking policy, slots, booking, escalation; the appointments tool on calls; `/voice/appointments*` |
-| `voice_language_settings` | `VOICE_LANGUAGE_SETTINGS_ENABLED` | Settings, Voice and language (screen 19); `/voice/catalogue`, `/voice/preferences`, `/voice/preview` |
 
-All five honour per-organisation overrides from the staff console.
+All four honour per-organisation overrides from the staff console. Screen
+19 (Settings, Voice and language) is the `settings` stream's page; see below.
 
 ## Live voice (screen 05, handoff 21 "Live voice interaction")
 
@@ -158,16 +158,23 @@ deletes without a card.
 
 ## Voice and language settings (screen 19)
 
-`/settings/voice`, listed in Settings under You while
-`voice_language_settings` is on. Language (the member preference list, by
-native name), the voices that speak it (from Sarvam's catalogue -- no
-invented attributes such as gender), a cancellable preview from the shared
-sample store (recorded on the platform key, never the account's; no key is
-`needs_setup`), speed 0.5-2.0 with its number, captions, and the
-microphone's state in this browser. One Save under the member preference
-revision; a voice that cannot speak the language is refused, and a language
-change clears an incompatible voice instead of substituting one.
-`member_preferences` gains `voice_speed` and `captions`.
+One screen, the `settings` stream's (`/settings/voice`, behind its flags):
+language, a compatible voice with preview, speaking speed, captions and the
+microphone. It saves `member_preferences.voice` (the speaker's plain id for
+the workspace's voice model), `speaking_speed` and `captions` under the
+member preference revision; the columns are the settings migration's.
+
+Live voice reads them when a session starts: `speaking_speed` and `captions`
+go into the session's fixed configuration, and the voice applies only if
+the session's voice model has that speaker and speaks the session's
+language (`services/voice/catalogue.py`); otherwise it is left out, never
+swapped, and the session says it was not applied.
+
+The voice stream adds one section to that page, **Calls**
+(`ui/src/components/voice/VoiceCallSettings.tsx`), shown while
+`call_appointment` or `call_for_me` is on: the setup state of "call it for
+me", the booking policy, who may book, the escalation number, the helper
+that places calls, and upcoming bookings.
 
 ## Mobile (handoff 7)
 
@@ -179,9 +186,9 @@ Browser microphone support varies: the screen reports what the browser says
 
 ## Migration
 
-`20261008voice` (revises `202610071500shell`), additive: `voice_sessions`,
-`voice_turns`, `appointment_policies`, `appointments`, two nullable columns
-on `member_preferences`, and the `appointments` value of `tool_category`.
+`20261008voice` (revises `20261008settings`), additive: `voice_sessions`,
+`voice_turns`, `appointment_policies`, `appointments`, and the
+`appointments` value of `tool_category`.
 Downgrade drops exactly these (deleting any `appointments` tool rows first).
 
 ## Rollback
@@ -194,6 +201,5 @@ Turning a flag off restores today's behaviour at once:
 * `voice_latency` off: nothing recorded; routes 404.
 * `call_for_me` off: the tool is not offered; a stored card refuses to run.
 * `call_appointment` off: the tool offers nothing on calls; routes 404.
-* `voice_language_settings` off: the section is not listed; routes 404.
 
-Schema: `alembic downgrade 202610071500shell`.
+Schema: `alembic downgrade 20261008settings`.

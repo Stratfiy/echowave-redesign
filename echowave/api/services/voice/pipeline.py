@@ -69,9 +69,9 @@ def apply_person(effective: Any, session: dict[str, Any]) -> tuple[Any, dict[str
         tts_update: dict[str, Any] = {}
         if language:
             tts_update["language"] = language
-        voice = catalogue.parse(session.get("voice"))
-        if voice is not None and voice.model == getattr(tts, "model", None):
-            tts_update["voice"] = voice.speaker
+        voice = session.get("voice")
+        if catalogue.is_speaker(voice, getattr(tts, "model", None)):
+            tts_update["voice"] = voice
             applied["voice_applied"] = True
         speed = config.get("speed")
         if isinstance(speed, (int, float)):

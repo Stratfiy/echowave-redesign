@@ -66,6 +66,19 @@ export type Feature =
     | "first_task_onboarding"
     | "chat_shell"
     | "shell_mobile"
+    // Launch stream `agents` (LAUNCH-PLAN.md, phase 2).
+    | "launch_helpers"
+    | "research_reports"
+    | "follow_up_ledger"
+    | "trading_summaries"
+    | "describe_builder"
+    // Launch stream `today` (LAUNCH-PLAN.md, phase 2).
+    | "today_list"
+    | "approval_dock"
+    | "today_reminders"
+    | "daily_brief"
+    | "end_of_day_note"
+    | "routine_start_on"
     // Launch stream `support` (LAUNCH-PLAN.md, phase 2).
     | "support_help"
     | "support_inbox"
@@ -107,12 +120,17 @@ export type Feature =
     | "identity_phone"
     | "identity_notifications"
     | "identity_reconciliation"
+    // Launch stream `settings` (LAUNCH-PLAN.md, phase 2; SETTINGS.md).
+    | "settings_shell"
+    | "memory_manager"
+    | "privacy_center"
+    | "saved_items"
+    | "model_inheritance"
     // Launch stream `voice` (LAUNCH-PLAN.md, phase 2).
     | "decibyl_voice"
     | "voice_latency"
     | "call_for_me"
-    | "call_appointment"
-    | "voice_language_settings";
+    | "call_appointment";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

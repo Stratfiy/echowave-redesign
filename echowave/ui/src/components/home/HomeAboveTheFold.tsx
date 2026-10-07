@@ -33,8 +33,10 @@ import { ThreadList } from "@/components/home/ThreadList";
 import { AuxiliaryPanel } from "@/components/layout/AuxiliaryPanel";
 import { LearningResume } from "@/components/learning/LearningResume";
 import { LearningSession } from "@/components/learning/LearningSession";
+import { TemporaryBanner } from "@/components/settings/TemporaryBanner";
 import { Announcer } from "@/components/shell/Announcer";
 import { SourceCoverage } from "@/components/shell/SourceCoverage";
+import { ApprovalDock } from "@/components/today/ApprovalDock";
 import { jobArt } from "@/lib/art";
 import { useAuth } from "@/lib/auth";
 import { useFeature } from "@/lib/features";
@@ -162,6 +164,8 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   const { user, loading: authLoading } = useAuth();
   // Screens 03-04: starters that fill the box, Stop, sources, task states.
   const chatShell = useFeature("chat_shell");
+  // Stream today: a pending approval docks above the composer.
+  const approvalDock = useFeature("approval_dock");
   // Screen 13: the lesson inside Chat. "?learn=<goal>" resumes one (from
   // Today, the progress page or a shared link); "?learn=new" starts one;
   // "&review=<skill>" opens on a review. Null is the conversation.
@@ -202,6 +206,8 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
       // Nothing to tidy.
     }
   }, []);
+  // A temporary conversation says so above the thread (settings stream).
+  const memoryManager = useFeature("memory_manager");
   // Whether the thread's history loaded. A failure is shown as a failure
   // with Retry, never as the empty greeting (screen 03).
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
@@ -250,6 +256,22 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   // door. Read once and taken off the address, so a refresh does not put
   // them back after the person has sent or deleted them.
   const [prefill, setPrefill] = useState<string>("");
+  // "?helper=": a helper to start with (screen 06), from an old "Build an
+  // agent" link that now opens the builder here. Read once, taken off.
+  const [initialHelper, setInitialHelper] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const helper = params.get("helper");
+      if (!helper) return;
+      setInitialHelper(helper);
+      params.delete("helper");
+      const rest = params.toString();
+      window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}`);
+    } catch {
+      // No URL to read: Automatic, as always.
+    }
+  }, []);
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -470,6 +492,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         {/* Keyed on the chat, so switching remounts the stream clean:
             no rows from the last chat showing until the poll catches up,
             no cursor pointing into a different conversation. */}
+        {memoryManager && threadId?.startsWith("tmp-") && <TemporaryBanner threadId={threadId} />}
         <ChannelStream
           key={threadId ?? "original"}
           assistant
@@ -486,6 +509,12 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
           onOpenSources={chatShell ? onOpenSources : undefined}
         />
       </div>
+      {approvalDock && (
+        // The composer's own gutter, so the dock lines up with the box it sits on.
+        <div className="px-4 sm:px-6">
+          <ApprovalDock refreshKey={threadsVersion} onSettled={() => refreshStream.current()} />
+        </div>
+      )}
       {/* The lesson has its own answer box: two boxes on one screen is one
           too many, so the composer steps aside (kept mounted, draft kept). */}
       <div className={cn(showLesson && "hidden")}>
@@ -500,6 +529,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         replying={replying}
         onStop={() => void stop()}
         draftRequest={draftRequest}
+        initialHelper={initialHelper}
         onSent={() => {
           asked();
           setThreadsVersion((v) => v + 1);

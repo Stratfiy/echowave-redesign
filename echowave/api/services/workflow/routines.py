@@ -148,6 +148,9 @@ class RoutineSpec:
     last_fired_at: Optional[datetime] = None
     #: Apps the routine cannot do its job without, by connector slug.
     needs_apps: tuple[str, ...] = ()
+    #: Set from chat and armed by a person confirming its exact schedule on
+    #: the card (``routine_start_on``). Arms it like a test run; it is not one.
+    armed_by_card: bool = False
 
 
 @dataclass(frozen=True)
@@ -175,8 +178,13 @@ def may_arm(spec: RoutineSpec) -> bool:
     unsupervised it writes into somebody's real accounting software, and a
     test run is the one chance to see what it would do before it does it --
     which is worth nothing if the toggle does not wait for it.
+
+    One other way to arm, and only for a routine Decibyl proposed in the
+    thread: the person confirmed the card that showed its exact schedule and
+    instruction (``routine_start_on``). That confirmation is the look before
+    it runs.
     """
-    return spec.tested_at is not None
+    return spec.tested_at is not None or spec.armed_by_card
 
 
 def _windows(business_hours: Any, day: date) -> list[tuple[int, int]]:
@@ -442,6 +450,7 @@ def spec_from_model(model: Any) -> RoutineSpec:
         needs_apps=tuple(
             str(app) for app in (model.needs_apps or []) if isinstance(app, str)
         ),
+        armed_by_card=model.armed_by_card_event_id is not None,
     )
 
 

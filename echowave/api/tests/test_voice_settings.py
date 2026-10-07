@@ -1,12 +1,11 @@
-"""Voice and language settings (screen 19, with stream settings).
+"""Live voice reads the person's own voice settings (screen 19, saved by
+stream `settings` in Settings -> Voice and language).
 
-Done when: the catalogue lists the languages Sarvam speaks with their voices
-and invents nothing (no guessed genders); a chosen voice and its language
-save together with speed and captions under one revision and read back the
-same voice id; a voice that does not speak the language is refused rather
-than swapped; a stale save is a conflict showing what is stored; preview is
-honest when no sample can be recorded; and another person's settings never
-move.
+Done when: a session starts with the person's `speaking_speed` and
+`captions` from member_preferences; their voice applies only if the
+workspace's voice model has that speaker and speaks the session's language,
+and is otherwise left out rather than swapped; and a colleague's settings
+never reach another person's session.
 """
 
 from __future__ import annotations
@@ -14,8 +13,7 @@ from __future__ import annotations
 import pytest
 
 from api.services import member_preferences
-from api.services.configuration import voice_samples
-from api.services.voice import catalogue
+from api.services.voice import catalogue, readiness
 from api.tests.support.voice import all_on, clean, client_as, make_people
 
 
@@ -26,154 +24,103 @@ async def people(test_engine):
     await clean(p)
 
 
-class TestCatalogue:
-    def test_every_offered_language_is_spoken_by_sarvam(self):
-        for code in member_preferences.LANGUAGES:
-            assert catalogue.voices_for(code), code
-        assert catalogue.spoken_language("en") == "en-IN"
-
-    def test_a_language_sarvam_cannot_speak_has_no_voices(self):
-        assert catalogue.voices_for("ur-IN") == []
-        assert catalogue.spoken_language("fr-FR") is None
-
-    def test_ids_parse_and_unknown_ones_do_not(self):
-        voice = catalogue.parse("sarvam:bulbul:v3:kavya")
-        assert (
-            voice is not None
-            and voice.model == "bulbul:v3"
-            and voice.speaker == "kavya"
+@pytest.fixture
+def ready(monkeypatch):
+    async def available(**_):
+        return readiness.Readiness(
+            readiness.AVAILABLE,
+            config={
+                "stt": {"provider": "sarvam", "model": "saaras:v3"},
+                "tts": {"provider": "sarvam", "model": "bulbul:v3"},
+                "language": "ta-IN",
+            },
         )
-        assert catalogue.parse("sarvam:bulbul:v3:nobody") is None
-        assert catalogue.parse("meera") is None
 
-    def test_no_invented_attributes(self):
-        listed = catalogue.as_dict()["languages"][0]["voices"][0]
-        assert set(listed) == {"id", "label", "model"}
+    monkeypatch.setattr(readiness, "live_voice", available)
+
+
+class TestCatalogue:
+    def test_offered_languages_are_spoken_or_said_to_be_text_only(self):
+        spoken = {c for c in member_preferences.LANGUAGES if catalogue.spoken_language(c)}
+        # The Indian languages Sarvam's voice speaks, and English.
+        assert {"en", "en-IN", "hi-IN", "ta-IN", "te-IN", "kn-IN", "ml-IN"} <= spoken
+        assert catalogue.spoken_language("en") == "en-IN"
+        # Urdu is a text language here: typed and captioned, not spoken.
+        assert catalogue.spoken_language("ur-IN") is None
+
+    def test_a_voice_is_a_speaker_of_one_model(self):
+        assert catalogue.is_speaker("kavya", "bulbul:v3")
+        assert not catalogue.is_speaker("kavya", "bulbul:v2")
+        assert catalogue.is_speaker("anushka", "bulbul:v2")
+        assert not catalogue.is_speaker("nobody", "bulbul:v3")
+        assert not catalogue.is_speaker(None, "bulbul:v3")
+
+    def test_compatible_needs_both_language_and_speaker(self):
+        assert catalogue.compatible("kavya", "ta-IN", "bulbul:v3")
+        assert not catalogue.compatible("kavya", "ur-IN", "bulbul:v3")
+        assert not catalogue.compatible("anushka", "ta-IN", "bulbul:v3")
 
 
 @pytest.mark.asyncio
-class TestSaving:
-    async def test_off_is_404(self, people):
-        async with client_as(people.as_a) as c:
-            assert (await c.get("/api/v1/voice/preferences")).status_code == 404
-            assert (await c.get("/api/v1/voice/catalogue")).status_code == 404
-
-    async def test_a_voice_saves_and_reads_back_the_same_id(self, people, monkeypatch):
+class TestTheSessionReadsSettings:
+    async def test_speed_captions_and_voice_from_settings(
+        self, people, monkeypatch, ready
+    ):
         all_on(monkeypatch)
+        await member_preferences.save(
+            people.a.id,
+            {
+                "language": "ta-IN",
+                "voice": "kavya",
+                "speaking_speed": 1.25,
+                "captions": False,
+            },
+            revision=0,
+        )
         async with client_as(people.as_a) as c:
-            saved = await c.put(
-                "/api/v1/voice/preferences",
-                json={
-                    "revision": 0,
-                    "language": "ta-IN",
-                    "voice": "sarvam:bulbul:v3:kavya",
-                    "voice_speed": 1.25,
-                    "captions": False,
-                },
-            )
-            read = await c.get("/api/v1/voice/preferences")
-        assert saved.status_code == 200
-        assert read.json()["voice"] == "sarvam:bulbul:v3:kavya"
-        assert read.json()["voice_speed"] == 1.25 and read.json()["captions"] is False
-        assert read.json()["revision"] == 1
+            started = await c.post("/api/v1/voice/sessions", json={})
+            state = await c.get("/api/v1/voice/readiness")
+        assert started.status_code == 201
+        body = started.json()
+        assert body["voice"] == "kavya"
+        assert body["config"]["speed"] == 1.25
+        assert body["config"]["captions"] is False
+        assert body["config"]["voice_compatible"] is True
+        assert state.json()["captions"] is False
 
-    async def test_a_voice_that_cannot_speak_the_language_is_refused(
-        self, people, monkeypatch
+    async def test_a_voice_the_model_lacks_is_left_out_not_swapped(
+        self, people, monkeypatch, ready
+    ):
+        all_on(monkeypatch)
+        await member_preferences.save(people.a.id, {"voice": "anushka"}, revision=0)
+        async with client_as(people.as_a) as c:
+            started = await c.post("/api/v1/voice/sessions", json={})
+        body = started.json()
+        assert body["voice"] is None
+        assert body["config"]["voice_compatible"] is False
+
+    async def test_nothing_set_reads_as_normal_speed_and_captions_on(
+        self, people, monkeypatch, ready
     ):
         all_on(monkeypatch)
         async with client_as(people.as_a) as c:
-            refused = await c.put(
-                "/api/v1/voice/preferences",
-                json={
-                    "revision": 0,
-                    "language": "ta-IN",
-                    "voice": "sarvam:bulbul:v3:nobody",
-                },
-            )
-        assert refused.status_code == 422
-        assert (await member_preferences.get(people.a.id))["revision"] == 0
+            body = (await c.post("/api/v1/voice/sessions", json={})).json()
+        assert body["config"]["speed"] is None
+        assert body["config"]["captions"] is True
 
-    async def test_stale_save_shows_what_is_stored(self, people, monkeypatch):
+    async def test_a_colleagues_settings_never_reach_my_session(
+        self, people, monkeypatch, ready
+    ):
+        all_on(monkeypatch)
+        await member_preferences.save(
+            people.b.id, {"voice": "kavya", "speaking_speed": 0.6}, revision=0
+        )
+        async with client_as(people.as_a) as c:
+            body = (await c.post("/api/v1/voice/sessions", json={})).json()
+        assert body["voice"] is None and body["config"]["speed"] is None
+
+    async def test_the_old_voice_settings_routes_are_gone(self, people, monkeypatch):
         all_on(monkeypatch)
         async with client_as(people.as_a) as c:
-            await c.put(
-                "/api/v1/voice/preferences", json={"revision": 0, "captions": True}
-            )
-            stale = await c.put(
-                "/api/v1/voice/preferences", json={"revision": 0, "captions": False}
-            )
-        assert stale.status_code == 409
-        assert stale.json()["detail"]["stored"]["captions"] is True
-
-    @pytest.mark.parametrize("speed", [0.1, 3, "fast"])
-    async def test_speed_outside_the_range_is_refused(self, people, monkeypatch, speed):
-        all_on(monkeypatch)
-        async with client_as(people.as_a) as c:
-            refused = await c.put(
-                "/api/v1/voice/preferences", json={"revision": 0, "voice_speed": speed}
-            )
-        assert refused.status_code == 422
-
-    async def test_my_save_never_moves_a_colleagues(self, people, monkeypatch):
-        all_on(monkeypatch)
-        await member_preferences.save(people.b.id, {"language": "hi-IN"}, revision=0)
-        async with client_as(people.as_a) as c:
-            await c.put(
-                "/api/v1/voice/preferences",
-                json={"revision": 0, "language": "ta-IN", "voice_speed": 0.8},
-            )
-        theirs = await member_preferences.get(people.b.id)
-        assert theirs["language"] == "hi-IN" and theirs["voice_speed"] is None
-
-
-@pytest.mark.asyncio
-class TestPreview:
-    async def test_no_sample_and_no_key_is_needs_setup(self, people, monkeypatch):
-        all_on(monkeypatch)
-
-        async def none(**_):
-            return None
-
-        monkeypatch.setattr(voice_samples, "ensure_sample_url", none)
-        async with client_as(people.as_a) as c:
-            preview = await c.get(
-                "/api/v1/voice/preview",
-                params={"voice": "sarvam:bulbul:v3:kavya", "language": "ta-IN"},
-            )
-        assert preview.json() == {
-            "state": "needs_setup",
-            "url": None,
-            "reason": "A preview could not be recorded: the voice service is not set up.",
-        }
-
-    async def test_a_recorded_sample_plays(self, people, monkeypatch):
-        all_on(monkeypatch)
-        asked = {}
-
-        async def recorded(**kw):
-            asked.update(kw)
-            return "https://samples.example/kavya-ta.wav"
-
-        monkeypatch.setattr(voice_samples, "ensure_sample_url", recorded)
-        async with client_as(people.as_a) as c:
-            preview = await c.get(
-                "/api/v1/voice/preview",
-                params={"voice": "sarvam:bulbul:v3:kavya", "language": "ta-IN"},
-            )
-        assert preview.json()["state"] == "available"
-        assert asked == {
-            "provider": "sarvam",
-            "model": "bulbul:v3",
-            "voice_id": "kavya",
-            "language": "ta",
-        }
-
-    async def test_a_language_without_a_sample_line_says_so(self, people, monkeypatch):
-        all_on(monkeypatch)
-        async with client_as(people.as_a) as c:
-            preview = await c.get(
-                "/api/v1/voice/preview",
-                params={"voice": "sarvam:bulbul:v3:kavya", "language": "bn-IN"},
-            )
-        assert preview.json()["state"] == "unavailable"
-        assert "still speaks it" in preview.json()["reason"]
+            for path in ("/api/v1/voice/catalogue", "/api/v1/voice/preferences"):
+                assert (await c.get(path)).status_code == 404

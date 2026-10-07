@@ -103,6 +103,7 @@ async def test_nothing_is_written_unless_both_switches_are_on(
 async def test_record_writes_one_pseudonymous_row_and_health_sees_it(
     db_session, async_session, both_on
 ):
+    before = await telemetry.outbox_health(async_session)
     event_id = await telemetry.record(
         async_session,
         "ops_command_executed",
@@ -123,7 +124,9 @@ async def test_record_writes_one_pseudonymous_row_and_health_sees_it(
     assert env["task_id"] == "ops-12"
     assert env["properties"] == {"status": "succeeded", "command": "laya.rollback"}
     health = await telemetry.outbox_health(async_session)
-    assert health["pending"] == 1 and health["stuck"] == 0
+    # Relative to before: other streams' tests share the outbox table.
+    assert health["pending"] == before["pending"] + 1
+    assert health["stuck"] == before["stuck"]
 
 
 @pytest.mark.asyncio

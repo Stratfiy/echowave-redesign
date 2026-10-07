@@ -288,6 +288,7 @@ async def answer_decibyl_message(
     attachments: list[dict] | None = None,
     attempt: int = 0,
     thread_id: str | None = None,
+    helper: str | None = None,
 ) -> None:
     """Decibyl's turn on its own thread. See services/workflow/decibyl.py.
     ``reply_to`` sends the answer back on the channel it came from too.
@@ -321,6 +322,7 @@ async def answer_decibyl_message(
                 attachments=attachments,
                 attempt=attempt + 1,
                 thread_id=thread_id,
+                helper=helper,
                 _defer_by=timedelta(seconds=decibyl.UNREAD_RETRY_SECONDS),
             )
         except Exception as exc:  # noqa: BLE001
@@ -352,6 +354,7 @@ async def answer_decibyl_message(
             # way out is the one nobody keeps.
             last_try=bool(pending) and attempt >= decibyl.UNREAD_RETRIES,
             thread_id=thread_id,
+            **({"helper": helper} if helper else {}),
         )
     if not reply_to or not reply_to.get("channel"):
         return

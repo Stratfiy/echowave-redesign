@@ -143,14 +143,18 @@ class RoutineClient(BaseDBClient):
             return routine
 
     async def delete_routine(
-        self, routine_id: int, *, organization_id: int, workflow_id: int
+        self, routine_id: int, *, organization_id: int, workflow_id: Optional[int]
     ) -> bool:
+        """``workflow_id`` None is one of Decibyl's own routines (KAN-156),
+        matched with IS NULL -- ``= NULL`` matches nothing in SQL."""
         async with self.async_session() as session:
             result = await session.execute(
                 select(AgentRoutineModel).where(
                     AgentRoutineModel.id == routine_id,
                     AgentRoutineModel.organization_id == organization_id,
-                    AgentRoutineModel.workflow_id == workflow_id,
+                    AgentRoutineModel.workflow_id.is_(None)
+                    if workflow_id is None
+                    else AgentRoutineModel.workflow_id == workflow_id,
                 )
             )
             routine = result.scalar_one_or_none()

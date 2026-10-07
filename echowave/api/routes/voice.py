@@ -29,7 +29,6 @@ admin_router = APIRouter(
 
 _voice = Depends(features.require("decibyl_voice", per_organization=True))
 _latency = Depends(features.require("voice_latency", per_organization=True))
-_settings = Depends(features.require("voice_language_settings", per_organization=True))
 _appointments = Depends(features.require("call_appointment", per_organization=True))
 
 
@@ -175,11 +174,18 @@ async def start_session(
     language = state.config.get("language")
     config = {
         **state.config,
-        "speed": prefs.get("voice_speed"),
+        "speed": prefs.get("speaking_speed"),
         "captions": prefs.get("captions") is not False,
-        # Applied only if it speaks the session's language (screen 19: never
-        # silently substitute).
-        "voice_compatible": catalogue.compatible(voice, language) if voice else None,
+        # The person's voice (Settings -> Voice and language) applies only if
+        # the workspace's voice model has that speaker and speaks the
+        # session's language; it is never silently swapped for another.
+        "voice_compatible": (
+            catalogue.compatible(
+                voice, language, (state.config.get("tts") or {}).get("model")
+            )
+            if voice
+            else None
+        ),
     }
     try:
         session = await sessions.start(
@@ -343,140 +349,6 @@ async def latency_summary(
     """Staff: response and interruption p50/p95 with sample sizes, by
     language, channel and voice provider (design screen 40)."""
     return await latency.summary(days=days, organization_id=organization_id)
-
-
-# --- voice and language settings (screen 19) ------------------------------
-
-
-class CatalogueVoice(BaseModel):
-    id: str
-    label: str
-    model: str
-
-
-class CatalogueLanguage(BaseModel):
-    code: str
-    english: str
-    native: str
-    spoken: bool
-    voices: list[CatalogueVoice]
-
-
-class VoiceCatalogue(BaseModel):
-    languages: list[CatalogueLanguage]
-    speed_min: float
-    speed_max: float
-
-
-@router.get("/catalogue", response_model=VoiceCatalogue, dependencies=[_settings])
-async def voice_catalogue() -> VoiceCatalogue:
-    return VoiceCatalogue(**catalogue.as_dict())
-
-
-class VoicePreferences(BaseModel):
-    language: str | None
-    voice: str | None
-    voice_speed: float | None
-    captions: bool | None
-    revision: int
-    updated_at: str | None
-
-
-class VoicePreferencesWrite(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    revision: int = Field(ge=0)
-    language: str | None = None
-    voice: str | None = None
-    voice_speed: float | None = None
-    captions: bool | None = None
-
-
-def _voice_prefs(row: dict[str, Any]) -> VoicePreferences:
-    return VoicePreferences(**{k: row.get(k) for k in VoicePreferences.model_fields})
-
-
-@router.get("/preferences", response_model=VoicePreferences, dependencies=[_settings])
-async def my_voice_preferences(
-    user: Annotated[UserModel, Depends(get_user)],
-) -> VoicePreferences:
-    return _voice_prefs(await member_preferences.get(user.id))
-
-
-@router.put("/preferences", response_model=VoicePreferences, dependencies=[_settings])
-async def save_my_voice_preferences(
-    body: VoicePreferencesWrite, user: Annotated[UserModel, Depends(get_user)]
-) -> VoicePreferences:
-    """One save for language, voice, speed and captions. A voice must speak
-    the language it is saved with; a language change never swaps the voice
-    for another (screen 19). Applies to the next session."""
-    changes = body.model_dump(exclude_unset=True)
-    revision = changes.pop("revision")
-    current = await member_preferences.get(user.id)
-    language = changes.get("language", current.get("language"))
-    voice = changes.get("voice", current.get("voice"))
-    if voice and not catalogue.compatible(voice, language):
-        raise HTTPException(
-            status_code=422,
-            detail="That voice does not speak this language. Choose one of its voices.",
-        )
-    try:
-        saved = await member_preferences.save(user.id, changes, revision=revision)
-    except member_preferences.PreferenceInvalid as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except member_preferences.Conflict as exc:
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "message": "Changed in another window since you opened it.",
-                "stored": _voice_prefs(exc.stored).model_dump(),
-            },
-        ) from exc
-    return _voice_prefs(saved)
-
-
-class VoicePreview(BaseModel):
-    state: Literal["available", "needs_setup", "unavailable"]
-    url: str | None = None
-    reason: str | None = None
-
-
-@router.get("/preview", response_model=VoicePreview, dependencies=[_settings])
-async def voice_preview(
-    voice: Annotated[str, Query(max_length=64)],
-    language: Annotated[str, Query(max_length=16)],
-) -> VoicePreview:
-    """A short sample of a voice in a language, from the shared sample store
-    (recorded once on the platform's key, never the account's). No sample
-    and no key to record one is ``needs_setup``, never a silent button."""
-    from api.services.configuration import voice_samples
-
-    parsed = catalogue.parse(voice)
-    spoken = catalogue.spoken_language(language)
-    if parsed is None or spoken is None:
-        raise HTTPException(
-            status_code=422, detail="That voice or language is not offered."
-        )
-    short = spoken.split("-")[0]
-    if short not in voice_samples.SAMPLE_LANGUAGES:
-        return VoicePreview(
-            state="unavailable",
-            reason="No preview is recorded in this language yet. The voice still speaks it.",
-        )
-    try:
-        url = await voice_samples.ensure_sample_url(
-            provider=parsed.provider,
-            model=parsed.model,
-            voice_id=parsed.speaker,
-            language=short,
-        )
-    except Exception:  # noqa: BLE001 - a play button must answer
-        url = None
-    if not url:
-        return VoicePreview(
-            state="needs_setup",
-            reason="A preview could not be recorded: the voice service is not set up.",
-        )
-    return VoicePreview(state="available", url=url)
 
 
 # --- Call and Appointment ----------------------------------------------------

@@ -1,7 +1,6 @@
 """Live voice sessions, turn latency, appointments (launch stream `voice`)
 
-Additive only. Four new tables, two nullable columns on
-``member_preferences`` and one new ``tool_category`` value; nothing existing
+Additive only. Four new tables and one new ``tool_category`` value; nothing existing
 is rewritten and nothing is backfilled, so downgrading drops exactly what this
 adds and every flag off leaves the schema unused.
 
@@ -12,12 +11,11 @@ adds and every flag off leaves the schema unused.
   across clocks.
 * ``appointment_policies`` / ``appointments`` -- what the Call and Appointment
   helper may book, and what it booked.
-* ``member_preferences.voice_speed`` / ``.captions`` -- screen 19.
 * ``tool_category`` gains ``appointments``: the built-in tool a Call and
   Appointment agent books with.
 
 Revision ID: 20261008voice
-Revises: 20261008identity
+Revises: 20261008settings
 """
 
 import sqlalchemy as sa
@@ -25,7 +23,7 @@ from alembic import op
 from alembic_postgresql_enum import TableReference
 
 revision = "20261008voice"
-down_revision = "20261008identity"
+down_revision = "20261008settings"
 branch_labels = None
 depends_on = None
 
@@ -208,14 +206,6 @@ def upgrade() -> None:
         "ix_appointments_org_start", "appointments", ["organization_id", "starts_at"]
     )
 
-    # --- member preferences (screen 19) -----------------------------------
-    op.add_column(
-        "member_preferences", sa.Column("voice_speed", sa.Float(), nullable=True)
-    )
-    op.add_column(
-        "member_preferences", sa.Column("captions", sa.Boolean(), nullable=True)
-    )
-
     # --- the appointments tool ---------------------------------------------
     op.sync_enum_values(
         enum_schema="public",
@@ -235,8 +225,6 @@ def downgrade() -> None:
         affected_columns=_TOOLS,
         enum_values_to_rename=[],
     )
-    op.drop_column("member_preferences", "captions")
-    op.drop_column("member_preferences", "voice_speed")
     op.drop_index("ix_appointments_org_start", table_name="appointments")
     op.drop_table("appointments")
     op.drop_table("appointment_policies")

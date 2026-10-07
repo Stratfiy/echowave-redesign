@@ -117,6 +117,19 @@ FLAGS: dict[str, str] = {
     "first_task_onboarding": "FIRST_TASK_ONBOARDING_ENABLED",
     "chat_shell": "CHAT_SHELL_ENABLED",
     "shell_mobile": "SHELL_MOBILE_ENABLED",
+    # Launch stream `agents` (LAUNCH-PLAN.md, phase 2).
+    "launch_helpers": "LAUNCH_HELPERS_ENABLED",
+    "research_reports": "RESEARCH_REPORTS_ENABLED",
+    "follow_up_ledger": "FOLLOW_UP_LEDGER_ENABLED",
+    "trading_summaries": "TRADING_SUMMARIES_ENABLED",
+    "describe_builder": "DESCRIBE_BUILDER_ENABLED",
+    # Launch stream `today` (LAUNCH-PLAN.md, phase 2).
+    "today_list": "TODAY_LIST_ENABLED",
+    "approval_dock": "APPROVAL_DOCK_ENABLED",
+    "today_reminders": "TODAY_REMINDERS_ENABLED",
+    "daily_brief": "DAILY_BRIEF_ENABLED",
+    "end_of_day_note": "END_OF_DAY_NOTE_ENABLED",
+    "routine_start_on": "ROUTINE_START_ON_ENABLED",
     # Launch stream `support` (LAUNCH-PLAN.md, phase 2).
     "support_help": "SUPPORT_HELP_ENABLED",
     "support_inbox": "SUPPORT_INBOX_ENABLED",
@@ -156,12 +169,17 @@ FLAGS: dict[str, str] = {
     "identity_phone": "IDENTITY_PHONE_ENABLED",
     "identity_notifications": "IDENTITY_NOTIFICATIONS_ENABLED",
     "identity_reconciliation": "IDENTITY_RECONCILIATION_ENABLED",
+    # Launch stream `settings` (LAUNCH-PLAN.md, phase 2).
+    "settings_shell": "SETTINGS_SHELL_ENABLED",
+    "memory_manager": "MEMORY_MANAGER_ENABLED",
+    "privacy_center": "PRIVACY_CENTER_ENABLED",
+    "saved_items": "SAVED_ITEMS_ENABLED",
+    "model_inheritance": "MODEL_INHERITANCE_ENABLED",
     # Launch stream `voice` (LAUNCH-PLAN.md, phase 2).
     "decibyl_voice": "DECIBYL_VOICE_ENABLED",
     "voice_latency": "VOICE_LATENCY_ENABLED",
     "call_for_me": "CALL_FOR_ME_ENABLED",
     "call_appointment": "CALL_APPOINTMENT_ENABLED",
-    "voice_language_settings": "VOICE_LANGUAGE_SETTINGS_ENABLED",
 }
 
 
@@ -232,6 +250,17 @@ DESCRIPTIONS: dict[str, str] = {
     "staff_evaluations": "Versioned evaluation cases, runs against a fixed set, and case comparison.",
     "staff_incidents": "Incidents with an approved runbook: preflight, approval, execution, verification.",
     "shell_mobile": "Phone shell: Chat and Today at the bottom, profile in the header, keyboard-aware bar, read-only workflow steps.",
+    "launch_helpers": "The helper picker in Chat: Automatic and the five helpers, each with its capability state (screen 06).",
+    "research_reports": "Research keeps saved reports with their sources; the export matches what was shown.",
+    "follow_up_ledger": "Follow-up tracks commitments a person approved, and answers who owes me.",
+    "trading_summaries": "Research summarises markets by a person's own interests: information only, never advice.",
+    "describe_builder": "Ask Decibyl to build anything: agents, routines and trackers from a description, in Chat.",
+    "today_list": "Today as one ordered list, the exact approval screen, task detail and activity (screens 07-09).",
+    "approval_dock": 'Pending approvals docked above the composer: "Decibyl wants to: ..." with Do it / Don\'t.',
+    "today_reminders": "Reminders and event-linked reminders with their editor and delivery (screen 10).",
+    "daily_brief": "One daily brief with source coverage, in-app, WhatsApp and push at the person's time (screen 20).",
+    "end_of_day_note": "An end-of-day note: what was done, what is left, missed calls handled.",
+    "routine_start_on": "A routine set from chat starts on once its card is confirmed.",
     "support_help": "Help: ask support, choose exactly what is shared, follow the ticket (screen 28).",
     "support_inbox": "Staff support inbox and case with internal notes (screen 32).",
     "support_actions": "Typed support actions with a preview, a second person's approval and an audit (screen 33).",
@@ -258,11 +287,15 @@ DESCRIPTIONS: dict[str, str] = {
     "identity_phone": "Phone and verification lifecycle with the number payment flow explained (screen 24).",
     "identity_notifications": "Notification preferences per person and web push (screen 21).",
     "identity_reconciliation": "Checks with each provider whether a send whose outcome was unknown arrived.",
+    "settings_shell": "Settings grouped as Personal, Connections, Privacy, Advanced and the workspace, with search; Account, Personalization and Voice on the person's own preferences (screens 17-19).",
+    "memory_manager": "Memory manager: opt-in memory, provenance, edits as revisions, forget through a card, share to a team, temporary chats (screen 16).",
+    "privacy_center": "Privacy and security: personal export, personal deletion through a card, effective retention, MFA (screen 25).",
+    "saved_items": "Saved items and search in one scope at a time (screen 15).",
+    "model_inheritance": "Model defaults show where each comes from, readiness and agent overrides; saves are revision-checked (screen 26).",
     "decibyl_voice": "Talk with Decibyl: live voice from Chat with interruption, mute, captions and reconnect (screen 05).",
     "voice_latency": "Voice latency per turn: response and interruption times, p50/p95 by language and channel (handoff 12).",
     "call_for_me": "Call it for me: Decibyl places one approved phone call for a person and announces itself first.",
     "call_appointment": "Call and Appointment: booking policy, open slots, booking within policy, verification and escalation on calls.",
-    "voice_language_settings": "Voice and language settings: language, compatible voice, preview, speed and captions (screen 19).",
 }
 
 

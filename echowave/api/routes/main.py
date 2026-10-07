@@ -37,6 +37,7 @@ from api.routes.evals import router as evals_router
 from api.routes.extraction_library import router as extraction_library_router
 from api.routes.feature_admin import router as feature_admin_router
 from api.routes.folder import router as folder_router
+from api.routes.helpers import router as helpers_router
 from api.routes.identity import router as identity_router
 from api.routes.impersonation import router as impersonation_router
 from api.routes.knowledge_base import router as knowledge_base_router
@@ -80,6 +81,7 @@ from api.routes.routines import all_router as all_routines_router
 from api.routes.routines import router as routines_router
 from api.routes.s3_signed_url import router as s3_router
 from api.routes.service_keys import router as service_keys_router
+from api.routes.settings import router as settings_router
 from api.routes.shell import public_router as public_early_access_router
 from api.routes.shell import router as shell_router
 from api.routes.skills import router as skills_router
@@ -94,6 +96,7 @@ from api.routes.tasks import router as tasks_router
 from api.routes.team import router as team_router
 from api.routes.telephony import router as telephony_router
 from api.routes.telephony_admin import router as telephony_admin_router
+from api.routes.today import router as today_router
 from api.routes.tool import router as tool_router
 from api.routes.tool_library import router as tool_library_router
 from api.routes.translate import router as translate_router
@@ -175,9 +178,12 @@ router.include_router(bot_triggers_router)
 router.include_router(skills_router)
 router.include_router(tasks_router)
 router.include_router(controls_router)
+router.include_router(helpers_router)
 router.include_router(care_router)
 router.include_router(controls_admin_router)
+router.include_router(today_router)
 router.include_router(staff_console_router)
+router.include_router(settings_router)
 router.include_router(voice_router)
 router.include_router(voice_admin_router)
 router.include_router(organisation_router)

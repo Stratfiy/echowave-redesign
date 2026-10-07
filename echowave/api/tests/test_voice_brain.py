@@ -354,7 +354,7 @@ class TestSessionSpeech:
 
     def test_the_persons_voice_language_and_speed_apply(self):
         session = {
-            "voice": "sarvam:bulbul:v3:kavya",
+            "voice": "kavya",
             "config": {"language": "ta-IN", "speed": 1.2},
         }
         applied_config, applied = pipeline.apply_person(self._effective(), session)
@@ -365,7 +365,7 @@ class TestSessionSpeech:
         assert applied_config.stt.language == "ta-IN"
 
     def test_a_voice_for_another_model_is_said_not_swapped(self):
-        session = {"voice": "sarvam:bulbul:v2:anushka", "config": {"language": "hi-IN"}}
+        session = {"voice": "anushka", "config": {"language": "hi-IN"}}
         applied_config, applied = pipeline.apply_person(self._effective(), session)
         assert applied["voice_applied"] is False
         assert getattr(applied_config.tts, "voice", None) is None

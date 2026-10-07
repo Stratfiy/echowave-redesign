@@ -110,6 +110,13 @@ INSTALL_FROM_REPOSITORY = "install_from_repository"
 #: services/workflow/routines.py). Internal like the three above: Decibyl
 #: reaches it through schedule_routine, which has already read the words.
 SCHEDULE_ROUTINE = "schedule_routine"
+#: Track a commitment the person approves (launch stream `agents`,
+#: Follow-up; see services/helpers/commitments.py). Internal: reached
+#: through track_commitment, which has already validated the fields.
+TRACK_COMMITMENT = "track_commitment"
+#: Create a tracker the person described (the describe-it builder; see
+#: services/helpers/trackers.py). Internal for the same reason.
+CREATE_TRACKER = "create_tracker"
 #: One step Decibyl wants to take on a person's own computer that sends,
 #: pays, deletes or submits (see services/workflow/desktop_steps.py and
 #: echowave/desktop). Internal like the others: only the desktop app
@@ -175,6 +182,8 @@ INTERNAL_ACTIONS = (
     BUILD_FROM_SPEC,
     INSTALL_FROM_REPOSITORY,
     SCHEDULE_ROUTINE,
+    TRACK_COMMITMENT,
+    CREATE_TRACKER,
     DESKTOP_STEP,
     BROWSER_STEP,
     *CARE_ACTIONS,
@@ -481,14 +490,19 @@ async def resolve(
         if tool is None or not connected_tools.is_connected(tool):
             raise ActionError("That app is not connected here.")
         app = connected_tools.toolkit_of(tool)
+        args = {
+            "tool_uuid": tool.tool_uuid,
+            "tool_name": tool.name,
+            "toolkit": app,
+            "arguments": dict(arguments.get("arguments") or {}),
+        }
+        if arguments.get("commitment_id") is not None:
+            # A follow-up for a tracked commitment (Follow-up helper): part of
+            # the approved act, so it is in the version like the arguments.
+            args["commitment_id"] = int(arguments["commitment_id"])
         return {
             "action": action,
-            "args": {
-                "tool_uuid": tool.tool_uuid,
-                "tool_name": tool.name,
-                "toolkit": app,
-                "arguments": dict(arguments.get("arguments") or {}),
-            },
+            "args": args,
             "label": f"{tool.name} via {app}" if app else str(tool.name),
             "why": why,
             # What pressing Confirm does, in one derived line. Taken from the
@@ -525,6 +539,44 @@ async def resolve(
             return bot_from_brief.resolve(arguments)
         except bot_from_brief.BriefError as exc:
             raise ActionError(str(exc)) from exc
+
+    if action == TRACK_COMMITMENT:
+        from api.services import acting
+        from api.services.helpers import commitments
+
+        try:
+            fields = commitments.clean(arguments)
+        except commitments.Invalid as exc:
+            raise ActionError(str(exc)) from exc
+        return {
+            "action": TRACK_COMMITMENT,
+            # Whose follow-up list it joins: the person who asked, recorded
+            # now, not whoever later presses Confirm.
+            "args": {**fields.as_args(), "owner_user_id": acting.acting_user()},
+            "label": commitments.label(fields),
+            "why": why,
+            "effect": "Adds it to your follow-ups, private to you. Nothing is sent.",
+            "reversible": False,
+            "state": PROPOSED,
+        }
+
+    if action == CREATE_TRACKER:
+        from api.services import acting
+        from api.services.helpers import trackers
+
+        try:
+            spec = trackers.clean_spec(arguments)
+        except trackers.Invalid as exc:
+            raise ActionError(str(exc)) from exc
+        return {
+            "action": CREATE_TRACKER,
+            "args": {**spec, "owner_user_id": acting.acting_user()},
+            "label": trackers.label(spec),
+            "why": why,
+            "effect": "Creates an empty tracker, private to you. Nothing is sent.",
+            "reversible": False,
+            "state": PROPOSED,
+        }
 
     if action == INSTALL_FROM_REPOSITORY:
         repository = str(arguments.get("repository") or "").strip()[:200]
@@ -986,6 +1038,12 @@ async def propose(
             ),
         }
 
+    # Which helper asked, when one did (launch stream `agents`): every card
+    # carries organisation, member and helper. Not part of the version.
+    from api.services.helpers import turn as helper_turn
+
+    if helper_turn.current():
+        payload["helper"] = helper_turn.current()
     if _ledger_on(organization_id):
         # The exact act a Confirm will approve (design, "Approval state").
         payload["version"] = payload_version(payload)
@@ -1057,15 +1115,113 @@ async def propose_learning_deletion(
     }
 
 
+#: Cards raised by a Settings screen rather than by a model (settings stream,
+#: services/settings/cards.py). Their payload is built by that module, not
+#: resolved from model arguments; they are settled on the screen that raised
+#: them, belong to one person (``owner_user_id``), and say nothing on the
+#: shared thread.
+SETTINGS_ORIGIN = "settings"
+
+
+def _from_settings(payload: dict[str, Any]) -> bool:
+    return payload.get("origin") == SETTINGS_ORIGIN
+
+
+async def propose_prepared(
+    *,
+    organization_id: int,
+    payload: dict[str, Any],
+    thread_id: str,
+) -> int | None:
+    """Record a card whose payload a screen built (settings stream). The
+    same proposed -> armed -> running -> done life as every other card, the
+    same version binding and the same run-once claim. Returns the card id."""
+    if not _from_settings(payload):
+        raise ActionError("Only a Settings card is recorded this way.")
+    payload = dict(payload)
+    payload["state"] = PROPOSED
+    # Always versioned: the screen confirms exactly what it showed.
+    payload["version"] = payload_version(payload)
+    _stamp_ledger_state(organization_id, payload)
+    recorded = await agent_timeline.record(
+        organization_id=organization_id,
+        kind=AgentEventKind.ACTION_PROPOSED.value,
+        summary=payload["label"],
+        payload=payload,
+        in_channel=False,
+        thread_id=thread_id,
+    )
+    if recorded is not None:
+        from types import SimpleNamespace
+
+        await _emit(
+            "approval_requested",
+            SimpleNamespace(id=recorded, organization_id=organization_id),
+            payload,
+            payload.get("owner_user_id"),
+        )
+    return recorded
+
+
 # --- the person's half ------------------------------------------------------
 
 
-def _visibility(payload: dict[str, Any]) -> str | None:
-    """A card private to one person is never on a shared timeline."""
+def _visibility(payload: dict[str, Any], action: str | None = None) -> str | None:
+    """Identity's cards (and the lines under them) are never on a timeline:
+    they live in Settings. Other private cards -- reach's orders and outside
+    tools -- stay on the thread and are shown to their owner alone through
+    ``private_to``, which the timeline query filters on."""
     from api.enums import AgentEventVisibility
 
-    if payload.get("private_to"):
+    if (
+        payload.get("private_to")
+        and (action or payload.get("action")) in IDENTITY_ACTIONS
+    ):
         return AgentEventVisibility.PRIVATE.value
+    return None
+
+
+#: What a card someone may not see answers with: the way a wrong tenant is.
+NOT_HERE = "That proposal is not here."
+
+
+def answer_refusal(payload: dict[str, Any], user_id: int) -> str | None:
+    """Why ``user_id`` may not answer this card, or None when they may.
+
+    One place for every stream's "only this person" rule. ``settle`` raises
+    the reason; Today's approval queue and the approval dock list only the
+    cards a person may answer, so nobody is offered a Do it that would be
+    refused. ``NOT_HERE`` means the card is private and not theirs to see.
+    """
+    only = payload.get("only_user_id")
+    if only is not None and int(only) != int(user_id):
+        # A consent card (stream `care`): the person it is about answers it,
+        # not whoever else in the workspace can read the thread.
+        return "Only the person this is about can answer this card."
+    action = payload.get("action")
+    if action == DESKTOP_STEP:
+        # Somebody's own computer: a teammate who can read the thread cannot
+        # press Do it on another person's screen.
+        if int((payload.get("args") or {}).get("user_id") or 0) != user_id:
+            return "Only the person whose computer this is can answer this."
+    if action == BROWSER_STEP and int(payload.get("requested_by") or 0) != int(user_id):
+        # A person's browser is theirs: a colleague on the thread can read
+        # the card but cannot press on their behalf.
+        return "Only the person whose browser it is can answer this."
+    if action in OWNED_ACTIONS and payload.get("owner_user_id") != user_id:
+        # An order or an outside write acts in one person's account: a
+        # colleague who can see the card can neither approve nor stop it.
+        return "Only the person this is for can decide on it."
+    if action == MEETING_FOLLOW_UP:
+        from api.services.meetings import follow_ups
+
+        if follow_ups.owner_of(payload) != user_id:
+            # A meeting is private to whoever captured it; to anyone else
+            # its card is not there, the way a wrong tenant is not.
+            return NOT_HERE
+    owner = payload.get("private_to")
+    if owner is not None and owner != user_id:
+        return NOT_HERE
     return None
 
 
@@ -1140,38 +1296,9 @@ async def settle(
     event = await _proposal(organization_id, event_id)
     payload = dict(event.payload or {})
     state = payload.get("state") or PROPOSED
-    only = payload.get("only_user_id")
-    if only is not None and int(only) != int(user_id):
-        # A consent card (stream `care`): the person it is about answers it,
-        # not whoever else in the workspace can read the thread.
-        raise ActionError("Only the person this is about can answer this card.")
-
-    if payload.get("action") == DESKTOP_STEP:
-        # Somebody's own computer: a teammate who can read the thread cannot
-        # press Do it on another person's screen.
-        if int((payload.get("args") or {}).get("user_id") or 0) != user_id:
-            raise ActionError("Only the person whose computer this is can answer this.")
-    if payload.get("action") == BROWSER_STEP and int(
-        payload.get("requested_by") or 0
-    ) != int(user_id):
-        # A person's browser is theirs: a colleague on the thread can read
-        # the card but cannot press on their behalf.
-        raise ActionError("Only the person whose browser it is can answer this.")
-    if (
-        payload.get("action") in OWNED_ACTIONS
-        and payload.get("owner_user_id") != user_id
-    ):
-        # An order or an outside write acts in one person's account: a
-        # colleague who can see the card can neither approve nor stop it.
-        raise ActionError("Only the person this is for can decide on it.")
-    if payload.get("action") == MEETING_FOLLOW_UP:
-        from api.services.meetings import follow_ups
-
-        if follow_ups.owner_of(payload) != user_id:
-            # A meeting is private to whoever captured it; to anyone else
-            # its card is not there, the way a wrong tenant is not.
-            raise ActionError("That proposal is not here.")
-    _assert_owner(payload, user_id)
+    refusal = answer_refusal(payload, user_id)
+    if refusal is not None:
+        raise ActionError(refusal)
 
     if verb == "confirm":
         if state != PROPOSED:
@@ -1194,9 +1321,15 @@ async def settle(
         # The approval matrix (KAN-160): a card is a "card" subject with no
         # amount. Raises ApprovalRequired, naming who must, before anything
         # is armed; a no-op while the switch is off.
-        await approvals.check(
-            organization_id, subject=approvals.CARD, amount_paise=None, user_id=user_id
-        )
+        if not _from_settings(payload):
+            # A person's own Settings card (their memory, their saved item,
+            # their data) is theirs to approve, not a workspace approver's.
+            await approvals.check(
+                organization_id,
+                subject=approvals.CARD,
+                amount_paise=None,
+                user_id=user_id,
+            )
         fires_at = datetime.now(UTC) + timedelta(seconds=UNDO_WINDOW_SECONDS)
         payload["state"] = ARMED
         payload["confirmed"] = _stamp(user_id)
@@ -1440,10 +1573,12 @@ async def _say(event: Any, line: str) -> None:
     what happened without opening the card."""
     from api.services.workflow import decibyl
 
-    if (getattr(event, "payload", None) or {}).get("action") == MEETING_FOLLOW_UP:
-        # The meeting record shows the card's outcome; a line on Decibyl's
-        # shared thread would put a private meeting's words in front of the
-        # whole workspace.
+    payload_of = dict(getattr(event, "payload", None) or {})
+    if _from_settings(payload_of) or payload_of.get("action") == MEETING_FOLLOW_UP:
+        # Reported on the screen that raised it, never on the shared thread:
+        # a person's own Settings card would tell colleagues what they did,
+        # and a meeting follow-up would put a private meeting's words in
+        # front of the whole workspace.
         return
     payload: dict[str, Any] = {"body": line, "action_event_id": event.id}
     if (event.payload or {}).get("private_to"):
@@ -1451,10 +1586,6 @@ async def _say(event: Any, line: str) -> None:
         payload["private_to"] = event.payload["private_to"]
     if event.workflow_id is None:
         payload["from"] = decibyl.NAME
-    owner = (event.payload or {}).get("private_to")
-    if owner:
-        # The line about a private card is as private as the card.
-        payload["private_to"] = owner
     await agent_timeline.record(
         organization_id=event.organization_id,
         kind=AgentEventKind.MESSAGE.value,
@@ -1464,7 +1595,7 @@ async def _say(event: Any, line: str) -> None:
         folder_id=event.folder_id,
         payload=payload,
         in_channel=event.folder_id is not None,
-        visibility=_visibility(payload),
+        visibility=_visibility(payload, (event.payload or {}).get("action")),
     )
 
 
@@ -1529,8 +1660,14 @@ async def _execute(
     organization_id: int, payload: dict[str, Any], *, event_id: int | None = None
 ) -> str:
     """Do it. Returns one line on what happened; raises on refusal."""
+    if _from_settings(payload):
+        from api.services.settings import cards as settings_cards
+
+        return await settings_cards.execute(organization_id, payload)
     action = payload.get("action")
     args = payload.get("args") or {}
+    if action in (TRACK_COMMITMENT, CREATE_TRACKER):
+        return await _execute_helper_card(organization_id, payload, event_id)
     if action in OWNED_ACTIONS:
         return await _execute_owned(organization_id, payload)
     if action in IDENTITY_ACTIONS:
@@ -1605,6 +1742,30 @@ async def _execute(
 
         return await follow_ups.execute(organization_id, payload)
     if action == SCHEDULE_ROUTINE:
+        from api.services import features
+
+        if event_id is not None and features.is_on("routine_start_on", organization_id):
+            # Stream `today`: the person confirmed this exact schedule and
+            # instruction on the card, so it starts on, armed by that card
+            # (routines.may_arm). Said back in one sentence.
+            from api.services.workflow import routines
+
+            routine = await db_client.create_routine(
+                organization_id=organization_id,
+                workflow_id=None,
+                name=str(args.get("name") or "")[:120],
+                instruction=str(args.get("instruction") or ""),
+                cadence=str(args.get("cadence") or "daily"),
+                anchor=str(args.get("anchor") or "opening"),
+                at_minute=int(args.get("at_minute") or 0),
+                offset_minutes=int(args.get("offset_minutes") or 0),
+                weekday=int(args.get("weekday") or 0),
+                is_active=True,
+                armed_by_card_event_id=int(event_id),
+            )
+            payload.setdefault("result", {}).update({"routine_id": routine.id})
+            when = routines.describe(routines.spec_from_model(routine))
+            return f"Will do, {when[0].lower()}{when[1:]}."
         routine = await db_client.create_routine(
             organization_id=organization_id,
             workflow_id=None,
@@ -1807,8 +1968,47 @@ async def _execute(
     raise ActionError("That is not something that can be done.")
 
 
+async def _execute_helper_card(
+    organization_id: int, payload: dict[str, Any], event_id: int | None
+) -> str:
+    """The launch-helper cards: track a commitment, create a tracker."""
+    args = payload.get("args") or {}
+    owner = args.get("owner_user_id") or (payload.get("confirmed") or {}).get("by")
+    if not owner:
+        raise ActionError("Nobody asked for this, so nobody owns it.")
+    if payload.get("action") == TRACK_COMMITMENT:
+        from api.services.helpers import commitments
+
+        try:
+            fields = commitments.clean(args)
+        except commitments.Invalid as exc:
+            raise ActionError(str(exc)) from exc
+        await commitments.create(
+            fields,
+            organization_id=organization_id,
+            user_id=int(owner),
+            approved_card_id=event_id,
+        )
+        return f"Tracking it: {commitments.label(fields)[len('Track: ') :]}."
+    from api.services.helpers import trackers
+
+    try:
+        spec = trackers.clean_spec(args)
+    except trackers.Invalid as exc:
+        raise ActionError(str(exc)) from exc
+    row = await trackers.create(
+        spec, organization_id=organization_id, user_id=int(owner)
+    )
+    return f"Created the tracker {row.name}. Tell me a row to add."
+
+
 async def _reverse(organization_id: int, payload: dict[str, Any]) -> None:
     """The inverse, for the actions that have one."""
+    if _from_settings(payload):
+        from api.services.settings import cards as settings_cards
+
+        await settings_cards.reverse(organization_id, payload)
+        return
     action = payload.get("action")
     args = payload.get("args") or {}
     if action in (TURN_BOT_ON, TURN_BOT_OFF):

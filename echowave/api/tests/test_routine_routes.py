@@ -46,6 +46,7 @@ def _routine(**kwargs):
         last_fired_at=None,
         last_skipped_reason=None,
         last_skipped_at=None,
+        armed_by_card_event_id=None,
     )
     base.update(kwargs)
     return SimpleNamespace(**base)

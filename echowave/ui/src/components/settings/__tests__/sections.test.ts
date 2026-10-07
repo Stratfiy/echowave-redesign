@@ -12,8 +12,8 @@ describe("Settings' sections", () => {
     expect(SETTINGS_SECTIONS.map((s) => s.title)).toEqual([
       "General",
       "Team",
+      "Daily brief",
       "Notifications",
-      "Voice and language",
       "Models",
       "Knowledge",
       "Apps and tools",
@@ -52,12 +52,6 @@ describe("Settings' sections", () => {
     ["/settings/notifications", "notifications"],
   ])("lights %s as %s", (path, id) => {
     expect(activeSection(path)).toBe(id);
-  });
-
-  it("lists Voice and language only behind its own switch", () => {
-    const voice = SETTINGS_SECTIONS.find((section) => section.id === "voice");
-    expect(voice?.flags).toEqual(["voice_language_settings"]);
-    expect(activeSection("/settings/voice")).toBe("voice");
   });
 });
 

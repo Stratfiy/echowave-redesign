@@ -294,15 +294,21 @@ def system_prompt(organization_id: int | None = None) -> str:
     The procurement rules are said only while those tools are offered: a
     rule for a tool the model is not holding is a tool it will describe and
     cannot call (``test_decibyl_knows_what_it_has``)."""
+    from api.services.helpers import tools as helper_tools
+    from api.services.settings import profile as settings_profile
     from api.services.voice import call_for_me
 
     return (
         SYSTEM
         + (procurement.RULES if procurement.enabled() else "")
         + (tables.RULES if tables.enabled(organization_id) else "")
+        + helper_tools.rules(organization_id)
         + (browser_tool.RULE if browser_tool.enabled(organization_id) else "")
         + care_tools.rules(organization_id)
         + _reach().rules(organization_id)
+        # The person's own choices for this turn (settings stream); "" when
+        # none were set or the switches are off.
+        + settings_profile.turn_block()
         + (call_for_me.RULES if call_for_me.enabled(organization_id) else "")
     )
 
@@ -366,6 +372,7 @@ async def ask(
     preset: str | None,
     reply_to: dict[str, Any] | None = None,
     thread_id: str | None = None,
+    helper: str | None = None,
 ) -> list[int]:
     """Record the person's line, hand off any mentions, queue the reply.
 
@@ -406,6 +413,8 @@ async def ask(
             "preset": preset,
             "to": NAME,
             "via": (reply_to or {}).get("channel"),
+            # The helper chosen in the picker (screen 06); None is Automatic.
+            **({"helper": helper} if helper else {}),
         },
         in_channel=False,
         thread_id=thread_id,
@@ -461,6 +470,7 @@ async def ask(
             # By name, so the reply cannot land in the wrong chat if an
             # argument is ever added ahead of it.
             thread_id=thread_id,
+            **({"helper": helper} if helper else {}),
         )
     except Exception as exc:  # noqa: BLE001 - said out loud below
         logger.error("Decibyl could not be asked to answer: {}", exc)
@@ -1015,6 +1025,7 @@ async def answer(
     attachments: list[dict[str, Any]] | None = None,
     last_try: bool = False,
     thread_id: str | None = None,
+    helper: str | None = None,
 ) -> str:
     """Compose the context, call the model, record the reply. Returns it.
 
@@ -1037,7 +1048,30 @@ async def answer(
     # And it runs as the person who asked: their Gmail, not the
     # workspace's, when they have one (WS-1), and their own memory beside
     # the workspace's (MEM-1).
-    with agent_timeline.in_thread(thread_id), acting.acting_as(author_id):
+    # And as the helper chosen for it, if any (launch stream `agents`): its
+    # instructions join the system prompt and its tools narrow Decibyl's.
+    from api.services.helpers import turn as helper_turn
+
+    # Memory starts off until the person chooses it, and a temporary
+    # conversation never writes any (settings stream; services/settings/
+    # temporary.py). Read once here, like the two above; None while the
+    # memory manager is off, which is exactly the old behaviour.
+    from api.services.settings import profile as settings_profile
+    from api.services.settings import temporary as memory_choice
+
+    memory_off = await memory_choice.reason_for_turn(
+        organization_id, author_id, thread_id
+    )
+    person = await settings_profile.block_for_turn(
+        organization_id, author_id, memory_off
+    )
+    with (
+        agent_timeline.in_thread(thread_id),
+        acting.acting_as(author_id),
+        helper_turn.running_as(helper),
+        memory_choice.paused(memory_off),
+        settings_profile.for_turn(person),
+    ):
         return await _answer(
             organization_id,
             text,
@@ -1110,6 +1144,15 @@ async def _answer(
         asked_before = ""
     if asked_before:
         context = f"{context}\n\n{asked_before}"
+    # The chosen helper's own reading (launch stream `agents`): the Learning
+    # Guide reads the learning record through the `learning` stream's seam.
+    from api.services.helpers import turn as helper_turn
+
+    helper_reading = await helper_turn.context(
+        helper_turn.current(), organization_id, author_id
+    )
+    if helper_reading:
+        context = f"{context}\n\n{helper_reading}"
     attached = await attached_block(organization_id, attachments, last_try=last_try)
     if attached:
         context = f"{context}\n\n{attached}"
@@ -1219,6 +1262,15 @@ async def _answer(
                 if rounds >= MAX_TOOL_ROUNDS
                 else "I have nothing to add on that."
             )
+        from api.services.helpers import tools as helper_tools
+        from api.services.helpers import turn as helper_turn
+
+        body = helper_tools.finish_reply(
+            body,
+            helper=helper_turn.current(),
+            request=text,
+            organization_id=organization_id,
+        )
         if backup_model:
             # A backup model answered some of this turn because Claude could
             # not (services/aws_gateway/fallback.py). Said on the reply, never
@@ -1254,6 +1306,10 @@ async def _answer(
     # ``failed`` and ``stopped`` are the turn's state for the screen (task
     # states on screen 04): a refusal must never read as a finished answer.
     outcome: dict[str, Any] = {}
+    from api.services.helpers import turn as helper_turn
+
+    if helper_turn.current():
+        outcome["helper"] = helper_turn.current()
     if failed:
         outcome["failed"] = True
     if stopped:
@@ -1556,6 +1612,7 @@ def office_tools(organization_id: int | None = None) -> list[dict[str, Any]]:
         ),
         *(procurement.schemas() if procurement.enabled() else ()),
         *(tables.schemas() if tables.enabled(organization_id) else ()),
+        *_helper_schemas(organization_id),
         *(
             (browser_tool.tool_schema(),)
             if browser_tool.enabled(organization_id)
@@ -1568,6 +1625,12 @@ def office_tools(organization_id: int | None = None) -> list[dict[str, Any]]:
             else ()
         ),
     ]
+
+
+def _helper_schemas(organization_id: int | None) -> list[dict[str, Any]]:
+    from api.services.helpers import tools as helper_tools
+
+    return helper_tools.schemas(organization_id)
 
 
 def _call_for_me():
@@ -1596,11 +1659,26 @@ async def tools_for(
 
         if await code_mode.allowed(organization_id):
             own = [*own, code_mode.tool_schema()]
-    return (
+    tools = (
         own
         + connected_tools.schemas(connected, loaded)
         + await _reach().schemas(organization_id)
     )
+    from api.services.helpers import turn as helper_turn
+
+    if helper_turn.current():
+        # A helper holds a subset of these, never more (handoff 6).
+        tools = helper_turn.narrow(
+            helper_turn.current(), tools, app_toolkits=_toolkits_by_name(connected)
+        )
+    return tools
+
+
+def _toolkits_by_name(connected: list[Any]) -> dict[str, str | None]:
+    return {
+        connected_tools.function_name(t): connected_tools.toolkit_of(t)
+        for t in connected
+    }
 
 
 def _was_a_read(call: Any, result: Any) -> bool:
@@ -1617,6 +1695,17 @@ def _was_a_read(call: Any, result: Any) -> bool:
     retry with, and the turn ended on "I have nothing to add on that."
     """
     name = str(getattr(call, "name", "") or "")
+    from api.services.helpers import tools as helper_tools
+
+    if isinstance(result, dict) and result.get("helper_refused"):
+        # Outside the helper's tools: nothing ran, so it may still use its own.
+        return True
+    if name in helper_tools.NAMES and isinstance(result, dict):
+        return name in helper_tools.READS or result.get("status") in (
+            "not_found",
+            "error",
+            "unavailable",
+        )
     if _reach().is_reach_name(name):
         return _reach().is_read(name, result)
     if isinstance(result, dict) and result.get("status") == "not_proposed":
@@ -1736,6 +1825,29 @@ async def _tool(
     request: str = "",
     thread_id: str | None = None,
 ) -> dict[str, Any]:
+    from api.services.helpers import tools as helper_tools
+    from api.services.helpers import turn as helper_turn
+
+    helper = helper_turn.current()
+    if helper:
+        # Refused at dispatch, not only hidden: a helper cannot reach a tool
+        # outside its list by naming it.
+        connected = await connected_tools.list_for_organization(organization_id)
+        refused = helper_turn.refusal(
+            helper, call, app_toolkits=_toolkits_by_name(connected)
+        )
+        if refused is not None:
+            return {**refused, "helper_refused": True}
+    if call.name in helper_tools.NAMES:
+        return await helper_tools.run(
+            str(call.name),
+            organization_id=organization_id,
+            arguments=dict(call.arguments or {}),
+            author_id=author_id,
+            thread_id=thread_id,
+            helper=helper,
+            request=request,
+        )
     if _reach().handles(str(call.name or ""), organization_id):
         return await _reach().run(organization_id, call)
     if str(call.name or "").startswith(connected_tools.PREFIX):
@@ -1944,7 +2056,7 @@ async def _speak(
     # becomes the reply (see reply_stop).
     can_stop = features.is_on("chat_shell", organization_id)
     spoken = current_voice_turn()
-    system = system_prompt(organization_id)
+    system = system_prompt(organization_id) + _helper_instructions()
     if spoken is not None:
         # Spoken: each new piece goes straight to the voice, unthrottled --
         # the first words are the latency a person hears -- and no draft is
@@ -2002,6 +2114,12 @@ async def _speak(
             on_text=on_text,
             tools=tools,
         )
+
+
+def _helper_instructions() -> str:
+    from api.services.helpers import turn as helper_turn
+
+    return helper_turn.instructions(helper_turn.current())
 
 
 def recent_window() -> datetime:

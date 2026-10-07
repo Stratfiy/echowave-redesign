@@ -34,3 +34,5 @@ class FunctionNames:
     PLACE_MISSED_CALL_CALLBACK = "place_missed_call_callback"
     #: Stream ops: one accepted routine command (services/ops/commands.py).
     RUN_OPS_COMMAND = "run_ops_command"
+    #: Launch stream settings: a person's own export, built off the request.
+    BUILD_PERSONAL_EXPORT = "build_personal_export"

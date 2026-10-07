@@ -424,4 +424,6 @@ async def delete_decibyl_routine(
 ) -> None:
     organization_id = _organization_id(user)
     await _decibyls(routine_id, organization_id)
-    await db_client.delete_routine(routine_id, organization_id=organization_id)
+    await db_client.delete_routine(
+        routine_id, organization_id=organization_id, workflow_id=None
+    )

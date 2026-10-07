@@ -57,6 +57,9 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "agent-templates",
             # A workspace's own saved roles, and sharing them (MP-2, MP-3).
             "workspace-roles",
+            # The five launch helpers and the builder, saved reports,
+            # commitments and trackers (launch stream `agents`).
+            "helpers",
             # What starts an agent, and what its last run reached (G-1).
             "agent-graph",
             "agent-options",
@@ -103,6 +106,8 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "public-whatsapp",
             "routines",
             "tasks",
+            # Today, reminders and the daily brief (launch stream today).
+            "today",
             "google-calendar",
             # Members talking to Decibyl from Slack, Teams, Telegram and
             # WhatsApp, and linking those accounts to themselves (KAN-277).
@@ -174,6 +179,9 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             # Help: a person's own support requests, what they share with
             # support and the replies (launch stream `support`).
             "support",
+            # A person's own settings, memory, saved items and data rights
+            # (launch stream `settings`).
+            "settings",
         ),
     ),
     (

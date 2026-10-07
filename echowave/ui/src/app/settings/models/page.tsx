@@ -5,11 +5,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
+  chooseModelDefaultApiV1SettingsModelsInheritancePut,
   getWorkspaceModelsApiV1OrganizationsModelsGet,
+  modelInheritanceApiV1SettingsModelsInheritanceGet,
   setProviderKeyApiV1ProviderKeysPut,
   setWorkspaceModelApiV1OrganizationsModelsPut,
 } from "@/client/sdk.gen";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import { type AgentOverride,InheritanceAgents, InheritanceDetail, type InheritanceExtras } from "@/components/settings/ModelInheritance";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
+import { useFeature } from "@/lib/features";
 
 type Ours = {
   value: string;
@@ -52,8 +56,15 @@ export type ModelSlot = {
   ours: Ours[];
   more: More[];
   own: Own[];
+} & Partial<InheritanceExtras>;
+type View = {
+  slots: ModelSlot[];
+  credential_component: Record<string, string>;
+  locked?: string | null;
+  /** With model_inheritance on (screen 26). */
+  agents?: AgentOverride[];
+  precedence?: string[];
 };
-type View = { slots: ModelSlot[]; credential_component: Record<string, string>; locked?: string | null };
 
 /**
  * Settings -> Models: what runs every agent, chosen once for the workspace.
@@ -64,25 +75,34 @@ type View = { slots: ModelSlot[]; credential_component: Record<string, string>; 
  */
 export default function ModelsPage() {
   const { user, loading: authLoading } = useAuth();
+  // Screen 26: where each value comes from, whether it can run, agents'
+  // overrides and revision-checked saves. Off, this page is as it was.
+  const inheritance = useFeature("model_inheritance");
   const [view, setView] = useState<View | null>(null);
   const [failed, setFailed] = useState(false);
   const [ownFor, setOwnFor] = useState<{ slot: ModelSlot; own: Own } | null>(null);
-  const started = useRef(false);
+  const started = useRef<string | null>(null);
 
   const load = useCallback(async () => {
-    const res = await getWorkspaceModelsApiV1OrganizationsModelsGet();
+    const res = inheritance
+      ? await modelInheritanceApiV1SettingsModelsInheritanceGet()
+      : await getWorkspaceModelsApiV1OrganizationsModelsGet();
     if (res.error) {
       setFailed(true);
       return;
     }
+    setFailed(false);
     setView(res.data as unknown as View);
-  }, []);
+  }, [inheritance]);
 
   useEffect(() => {
-    if (authLoading || !user || started.current) return;
-    started.current = true;
+    // Once per mode: the switch can arrive after the first load, and the
+    // inheritance view is the one that carries revisions.
+    const mode = inheritance ? "inheritance" : "plain";
+    if (authLoading || !user || started.current === mode) return;
+    started.current = mode;
     void load();
-  }, [authLoading, user, load]);
+  }, [authLoading, user, load, inheritance]);
 
   // One save per slot at a time, and only the latest answer is drawn. Two
   // quick picks used to race: the slower response could land last and show
@@ -95,9 +115,17 @@ export default function ModelsPage() {
     const mine = ++latest.current;
     setPending((was) => ({ ...was, [slot.key]: true }));
     try {
-      const res = await setWorkspaceModelApiV1OrganizationsModelsPut({ body: { slot: slot.key, value } });
+      const res = inheritance
+        ? await chooseModelDefaultApiV1SettingsModelsInheritancePut({ body: { slot: slot.key, value, revision: slot.revision ?? null } })
+        : await setWorkspaceModelApiV1OrganizationsModelsPut({ body: { slot: slot.key, value } });
       if (res.error) {
-        toast.error(detailFromError(res.error, "Could not change that"));
+        toast.error(
+          res.response?.status === 409
+            ? "This was changed somewhere else. Showing what runs now."
+            : res.response?.status === 403
+              ? "Only the workspace's admins can change its models."
+              : detailFromError(res.error, "Could not change that"),
+        );
         // Show what the server actually holds, not the last thing clicked.
         if (mine === latest.current) void load();
         return false;
@@ -141,6 +169,7 @@ export default function ModelsPage() {
                 <div className="min-w-0">
                   <div className="text-[15px]">{slot.label}</div>
                   <div className="text-[13px] text-muted-foreground">{slot.blurb}</div>
+                  {inheritance && slot.readiness && <InheritanceDetail slot={slot as InheritanceExtras} />}
                 </div>
                 <SlotPicker
                   slot={slot}
@@ -153,6 +182,7 @@ export default function ModelsPage() {
             ))}
           </ul>
         )}
+        {inheritance && view?.agents && <InheritanceAgents agents={view.agents} precedence={view.precedence ?? []} />}
       </PageBody>
       {ownFor && view && (
         <OwnKeyDialog

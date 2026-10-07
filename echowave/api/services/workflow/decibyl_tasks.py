@@ -71,6 +71,12 @@ def title_for(request: str) -> str:
     return (line[: TITLE_MAX - 1] + "…") if len(line) > TITLE_MAX else line or "Decibyl"
 
 
+def _current_helper() -> str | None:
+    from api.services.helpers import turn as helper_turn
+
+    return helper_turn.current()
+
+
 async def hand_off(
     organization_id: int,
     *,
@@ -101,6 +107,9 @@ async def hand_off(
             "request": request,
             "rounds": rounds,
             "handed_off_at": datetime.now(UTC).isoformat(),
+            # The helper the turn ran as carries on with it (launch stream
+            # `agents`): the same instructions and the same narrowed tools.
+            "helper": _current_helper(),
         },
     )
     await agent_timeline.record_activity(
@@ -204,7 +213,12 @@ async def continue_task(task_id: int) -> None:
         ceiling = rounds + constants.DECIBYL_TASK_MAX_ROUNDS
         every = max(1, constants.DECIBYL_TASK_PROGRESS_EVERY)
 
-        with agent_timeline.in_thread(thread_id):
+        from api.services.helpers import turn as helper_turn
+
+        with (
+            agent_timeline.in_thread(thread_id),
+            helper_turn.running_as(state.get("helper")),
+        ):
             async with db_client.async_session() as session:
                 model = await settings.resolve_for_organization(
                     session, state.get("preset"), organization_id=organization_id
