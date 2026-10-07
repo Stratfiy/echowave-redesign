@@ -54,11 +54,12 @@ describe('a history that did not load', () => {
         render(<ChannelStream assistant botNames={{}} onLoadState={onLoadState} />);
         expect(await screen.findByText('Could not load this conversation')).toBeTruthy();
         expect(screen.queryByText('This channel is quiet.')).toBeNull();
-        expect(onLoadState).toHaveBeenLastCalledWith('error');
+        // Reported from an effect, a tick after the text shows.
+        await waitFor(() => expect(onLoadState).toHaveBeenLastCalledWith('error'));
         timeline.mockResolvedValue(page([row({ actor: 'human', summary: 'hi', payload: { body: 'hi' } })]));
         fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
         expect(await screen.findByText('hi')).toBeTruthy();
-        expect(onLoadState).toHaveBeenLastCalledWith('ready');
+        await waitFor(() => expect(onLoadState).toHaveBeenLastCalledWith('ready'));
     });
 });
 
