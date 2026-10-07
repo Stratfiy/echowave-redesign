@@ -498,11 +498,11 @@ async def _follow_up(
         },
         in_channel=False,
     )
-    if result.get("card_id"):
+    if result.get("event_id"):
         await commitments.link_follow_up(
             organization_id=organization_id,
             commitment_id=row.id,
-            card_id=int(result["card_id"]),
+            card_id=int(result["event_id"]),
         )
     return result
 

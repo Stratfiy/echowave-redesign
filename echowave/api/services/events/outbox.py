@@ -189,4 +189,3 @@ async def prune(now: datetime | None = None) -> int:
         )
         await session.commit()
         return int(result.rowcount or 0)
-

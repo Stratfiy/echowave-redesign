@@ -176,6 +176,7 @@ async def read(organization_id: int) -> Readings:
                 "follow_up_ledger",
                 "trading_summaries",
                 "describe_builder",
+                "learning",
             )
         },
     )
@@ -258,10 +259,13 @@ def evaluate(helper: catalogue.Helper, r: Readings) -> State:
         return State(key, AVAILABLE, notes=tuple(notes))
 
     if key == catalogue.LEARNING_GUIDE:
-        notes = [
-            "Lessons, practice and feedback in this conversation.",
-            "Saved progress and reviews in Today arrive with Learning.",
-        ]
+        notes = ["Lessons, practice and feedback in this conversation."]
+        if r.flags.get("learning"):
+            notes.append("Builds on your goals and marked practice in Learning.")
+        else:
+            notes.append(
+                "Saved progress and reviews arrive when Learning is switched on."
+            )
         return State(key, AVAILABLE, notes=tuple(notes))
 
     if key == catalogue.CALL_APPOINTMENT:

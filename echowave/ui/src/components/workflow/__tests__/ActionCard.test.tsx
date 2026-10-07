@@ -157,6 +157,26 @@ describe("once done", () => {
     });
 });
 
+describe('a browser step', () => {
+    it('shows exactly what the form sends before Confirm', () => {
+        render(
+            <ActionCard
+                event={event({
+                    action: 'browser_step',
+                    label: 'Pay: press “Place order ₹649” on kirana.test',
+                    effect: 'Presses that button in your browser on kirana.test, once.',
+                    reversible: false,
+                    args: { fields: [{ name: 'name', value: 'Asha' }, { name: 'password', value: '••••••' }] },
+                })}
+            />,
+        );
+        const sends = screen.getByLabelText('What it sends');
+        expect(sends.textContent).toContain('Asha');
+        expect(sends.textContent).toContain('••••••');
+        expect(screen.getByRole('button', { name: 'Confirm' })).toBeTruthy();
+    });
+});
+
 describe("approval bound to a version (task ledger)", () => {
     it("confirms the exact version on screen", async () => {
         settle.mockResolvedValue({ data: event({ state: "armed" }) });
@@ -190,5 +210,65 @@ describe("approval bound to a version (task ledger)", () => {
         expect(screen.getByRole("status").textContent).toContain("Please do not send it again");
         expect(screen.queryByRole("button")).toBeNull();
         expect(screen.queryByText("Could not")).toBeNull();
+    });
+});
+
+describe("a step on the person's own computer", () => {
+    const desktop = (payload: Record<string, unknown>) =>
+        event({
+            action: "desktop_step",
+            label: "Send the reply to Asha Rao",
+            why: "",
+            preview: 'To asha@example.com: "Thanks, see you Monday."',
+            effect: "Send in Mail on your computer, once. Nothing else is done until you answer.",
+            reversible: false,
+            ...payload,
+        });
+
+    it("shows the exact detail while it waits, beside the buttons", () => {
+        render(<ActionCard event={desktop({})} />);
+        expect(screen.getByTestId("action-preview").textContent).toBe('To asha@example.com: "Thanks, see you Monday."');
+        expect(screen.getByText(/Send in Mail on your computer, once/)).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Confirm" })).toBeTruthy();
+    });
+
+    it("says released, not done, once the window has passed", () => {
+        render(<ActionCard event={desktop({ state: "released" })} />);
+        expect(screen.getByText("Approved. Your computer will do this once.")).toBeTruthy();
+        expect(screen.queryByRole("button")).toBeNull();
+        expect(screen.queryByTestId("action-preview")).toBeNull();
+    });
+
+    it("confirms the version on screen, like every card", async () => {
+        settle.mockResolvedValue({ data: desktop({ state: "armed" }) });
+        render(<ActionCard event={desktop({ version: "0123456789abcdef" })} />);
+        fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+        await waitFor(() => expect(settle).toHaveBeenCalled());
+        expect(settle.mock.calls[0][0].body).toEqual({ event_id: 99, verb: "confirm", version: "0123456789abcdef" });
+    });
+
+    it("says the computer is doing it, then unknown if it never reported", () => {
+        const { unmount } = render(<ActionCard event={desktop({ state: "running" })} />);
+        expect(screen.getByText("Your computer is doing this now…")).toBeTruthy();
+        unmount();
+        render(
+            <ActionCard
+                event={desktop({
+                    state: "outcome_unknown",
+                    error: "We are checking whether this was delivered. Please do not send it again.",
+                })}
+            />,
+        );
+        expect(screen.getByRole("status").textContent).toContain("Please do not send it again");
+        expect(screen.queryByRole("button")).toBeNull();
+    });
+
+    it("says why when no computer took it", () => {
+        render(
+            <ActionCard
+                event={desktop({ state: "cancelled", error: "Your computer did not take this in time. Nothing was done." })}
+            />,
+        );
+        expect(screen.getByText(/did not take this in time/)).toBeTruthy();
     });
 });

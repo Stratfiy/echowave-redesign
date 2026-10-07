@@ -809,6 +809,115 @@ TRADING_SUMMARIES_ENABLED = _flag("TRADING_SUMMARIES_ENABLED")
 # "Ask Decibyl to build or do anything": agents, routines and trackers from
 # a description, in Chat; nobody is sent to the old /start journey.
 DESCRIBE_BUILDER_ENABLED = _flag("DESCRIBE_BUILDER_ENABLED")
+# Launch stream `care` (LAUNCH-PLAN.md, phase 2): older people and their
+# families. Each off by default; see CARE.md and services/features.py.
+# Simple mode: large text, voice first, one thing at a time. A preference on
+# member_preferences, so it needs MEMBER_PREFERENCES_ENABLED as well.
+CARE_SIMPLE_MODE_ENABLED = _flag("CARE_SIMPLE_MODE_ENABLED")
+# Medicine reminders by phone call in the person's language, with a family
+# alert when a dose is missed or a call is not answered.
+CARE_MEDICINE_CALLS_ENABLED = _flag("CARE_MEDICINE_CALLS_ENABLED")
+# Scam check: paste or describe a message or call; a plain verdict and why.
+CARE_SCAM_CHECK_ENABLED = _flag("CARE_SCAM_CHECK_ENABLED")
+# Step-by-step tech help in plain words, with "did that work?".
+CARE_TECH_HELP_ENABLED = _flag("CARE_TECH_HELP_ENABLED")
+# A family circle the older person consents to; family see only what is shared.
+CARE_FAMILY_CIRCLE_ENABLED = _flag("CARE_FAMILY_CIRCLE_ENABLED")
+# How long a reminder call may go without an outcome before it counts as not
+# answered and the family is told.
+CARE_CALL_ANSWER_MINUTES = int(os.getenv("CARE_CALL_ANSWER_MINUTES", "20"))
+# Test seam for reminder calls, honoured only when ENVIRONMENT is local, dev
+# or test: "taken", "not_taken" or "no_answer" simulates that outcome instead
+# of dialling, and the care status says so ("test mode: nobody is rung").
+CARE_CALLS_FAKE = (os.getenv("CARE_CALLS_FAKE") or "").strip().lower()
+# Launch stream `reach` (8 October 2026). Each off by default; see
+# LAUNCH-PLAN.md, REACH.md and services/features.py.
+# Outside AI tools (MCP servers) a person connects from Chat, in the thread.
+OUTSIDE_TOOLS_ENABLED = _flag("OUTSIDE_TOOLS_ENABLED")
+# Ordering food and groceries from a list in Chat, through an order card.
+ORDERING_ENABLED = _flag("ORDERING_ENABLED")
+# Price and coupon comparison across the ordering apps a person connected.
+PRICE_COMPARE_ENABLED = _flag("PRICE_COMPARE_ENABLED")
+# The official ordering servers. Unset, the provider shows "needs setup";
+# nothing is guessed. Zomato's is its own hosted MCP server, signed in to by
+# each person (OAuth); Swiggy's comes with Builders Club access.
+ZOMATO_MCP_URL = os.getenv("ZOMATO_MCP_URL") or None
+ZOMATO_OAUTH_CLIENT_ID = os.getenv("ZOMATO_OAUTH_CLIENT_ID") or None
+SWIGGY_MCP_URL = os.getenv("SWIGGY_MCP_URL") or None
+SWIGGY_OAUTH_CLIENT_ID = os.getenv("SWIGGY_OAUTH_CLIENT_ID") or None
+# Outside servers may be on a private address only in development and tests
+# (a fake server on 127.0.0.1); production refuses them, so a person cannot
+# point Decibyl at the inside of our own network.
+REACH_ALLOW_PRIVATE_SERVERS = _flag("REACH_ALLOW_PRIVATE_SERVERS")
+# Launch stream `learning` (LAUNCH-PLAN.md, phase 2; handoff 6, 23; screens
+# 13-14). Each off by default; see LEARNING.md.
+# Learning Guide data: a learner profile, goals on any subject, lessons,
+# evaluated practice, progress from evaluated practice only, suggestions, and
+# the lesson inside Chat with a progress page.
+LEARNING_ENABLED = _flag("LEARNING_ENABLED")
+# Reviews that are due, listed at the top of Today. Its own switch because
+# Today is the `today` stream's page.
+LEARNING_TODAY_ENABLED = _flag("LEARNING_TODAY_ENABLED")
+# Who teaches and marks: ``model`` (the platform's model through the
+# builder's client; "needs setup" without a key) or ``fake`` (a fixed,
+# offline teacher for tests and local runs, labelled as such on screen).
+LEARNING_TEACHER = os.getenv("LEARNING_TEACHER", "model").strip().lower()
+# Launch stream `meetings` (LAUNCH-PLAN.md, phase 2; handoff 23, screens
+# 11-12). Meeting capture with consent and a stated audio source, a Sarvam
+# transcript, and follow-ups confirmed one card at a time. Off by default.
+MEETING_CAPTURE_ENABLED = _flag("MEETING_CAPTURE_ENABLED")
+# The largest recording a person may upload, checked before anything is
+# stored or processed (screen 11, "Upload limits are checked before
+# processing").
+MEETINGS_MAX_UPLOAD_MB = int(os.getenv("MEETINGS_MAX_UPLOAD_MB", "50"))
+# The longest meeting, recorded or uploaded, that is transcribed.
+MEETINGS_MAX_MINUTES = int(os.getenv("MEETINGS_MAX_MINUTES", "120"))
+# Launch stream `identity` (LAUNCH-PLAN.md, phase 2; IDENTITY.md). Each off by
+# default; turning one off restores the behaviour before it.
+# Screen 22: connected apps and channels per person, with consent before
+# connecting, revocation through an action card, and channel capability
+# flags that come from verified traffic rather than configuration alone.
+IDENTITY_CONNECTIONS_ENABLED = _flag("IDENTITY_CONNECTIONS_ENABLED")
+# Screen 23: the person's Decibyl email address -- alias lifecycle, inbound
+# routing to its owner, sends through action cards, and the virtual card
+# "coming soon" row with optional interest.
+IDENTITY_EMAIL_ENABLED = _flag("IDENTITY_EMAIL_ENABLED")
+# Screen 24: phone and verification lifecycle with the number payment flow
+# explained; a number request is an action card.
+IDENTITY_PHONE_ENABLED = _flag("IDENTITY_PHONE_ENABLED")
+# Screen 21: notification preferences per person and web push.
+IDENTITY_NOTIFICATIONS_ENABLED = _flag("IDENTITY_NOTIFICATIONS_ENABLED")
+# Per-provider reconciliation of cards whose send outcome is unknown.
+IDENTITY_RECONCILIATION_ENABLED = _flag("IDENTITY_RECONCILIATION_ENABLED")
+
+# Decibyl email identity (stream identity). The domain aliases live on, and
+# the secret the inbound mail provider signs its webhook with. Without the
+# secret no inbound mail is accepted, so no address can become active.
+EMAIL_IDENTITY_DOMAIN = os.getenv("EMAIL_IDENTITY_DOMAIN", "decibyl.ai").strip()
+EMAIL_IDENTITY_WEBHOOK_SECRET = os.getenv("EMAIL_IDENTITY_WEBHOOK_SECRET", "")
+# Set to "true" only once the domain's SPF, DKIM and DMARC are verified for
+# outbound mail from aliases; until then sending shows "needs setup".
+EMAIL_IDENTITY_OUTBOUND_VERIFIED = _flag("EMAIL_IDENTITY_OUTBOUND_VERIFIED")
+EMAIL_IDENTITY_MAX_INBOUND_BYTES = int(
+    os.getenv("EMAIL_IDENTITY_MAX_INBOUND_BYTES", str(10 * 1024 * 1024))
+)
+
+# Phone numbers (stream identity): who pays for a number is the founder's
+# open decision ("Who pays for numbers in the beta"). Until it is set to
+# "sponsored" or "provider_autopay", requesting a number is unavailable and
+# says so.
+NUMBER_PAYMENT_POLICY = os.getenv("NUMBER_PAYMENT_POLICY", "").strip().lower()
+
+# Web push (stream identity). VAPID keys from the operator; without them push
+# shows "needs setup". Never generated on the fly: a key that changes on
+# restart silently orphans every subscription.
+VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "").strip()
+VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "").strip()
+VAPID_SUBJECT = os.getenv("VAPID_SUBJECT", "mailto:support@decibyl.ai").strip()
+# Optional suggestions a person may be sent in a day (handoff 21: "pilot
+# suggestion cap comes from server policy"). A placeholder number for the
+# founder's decision, like the operational quotas.
+NOTIFY_SUGGESTION_DAILY_CAP = int(os.getenv("NOTIFY_SUGGESTION_DAILY_CAP", "2"))
 
 # Free while we are early (October 2026): no plans, nothing charged, nothing
 # locked. On by default -- the one launch switch that is -- and reversible
@@ -895,12 +1004,61 @@ AGENT_BUILDER_ENABLED = os.getenv("AGENT_BUILDER_ENABLED", "false").lower() == "
 # builder -- it spends on our key -- and because a site build needs the
 # sandbox's build network (SANDBOX_BUILD_NETWORK) to exist.
 STUDIO_ENABLED = os.getenv("STUDIO_ENABLED", "false").lower() == "true"
+# The Windows and Mac app (echowave/desktop): native notifications, files
+# from disk and a watched folder in the web app when it runs inside it.
+DESKTOP_APP_ENABLED = os.getenv("DESKTOP_APP_ENABLED", "false").lower() == "true"
+# "Work on my computer": the desktop app's computer-use loop, and the
+# /desktop/steps approval cards it needs. Off until the founder tries it.
+DESKTOP_COMPUTER_USE_ENABLED = (
+    os.getenv("DESKTOP_COMPUTER_USE_ENABLED", "false").lower() == "true"
+)
 
 # How many tool calls one Studio turn may make. Higher than the builder's:
 # writing a site is write, build, read the error, fix, build again, and a
 # turn that stops halfway leaves a broken build on screen.
 STUDIO_MAX_TOOL_CALLS_PER_TURN = int(os.getenv("STUDIO_MAX_TOOL_CALLS_PER_TURN", "40"))
 
+# Decibyl's private browser (stream ``browser``; services/browser/). Off by
+# default: it spends on our model key and opens the internet to a model, so
+# switching it on is a deliberate act, per organisation first.
+DECIBYL_BROWSER_ENABLED = (
+    os.getenv("DECIBYL_BROWSER_ENABLED", "false").strip().lower() == "true"
+)
+#: Which driver runs the browser: ``sandbox`` (a box per task through the
+#: sandbox service, production), ``local`` (the same box as a subprocess on
+#: this machine, refused in production) or ``fake`` (tests). Empty picks
+#: ``sandbox`` when SANDBOX_URL is set and refuses otherwise.
+BROWSER_DRIVER = (os.getenv("BROWSER_DRIVER") or "").strip().lower()
+#: The interpreter that runs the box for the ``local`` driver: one with
+#: browser-use installed (sandbox/browser/README.md).
+BROWSER_BOX_PYTHON = os.getenv("BROWSER_BOX_PYTHON") or None
+#: Chromium for the ``local`` driver; the box image carries its own.
+BROWSER_CHROMIUM_PATH = os.getenv("BROWSER_CHROMIUM_PATH") or None
+#: The model the browser thinks with, on the platform's Anthropic key.
+BROWSER_MODEL = os.getenv("BROWSER_MODEL", "claude-sonnet-5-5")
+#: Per-task limits. The defaults are what a task gets when nobody asks for
+#: less; the ceilings are what nobody can ask past.
+BROWSER_DEFAULT_STEPS = int(os.getenv("BROWSER_DEFAULT_STEPS", "25"))
+BROWSER_MAX_STEPS = int(os.getenv("BROWSER_MAX_STEPS", "60"))
+BROWSER_DEFAULT_MINUTES = int(os.getenv("BROWSER_DEFAULT_MINUTES", "10"))
+BROWSER_MAX_MINUTES = int(os.getenv("BROWSER_MAX_MINUTES", "30"))
+#: Model spend one task may run up, in paise, at the vendor's list price.
+#: A ceiling on our cost, not a price anybody is charged.
+BROWSER_DEFAULT_COST_PAISE = int(os.getenv("BROWSER_DEFAULT_COST_PAISE", "1500"))
+BROWSER_MAX_COST_PAISE = int(os.getenv("BROWSER_MAX_COST_PAISE", "5000"))
+#: Paise per US dollar for that ceiling. Deliberately a constant on the high
+#: side of the market rate: a limit that drifts with the rupee is a limit
+#: nobody can reason about.
+BROWSER_PAISE_PER_USD = int(os.getenv("BROWSER_PAISE_PER_USD", "9000"))
+#: How long a person has to answer an approval or hand the browser back
+#: before the task stops, in minutes. Counted inside BROWSER_MAX_MINUTES.
+BROWSER_WAIT_MINUTES = int(os.getenv("BROWSER_WAIT_MINUTES", "10"))
+#: Browsers running at once on this deployment.
+BROWSER_MAX_LIVE = int(os.getenv("BROWSER_MAX_LIVE", "4"))
+#: Development only: hosts a local box may open although they are private
+#: (a page this machine serves, for verifying the real browser). Ignored by
+#: the sandbox driver and outside dev/test/oss deployments.
+BROWSER_TEST_HOSTS = os.getenv("BROWSER_TEST_HOSTS", "")
 # ---------------------------------------------------------------------------
 # Launch stream `controls` (LAUNCH-PLAN.md, phase 1). Every one is off by
 # default; see services/features.py for what each turns on.
@@ -957,6 +1115,44 @@ RELEASE = os.getenv("RELEASE") or os.getenv("SENTRY_RELEASE") or ""
 # "Was this useful?" Yes / Not quite under Decibyl's replies and finished
 # tasks (handoff 6, "Useful feedback").
 REPLY_FEEDBACK_ENABLED = os.getenv("REPLY_FEEDBACK_ENABLED", "false").lower() == "true"
+
+# Launch stream `support` (LAUNCH-PLAN.md, phase 2; handoff 33, screens 28 and
+# 32-33). Customer Help and tickets with a data-sharing preview; the staff
+# support inbox and case with internal notes; typed support actions that a
+# second person approves.
+SUPPORT_HELP_ENABLED = os.getenv("SUPPORT_HELP_ENABLED", "false").lower() == "true"
+SUPPORT_INBOX_ENABLED = os.getenv("SUPPORT_INBOX_ENABLED", "false").lower() == "true"
+SUPPORT_ACTIONS_ENABLED = (
+    os.getenv("SUPPORT_ACTIONS_ENABLED", "false").lower() == "true"
+)
+# ---------------------------------------------------------------------------
+# Launch stream `staff` (LAUNCH-PLAN.md, phase 2; STAFF.md). Every one is off
+# by default; off, /superadmin is exactly what it was.
+# ---------------------------------------------------------------------------
+# The staff console: eight destinations, role-gated, under /superadmin.
+STAFF_CONSOLE_ENABLED = _flag("STAFF_CONSOLE_ENABLED")
+# Console roles beyond the two staff tiers: operations, finance and quality,
+# granted by an owner through an approved command (handoff 32).
+STAFF_ROLES_ENABLED = _flag("STAFF_ROLES_ENABLED")
+# Finance-only refunds: preview, second-person approval, run once, reconcile.
+STAFF_REFUNDS_ENABLED = _flag("STAFF_REFUNDS_ENABLED")
+# Versioned evaluation cases, runs and case comparison (screens 34-35).
+STAFF_EVALUATIONS_ENABLED = _flag("STAFF_EVALUATIONS_ENABLED")
+# Incidents with an approved runbook stepper (screen 41).
+STAFF_INCIDENTS_ENABLED = _flag("STAFF_INCIDENTS_ENABLED")
+# PLACEHOLDER (founder decision, LAUNCH-PLAN "Decisions still open"): how many
+# people the invite beta admits, and the beta's total spend budget in paise.
+# Unset means unknown, and the console says "needs setup" -- never unlimited.
+STAFF_PILOT_USER_CAPACITY = (
+    int(os.environ["STAFF_PILOT_USER_CAPACITY"])
+    if os.getenv("STAFF_PILOT_USER_CAPACITY", "").strip().isdigit()
+    else None
+)
+STAFF_PILOT_BUDGET_PAISE = (
+    int(os.environ["STAFF_PILOT_BUDGET_PAISE"])
+    if os.getenv("STAFF_PILOT_BUDGET_PAISE", "").strip().isdigit()
+    else None
+)
 
 # Where previews of Studio sites are served from. Set it to a host of its own
 # (https://sites.example.com, proxied to this api) so a generated site runs on
@@ -1731,3 +1927,124 @@ PLATFORM_SMS_FROM_NUMBER = os.getenv("PLATFORM_SMS_FROM_NUMBER") or None
 # Indian destination rather than to the carrier.
 PLATFORM_TWILIO_ACCOUNT_SID = os.getenv("PLATFORM_TWILIO_ACCOUNT_SID") or None
 PLATFORM_TWILIO_AUTH_TOKEN = os.getenv("PLATFORM_TWILIO_AUTH_TOKEN") or None
+
+
+# --- Claude and other models through AWS (stream aws-gateway) ----------------
+#
+# Every value here is read by services/aws_gateway/config.py at call time, so
+# a test can monkeypatch it and a restart is all a change needs. Nothing has a
+# vendor default: every model id and region comes from this environment, and a
+# choice whose configuration is missing reports "needs setup" rather than
+# guessing. See echowave/DEPLOY.md, "Claude and other models through AWS".
+
+# Where Claude runs for the managed tiers (Decibyl chat, the builder, routing
+# and the call pipeline's managed brain). A workspace's own Anthropic key is
+# never affected; it always goes to Anthropic directly.
+#   anthropic     today's behaviour: Anthropic's API on the platform key
+#   aws_platform  Claude Platform on AWS (Anthropic-operated, full API parity)
+#   bedrock       Amazon Bedrock (a feature subset; we keep our own web tools)
+CLAUDE_BACKEND = (os.getenv("CLAUDE_BACKEND") or "anthropic").strip().lower()
+
+# Claude Platform on AWS: the region and the Claude workspace requests go to.
+# Credentials come from the standard AWS chain (the instance role on EC2).
+CLAUDE_AWS_REGION = (
+    os.getenv("CLAUDE_AWS_REGION") or os.getenv("AWS_REGION") or ""
+).strip()
+ANTHROPIC_AWS_WORKSPACE_ID = (os.getenv("ANTHROPIC_AWS_WORKSPACE_ID") or "").strip()
+
+# Amazon Bedrock: the region, and which Bedrock model id serves each Claude
+# model the managed tiers name ("claude-haiku-4-5=anthropic.claude-...,...").
+BEDROCK_REGION = (os.getenv("BEDROCK_REGION") or os.getenv("AWS_REGION") or "").strip()
+BEDROCK_CLAUDE_MODEL_IDS = os.getenv("BEDROCK_CLAUDE_MODEL_IDS", "").strip()
+
+# Bedrock model ids the operator has confirmed this account may invoke (model
+# access granted, agreement accepted). Anything not listed shows "needs setup"
+# and is never called: listing the region's models is not the same as being
+# allowed to use them, and the account check on 7 Oct 2026 found exactly that.
+BEDROCK_ENABLED_MODELS = os.getenv("BEDROCK_ENABLED_MODELS", "").strip()
+
+# The fallback brain: a Bedrock model that answers when Claude errors or times
+# out (flag aws_fallback_brain). The reply says a backup model answered.
+BEDROCK_FALLBACK_MODEL = (os.getenv("BEDROCK_FALLBACK_MODEL") or "").strip()
+BEDROCK_FALLBACK_TIMEOUT_SECONDS = float(
+    os.getenv("BEDROCK_FALLBACK_TIMEOUT_SECONDS", "60")
+)
+
+# The cheap tier for labelling and routing (flag aws_cheap_tier): a small
+# Bedrock model asked the routing question instead of Laya.
+BEDROCK_CHEAP_MODEL = (os.getenv("BEDROCK_CHEAP_MODEL") or "").strip()
+BEDROCK_CHEAP_TIMEOUT_MS = int(os.getenv("BEDROCK_CHEAP_TIMEOUT_MS", "1500"))
+
+# Knowledge search on Bedrock (flag aws_embeddings). The vector column holds
+# 1536 numbers, so the model must return that many (BEDROCK_EMBEDDING_DIMENSIONS).
+BEDROCK_EMBEDDING_MODEL = (os.getenv("BEDROCK_EMBEDDING_MODEL") or "").strip()
+BEDROCK_EMBEDDING_DIMENSIONS = int(os.getenv("BEDROCK_EMBEDDING_DIMENSIONS", "1536"))
+
+# Speech-to-speech on Amazon Nova Sonic (flag aws_nova_sonic), for Hindi and
+# Indian English only. Its own region: Nova Sonic is not served everywhere.
+NOVA_SONIC_MODEL = (os.getenv("NOVA_SONIC_MODEL") or "").strip()
+NOVA_SONIC_REGION = (os.getenv("NOVA_SONIC_REGION") or "").strip()
+NOVA_SONIC_VOICE = (os.getenv("NOVA_SONIC_VOICE") or "").strip()
+
+# The gateway's switches. Off by default; CLAUDE_BACKEND above is a setting,
+# not a flag, because "anthropic" is already today's behaviour.
+AWS_FALLBACK_BRAIN_ENABLED = _flag("AWS_FALLBACK_BRAIN_ENABLED")
+AWS_CHEAP_TIER_ENABLED = _flag("AWS_CHEAP_TIER_ENABLED")
+AWS_EMBEDDINGS_ENABLED = _flag("AWS_EMBEDDINGS_ENABLED")
+AWS_NOVA_SONIC_ENABLED = _flag("AWS_NOVA_SONIC_ENABLED")
+# ---------------------------------------------------------------------------
+# Stream `ops` (handoff 11, 14, 15 G-H, 34, 35). Every switch below is off by
+# default; services/features.py registers the boolean ones.
+# ---------------------------------------------------------------------------
+# The staff operations console's backing services: infrastructure health,
+# credential lifecycle, typed routine commands, evidence and Laya reports.
+OPS_CONSOLE_ENABLED = _flag("OPS_CONSOLE_ENABLED")
+# Ops and cost events into the controls event catalogue's outbox (needs
+# EVENT_CATALOGUE_ENABLED too; the outbox and its delivery are controls').
+SERVER_ANALYTICS_ENABLED = _flag("SERVER_ANALYTICS_ENABLED")
+# Deep redaction of logs and Sentry events (secrets, emails, phone numbers,
+# prompts and transcripts) on top of the baseline scrub.
+TELEMETRY_REDACTION_ENABLED = _flag("TELEMETRY_REDACTION_ENABLED")
+# Session replay in the browser, on non-sensitive screens only. Off means no
+# replay anywhere.
+SESSION_REPLAY_ENABLED = _flag("SESSION_REPLAY_ENABLED")
+# Laya guardrails: a hard deadline and circuit breaker around the decision
+# model, and shadow agreement statistics for the evaluation report.
+LAYA_GUARDRAILS_ENABLED = _flag("LAYA_GUARDRAILS_ENABLED")
+# The rollback switch: on means Auto routes by rules alone and never asks
+# Laya, whatever LAYA_ROUTING says. Flip it from the staff console.
+LAYA_ROLLBACK_ENABLED = _flag("LAYA_ROLLBACK_ENABLED")
+# Stop new billable work when spend runs away (services/ops/cost_stop.py).
+COST_STOP_ENABLED = _flag("COST_STOP_ENABLED")
+
+#: Hard ceiling on one Laya decision, whatever the HTTP client's per-phase
+#: timeouts add up to (connect + write + read can each take LAYA_TIMEOUT_MS).
+LAYA_HARD_DEADLINE_MS = int(os.getenv("LAYA_HARD_DEADLINE_MS", "500"))
+#: Consecutive failures (timeout, error, malformed) that open the breaker,
+#: and how long it stays open before Laya is asked again.
+LAYA_BREAKER_FAILURES = int(os.getenv("LAYA_BREAKER_FAILURES", "5"))
+LAYA_BREAKER_COOLDOWN_SECONDS = int(os.getenv("LAYA_BREAKER_COOLDOWN_SECONDS", "60"))
+
+#: Spend ceilings for the cost stop, in paise of provider cost per rolling
+#: hour. Unset (0) means that ceiling is not configured, which the console
+#: reports as "not monitored", never as healthy.
+COST_STOP_PLATFORM_HOURLY_PAISE = int(os.getenv("COST_STOP_PLATFORM_HOURLY_PAISE", "0"))
+COST_STOP_ORG_HOURLY_PAISE = int(os.getenv("COST_STOP_ORG_HOURLY_PAISE", "0"))
+
+#: Secret store the credential lifecycle mirrors activated keys into:
+#: ``database`` (the encrypted platform table only) or ``aws_secrets_manager``.
+OPS_SECRET_BACKEND = (os.getenv("OPS_SECRET_BACKEND") or "database").strip().lower()
+#: The only Secrets Manager prefix the backend may write under. Anything else
+#: is refused, so a typed command can never touch another secret.
+OPS_SECRET_NAMESPACE = (
+    os.getenv("OPS_SECRET_NAMESPACE") or f"decibyl/{ENVIRONMENT}/providers/"
+).strip()
+#: Systems Manager Automation documents the infrastructure commands may start,
+#: as ``command=DocumentName`` pairs separated by commas. Unset means those
+#: commands report that they need AWS set up rather than pretending.
+OPS_SSM_DOCUMENTS = os.getenv("OPS_SSM_DOCUMENTS", "")
+OPS_SSM_TARGET_INSTANCE_ID = os.getenv("OPS_SSM_TARGET_INSTANCE_ID", "")
+#: Pseudonymous analytics ids use ANALYTICS_PSEUDONYM_KEY, defined with the
+#: controls event catalogue above.
+#: How old a signal may be before the console stops calling it healthy.
+OPS_SIGNAL_STALE_SECONDS = int(os.getenv("OPS_SIGNAL_STALE_SECONDS", "900"))

@@ -303,6 +303,25 @@ def _is_private(host: str) -> bool:
         return False
 
 
+def is_private_host(host: str) -> bool:
+    """The address rule on its own, for the private browser
+    (``services/browser/sites.py``), which keeps it and replaces the
+    social-network rule with the staff's site list."""
+    return _is_private((host or "").lower())
+
+
+def check_address(url: str) -> str:
+    """The URL if it is a page on the web, or a refusal: a full http(s)
+    address that is not loopback, link-local, private or a bare hostname."""
+    url = (url or "").strip()
+    parts = urlsplit(url)
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        raise FetchRefused("Give a full web address starting with http or https.")
+    if _is_private(parts.hostname.lower()):
+        raise FetchRefused("That address is not a page on the web.")
+    return url
+
+
 def check_url(url: str) -> str:
     """The URL as it will be fetched, or a refusal."""
     url = (url or "").strip()
@@ -313,9 +332,7 @@ def check_url(url: str) -> str:
         raise FetchRefused(
             f"{domain_of(url)} is not read: the social networks are off limits, by rule."
         )
-    if _is_private(parts.hostname.lower()):
-        raise FetchRefused("That address is not a page on the web.")
-    return url
+    return check_address(url)
 
 
 def normalise_domains(domains: Iterable[str] | None) -> list[str]:

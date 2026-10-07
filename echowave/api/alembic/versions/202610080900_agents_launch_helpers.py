@@ -5,14 +5,14 @@ Six new tables, nothing changed in an existing one, so a downgrade only
 drops what this added.
 
 Revision ID: 20261008agents
-Revises: 202610071500shell
+Revises: 20261008identity
 """
 
 import sqlalchemy as sa
 from alembic import op
 
 revision = "20261008agents"
-down_revision = "202610071500shell"
+down_revision = "20261008identity"
 branch_labels = None
 depends_on = None
 

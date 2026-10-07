@@ -797,7 +797,7 @@ class TestCommitments:
             )
         assert proposed["status"] == "proposed"
         card = await db_client.get_agent_event(
-            proposed["card_id"], organization_id=team.org
+            proposed["event_id"], organization_id=team.org
         )
         assert (
             card.payload["label"]
@@ -920,7 +920,7 @@ class TestCommitments:
         assert first["status"] == "proposed"
         assert again["status"] == "already_proposed"
         card = await db_client.get_agent_event(
-            first["card_id"], organization_id=team.org
+            first["event_id"], organization_id=team.org
         )
         assert card.payload["args"]["commitment_id"] == row.id
         fresh = await commitments.get_visible(
@@ -982,7 +982,7 @@ class TestBuilder:
                 helper="builder",
             )
         card = await db_client.get_agent_event(
-            proposed["card_id"], organization_id=team.org
+            proposed["event_id"], organization_id=team.org
         )
         assert (
             card.payload["label"]
@@ -1031,6 +1031,34 @@ class TestBuilder:
             helper=None,
         )
         assert result["status"] == "unavailable"
+
+
+@pytest.mark.asyncio
+class TestLearningGuideUsesLearning:
+    async def test_it_reads_the_record_through_the_learning_seam(self, helpers_on):
+        from api.services.learning import guide
+
+        with patch.object(
+            guide,
+            "context_for",
+            new=AsyncMock(
+                return_value="Learning goals (from evaluated practice only):\n- Fractions"
+            ),
+        ) as read:
+            block = await turn.context("learning_guide", 7, 5)
+            other = await turn.context("research", 7, 5)
+        read.assert_awaited_once_with(7, 5)
+        assert "Fractions" in block and other == ""
+
+    async def test_no_person_no_record(self, helpers_on):
+        assert await turn.context("learning_guide", 7, None) == ""
+
+    def test_its_note_says_whether_learning_is_on(self):
+        on = states.evaluate(
+            catalogue.BY_KEY["learning_guide"],
+            _readings(flags={**{n: True for n in NEW}, "learning": True}),
+        )
+        assert any("marked practice in Learning" in n for n in on.notes)
 
 
 class TestBackground:

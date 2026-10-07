@@ -52,6 +52,27 @@ def instructions(helper: str | None) -> str:
     )
 
 
+async def context(helper: str | None, organization_id: int, user_id: int | None) -> str:
+    """What a helper reads before it answers, from the stream that owns it.
+
+    The Learning Guide reads the person's learning record through the
+    `learning` stream's own seam (``services/learning/guide.py``): goals,
+    marked practice, what needs another attempt, reviews due. It never keeps
+    a record of its own and never marks practice; ``core`` does that.
+    """
+    if helper != catalogue.LEARNING_GUIDE or not user_id:
+        return ""
+    from api.services.learning import guide
+
+    try:
+        return await guide.context_for(organization_id, int(user_id))
+    except Exception as exc:  # noqa: BLE001 - the lesson goes on without it
+        from loguru import logger
+
+        logger.warning("Learning Guide could not read the learning record: {}", exc)
+        return ""
+
+
 def _app_name(schema: dict[str, Any]) -> str:
     return str(schema.get("name") or "")
 

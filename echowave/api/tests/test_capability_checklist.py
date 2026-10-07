@@ -91,9 +91,22 @@ class TestTheStates:
 
     def test_partial_source_says_partial(self):
         row = capabilities.evaluate(
-            next(c for c in capabilities.CAPABILITIES if c.key == "learning")
+            capabilities.Capability(
+                "half_built",
+                "Half built",
+                "3",
+                modules=("api.services.knowledge_graph.spaced_recall",),
+                extra={"partial": True},
+            )
         )
         assert row["source"]["status"] == "partial"
+
+    def test_learning_is_present_now(self):
+        # Stream `learning` built it: no longer recalled facts only.
+        row = capabilities.evaluate(
+            next(c for c in capabilities.CAPABILITIES if c.key == "learning")
+        )
+        assert row["source"]["status"] == "present"
 
 
 @asynccontextmanager

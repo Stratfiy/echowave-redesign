@@ -36,6 +36,8 @@ from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
 from api.services import acting, features, prompt_budget, reporting_window
 from api.services.billing import model_usage
+from api.services.browser import tool as browser_tool
+from api.services.care import tools as care_tools
 from api.services.documents import tools as procurement
 from api.services.knowledge_graph import personal as personal_memory
 from api.services.knowledge_graph import quiet, recall, teach
@@ -244,7 +246,18 @@ def system_prompt(organization_id: int | None = None) -> str:
         + (procurement.RULES if procurement.enabled() else "")
         + (tables.RULES if tables.enabled(organization_id) else "")
         + helper_tools.rules(organization_id)
+        + (browser_tool.RULE if browser_tool.enabled(organization_id) else "")
+        + care_tools.rules(organization_id)
+        + _reach().rules(organization_id)
     )
+
+
+def _reach():
+    """Stream `reach` (outside tools, ordering, comparison). Imported late:
+    it imports actions, which imports this module's neighbours."""
+    from api.services.reach import outside_tools
+
+    return outside_tools
 
 
 def thread_filter(organization_id: int | None = None) -> dict[str, Any]:
@@ -264,6 +277,19 @@ def thread_filter(organization_id: int | None = None) -> dict[str, Any]:
             AgentEventKind.EDIT_PROPOSED.value,
             AgentEventKind.CONNECTOR_OFFERED.value,
             AgentEventKind.ACTIVITY.value,
+            # The private browser's panel: live view, then the receipt. Only
+            # written while ``decibyl_browser`` is on; listed always, since a
+            # kind missing here is a panel nobody ever sees.
+            AgentEventKind.BROWSER_SESSION.value,
+            # Stream `reach`: the connect chip and the comparison table.
+            *(
+                (
+                    AgentEventKind.REACH_CONNECT_OFFERED.value,
+                    AgentEventKind.REACH_COMPARISON.value,
+                )
+                if _reach().names(organization_id)
+                else ()
+            ),
             # The files the document tools hand over (a drafted PO, a
             # cost-bid sheet), shown on the thread with their downloads.
             *(
@@ -797,7 +823,12 @@ async def build_context(organization_id: int, question: str) -> str:
         f"## From the knowledge base\n{knowledge_block(knowledge, contacts)}\n\n"
         f"{skills_section(skills, invoked)}"
         f"## Files this account has uploaded\n{documents_block(documents, bot_names)}\n"
+        + _reach_context(await _reach().context_block(organization_id))
     )
+
+
+def _reach_context(block: str) -> str:
+    return f"\n{block}\n" if block else ""
 
 
 def skills_section(installed: list[Any], invoked: list[Any]) -> str:
@@ -896,6 +927,9 @@ async def _history(
         organization_id=organization_id,
         limit=chat_memory.MAX_ROWS,
         thread_id=thread_id,
+        # The person asking reads their own reach rows; a colleague's turn
+        # on the same thread does not.
+        viewer_id=acting.valid_member(acting.acting_user()),
         **thread_filter(organization_id),
     )
     newest_first: list[tuple[str, str]] = []
@@ -1034,11 +1068,22 @@ async def _answer(
         asked_before = ""
     if asked_before:
         context = f"{context}\n\n{asked_before}"
+    # The chosen helper's own reading (launch stream `agents`): the Learning
+    # Guide reads the learning record through the `learning` stream's seam.
+    from api.services.helpers import turn as helper_turn
+
+    helper_reading = await helper_turn.context(
+        helper_turn.current(), organization_id, author_id
+    )
+    if helper_reading:
+        context = f"{context}\n\n{helper_reading}"
     attached = await attached_block(organization_id, attachments, last_try=last_try)
     if attached:
         context = f"{context}\n\n{attached}"
     conversation.add_user(f"{context}\n\n## Question\n{text}{handed}")
 
+    #: The backup model's id when it answered any part of this turn.
+    backup_model = ""
     failed = False
     stopped = False
     # A Stop meant for an earlier reply must not end this one.
@@ -1064,6 +1109,7 @@ async def _answer(
         loaded: dict[str, dict[str, Any]] = {}
         tools = await tools_for(organization_id, loaded)
         reply = await _speak(model, conversation, organization_id, tools=tools)
+        backup_model = reply.fallback_model
         # Up to MAX_TOOL_ROUNDS rounds, not one: a read of a connected app
         # feeds the answer, and a read may precede a proposed write ("find
         # the lead, then draft the mail"). On the last allowed round the
@@ -1130,6 +1176,7 @@ async def _answer(
                 organization_id,
                 tools=tools if (reads_only and not capped) else None,
             )
+            backup_model = backup_model or reply.fallback_model
         body = (reply.text or "").strip()
         if not body:
             body = (
@@ -1146,6 +1193,13 @@ async def _answer(
             request=text,
             organization_id=organization_id,
         )
+        if backup_model:
+            # A backup model answered some of this turn because Claude could
+            # not (services/aws_gateway/fallback.py). Said on the reply, never
+            # passed off as Claude's.
+            from api.services.aws_gateway import fallback
+
+            body = fallback.with_note(body)
     except reply_stop.Stopped as exc:
         # The person pressed Stop: what had formed is the reply, marked so
         # the screen says it is partial rather than presenting it as whole.
@@ -1191,7 +1245,16 @@ async def _answer(
             "body": body,
             "from": NAME,
             "preset": preset,
-            "model": f"{model.provider}:{model.model}" if model is not None else None,
+            # The model that actually answered: the backup model's, on
+            # Bedrock, when the fallback brain stood in for Claude.
+            "model": (
+                f"aws_bedrock:{backup_model}"
+                if backup_model
+                else f"{model.provider}:{model.model}"
+                if model is not None
+                else None
+            ),
+            **({"backup_model": backup_model} if backup_model else {}),
             **outcome,
         },
         in_channel=False,
@@ -1464,6 +1527,12 @@ def office_tools(organization_id: int | None = None) -> list[dict[str, Any]]:
         *(procurement.schemas() if procurement.enabled() else ()),
         *(tables.schemas() if tables.enabled(organization_id) else ()),
         *_helper_schemas(organization_id),
+        *(
+            (browser_tool.tool_schema(),)
+            if browser_tool.enabled(organization_id)
+            else ()
+        ),
+        *care_tools.schemas(organization_id),
     ]
 
 
@@ -1493,7 +1562,11 @@ async def tools_for(
 
         if await code_mode.allowed(organization_id):
             own = [*own, code_mode.tool_schema()]
-    tools = own + connected_tools.schemas(connected, loaded)
+    tools = (
+        own
+        + connected_tools.schemas(connected, loaded)
+        + await _reach().schemas(organization_id)
+    )
     from api.services.helpers import turn as helper_turn
 
     if helper_turn.current():
@@ -1536,11 +1609,17 @@ def _was_a_read(call: Any, result: Any) -> bool:
             "error",
             "unavailable",
         )
+    if _reach().is_reach_name(name):
+        return _reach().is_read(name, result)
     if isinstance(result, dict) and result.get("status") == "not_proposed":
         # A proposal turned back before any card was written ("ask for these
         # first", "which template"): the model must be able to ask or retry.
         # Counted as a card, it lost its tools and answered with nothing.
         return True
+    if name in care_tools.NAMES and isinstance(result, dict):
+        # A scam check or a phone-help step is answered in the turn; a
+        # reminder card ends the round like any other card.
+        return name in care_tools.READS or result.get("status") != "proposed"
     if name in tables.NAMES and isinstance(result, dict):
         # Describe, then rank, then export is one answer: a table read keeps
         # the tools open. A handed-over workbook ends the round like a card.
@@ -1672,6 +1751,8 @@ async def _tool(
             helper=helper,
             request=request,
         )
+    if _reach().handles(str(call.name or ""), organization_id):
+        return await _reach().run(organization_id, call)
     if str(call.name or "").startswith(connected_tools.PREFIX):
         return await _app_tool(organization_id, call, request=request)
     arguments = dict(call.arguments or {})
@@ -1783,6 +1864,21 @@ async def _tool(
             workflow_id=None,
             workflow_run_id=None,
             ref_id=f"decibyl:{organization_id}:{call.id or call.name}",
+        )
+    if call.name == browser_tool.TOOL_NAME and browser_tool.enabled(organization_id):
+        return await browser_tool.for_thread(
+            organization_id,
+            arguments,
+            author_id=author_id,
+            request=request,
+            thread_id=thread_id,
+        )
+    if call.name in care_tools.NAMES:
+        return await care_tools.run(
+            call.name,
+            organization_id=organization_id,
+            user_id=author_id,
+            arguments=arguments,
         )
     if call.name in tables.NAMES and tables.enabled(organization_id):
         return await tables.run(

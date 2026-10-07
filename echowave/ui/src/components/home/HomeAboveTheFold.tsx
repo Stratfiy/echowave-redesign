@@ -31,6 +31,8 @@ import { type ChannelBot, ChannelComposer } from "@/components/channel/ChannelCo
 import { ChannelStream } from "@/components/channel/ChannelStream";
 import { ThreadList } from "@/components/home/ThreadList";
 import { AuxiliaryPanel } from "@/components/layout/AuxiliaryPanel";
+import { LearningResume } from "@/components/learning/LearningResume";
+import { LearningSession } from "@/components/learning/LearningSession";
 import { Announcer } from "@/components/shell/Announcer";
 import { SourceCoverage } from "@/components/shell/SourceCoverage";
 import { jobArt } from "@/lib/art";
@@ -68,8 +70,20 @@ export const CHAT_STARTERS = [
   "Help with a reply",
 ] as const;
 
+/** The starter that opens a lesson inside Chat when `learning` is on
+ *  (screen 13), rather than putting words in the box. */
+export const TEACH_STARTER = "Teach me something";
+
 /** At most three starters on the Chat start (screen 03). */
 export const MAX_STARTERS = 3;
+
+/** With `learning` on, the lesson always has a door on the Chat start: the
+ *  teach starter is kept among the three, in the last place, when the
+ *  server's cards did not already include it. */
+export function withTeachStarter<T extends { text: string }>(cards: T[], make: (text: string) => T): T[] {
+  if (cards.some((card) => card.text === TEACH_STARTER)) return cards.slice(0, MAX_STARTERS);
+  return [...cards.slice(0, MAX_STARTERS - 1), make(TEACH_STARTER)];
+}
 
 /** What the polite live region says when the latest turn changes state:
  *  once per change, never per token (handoff section 26). */
@@ -148,6 +162,46 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   const { user, loading: authLoading } = useAuth();
   // Screens 03-04: starters that fill the box, Stop, sources, task states.
   const chatShell = useFeature("chat_shell");
+  // Screen 13: the lesson inside Chat. "?learn=<goal>" resumes one (from
+  // Today, the progress page or a shared link); "?learn=new" starts one;
+  // "&review=<skill>" opens on a review. Null is the conversation.
+  const learning = useFeature("learning");
+  const [lesson, setLesson] = useState<{ goalId: string | null; review: number | null } | null>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const learn = params.get("learn");
+      if (!learn) return null;
+      const review = Number(params.get("review"));
+      return { goalId: learn === "new" ? null : learn, review: Number.isFinite(review) && review > 0 ? review : null };
+    } catch {
+      return null;
+    }
+  });
+  const showLesson = learning && lesson !== null;
+  const openLesson = useCallback((goalId: string | null, review: number | null = null) => {
+    setLesson({ goalId, review });
+    try {
+      const params = new URLSearchParams(window.location.search);
+      params.set("learn", goalId ?? "new");
+      if (review != null) params.set("review", String(review));
+      else params.delete("review");
+      window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+    } catch {
+      // No address to write: the lesson still opens on screen.
+    }
+  }, []);
+  const closeLesson = useCallback(() => {
+    setLesson(null);
+    try {
+      const params = new URLSearchParams(window.location.search);
+      params.delete("learn");
+      params.delete("review");
+      const rest = params.toString();
+      window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}`);
+    } catch {
+      // Nothing to tidy.
+    }
+  }, []);
   // Whether the thread's history loaded. A failure is shown as a failure
   // with Retry, never as the empty greeting (screen 03).
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
@@ -371,7 +425,16 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
           empty ? "max-w-2xl justify-center overflow-y-auto py-6" : chatShell ? "max-w-[760px]" : "max-w-4xl",
         )}
       >
-      {empty && (
+      {showLesson && lesson && (
+        <LearningSession
+          goalId={lesson.goalId}
+          reviewSkillId={lesson.review}
+          threadId={threadId}
+          onGoalChange={(goalId) => openLesson(goalId)}
+          onClose={closeLesson}
+        />
+      )}
+      {empty && !showLesson && (
       <div className="flex shrink-0 flex-col items-center px-2 pb-6 text-center">
         {/* The real mark, on a round tile with a soft grey halo: the
             greeting's face. */}
@@ -395,7 +458,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         </p>
       </div>
       )}
-      {rows !== null && rows > 0 && (
+      {rows !== null && rows > 0 && !showLesson && (
         <div className="flex items-center gap-2 px-1 text-sm text-muted-foreground">
           <span
             aria-hidden="true"
@@ -417,7 +480,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
           // Empty: the stream stays mounted (it reports the count) but is
           // not drawn -- "This channel is quiet" under a greeting that says
           // hello is the same thing said twice.
-          empty ? "hidden" : "flex-1",
+          empty || showLesson ? "hidden" : "flex-1",
         )}
       >
         {/* Keyed on the chat, so switching remounts the stream clean:
@@ -439,6 +502,9 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
           onOpenSources={chatShell ? onOpenSources : undefined}
         />
       </div>
+      {/* The lesson has its own answer box: two boxes on one screen is one
+          too many, so the composer steps aside (kept mounted, draft kept). */}
+      <div className={cn(showLesson && "hidden")}>
       <ChannelComposer
         hero={empty}
         assistant
@@ -457,18 +523,21 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
           refreshStream.current();
         }}
       />
-      {empty && (
+      </div>
+      {empty && !showLesson && (
         <div className="flex flex-col items-center">
         <div
           className="mt-4 grid w-full gap-2 sm:grid-cols-2"
           aria-label="Ask Decibyl"
         >
-          {(openers.length > 0
-            ? openers
-            : (chatShell ? CHAT_STARTERS : brandNew ? FIRST_JOBS : OPENERS).map((text, index) => ({
-                kind: brandNew || index === 0 ? "time" : "attention",
-                text,
-              }))
+          {((cards: { kind: string; text: string }[]) =>
+            learning ? withTeachStarter(cards, (text) => ({ kind: "time", text })) : cards)(
+            openers.length > 0
+              ? openers
+              : (chatShell ? CHAT_STARTERS : brandNew ? FIRST_JOBS : OPENERS).map((text, index) => ({
+                  kind: brandNew || index === 0 ? "time" : "attention",
+                  text,
+                })),
           )
             // Screen 03: no more than three, and choosing one puts it in the
             // box to edit rather than sending it.
@@ -480,9 +549,11 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
                 type="button"
                 disabled={sendingOpener !== null}
                 onClick={() =>
-                  chatShell
-                    ? setDraftRequest({ text, id: Date.now() })
-                    : void sendOpener(text)
+                  learning && text === TEACH_STARTER
+                    ? openLesson(null)
+                    : chatShell
+                      ? setDraftRequest({ text, id: Date.now() })
+                      : void sendOpener(text)
                 }
                 className="group flex w-full items-center gap-3 rounded-2xl border border-border bg-card/70 px-3.5 py-3 text-left text-sm font-medium transition-colors hover:border-[var(--accent-brand)]/40 hover:bg-card disabled:opacity-60"
               >
@@ -500,6 +571,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
             );
           })}
         </div>
+        {learning && <LearningResume onOpen={(goalId) => openLesson(goalId)} />}
         {suggestions.length > 0 && !chatShell ? (
           <div className="mt-3 flex flex-wrap justify-center gap-2">
             {suggestions.map((chip) => (
@@ -516,12 +588,16 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         </p>
       )}
       {/* Under the composer, out of the thread's way. */}
+      {/* Out of the lesson's way too; the conversations are one tap on
+          "Back to the conversation". */}
+      <div className={cn(showLesson && "hidden")}>
       <ThreadList
         current={threadId}
         onPick={switchThread}
         onNew={newThread}
         refreshKey={threadsVersion}
       />
+      </div>
     </div>
     {/* Sources on demand (screen 04): 360px beside the thread on a wide
         screen, leaving the chat at least 560px; the whole screen with a

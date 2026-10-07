@@ -27,6 +27,27 @@ from api.services.agent_builder.client import SUPPORTED_PROVIDERS, is_exhausted
 from api.services.configuration import platform_credentials
 
 
+async def platform_key(
+    session: AsyncSession, provider: str, model: str | None = None
+) -> str | None:
+    """What a platform turn on ``provider`` authenticates with.
+
+    For Claude with ``CLAUDE_BACKEND`` on AWS and ready, the backend's
+    marker (``services/aws_gateway/claude.py``): requests are signed with
+    the instance role and no Anthropic key is needed. Otherwise the
+    platform key stored for the vendor, exactly as before.
+    """
+    if provider == "anthropic":
+        from api.services.aws_gateway import claude as aws_claude
+
+        marker = aws_claude.platform_credential(model)
+        if marker:
+            return marker
+    return await platform_credentials.resolve_api_key(
+        session, component=CostComponent.LLM, provider=provider
+    )
+
+
 class BuilderUnavailable(RuntimeError):
     """The builder cannot run — disabled, or no usable provider key."""
 
@@ -87,11 +108,9 @@ async def resolve_model(session: AsyncSession) -> BuilderModel:
         c for c in candidates if is_exhausted(c)
     ]
     for provider in candidates:
-        api_key = await platform_credentials.resolve_api_key(
-            session, component=CostComponent.LLM, provider=provider
-        )
+        model = constants.AGENT_BUILDER_MODELS.get(provider)
+        api_key = await platform_key(session, provider, model)
         if api_key:
-            model = constants.AGENT_BUILDER_MODELS.get(provider)
             if not model:
                 logger.warning(
                     "No builder model configured for {}; skipping it.", provider
@@ -113,8 +132,8 @@ async def available_providers(session: AsyncSession) -> list[str]:
     """
     found: list[str] = []
     for provider in SUPPORTED_PROVIDERS:
-        key = await platform_credentials.resolve_api_key(
-            session, component=CostComponent.LLM, provider=provider
+        key = await platform_key(
+            session, provider, constants.AGENT_BUILDER_MODELS.get(provider)
         )
         if key:
             found.append(provider)
@@ -148,9 +167,7 @@ async def resolve_choice(session: AsyncSession, choice: str | None) -> BuilderMo
 
     provider, model = pair
     if provider in SUPPORTED_PROVIDERS and not is_exhausted(provider):
-        api_key = await platform_credentials.resolve_api_key(
-            session, component=CostComponent.LLM, provider=provider
-        )
+        api_key = await platform_key(session, provider, model)
         if api_key:
             return BuilderModel(provider=provider, model=model, api_key=api_key)
     logger.info(

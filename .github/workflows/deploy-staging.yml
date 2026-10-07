@@ -111,6 +111,17 @@ jobs:
           STAGING_EMAIL_B: ${{ secrets.STAGING_EMAIL_B }}
           STAGING_PASSWORD_B: ${{ secrets.STAGING_PASSWORD_B }}
         run: |
+          # Without the secrets, use the two test accounts created on the box
+          # (root-only file, see echowave/STAGING.md), passwords masked.
+          if [ -z "${STAGING_EMAIL_A:-}" ] && sudo test -f /home/ubuntu/decibyl-staging/check.env; then
+            while IFS='=' read -r key value; do
+              case "$key" in
+                STAGING_URL|STAGING_EMAIL_A|STAGING_PASSWORD_A|STAGING_EMAIL_B|STAGING_PASSWORD_B)
+                  case "$key" in *PASSWORD*) echo "::add-mask::$value" ;; esac
+                  export "$key=$value" ;;
+              esac
+            done < <(sudo cat /home/ubuntu/decibyl-staging/check.env)
+          fi
           python3 echowave/scripts/staging_check.py
 
       - name: Summary

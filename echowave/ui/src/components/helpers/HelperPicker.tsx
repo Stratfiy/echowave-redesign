@@ -80,6 +80,7 @@ export function HelperPicker({
     const tradingOn = useFeature("trading_summaries");
     const ledgerOn = useFeature("follow_up_ledger");
     const reportsOn = useFeature("research_reports");
+    const learningOn = useFeature("learning");
     const [open, setOpen] = useState(false);
     const [load, setLoad] = useState<Load>({ state: "idle" });
     const [detail, setDetail] = useState<string | null>(null);
@@ -330,6 +331,11 @@ export function HelperPicker({
                 {shown.key === "follow_up" && ledgerOn && (
                     <Link className="block min-h-11 py-2 text-sm underline" href="/follow-ups" onClick={close}>
                         Who owes me
+                    </Link>
+                )}
+                {shown.key === "learning_guide" && learningOn && (
+                    <Link className="block min-h-11 py-2 text-sm underline" href="/learning" onClick={close}>
+                        Your learning progress
                     </Link>
                 )}
                 {shown.key === "builder" && (

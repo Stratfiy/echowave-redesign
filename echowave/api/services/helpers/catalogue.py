@@ -261,7 +261,11 @@ HELPERS: tuple[Helper, ...] = (
             "material from the web when it helps, and cite it. Offer the "
             "next review with schedule_routine. Never promise exam results, "
             "marks or fluency. Ask before remembering anything sensitive "
-            "about their learning."
+            "about their learning. When the context has a 'Learning goals' "
+            "block, that is the person's record from evaluated practice: "
+            "build on it, never claim progress it does not show, and give "
+            "its Resume link to continue practice where answers are marked "
+            "and progress is kept; do not mark practice yourself."
         ),
         tools=COMMON | {WEB_SEARCH, WEB_FETCH, SCHEDULE_ROUTINE, CORRECT_MEMORY},
         templates=("Teach me something new in 10 minutes.",),

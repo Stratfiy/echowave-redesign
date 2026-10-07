@@ -13,8 +13,16 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div role="menu">{children}</div>,
-  DropdownMenuItem: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
-    <button type="button" role="menuitem" onClick={onClick}>
+  DropdownMenuItem: ({
+    children,
+    onClick,
+    disabled,
+  }: {
+    children: React.ReactNode;
+    onClick?: () => void;
+    disabled?: boolean;
+  }) => (
+    <button type="button" role="menuitem" onClick={onClick} disabled={disabled}>
       {children}
     </button>
   ),
@@ -70,6 +78,27 @@ describe("Settings -> Models", () => {
     expect(api.put).toHaveBeenCalledTimes(1);
     release(view("tier:accurate", "Smart"));
     await waitFor(() => expect(screen.getByRole("button", { name: /Brain: Smart/ })).toBeTruthy());
+  });
+
+  it("lists a choice that is still being set up, and does not let it be picked", async () => {
+    const withAws = view("tier:default", "Everyday");
+    withAws.data.slots[0].ours.push({
+      value: "tier:aws",
+      label: "Multilingual (AWS)",
+      blurb: "",
+      serves: "Amazon Bedrock",
+      status: "needs_setup",
+      status_note: "Being set up by Decibyl. Not available to choose yet.",
+    } as (typeof withAws.data.slots)[0]["ours"][0]);
+    api.get.mockResolvedValue(withAws);
+    render(<ModelsPage />);
+    await screen.findByText("Brain");
+    const item = screen.getByRole("menuitem", { name: /Multilingual \(AWS\)/ });
+    expect(item.textContent).toContain("Needs setup");
+    expect(item.textContent).toContain("Being set up by Decibyl");
+    expect(item.hasAttribute("disabled")).toBe(true);
+    fireEvent.click(item);
+    expect(api.put).not.toHaveBeenCalled();
   });
 
   it("keeps the saved value when the network fails", async () => {

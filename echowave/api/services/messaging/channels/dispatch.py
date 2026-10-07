@@ -94,6 +94,10 @@ async def _may_greet_stranger(adapter, inbound: Inbound) -> bool:
 
 async def handle(inbound: Inbound) -> str:
     """Route one normalised message. Returns a status word for the log."""
+    from api.services.identity import channel_health
+
+    # Every caller has checked the platform's signature before this.
+    await channel_health.saw_verified_inbound(inbound.channel)
     adapter = adapter_for(inbound.channel)
     identity = await identities.find(inbound.channel, inbound.external_id)
 
@@ -201,10 +205,19 @@ async def deliver(
     ref = dict(reply_to.get("ref") or {})
     ref.setdefault("to", reply_to.get("to"))
     ref.setdefault("organization_id", organization_id)
+    from api.services.identity import channel_health
+
     try:
+        sent = []
         if body.strip():
-            await adapter.send_text(ref, body)
+            sent.append(await adapter.send_text(ref, body))
         for card in cards:
-            await adapter.send_card(ref, card)
+            sent.append(await adapter.send_card(ref, card))
     except Exception as exc:  # noqa: BLE001
         logger.error("Could not deliver Decibyl's answer on {}: {}", channel, exc)
+        await channel_health.delivery_failed(channel, type(exc).__name__)
+        return
+    if sent and all(sent):
+        await channel_health.delivered(channel)
+    elif sent:
+        await channel_health.delivery_failed(channel, "refused")

@@ -376,7 +376,9 @@ class TestArrival:
 
 
 @pytest.mark.asyncio
-async def test_a_card_from_proposal_to_done_writes_each_event(test_engine, catalogue_on):
+async def test_a_card_from_proposal_to_done_writes_each_event(
+    test_engine, catalogue_on
+):
     """Found by running it: a card's run sent ``action_kind`` on task_*
     events, which the catalogue refuses, so nothing was recorded."""
     from unittest.mock import AsyncMock
@@ -395,7 +397,11 @@ async def test_a_card_from_proposal_to_done_writes_each_event(test_engine, catal
         kind=AgentEventKind.ACTION_PROPOSED.value,
         actor=AgentEventActor.AGENT.value,
         summary="Turn Front desk on",
-        payload={"state": "proposed", "label": "Turn Front desk on", "action": "turn_bot_on"},
+        payload={
+            "state": "proposed",
+            "label": "Turn Front desk on",
+            "action": "turn_bot_on",
+        },
     )
     with (
         patch.object(actions.approvals, "check", new=AsyncMock()),
@@ -403,7 +409,10 @@ async def test_a_card_from_proposal_to_done_writes_each_event(test_engine, catal
         patch("api.tasks.arq.enqueue_job", new=AsyncMock()),
     ):
         await actions.settle(
-            organization_id=organization_id, event_id=event_id, verb="confirm", user_id=3
+            organization_id=organization_id,
+            event_id=event_id,
+            verb="confirm",
+            user_id=3,
         )
     with (
         patch.object(actions, "_execute", new=AsyncMock(return_value="It is on.")),

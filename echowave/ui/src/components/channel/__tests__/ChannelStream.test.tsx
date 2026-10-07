@@ -25,6 +25,9 @@ vi.mock('@/client/sdk.gen', () => ({
     postMessageApiV1TimelineMessagePost: post,
 }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
+vi.mock('@/components/browser/BrowserPanel', () => ({
+    BrowserPanel: ({ sessionUuid }: { sessionUuid: string }) => <div data-testid="browser-panel">{sessionUuid}</div>,
+}));
 
 import { ChannelStream } from '../ChannelStream';
 
@@ -562,5 +565,27 @@ describe('the rhythm of a thread', () => {
         // And the two dates differ, so the divider is the day and not a
         // line drawn above every row.
         expect(new Set(days.map((li) => li.getAttribute('aria-label'))).size).toBe(2);
+    });
+});
+
+describe("Decibyl's private browser", () => {
+    it('shows the panel for the session the row names', async () => {
+        timeline.mockResolvedValue({
+            data: {
+                events: [
+                    event({
+                        kind: 'browser_session',
+                        summary: 'Browsing: check my bill',
+                        payload: { from: 'Decibyl', session_uuid: 'abc-123', by: 1 },
+                        workflow_id: null,
+                        folder_id: null,
+                    }),
+                ],
+                next_before_at: null,
+                next_before_id: null,
+            },
+        });
+        render(<ChannelStream assistant botNames={{}} />);
+        expect((await screen.findByTestId('browser-panel')).textContent).toBe('abc-123');
     });
 });

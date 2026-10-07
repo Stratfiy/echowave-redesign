@@ -67,6 +67,10 @@ class UserModel(Base):
     # StaffRole in api/enums.py. Nullable rather than a Postgres ENUM so a
     # future tier needs no migration — same convention as account_type below.
     staff_role = Column(String(16), nullable=True)
+    #: Launch stream `staff`: when staff suspended this account through an
+    #: approved command. Honoured by ``get_user`` while ``staff_console`` is
+    #: on; NULL means not suspended.
+    staff_suspended_at = Column(DateTime(timezone=True), nullable=True)
     email = Column(String, nullable=True)
     password_hash = Column(String, nullable=True)
 
@@ -6837,6 +6841,20 @@ from api.db.agents_models import (  # noqa: E402,F401
     TrackerEntryModel,
     TrackerModel,
 )
+from api.db.browser_models import (  # noqa: E402,F401
+    BrowserSessionModel,
+    BrowserSiteLoginModel,
+    BrowserSiteRuleModel,
+)
+from api.db.care_models import (  # noqa: E402,F401
+    CareAlertModel,
+    CareCircleMemberModel,
+    CareCircleModel,
+    CareDoseCallModel,
+    CareHelpSessionModel,
+    CareMedicineModel,
+    CareScamCheckModel,
+)
 from api.db.channel_identity_models import (  # noqa: E402,F401
     ChannelIdentityModel,
     ChannelLinkCodeModel,
@@ -6853,6 +6871,42 @@ from api.db.controls_models import (  # noqa: E402,F401
 from api.db.feature_override_models import (  # noqa: E402,F401
     FeatureOverrideModel,
 )
+from api.db.identity_models import (  # noqa: E402,F401
+    CardInterestModel,
+    ChannelCheckModel,
+    ConnectionConsentModel,
+    DeliveryReceiptModel,
+    EmailIdentityMessageModel,
+    EmailIdentityModel,
+    EmailIdentitySendModel,
+    NotificationDeliveryModel,
+    NotificationPreferencesModel,
+    NumberReadinessModel,
+    PushSubscriptionModel,
+)
+from api.db.learning_models import (  # noqa: E402,F401
+    LearnerProfileModel,
+    LearningAttemptModel,
+    LearningExerciseModel,
+    LearningGoalModel,
+    LearningLessonModel,
+    LearningSkillModel,
+)
+from api.db.meeting_models import (  # noqa: E402,F401
+    MeetingBreakModel,
+    MeetingItemModel,
+    MeetingModel,
+    MeetingSegmentModel,
+)
+from api.db.ops_models import (  # noqa: E402,F401
+    OpsCommandModel,
+    OpsEvidenceModel,
+    PlatformCredentialRotationModel,
+)
+from api.db.reach_models import (  # noqa: E402,F401
+    ReachConnectionModel,
+    ReachOrderDraftModel,
+)
 from api.db.shell_models import (  # noqa: E402,F401
     UserOnboardingModel,
     WaitlistRequestModel,
@@ -6863,4 +6917,21 @@ from api.db.signup_invite_models import (  # noqa: E402,F401
 )
 from api.db.site_project_models import (  # noqa: E402,F401
     SiteProjectModel,
+)
+from api.db.staff_models import (  # noqa: E402,F401
+    QualityEvalCaseModel,
+    QualityEvalResultModel,
+    QualityEvalRunModel,
+    StaffCommandModel,
+    StaffIncidentModel,
+    StaffIncidentStepModel,
+    StaffRefundModel,
+    StaffRoleGrantModel,
+)
+from api.db.support_models import (  # noqa: E402,F401
+    SupportActionModel,
+    SupportAttachmentModel,
+    SupportMessageModel,
+    SupportNoteModel,
+    SupportTicketModel,
 )
