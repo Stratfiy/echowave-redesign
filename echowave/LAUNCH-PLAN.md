@@ -372,20 +372,20 @@ hourly, reviews and merges each PR, and starts the next streams.
 
 | Stream | Phase | Branch | PR | Built | Tests | Staging |
 | --- | --- | --- | --- | --- | --- | --- |
-| controls | 1 | claude/stream-controls | #525 merged | yes | 247 stream + core pass; UI 1414 pass | |
-| shell | 1 | claude/stream-shell | #526 merged | yes | as controls (merged together) | |
-| today | 2 | claude/stream-today | | | | |
-| agents | 2 | claude/stream-agents | #532 | yes (AGENTS-LAUNCH.md) | 44 api + 20 ui, live check | |
-| learning | 2 | claude/stream-learning | see PR | yes (`LEARNING.md`) | see PR | |
-| voice | 2 | claude/stream-voice | | | | |
-| meetings | 2 | claude/stream-meetings | see PR | yes (MEETINGS.md) | 56 API + 38 UI; running-instance checks in PR | |
-| identity | 2 | claude/stream-identity | | | | |
-| settings | 2 | claude/stream-settings | #538 draft | yes (SETTINGS.md) | 60 API + 89 UI new; live API/worker/UI check | |
-| support | 2 | claude/stream-support | draft | yes (SUPPORT.md) | 50 API + 36 UI; live API/worker/UI check | |
-| staff | 2 | claude/stream-staff | | | | |
-| ops | 2 | claude/stream-ops | #524 merged | yes; one analytics outbox with controls | 245 stream + core pass | |
-| aws-gateway | 2 | claude/stream-aws-gateway | #528 merged | yes (flags off; Bedrock needs setup until AWS clears the account) | 66 + 250 core pass | |
-| browser | 2 | claude/stream-browser | #529 merged | yes (flag off; needs the browser box image on the server) | 403 browser + desktop + core pass | |
-| reach | 2 | claude/stream-reach | | | | |
-| care | 2 | claude/stream-care | | | | |
-| desktop | 2 | claude/stream-desktop | #527 merged | yes (flags off; signing needs Apple and Windows certificates) | 70 app + 220 core pass | |
+| controls | 1 | claude/stream-controls | #525 merged | yes | 247 stream + core pass; UI 1414 pass | deploying |
+| shell | 1 | claude/stream-shell | #526 merged | yes | as controls (merged together) | deploying |
+| ops | 2 | claude/stream-ops | #524 merged | yes; one analytics outbox with controls | 245 stream + core pass | deploying |
+| aws-gateway | 2 | claude/stream-aws-gateway | #528 merged | yes (flags off; Bedrock needs setup until AWS clears the account) | 66 + 250 core pass | deploying |
+| desktop | 2 | claude/stream-desktop | #527 merged | yes (flags off; signing needs Apple and Windows certificates) | 70 app + 220 core pass | deploying |
+| browser | 2 | claude/stream-browser | #529 merged | yes (needs the browser box image on the server) | 403 browser + desktop + core pass | deploying |
+| care | 2 | claude/stream-care | #539 merged | yes | 306 care + core pass | deploying |
+| reach | 2 | claude/stream-reach | #530 merged | yes (one OutcomeUnknown with browser; private rows fixed after identity) | 90 + core pass | deploying |
+| learning | 2 | claude/stream-learning | #533 merged | yes | 278 pass | deploying |
+| meetings | 2 | claude/stream-meetings | #531 merged | yes (care undo return restored) | 300 pass | deploying |
+| support | 2 | claude/stream-support | #537 merged | yes | 294 pass | deploying |
+| staff | 2 | claude/stream-staff | #540 merged | yes | 300 pass | deploying |
+| identity | 2 | claude/stream-identity | #534 merged | yes (hidden visibility scoped to identity cards) | 356 pass | deploying |
+| agents | 2 | claude/stream-agents | #532 merged | yes (Learning Guide reads learning's services) | 244 core + 156 pass | deploying |
+| today | 2 | claude/stream-today | #535 merged | yes (docked approvals, one answer_refusal) | 335 + 245 pass | deploying |
+| settings | 2 | claude/stream-settings | #538 merged | yes | 304 + 324 pass | deploying |
+| voice | 2 | claude/stream-voice | #536 | reconciling with settings (one speed setting, one voice screen) | | |
