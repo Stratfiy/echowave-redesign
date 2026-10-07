@@ -43,6 +43,7 @@ from api.services.telephony.call_transfer_manager import get_call_transfer_manag
 from api.services.telephony.escalation import briefing_from_config
 from api.services.telephony.factory import get_telephony_provider_for_run
 from api.services.telephony.transfer_event_protocol import TransferContext
+from api.services.voice import appointments
 from api.services.workflow import (
     agent_web,
     app_interactions,
@@ -507,6 +508,24 @@ class CustomToolManager:
                     )
                     continue
 
+                if appointments.is_appointments_tool(tool):
+                    # Built-in Call and Appointment tool (stream `voice`):
+                    # open times, booking within the workspace's policy, and
+                    # handing the caller to a person. Offers nothing while
+                    # its flag is off.
+                    if not appointments.enabled(organization_id):
+                        continue
+                    for func in appointments.function_schemas():
+                        schemas.append(
+                            get_function_schema(
+                                func["name"],
+                                func["description"],
+                                properties=func["properties"],
+                                required=func["required"],
+                            )
+                        )
+                    continue
+
                 if tool.category == ToolCategory.CALCULATOR.value:
                     # Built-in calculator: return pre-defined schemas
                     for tool_def in get_calculator_tools():
@@ -646,6 +665,11 @@ class CustomToolManager:
                 if team_calls_tool.is_team_calls_tool(tool):
                     if team_calls_tool.enabled():
                         self._register_team_calls_handler()
+                    continue
+
+                if appointments.is_appointments_tool(tool):
+                    if appointments.enabled(organization_id):
+                        self._register_appointments_handlers(organization_id)
                     continue
 
                 if tool.category == ToolCategory.CALCULATOR.value:
@@ -824,6 +848,34 @@ class CustomToolManager:
             read_team_calls,
             kind=ToolCategory.TEAM_CALLS.value,
         )
+
+    def _register_appointments_handlers(self, organization_id: int) -> None:
+        """The Call and Appointment tool's three functions (stream `voice`)."""
+        from api.services.voice import appointments
+
+        def handler_for(name: str):
+            async def appointments_func(
+                function_call_params: FunctionCallParams,
+            ) -> None:
+                # From the run, not a guessed engine attribute (see
+                # _interaction_context and test_silent_absence_guard).
+                who = await self._interaction_context()
+                result = await appointments.run_tool(
+                    name,
+                    dict(function_call_params.arguments or {}),
+                    organization_id=organization_id,
+                    workflow_id=who.get("workflow_id"),
+                    workflow_run_id=who.get("workflow_run_id"),
+                    call_context=dict(self._engine._call_context_vars or {}),
+                )
+                await function_call_params.result_callback(result)
+
+            return appointments_func
+
+        for name in appointments.TOOL_NAMES:
+            self._register(
+                name, handler_for(name), kind=ToolCategory.APPOINTMENTS.value
+            )
 
     def _register_calculator_handler(self) -> None:
         """Register the built-in calculator function with the LLM."""

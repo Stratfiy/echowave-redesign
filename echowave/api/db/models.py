@@ -6856,3 +6856,9 @@ from api.db.signup_invite_models import (  # noqa: E402,F401
 from api.db.site_project_models import (  # noqa: E402,F401
     SiteProjectModel,
 )
+from api.db.voice_models import (  # noqa: E402,F401
+    AppointmentModel,
+    AppointmentPolicyModel,
+    VoiceSessionModel,
+    VoiceTurnModel,
+)

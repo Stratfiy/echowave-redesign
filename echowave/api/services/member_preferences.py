@@ -48,6 +48,11 @@ LANGUAGES = (
     "en",
 )
 FIELDS = ("language", "timezone", "voice", "summary_time")
+#: Live voice's own two (stream `voice`, screen 19): speaking speed and
+#: captions. Saved through the same revision as the four above, so the voice
+#: screen's Save is one save, never two that can half-apply.
+VOICE_FIELDS = ("voice_speed", "captions")
+SPEED_RANGE = (0.5, 2.0)
 _TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 _VOICE = re.compile(r"^[A-Za-z0-9_.:\-]{1,64}$")
 
@@ -74,6 +79,8 @@ def _empty(user_id: int) -> dict[str, Any]:
         "timezone": None,
         "voice": None,
         "summary_time": None,
+        "voice_speed": None,
+        "captions": None,
         "revision": 0,
         "updated_at": None,
     }
@@ -88,6 +95,8 @@ def _as_dict(row: MemberPreferencesModel | None, user_id: int) -> dict[str, Any]
         "timezone": row.timezone,
         "voice": row.voice,
         "summary_time": row.summary_time,
+        "voice_speed": row.voice_speed,
+        "captions": row.captions,
         "revision": row.revision,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
@@ -97,10 +106,23 @@ def validate(changes: dict[str, Any]) -> dict[str, Any]:
     """The changes, checked. None clears a field. Raises PreferenceInvalid."""
     out: dict[str, Any] = {}
     for key, value in changes.items():
-        if key not in FIELDS:
+        if key not in FIELDS and key not in VOICE_FIELDS:
             raise PreferenceInvalid(f"{key} is not a personal preference")
         if value is None:
             out[key] = None
+            continue
+        if key == "voice_speed":
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise PreferenceInvalid("Speed is a number such as 1.0.")
+            low, high = SPEED_RANGE
+            if not low <= float(value) <= high:
+                raise PreferenceInvalid(f"Speed goes from {low} to {high}.")
+            out[key] = round(float(value), 2)
+            continue
+        if key == "captions":
+            if not isinstance(value, bool):
+                raise PreferenceInvalid("Captions are on or off.")
+            out[key] = value
             continue
         if not isinstance(value, str):
             raise PreferenceInvalid(f"{key} must be text")

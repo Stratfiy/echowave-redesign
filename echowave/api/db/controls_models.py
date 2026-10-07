@@ -13,9 +13,11 @@ from datetime import UTC, datetime
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     Column,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -136,6 +138,10 @@ class MemberPreferencesModel(Base):
     voice = Column(String(64), nullable=True)
     #: ``HH:MM`` local time for the daily summary, or NULL for none.
     summary_time = Column(String(5), nullable=True)
+    #: Speaking speed for live voice, 0.5-2.0 (stream `voice`, screen 19).
+    voice_speed = Column(Float, nullable=True)
+    #: Whether captions show in a live voice session (stream `voice`).
+    captions = Column(Boolean, nullable=True)
     revision = Column(Integer, nullable=False, default=0, server_default=text("0"))
     updated_at = Column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)

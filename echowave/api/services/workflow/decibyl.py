@@ -27,6 +27,10 @@ delete anything. Those come as tools behind confirm cards later.
 from __future__ import annotations
 
 import time
+from collections.abc import Awaitable, Callable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -70,6 +74,57 @@ from api.services.workflow import (
 )
 
 NAME = "Decibyl"
+
+
+# --- a turn spoken aloud (stream `voice`) -------------------------------------
+
+
+@dataclass
+class VoiceTurn:
+    """A turn of a live voice session (services/voice/brain.py).
+
+    The same brain answers -- context, memory, tools, cards -- so voice is
+    not a second assistant. Two things differ: the words go to the voice as
+    they form (``on_words`` gets each new piece, not the whole), and the reply
+    is not written to the thread here, because only the voice knows how much
+    of it was actually heard before an interruption (handoff 12: "track what
+    was actually played").
+    """
+
+    on_words: Callable[[str], Awaitable[None]]
+    said: str = ""
+    #: The turn called a tool: its latency is reported apart (handoff 12).
+    tool_turn: bool = False
+
+
+_voice_turn: ContextVar[VoiceTurn | None] = ContextVar(
+    "decibyl_voice_turn", default=None
+)
+
+#: Said to the model on a spoken turn only.
+VOICE_RULES = (
+    "\n## Speaking aloud\n"
+    "This turn is spoken in a live voice conversation. Answer in short "
+    "spoken sentences, the most useful one first. No lists, headings, links, "
+    "markdown or emoji. Say numbers and times the way a person would. If a "
+    "tool shows a card, say it is on screen for them to approve; never say "
+    "it was done. A spoken yes is not an approval: approvals happen on the "
+    "card.\n"
+)
+
+
+@contextmanager
+def voice_turn(turn: VoiceTurn) -> Iterator[VoiceTurn]:
+    token = _voice_turn.set(turn)
+    try:
+        yield turn
+    finally:
+        _voice_turn.reset(token)
+
+
+def current_voice_turn() -> VoiceTurn | None:
+    return _voice_turn.get()
+
 
 #: How much of the thread the model sees is the plan's chat memory --
 #: see _history and services/workflow/chat_memory.py.
@@ -237,10 +292,13 @@ def system_prompt(organization_id: int | None = None) -> str:
     The procurement rules are said only while those tools are offered: a
     rule for a tool the model is not holding is a tool it will describe and
     cannot call (``test_decibyl_knows_what_it_has``)."""
+    from api.services.voice import call_for_me
+
     return (
         SYSTEM
         + (procurement.RULES if procurement.enabled() else "")
         + (tables.RULES if tables.enabled(organization_id) else "")
+        + (call_for_me.RULES if call_for_me.enabled(organization_id) else "")
     )
 
 
@@ -1063,6 +1121,8 @@ async def _answer(
         rounds = 0
         while reply.wants_tools and rounds < MAX_TOOL_ROUNDS:
             rounds += 1
+            if current_voice_turn() is not None:
+                current_voice_turn().tool_turn = True
             conversation.add_assistant(reply)
             reads_only = True
             asked_for_schema = False
@@ -1153,6 +1213,14 @@ async def _answer(
         outcome["failed"] = True
     if stopped:
         outcome["stopped"] = True
+    if current_voice_turn() is not None:
+        # Spoken: the voice records what was heard (services/voice/brain.py).
+        # A failure has no audio to cut short, so say it on the turn now.
+        if failed:
+            spoken = current_voice_turn()
+            spoken.said = body
+            await spoken.on_words(body)
+        return body
     await agent_timeline.record(
         organization_id=organization_id,
         kind=AgentEventKind.MESSAGE.value,
@@ -1434,7 +1502,18 @@ def office_tools(organization_id: int | None = None) -> list[dict[str, Any]]:
         ),
         *(procurement.schemas() if procurement.enabled() else ()),
         *(tables.schemas() if tables.enabled(organization_id) else ()),
+        *(
+            (_call_for_me().tool_schema(),)
+            if _call_for_me().enabled(organization_id)
+            else ()
+        ),
     ]
+
+
+def _call_for_me():
+    from api.services.voice import call_for_me
+
+    return call_for_me
 
 
 #: The old name, kept for anything that imported it.
@@ -1710,6 +1789,17 @@ async def _tool(
             arguments=arguments,
             ref_id=f"decibyl:{organization_id}:{call.id or call.name}",
         )
+    if call.name == _call_for_me().TOOL_NAME and _call_for_me().enabled(
+        organization_id
+    ):
+        # A card, never a dial: the person approves the exact call first.
+        return await actions.propose(
+            organization_id=organization_id,
+            workflow_id=None,
+            workflow_run_id=None,
+            arguments={**arguments, "action": actions.PLACE_CALL},
+            in_channel=False,
+        )
     if call.name == documents.SEND_TOOL_NAME:
         return await documents.send_for_thread(
             organization_id,
@@ -1766,6 +1856,36 @@ async def _speak(
     # person's Stop lands within a quarter of a second and the text so far
     # becomes the reply (see reply_stop).
     can_stop = features.is_on("chat_shell", organization_id)
+    spoken = current_voice_turn()
+    system = system_prompt(organization_id)
+    if spoken is not None:
+        # Spoken: each new piece goes straight to the voice, unthrottled --
+        # the first words are the latency a person hears -- and no draft is
+        # written, because the voice session shows its own captions. An
+        # interruption cancels the turn instead of a Stop.
+        system = system + VOICE_RULES
+        spoken_round = {"seen": 0}
+
+        async def on_text(text: str) -> None:
+            piece = text[spoken_round["seen"] :]
+            spoken_round["seen"] = len(text)
+            if piece:
+                spoken.said += piece
+                await spoken.on_words(piece)
+
+        feature = (
+            "decibyl:byok" if getattr(model, "key_source", "") == "byok" else "decibyl"
+        )
+        with model_usage.scope(organization_id=organization_id, feature=feature):
+            return await client.stream(
+                provider=model.provider,
+                model=model.model,
+                api_key=model.api_key,
+                system=system,
+                conversation=conversation,
+                on_text=on_text,
+                tools=tools,
+            )
 
     async def on_text(text: str) -> None:
         # A few writes a second is plenty for a screen polling at that rate,
@@ -1790,7 +1910,7 @@ async def _speak(
             provider=model.provider,
             model=model.model,
             api_key=model.api_key,
-            system=system_prompt(organization_id),
+            system=system,
             conversation=conversation,
             on_text=on_text,
             tools=tools,

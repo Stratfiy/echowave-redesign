@@ -110,12 +110,18 @@ INSTALL_FROM_REPOSITORY = "install_from_repository"
 #: services/workflow/routines.py). Internal like the three above: Decibyl
 #: reaches it through schedule_routine, which has already read the words.
 SCHEDULE_ROUTINE = "schedule_routine"
+#: Place one phone call for the person who asked ("call it for me", stream
+#: `voice`; see services/voice/call_for_me.py). Internal like the four above:
+#: Decibyl reaches it through its call_for_me tool, offered only while the
+#: flag is on. Never reversible: a call that rang cannot be unrung.
+PLACE_CALL = "place_call"
 INTERNAL_ACTIONS = (
     RUN_TOOL,
     SEND_DOCUMENT,
     BUILD_FROM_SPEC,
     INSTALL_FROM_REPOSITORY,
     SCHEDULE_ROUTINE,
+    PLACE_CALL,
 )
 
 #: The states a proposal moves through. Terminal ones are the last four.
@@ -168,7 +174,7 @@ def _is_outbound(payload: dict[str, Any]) -> bool:
     """Whether running the card reaches somebody: a send, not a read or a
     draft. What the operational quota counts as an outbound message."""
     action = payload.get("action")
-    if action == SEND_DOCUMENT:
+    if action in (SEND_DOCUMENT, PLACE_CALL):
         return True
     if action == RUN_TOOL:
         if "reaches_people" in payload:
@@ -475,6 +481,20 @@ async def resolve(
             "reversible": True,
             "state": PROPOSED,
         }
+
+    if action == PLACE_CALL:
+        from api.services import acting
+        from api.services.voice import call_for_me
+
+        try:
+            card = await call_for_me.resolve(
+                organization_id=organization_id,
+                arguments=arguments,
+                user_id=acting.acting_user(),
+            )
+        except call_for_me.CallNotPossible as exc:
+            raise ActionError(str(exc)) from exc
+        return {"action": action, "why": why, "state": PROPOSED, **card}
 
     if action == SCHEDULE_ROUTINE:
         name = str(arguments.get("name") or "").strip()[:120]
@@ -1038,10 +1058,23 @@ async def _say(event: Any, line: str) -> None:
     )
 
 
-async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
+async def _execute(
+    organization_id: int, payload: dict[str, Any], event_id: int | None = None
+) -> str:
     """Do it. Returns one line on what happened; raises on refusal."""
     action = payload.get("action")
     args = payload.get("args") or {}
+    if action == PLACE_CALL:
+        from api.services.voice import call_for_me
+
+        try:
+            return await call_for_me.execute(
+                organization_id=organization_id,
+                payload=payload,
+                event_id=int(event_id or 0),
+            )
+        except call_for_me.CallNotPossible as exc:
+            raise ActionError(str(exc)) from exc
     if action in (TURN_BOT_ON, TURN_BOT_OFF):
         try:
             await db_client.set_workflow_live(
@@ -1348,7 +1381,7 @@ async def run(event_id: int, organization_id: int) -> None:
             await _emit("task_failed", event, payload, confirmer)
             return
     try:
-        note = await _execute(organization_id, payload)
+        note = await _execute(organization_id, payload, event_id)
     except ActionError as exc:
         payload["state"] = FAILED
         payload["error"] = str(exc)
@@ -1358,9 +1391,12 @@ async def run(event_id: int, organization_id: int) -> None:
         return
     except Exception as exc:  # noqa: BLE001 - the card must say something
         logger.error("Action {} failed: {}", event_id, exc)
-        if ledger and (
-            _is_outbound(payload) or payload.get("action") == RETURN_MISSED_CALL
+        if payload.get("action") == PLACE_CALL or (
+            ledger
+            and (_is_outbound(payload) or payload.get("action") == RETURN_MISSED_CALL)
         ):
+            # A call is never "failed" after the dial began, ledger or not:
+            # it may have rung, and a redial would ring them twice.
             # Something reached the outside service and broke: whether it
             # went is not known. Said so, and never retried blind.
             from api.services.workflow import task_ledger

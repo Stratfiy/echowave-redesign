@@ -70,6 +70,7 @@ from api.tasks.settlement import sweep_uncosted_runs
 from api.tasks.sunday_review import send_sunday_reviews
 from api.tasks.tax_invoices import issue_monthly_tax_invoices
 from api.tasks.trial_notices import send_trial_notices
+from api.tasks.voice import sweep_stale_voice_sessions
 from api.tasks.webhook_delivery import deliver_webhook, sweep_webhook_deliveries
 from api.tasks.weekly_digest import send_weekly_digests
 from api.tasks.workflow_completion import process_workflow_completion
@@ -136,6 +137,7 @@ class WorkerSettings:
         translate_knowledge_base_document,
         deliver_analytics_outbox,
         sweep_unknown_outcomes,
+        sweep_stale_voice_sessions,
     ]
     cron_jobs = [
         # Launch stream controls: catalogue events to analytics, and cards
@@ -150,6 +152,13 @@ class WorkerSettings:
             sweep_unknown_outcomes,
             minute=set(range(1, 60, 5)),
             second=40,
+            run_at_startup=False,
+        ),
+        # Launch stream voice: lost live sessions released. No-op while off.
+        cron(
+            sweep_stale_voice_sessions,
+            minute=set(range(0, 60)),
+            second=30,
             run_at_startup=False,
         ),
         # Reminders filed against a document's expiry (A4) go out once a day,

@@ -61,7 +61,13 @@ export type Feature =
     | "early_access"
     | "first_task_onboarding"
     | "chat_shell"
-    | "shell_mobile";
+    | "shell_mobile"
+    // Launch stream `voice` (LAUNCH-PLAN.md, phase 2).
+    | "decibyl_voice"
+    | "voice_latency"
+    | "call_for_me"
+    | "call_appointment"
+    | "voice_language_settings";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

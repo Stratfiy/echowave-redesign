@@ -320,6 +320,67 @@ class SignalingManager:
             websocket, code=1000, reason="call ended"
         )
 
+    # --- what differs between a workflow run and a Decibyl voice session ---
+
+    async def _authorize_start(
+        self,
+        ws: WebSocket,
+        workflow_id: int,
+        workflow_run_id: int,
+        organization_id: int,
+        user: UserModel,
+    ) -> bool:
+        """Whether this offer may start audio. Sends the error itself."""
+        # Check Decibyl quota before initiating the call (apply per-workflow
+        # model_overrides so we evaluate the keys this workflow will use).
+        quota_result = await authorize_workflow_run_start(
+            workflow_id=workflow_id,
+            organization_id=organization_id,
+            workflow_run_id=workflow_run_id,
+            actor_user=user,
+        )
+        if not quota_result.has_quota:
+            # Send error response for quota issues
+            await ws.send_json(
+                {
+                    "type": "error",
+                    "payload": {
+                        "error_type": quota_result.error_code,
+                        "message": quota_result.error_message,
+                    },
+                }
+            )
+            return False
+        return True
+
+    def _launch_pipeline(
+        self,
+        pc: SmallWebRTCConnection,
+        ws_sender,
+        workflow_id: int,
+        workflow_run_id: int,
+        user: UserModel,
+        call_context_vars: dict,
+        organization_id: int,
+    ) -> None:
+        # Register WebSocket sender for real-time feedback
+        register_ws_sender(workflow_run_id, ws_sender)
+        asyncio.create_task(
+            run_pipeline_smallwebrtc(
+                pc,
+                workflow_id,
+                workflow_run_id,
+                user.id,
+                call_context_vars,
+                user_provider_id=str(user.provider_id),
+                organization_id=organization_id,
+            )
+        )
+
+    def _on_websocket_closed(self, workflow_run_id: int) -> None:
+        # Unregister WebSocket sender for real-time feedback
+        unregister_ws_sender(workflow_run_id)
+
     async def handle_websocket(
         self,
         websocket: WebSocket,
@@ -362,8 +423,7 @@ class SignalingManager:
             self._connections.pop(connection_key, None)
             peer_ids = list(self._connection_peer_ids.pop(connection_key, set()))
 
-            # Unregister WebSocket sender for real-time feedback
-            unregister_ws_sender(workflow_run_id)
+            self._on_websocket_closed(workflow_run_id)
 
             # Clean up peer connections owned by this WebSocket.
             # Note: In a WebSocket-based signaling approach (vs HTTP PATCH),
@@ -447,25 +507,9 @@ class SignalingManager:
         set_current_run_id(workflow_run_id)
         set_current_org_id(organization_id)
 
-        # Check Decibyl quota before initiating the call (apply per-workflow
-        # model_overrides so we evaluate the keys this workflow will use).
-        quota_result = await authorize_workflow_run_start(
-            workflow_id=workflow_id,
-            organization_id=organization_id,
-            workflow_run_id=workflow_run_id,
-            actor_user=user,
-        )
-        if not quota_result.has_quota:
-            # Send error response for quota issues
-            await ws.send_json(
-                {
-                    "type": "error",
-                    "payload": {
-                        "error_type": quota_result.error_code,
-                        "message": quota_result.error_message,
-                    },
-                }
-            )
+        if not await self._authorize_start(
+            ws, workflow_id, workflow_run_id, organization_id, user
+        ):
             return
 
         if pc_id not in self._peer_connections:
@@ -582,8 +626,6 @@ class SignalingManager:
                     if ws.application_state == WebSocketState.CONNECTED:
                         await ws.send_json(message)
 
-                register_ws_sender(workflow_run_id, ws_sender)
-
                 # Setup closed handler
                 @pc.event_handler("closed")
                 async def handle_disconnected(
@@ -602,16 +644,14 @@ class SignalingManager:
                         )
 
                 # Start pipeline in background
-                asyncio.create_task(
-                    run_pipeline_smallwebrtc(
-                        pc,
-                        workflow_id,
-                        workflow_run_id,
-                        user.id,
-                        call_context_vars,
-                        user_provider_id=str(user.provider_id),
-                        organization_id=organization_id,
-                    )
+                self._launch_pipeline(
+                    pc,
+                    ws_sender,
+                    workflow_id,
+                    workflow_run_id,
+                    user,
+                    call_context_vars,
+                    organization_id,
                 )
                 pipeline_started = True
 
@@ -836,4 +876,113 @@ async def public_signaling_websocket(
         embed_token.organization_id,
         enforce_call_concurrency=True,
         call_concurrency_source="public_embed",
+    )
+
+
+class VoiceSignalingManager(SignalingManager):
+    """Signaling for a live voice session with Decibyl (stream `voice`).
+
+    Everything about the connection is the workflow path's -- ICE, TURN,
+    trickling, the person's daily voice minutes, closing -- except what
+    starts: the session must be the caller's own and still live, voice must
+    be set up, and the pipeline is Decibyl's (services/voice/pipeline.py).
+    The ``workflow_run_id`` slot carries the session id; nothing here touches
+    the workflow run sender registry, so the two id spaces never meet.
+    """
+
+    async def _authorize_start(
+        self,
+        ws: WebSocket,
+        workflow_id: int,
+        workflow_run_id: int,
+        organization_id: int,
+        user: UserModel,
+    ) -> bool:
+        from api.services import features
+        from api.services.voice import readiness, sessions
+
+        async def refuse(error_type: str, message: str) -> bool:
+            await ws.send_json(
+                {
+                    "type": "error",
+                    "payload": {"error_type": error_type, "message": message},
+                }
+            )
+            return False
+
+        if not features.is_on("decibyl_voice", organization_id):
+            return await refuse("disabled_by_policy", "Live voice is switched off.")
+        session = await sessions.get(
+            organization_id=organization_id, user_id=user.id, session_id=workflow_run_id
+        )
+        if session is None or session["state"] in sessions.TERMINAL:
+            return await refuse("session_ended", "This voice session has ended.")
+        state = await readiness.live_voice(
+            organization_id=organization_id,
+            user_id=user.id,
+            language=session.get("language"),
+        )
+        if state.state != readiness.AVAILABLE:
+            return await refuse(
+                state.state,
+                " ".join(p for p in (state.reason, state.next_step) if p),
+            )
+        return True
+
+    def _launch_pipeline(
+        self,
+        pc: SmallWebRTCConnection,
+        ws_sender,
+        workflow_id: int,
+        workflow_run_id: int,
+        user: UserModel,
+        call_context_vars: dict,
+        organization_id: int,
+    ) -> None:
+        from api.services.voice.pipeline import run_decibyl_voice
+
+        asyncio.create_task(
+            run_decibyl_voice(
+                pc,
+                session_id=workflow_run_id,
+                user_id=user.id,
+                organization_id=organization_id,
+                ws_sender=ws_sender,
+            )
+        )
+
+    def _on_websocket_closed(self, workflow_run_id: int) -> None:
+        return None
+
+
+voice_signaling_manager = VoiceSignalingManager()
+
+
+@router.websocket("/voice/{session_id}")
+async def voice_signaling_websocket(
+    websocket: WebSocket,
+    session_id: int,
+    user: UserModel = Depends(get_user_ws),
+):
+    """Signaling for a live voice session with Decibyl (screen 05)."""
+    from api.services import features
+    from api.services.voice import sessions
+
+    organization_id = user.selected_organization_id
+    if not organization_id or not features.is_on("decibyl_voice", organization_id):
+        raise HTTPException(status_code=404, detail="Not Found")
+    session = await sessions.get(
+        organization_id=organization_id, user_id=user.id, session_id=session_id
+    )
+    if session is None:
+        # Somebody else's session, or none: not found either way.
+        raise HTTPException(status_code=404, detail="Not Found")
+    await voice_signaling_manager.handle_websocket(
+        websocket,
+        0,
+        session_id,
+        user,
+        organization_id,
+        enforce_call_concurrency=False,
+        call_concurrency_source="voice",
     )

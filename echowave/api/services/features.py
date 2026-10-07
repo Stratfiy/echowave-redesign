@@ -107,6 +107,12 @@ FLAGS: dict[str, str] = {
     "first_task_onboarding": "FIRST_TASK_ONBOARDING_ENABLED",
     "chat_shell": "CHAT_SHELL_ENABLED",
     "shell_mobile": "SHELL_MOBILE_ENABLED",
+    # Launch stream `voice` (LAUNCH-PLAN.md, phase 2).
+    "decibyl_voice": "DECIBYL_VOICE_ENABLED",
+    "voice_latency": "VOICE_LATENCY_ENABLED",
+    "call_for_me": "CALL_FOR_ME_ENABLED",
+    "call_appointment": "CALL_APPOINTMENT_ENABLED",
+    "voice_language_settings": "VOICE_LANGUAGE_SETTINGS_ENABLED",
 }
 
 
@@ -162,6 +168,11 @@ DESCRIPTIONS: dict[str, str] = {
     "first_task_onboarding": "Language, timezone and a first task; new people land in Chat (screen 02).",
     "chat_shell": "Chat: three starters, attach menu, Dictate and Talk, Stop, New content, sources and task states (screens 03-04).",
     "shell_mobile": "Phone shell: Chat and Today at the bottom, profile in the header, keyboard-aware bar, read-only workflow steps.",
+    "decibyl_voice": "Talk with Decibyl: live voice from Chat with interruption, mute, captions and reconnect (screen 05).",
+    "voice_latency": "Voice latency per turn: response and interruption times, p50/p95 by language and channel (handoff 12).",
+    "call_for_me": "Call it for me: Decibyl places one approved phone call for a person and announces itself first.",
+    "call_appointment": "Call and Appointment: booking policy, open slots, booking within policy, verification and escalation on calls.",
+    "voice_language_settings": "Voice and language settings: language, compatible voice, preview, speed and captions (screen 19).",
 }
 
 

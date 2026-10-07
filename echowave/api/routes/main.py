@@ -87,6 +87,8 @@ from api.routes.translate import router as translate_router
 from api.routes.turn_credentials import router as turn_credentials_router
 from api.routes.user import router as user_router
 from api.routes.verified_numbers import router as verified_numbers_router
+from api.routes.voice import admin_router as voice_admin_router
+from api.routes.voice import router as voice_router
 from api.routes.webrtc_signaling import router as webrtc_signaling_router
 from api.routes.workflow import router as workflow_router
 from api.routes.workflow_embed import router as workflow_embed_router
@@ -157,6 +159,8 @@ router.include_router(skills_router)
 router.include_router(tasks_router)
 router.include_router(controls_router)
 router.include_router(controls_admin_router)
+router.include_router(voice_router)
+router.include_router(voice_admin_router)
 router.include_router(organisation_router)
 router.include_router(organisation_memory_router)
 router.include_router(packs_router)
