@@ -170,6 +170,11 @@ TIMELINE_PRICES: dict[str, str] = {
     # The private browser's panel. Whether browsing is charged is the
     # founder's decision (LAUNCH-PLAN, decisions open); until then it is not.
     AgentEventKind.BROWSER_SESSION.value: INCLUDED,
+    # Reach's connect chip and price comparison: an offer and a read on the
+    # thread, like CONNECTOR_OFFERED. Not a price decision; ordering itself is
+    # the app's, paid there.
+    AgentEventKind.REACH_CONNECT_OFFERED.value: INCLUDED,
+    AgentEventKind.REACH_COMPARISON.value: INCLUDED,
     AgentEventKind.MEMORY_LEARNED.value: INCLUDED,
     AgentEventKind.ROUTINE_FIRED.value: INCLUDED,
     AgentEventKind.ROUTINE_SKIPPED.value: INCLUDED,
