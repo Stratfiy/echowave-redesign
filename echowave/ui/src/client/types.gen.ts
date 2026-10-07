@@ -2698,6 +2698,16 @@ export type CircuitBreakerConfigResponse = {
 };
 
 /**
+ * ClaimRequest
+ */
+export type ClaimRequest = {
+    /**
+     * Fingerprint
+     */
+    fingerprint: string;
+};
+
+/**
  * ClientEvent
  */
 export type ClientEvent = {
@@ -9114,6 +9124,20 @@ export type OutcomeRateResponse = {
 };
 
 /**
+ * OutcomeRequest
+ */
+export type OutcomeRequest = {
+    /**
+     * Ok
+     */
+    ok: boolean | null;
+    /**
+     * Note
+     */
+    note?: string;
+};
+
+/**
  * OutcomesResponse
  */
 export type OutcomesResponse = {
@@ -10766,6 +10790,20 @@ export type RealtimeEstimateRequest = {
      * Caching Enabled
      */
     caching_enabled?: boolean;
+};
+
+/**
+ * ReceiptRequest
+ */
+export type ReceiptRequest = {
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
 };
 
 /**
@@ -12423,20 +12461,6 @@ export type StatusRequest = {
      * Status
      */
     status: string;
-};
-
-/**
- * StepRequest
- */
-export type StepRequest = {
-    /**
-     * Reason
-     */
-    reason?: string | null;
-    /**
-     * Force
-     */
-    force?: boolean;
 };
 
 /**
@@ -15739,6 +15763,54 @@ export type XaittsConfiguration = {
 };
 
 /**
+ * StepRequest
+ */
+export type ApiRoutesDesktopStepRequest = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * App
+     */
+    app: string;
+    /**
+     * Summary
+     */
+    summary: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Fingerprint
+     */
+    fingerprint: string;
+    /**
+     * Step
+     */
+    step?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Session Id
+     */
+    session_id?: string;
+    /**
+     * Request Id
+     */
+    request_id?: string;
+    /**
+     * Device
+     */
+    device?: string;
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
+};
+
+/**
  * RejectRequest
  */
 export type ApiRoutesKycAdminRejectRequest = {
@@ -15756,6 +15828,20 @@ export type ApiRoutesOpsConsoleRejectRequest = {
      * Note
      */
     note?: string;
+};
+
+/**
+ * StepRequest
+ */
+export type ApiRoutesOpsConsoleStepRequest = {
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Force
+     */
+    force?: boolean;
 };
 
 /**
@@ -17633,7 +17719,7 @@ export type RotationStepApiV1AdminOpsCredentialsRotationsRotationIdStepPostData 
     /**
      * Body
      */
-    body?: StepRequest | null;
+    body?: ApiRoutesOpsConsoleStepRequest | null;
     headers?: {
         /**
          * Authorization
@@ -21746,6 +21832,327 @@ export type DownloadSiteApiV1StudioSitesSiteIdDownloadGetResponses = {
      */
     200: unknown;
 };
+
+export type DesktopStatusApiV1DesktopStatusGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/desktop/status';
+};
+
+export type DesktopStatusApiV1DesktopStatusGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DesktopStatusApiV1DesktopStatusGetError = DesktopStatusApiV1DesktopStatusGetErrors[keyof DesktopStatusApiV1DesktopStatusGetErrors];
+
+export type DesktopStatusApiV1DesktopStatusGetResponses = {
+    /**
+     * Response Desktop Status Api V1 Desktop Status Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type DesktopStatusApiV1DesktopStatusGetResponse = DesktopStatusApiV1DesktopStatusGetResponses[keyof DesktopStatusApiV1DesktopStatusGetResponses];
+
+export type ProposeStepApiV1DesktopStepsPostData = {
+    body: ApiRoutesDesktopStepRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/desktop/steps';
+};
+
+export type ProposeStepApiV1DesktopStepsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProposeStepApiV1DesktopStepsPostError = ProposeStepApiV1DesktopStepsPostErrors[keyof ProposeStepApiV1DesktopStepsPostErrors];
+
+export type ProposeStepApiV1DesktopStepsPostResponses = {
+    /**
+     * Response Propose Step Api V1 Desktop Steps Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ProposeStepApiV1DesktopStepsPostResponse = ProposeStepApiV1DesktopStepsPostResponses[keyof ProposeStepApiV1DesktopStepsPostResponses];
+
+export type GetStepApiV1DesktopStepsEventIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Event Id
+         */
+        event_id: number;
+    };
+    query?: never;
+    url: '/api/v1/desktop/steps/{event_id}';
+};
+
+export type GetStepApiV1DesktopStepsEventIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetStepApiV1DesktopStepsEventIdGetError = GetStepApiV1DesktopStepsEventIdGetErrors[keyof GetStepApiV1DesktopStepsEventIdGetErrors];
+
+export type GetStepApiV1DesktopStepsEventIdGetResponses = {
+    /**
+     * Response Get Step Api V1 Desktop Steps  Event Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetStepApiV1DesktopStepsEventIdGetResponse = GetStepApiV1DesktopStepsEventIdGetResponses[keyof GetStepApiV1DesktopStepsEventIdGetResponses];
+
+export type ClaimStepApiV1DesktopStepsEventIdClaimPostData = {
+    body: ClaimRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Event Id
+         */
+        event_id: number;
+    };
+    query?: never;
+    url: '/api/v1/desktop/steps/{event_id}/claim';
+};
+
+export type ClaimStepApiV1DesktopStepsEventIdClaimPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ClaimStepApiV1DesktopStepsEventIdClaimPostError = ClaimStepApiV1DesktopStepsEventIdClaimPostErrors[keyof ClaimStepApiV1DesktopStepsEventIdClaimPostErrors];
+
+export type ClaimStepApiV1DesktopStepsEventIdClaimPostResponses = {
+    /**
+     * Response Claim Step Api V1 Desktop Steps  Event Id  Claim Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ClaimStepApiV1DesktopStepsEventIdClaimPostResponse = ClaimStepApiV1DesktopStepsEventIdClaimPostResponses[keyof ClaimStepApiV1DesktopStepsEventIdClaimPostResponses];
+
+export type ReportStepApiV1DesktopStepsEventIdOutcomePostData = {
+    body: OutcomeRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Event Id
+         */
+        event_id: number;
+    };
+    query?: never;
+    url: '/api/v1/desktop/steps/{event_id}/outcome';
+};
+
+export type ReportStepApiV1DesktopStepsEventIdOutcomePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReportStepApiV1DesktopStepsEventIdOutcomePostError = ReportStepApiV1DesktopStepsEventIdOutcomePostErrors[keyof ReportStepApiV1DesktopStepsEventIdOutcomePostErrors];
+
+export type ReportStepApiV1DesktopStepsEventIdOutcomePostResponses = {
+    /**
+     * Response Report Step Api V1 Desktop Steps  Event Id  Outcome Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ReportStepApiV1DesktopStepsEventIdOutcomePostResponse = ReportStepApiV1DesktopStepsEventIdOutcomePostResponses[keyof ReportStepApiV1DesktopStepsEventIdOutcomePostResponses];
+
+export type CancelStepApiV1DesktopStepsEventIdCancelPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Event Id
+         */
+        event_id: number;
+    };
+    query?: never;
+    url: '/api/v1/desktop/steps/{event_id}/cancel';
+};
+
+export type CancelStepApiV1DesktopStepsEventIdCancelPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CancelStepApiV1DesktopStepsEventIdCancelPostError = CancelStepApiV1DesktopStepsEventIdCancelPostErrors[keyof CancelStepApiV1DesktopStepsEventIdCancelPostErrors];
+
+export type CancelStepApiV1DesktopStepsEventIdCancelPostResponses = {
+    /**
+     * Response Cancel Step Api V1 Desktop Steps  Event Id  Cancel Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CancelStepApiV1DesktopStepsEventIdCancelPostResponse = CancelStepApiV1DesktopStepsEventIdCancelPostResponses[keyof CancelStepApiV1DesktopStepsEventIdCancelPostResponses];
+
+export type PostReceiptApiV1DesktopReceiptsPostData = {
+    body: ReceiptRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/desktop/receipts';
+};
+
+export type PostReceiptApiV1DesktopReceiptsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PostReceiptApiV1DesktopReceiptsPostError = PostReceiptApiV1DesktopReceiptsPostErrors[keyof PostReceiptApiV1DesktopReceiptsPostErrors];
+
+export type PostReceiptApiV1DesktopReceiptsPostResponses = {
+    /**
+     * Response Post Receipt Api V1 Desktop Receipts Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type PostReceiptApiV1DesktopReceiptsPostResponse = PostReceiptApiV1DesktopReceiptsPostResponses[keyof PostReceiptApiV1DesktopReceiptsPostResponses];
 
 export type ListAgentTemplatesApiV1AgentTemplatesGetData = {
     body?: never;
