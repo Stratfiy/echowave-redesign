@@ -174,6 +174,10 @@ async def resolve(
             "principal_user_id": principal_id,
         },
         "label": f"Call {who} for you: {purpose}"[:200],
+        # A call made for one person is theirs alone to approve or stop:
+        # to anyone else in the workspace the card is not there
+        # (actions.answer_refusal).
+        "private_to": principal_id,
         "reversible": False,
         "reaches_people": True,
         "effect": (
