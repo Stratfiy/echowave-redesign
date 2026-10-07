@@ -119,3 +119,26 @@ class TestStartCourse:
         a, org = learner
         got = await _run(org, a.id, {"title": "Python"})
         assert got["status"] == "unavailable"
+
+
+@pytest.mark.asyncio
+class TestResumeFromChat:
+    async def test_the_same_course_again_resumes_it_with_the_card(
+        self, learner, learning_on
+    ):
+        # The guide used to paste "Resume: /overview?learn=..." into its
+        # reply, which Chat shows as plain text: nothing to tap.
+        a, org = learner
+        await core.save_profile(org, a.id, {"adult_confirmed": True}, revision=0)
+        first = await _run(org, a.id, {"title": "Python basics"})
+        again = await _run(org, a.id, {"title": "python BASICS"}, thread="t-later")
+        assert again["status"] == "resumed"
+        assert again["goal_id"] == first["goal_id"]
+        assert len(await core.list_goals(org, a.id)) == 1
+        cards = await _course_rows(org)
+        assert [c["goal_id"] for c in cards] == [first["goal_id"]] * 2
+
+    def test_the_guide_is_told_to_resume_with_the_tool_not_a_link(self):
+        words = catalogue.BY_KEY[catalogue.LEARNING_GUIDE].instructions
+        assert "give its Resume link" not in words
+        assert "start_course" in words

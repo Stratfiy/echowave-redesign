@@ -110,6 +110,20 @@ async def start_course(
             in_channel=False,
         )
 
+    # A course they already have is resumed, not started twice: the card is
+    # how a person gets back to it from the conversation.
+    for goal in await core.list_goals(organization_id, user_id):
+        if goal["title"].casefold() == title.casefold():
+            await card(goal["goal_id"], resume_link(goal["goal_id"]))
+            return {
+                "status": "resumed",
+                "goal_id": goal["goal_id"],
+                "note": (
+                    "They already have this course; the card to continue it is "
+                    "on the thread. Say so in one line."
+                ),
+            }
+
     try:
         started = await core.start_goal(
             organization_id,
