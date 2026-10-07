@@ -236,3 +236,49 @@ class TestACourseNotYetBegun:
         assert lesson["goal_id"] == started["goal"]["goal_id"]
         assert lesson["kind"] == "baseline"
         assert lesson["text"] == "Answer the first question to begin."
+
+
+@pytest.mark.asyncio
+class TestASyllabusByLink:
+    async def test_a_pasted_link_is_read_into_the_notes(
+        self, learner, learning_on, monkeypatch
+    ):
+        # A link pasted as the syllabus reached the teacher as the address
+        # itself: lessons were "from your notes" with nothing in them.
+        from api.services.workflow import web_tools
+
+        async def fetch(organization_id, arguments, **_kw):
+            assert arguments["url"] == "https://example.org/syllabus"
+            return {
+                "status": "success",
+                "url": arguments["url"],
+                "title": "Python syllabus",
+                "text": "Week 1: variables\nWeek 2: loops",
+            }
+
+        monkeypatch.setattr(web_tools, "fetch", fetch)
+        a, org = learner
+        await core.save_profile(org, a.id, {"adult_confirmed": True}, revision=0)
+        started = await core.start_goal(
+            org, a.id, title="Python", material=" https://example.org/syllabus "
+        )
+        exported = await core.export(org, a.id, started["goal"]["goal_id"])
+        assert "Week 2: loops" in exported["goal"]["material"]
+        assert "https://example.org/syllabus" in exported["goal"]["material"]
+
+    async def test_a_link_that_cannot_be_read_says_so(
+        self, learner, learning_on, monkeypatch
+    ):
+        from api.services.workflow import web_tools
+
+        async def fetch(organization_id, arguments, **_kw):
+            return {"status": "error", "error": "example.org answered 404."}
+
+        monkeypatch.setattr(web_tools, "fetch", fetch)
+        a, org = learner
+        await core.save_profile(org, a.id, {"adult_confirmed": True}, revision=0)
+        with pytest.raises(core.LearningError, match="could not be read"):
+            await core.start_goal(
+                org, a.id, title="Python", material="https://example.org/syllabus"
+            )
+        assert await core.list_goals(org, a.id) == []

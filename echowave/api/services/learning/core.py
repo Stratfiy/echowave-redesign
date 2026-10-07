@@ -26,6 +26,7 @@ quotas are on (services/quotas.py), one per lesson, placement or marking.
 
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -304,6 +305,32 @@ def _goal_dict(goal: LearningGoalModel) -> dict[str, Any]:
     }
 
 
+_LINK = re.compile(r"^https?://\S+$")
+
+
+async def _material_from_link(organization_id: int, notes: str | None) -> str | None:
+    """A syllabus given as a link is read into the notes: the teacher can only
+    teach from words it has, and the address alone is not a syllabus. A page
+    that cannot be read is said, not kept as an empty "From your notes"."""
+    if not notes or not _LINK.match(notes):
+        return notes
+    from api.services.workflow import web_tools
+
+    got = await web_tools.fetch(
+        organization_id, {"url": notes}, ref_id=f"learning-material:{uuid.uuid4()}"
+    )
+    text = str(got.get("text") or "").strip() if got.get("status") == "success" else ""
+    if not text:
+        why = got.get("error") or got.get("reason") or got.get("note") or ""
+        raise LearningError(
+            f"That page could not be read{': ' + why if why else '.'} Paste the "
+            "syllabus or notes as text instead."
+        )
+    title = str(got.get("title") or "").strip()
+    head = f"From {notes}" + (f" ({title})" if title else "") + ":\n"
+    return (head + text)[: teacher.MAX_MATERIAL_CHARS]
+
+
 async def start_goal(
     organization_id: int,
     user_id: int,
@@ -326,7 +353,9 @@ async def start_goal(
     if not profile["adult_confirmed"]:
         raise ProfileNeeded("Confirm you are 18 or older to start learning.")
     studying = _clean(studying_for, MAX_STUDYING_FOR) or profile["studying_for"]
-    notes = _clean(material, teacher.MAX_MATERIAL_CHARS)
+    notes = await _material_from_link(
+        organization_id, _clean(material, teacher.MAX_MATERIAL_CHARS)
+    )
     found = sensitive.detect(title_clean, studying, notes)
     if found and not confirm_sensitive:
         raise SensitiveDetails(categories=found)
