@@ -88,7 +88,7 @@ environment, test accounts.
 | Phase | Streams | Why in this order |
 | --- | --- | --- |
 | 1. Foundations | `controls`, `shell` | Everything else builds on the task ledger, quotas, preferences, personal space, event catalogue and the shell |
-| 2. Capabilities | `today`, `agents`, `learning`, `voice`, `meetings`, `identity`, `settings`, `support`, `staff`, `ops`, `browser`, `reach`, `care` | Independent once phase 1 has merged; each starts as soon as the one before it is reviewed |
+| 2. Capabilities | `today`, `agents`, `learning`, `voice`, `meetings`, `identity`, `settings`, `support`, `staff`, `ops`, `browser`, `reach`, `care`, `desktop` | Independent once phase 1 has merged; each starts as soon as the one before it is reviewed |
 | 3. Integrate and prove | integrator + staging | Merge, resolve, staging checks, launch acceptance (handoff 16, 27, 38) |
 | **Launch** | Invite-only | When phase 3 passes: every capability on; anything still waiting on a provider shows an honest "setting up" state, never a fake |
 
@@ -160,6 +160,7 @@ environment, test accounts.
 | Trading summaries by interest (information only, no advice) | `agents` (Research helper) |
 | Person + business as one; shared agents, knowledge and learnings across teammates | `controls` (personal space), `settings` (sharing), `agents` |
 | Ask Decibyl to build or do anything (agents, routines, trackers, pages) | `agents` (describe-it builder) |
+| Desktop app for Windows and Mac; work on my computer (Claude computer use, per-app permission, Stop, approvals); local files | `desktop` |
 | Missed calls handled, who owes me, end-of-day note | `today` + `agents` (Follow-up, Call and Appointment) |
 
 ### Design reference: approvals (founder-supplied, 7 Oct)
@@ -294,6 +295,14 @@ send / book, step / time / cost limits, page text as data, injection tests.
 Zomato ordering (Swiggy when access arrives) through approvals; price and
 coupon comparison only across officially connected apps.
 
+**`desktop`** -- founder request. Electron app for Windows and macOS loading
+the web app: tray, notifications, global shortcut to ask or talk, start at
+login, deep links, auto-update and signing (founder provides Apple Developer
+ID and a Windows code-signing certificate). Work on my computer with Claude
+computer use behind `desktop_computer_use`: per-app allow list, visible
+working bar with Stop, approvals for send/pay/delete/submit, never password
+fields, limits, receipts. Local files and an opt-in watched folder.
+
 **`care`** -- founder request. Simple mode (large text, voice first, one thing
 at a time); medicine calls in the parent's language with family alerts;
 scam check; step-by-step tech help; family circle with consent.
@@ -336,6 +345,7 @@ hourly, reviews and merges each PR, and starts the next streams.
 | shell | session_017pePFdhf7extTGvF4vmJTU |
 | ops | session_01KBVvNANs8kwyrHBMKDox7d |
 | browser | session_01Me1mkRqDovMsuhnAMz4NUK |
+| desktop | session_01HnRghELvdY4pxEZobCWn4Z |
 
 ## Status
 
@@ -356,3 +366,4 @@ hourly, reviews and merges each PR, and starts the next streams.
 | browser | 2 | claude/stream-browser | | | | |
 | reach | 2 | claude/stream-reach | | | | |
 | care | 2 | claude/stream-care | | | | |
+| desktop | 2 | claude/stream-desktop | | | | |
