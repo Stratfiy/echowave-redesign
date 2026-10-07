@@ -27,6 +27,7 @@ import { detailFromError } from '@/lib/apiError';
 export type ActionState =
     | 'proposed'
     | 'armed'
+    | 'running'
     | 'done'
     | 'failed'
     | 'undone'
@@ -137,6 +138,15 @@ export function ActionCard({
                     >
                         Not now
                     </Button>
+                </div>
+            )}
+
+            {state === 'running' && (
+                <div className="mt-3 flex items-center gap-3 pl-6 text-sm">
+                    <span className="flex items-center gap-1.5 text-muted-foreground" aria-live="polite">
+                        <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+                        Doing this now…
+                    </span>
                 </div>
             )}
 

@@ -552,7 +552,14 @@ export function ChannelStream({
         let cancelled = false;
         const read = async () => {
             const response = await replyDraftTextApiV1TimelineDraftGet({
-                query: workflowId != null ? { workflow_id: workflowId } : undefined,
+                // Decibyl's draft is per thread: a teammate's reply forming in
+                // their own thread must never show in this one.
+                query:
+                    workflowId != null
+                        ? { workflow_id: workflowId }
+                        : threadId
+                          ? { thread_id: threadId }
+                          : undefined,
             });
             if (!cancelled && !response.error) setDraft(response.data?.text ?? '');
         };
@@ -562,7 +569,7 @@ export function ChannelStream({
             cancelled = true;
             clearInterval(timer);
         };
-    }, [waiting, assistant, workflowId]);
+    }, [waiting, assistant, workflowId, threadId]);
 
     if (loading) {
         return <p className="px-6 py-8 text-sm text-muted-foreground">Loading…</p>;

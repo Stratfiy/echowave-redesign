@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from typing import Any, Optional, Sequence
 
-from sqlalchemy import select, tuple_, update
+from sqlalchemy import func, select, tuple_, update
 
 from api.db.base_client import BaseDBClient
 from api.db.models import AgentEventModel
@@ -96,6 +96,36 @@ class AgentEventClient(BaseDBClient):
                 .where(
                     AgentEventModel.id == event_id,
                     AgentEventModel.organization_id == organization_id,
+                )
+                .values(payload=payload)
+            )
+            await session.commit()
+            return result.rowcount == 1
+
+    async def transition_agent_event_payload(
+        self,
+        event_id: int,
+        *,
+        organization_id: int,
+        from_state: str,
+        payload: dict[str, Any],
+    ) -> bool:
+        """Replace one row's payload only if its ``state`` is still
+        ``from_state``. False means somebody else moved it first.
+
+        A compare-and-swap in one statement: two presses of Confirm, or a
+        retried job, read the same state, and only the first write may win.
+        A payload with no state yet is a fresh proposal."""
+        current = func.coalesce(
+            AgentEventModel.payload["state"].as_string(), "proposed"
+        )
+        async with self.async_session() as session:
+            result = await session.execute(
+                update(AgentEventModel)
+                .where(
+                    AgentEventModel.id == event_id,
+                    AgentEventModel.organization_id == organization_id,
+                    current == from_state,
                 )
                 .values(payload=payload)
             )

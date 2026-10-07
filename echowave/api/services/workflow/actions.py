@@ -119,6 +119,11 @@ INTERNAL_ACTIONS = (
 #: The states a proposal moves through. Terminal ones are the last four.
 PROPOSED = "proposed"
 ARMED = "armed"
+#: Claimed by the job that fires it, before it acts: a retried or duplicate
+#: job finds the card already running and does nothing, so a send happens
+#: once. A card left here means the job died mid-action; whether the action
+#: happened is unknown, and it is never fired again blind.
+RUNNING = "running"
 DONE = "done"
 FAILED = "failed"
 UNDONE = "undone"
@@ -669,6 +674,17 @@ async def _write(event: Any, payload: dict[str, Any]) -> None:
         raise ActionError("That proposal is not here any more.")
 
 
+async def _move(event: Any, from_state: str, payload: dict[str, Any]) -> None:
+    """Write ``payload`` only if the card is still in ``from_state``."""
+    if not await db_client.transition_agent_event_payload(
+        event.id,
+        organization_id=event.organization_id,
+        from_state=from_state,
+        payload=payload,
+    ):
+        raise ActionError("Already settled.")
+
+
 async def _proposal(organization_id: int, event_id: int) -> Any:
     event = await db_client.get_agent_event(event_id, organization_id=organization_id)
     if event is None or event.kind != AgentEventKind.ACTION_PROPOSED.value:
@@ -706,7 +722,7 @@ async def settle(
         payload["state"] = ARMED
         payload["confirmed"] = _stamp(user_id)
         payload["fires_at"] = fires_at.isoformat()
-        await _write(event, payload)
+        await _move(event, PROPOSED, payload)
         from api.tasks.arq import enqueue_job
         from api.tasks.function_names import FunctionNames
 
@@ -723,7 +739,7 @@ async def settle(
             )
             payload["state"] = FAILED
             payload["error"] = "Could not be started. Try again."
-            await _write(event, payload)
+            await _move(event, ARMED, payload)
             raise ActionError(payload["error"]) from exc
         await _audit(event, payload, audit_log.CARD_CONFIRMED, user_id, state)
         return payload
@@ -733,7 +749,7 @@ async def settle(
             raise ActionError("Already settled.")
         payload["state"] = DECLINED
         payload["declined"] = _stamp(user_id)
-        await _write(event, payload)
+        await _move(event, PROPOSED, payload)
         await _audit(event, payload, audit_log.CARD_DECLINED, user_id, state)
         if payload.get("action") == RUN_TOOL:
             # A declined send is an outcome too (OP-4): the prospect is
@@ -750,14 +766,23 @@ async def settle(
         if state == ARMED:
             payload["state"] = CANCELLED
             payload["cancelled"] = _stamp(user_id)
-            await _write(event, payload)
+            await _move(event, ARMED, payload)
             await _audit(event, payload, audit_log.CARD_UNDONE, user_id, state)
             return payload
         if state == DONE and payload.get("reversible"):
-            await _reverse(organization_id, payload)
+            # Claim the undo first, so two presses put it back once.
             payload["state"] = UNDONE
             payload["undone"] = _stamp(user_id)
-            await _write(event, payload)
+            await _move(event, DONE, payload)
+            try:
+                await _reverse(organization_id, payload)
+            except Exception:
+                # Not put back after all: the card says done again, never a
+                # false "undone".
+                payload["state"] = DONE
+                payload.pop("undone", None)
+                await _write(event, payload)
+                raise
             await _audit(event, payload, audit_log.CARD_UNDONE, user_id, state)
             await _say(event, f"Put back: {payload['label'].lower()} undone.")
             return payload
@@ -1072,6 +1097,14 @@ async def run(event_id: int, organization_id: int) -> None:
         return
     payload = dict(event.payload or {})
     if payload.get("state") != ARMED:
+        return
+    # Claim it before acting. A retried job, or a second one, loses here and
+    # does nothing: the action is fired once or not at all.
+    payload["state"] = RUNNING
+    try:
+        await _move(event, ARMED, payload)
+    except ActionError:
+        logger.info("Action {} was already claimed; not firing it again", event_id)
         return
     try:
         note = await _execute(organization_id, payload)

@@ -32762,6 +32762,10 @@ export type ReplyDraftTextApiV1TimelineDraftGetData = {
          * Workflow Id
          */
         workflow_id?: number | null;
+        /**
+         * Thread Id
+         */
+        thread_id?: string | null;
     };
     url: '/api/v1/timeline/draft';
 };

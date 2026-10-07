@@ -826,6 +826,7 @@ class DraftResponse(BaseModel):
 @router.get("/draft", response_model=DraftResponse)
 async def reply_draft_text(
     workflow_id: Annotated[Optional[int], Query()] = None,
+    thread_id: Annotated[Optional[str], Query(max_length=64)] = None,
     user: UserModel = Depends(get_user),
 ) -> DraftResponse:
     """The answer as it forms, for the thinking row. Decibyl's thread with
@@ -835,7 +836,9 @@ async def reply_draft_text(
     if not organization_id:
         raise HTTPException(status_code=400, detail="No organization selected")
     return DraftResponse(
-        text=await reply_draft.get(organization_id, workflow_id=workflow_id)
+        text=await reply_draft.get(
+            organization_id, workflow_id=workflow_id, thread_id=thread_id
+        )
     )
 
 
