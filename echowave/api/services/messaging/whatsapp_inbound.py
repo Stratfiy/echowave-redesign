@@ -340,18 +340,21 @@ async def file_as_document(
 # The whole of one message.
 
 
-async def _first_user(organization_id: int) -> Any | None:
-    users = await db_client.get_organization_users(organization_id)
-    return users[0] if users else None
-
-
 async def handle(inbound: Inbound) -> str:
     """Route one message. Returns a status word for the webhook's log.
 
     A number linked to a member (DCH-1) is that member: their Gmail, their
     memory, their cards. A button tap or a link code goes to the shared
-    channel dispatcher. A verified but unlinked number keeps the old
-    behaviour (the account's first member) until its owner links it.
+    channel dispatcher.
+
+    Anyone else is a stranger (launch stream identity). A number a workspace
+    verified for test calls proves the workspace can answer it, not which
+    member is typing: it used to be answered as the workspace's first member
+    -- their Gmail, their memory, their cards -- which handed one person's
+    assistant to whoever held that phone. Now an unlinked sender gets the
+    same "link me first" every other channel gives (dispatch.handle), and
+    nothing they send is filed or asked of Decibyl. A security fix, so it is
+    not behind a switch.
     """
     from api.services.messaging.channels import base as channel_base
     from api.services.messaging.channels import dispatch, identities
@@ -360,9 +363,11 @@ async def handle(inbound: Inbound) -> str:
     identity = await identities.find(channel_base.WHATSAPP, inbound.sender)
     tap = channel_base.parse_button_id(inbound.text) if inbound.kind == BUTTON else None
     code = identities.code_in(inbound.text) if inbound.kind == TEXT else None
-    if tap is not None or (identity is None and code is not None):
+    if tap is not None or identity is None:
         if await seen_before(inbound.message_id):
             return "duplicate"
+        if identity is None and code is None and inbound.kind == BUTTON:
+            return "stale_button"
         await touch_session(inbound.sender)
         return await dispatch.handle(
             channel_base.Inbound(
@@ -378,22 +383,11 @@ async def handle(inbound: Inbound) -> str:
     if inbound.kind == BUTTON:
         return "stale_button"
 
-    if identity is not None:
-        organization_id = identity.organization_id
-    else:
-        organization_id = await db_client.find_organization_by_verified_number(
-            inbound.sender.lstrip("+")
-        )
-    if organization_id is None:
-        logger.info("WhatsApp message from an unverified number, dropped")
-        return "unknown_number"
+    organization_id = identity.organization_id
     if await seen_before(inbound.message_id):
         return "duplicate"
     await touch_session(inbound.sender)
-    if identity is not None:
-        user = await db_client.get_user_by_id(identity.user_id)
-    else:
-        user = await _first_user(organization_id)
+    user = await db_client.get_user_by_id(identity.user_id)
     if user is None:
         return "no_user"
 
