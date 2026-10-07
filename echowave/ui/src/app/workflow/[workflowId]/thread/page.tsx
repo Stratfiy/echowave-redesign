@@ -43,6 +43,8 @@ export default function BotChatPage({
     const id = Number(workflowId);
     const { user, loading: authLoading } = useAuth();
     const [name, setName] = useState<string>('');
+    // A chat agent answers only in writing: no phone test to offer.
+    const [chatOnly, setChatOnly] = useState(false);
     const started = useRef(false);
     const refreshStream = useRef<() => void>(() => {});
     // Open beside the chat on a wide screen; a button away on a narrow one.
@@ -60,6 +62,8 @@ export default function BotChatPage({
                 path: { workflow_id: id },
             });
             if (!response.error && response.data?.name) setName(response.data.name);
+            const configurations = response.data?.workflow_configurations as { channel?: string } | null | undefined;
+            if (!response.error && configurations?.channel === 'chat') setChatOnly(true);
         })();
     }, [authLoading, user, id]);
 
@@ -87,12 +91,14 @@ export default function BotChatPage({
                             <Info className="mr-1.5 h-3.5 w-3.5" aria-hidden />
                             About
                         </Button>
-                        <Button asChild size="sm" variant="outline" className="rounded-full">
-                            <Link href={`/workflow/${id}?onboarding=web_call`}>
-                                <Phone className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-                                Call me to test
-                            </Link>
-                        </Button>
+                        {!chatOnly && (
+                            <Button asChild size="sm" variant="outline" className="rounded-full">
+                                <Link href={`/workflow/${id}?onboarding=web_call`}>
+                                    <Phone className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                                    Call me to test
+                                </Link>
+                            </Button>
+                        )}
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button size="icon" variant="ghost" aria-label={`More for ${botName}`} className="rounded-full">

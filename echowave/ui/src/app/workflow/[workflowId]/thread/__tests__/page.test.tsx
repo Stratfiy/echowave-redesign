@@ -6,7 +6,7 @@
 
 import { render, screen, within } from "@testing-library/react";
 import React from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
     useRouter: () => ({ push: vi.fn() }),
@@ -14,8 +14,9 @@ vi.mock("next/navigation", () => ({
     useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
+const fetchWorkflow = vi.hoisted(() => vi.fn());
 vi.mock("@/client/sdk.gen", () => ({
-    getWorkflowApiV1WorkflowFetchWorkflowIdGet: vi.fn().mockResolvedValue({ data: { name: "Front desk" } }),
+    getWorkflowApiV1WorkflowFetchWorkflowIdGet: fetchWorkflow,
 }));
 vi.mock("@/components/channel/ChannelStream", () => ({ ChannelStream: () => <div data-testid="stream" /> }));
 vi.mock("@/components/channel/ChannelComposer", () => ({ ChannelComposer: () => <div data-testid="composer" /> }));
@@ -37,7 +38,25 @@ const params = Object.assign(Promise.resolve({ workflowId: "7" }), {
     value: { workflowId: "7" },
 }) as unknown as Promise<{ workflowId: string }>;
 
+beforeEach(() => {
+    fetchWorkflow.mockResolvedValue({ data: { name: "Front desk" } });
+});
+
 describe("the agent's page", () => {
+    it("a chat agent is not offered a phone test", async () => {
+        // Found walking a research agent built from Chat: its page said
+        // "Call me to test" for an agent that answers only in writing.
+        fetchWorkflow.mockResolvedValue({ data: { name: "Research agent", workflow_configurations: { channel: "chat" } } });
+        render(
+            <React.Suspense fallback={null}>
+                <BotChatPage params={params} />
+            </React.Suspense>,
+        );
+        const bar = await screen.findByRole("banner");
+        await screen.findAllByText("Research agent");
+        expect(within(bar).queryByRole("link", { name: /Call me to test/ })).toBeNull();
+    });
+
     it("keeps About and Test in the header and the rest in one menu", async () => {
         render(
             <React.Suspense fallback={null}>
