@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 
 import { CirclePanel } from "./CirclePanel";
 import { CARE_POSITIONING_LINE, PART_HINTS, PART_TITLES } from "./copy";
+import { DueNow } from "./DueNow";
 import { FamilyPanel } from "./FamilyPanel";
 import { MedicinesPanel } from "./MedicinesPanel";
 import { ScamCheckPanel } from "./ScamCheckPanel";
@@ -89,6 +90,7 @@ export function CareHub() {
                 <h1 className="text-3xl font-semibold">Care</h1>
                 {CARE_POSITIONING_LINE && <p className="text-lg text-muted-foreground">{CARE_POSITIONING_LINE}</p>}
             </header>
+            {parts.some((part) => part.id === "care_medicine_calls") && <DueNow />}
             <nav aria-label="Care" className="flex flex-col gap-3">
                 {simple.on && (
                     <Link

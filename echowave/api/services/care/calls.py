@@ -44,6 +44,15 @@ from api.services.care import MEDICINE_CALLS, CareError
 from api.services.care import medicines as medicines_service
 
 CALLING = "calling"
+#: An app reminder (no phone call) shown and sent; waits for "I took it".
+REMINDED = "reminded"
+#: What a dose waits in before it has an outcome.
+WAITING = (CALLING, REMINDED)
+#: Said wherever a phone call cannot be placed: the way past is a reminder
+#: in Decibyl, which needs no number.
+APP_INSTEAD = (
+    "Until then, Decibyl can remind you in Decibyl instead; that needs no phone number."
+)
 TAKEN = "taken"
 NOT_TAKEN = "not_taken"
 NOT_ANSWERED = "not_answered"
@@ -167,7 +176,7 @@ async def _claim(med: Any, due: datetime) -> int | None:
                     organization_id=med.organization_id,
                     medicine_id=med.id,
                     due_at=due,
-                    state=CALLING,
+                    state=REMINDED if med.channel == "app" else CALLING,
                     created_at=_now(),
                 )
                 .on_conflict_do_nothing(constraint="uq_care_dose_due")
@@ -185,6 +194,9 @@ async def place(dose_id: int) -> None:
         dose = await session.get(CareDoseCallModel, dose_id)
         med = await session.get(CareMedicineModel, dose.medicine_id) if dose else None
     if dose is None or med is None or med.organization_id != dose.organization_id:
+        return
+    if med.channel == "app":
+        await _remind_in_app(med, dose)
         return
     fake = fake_mode()
     if fake:
@@ -210,6 +222,44 @@ async def place(dose_id: int) -> None:
             .values(workflow_run_id=run_id)
         )
         await session.commit()
+
+
+async def _remind_in_app(med: Any, dose: Any) -> None:
+    """An app reminder: the dose already shows in Decibyl (Care, "I took
+    it"); this also sends it on the person's own notification channels, once
+    per dose, when they have any. Never raises."""
+    from zoneinfo import ZoneInfo
+
+    from api.services.identity import notifications
+
+    due_local = dose.due_at.astimezone(ZoneInfo(med.timezone)).strftime("%H:%M")
+    outcome = await notifications.notify(
+        med.person_user_id,
+        topic="reminders",
+        title="Time for your medicine",
+        body=f"It is {due_local}: time for {med.label}. Tap I took it in Decibyl.",
+        link="/care?part=care_medicine_calls",
+        dedupe_key=f"care-dose:{dose.id}",
+    )
+    logger.info("Care reminder for dose {} sent: {}", dose.id, outcome)
+
+
+def app_readiness(organization_id: int) -> dict[str, str]:
+    """App reminders need no number: always ready. Says whether they also
+    go out as notifications here, so the screen does not promise a buzz
+    that will not come."""
+    if features.is_on("identity_notifications", organization_id):
+        return {
+            "state": "ready",
+            "reason": (
+                "Reminders show in Decibyl and go to the phones and browsers "
+                "where you allowed Decibyl's notifications."
+            ),
+        }
+    return {
+        "state": "ready",
+        "reason": "Reminders show in Decibyl, under Care, with I took it.",
+    }
 
 
 async def _dial(med: Any, dose: Any) -> int:
@@ -281,7 +331,7 @@ async def settle(dose_id: int, state: str, *, reason: str | None = None) -> bool
                 update(CareDoseCallModel)
                 .where(
                     CareDoseCallModel.id == dose_id,
-                    CareDoseCallModel.state == CALLING,
+                    CareDoseCallModel.state.in_(WAITING),
                 )
                 .values(state=state, reason=reason, outcome_at=_now())
                 .returning(CareDoseCallModel.id)
@@ -294,8 +344,18 @@ async def settle(dose_id: int, state: str, *, reason: str | None = None) -> bool
 
 
 def _alert_line(
-    person: str, label: str, due_local: str, state: str, reason: str | None
+    person: str,
+    label: str,
+    due_local: str,
+    state: str,
+    reason: str | None,
+    channel: str = "call",
 ) -> tuple[str, str]:
+    if state == NOT_ANSWERED and channel == "app":
+        return (
+            "dose_not_confirmed",
+            f"{person} did not confirm taking {label} at {due_local}.",
+        )
     if state == NOT_ANSWERED:
         return (
             "call_not_answered",
@@ -339,7 +399,9 @@ async def tell_family(dose_id: int) -> int:
         return 0
     person = await circle.person_name(med.organization_id, med.person_user_id)
     due_local = dose.due_at.astimezone(ZoneInfo(med.timezone)).strftime("%H:%M")
-    kind, title = _alert_line(person, med.label, due_local, dose.state, dose.reason)
+    kind, title = _alert_line(
+        person, med.label, due_local, dose.state, dose.reason, med.channel or "call"
+    )
     told = await circle.alert(
         med.organization_id,
         med.person_user_id,
@@ -431,10 +493,10 @@ async def sweep(now: datetime | None = None) -> int:
         rows = (
             await session.execute(
                 text(
-                    "SELECT id FROM care_dose_calls WHERE state = :s "
+                    "SELECT id FROM care_dose_calls WHERE state IN (:s, :r) "
                     "AND created_at < :cutoff ORDER BY id LIMIT 500"
                 ),
-                {"s": CALLING, "cutoff": cutoff},
+                {"s": CALLING, "r": REMINDED, "cutoff": cutoff},
             )
         ).all()
     settled = 0

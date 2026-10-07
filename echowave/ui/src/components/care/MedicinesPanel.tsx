@@ -8,12 +8,14 @@
  * up shows the card with the exact number, times, language and who is told
  * if a call is missed; nothing rings until the person confirms it here.
  *
- * Honest states: "needs setup" when this workspace has no phone line for
- * calling out (and the form is not offered, since nothing would ring), and
- * "test mode" when calls are simulated.
+ * Honest states: "needs setup" for phone calls when this workspace has no
+ * phone line, with the way past right there -- a reminder in Decibyl, which
+ * needs no number, and a link to set up a line -- and "test mode" when calls
+ * are simulated.
  */
 
 import { Loader2, Pause, Phone, Play, Plus, X } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import {
@@ -52,14 +54,22 @@ export function localTime(iso: string, timeZone?: string): string {
 function AddReminder({
     languages,
     family,
+    callsReady,
+    callsReason,
     onProposed,
 }: {
     languages: Record<string, string>;
     family: CircleMember[];
+    /** Whether a phone call can be placed here; a reminder in Decibyl always can. */
+    callsReady: boolean;
+    callsReason: string;
     onProposed: (card: TimelineEvent | null) => void;
 }) {
     const [label, setLabel] = useState("");
     const [times, setTimes] = useState<string[]>(["08:00"]);
+    // Where calls cannot be placed, the reminder comes in Decibyl: it needs
+    // no phone number, so it works on any workspace.
+    const [channel, setChannel] = useState<"app" | "call">(callsReady ? "call" : "app");
     const [phone, setPhone] = useState("");
     const [language, setLanguage] = useState("");
     const [tell, setTell] = useState<number[]>([]);
@@ -74,7 +84,8 @@ function AddReminder({
             body: {
                 label,
                 times: times.filter(Boolean),
-                phone,
+                channel,
+                phone: channel === "call" ? phone : null,
                 language: language || null,
                 alert_member_ids: tell,
             },
@@ -134,10 +145,33 @@ function AddReminder({
                     </Button>
                 )}
             </fieldset>
-            <label className="flex flex-col gap-2">
-                <span className="font-medium">Which phone should ring?</span>
-                <input className={FIELD} type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="98765 43210" required />
-            </label>
+            <fieldset className="flex flex-col gap-2">
+                <legend className="mb-2 font-medium">How should Decibyl remind you?</legend>
+                <label className="flex min-h-11 items-start gap-3 py-1">
+                    <input type="radio" name="reminder-channel" className="mt-1 h-5 w-5 shrink-0" checked={channel === "app"} onChange={() => setChannel("app")} />
+                    <span className="text-base">In Decibyl, with I took it. No phone number needed.</span>
+                </label>
+                <label className="flex min-h-11 items-start gap-3 py-1">
+                    <input
+                        type="radio"
+                        name="reminder-channel"
+                        className="mt-1 h-5 w-5 shrink-0"
+                        checked={channel === "call"}
+                        disabled={!callsReady}
+                        onChange={() => setChannel("call")}
+                    />
+                    <span className="text-base">
+                        A phone call
+                        {!callsReady && <span className="block text-sm text-muted-foreground">Not yet: {callsReason}</span>}
+                    </span>
+                </label>
+            </fieldset>
+            {channel === "call" && (
+                <label className="flex flex-col gap-2">
+                    <span className="font-medium">Which phone should ring?</span>
+                    <input className={FIELD} type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="98765 43210" required />
+                </label>
+            )}
             <label className="flex flex-col gap-2">
                 <span className="font-medium">In which language?</span>
                 <select className={FIELD} value={language} onChange={(e) => setLanguage(e.target.value)}>
@@ -217,7 +251,7 @@ function MedicineRow({ medicine, onChanged }: { medicine: Medicine; onChanged: (
                 <div className="min-w-0">
                     <p className="break-words text-lg font-semibold">{medicine.label}</p>
                     <p className="text-sm text-muted-foreground">
-                        {medicine.times.join(", ")} · {medicine.language_name} · {medicine.phone_masked}
+                        {medicine.times.join(", ")} · {medicine.channel === "app" ? "in Decibyl" : `${medicine.language_name} · ${medicine.phone_masked ?? ""}`}
                     </p>
                 </div>
                 <span className="rounded-full border border-border px-3 py-1 text-sm">{MEDICINE_STATE_WORDS[medicine.state] ?? medicine.state}</span>
@@ -227,7 +261,7 @@ function MedicineRow({ medicine, onChanged }: { medicine: Medicine; onChanged: (
                     {(medicine.doses ?? []).map((dose) => (
                         <li key={dose.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/40 px-3 py-2">
                             <span>
-                                {localTime(dose.due_at, medicine.timezone)}: <strong>{DOSE_WORDS[dose.state] ?? dose.state}</strong>
+                                {localTime(dose.due_at, medicine.timezone)}: <strong>{medicine.channel === "app" && dose.state === "not_answered" ? "Not confirmed" : (DOSE_WORDS[dose.state] ?? dose.state)}</strong>
                                 {dose.alerted ? " · family told" : ""}
                             </span>
                             {dose.state !== "taken" && (
@@ -315,9 +349,15 @@ export function MedicinesPanel() {
     return (
         <section className="flex flex-col gap-5" data-testid="medicines">
             {needsSetup && (
-                <div role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-50" data-testid="calls-needs-setup">
-                    <p className="font-semibold">Reminder calls need setting up</p>
+                <div role="status" className="flex flex-col gap-2 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-50" data-testid="calls-needs-setup">
+                    <p className="font-semibold">Phone calls need setting up</p>
                     <p>{data.calls.reason}</p>
+                    <p>
+                        Until then, reminders come in Decibyl: {data.app.reason} No phone number is needed.
+                    </p>
+                    <Link href="/settings/phone-number" className="min-h-11 self-start py-2 font-medium underline underline-offset-4">
+                        Set up a phone line for calls
+                    </Link>
                 </div>
             )}
             {data.calls.state === "test_mode" && (
@@ -347,11 +387,12 @@ export function MedicinesPanel() {
                         ))}
                 </ul>
             )}
-            {!needsSetup &&
-                (adding ? (
+            {adding ? (
                     <AddReminder
                         languages={data.languages}
                         family={family}
+                        callsReady={!needsSetup}
+                        callsReason={data.calls.reason}
                         onProposed={() => {
                             setAdding(false);
                             void load();
@@ -360,9 +401,9 @@ export function MedicinesPanel() {
                 ) : (
                     <Button type="button" className="motion-m1 min-h-12 gap-2 self-start px-6 text-base" onClick={() => setAdding(true)}>
                         <Phone aria-hidden className="h-4 w-4" />
-                        Add a reminder call
+                        Add a reminder
                     </Button>
-                ))}
+                )}
         </section>
     );
 }
