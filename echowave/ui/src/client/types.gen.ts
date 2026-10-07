@@ -2052,6 +2052,56 @@ export type BrainsResponse = {
 };
 
 /**
+ * BriefSettingsWrite
+ */
+export type BriefSettingsWrite = {
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Enabled
+     */
+    enabled?: boolean | null;
+    /**
+     * Paused
+     */
+    paused?: boolean | null;
+    /**
+     * Local Time
+     */
+    local_time?: string | null;
+    /**
+     * Timezone
+     */
+    timezone?: string | null;
+    /**
+     * Days
+     */
+    days?: Array<number> | null;
+    /**
+     * Channels
+     */
+    channels?: Array<string> | null;
+    /**
+     * Quiet Start
+     */
+    quiet_start?: string | null;
+    /**
+     * Quiet End
+     */
+    quiet_end?: string | null;
+    /**
+     * End Of Day Enabled
+     */
+    end_of_day_enabled?: boolean | null;
+    /**
+     * End Of Day Time
+     */
+    end_of_day_time?: string | null;
+};
+
+/**
  * BrowserHandback
  */
 export type BrowserHandback = {
@@ -5603,6 +5653,16 @@ export type Disconnect = {
 };
 
 /**
+ * DismissRequest
+ */
+export type DismissRequest = {
+    /**
+     * Later Minutes
+     */
+    later_minutes?: number | null;
+};
+
+/**
  * DisplayOptions
  *
  * Conditional visibility rules.
@@ -6418,6 +6478,54 @@ export type EvalCaseRequest = {
      * Max Turns
      */
     max_turns?: number;
+};
+
+/**
+ * EventCreate
+ */
+export type EventCreate = {
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Local Time
+     */
+    local_time: string;
+    /**
+     * Timezone
+     */
+    timezone?: string | null;
+    /**
+     * Reminders
+     */
+    reminders?: Array<number>;
+    /**
+     * Channel
+     */
+    channel?: string;
+};
+
+/**
+ * EventMove
+ */
+export type EventMove = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Local Time
+     */
+    local_time: string;
+    /**
+     * Revision
+     */
+    revision: number;
 };
 
 /**
@@ -14872,6 +14980,116 @@ export type ReleaseRequest = {
 };
 
 /**
+ * ReminderDraft
+ */
+export type ReminderDraft = {
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Note
+     */
+    note?: string;
+    /**
+     * Event Id
+     */
+    event_id?: number | null;
+    /**
+     * Offset Minutes
+     */
+    offset_minutes?: number | null;
+    /**
+     * Recurrence
+     */
+    recurrence?: string;
+    /**
+     * Date
+     */
+    date?: string | null;
+    /**
+     * Local Time
+     */
+    local_time?: string | null;
+    /**
+     * Weekday
+     */
+    weekday?: number | null;
+    /**
+     * Timezone
+     */
+    timezone?: string | null;
+    /**
+     * Channel
+     */
+    channel?: string;
+};
+
+/**
+ * ReminderSave
+ */
+export type ReminderSave = {
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Note
+     */
+    note?: string;
+    /**
+     * Event Id
+     */
+    event_id?: number | null;
+    /**
+     * Offset Minutes
+     */
+    offset_minutes?: number | null;
+    /**
+     * Recurrence
+     */
+    recurrence?: string;
+    /**
+     * Date
+     */
+    date?: string | null;
+    /**
+     * Local Time
+     */
+    local_time?: string | null;
+    /**
+     * Weekday
+     */
+    weekday?: number | null;
+    /**
+     * Timezone
+     */
+    timezone?: string | null;
+    /**
+     * Channel
+     */
+    channel?: string;
+    /**
+     * Schedule Key
+     */
+    schedule_key: string;
+    /**
+     * Revision
+     */
+    revision?: number | null;
+};
+
+/**
+ * ReminderStatus
+ */
+export type ReminderStatus = {
+    /**
+     * Verb
+     */
+    verb: string;
+};
+
+/**
  * RenameOrganizationRequest
  */
 export type RenameOrganizationRequest = {
@@ -15120,6 +15338,24 @@ export type ResetPasswordRequest = {
 };
 
 /**
+ * ResolveDate
+ */
+export type ResolveDate = {
+    /**
+     * Words
+     */
+    words: string;
+    /**
+     * Local Time
+     */
+    local_time: string;
+    /**
+     * Timezone
+     */
+    timezone?: string | null;
+};
+
+/**
  * ResumeRequest
  */
 export type ResumeRequest = {
@@ -15305,6 +15541,32 @@ export type RoutineListResponse = {
      * Routines
      */
     routines?: Array<RoutineResponse>;
+};
+
+/**
+ * RoutinePreviewRequest
+ */
+export type RoutinePreviewRequest = {
+    /**
+     * Cadence
+     */
+    cadence: string;
+    /**
+     * Anchor
+     */
+    anchor: string;
+    /**
+     * At Minute
+     */
+    at_minute?: number;
+    /**
+     * Offset Minutes
+     */
+    offset_minutes?: number;
+    /**
+     * Weekday
+     */
+    weekday?: number;
 };
 
 /**
@@ -16469,6 +16731,16 @@ export type SmallestAittsConfiguration = {
      * Speech speed multiplier (0.5 to 2.0).
      */
     speed?: number;
+};
+
+/**
+ * Snooze
+ */
+export type Snooze = {
+    /**
+     * Minutes
+     */
+    minutes: number;
 };
 
 /**
@@ -40915,6 +41187,1244 @@ export type RevokeAllowanceApiV1AdminControlsQuotasGrantsAllowanceIdDeleteRespon
 };
 
 export type RevokeAllowanceApiV1AdminControlsQuotasGrantsAllowanceIdDeleteResponse = RevokeAllowanceApiV1AdminControlsQuotasGrantsAllowanceIdDeleteResponses[keyof RevokeAllowanceApiV1AdminControlsQuotasGrantsAllowanceIdDeleteResponses];
+
+export type GetTodayApiV1TodayGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today';
+};
+
+export type GetTodayApiV1TodayGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetTodayApiV1TodayGetError = GetTodayApiV1TodayGetErrors[keyof GetTodayApiV1TodayGetErrors];
+
+export type GetTodayApiV1TodayGetResponses = {
+    /**
+     * Response Get Today Api V1 Today Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetTodayApiV1TodayGetResponse = GetTodayApiV1TodayGetResponses[keyof GetTodayApiV1TodayGetResponses];
+
+export type DismissSuggestionApiV1TodaySuggestionsKeyDismissPostData = {
+    body: DismissRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Key
+         */
+        key: string;
+    };
+    query?: never;
+    url: '/api/v1/today/suggestions/{key}/dismiss';
+};
+
+export type DismissSuggestionApiV1TodaySuggestionsKeyDismissPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DismissSuggestionApiV1TodaySuggestionsKeyDismissPostError = DismissSuggestionApiV1TodaySuggestionsKeyDismissPostErrors[keyof DismissSuggestionApiV1TodaySuggestionsKeyDismissPostErrors];
+
+export type DismissSuggestionApiV1TodaySuggestionsKeyDismissPostResponses = {
+    /**
+     * Response Dismiss Suggestion Api V1 Today Suggestions  Key  Dismiss Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type DismissSuggestionApiV1TodaySuggestionsKeyDismissPostResponse = DismissSuggestionApiV1TodaySuggestionsKeyDismissPostResponses[keyof DismissSuggestionApiV1TodaySuggestionsKeyDismissPostResponses];
+
+export type ProposeCallBackApiV1TodayMissedCallsMissedCallIdCallBackPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Missed Call Id
+         */
+        missed_call_id: number;
+    };
+    query?: never;
+    url: '/api/v1/today/missed-calls/{missed_call_id}/call-back';
+};
+
+export type ProposeCallBackApiV1TodayMissedCallsMissedCallIdCallBackPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProposeCallBackApiV1TodayMissedCallsMissedCallIdCallBackPostError = ProposeCallBackApiV1TodayMissedCallsMissedCallIdCallBackPostErrors[keyof ProposeCallBackApiV1TodayMissedCallsMissedCallIdCallBackPostErrors];
+
+export type ProposeCallBackApiV1TodayMissedCallsMissedCallIdCallBackPostResponses = {
+    /**
+     * Response Propose Call Back Api V1 Today Missed Calls  Missed Call Id  Call Back Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ProposeCallBackApiV1TodayMissedCallsMissedCallIdCallBackPostResponse = ProposeCallBackApiV1TodayMissedCallsMissedCallIdCallBackPostResponses[keyof ProposeCallBackApiV1TodayMissedCallsMissedCallIdCallBackPostResponses];
+
+export type PendingApprovalsApiV1TodayApprovalsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/approvals';
+};
+
+export type PendingApprovalsApiV1TodayApprovalsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PendingApprovalsApiV1TodayApprovalsGetError = PendingApprovalsApiV1TodayApprovalsGetErrors[keyof PendingApprovalsApiV1TodayApprovalsGetErrors];
+
+export type PendingApprovalsApiV1TodayApprovalsGetResponses = {
+    /**
+     * Response Pending Approvals Api V1 Today Approvals Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type PendingApprovalsApiV1TodayApprovalsGetResponse = PendingApprovalsApiV1TodayApprovalsGetResponses[keyof PendingApprovalsApiV1TodayApprovalsGetResponses];
+
+export type ApprovalPreviewApiV1TodayApprovalsEventIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Event Id
+         */
+        event_id: number;
+    };
+    query?: never;
+    url: '/api/v1/today/approvals/{event_id}';
+};
+
+export type ApprovalPreviewApiV1TodayApprovalsEventIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ApprovalPreviewApiV1TodayApprovalsEventIdGetError = ApprovalPreviewApiV1TodayApprovalsEventIdGetErrors[keyof ApprovalPreviewApiV1TodayApprovalsEventIdGetErrors];
+
+export type ApprovalPreviewApiV1TodayApprovalsEventIdGetResponses = {
+    /**
+     * Response Approval Preview Api V1 Today Approvals  Event Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ApprovalPreviewApiV1TodayApprovalsEventIdGetResponse = ApprovalPreviewApiV1TodayApprovalsEventIdGetResponses[keyof ApprovalPreviewApiV1TodayApprovalsEventIdGetResponses];
+
+export type ListActivityApiV1TodayActivityGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * State
+         */
+        state?: string | null;
+        /**
+         * Helper
+         */
+        helper?: string | null;
+        /**
+         * Days
+         */
+        days?: number;
+    };
+    url: '/api/v1/today/activity';
+};
+
+export type ListActivityApiV1TodayActivityGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListActivityApiV1TodayActivityGetError = ListActivityApiV1TodayActivityGetErrors[keyof ListActivityApiV1TodayActivityGetErrors];
+
+export type ListActivityApiV1TodayActivityGetResponses = {
+    /**
+     * Response List Activity Api V1 Today Activity Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListActivityApiV1TodayActivityGetResponse = ListActivityApiV1TodayActivityGetResponses[keyof ListActivityApiV1TodayActivityGetResponses];
+
+export type ActivityDetailApiV1TodayActivityKindItemIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Kind
+         */
+        kind: string;
+        /**
+         * Item Id
+         */
+        item_id: number;
+    };
+    query?: never;
+    url: '/api/v1/today/activity/{kind}/{item_id}';
+};
+
+export type ActivityDetailApiV1TodayActivityKindItemIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ActivityDetailApiV1TodayActivityKindItemIdGetError = ActivityDetailApiV1TodayActivityKindItemIdGetErrors[keyof ActivityDetailApiV1TodayActivityKindItemIdGetErrors];
+
+export type ActivityDetailApiV1TodayActivityKindItemIdGetResponses = {
+    /**
+     * Response Activity Detail Api V1 Today Activity  Kind   Item Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ActivityDetailApiV1TodayActivityKindItemIdGetResponse = ActivityDetailApiV1TodayActivityKindItemIdGetResponses[keyof ActivityDetailApiV1TodayActivityKindItemIdGetResponses];
+
+export type RoutinePreviewApiV1TodayRoutinesPreviewPostData = {
+    body: RoutinePreviewRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/routines/preview';
+};
+
+export type RoutinePreviewApiV1TodayRoutinesPreviewPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RoutinePreviewApiV1TodayRoutinesPreviewPostError = RoutinePreviewApiV1TodayRoutinesPreviewPostErrors[keyof RoutinePreviewApiV1TodayRoutinesPreviewPostErrors];
+
+export type RoutinePreviewApiV1TodayRoutinesPreviewPostResponses = {
+    /**
+     * Response Routine Preview Api V1 Today Routines Preview Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RoutinePreviewApiV1TodayRoutinesPreviewPostResponse = RoutinePreviewApiV1TodayRoutinesPreviewPostResponses[keyof RoutinePreviewApiV1TodayRoutinesPreviewPostResponses];
+
+export type ListRemindersApiV1TodayRemindersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Include Finished
+         */
+        include_finished?: boolean;
+    };
+    url: '/api/v1/today/reminders';
+};
+
+export type ListRemindersApiV1TodayRemindersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListRemindersApiV1TodayRemindersGetError = ListRemindersApiV1TodayRemindersGetErrors[keyof ListRemindersApiV1TodayRemindersGetErrors];
+
+export type ListRemindersApiV1TodayRemindersGetResponses = {
+    /**
+     * Response List Reminders Api V1 Today Reminders Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListRemindersApiV1TodayRemindersGetResponse = ListRemindersApiV1TodayRemindersGetResponses[keyof ListRemindersApiV1TodayRemindersGetResponses];
+
+export type CreateReminderApiV1TodayRemindersPostData = {
+    body: ReminderSave;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/reminders';
+};
+
+export type CreateReminderApiV1TodayRemindersPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateReminderApiV1TodayRemindersPostError = CreateReminderApiV1TodayRemindersPostErrors[keyof CreateReminderApiV1TodayRemindersPostErrors];
+
+export type CreateReminderApiV1TodayRemindersPostResponses = {
+    /**
+     * Response Create Reminder Api V1 Today Reminders Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CreateReminderApiV1TodayRemindersPostResponse = CreateReminderApiV1TodayRemindersPostResponses[keyof CreateReminderApiV1TodayRemindersPostResponses];
+
+export type PreviewReminderApiV1TodayRemindersPreviewPostData = {
+    body: ReminderDraft;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/reminders/preview';
+};
+
+export type PreviewReminderApiV1TodayRemindersPreviewPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PreviewReminderApiV1TodayRemindersPreviewPostError = PreviewReminderApiV1TodayRemindersPreviewPostErrors[keyof PreviewReminderApiV1TodayRemindersPreviewPostErrors];
+
+export type PreviewReminderApiV1TodayRemindersPreviewPostResponses = {
+    /**
+     * Response Preview Reminder Api V1 Today Reminders Preview Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type PreviewReminderApiV1TodayRemindersPreviewPostResponse = PreviewReminderApiV1TodayRemindersPreviewPostResponses[keyof PreviewReminderApiV1TodayRemindersPreviewPostResponses];
+
+export type GetReminderApiV1TodayRemindersReminderIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Reminder Id
+         */
+        reminder_id: number;
+    };
+    query?: never;
+    url: '/api/v1/today/reminders/{reminder_id}';
+};
+
+export type GetReminderApiV1TodayRemindersReminderIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetReminderApiV1TodayRemindersReminderIdGetError = GetReminderApiV1TodayRemindersReminderIdGetErrors[keyof GetReminderApiV1TodayRemindersReminderIdGetErrors];
+
+export type GetReminderApiV1TodayRemindersReminderIdGetResponses = {
+    /**
+     * Response Get Reminder Api V1 Today Reminders  Reminder Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetReminderApiV1TodayRemindersReminderIdGetResponse = GetReminderApiV1TodayRemindersReminderIdGetResponses[keyof GetReminderApiV1TodayRemindersReminderIdGetResponses];
+
+export type UpdateReminderApiV1TodayRemindersReminderIdPutData = {
+    body: ReminderSave;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Reminder Id
+         */
+        reminder_id: number;
+    };
+    query?: never;
+    url: '/api/v1/today/reminders/{reminder_id}';
+};
+
+export type UpdateReminderApiV1TodayRemindersReminderIdPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateReminderApiV1TodayRemindersReminderIdPutError = UpdateReminderApiV1TodayRemindersReminderIdPutErrors[keyof UpdateReminderApiV1TodayRemindersReminderIdPutErrors];
+
+export type UpdateReminderApiV1TodayRemindersReminderIdPutResponses = {
+    /**
+     * Response Update Reminder Api V1 Today Reminders  Reminder Id  Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type UpdateReminderApiV1TodayRemindersReminderIdPutResponse = UpdateReminderApiV1TodayRemindersReminderIdPutResponses[keyof UpdateReminderApiV1TodayRemindersReminderIdPutResponses];
+
+export type SetReminderStatusApiV1TodayRemindersReminderIdStatusPostData = {
+    body: ReminderStatus;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Reminder Id
+         */
+        reminder_id: number;
+    };
+    query?: never;
+    url: '/api/v1/today/reminders/{reminder_id}/status';
+};
+
+export type SetReminderStatusApiV1TodayRemindersReminderIdStatusPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetReminderStatusApiV1TodayRemindersReminderIdStatusPostError = SetReminderStatusApiV1TodayRemindersReminderIdStatusPostErrors[keyof SetReminderStatusApiV1TodayRemindersReminderIdStatusPostErrors];
+
+export type SetReminderStatusApiV1TodayRemindersReminderIdStatusPostResponses = {
+    /**
+     * Response Set Reminder Status Api V1 Today Reminders  Reminder Id  Status Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetReminderStatusApiV1TodayRemindersReminderIdStatusPostResponse = SetReminderStatusApiV1TodayRemindersReminderIdStatusPostResponses[keyof SetReminderStatusApiV1TodayRemindersReminderIdStatusPostResponses];
+
+export type SnoozeReminderApiV1TodayRemindersReminderIdSnoozePostData = {
+    body: Snooze;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Reminder Id
+         */
+        reminder_id: number;
+    };
+    query?: never;
+    url: '/api/v1/today/reminders/{reminder_id}/snooze';
+};
+
+export type SnoozeReminderApiV1TodayRemindersReminderIdSnoozePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SnoozeReminderApiV1TodayRemindersReminderIdSnoozePostError = SnoozeReminderApiV1TodayRemindersReminderIdSnoozePostErrors[keyof SnoozeReminderApiV1TodayRemindersReminderIdSnoozePostErrors];
+
+export type SnoozeReminderApiV1TodayRemindersReminderIdSnoozePostResponses = {
+    /**
+     * Response Snooze Reminder Api V1 Today Reminders  Reminder Id  Snooze Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SnoozeReminderApiV1TodayRemindersReminderIdSnoozePostResponse = SnoozeReminderApiV1TodayRemindersReminderIdSnoozePostResponses[keyof SnoozeReminderApiV1TodayRemindersReminderIdSnoozePostResponses];
+
+export type TestReminderApiV1TodayRemindersReminderIdTestPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Reminder Id
+         */
+        reminder_id: number;
+    };
+    query?: never;
+    url: '/api/v1/today/reminders/{reminder_id}/test';
+};
+
+export type TestReminderApiV1TodayRemindersReminderIdTestPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TestReminderApiV1TodayRemindersReminderIdTestPostError = TestReminderApiV1TodayRemindersReminderIdTestPostErrors[keyof TestReminderApiV1TodayRemindersReminderIdTestPostErrors];
+
+export type TestReminderApiV1TodayRemindersReminderIdTestPostResponses = {
+    /**
+     * Response Test Reminder Api V1 Today Reminders  Reminder Id  Test Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type TestReminderApiV1TodayRemindersReminderIdTestPostResponse = TestReminderApiV1TodayRemindersReminderIdTestPostResponses[keyof TestReminderApiV1TodayRemindersReminderIdTestPostResponses];
+
+export type ResolveDateApiV1TodayResolveDatePostData = {
+    body: ResolveDate;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/resolve-date';
+};
+
+export type ResolveDateApiV1TodayResolveDatePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ResolveDateApiV1TodayResolveDatePostError = ResolveDateApiV1TodayResolveDatePostErrors[keyof ResolveDateApiV1TodayResolveDatePostErrors];
+
+export type ResolveDateApiV1TodayResolveDatePostResponses = {
+    /**
+     * Response Resolve Date Api V1 Today Resolve Date Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ResolveDateApiV1TodayResolveDatePostResponse = ResolveDateApiV1TodayResolveDatePostResponses[keyof ResolveDateApiV1TodayResolveDatePostResponses];
+
+export type CreateEventApiV1TodayEventsPostData = {
+    body: EventCreate;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/events';
+};
+
+export type CreateEventApiV1TodayEventsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateEventApiV1TodayEventsPostError = CreateEventApiV1TodayEventsPostErrors[keyof CreateEventApiV1TodayEventsPostErrors];
+
+export type CreateEventApiV1TodayEventsPostResponses = {
+    /**
+     * Response Create Event Api V1 Today Events Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CreateEventApiV1TodayEventsPostResponse = CreateEventApiV1TodayEventsPostResponses[keyof CreateEventApiV1TodayEventsPostResponses];
+
+export type MoveEventApiV1TodayEventsEventIdMovePostData = {
+    body: EventMove;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Event Id
+         */
+        event_id: number;
+    };
+    query?: never;
+    url: '/api/v1/today/events/{event_id}/move';
+};
+
+export type MoveEventApiV1TodayEventsEventIdMovePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MoveEventApiV1TodayEventsEventIdMovePostError = MoveEventApiV1TodayEventsEventIdMovePostErrors[keyof MoveEventApiV1TodayEventsEventIdMovePostErrors];
+
+export type MoveEventApiV1TodayEventsEventIdMovePostResponses = {
+    /**
+     * Response Move Event Api V1 Today Events  Event Id  Move Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type MoveEventApiV1TodayEventsEventIdMovePostResponse = MoveEventApiV1TodayEventsEventIdMovePostResponses[keyof MoveEventApiV1TodayEventsEventIdMovePostResponses];
+
+export type CancelEventApiV1TodayEventsEventIdCancelPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Event Id
+         */
+        event_id: number;
+    };
+    query?: never;
+    url: '/api/v1/today/events/{event_id}/cancel';
+};
+
+export type CancelEventApiV1TodayEventsEventIdCancelPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CancelEventApiV1TodayEventsEventIdCancelPostError = CancelEventApiV1TodayEventsEventIdCancelPostErrors[keyof CancelEventApiV1TodayEventsEventIdCancelPostErrors];
+
+export type CancelEventApiV1TodayEventsEventIdCancelPostResponses = {
+    /**
+     * Response Cancel Event Api V1 Today Events  Event Id  Cancel Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CancelEventApiV1TodayEventsEventIdCancelPostResponse = CancelEventApiV1TodayEventsEventIdCancelPostResponses[keyof CancelEventApiV1TodayEventsEventIdCancelPostResponses];
+
+export type GetBriefApiV1TodayBriefGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/brief';
+};
+
+export type GetBriefApiV1TodayBriefGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetBriefApiV1TodayBriefGetError = GetBriefApiV1TodayBriefGetErrors[keyof GetBriefApiV1TodayBriefGetErrors];
+
+export type GetBriefApiV1TodayBriefGetResponses = {
+    /**
+     * Response Get Brief Api V1 Today Brief Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetBriefApiV1TodayBriefGetResponse = GetBriefApiV1TodayBriefGetResponses[keyof GetBriefApiV1TodayBriefGetResponses];
+
+export type RefreshBriefApiV1TodayBriefRefreshPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/brief/refresh';
+};
+
+export type RefreshBriefApiV1TodayBriefRefreshPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RefreshBriefApiV1TodayBriefRefreshPostError = RefreshBriefApiV1TodayBriefRefreshPostErrors[keyof RefreshBriefApiV1TodayBriefRefreshPostErrors];
+
+export type RefreshBriefApiV1TodayBriefRefreshPostResponses = {
+    /**
+     * Response Refresh Brief Api V1 Today Brief Refresh Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RefreshBriefApiV1TodayBriefRefreshPostResponse = RefreshBriefApiV1TodayBriefRefreshPostResponses[keyof RefreshBriefApiV1TodayBriefRefreshPostResponses];
+
+export type GetBriefSettingsApiV1TodayBriefSettingsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/brief/settings';
+};
+
+export type GetBriefSettingsApiV1TodayBriefSettingsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetBriefSettingsApiV1TodayBriefSettingsGetError = GetBriefSettingsApiV1TodayBriefSettingsGetErrors[keyof GetBriefSettingsApiV1TodayBriefSettingsGetErrors];
+
+export type GetBriefSettingsApiV1TodayBriefSettingsGetResponses = {
+    /**
+     * Response Get Brief Settings Api V1 Today Brief Settings Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetBriefSettingsApiV1TodayBriefSettingsGetResponse = GetBriefSettingsApiV1TodayBriefSettingsGetResponses[keyof GetBriefSettingsApiV1TodayBriefSettingsGetResponses];
+
+export type SaveBriefSettingsApiV1TodayBriefSettingsPutData = {
+    body: BriefSettingsWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/brief/settings';
+};
+
+export type SaveBriefSettingsApiV1TodayBriefSettingsPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveBriefSettingsApiV1TodayBriefSettingsPutError = SaveBriefSettingsApiV1TodayBriefSettingsPutErrors[keyof SaveBriefSettingsApiV1TodayBriefSettingsPutErrors];
+
+export type SaveBriefSettingsApiV1TodayBriefSettingsPutResponses = {
+    /**
+     * Response Save Brief Settings Api V1 Today Brief Settings Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SaveBriefSettingsApiV1TodayBriefSettingsPutResponse = SaveBriefSettingsApiV1TodayBriefSettingsPutResponses[keyof SaveBriefSettingsApiV1TodayBriefSettingsPutResponses];
+
+export type TestBriefApiV1TodayBriefTestPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/brief/test';
+};
+
+export type TestBriefApiV1TodayBriefTestPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TestBriefApiV1TodayBriefTestPostError = TestBriefApiV1TodayBriefTestPostErrors[keyof TestBriefApiV1TodayBriefTestPostErrors];
+
+export type TestBriefApiV1TodayBriefTestPostResponses = {
+    /**
+     * Response Test Brief Api V1 Today Brief Test Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type TestBriefApiV1TodayBriefTestPostResponse = TestBriefApiV1TodayBriefTestPostResponses[keyof TestBriefApiV1TodayBriefTestPostResponses];
+
+export type GetEndOfDayApiV1TodayEndOfDayGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/end-of-day';
+};
+
+export type GetEndOfDayApiV1TodayEndOfDayGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetEndOfDayApiV1TodayEndOfDayGetError = GetEndOfDayApiV1TodayEndOfDayGetErrors[keyof GetEndOfDayApiV1TodayEndOfDayGetErrors];
+
+export type GetEndOfDayApiV1TodayEndOfDayGetResponses = {
+    /**
+     * Response Get End Of Day Api V1 Today End Of Day Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetEndOfDayApiV1TodayEndOfDayGetResponse = GetEndOfDayApiV1TodayEndOfDayGetResponses[keyof GetEndOfDayApiV1TodayEndOfDayGetResponses];
+
+export type RefreshEndOfDayApiV1TodayEndOfDayRefreshPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/end-of-day/refresh';
+};
+
+export type RefreshEndOfDayApiV1TodayEndOfDayRefreshPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RefreshEndOfDayApiV1TodayEndOfDayRefreshPostError = RefreshEndOfDayApiV1TodayEndOfDayRefreshPostErrors[keyof RefreshEndOfDayApiV1TodayEndOfDayRefreshPostErrors];
+
+export type RefreshEndOfDayApiV1TodayEndOfDayRefreshPostResponses = {
+    /**
+     * Response Refresh End Of Day Api V1 Today End Of Day Refresh Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RefreshEndOfDayApiV1TodayEndOfDayRefreshPostResponse = RefreshEndOfDayApiV1TodayEndOfDayRefreshPostResponses[keyof RefreshEndOfDayApiV1TodayEndOfDayRefreshPostResponses];
 
 export type MeApiV1AdminStaffMeGetData = {
     body?: never;

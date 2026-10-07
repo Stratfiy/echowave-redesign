@@ -29,6 +29,8 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = ["You", "Assistant", "I
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { id: "general", title: "General", href: "/settings", group: "You", mobileHref: "/settings/general", activePaths: ["/settings/general"] },
   { id: "team", title: "Team", href: "/settings/team", group: "You" },
+  // Screen 20 (stream today): the person's own daily brief.
+  { id: "daily-brief", title: "Daily brief", href: "/settings/daily-brief", group: "You", flags: ["daily_brief"] },
   { id: "notifications", title: "Notifications", href: "/settings/notifications", group: "You", flags: ["identity_notifications"] },
   { id: "models", title: "Models", href: "/settings/models", group: "Assistant", activePaths: ["/integrations"] },
   { id: "knowledge", title: "Knowledge", href: "/settings/knowledge", group: "Assistant" },

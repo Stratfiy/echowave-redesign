@@ -4,11 +4,14 @@
  * /requests) until then. Schedules have their own tab either way. The server
  * says which board, on the same call that loads it, so the page never
  * guesses.
+ *
+ * With `today_list` on (launch stream today, screen 07) this is Today: the
+ * ordered list of what needs attention. Off, it is exactly the board above.
  */
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 import { listTasksApiV1TasksGet } from "@/client/sdk.gen";
 import { SimpleTaskBoard } from "@/components/desk/SimpleTaskBoard";
@@ -16,9 +19,11 @@ import { type BoardPayload, TaskBoard } from "@/components/desk/TaskBoard";
 import { DESK_TABS } from "@/components/layout/SectionTabs";
 import { LearningToday } from "@/components/learning/LearningToday";
 import SpinLoader from "@/components/SpinLoader";
+import { TodayPage } from "@/components/today/TodayPage";
 import { useAuth } from "@/lib/auth";
+import { useFeature } from "@/lib/features";
 
-export default function TasksPage() {
+function Board() {
     const { user, loading: authLoading } = useAuth();
     const [payload, setPayload] = useState<BoardPayload | null | undefined>(undefined);
 
@@ -51,4 +56,16 @@ export default function TasksPage() {
             <SimpleTaskBoard tabs={DESK_TABS} />
         </>
     );
+}
+
+export default function TasksPage() {
+    const today = useFeature("today_list");
+    if (today) {
+        return (
+            <Suspense fallback={<SpinLoader />}>
+                <TodayPage />
+            </Suspense>
+        );
+    }
+    return <Board />;
 }

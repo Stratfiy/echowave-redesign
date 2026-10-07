@@ -76,6 +76,7 @@ from api.tasks.staff import run_staff_command, sweep_staff_commands
 from api.tasks.sunday_review import send_sunday_reviews
 from api.tasks.support import run_support_action, sweep_support_actions
 from api.tasks.tax_invoices import issue_monthly_tax_invoices
+from api.tasks.today import deliver_due_briefs, deliver_due_reminders
 from api.tasks.trial_notices import send_trial_notices
 from api.tasks.webhook_delivery import deliver_webhook, sweep_webhook_deliveries
 from api.tasks.weekly_digest import send_weekly_digests
@@ -144,6 +145,8 @@ class WorkerSettings:
         translate_knowledge_base_document,
         deliver_analytics_outbox,
         sweep_unknown_outcomes,
+        deliver_due_reminders,
+        deliver_due_briefs,
         run_support_action,
         sweep_support_actions,
         run_ops_command,
@@ -157,6 +160,10 @@ class WorkerSettings:
         reconcile_unknown_outcomes,
     ]
     cron_jobs = [
+        # Launch stream today: reminders and briefs at each person's own
+        # minute, once each. Both no-ops while their switches are off.
+        cron(deliver_due_reminders, second=5, run_at_startup=False),
+        cron(deliver_due_briefs, second=25, run_at_startup=False),
         # Stream ops: expire unapproved commands, re-enqueue lost ones, lift
         # timed pauses and check the cost-stop ceilings. Analytics delivery is
         # the controls outbox's cron below. Each part is off behind its flag.

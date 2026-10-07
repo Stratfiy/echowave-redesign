@@ -41,6 +41,7 @@ def routine(**kwargs):
         tested_at=datetime(2026, 1, 1, tzinfo=UTC),
         last_fired_at=None,
         last_skipped_reason=None,
+        armed_by_card_event_id=None,
     )
     base.update(kwargs)
     return SimpleNamespace(**base)

@@ -483,6 +483,8 @@ export function ChannelStream({
     // Launch stream `agents`: keep a reply as a saved report, and name the
     // helper a reply came from (screen 04: reports share this surface).
     const reportsOn = useFeature('research_reports') && assistant;
+    // Stream today: a routine's result carries a small ✓ chip naming it.
+    const routineChip = useFeature('routine_start_on');
     // Stream `reach`. Off, its rows are not drawn (the server does not
     // write them while off either).
     const outsideToolsOn = useFeature('outside_tools');
@@ -1429,6 +1431,15 @@ export function ChannelStream({
                                                 Handed to you
                                             </Link>
                                         )}
+                                        {routineChip &&
+                                            typeof (event.payload as { routine?: unknown } | null)?.routine === 'string' && (
+                                                <span
+                                                    className="ml-2 inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground"
+                                                    data-testid="routine-chip"
+                                                >
+                                                    ✓ {(event.payload as { routine: string }).routine}
+                                                </span>
+                                            )}
                                     </p>
                                 )}
                                 {/* whitespace-pre-wrap: somebody who typed a

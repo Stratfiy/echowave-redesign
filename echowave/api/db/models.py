@@ -6216,7 +6216,7 @@ class AgentRoutineModel(Base):
     workflow_id = Column(
         Integer,
         ForeignKey("workflows.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
 
@@ -6256,6 +6256,11 @@ class AgentRoutineModel(Base):
     )
     #: When it was last test-run. NULL means never, which means it may not arm.
     tested_at = Column(DateTime(timezone=True), nullable=True)
+    #: The confirmed card that set this routine from chat (stream `today`,
+    #: ``routine_start_on``). A person approved this exact schedule on the
+    #: card, which arms it the way a test run does; NULL for every routine
+    #: made any other way. Not a test run, and never shown as one.
+    armed_by_card_event_id = Column(Integer, nullable=True)
 
     #: The slot last fired, not the moment of firing. This is what makes a
     #: minute tick safe: the runtime compares it against the slot it is
@@ -6934,4 +6939,12 @@ from api.db.support_models import (  # noqa: E402,F401
     SupportMessageModel,
     SupportNoteModel,
     SupportTicketModel,
+)
+from api.db.today_models import (  # noqa: E402,F401
+    DailyBriefModel,
+    DailyBriefSettingsModel,
+    TodayDeliveryModel,
+    TodayDismissalModel,
+    TodayEventModel,
+    TodayReminderModel,
 )

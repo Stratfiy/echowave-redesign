@@ -103,6 +103,8 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "public-whatsapp",
             "routines",
             "tasks",
+            # Today, reminders and the daily brief (launch stream today).
+            "today",
             "google-calendar",
             # Members talking to Decibyl from Slack, Teams, Telegram and
             # WhatsApp, and linking those accounts to themselves (KAN-277).

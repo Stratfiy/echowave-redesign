@@ -95,6 +95,7 @@ from api.routes.tasks import router as tasks_router
 from api.routes.team import router as team_router
 from api.routes.telephony import router as telephony_router
 from api.routes.telephony_admin import router as telephony_admin_router
+from api.routes.today import router as today_router
 from api.routes.tool import router as tool_router
 from api.routes.tool_library import router as tool_library_router
 from api.routes.translate import router as translate_router
@@ -177,6 +178,7 @@ router.include_router(controls_router)
 router.include_router(helpers_router)
 router.include_router(care_router)
 router.include_router(controls_admin_router)
+router.include_router(today_router)
 router.include_router(staff_console_router)
 router.include_router(organisation_router)
 router.include_router(organisation_memory_router)

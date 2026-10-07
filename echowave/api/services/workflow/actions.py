@@ -1113,6 +1113,50 @@ def _visibility(payload: dict[str, Any], action: str | None = None) -> str | Non
     return None
 
 
+#: What a card someone may not see answers with: the way a wrong tenant is.
+NOT_HERE = "That proposal is not here."
+
+
+def answer_refusal(payload: dict[str, Any], user_id: int) -> str | None:
+    """Why ``user_id`` may not answer this card, or None when they may.
+
+    One place for every stream's "only this person" rule. ``settle`` raises
+    the reason; Today's approval queue and the approval dock list only the
+    cards a person may answer, so nobody is offered a Do it that would be
+    refused. ``NOT_HERE`` means the card is private and not theirs to see.
+    """
+    only = payload.get("only_user_id")
+    if only is not None and int(only) != int(user_id):
+        # A consent card (stream `care`): the person it is about answers it,
+        # not whoever else in the workspace can read the thread.
+        return "Only the person this is about can answer this card."
+    action = payload.get("action")
+    if action == DESKTOP_STEP:
+        # Somebody's own computer: a teammate who can read the thread cannot
+        # press Do it on another person's screen.
+        if int((payload.get("args") or {}).get("user_id") or 0) != user_id:
+            return "Only the person whose computer this is can answer this."
+    if action == BROWSER_STEP and int(payload.get("requested_by") or 0) != int(user_id):
+        # A person's browser is theirs: a colleague on the thread can read
+        # the card but cannot press on their behalf.
+        return "Only the person whose browser it is can answer this."
+    if action in OWNED_ACTIONS and payload.get("owner_user_id") != user_id:
+        # An order or an outside write acts in one person's account: a
+        # colleague who can see the card can neither approve nor stop it.
+        return "Only the person this is for can decide on it."
+    if action == MEETING_FOLLOW_UP:
+        from api.services.meetings import follow_ups
+
+        if follow_ups.owner_of(payload) != user_id:
+            # A meeting is private to whoever captured it; to anyone else
+            # its card is not there, the way a wrong tenant is not.
+            return NOT_HERE
+    owner = payload.get("private_to")
+    if owner is not None and owner != user_id:
+        return NOT_HERE
+    return None
+
+
 def _assert_owner(payload: dict[str, Any], user_id: int) -> None:
     """A private card is settled and edited by its owner and nobody else --
     not a colleague, not an admin. Said the way a wrong tenant is."""
@@ -1184,38 +1228,9 @@ async def settle(
     event = await _proposal(organization_id, event_id)
     payload = dict(event.payload or {})
     state = payload.get("state") or PROPOSED
-    only = payload.get("only_user_id")
-    if only is not None and int(only) != int(user_id):
-        # A consent card (stream `care`): the person it is about answers it,
-        # not whoever else in the workspace can read the thread.
-        raise ActionError("Only the person this is about can answer this card.")
-
-    if payload.get("action") == DESKTOP_STEP:
-        # Somebody's own computer: a teammate who can read the thread cannot
-        # press Do it on another person's screen.
-        if int((payload.get("args") or {}).get("user_id") or 0) != user_id:
-            raise ActionError("Only the person whose computer this is can answer this.")
-    if payload.get("action") == BROWSER_STEP and int(
-        payload.get("requested_by") or 0
-    ) != int(user_id):
-        # A person's browser is theirs: a colleague on the thread can read
-        # the card but cannot press on their behalf.
-        raise ActionError("Only the person whose browser it is can answer this.")
-    if (
-        payload.get("action") in OWNED_ACTIONS
-        and payload.get("owner_user_id") != user_id
-    ):
-        # An order or an outside write acts in one person's account: a
-        # colleague who can see the card can neither approve nor stop it.
-        raise ActionError("Only the person this is for can decide on it.")
-    if payload.get("action") == MEETING_FOLLOW_UP:
-        from api.services.meetings import follow_ups
-
-        if follow_ups.owner_of(payload) != user_id:
-            # A meeting is private to whoever captured it; to anyone else
-            # its card is not there, the way a wrong tenant is not.
-            raise ActionError("That proposal is not here.")
-    _assert_owner(payload, user_id)
+    refusal = answer_refusal(payload, user_id)
+    if refusal is not None:
+        raise ActionError(refusal)
 
     if verb == "confirm":
         if state != PROPOSED:
@@ -1636,6 +1651,30 @@ async def _execute(
 
         return await follow_ups.execute(organization_id, payload)
     if action == SCHEDULE_ROUTINE:
+        from api.services import features
+
+        if event_id is not None and features.is_on("routine_start_on", organization_id):
+            # Stream `today`: the person confirmed this exact schedule and
+            # instruction on the card, so it starts on, armed by that card
+            # (routines.may_arm). Said back in one sentence.
+            from api.services.workflow import routines
+
+            routine = await db_client.create_routine(
+                organization_id=organization_id,
+                workflow_id=None,
+                name=str(args.get("name") or "")[:120],
+                instruction=str(args.get("instruction") or ""),
+                cadence=str(args.get("cadence") or "daily"),
+                anchor=str(args.get("anchor") or "opening"),
+                at_minute=int(args.get("at_minute") or 0),
+                offset_minutes=int(args.get("offset_minutes") or 0),
+                weekday=int(args.get("weekday") or 0),
+                is_active=True,
+                armed_by_card_event_id=int(event_id),
+            )
+            payload.setdefault("result", {}).update({"routine_id": routine.id})
+            when = routines.describe(routines.spec_from_model(routine))
+            return f"Will do, {when[0].lower()}{when[1:]}."
         routine = await db_client.create_routine(
             organization_id=organization_id,
             workflow_id=None,

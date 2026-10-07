@@ -12,6 +12,7 @@ describe("Settings' sections", () => {
     expect(SETTINGS_SECTIONS.map((s) => s.title)).toEqual([
       "General",
       "Team",
+      "Daily brief",
       "Notifications",
       "Models",
       "Knowledge",

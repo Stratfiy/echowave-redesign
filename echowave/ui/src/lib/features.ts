@@ -72,6 +72,13 @@ export type Feature =
     | "follow_up_ledger"
     | "trading_summaries"
     | "describe_builder"
+    // Launch stream `today` (LAUNCH-PLAN.md, phase 2).
+    | "today_list"
+    | "approval_dock"
+    | "today_reminders"
+    | "daily_brief"
+    | "end_of_day_note"
+    | "routine_start_on"
     // Launch stream `support` (LAUNCH-PLAN.md, phase 2).
     | "support_help"
     | "support_inbox"

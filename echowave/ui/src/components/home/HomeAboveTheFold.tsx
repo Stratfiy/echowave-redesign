@@ -35,6 +35,7 @@ import { LearningResume } from "@/components/learning/LearningResume";
 import { LearningSession } from "@/components/learning/LearningSession";
 import { Announcer } from "@/components/shell/Announcer";
 import { SourceCoverage } from "@/components/shell/SourceCoverage";
+import { ApprovalDock } from "@/components/today/ApprovalDock";
 import { jobArt } from "@/lib/art";
 import { useAuth } from "@/lib/auth";
 import { useFeature } from "@/lib/features";
@@ -162,6 +163,8 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   const { user, loading: authLoading } = useAuth();
   // Screens 03-04: starters that fill the box, Stop, sources, task states.
   const chatShell = useFeature("chat_shell");
+  // Stream today: a pending approval docks above the composer.
+  const approvalDock = useFeature("approval_dock");
   // Screen 13: the lesson inside Chat. "?learn=<goal>" resumes one (from
   // Today, the progress page or a shared link); "?learn=new" starts one;
   // "&review=<skill>" opens on a review. Null is the conversation.
@@ -502,6 +505,12 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
           onOpenSources={chatShell ? onOpenSources : undefined}
         />
       </div>
+      {approvalDock && (
+        // The composer's own gutter, so the dock lines up with the box it sits on.
+        <div className="px-4 sm:px-6">
+          <ApprovalDock refreshKey={threadsVersion} onSettled={() => refreshStream.current()} />
+        </div>
+      )}
       {/* The lesson has its own answer box: two boxes on one screen is one
           too many, so the composer steps aside (kept mounted, draft kept). */}
       <div className={cn(showLesson && "hidden")}>

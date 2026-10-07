@@ -46,11 +46,13 @@ import type { Anchor, Cadence } from "@/client/types.gen";
 import { PageBody, PageHeader, type PageTab } from "@/components/layout/PageHeader";
 import { DESK_TABS } from "@/components/layout/SectionTabs";
 import SpinLoader from "@/components/SpinLoader";
+import { RoutineNextRun } from "@/components/today/RoutineNextRun";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScheduleFields, type ScheduleValue } from "@/components/workflow/ScheduleFields";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
+import { useFeature } from "@/lib/features";
 import { minuteToTime, timeToMinute, when } from "@/lib/schedule";
 
 type Routine = {
@@ -81,6 +83,8 @@ export function SchedulesBoard({ tabs = DESK_TABS }: Props) {
     const [busy, setBusy] = useState<number | null>(null);
     const [editing, setEditing] = useState<number | null>(null);
     const [draft, setDraft] = useState<ScheduleValue | null>(null);
+    // Stream today: the next run, said before saving (screen 10).
+    const nextRun = useFeature("today_list");
 
     const load = useCallback(async () => {
         if (authLoading || !user) return;
@@ -344,6 +348,7 @@ export function SchedulesBoard({ tabs = DESK_TABS }: Props) {
                                             value={draft}
                                             onChange={setDraft}
                                         />
+                                        {nextRun && <RoutineNextRun value={draft} offsetMinutes={r.offset_minutes} />}
                                         <div className="flex gap-2">
                                             <Button
                                                 size="sm"
