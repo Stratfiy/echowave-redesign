@@ -113,7 +113,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     // rooms they cannot open, under an account row that says "You".
     !pathname.startsWith("/trust") &&
     // The public marketplace: browsed before an account exists.
-    !pathname.startsWith("/agents");
+    !pathname.startsWith("/agents") &&
+    // The door (screens 01-02): the waitlist, an invitation, and the first
+    // questions after sign-in. One column, nothing to wander off into.
+    !pathname.startsWith("/early-access") &&
+    !pathname.startsWith("/invite/") &&
+    !pathname.startsWith("/welcome");
 
   // Only match the exact editor page /workflow/<id>, not sub-routes like /workflow/<id>/runs
   const isWorkflowEditor = /^\/workflow\/\d+$/.test(pathname);
