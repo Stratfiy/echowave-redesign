@@ -356,13 +356,24 @@ hourly, reviews and merges each PR, and starts the next streams.
 | aws-gateway | session_01K3AYRzykvKavBj3jXmZ454 |
 | browser | session_01Me1mkRqDovMsuhnAMz4NUK |
 | desktop | session_01HnRghELvdY4pxEZobCWn4Z |
+| today | session_013M4ceoY8k2xj6jMKMfWekw |
+| agents | session_01Dj9ocx4DncksTFv4f5orXr |
+| learning | session_014nHaFAYMsZUqZ9ZgB6U7vC |
+| voice | session_01Jt7GMP2KthoGRkr1S6t1WQ |
+| meetings | session_0118WbnQjCKNfd4XkJCMVmro |
+| identity | session_011VRsGQ8MpWfhhLdRv95G7G |
+| settings | session_01JwKLX85yc8BC3QFuTocXcP |
+| support | session_01YPq58BgCMr9bJxzF3wfTf1 |
+| staff | session_01RiC2NEFF9hHD3gRGrmFKVi |
+| reach | session_015bZvzcdWNkr9Ezwq39ukz8 |
+| care | session_018WSGYyj3rNjPKiMfKBZpJz |
 
 ## Status
 
 | Stream | Phase | Branch | PR | Built | Tests | Staging |
 | --- | --- | --- | --- | --- | --- | --- |
-| controls | 1 | claude/stream-controls | | | | |
-| shell | 1 | claude/stream-shell | | | | |
+| controls | 1 | claude/stream-controls | #525 merged | yes | 247 stream + core pass; UI 1414 pass | |
+| shell | 1 | claude/stream-shell | #526 merged | yes | as controls (merged together) | |
 | today | 2 | claude/stream-today | | | | |
 | agents | 2 | claude/stream-agents | | | | |
 | learning | 2 | claude/stream-learning | | | | |
@@ -372,7 +383,7 @@ hourly, reviews and merges each PR, and starts the next streams.
 | settings | 2 | claude/stream-settings | | | | |
 | support | 2 | claude/stream-support | | | | |
 | staff | 2 | claude/stream-staff | | | | |
-| ops | 2 | claude/stream-ops | #524 | yes | see PR | |
+| ops | 2 | claude/stream-ops | #524 | yes; merging one analytics outbox with controls | see PR | |
 | aws-gateway | 2 | claude/stream-aws-gateway | | | | |
 | browser | 2 | claude/stream-browser | | | | |
 | reach | 2 | claude/stream-reach | | | | |
