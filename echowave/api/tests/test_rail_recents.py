@@ -11,7 +11,7 @@ from api.services.workflow import recents
 
 @pytest.mark.asyncio
 async def test_both_kinds_interleave_newest_first(db_session, async_session):
-    org = OrganizationModel(provider_id=f"recents-{datetime.now().timestamp()}")
+    org = OrganizationModel(provider_id=f"recents-{datetime.now(UTC).timestamp()}")
     async_session.add(org)
     await async_session.flush()
     riya = WorkflowModel(

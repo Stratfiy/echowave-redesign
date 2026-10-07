@@ -14,7 +14,7 @@ actually asked: "where was I?"
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import select
 
@@ -27,7 +27,7 @@ from api.schemas.agent_avatar import read_avatar
 UNTITLED = "New chat"
 
 
-def _avatar(raw: Any) -> Optional[dict]:
+def _avatar(raw: Any) -> dict | None:
     face = read_avatar(raw)
     return face.model_dump(mode="json") if face is not None else None
 
@@ -40,7 +40,7 @@ def _title(text: str, limit: int = 60) -> str:
 async def recents(
     *,
     organization_id: int,
-    viewer_id: Optional[int],
+    viewer_id: int | None,
     viewer_is_admin: bool,
     limit: int = 12,
 ) -> list[dict[str, Any]]:
