@@ -499,7 +499,11 @@ export function ChannelStream({
     const feedbackOn = useFeature('reply_feedback') && assistant;
     // Launch stream `agents`: keep a reply as a saved report, and name the
     // helper a reply came from (screen 04: reports share this surface).
-    const reportsOn = useFeature('research_reports') && assistant;
+    const reportsFlag = useFeature('research_reports');
+    const reportsOn = reportsFlag && assistant;
+    // An agent's reply in its own chat can be kept too: a research agent
+    // built from Chat writes its report there, and has no save of its own.
+    const agentReportsOn = reportsFlag && workflowId != null;
     // Stream today: a routine's result carries a small ✓ chip naming it.
     const routineChip = useFeature('routine_start_on');
     // Stream `reach`. Off, its rows are not drawn (the server does not
@@ -1595,6 +1599,15 @@ export function ChannelStream({
                                     </ul>
                                 )}
                                 {chatShell && assistant && rowExtras(event)}
+                                {agentReportsOn &&
+                                    event.kind === 'message' &&
+                                    event.actor === 'agent' &&
+                                    event.folder_id == null &&
+                                    !(event.payload as { failed?: boolean } | null)?.failed && (
+                                        <div className="mt-1.5">
+                                            <SaveReportButton eventId={event.id} />
+                                        </div>
+                                    )}
                             </div>
                         </li>
                         </React.Fragment>

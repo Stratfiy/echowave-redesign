@@ -361,7 +361,9 @@ async def reply_for(
 ) -> tuple[str | None, str, str | None] | None:
     """(question, answer, thread_id) for one of Decibyl's replies the person
     can read, or None. With private threads on, only the thread's author
-    can keep a reply from it; the row must be Decibyl's own reply."""
+    can keep a reply from it; the row must be Decibyl's own reply -- or an
+    agent's reply in its own chat (no channel), which this workspace's
+    people can read, so a research agent built from Chat can be kept too."""
     from api import constants
     from api.enums import AgentEventActor, AgentEventKind
 
@@ -370,10 +372,31 @@ async def reply_for(
         event is None
         or event.kind != AgentEventKind.MESSAGE.value
         or event.actor != AgentEventActor.AGENT.value
-        or event.workflow_id is not None
         or event.folder_id is not None
     ):
         return None
+    if event.workflow_id is not None:
+        # An agent's own chat: the question is the line before it there.
+        payload = event.payload or {}
+        if payload.get("failed"):
+            return None
+        earlier = await db_client.agent_events(
+            organization_id=organization_id,
+            workflow_id=event.workflow_id,
+            kinds=[AgentEventKind.MESSAGE.value],
+            before_at=event.at,
+            before_id=event.id,
+            limit=10,
+        )
+        question = next(
+            (
+                str((e.payload or {}).get("body") or e.summary or "")
+                for e in earlier
+                if e.actor == AgentEventActor.HUMAN.value
+            ),
+            None,
+        )
+        return question, str(payload.get("body") or event.summary or ""), None
     if constants.DECIBYL_PRIVATE_THREADS_ENABLED:
         author = await db_client.thread_author(
             organization_id=organization_id, thread_id=event.thread_id
