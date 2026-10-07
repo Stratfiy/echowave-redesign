@@ -48,7 +48,15 @@ export type Feature =
     | "decibyl_teams"
     | "studio"
     // Free while we are early: no plans, nothing charged (on by default).
-    | "free_mode";
+    | "free_mode"
+    // Stream ops (handoff 11, 14, 15 G-H, 34, 35).
+    | "ops_console"
+    | "server_analytics"
+    | "telemetry_redaction"
+    | "session_replay"
+    | "laya_guardrails"
+    | "laya_rollback"
+    | "cost_stop";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();
