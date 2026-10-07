@@ -411,7 +411,11 @@ export function HelperPicker({
             <PopoverContent
                 side="top"
                 align="start"
-                className="motion-m4-enter flex max-h-[min(36rem,80vh)] w-[360px] flex-col p-0 pt-2"
+                collisionPadding={8}
+                data-testid="helper-menu"
+                // Never taller than the room on the side it opened: on an empty
+                // chat the box sits mid-screen and a fixed height ran off the top.
+                className="motion-m4-enter flex max-h-[min(36rem,var(--radix-popover-content-available-height))] w-[360px] flex-col p-0 pt-2"
                 onCloseAutoFocus={(event) => {
                     // Focus returns to the composer, not the trigger (screen 06).
                     event.preventDefault();

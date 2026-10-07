@@ -500,6 +500,12 @@ async def resolve(
             # A follow-up for a tracked commitment (Follow-up helper): part of
             # the approved act, so it is in the version like the arguments.
             args["commitment_id"] = int(arguments["commitment_id"])
+            # And the asker's alone to answer, like the commitment it follows.
+            from api.services import acting as _acting
+
+            follow_up_owner = _acting.acting_user()
+        else:
+            follow_up_owner = None
         return {
             "action": action,
             "args": args,
@@ -518,6 +524,7 @@ async def resolve(
             # is the safety, not a button after.
             "reversible": False,
             "state": PROPOSED,
+            **({"private_to": follow_up_owner} if follow_up_owner else {}),
         }
 
     if action == DESKTOP_STEP:
@@ -553,6 +560,9 @@ async def resolve(
             # Whose follow-up list it joins: the person who asked, recorded
             # now, not whoever later presses Confirm.
             "args": {**fields.as_args(), "owner_user_id": acting.acting_user()},
+            # The asker's own (launch stream `agents`): only they see and
+            # answer it, whoever else can read the workspace's threads.
+            "private_to": acting.acting_user(),
             "label": commitments.label(fields),
             "why": why,
             "effect": "Adds it to your follow-ups, private to you. Nothing is sent.",
@@ -571,6 +581,9 @@ async def resolve(
         return {
             "action": CREATE_TRACKER,
             "args": {**spec, "owner_user_id": acting.acting_user()},
+            # The asker's own (launch stream `agents`): only they see and
+            # answer it, whoever else can read the workspace's threads.
+            "private_to": acting.acting_user(),
             "label": trackers.label(spec),
             "why": why,
             "effect": "Creates an empty tracker, private to you. Nothing is sent.",
@@ -1558,7 +1571,15 @@ async def _audit(
         action=action,
         subject_kind="card",
         subject_id=event.id,
-        subject=str(payload.get("label") or payload.get("action") or "")[:255],
+        # A private card's label is its owner's words (a name, an amount):
+        # the workspace audit every admin reads keeps who pressed what and
+        # when, not what the card said (admins do not inherit private
+        # things, handoff 25).
+        subject=(
+            f"Private card ({payload.get('action')})"
+            if payload.get("private_to")
+            else str(payload.get("label") or payload.get("action") or "")
+        )[:255],
         actor_user_id=user_id,
         before={"state": was},
         after={"state": payload.get("state"), "action": payload.get("action")},
