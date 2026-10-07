@@ -287,6 +287,9 @@ _KEYED_COMPONENTS: tuple[tuple[str, ServiceType], ...] = (
 #: entered there, not as an environment variable on the box).
 DATA_PROVIDERS: dict[str, tuple[str, ...]] = {
     "serper": ("data",),
+    # Lead data for outreach (services/outreach/leads.py): people who match
+    # a business's ideal customer, with verified work addresses.
+    "apollo": ("data",),
 }
 
 

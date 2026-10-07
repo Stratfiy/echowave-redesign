@@ -54,6 +54,7 @@ import { SourceCoverage } from '@/components/shell/SourceCoverage';
 import { TaskStatus } from '@/components/shell/TaskStatus';
 import { Button } from '@/components/ui/button';
 import { ActionCard } from '@/components/workflow/ActionCard';
+import { ConfirmAllBar } from '@/components/workflow/ConfirmAllBar';
 import { ConnectorCard } from '@/components/workflow/ConnectorCard';
 import { DecisionCard } from '@/components/workflow/DecisionCard';
 import { EditCard } from '@/components/workflow/EditCard';
@@ -894,6 +895,9 @@ export function ChannelStream({
                     </li>
                 ))}
             </ol>
+            {/* Two or more send cards waiting (outreach drafts): one press,
+                each still confirmed against the version it showed. */}
+            <ConfirmAllBar events={inOrder} onDone={() => void loadLatest()} />
             {/* What to ask next, so the thread carries its own next steps.
                 Hidden while a bot is thinking: offering a follow-up to an
                 answer that has not arrived is asking somebody to interrupt.

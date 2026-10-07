@@ -4023,6 +4023,66 @@ export type ComposioToolDefinition = {
 };
 
 /**
+ * ConfirmAllItem
+ */
+export type ConfirmAllItem = {
+    /**
+     * Event Id
+     */
+    event_id: number;
+    /**
+     * Version
+     */
+    version?: string | null;
+};
+
+/**
+ * ConfirmAllRequest
+ */
+export type ConfirmAllRequest = {
+    /**
+     * Items
+     */
+    items: Array<ConfirmAllItem>;
+};
+
+/**
+ * ConfirmAllResponse
+ */
+export type ConfirmAllResponse = {
+    /**
+     * Confirmed
+     */
+    confirmed: number;
+    /**
+     * Results
+     */
+    results: Array<ConfirmAllResult>;
+};
+
+/**
+ * ConfirmAllResult
+ */
+export type ConfirmAllResult = {
+    /**
+     * Event Id
+     */
+    event_id?: number | null;
+    /**
+     * Ok
+     */
+    ok: boolean;
+    /**
+     * State
+     */
+    state?: string | null;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+};
+
+/**
  * ConfirmRequest
  */
 export type ConfirmRequest = {
@@ -48399,6 +48459,45 @@ export type SettleActionApiV1TimelineActionsSettlePostResponses = {
 };
 
 export type SettleActionApiV1TimelineActionsSettlePostResponse = SettleActionApiV1TimelineActionsSettlePostResponses[keyof SettleActionApiV1TimelineActionsSettlePostResponses];
+
+export type ConfirmAllActionsApiV1TimelineActionsConfirmAllPostData = {
+    body: ConfirmAllRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/timeline/actions/confirm-all';
+};
+
+export type ConfirmAllActionsApiV1TimelineActionsConfirmAllPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ConfirmAllActionsApiV1TimelineActionsConfirmAllPostError = ConfirmAllActionsApiV1TimelineActionsConfirmAllPostErrors[keyof ConfirmAllActionsApiV1TimelineActionsConfirmAllPostErrors];
+
+export type ConfirmAllActionsApiV1TimelineActionsConfirmAllPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ConfirmAllResponse;
+};
+
+export type ConfirmAllActionsApiV1TimelineActionsConfirmAllPostResponse = ConfirmAllActionsApiV1TimelineActionsConfirmAllPostResponses[keyof ConfirmAllActionsApiV1TimelineActionsConfirmAllPostResponses];
 
 export type ReviseActionApiV1TimelineActionsRevisePostData = {
     body: ReviseActionRequest;

@@ -310,7 +310,15 @@ def system_prompt(organization_id: int | None = None) -> str:
         # none were set or the switches are off.
         + settings_profile.turn_block()
         + (call_for_me.RULES if call_for_me.enabled(organization_id) else "")
+        + (_outreach().RULES if _outreach().enabled(organization_id) else "")
     )
+
+
+def _outreach():
+    """Outreach (services/outreach): find_leads and draft_outreach."""
+    from api.services.outreach import tools as outreach_tools
+
+    return outreach_tools
 
 
 def _reach():
@@ -349,6 +357,13 @@ def thread_filter(organization_id: int | None = None) -> dict[str, Any]:
                     AgentEventKind.REACH_COMPARISON.value,
                 )
                 if _reach().names(organization_id)
+                else ()
+            ),
+            # Outreach's key form: find_leads with no lead-data key puts it
+            # on the thread, so the key is added where the ask was made.
+            *(
+                (AgentEventKind.NEEDS_SECRET.value,)
+                if _outreach().enabled(organization_id)
                 else ()
             ),
             # The files the document tools hand over (a drafted PO, a
@@ -1619,6 +1634,7 @@ def office_tools(organization_id: int | None = None) -> list[dict[str, Any]]:
             else ()
         ),
         *care_tools.schemas(organization_id),
+        *_outreach().schemas(organization_id),
         *(
             (_call_for_me().tool_schema(),)
             if _call_for_me().enabled(organization_id)
@@ -1713,6 +1729,13 @@ def _was_a_read(call: Any, result: Any) -> bool:
         # first", "which template"): the model must be able to ask or retry.
         # Counted as a card, it lost its tools and answered with nothing.
         return True
+    if name in _outreach().NAMES and isinstance(result, dict):
+        # A search keeps the tools open (save, then draft); so does a draft
+        # turned back with nothing proposed. Cards and connect/key cards end
+        # the round like any other card.
+        if name in _outreach().READS:
+            return result.get("status") in ("success", "error")
+        return result.get("status") in ("error", "nothing_to_send", "not_proposed")
     if name in care_tools.NAMES and isinstance(result, dict):
         # A scam check or a phone-help step is answered in the turn; a
         # reminder card ends the round like any other card.
@@ -1969,6 +1992,13 @@ async def _tool(
             author_id=author_id,
             request=request,
             thread_id=thread_id,
+        )
+    if call.name in _outreach().NAMES and _outreach().enabled(organization_id):
+        return await _outreach().run(
+            call.name,
+            organization_id=organization_id,
+            arguments=arguments,
+            user_id=author_id,
         )
     if call.name in care_tools.NAMES:
         return await care_tools.run(

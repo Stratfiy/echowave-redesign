@@ -971,6 +971,12 @@ CALL_FOR_ME_ENABLED = _flag("CALL_FOR_ME_ENABLED")
 # The Call and Appointment runtime (handoff 6): booking policy, open slots,
 # booking within policy, caller verification and escalation on calls.
 CALL_APPOINTMENT_ENABLED = _flag("CALL_APPOINTMENT_ENABLED")
+# Outreach (services/outreach): find leads from a lead-data provider, then
+# one send card per lead on the person's own mailbox, with Confirm all.
+OUTREACH_ENABLED = _flag("OUTREACH_ENABLED")
+# Which lead-data provider find_leads searches (services/outreach/leads.py).
+# Its key is a provider key under component ``data``.
+LEAD_DATA_PROVIDER = os.getenv("LEAD_DATA_PROVIDER", "apollo")
 # How long a live voice session may go without a heartbeat before it is
 # treated as lost (its microphone and slot released).
 VOICE_SESSION_STALE_SECONDS = int(os.getenv("VOICE_SESSION_STALE_SECONDS", "90"))

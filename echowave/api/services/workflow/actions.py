@@ -291,6 +291,68 @@ def _is_outbound(payload: dict[str, Any]) -> bool:
     return False
 
 
+#: Argument names, across the mail and message tools Composio names, for who
+#: a write reaches, who is copied, the subject line and what it says. The
+#: first present wins in each group.
+_PREVIEW_TO = (
+    "recipient_email",
+    "to",
+    "to_email",
+    "to_recipients",
+    "recipients",
+    "recipient",
+    "email",
+)
+_PREVIEW_CC = ("cc", "cc_emails", "cc_recipients")
+_PREVIEW_BCC = ("bcc", "bcc_emails", "bcc_recipients")
+_PREVIEW_SUBJECT = ("subject", "title")
+_PREVIEW_BODY = ("body", "message", "text", "content", "html_body")
+
+
+def _preview_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (list, tuple)):
+        return ", ".join(t for t in (_preview_text(v) for v in value) if t)
+    if isinstance(value, dict):
+        return _preview_text(
+            value.get("email") or value.get("address") or value.get("emailAddress")
+        )
+    return str(value).strip()
+
+
+def arguments_preview(arguments: dict[str, Any]) -> str:
+    """Who a connected-app write reaches and exactly what it says, as the
+    card shows it: "To:", "Cc:", "Subject:", then the body in full. Empty
+    when the arguments name no recipient and no text (a read, a lookup).
+
+    Untruncated on purpose: a body clipped on the card is a body nobody
+    approved past the clip."""
+
+    def first(keys: tuple[str, ...]) -> str:
+        for key in keys:
+            text = _preview_text(arguments.get(key))
+            if text:
+                return text
+        return ""
+
+    lines = [
+        f"{label}: {value}"
+        for label, value in (
+            ("To", first(_PREVIEW_TO)),
+            ("Cc", first(_PREVIEW_CC)),
+            ("Bcc", first(_PREVIEW_BCC)),
+            ("Subject", first(_PREVIEW_SUBJECT)),
+        )
+        if value
+    ]
+    body = first(_PREVIEW_BODY)
+    if body:
+        lines.append("")
+        lines.append(body)
+    return "\n".join(lines).strip()
+
+
 async def _emit(name: str, event: Any, payload: dict[str, Any], user_id: Any) -> None:
     """One catalogue event about a card. Never raises (events.emit)."""
     from api.services import events
@@ -505,6 +567,10 @@ async def resolve(
             "args": args,
             "label": f"{tool.name} via {app}" if app else str(tool.name),
             "why": why,
+            # Who it reaches and exactly what it says, drawn from the
+            # arguments (never the model's prose) for ActionCard to show
+            # beside Confirm. Not in the version: it is the arguments, read.
+            "preview": arguments_preview(args["arguments"]),
             # What pressing Confirm does, in one derived line. Taken from the
             # tool, not from ``arguments``: an effect the model could supply
             # would be the same sentence that called a send a draft.
@@ -1280,6 +1346,7 @@ async def settle(
     verb: str,
     user_id: int,
     version: str | None = None,
+    require_version: bool = False,
 ) -> dict[str, Any]:
     """Confirm, decline or undo, on the card. Returns the updated payload.
 
@@ -1292,6 +1359,8 @@ async def settle(
     (``revise``) has a new version, and the old Confirm is refused rather
     than applied to words nobody read. The same press from two channels
     arms it once: the move from proposed is a compare-and-swap.
+    ``require_version`` holds a Confirm to its version with the ledger off
+    too (``settle_many``).
     """
     event = await _proposal(organization_id, event_id)
     payload = dict(event.payload or {})
@@ -1303,14 +1372,16 @@ async def settle(
     if verb == "confirm":
         if state != PROPOSED:
             raise ActionError("Already settled.")
-        if _ledger_on(organization_id):
+        if _ledger_on(organization_id) or require_version:
             current = payload_version(payload)
             stored = payload.get("version")
             if stored is not None and stored != current:
                 # The arguments changed under a stored version: not
                 # something any screen showed.
                 raise ActionError("This card changed since it was proposed. Ask again.")
-            if stored is not None and version != stored:
+            if (stored is not None or require_version) and version != (
+                stored or current
+            ):
                 raise ActionError(
                     "This changed since you looked at it. Review the new "
                     "version and confirm again."
@@ -1465,6 +1536,75 @@ async def reconcile(
 
 #: The actions whose arguments a person may edit on the card before
 #: confirming. Each edit is a new version (``payload_version``).
+#: The most cards one "Confirm all" may name. A batch of outreach drafts is
+#: a page of leads, not a mailing list; past this it is refused whole.
+MAX_CONFIRM_ALL = 25
+
+
+async def settle_many(
+    *,
+    organization_id: int,
+    items: list[dict[str, Any]],
+    user_id: int,
+) -> list[dict[str, Any]]:
+    """Confirm several cards with one press, still one approval per card.
+
+    Each item is ``{"event_id", "version"}``: the card and the version the
+    person was shown. Each is the ordinary ``settle(confirm)`` with its
+    version required whatever the ledger switch says, so a card edited
+    since, already settled, owned by somebody else or in another workspace
+    is refused on its own line and the rest still go. Nothing is approved
+    as a group. Returns one ``{event_id, ok, state | reason}`` per distinct
+    card, in the order named.
+    """
+    if not isinstance(items, list) or not items:
+        raise ActionError("Say which cards to confirm.")
+    if len(items) > MAX_CONFIRM_ALL:
+        raise ActionError(
+            f"At most {MAX_CONFIRM_ALL} cards at once. Confirm these in parts."
+        )
+    seen: set[int] = set()
+    results: list[dict[str, Any]] = []
+    for item in items:
+        try:
+            event_id = int((item or {}).get("event_id"))
+        except (TypeError, ValueError):
+            results.append({"event_id": None, "ok": False, "reason": "Not a card."})
+            continue
+        if event_id in seen:
+            continue
+        seen.add(event_id)
+        version = str((item or {}).get("version") or "").strip() or None
+        if version is None:
+            results.append(
+                {
+                    "event_id": event_id,
+                    "ok": False,
+                    "reason": "Open this card and confirm it on its own.",
+                }
+            )
+            continue
+        try:
+            payload = await settle(
+                organization_id=organization_id,
+                event_id=event_id,
+                verb="confirm",
+                user_id=user_id,
+                version=version,
+                require_version=True,
+            )
+        except ActionError as exc:
+            results.append({"event_id": event_id, "ok": False, "reason": str(exc)})
+            continue
+        except approvals.ApprovalRequired as exc:
+            results.append({"event_id": event_id, "ok": False, "reason": str(exc)})
+            continue
+        results.append(
+            {"event_id": event_id, "ok": True, "state": payload.get("state")}
+        )
+    return results
+
+
 REVISABLE = (RUN_TOOL, SEND_DOCUMENT, SEND_IDENTITY_EMAIL)
 #: The fields of a SEND_IDENTITY_EMAIL card a person may change.
 _EMAIL_FIELDS = ("to", "subject", "body")
@@ -1505,6 +1645,7 @@ async def revise(
     args = dict(payload.get("args") or {})
     if action == RUN_TOOL:
         args["arguments"] = dict(arguments)
+        payload["preview"] = arguments_preview(args["arguments"])
     elif action == SEND_IDENTITY_EMAIL:
         from api.services.identity import cards as identity_cards
 

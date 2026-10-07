@@ -927,6 +927,54 @@ async def settle_action(body: SettleActionRequest, user: UserModel = Depends(get
     return _as_event(row)
 
 
+class ConfirmAllItem(BaseModel):
+    event_id: int
+    #: The version this card showed. Required: a bulk Confirm approves each
+    #: card's words exactly as shown, or not at all.
+    version: Optional[str] = Field(default=None, max_length=32)
+
+
+class ConfirmAllRequest(BaseModel):
+    items: list[ConfirmAllItem] = Field(min_length=1)
+
+
+class ConfirmAllResult(BaseModel):
+    event_id: Optional[int] = None
+    ok: bool
+    state: Optional[str] = None
+    reason: Optional[str] = None
+
+
+class ConfirmAllResponse(BaseModel):
+    confirmed: int
+    results: list[ConfirmAllResult]
+
+
+@router.post("/actions/confirm-all", response_model=ConfirmAllResponse)
+async def confirm_all_actions(
+    body: ConfirmAllRequest, user: UserModel = Depends(get_user)
+):
+    """Confirm several waiting cards with one press -- each against the
+    version it showed, each on its own (services/workflow/actions.py,
+    ``settle_many``). A card that cannot be confirmed says why on its own
+    line; the others still go."""
+    organization_id = user.selected_organization_id
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+    try:
+        results = await actions.settle_many(
+            organization_id=organization_id,
+            items=[item.model_dump() for item in body.items],
+            user_id=user.id,
+        )
+    except actions.ActionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return ConfirmAllResponse(
+        confirmed=sum(1 for r in results if r["ok"]),
+        results=[ConfirmAllResult(**r) for r in results],
+    )
+
+
 class ReviseActionRequest(BaseModel):
     event_id: int
     #: The new arguments: a connected app's call arguments, or a document
