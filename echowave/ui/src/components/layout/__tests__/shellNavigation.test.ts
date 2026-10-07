@@ -6,6 +6,9 @@
  * than shipping as a screen nobody can find -- the silent-absence shape,
  * applied to navigation.
  */
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { SETTINGS_SECTIONS } from "../../settings/sections";
@@ -37,7 +40,11 @@ describe("the navigation", () => {
             ...SETTINGS_SECTIONS.map((section) => section.href),
             "/studio",
         ]);
-        for (const url of shellUrls()) expect(known.has(url), url).toBe(true);
+        // Or a page that exists in the app: a home's tab (Routines, Contacts,
+        // Handed over) has no legacy nav item either.
+        const isPage = (url: string) =>
+            existsSync(resolve(process.cwd(), "src/app", ...url.split("/").filter(Boolean), "page.tsx"));
+        for (const url of shellUrls()) expect(known.has(url) || isPage(url), url).toBe(true);
     });
 
     it("keeps the account menu to what Settings does not hold", () => {

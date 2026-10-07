@@ -207,7 +207,7 @@ export function SchedulesBoard({ tabs = DESK_TABS }: Props) {
     return (
         <>
             <PageHeader
-                title="Schedules"
+                title="Routines"
                 description="What runs on its own, and when."
                 tabs={tabs}
             />

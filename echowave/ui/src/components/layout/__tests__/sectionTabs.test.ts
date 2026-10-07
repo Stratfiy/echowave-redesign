@@ -32,12 +32,15 @@ const STRIPS = {
 
 describe("section tabs", () => {
   it("never puts one destination in two strips", () => {
+    // One named exception: Activity under Today is the door into the calls
+    // strip (product handoff, section 19), not a second copy of a page.
+    const doors = new Set(["/usage"]);
     const seen = new Map<string, string>();
     const clashes: string[] = [];
     for (const [strip, tabs] of Object.entries(STRIPS)) {
       for (const tab of tabs) {
         const first = seen.get(tab.href);
-        if (first) clashes.push(`${tab.href} is in both ${first} and ${strip}`);
+        if (first && !doors.has(tab.href)) clashes.push(`${tab.href} is in both ${first} and ${strip}`);
         else seen.set(tab.href, strip);
       }
     }
@@ -99,6 +102,7 @@ describe("section tabs", () => {
     expect(DESK_TABS.map((tab) => tab.href)).toEqual([
         "/tasks",
         "/schedules",
+        "/usage",
         "/contacts",
         "/deliverables",
     ]);

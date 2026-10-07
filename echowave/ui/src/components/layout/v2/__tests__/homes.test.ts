@@ -1,24 +1,29 @@
 import { describe, expect, it } from "vitest";
 
-import { activeHome, colleagueState } from "../homes";
+import { activeHome, colleagueState, HOMES } from "../homes";
 import { parseTrial } from "../useRailData";
 
 describe("activeHome", () => {
+  it("has two homes, Chat and Today, and Studio only behind its flag", () => {
+    expect(HOMES.filter((h) => !h.flag).map((h) => h.title)).toEqual(["Chat", "Today"]);
+  });
+
   it.each([
-    ["/overview", "home"],
-    ["/tasks", "tasks"],
-    ["/workflow", "agents"],
-    ["/workflow/12/thread", "agents"],
-    ["/usage", "activity"],
-    ["/reports", "activity"],
-    ["/campaigns/3", "activity"],
-    ["/channels/4", "agents"],
+    ["/overview", "chat"],
+    ["/workflow/12/thread", "chat"],
+    ["/channels/4", "chat"],
+    ["/tasks", "today"],
+    ["/schedules", "today"],
+    ["/usage", "today"],
+    ["/activity/usage", "today"],
+    ["/reports", "today"],
+    ["/campaigns/3", "today"],
   ])("puts %s under %s", (path, home) => {
     expect(activeHome(path)).toBe(home);
   });
 
-  it.each(["/settings", "/billing", "/settings/knowledge", "/settings/company", "/numbers"])("puts %s under Settings", (path) => {
-    expect(activeHome(path)).toBe("settings");
+  it.each(["/settings", "/billing", "/settings/knowledge"])("lights no home on %s: Settings is in the profile menu", (path) => {
+    expect(activeHome(path)).toBeUndefined();
   });
 
   it("lights nothing on an unknown page", () => {

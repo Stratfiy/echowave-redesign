@@ -1,33 +1,30 @@
 import type { LucideIcon } from "lucide-react";
-import { Activity, Bot, CalendarClock, Home, Settings, Wand2 } from "lucide-react";
+import { CalendarCheck, MessageCircle, Wand2 } from "lucide-react";
 
 import type { Feature } from "@/lib/features";
 
 /**
  * The homes of the v2 shell (KAN-208, UI-1), the app's only shell.
  *
- * Every home maps onto a page that already exists; none is a new route. The
- * rail's copy lives here, in one place, for copy review.
+ * Two, as the product handoff decides (section 19): Chat and Today. Decibyl
+ * is one assistant, so the rail answers two questions -- "talk to it" and
+ * "what needs my attention" -- and everything else is a secondary view:
  *
- * Four homes and Settings: the rail answers "where is my work", and
- * everything that is set up once and then left alone (company, knowledge,
- * channels, team, apps, deploy, phone numbers, keys) is under Settings. Nine
- * homes, a channel list and a roster read as a control panel, not as an
- * assistant you hand jobs to.
+ * - Chat   -> /overview: Decibyl's home (composer, starters, history). The
+ *             Recents list under the homes reopens any conversation, with
+ *             Decibyl or with an agent.
+ * - Today  -> /tasks, with its tabs: routines, contacts, what was handed
+ *             over, and Activity (calls, missed calls, review, analytics,
+ *             usage), which lights it too.
+ * - Studio -> /studio, only with the `studio` flag.
  *
- * Mapping, and why:
- * - Home       -> /overview: Decibyl's home (greeting + composer).
- * - Tasks      -> /tasks, with its tabs: schedules, contacts, handed over.
- * - Agents     -> /workflow: the list of every agent, folders and archive;
- *                 channels light it too, as places agents talk.
- * - Studio     -> /studio, only with the `studio` flag: agents and a site
- *                 for them from one chat.
- * - Activity   -> /usage: calls, with campaigns, reports, review, analytics
- *                 and missed calls lighting it too.
- * - Settings   -> /settings, which also lights for every page it holds.
+ * Agents and Settings are in the profile menu (AccountMenu). Agents are
+ * helpers reached from Chat -- an @mention, or a recent conversation -- and
+ * their list stays one click away for whoever manages them. Every page the
+ * rail used to name still lights a home or a Settings section.
  */
 
-export type HomeId = "home" | "tasks" | "agents" | "studio" | "activity" | "settings";
+export type HomeId = "chat" | "today" | "studio";
 
 export type Home = {
   id: HomeId;
@@ -38,45 +35,41 @@ export type Home = {
   activePaths?: string[];
   /** Shown only while this feature is on for the workspace. */
   flag?: Feature;
+  /** Pages one tap away on this home's tab strip -- reachable, so the
+   *  navigation test counts them, without each needing a rail row. */
+  reaches?: string[];
 };
 
 export const HOMES: readonly Home[] = [
-  { id: "home", title: "Home", url: "/overview", icon: Home },
+  { id: "chat", title: "Chat", url: "/overview", icon: MessageCircle, activePaths: ["/workflow", "/channels"] },
   {
-    id: "tasks",
-    title: "Tasks",
+    id: "today",
+    title: "Today",
     url: "/tasks",
-    icon: CalendarClock,
-    activePaths: ["/schedules", "/contacts", "/deliverables"],
-  },
-  { id: "agents", title: "Agents", url: "/workflow", icon: Bot, activePaths: ["/channels"] },
-  { id: "studio", title: "Studio", url: "/studio", icon: Wand2, flag: "studio" },
-  {
-    id: "activity",
-    title: "Activity",
-    url: "/usage",
-    icon: Activity,
-    activePaths: ["/campaigns", "/reports", "/review", "/analytics", "/missed-calls", "/recordings", "/activity"],
-  },
-  {
-    id: "settings",
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
+    icon: CalendarCheck,
+    reaches: ["/schedules", "/contacts", "/deliverables", "/usage"],
     activePaths: [
-      "/billing",
-      "/tools",
-      "/integrations",
-      "/marketplace",
-      "/deploy",
-      "/do-not-call",
-      "/recordings",
-      "/telephony-configurations",
-      "/numbers",
-      "/verified-numbers",
+      "/schedules",
+      "/contacts",
+      "/deliverables",
+      "/usage",
+      "/activity",
+      "/campaigns",
+      "/reports",
+      "/review",
+      "/analytics",
+      "/missed-calls",
     ],
   },
+  { id: "studio", title: "Studio", url: "/studio", icon: Wand2, flag: "studio" },
 ];
+
+/** Where Settings and the agent list live now: the profile menu. Paths here
+ *  light no home; the menu is how they are reached. */
+export const PROFILE_LINKS = [
+  { title: "Agents", url: "/workflow" },
+  { title: "Settings", url: "/settings" },
+] as const;
 
 /** Customer copy for the rail, in one place. */
 export const RAIL_COPY = {

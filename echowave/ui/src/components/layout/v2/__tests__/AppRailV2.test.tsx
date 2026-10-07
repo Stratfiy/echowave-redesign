@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -62,13 +62,14 @@ beforeEach(() => {
 });
 
 describe("v2 rail", () => {
-  it("renders the homes in order", () => {
+  it("renders the two homes, Chat then Today", () => {
     mount();
     const nav = screen.getByRole("navigation", { name: "Homes" });
     const labels = within(nav)
       .getAllByRole("link")
       .map((link) => link.textContent);
-    expect(labels).toEqual(["Home", "Tasks", "Agents", "Activity", "Settings"]);
+    expect(labels).toEqual(["Chat", "Today"]);
+    expect(screen.getByRole("link", { name: "Chat" }).getAttribute("aria-current")).toBe("page");
   });
 
   it("maps each home onto an existing route", () => {
@@ -77,13 +78,13 @@ describe("v2 rail", () => {
     const hrefs = within(nav)
       .getAllByRole("link")
       .map((link) => link.getAttribute("href"));
-    expect(hrefs).toEqual(["/overview", "/tasks", "/workflow", "/usage", "/settings"]);
+    expect(hrefs).toEqual(["/overview", "/tasks"]);
   });
 
-  it("lights Activity on a campaigns page", () => {
+  it("lights Today on a campaigns page, where Activity now lives", () => {
     state.pathname = "/campaigns/4";
     mount();
-    expect(screen.getByRole("link", { name: "Activity" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("link", { name: "Today" }).getAttribute("aria-current")).toBe("page");
     expect(document.querySelectorAll('nav[aria-label="Homes"] a[aria-current="page"]')).toHaveLength(1);
   });
 
@@ -125,16 +126,15 @@ describe("v2 rail", () => {
     expect(screen.queryByText("Recents")).toBeNull();
   });
 
-  it("counts agents and what needs you on the homes", () => {
+  it("counts what needs you on Today", () => {
     state.data = {
       ...state.data,
       colleagues: [member({ workflow_id: 7, tone: "attention" }), member({ workflow_id: 3 })],
     };
     mount();
     const countOf = (name: RegExp) => screen.getByRole("link", { name }).querySelector(".v2-count")?.textContent;
-    expect(countOf(/^Agents/)).toBe("2");
-    expect(countOf(/^Home/)).toBe("1");
-    expect(countOf(/^Tasks/)).toBeUndefined();
+    expect(countOf(/^Today/)).toBe("1");
+    expect(countOf(/^Chat/)).toBeUndefined();
   });
 
   it("hides the trial box when there is no trial and no credits", () => {
@@ -178,20 +178,23 @@ describe("v2 rail", () => {
     mount();
     const nav = screen.getByRole("navigation", { name: "Homes" });
     const labels = within(nav).getAllByRole("link").map((link) => link.textContent);
-    expect(labels.indexOf("Studio")).toBe(labels.indexOf("Agents") + 1);
+    expect(labels).toEqual(["Chat", "Today", "Studio"]);
   });
 
-  it("keeps the channels off the rail; Agents lights for them", () => {
-    state.pathname = "/channels/3";
+  it("keeps channels and agents off the rail; a conversation with an agent lights Chat", () => {
+    state.pathname = "/workflow/3/thread";
     mount();
     expect(screen.queryByText("Channels")).toBeNull();
-    expect(screen.getByRole("link", { name: "Agents" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("link", { name: "Chat" }).getAttribute("aria-current")).toBe("page");
   });
 
-  it("lights Settings on a page it holds", () => {
-    state.pathname = "/billing";
+  it("keeps Settings and Agents in the profile menu, not on the rail", async () => {
     mount();
-    expect(screen.getByRole("link", { name: "Settings" }).getAttribute("aria-current")).toBe("page");
-    expect(document.querySelectorAll('nav[aria-label="Homes"] a[aria-current="page"]')).toHaveLength(1);
+    const nav = screen.getByRole("navigation", { name: "Homes" });
+    expect(within(nav).queryByRole("link", { name: "Settings" })).toBeNull();
+    expect(within(nav).queryByRole("link", { name: "Agents" })).toBeNull();
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Account menu" }), { button: 0, ctrlKey: false });
+    expect((await screen.findByRole("menuitem", { name: "Settings" })).getAttribute("href")).toBe("/settings");
+    expect(screen.getByRole("menuitem", { name: "Agents" }).getAttribute("href")).toBe("/workflow");
   });
 });

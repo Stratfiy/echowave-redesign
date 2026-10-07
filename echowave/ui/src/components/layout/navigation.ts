@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 
 import { SETTINGS_SECTIONS } from "../settings/sections";
-import { HOMES } from "./v2/homes";
+import { HOMES, PROFILE_LINKS } from "./v2/homes";
 
 export type SidebarNavItem = {
   title: string;
@@ -574,7 +574,8 @@ export function visibleShellManage(sections: SidebarNavSection[]): ShellEntry[] 
  *  and the account menu. */
 export function shellUrls(): string[] {
   const urls = [
-    ...HOMES.map((home) => bare(home.url)),
+    ...HOMES.flatMap((home) => [bare(home.url), ...(home.reaches ?? [])]),
+    ...PROFILE_LINKS.map((link) => link.url),
     ...SETTINGS_SECTIONS.map((section) => section.href),
     ...SHELL_MANAGE.flatMap((e) => (e.url ? [e.url] : (e.children ?? []).map((c) => c.url))).map(bare),
   ];

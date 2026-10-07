@@ -129,8 +129,12 @@ export const DEVELOPER_TABS: PageTab[] = [
  *  Contacts came from Setup: a contact is a person you deal with, which is
  *  desk work, not delivery. */
 export const DESK_TABS: PageTab[] = [
-  { href: "/tasks", label: "Tasks", prefix: true },
-  { href: "/schedules", label: "Schedules", prefix: true },
+  { href: "/tasks", label: "Today", prefix: true },
+  { href: "/schedules", label: "Routines", prefix: true },
+  // Activity sits under Today (product handoff, section 19): what happened,
+  // beside what is due. Its own tabs -- calls, missed, review, analytics,
+  // usage -- open from here.
+  { href: "/usage", label: "Activity", prefix: true },
   { href: "/contacts", label: "Contacts", prefix: true },
   // What the bots handed over. The timeline has marked these rows since it
   // was built and the route has taken `deliverables_only` for as long;

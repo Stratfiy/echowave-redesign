@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpCircle, ChevronLeft, ChevronRight, LifeBuoy, LogOut, X } from "lucide-react";
+import { ArrowUpCircle, Bot, ChevronLeft, ChevronRight, LifeBuoy, LogOut, Settings, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";
@@ -63,9 +63,9 @@ export function AppRailV2() {
   };
 
   const needsYou = colleagues.filter((c) => c.tone === "attention").length;
+  // What needs a person is Today's question, so its count is there.
   const counts: Partial<Record<string, number>> = {
-    home: needsYou > 0 ? needsYou : undefined,
-    agents: colleagues.length > 0 ? colleagues.length : undefined,
+    today: needsYou > 0 ? needsYou : undefined,
   };
 
   return (
@@ -201,6 +201,20 @@ function AccountMenu({ collapsed, onNavigate }: { collapsed: boolean; onNavigate
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" side="top" className="max-h-[70vh] w-64 overflow-y-auto">
+        {/* Settings and the agent list: off the rail, never out of reach. */}
+        <DropdownMenuItem asChild>
+          <Link href="/settings" onClick={onNavigate}>
+            <Settings className="mr-2 h-4 w-4" />
+            Settings
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/workflow" onClick={onNavigate}>
+            <Bot className="mr-2 h-4 w-4" />
+            Agents
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         {manage.map((entry) => (
           <React.Fragment key={entry.title}>
             {entry.url ? (
