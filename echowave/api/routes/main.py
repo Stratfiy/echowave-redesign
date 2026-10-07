@@ -23,6 +23,8 @@ from api.routes.campaign import router as campaign_router
 from api.routes.channel_links import router as channel_links_router
 from api.routes.connectors import router as connectors_router
 from api.routes.contacts import router as contacts_router
+from api.routes.controls import router as controls_router
+from api.routes.controls_admin import router as controls_admin_router
 from api.routes.cost_estimate import router as cost_estimate_router
 from api.routes.credentials import router as credentials_router
 from api.routes.dialer_connections import router as dialer_connections_router
@@ -151,6 +153,8 @@ router.include_router(bot_event_webhooks_router)
 router.include_router(bot_triggers_router)
 router.include_router(skills_router)
 router.include_router(tasks_router)
+router.include_router(controls_router)
+router.include_router(controls_admin_router)
 router.include_router(organisation_router)
 router.include_router(organisation_memory_router)
 router.include_router(packs_router)

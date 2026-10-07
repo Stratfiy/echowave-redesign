@@ -1,3 +1,4 @@
+import hashlib
 import os
 from pathlib import Path
 
@@ -868,6 +869,63 @@ STUDIO_ENABLED = os.getenv("STUDIO_ENABLED", "false").lower() == "true"
 # writing a site is write, build, read the error, fix, build again, and a
 # turn that stops halfway leaves a broken build on screen.
 STUDIO_MAX_TOOL_CALLS_PER_TURN = int(os.getenv("STUDIO_MAX_TOOL_CALLS_PER_TURN", "40"))
+
+# ---------------------------------------------------------------------------
+# Launch stream `controls` (LAUNCH-PLAN.md, phase 1). Every one is off by
+# default; see services/features.py for what each turns on.
+# ---------------------------------------------------------------------------
+# The runtime capability checklist for staff (handoff packet A).
+CAPABILITY_CHECKLIST_ENABLED = (
+    os.getenv("CAPABILITY_CHECKLIST_ENABLED", "false").lower() == "true"
+)
+# Per-person daily limits that hold even while free mode bypasses every plan
+# (handoff 9). Off: nothing is counted and nothing is refused.
+OPERATIONAL_QUOTAS_ENABLED = (
+    os.getenv("OPERATIONAL_QUOTAS_ENABLED", "false").lower() == "true"
+)
+# The daily allowances, per person. Proposed starting values for the invite
+# beta, not measured capacity: the numbers are the founder's to set
+# (LAUNCH-PLAN "Decisions still open"), so each is an environment variable.
+OPERATIONAL_QUOTA_MODEL_TURNS = int(os.getenv("OPERATIONAL_QUOTA_MODEL_TURNS", "50"))
+OPERATIONAL_QUOTA_VOICE_MINUTES = int(
+    os.getenv("OPERATIONAL_QUOTA_VOICE_MINUTES", "15")
+)
+OPERATIONAL_QUOTA_OUTBOUND_MESSAGES = int(
+    os.getenv("OPERATIONAL_QUOTA_OUTBOUND_MESSAGES", "20")
+)
+OPERATIONAL_QUOTA_BROWSER_MINUTES = int(
+    os.getenv("OPERATIONAL_QUOTA_BROWSER_MINUTES", "30")
+)
+# One task vocabulary across channels, payload-bound approvals, idempotency
+# keys and stale-update rejection (handoff 10, screen contract "Task state").
+TASK_LEDGER_ENABLED = os.getenv("TASK_LEDGER_ENABLED", "false").lower() == "true"
+# Every person gets a personal space of their own beside the workspaces they
+# join (CONTROLS.md, "Personal space").
+PERSONAL_SPACE_ENABLED = os.getenv("PERSONAL_SPACE_ENABLED", "false").lower() == "true"
+# A person's own language, timezone, voice and summary time.
+MEMBER_PREFERENCES_ENABLED = (
+    os.getenv("MEMBER_PREFERENCES_ENABLED", "false").lower() == "true"
+)
+# The versioned event catalogue and its envelope (handoff 36). Off: nothing is
+# written to the outbox and nothing new reaches analytics.
+EVENT_CATALOGUE_ENABLED = (
+    os.getenv("EVENT_CATALOGUE_ENABLED", "false").lower() == "true"
+)
+# The key that turns a user or workspace id into the pseudonymous id analytics
+# sees. Falls back to one derived from OSS_JWT_SECRET so every process agrees;
+# the capability checklist reports when neither is set.
+ANALYTICS_PSEUDONYM_KEY = os.getenv("ANALYTICS_PSEUDONYM_KEY") or (
+    hashlib.sha256(
+        f"analytics-pseudonym:{os.getenv('OSS_JWT_SECRET', '')}".encode()
+    ).hexdigest()
+    if os.getenv("OSS_JWT_SECRET")
+    else ""
+)
+# The release analytics events carry; the image tag or commit when deployed.
+RELEASE = os.getenv("RELEASE") or os.getenv("SENTRY_RELEASE") or ""
+# "Was this useful?" Yes / Not quite under Decibyl's replies and finished
+# tasks (handoff 6, "Useful feedback").
+REPLY_FEEDBACK_ENABLED = os.getenv("REPLY_FEEDBACK_ENABLED", "false").lower() == "true"
 
 # Where previews of Studio sites are served from. Set it to a host of its own
 # (https://sites.example.com, proxied to this api) so a generated site runs on

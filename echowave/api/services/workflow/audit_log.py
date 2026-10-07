@@ -30,6 +30,8 @@ from api.db.models import AuditEntryModel
 CARD_CONFIRMED = "card_confirmed"
 CARD_DECLINED = "card_declined"
 CARD_UNDONE = "card_undone"
+#: A person edited a waiting card; its approval no longer stands.
+CARD_REVISED = "card_revised"
 DECISION_MADE = "decision_made"
 DOCUMENT_STATUS = "document_status"
 DOCUMENT_APPROVED = "document_approved"

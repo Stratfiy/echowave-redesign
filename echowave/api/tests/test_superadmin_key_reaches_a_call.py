@@ -31,8 +31,15 @@ PLATFORM_KEY = "sk-platform-key-the-staff-pasted-0042"
 
 
 @pytest.fixture(autouse=True)
-def configured_secret(monkeypatch):
-    monkeypatch.setattr(creds, "PLATFORM_CREDENTIAL_SECRET", TEST_SECRET)
+def configured_secret():
+    # Its own MonkeyPatch, not the shared fixture: an autouse fixture that
+    # takes ``monkeypatch`` sets it up before ``db_session``, so its undo ran
+    # after ``db_session`` had restored ``db_client`` and put the closed test
+    # session back on it -- every later test that used the real database
+    # then failed with "This Connection is closed".
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(creds, "PLATFORM_CREDENTIAL_SECRET", TEST_SECRET)
+        yield
 
 
 async def _staff(session) -> UserModel:
