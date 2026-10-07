@@ -352,7 +352,7 @@ hourly, reviews and merges each PR, and starts the next streams.
 | --- | --- |
 | controls | session_019YoNV9e1VRicijtBy3dqkK |
 | shell | session_017pePFdhf7extTGvF4vmJTU |
-| ops | session_01KBVvNANs8kwyrHBMKDox7d |
+| ops (+ aws-gateway) | session_01KBVvNANs8kwyrHBMKDox7d |
 | browser | session_01Me1mkRqDovMsuhnAMz4NUK |
 | desktop | session_01HnRghELvdY4pxEZobCWn4Z |
 
@@ -371,7 +371,8 @@ hourly, reviews and merges each PR, and starts the next streams.
 | settings | 2 | claude/stream-settings | | | | |
 | support | 2 | claude/stream-support | | | | |
 | staff | 2 | claude/stream-staff | | | | |
-| ops | 2 | claude/stream-ops | | | | |
+| ops | 2 | claude/stream-ops | #524 | yes | see PR | |
+| aws-gateway | 2 | claude/stream-aws-gateway | | | | |
 | browser | 2 | claude/stream-browser | | | | |
 | reach | 2 | claude/stream-reach | | | | |
 | care | 2 | claude/stream-care | | | | |
