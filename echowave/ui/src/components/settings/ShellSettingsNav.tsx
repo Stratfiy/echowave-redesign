@@ -109,7 +109,7 @@ export function ShellSettingsNav() {
                                     setQuery("");
                                 }
                             }}
-                            placeholder="Search settings"
+                            placeholder="Search"
                             autoComplete="off"
                             className="h-11 w-full rounded-[10px] border border-border bg-background pl-9 pr-9 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-9 md:text-sm"
                             data-testid="settings-search"
