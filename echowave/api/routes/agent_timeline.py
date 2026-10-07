@@ -231,6 +231,16 @@ async def timeline(
         # A person's own reach rows (connect chips, comparisons, order
         # cards) are theirs alone, whatever thread they sit on.
         viewer_id=user.id,
+        # The whole-history feed holds Decibyl's rows too, from every
+        # thread. With private threads on, only the reader's own: the
+        # thread check above guards `assistant` reads, not this one.
+        decibyl_threads=await db_client.decibyl_threads_of(
+            organization_id=organization_id,
+            viewer_id=user.id,
+            viewer_is_admin=await _is_admin(user, organization_id),
+        )
+        if constants.DECIBYL_PRIVATE_THREADS_ENABLED and not assistant
+        else None,
     )
 
     events = [_as_event(row) for row in rows]

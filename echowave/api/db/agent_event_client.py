@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from typing import Any, Optional, Sequence
 
-from sqlalchemy import func, or_, select, tuple_, update
+from sqlalchemy import false, func, or_, select, tuple_, update
 
 from api.db.base_client import BaseDBClient
 from api.db.models import AgentEventModel
@@ -149,8 +149,16 @@ class AgentEventClient(BaseDBClient):
         assistant_thread: bool = False,
         thread_id: Optional[str] = None,
         viewer_id: Optional[int] = None,
+        decibyl_threads: Optional[tuple[set[str], bool]] = None,
     ) -> list[AgentEventModel]:
         """The timeline, newest first.
+
+        ``decibyl_threads`` is the viewer's own Decibyl conversations, from
+        ``decibyl_threads_of``: their thread ids, and whether the original
+        thread is theirs to read. When given, a row of Decibyl's conversation
+        (no workflow, no folder) is returned only if its thread is one of
+        them. The whole-history feed passes it with private threads on;
+        without it that feed returned every colleague's private chat.
 
         ``viewer_id`` is who is reading. A row whose payload names a
         ``private_to`` person (stream `reach`: a connect chip, a price
@@ -195,6 +203,16 @@ class AgentEventClient(BaseDBClient):
             else private_to.is_(None),
         )
 
+        if decibyl_threads is not None:
+            own, original = decibyl_threads
+            query = query.where(
+                or_(
+                    AgentEventModel.workflow_id.is_not(None),
+                    AgentEventModel.folder_id.is_not(None),
+                    AgentEventModel.thread_id.in_(own) if own else false(),
+                    AgentEventModel.thread_id.is_(None) if original else false(),
+                )
+            )
         if workflow_id is not None:
             query = query.where(AgentEventModel.workflow_id == workflow_id)
         if workflow_run_id is not None:
@@ -294,6 +312,49 @@ class AgentEventClient(BaseDBClient):
             return int(value) if value is not None else None
         except (TypeError, ValueError):
             return None
+
+    async def decibyl_threads_of(
+        self, *, organization_id: int, viewer_id: int, viewer_is_admin: bool
+    ) -> tuple[set[str], bool]:
+        """The Decibyl conversations a person may read with private threads
+        on, by the rule ``thread_author`` gates a single thread with: the
+        author of a thread's first human line, and an Admin for a thread with
+        no author on record. Returns their thread ids, and whether the
+        original (NULL) thread is theirs. Unbounded on purpose: a limit here
+        would drop a person's own older chats from their history, silently.
+        """
+        first = (
+            select(func.min(AgentEventModel.id).label("first_id"))
+            .where(
+                AgentEventModel.organization_id == organization_id,
+                AgentEventModel.workflow_id.is_(None),
+                AgentEventModel.folder_id.is_(None),
+                AgentEventModel.kind == AgentEventKind.MESSAGE.value,
+                AgentEventModel.actor == AgentEventActor.HUMAN.value,
+            )
+            .group_by(AgentEventModel.thread_id)
+            .subquery()
+        )
+        query = select(AgentEventModel.thread_id, AgentEventModel.payload).where(
+            AgentEventModel.id.in_(select(first.c.first_id))
+        )
+        own: set[str] = set()
+        original = False
+        async with self.async_session() as session:
+            for thread, payload in (await session.execute(query)).all():
+                try:
+                    raw = (payload or {}).get("author_id")
+                    author = int(raw) if raw is not None else None
+                except (TypeError, ValueError):
+                    author = None
+                mine = author == viewer_id if author is not None else viewer_is_admin
+                if not mine:
+                    continue
+                if thread is None:
+                    original = True
+                else:
+                    own.add(thread)
+        return own, original
 
     async def assistant_threads(
         self,
