@@ -138,6 +138,8 @@ FLAGS: dict[str, str] = {
     # Launch stream `learning` (LAUNCH-PLAN.md, phase 2).
     "learning": "LEARNING_ENABLED",
     "learning_today": "LEARNING_TODAY_ENABLED",
+    # Launch stream `meetings` (LAUNCH-PLAN.md, phase 2).
+    "meeting_capture": "MEETING_CAPTURE_ENABLED",
 }
 
 
@@ -220,6 +222,7 @@ DESCRIPTIONS: dict[str, str] = {
     "price_compare": "Compare prices and coupons across the ordering apps a person has connected, saying which and when.",
     "learning": "Learning Guide: goals on any subject, lessons in Chat, evaluated practice and progress (screens 13-14).",
     "learning_today": "Learning reviews that are due, listed in Today.",
+    "meeting_capture": "Meeting mode: record, upload or paste a meeting with consent; Sarvam transcript; summary, decisions and follow-ups confirmed one card at a time (screens 11-12).",
 }
 
 

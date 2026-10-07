@@ -6867,6 +6867,12 @@ from api.db.learning_models import (  # noqa: E402,F401
     LearningLessonModel,
     LearningSkillModel,
 )
+from api.db.meeting_models import (  # noqa: E402,F401
+    MeetingBreakModel,
+    MeetingItemModel,
+    MeetingModel,
+    MeetingSegmentModel,
+)
 from api.db.ops_models import (  # noqa: E402,F401
     OpsCommandModel,
     OpsEvidenceModel,

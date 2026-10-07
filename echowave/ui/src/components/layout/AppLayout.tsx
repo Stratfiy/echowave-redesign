@@ -7,6 +7,7 @@ import React, { ReactNode,useEffect } from "react";
 import { AgreementsGate } from "@/components/auth/AgreementsGate";
 import { ImpersonationBanner } from "@/components/auth/ImpersonationBanner";
 import { VerifyEmailBanner } from "@/components/auth/VerifyEmailBanner";
+import { MeetingModeRegistrar } from "@/components/meetings/MeetingModeRegistrar";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { useAppConfig } from "@/context/AppConfigContext";
@@ -145,6 +146,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     >
       <SidebarStateRestorer />
       <ThemeRestorer />
+      {/* Attach -> Meeting mode in Chat (stream `meetings`); nothing while
+          its flag is off. */}
+      <MeetingModeRegistrar />
       {shouldShowSidebar ? (
         <LeadFormsProvider>
           {/* h-screen, not min-h-screen: the column is bounded, so a page

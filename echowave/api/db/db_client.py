@@ -16,6 +16,7 @@ from api.db.folder_client import FolderClient
 from api.db.integration_client import IntegrationClient
 from api.db.knowledge_base_client import KnowledgeBaseClient
 from api.db.kyc_client import KycClient
+from api.db.meeting_client import MeetingClient
 from api.db.member_connection_client import MemberConnectionClient
 from api.db.missed_call_client import MissedCallClient
 from api.db.organisation_fact_client import OrganisationFactClient
@@ -44,6 +45,7 @@ from api.db.workflow_template_client import WorkflowTemplateClient
 
 class DBClient(
     AgentEventClient,
+    MeetingClient,
     RoutineClient,
     BotTriggerClient,
     AgentTaskClient,

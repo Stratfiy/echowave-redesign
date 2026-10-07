@@ -88,7 +88,9 @@ export type Feature =
     | "price_compare"
     // Launch stream `learning` (LAUNCH-PLAN.md, phase 2).
     | "learning"
-    | "learning_today";
+    | "learning_today"
+    // Launch stream `meetings` (LAUNCH-PLAN.md, phase 2).
+    | "meeting_capture";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

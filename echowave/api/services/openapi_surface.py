@@ -162,6 +162,9 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             # A person's learning goals, lessons, practice and progress
             # (launch stream `learning`).
             "learning",
+            # Meeting capture and the meeting record (launch stream
+            # `meetings`, screens 11-12).
+            "meetings",
         ),
     ),
     (

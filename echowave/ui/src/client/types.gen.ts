@@ -1568,6 +1568,28 @@ export type BlockedWay = {
 };
 
 /**
+ * Body_add_segment_api_v1_meetings__meeting_id__segments_post
+ */
+export type BodyAddSegmentApiV1MeetingsMeetingIdSegmentsPost = {
+    /**
+     * File
+     */
+    file: Blob | File;
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Start Ms
+     */
+    start_ms: number;
+    /**
+     * End Ms
+     */
+    end_ms: number;
+};
+
+/**
  * Body_import_contacts_api_v1_contact_lists__contact_list_id__import_post
  */
 export type BodyImportContactsApiV1ContactListsContactListIdImportPost = {
@@ -1619,6 +1641,16 @@ export type BodyUploadEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoPost = {
  * Body_upload_numbers_api_v1_do_not_call_upload_post
  */
 export type BodyUploadNumbersApiV1DoNotCallUploadPost = {
+    /**
+     * File
+     */
+    file: Blob | File;
+};
+
+/**
+ * Body_upload_recording_api_v1_meetings__meeting_id__upload_post
+ */
+export type BodyUploadRecordingApiV1MeetingsMeetingIdUploadPost = {
     /**
      * File
      */
@@ -2632,6 +2664,46 @@ export type CampaignsResponse = {
      * Campaigns
      */
     campaigns: Array<CampaignResponse>;
+};
+
+/**
+ * CapabilityLine
+ */
+export type CapabilityLine = {
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+};
+
+/**
+ * CardArgs
+ */
+export type CardArgs = {
+    /**
+     * Task
+     */
+    task?: string | null;
+    /**
+     * Owner Name
+     */
+    owner_name?: string | null;
+    /**
+     * Due At
+     */
+    due_at?: string | null;
+    /**
+     * Due Text
+     */
+    due_text?: string | null;
+    /**
+     * Excerpt
+     */
+    excerpt?: string | null;
 };
 
 /**
@@ -3677,6 +3749,16 @@ export type CopyRequest = {
 };
 
 /**
+ * CorrectRequest
+ */
+export type CorrectRequest = {
+    /**
+     * Text
+     */
+    text: string;
+};
+
+/**
  * CostByOutcomeItem
  */
 export type CostByOutcomeItem = {
@@ -3904,6 +3986,40 @@ export type CreateFromTemplateRequest = {
      * Which screen created it, for the funnel. Omit for the template grid.
      */
     source?: string | null;
+};
+
+/**
+ * CreateMeetingRequest
+ */
+export type CreateMeetingRequest = {
+    /**
+     * Source
+     */
+    source: 'microphone' | 'upload' | 'notes';
+    /**
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Language
+     */
+    language?: string;
+    /**
+     * Participants
+     */
+    participants?: Array<string> | null;
+    /**
+     * Consent Confirmed
+     */
+    consent_confirmed?: boolean;
+    /**
+     * Origin Thread Id
+     */
+    origin_thread_id?: string | null;
+    /**
+     * Notes
+     */
+    notes?: string | null;
 };
 
 /**
@@ -4857,6 +4973,46 @@ export type DefaultConfigurationsResponse = {
 };
 
 /**
+ * DeletionPreview
+ */
+export type DeletionPreview = {
+    /**
+     * Linked Tasks
+     */
+    linked_tasks: Array<LinkedTask>;
+    /**
+     * Waiting Cards
+     */
+    waiting_cards: number;
+    /**
+     * Memory
+     */
+    memory: string;
+    /**
+     * Cards Note
+     */
+    cards_note: string;
+};
+
+/**
+ * DeletionResult
+ */
+export type DeletionResult = {
+    /**
+     * Deleted
+     */
+    deleted: boolean;
+    /**
+     * Tasks Cancelled
+     */
+    tasks_cancelled: number;
+    /**
+     * Tasks Kept
+     */
+    tasks_kept: number;
+};
+
+/**
  * DemoAgentRequest
  */
 export type DemoAgentRequest = {
@@ -5176,6 +5332,28 @@ export type EarlyAdopterRequest = {
      * Until
      */
     until?: string | null;
+};
+
+/**
+ * EditItemRequest
+ */
+export type EditItemRequest = {
+    /**
+     * Text
+     */
+    text?: string | null;
+    /**
+     * Owner Name
+     */
+    owner_name?: string | null;
+    /**
+     * Due At
+     */
+    due_at?: string | null;
+    /**
+     * Due Text
+     */
+    due_text?: string | null;
 };
 
 /**
@@ -6035,6 +6213,55 @@ export type FolderResponse = {
 };
 
 /**
+ * FollowUpCard
+ *
+ * The action card behind one suggested action (controls).
+ */
+export type FollowUpCard = {
+    /**
+     * Event Id
+     */
+    event_id: number;
+    /**
+     * State
+     */
+    state?: string | null;
+    /**
+     * Version
+     */
+    version?: string | null;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Label
+     */
+    label?: string | null;
+    /**
+     * Effect
+     */
+    effect?: string | null;
+    /**
+     * Fires At
+     */
+    fires_at?: string | null;
+    /**
+     * Error
+     */
+    error?: string | null;
+    /**
+     * Done Note
+     */
+    done_note?: string | null;
+    /**
+     * Task Id
+     */
+    task_id?: number | null;
+    args: CardArgs;
+};
+
+/**
  * ForgetEverythingRequest
  */
 export type ForgetEverythingRequest = {
@@ -6086,6 +6313,24 @@ export type ForwardRequest = {
      * Carrier
      */
     carrier?: string | null;
+};
+
+/**
+ * GapRequest
+ */
+export type GapRequest = {
+    /**
+     * At Ms
+     */
+    at_ms: number;
+    /**
+     * Duration Ms
+     */
+    duration_ms?: number | null;
+    /**
+     * Reason
+     */
+    reason: 'microphone_lost' | 'backgrounded' | 'offline' | 'recorder_error';
 };
 
 /**
@@ -8505,6 +8750,28 @@ export type LibraryToolParameter = {
 };
 
 /**
+ * LinkedTask
+ */
+export type LinkedTask = {
+    /**
+     * Task Id
+     */
+    task_id: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Can Cancel
+     */
+    can_cancel: boolean;
+};
+
+/**
  * ListResponse
  */
 export type ListResponse = {
@@ -8834,6 +9101,351 @@ export type MedicineWrite = {
      * Alert Member Ids
      */
     alert_member_ids?: Array<number>;
+};
+
+/**
+ * MeetingAction
+ */
+export type MeetingAction = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Owner Name
+     */
+    owner_name?: string | null;
+    /**
+     * Due Text
+     */
+    due_text?: string | null;
+    /**
+     * Due At
+     */
+    due_at?: string | null;
+    /**
+     * Confidence
+     */
+    confidence?: string | null;
+    /**
+     * Missing
+     */
+    missing: Array<string>;
+    /**
+     * Segment Seq
+     */
+    segment_seq?: number | null;
+    /**
+     * Excerpt
+     */
+    excerpt?: string | null;
+    /**
+     * Source Found
+     */
+    source_found: boolean;
+    /**
+     * Edited
+     */
+    edited: boolean;
+    /**
+     * Task Id
+     */
+    task_id?: number | null;
+    card?: FollowUpCard | null;
+};
+
+/**
+ * MeetingBreak
+ */
+export type MeetingBreak = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Reason Label
+     */
+    reason_label: string;
+    /**
+     * At Ms
+     */
+    at_ms: number;
+    /**
+     * Duration Ms
+     */
+    duration_ms?: number | null;
+};
+
+/**
+ * MeetingCapabilities
+ */
+export type MeetingCapabilities = {
+    /**
+     * Sources
+     */
+    sources: {
+        [key: string]: CapabilityLine;
+    };
+    transcription: TranscriptionCapability;
+    summary: CapabilityLine;
+    /**
+     * Languages
+     */
+    languages: Array<MeetingLanguage>;
+    /**
+     * Max Upload Mb
+     */
+    max_upload_mb: number;
+    /**
+     * Max Minutes
+     */
+    max_minutes: number;
+    /**
+     * Segment Seconds
+     */
+    segment_seconds: number;
+    /**
+     * Limits Note
+     */
+    limits_note: string;
+    /**
+     * Retention Note
+     */
+    retention_note: string;
+};
+
+/**
+ * MeetingItem
+ */
+export type MeetingItem = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Owner Name
+     */
+    owner_name?: string | null;
+    /**
+     * Due Text
+     */
+    due_text?: string | null;
+    /**
+     * Due At
+     */
+    due_at?: string | null;
+    /**
+     * Confidence
+     */
+    confidence?: string | null;
+    /**
+     * Missing
+     */
+    missing: Array<string>;
+    /**
+     * Segment Seq
+     */
+    segment_seq?: number | null;
+    /**
+     * Excerpt
+     */
+    excerpt?: string | null;
+    /**
+     * Source Found
+     */
+    source_found: boolean;
+    /**
+     * Edited
+     */
+    edited: boolean;
+    /**
+     * Task Id
+     */
+    task_id?: number | null;
+};
+
+/**
+ * MeetingLanguage
+ */
+export type MeetingLanguage = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Native
+     */
+    native: string;
+    /**
+     * English
+     */
+    english: string;
+};
+
+/**
+ * MeetingList
+ */
+export type MeetingList = {
+    /**
+     * Meetings
+     */
+    meetings: Array<MeetingSummary>;
+};
+
+/**
+ * MeetingRecord
+ */
+export type MeetingRecord = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * Source Label
+     */
+    source_label: string;
+    /**
+     * Language
+     */
+    language: string;
+    /**
+     * Participants
+     */
+    participants: Array<string>;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Status Reason
+     */
+    status_reason?: string | null;
+    /**
+     * Captured Ms
+     */
+    captured_ms: number;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    /**
+     * Capture Started At
+     */
+    capture_started_at?: string | null;
+    /**
+     * Capture Ended At
+     */
+    capture_ended_at?: string | null;
+    /**
+     * Consent Confirmed At
+     */
+    consent_confirmed_at?: string | null;
+    /**
+     * Origin Thread Id
+     */
+    origin_thread_id?: string | null;
+    /**
+     * Upload Name
+     */
+    upload_name?: string | null;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Reading Status
+     */
+    reading_status: string;
+    /**
+     * Reading Note
+     */
+    reading_note?: string | null;
+    /**
+     * Summary
+     */
+    summary: Array<string>;
+    /**
+     * Transcript
+     */
+    transcript: Array<TranscriptPart>;
+    /**
+     * Breaks
+     */
+    breaks: Array<MeetingBreak>;
+    /**
+     * Decisions
+     */
+    decisions: Array<MeetingItem>;
+    /**
+     * Actions
+     */
+    actions: Array<MeetingAction>;
+    /**
+     * Possible Actions
+     */
+    possible_actions: Array<PossibleAction>;
+};
+
+/**
+ * MeetingSummary
+ */
+export type MeetingSummary = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Captured Ms
+     */
+    captured_ms: number;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    /**
+     * Reading Status
+     */
+    reading_status: string;
 };
 
 /**
@@ -11235,6 +11847,20 @@ export type PlivoConfigurationResponse = {
 };
 
 /**
+ * PossibleAction
+ */
+export type PossibleAction = {
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Text
+     */
+    text: string;
+};
+
+/**
  * PostMessageRequest
  */
 export type PostMessageRequest = {
@@ -12889,6 +13515,16 @@ export type RenameOrganizationRequest = {
 };
 
 /**
+ * RenameRequest
+ */
+export type RenameRequest = {
+    /**
+     * Title
+     */
+    title: string;
+};
+
+/**
  * ResetPasswordRequest
  */
 export type ResetPasswordRequest = {
@@ -12904,6 +13540,20 @@ export type ResetPasswordRequest = {
      * New Password
      */
     new_password: string;
+};
+
+/**
+ * ResumeRequest
+ */
+export type ResumeRequest = {
+    /**
+     * At Ms
+     */
+    at_ms: number;
+    /**
+     * Paused Ms
+     */
+    paused_ms?: number | null;
 };
 
 /**
@@ -13739,6 +14389,20 @@ export type SettleEditRequest = {
 };
 
 /**
+ * SettleItemRequest
+ */
+export type SettleItemRequest = {
+    /**
+     * Verb
+     */
+    verb: 'confirm' | 'decline' | 'undo';
+    /**
+     * Version
+     */
+    version?: string | null;
+};
+
+/**
  * SetupFieldResponse
  */
 export type SetupFieldResponse = {
@@ -14348,16 +15012,6 @@ export type StatusRequest = {
      * Status
      */
     status: string;
-};
-
-/**
- * StopRequest
- */
-export type StopRequest = {
-    /**
-     * Thread Id
-     */
-    thread_id?: string | null;
 };
 
 /**
@@ -15410,6 +16064,70 @@ export type TopupRequest = {
      * A promo code (KAN-134). Checked before the order is made.
      */
     promo_code?: string | null;
+};
+
+/**
+ * TranscriptPart
+ */
+export type TranscriptPart = {
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Start Ms
+     */
+    start_ms: number;
+    /**
+     * End Ms
+     */
+    end_ms: number;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Original Text
+     */
+    original_text?: string | null;
+    /**
+     * Corrected
+     */
+    corrected: boolean;
+    /**
+     * Error
+     */
+    error?: string | null;
+    /**
+     * Has Action Cue
+     */
+    has_action_cue: boolean;
+};
+
+/**
+ * TranscriptionCapability
+ */
+export type TranscriptionCapability = {
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Key Source
+     */
+    key_source?: string | null;
 };
 
 /**
@@ -17708,6 +18426,20 @@ export type ApiRoutesKycAdminRejectRequest = {
 };
 
 /**
+ * StopRequest
+ */
+export type ApiRoutesMeetingsStopRequest = {
+    /**
+     * Last Seq
+     */
+    last_seq?: number | null;
+    /**
+     * Captured Ms
+     */
+    captured_ms?: number | null;
+};
+
+/**
  * RejectRequest
  */
 export type ApiRoutesOpsConsoleRejectRequest = {
@@ -17755,6 +18487,16 @@ export type ApiRoutesPartnerAdminRejectRequest = {
      * Why not. Shown to the applicant, so write it for them.
      */
     note?: string | null;
+};
+
+/**
+ * StopRequest
+ */
+export type ApiRoutesShellStopRequest = {
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
 };
 
 /**
@@ -43105,7 +43847,7 @@ export type SkipOnboardingApiV1ShellOnboardingSkipPostResponses = {
 export type SkipOnboardingApiV1ShellOnboardingSkipPostResponse = SkipOnboardingApiV1ShellOnboardingSkipPostResponses[keyof SkipOnboardingApiV1ShellOnboardingSkipPostResponses];
 
 export type StopReplyApiV1ShellChatStopPostData = {
-    body: StopRequest;
+    body: ApiRoutesShellStopRequest;
     headers?: {
         /**
          * Authorization
@@ -44165,6 +44907,897 @@ export type LearningSuggestionsApiV1LearningSuggestionsGetResponses = {
 };
 
 export type LearningSuggestionsApiV1LearningSuggestionsGetResponse = LearningSuggestionsApiV1LearningSuggestionsGetResponses[keyof LearningSuggestionsApiV1LearningSuggestionsGetResponses];
+
+export type MeetingCapabilitiesApiV1MeetingsCapabilitiesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/meetings/capabilities';
+};
+
+export type MeetingCapabilitiesApiV1MeetingsCapabilitiesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MeetingCapabilitiesApiV1MeetingsCapabilitiesGetError = MeetingCapabilitiesApiV1MeetingsCapabilitiesGetErrors[keyof MeetingCapabilitiesApiV1MeetingsCapabilitiesGetErrors];
+
+export type MeetingCapabilitiesApiV1MeetingsCapabilitiesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingCapabilities;
+};
+
+export type MeetingCapabilitiesApiV1MeetingsCapabilitiesGetResponse = MeetingCapabilitiesApiV1MeetingsCapabilitiesGetResponses[keyof MeetingCapabilitiesApiV1MeetingsCapabilitiesGetResponses];
+
+export type ListMeetingsApiV1MeetingsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/meetings';
+};
+
+export type ListMeetingsApiV1MeetingsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListMeetingsApiV1MeetingsGetError = ListMeetingsApiV1MeetingsGetErrors[keyof ListMeetingsApiV1MeetingsGetErrors];
+
+export type ListMeetingsApiV1MeetingsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingList;
+};
+
+export type ListMeetingsApiV1MeetingsGetResponse = ListMeetingsApiV1MeetingsGetResponses[keyof ListMeetingsApiV1MeetingsGetResponses];
+
+export type CreateMeetingApiV1MeetingsPostData = {
+    body: CreateMeetingRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/meetings';
+};
+
+export type CreateMeetingApiV1MeetingsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateMeetingApiV1MeetingsPostError = CreateMeetingApiV1MeetingsPostErrors[keyof CreateMeetingApiV1MeetingsPostErrors];
+
+export type CreateMeetingApiV1MeetingsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: MeetingRecord;
+};
+
+export type CreateMeetingApiV1MeetingsPostResponse = CreateMeetingApiV1MeetingsPostResponses[keyof CreateMeetingApiV1MeetingsPostResponses];
+
+export type DeleteMeetingApiV1MeetingsMeetingIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: {
+        /**
+         * Cancel Tasks
+         */
+        cancel_tasks?: boolean;
+    };
+    url: '/api/v1/meetings/{meeting_id}';
+};
+
+export type DeleteMeetingApiV1MeetingsMeetingIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteMeetingApiV1MeetingsMeetingIdDeleteError = DeleteMeetingApiV1MeetingsMeetingIdDeleteErrors[keyof DeleteMeetingApiV1MeetingsMeetingIdDeleteErrors];
+
+export type DeleteMeetingApiV1MeetingsMeetingIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: DeletionResult;
+};
+
+export type DeleteMeetingApiV1MeetingsMeetingIdDeleteResponse = DeleteMeetingApiV1MeetingsMeetingIdDeleteResponses[keyof DeleteMeetingApiV1MeetingsMeetingIdDeleteResponses];
+
+export type GetMeetingApiV1MeetingsMeetingIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}';
+};
+
+export type GetMeetingApiV1MeetingsMeetingIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetMeetingApiV1MeetingsMeetingIdGetError = GetMeetingApiV1MeetingsMeetingIdGetErrors[keyof GetMeetingApiV1MeetingsMeetingIdGetErrors];
+
+export type GetMeetingApiV1MeetingsMeetingIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type GetMeetingApiV1MeetingsMeetingIdGetResponse = GetMeetingApiV1MeetingsMeetingIdGetResponses[keyof GetMeetingApiV1MeetingsMeetingIdGetResponses];
+
+export type RenameMeetingApiV1MeetingsMeetingIdPatchData = {
+    body: RenameRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}';
+};
+
+export type RenameMeetingApiV1MeetingsMeetingIdPatchErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RenameMeetingApiV1MeetingsMeetingIdPatchError = RenameMeetingApiV1MeetingsMeetingIdPatchErrors[keyof RenameMeetingApiV1MeetingsMeetingIdPatchErrors];
+
+export type RenameMeetingApiV1MeetingsMeetingIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type RenameMeetingApiV1MeetingsMeetingIdPatchResponse = RenameMeetingApiV1MeetingsMeetingIdPatchResponses[keyof RenameMeetingApiV1MeetingsMeetingIdPatchResponses];
+
+export type AddSegmentApiV1MeetingsMeetingIdSegmentsPostData = {
+    body: BodyAddSegmentApiV1MeetingsMeetingIdSegmentsPost;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/segments';
+};
+
+export type AddSegmentApiV1MeetingsMeetingIdSegmentsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddSegmentApiV1MeetingsMeetingIdSegmentsPostError = AddSegmentApiV1MeetingsMeetingIdSegmentsPostErrors[keyof AddSegmentApiV1MeetingsMeetingIdSegmentsPostErrors];
+
+export type AddSegmentApiV1MeetingsMeetingIdSegmentsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type AddSegmentApiV1MeetingsMeetingIdSegmentsPostResponse = AddSegmentApiV1MeetingsMeetingIdSegmentsPostResponses[keyof AddSegmentApiV1MeetingsMeetingIdSegmentsPostResponses];
+
+export type UploadRecordingApiV1MeetingsMeetingIdUploadPostData = {
+    body: BodyUploadRecordingApiV1MeetingsMeetingIdUploadPost;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/upload';
+};
+
+export type UploadRecordingApiV1MeetingsMeetingIdUploadPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UploadRecordingApiV1MeetingsMeetingIdUploadPostError = UploadRecordingApiV1MeetingsMeetingIdUploadPostErrors[keyof UploadRecordingApiV1MeetingsMeetingIdUploadPostErrors];
+
+export type UploadRecordingApiV1MeetingsMeetingIdUploadPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type UploadRecordingApiV1MeetingsMeetingIdUploadPostResponse = UploadRecordingApiV1MeetingsMeetingIdUploadPostResponses[keyof UploadRecordingApiV1MeetingsMeetingIdUploadPostResponses];
+
+export type PauseMeetingApiV1MeetingsMeetingIdPausePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/pause';
+};
+
+export type PauseMeetingApiV1MeetingsMeetingIdPausePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PauseMeetingApiV1MeetingsMeetingIdPausePostError = PauseMeetingApiV1MeetingsMeetingIdPausePostErrors[keyof PauseMeetingApiV1MeetingsMeetingIdPausePostErrors];
+
+export type PauseMeetingApiV1MeetingsMeetingIdPausePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type PauseMeetingApiV1MeetingsMeetingIdPausePostResponse = PauseMeetingApiV1MeetingsMeetingIdPausePostResponses[keyof PauseMeetingApiV1MeetingsMeetingIdPausePostResponses];
+
+export type ResumeMeetingApiV1MeetingsMeetingIdResumePostData = {
+    body: ResumeRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/resume';
+};
+
+export type ResumeMeetingApiV1MeetingsMeetingIdResumePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ResumeMeetingApiV1MeetingsMeetingIdResumePostError = ResumeMeetingApiV1MeetingsMeetingIdResumePostErrors[keyof ResumeMeetingApiV1MeetingsMeetingIdResumePostErrors];
+
+export type ResumeMeetingApiV1MeetingsMeetingIdResumePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type ResumeMeetingApiV1MeetingsMeetingIdResumePostResponse = ResumeMeetingApiV1MeetingsMeetingIdResumePostResponses[keyof ResumeMeetingApiV1MeetingsMeetingIdResumePostResponses];
+
+export type ReportGapApiV1MeetingsMeetingIdGapsPostData = {
+    body: GapRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/gaps';
+};
+
+export type ReportGapApiV1MeetingsMeetingIdGapsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReportGapApiV1MeetingsMeetingIdGapsPostError = ReportGapApiV1MeetingsMeetingIdGapsPostErrors[keyof ReportGapApiV1MeetingsMeetingIdGapsPostErrors];
+
+export type ReportGapApiV1MeetingsMeetingIdGapsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type ReportGapApiV1MeetingsMeetingIdGapsPostResponse = ReportGapApiV1MeetingsMeetingIdGapsPostResponses[keyof ReportGapApiV1MeetingsMeetingIdGapsPostResponses];
+
+export type StopMeetingApiV1MeetingsMeetingIdStopPostData = {
+    body: ApiRoutesMeetingsStopRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/stop';
+};
+
+export type StopMeetingApiV1MeetingsMeetingIdStopPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StopMeetingApiV1MeetingsMeetingIdStopPostError = StopMeetingApiV1MeetingsMeetingIdStopPostErrors[keyof StopMeetingApiV1MeetingsMeetingIdStopPostErrors];
+
+export type StopMeetingApiV1MeetingsMeetingIdStopPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type StopMeetingApiV1MeetingsMeetingIdStopPostResponse = StopMeetingApiV1MeetingsMeetingIdStopPostResponses[keyof StopMeetingApiV1MeetingsMeetingIdStopPostResponses];
+
+export type RetryMeetingApiV1MeetingsMeetingIdRetryPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/retry';
+};
+
+export type RetryMeetingApiV1MeetingsMeetingIdRetryPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RetryMeetingApiV1MeetingsMeetingIdRetryPostError = RetryMeetingApiV1MeetingsMeetingIdRetryPostErrors[keyof RetryMeetingApiV1MeetingsMeetingIdRetryPostErrors];
+
+export type RetryMeetingApiV1MeetingsMeetingIdRetryPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type RetryMeetingApiV1MeetingsMeetingIdRetryPostResponse = RetryMeetingApiV1MeetingsMeetingIdRetryPostResponses[keyof RetryMeetingApiV1MeetingsMeetingIdRetryPostResponses];
+
+export type CorrectTranscriptApiV1MeetingsMeetingIdTranscriptSeqPutData = {
+    body: CorrectRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+        /**
+         * Seq
+         */
+        seq: number;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/transcript/{seq}';
+};
+
+export type CorrectTranscriptApiV1MeetingsMeetingIdTranscriptSeqPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CorrectTranscriptApiV1MeetingsMeetingIdTranscriptSeqPutError = CorrectTranscriptApiV1MeetingsMeetingIdTranscriptSeqPutErrors[keyof CorrectTranscriptApiV1MeetingsMeetingIdTranscriptSeqPutErrors];
+
+export type CorrectTranscriptApiV1MeetingsMeetingIdTranscriptSeqPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type CorrectTranscriptApiV1MeetingsMeetingIdTranscriptSeqPutResponse = CorrectTranscriptApiV1MeetingsMeetingIdTranscriptSeqPutResponses[keyof CorrectTranscriptApiV1MeetingsMeetingIdTranscriptSeqPutResponses];
+
+export type ReadAgainApiV1MeetingsMeetingIdReadPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/read';
+};
+
+export type ReadAgainApiV1MeetingsMeetingIdReadPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadAgainApiV1MeetingsMeetingIdReadPostError = ReadAgainApiV1MeetingsMeetingIdReadPostErrors[keyof ReadAgainApiV1MeetingsMeetingIdReadPostErrors];
+
+export type ReadAgainApiV1MeetingsMeetingIdReadPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type ReadAgainApiV1MeetingsMeetingIdReadPostResponse = ReadAgainApiV1MeetingsMeetingIdReadPostResponses[keyof ReadAgainApiV1MeetingsMeetingIdReadPostResponses];
+
+export type ExportMeetingApiV1MeetingsMeetingIdExportGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/export';
+};
+
+export type ExportMeetingApiV1MeetingsMeetingIdExportGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ExportMeetingApiV1MeetingsMeetingIdExportGetError = ExportMeetingApiV1MeetingsMeetingIdExportGetErrors[keyof ExportMeetingApiV1MeetingsMeetingIdExportGetErrors];
+
+export type ExportMeetingApiV1MeetingsMeetingIdExportGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: string;
+};
+
+export type ExportMeetingApiV1MeetingsMeetingIdExportGetResponse = ExportMeetingApiV1MeetingsMeetingIdExportGetResponses[keyof ExportMeetingApiV1MeetingsMeetingIdExportGetResponses];
+
+export type DeletionPreviewApiV1MeetingsMeetingIdDeletionGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/deletion';
+};
+
+export type DeletionPreviewApiV1MeetingsMeetingIdDeletionGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeletionPreviewApiV1MeetingsMeetingIdDeletionGetError = DeletionPreviewApiV1MeetingsMeetingIdDeletionGetErrors[keyof DeletionPreviewApiV1MeetingsMeetingIdDeletionGetErrors];
+
+export type DeletionPreviewApiV1MeetingsMeetingIdDeletionGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: DeletionPreview;
+};
+
+export type DeletionPreviewApiV1MeetingsMeetingIdDeletionGetResponse = DeletionPreviewApiV1MeetingsMeetingIdDeletionGetResponses[keyof DeletionPreviewApiV1MeetingsMeetingIdDeletionGetResponses];
+
+export type EditActionApiV1MeetingsMeetingIdActionsItemIdPutData = {
+    body: EditItemRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+        /**
+         * Item Id
+         */
+        item_id: number;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/actions/{item_id}';
+};
+
+export type EditActionApiV1MeetingsMeetingIdActionsItemIdPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EditActionApiV1MeetingsMeetingIdActionsItemIdPutError = EditActionApiV1MeetingsMeetingIdActionsItemIdPutErrors[keyof EditActionApiV1MeetingsMeetingIdActionsItemIdPutErrors];
+
+export type EditActionApiV1MeetingsMeetingIdActionsItemIdPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type EditActionApiV1MeetingsMeetingIdActionsItemIdPutResponse = EditActionApiV1MeetingsMeetingIdActionsItemIdPutResponses[keyof EditActionApiV1MeetingsMeetingIdActionsItemIdPutResponses];
+
+export type ReviewActionApiV1MeetingsMeetingIdActionsItemIdReviewPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+        /**
+         * Item Id
+         */
+        item_id: number;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/actions/{item_id}/review';
+};
+
+export type ReviewActionApiV1MeetingsMeetingIdActionsItemIdReviewPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReviewActionApiV1MeetingsMeetingIdActionsItemIdReviewPostError = ReviewActionApiV1MeetingsMeetingIdActionsItemIdReviewPostErrors[keyof ReviewActionApiV1MeetingsMeetingIdActionsItemIdReviewPostErrors];
+
+export type ReviewActionApiV1MeetingsMeetingIdActionsItemIdReviewPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type ReviewActionApiV1MeetingsMeetingIdActionsItemIdReviewPostResponse = ReviewActionApiV1MeetingsMeetingIdActionsItemIdReviewPostResponses[keyof ReviewActionApiV1MeetingsMeetingIdActionsItemIdReviewPostResponses];
+
+export type SettleActionApiV1MeetingsMeetingIdActionsItemIdSettlePostData = {
+    body: SettleItemRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+        /**
+         * Item Id
+         */
+        item_id: number;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/actions/{item_id}/settle';
+};
+
+export type SettleActionApiV1MeetingsMeetingIdActionsItemIdSettlePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SettleActionApiV1MeetingsMeetingIdActionsItemIdSettlePostError = SettleActionApiV1MeetingsMeetingIdActionsItemIdSettlePostErrors[keyof SettleActionApiV1MeetingsMeetingIdActionsItemIdSettlePostErrors];
+
+export type SettleActionApiV1MeetingsMeetingIdActionsItemIdSettlePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type SettleActionApiV1MeetingsMeetingIdActionsItemIdSettlePostResponse = SettleActionApiV1MeetingsMeetingIdActionsItemIdSettlePostResponses[keyof SettleActionApiV1MeetingsMeetingIdActionsItemIdSettlePostResponses];
 
 export type PublicShelfApiV1PublicMarketplaceGetData = {
     body?: never;

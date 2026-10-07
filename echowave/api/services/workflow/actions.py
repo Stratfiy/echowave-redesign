@@ -149,6 +149,11 @@ OWNED_ACTIONS = (PLACE_ORDER, RUN_OUTSIDE_TOOL)
 #: `learning`; see services/learning). Internal: proposed from the progress
 #: page's Delete, never by a model; only the learner's own Confirm runs it.
 DELETE_LEARNING_GOAL = "delete_learning_goal"
+#: Add one task from a meeting's suggested follow-up (launch stream
+#: `meetings`; see services/meetings/follow_ups.py). Internal: proposed from
+#: the meeting record, never by a model, and only the person who captured
+#: the meeting may settle it.
+MEETING_FOLLOW_UP = "meeting_follow_up"
 INTERNAL_ACTIONS = (
     PLACE_ORDER,
     RUN_OUTSIDE_TOOL,
@@ -161,6 +166,7 @@ INTERNAL_ACTIONS = (
     BROWSER_STEP,
     *CARE_ACTIONS,
     DELETE_LEARNING_GOAL,
+    MEETING_FOLLOW_UP,
 )
 
 #: The states a proposal moves through. Terminal ones are the last four.
@@ -364,7 +370,9 @@ class ActionError(ValueError):
 
 
 class OutcomeUnknown(ActionError):
-    """It was handed over and nobody knows whether it happened."""
+    """It was handed over and nobody knows whether it happened: a browser
+    press that never reported back, an order or an outside write that broke
+    after reaching the service. Never retried; the card says so."""
 
 
 # --- resolving what was proposed -------------------------------------------
@@ -483,6 +491,10 @@ async def resolve(
             return desktop_steps.resolve(arguments, why=why)
         except desktop_steps.DesktopStepError as exc:
             raise ActionError(str(exc)) from exc
+    if action == MEETING_FOLLOW_UP:
+        from api.services.meetings import follow_ups
+
+        return await follow_ups.resolve_card(organization_id, arguments)
 
     if action == BUILD_FROM_SPEC:
         from api.services.workflow import bot_from_brief
@@ -1091,6 +1103,13 @@ async def settle(
         # An order or an outside write acts in one person's account: a
         # colleague who can see the card can neither approve nor stop it.
         raise ActionError("Only the person this is for can decide on it.")
+    if payload.get("action") == MEETING_FOLLOW_UP:
+        from api.services.meetings import follow_ups
+
+        if follow_ups.owner_of(payload) != user_id:
+            # A meeting is private to whoever captured it; to anyone else
+            # its card is not there, the way a wrong tenant is not.
+            raise ActionError("That proposal is not here.")
 
     if verb == "confirm":
         if state != PROPOSED:
@@ -1346,6 +1365,11 @@ async def _say(event: Any, line: str) -> None:
     what happened without opening the card."""
     from api.services.workflow import decibyl
 
+    if (getattr(event, "payload", None) or {}).get("action") == MEETING_FOLLOW_UP:
+        # The meeting record shows the card's outcome; a line on Decibyl's
+        # shared thread would put a private meeting's words in front of the
+        # whole workspace.
+        return
     payload: dict[str, Any] = {"body": line, "action_event_id": event.id}
     if (event.payload or {}).get("private_to"):
         # What happened to a private card is as private as the card.
@@ -1362,11 +1386,6 @@ async def _say(event: Any, line: str) -> None:
         payload=payload,
         in_channel=event.folder_id is not None,
     )
-
-
-class OutcomeUnknown(Exception):
-    """Something reached the outside service and broke: whether it happened
-    is not known. Never retried; the card says so."""
 
 
 async def _execute_owned(organization_id: int, payload: dict[str, Any]) -> str:
@@ -1479,6 +1498,10 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
         ):
             raise ActionError("That learning goal was already deleted.")
         return "Deleted the learning goal and all its practice."
+    if action == MEETING_FOLLOW_UP:
+        from api.services.meetings import follow_ups
+
+        return await follow_ups.execute(organization_id, payload)
     if action == SCHEDULE_ROUTINE:
         routine = await db_client.create_routine(
             organization_id=organization_id,
@@ -1709,6 +1732,11 @@ async def _reverse(organization_id: int, payload: dict[str, Any]) -> None:
 
         await care_cards.reverse(organization_id, payload)
         return
+    if action == MEETING_FOLLOW_UP:
+        from api.services.meetings import follow_ups
+
+        await follow_ups.reverse(organization_id, payload)
+        return
     if action == INSTALL_FROM_REPOSITORY:
         from api.services.skills import imports
 
@@ -1782,19 +1810,14 @@ async def run(event_id: int, organization_id: int) -> None:
     try:
         note = await _execute(organization_id, payload)
     except OutcomeUnknown as exc:
-        # The ledger's state for it, with the browser's own words: the press
-        # was handed over and never reported back.
+        # A browser press that never reported back, or an order or outside
+        # write that may have happened: said so whatever the ledger switch,
+        # never "failed", never fired again.
         payload["state"] = OUTCOME_UNKNOWN
         payload["error"] = str(exc)
         await _write(event, payload)
         await _say(event, f"Not known: {payload['label'].lower()}. {exc}")
         await _emit("task_failed", event, payload, confirmer)
-        # An order or an outside write that may have happened: said so
-        # whatever the ledger switch, never "failed", never fired again.
-        payload["state"] = OUTCOME_UNKNOWN
-        payload["error"] = str(exc)
-        await _write(event, payload)
-        await _say(event, f"{payload['label']}: {exc}")
         return
     except ActionError as exc:
         payload["state"] = FAILED
