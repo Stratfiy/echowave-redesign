@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({
   update: vi.fn((request: unknown) => Promise.resolve({ data: {}, request })),
+  numbersFail: false,
+  agentsFail: false,
 }));
 
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
@@ -24,7 +26,7 @@ vi.mock("@/client/sdk.gen", () => ({
   listTelephonyConfigurationsApiV1OrganizationsTelephonyConfigsGet: async () => ({
     data: { configurations: [{ id: 1, name: "Decibyl", provider: "plivo", is_platform_managed: true, is_default_outbound: true }] },
   }),
-  listPhoneNumbersApiV1OrganizationsTelephonyConfigsConfigIdPhoneNumbersGet: async () => ({
+  listPhoneNumbersApiV1OrganizationsTelephonyConfigsConfigIdPhoneNumbersGet: async () => api.numbersFail ? { error: { detail: "down" } } : ({
     data: {
       phone_numbers: [
         { id: 10, address: "+918047182290", is_active: true, inbound_workflow_id: 7, inbound_workflow_name: "Riya" },
@@ -33,7 +35,8 @@ vi.mock("@/client/sdk.gen", () => ({
     },
   }),
   listNumbersApiV1VerifiedNumbersGet: async () => ({ data: [] }),
-  getWorkflowsSummaryApiV1WorkflowSummaryGet: async () => ({ data: [{ id: 7, name: "Riya" }, { id: 9, name: "Accounts" }] }),
+  getWorkflowsSummaryApiV1WorkflowSummaryGet: async () =>
+    api.agentsFail ? { error: { detail: "down" } } : { data: [{ id: 7, name: "Riya" }, { id: 9, name: "Accounts" }] },
   updatePhoneNumberApiV1OrganizationsTelephonyConfigsConfigIdPhoneNumbersPhoneNumberIdPut: api.update,
 }));
 
@@ -42,6 +45,8 @@ import PhoneNumbersPage from "../page";
 afterEach(() => {
   cleanup();
   api.update.mockClear();
+  api.numbersFail = false;
+  api.agentsFail = false;
 });
 
 describe("Settings -> Phone numbers", () => {
@@ -82,5 +87,22 @@ describe("Settings -> Phone numbers", () => {
   it("keeps the carriers below the list", async () => {
     render(<PhoneNumbersPage />);
     expect(await screen.findByText("carriers")).toBeTruthy();
+  });
+});
+
+describe("a part that failed to load is said, not shown as empty", () => {
+  it("names the carrier whose numbers did not load instead of saying there are none", async () => {
+    api.numbersFail = true;
+    render(<PhoneNumbersPage />);
+    expect((await screen.findByTestId("numbers-partial")).textContent).toMatch(/Could not load bought numbers/);
+    expect(screen.queryByText("No number yet.")).toBeNull();
+  });
+
+  it("does not offer to change who answers when the agents did not load", async () => {
+    api.agentsFail = true;
+    render(<PhoneNumbersPage />);
+    expect((await screen.findByTestId("numbers-partial")).textContent).toMatch(/Could not load your agents/);
+    const list = screen.getByTestId("number-list");
+    expect(within(list).queryAllByRole("menuitem")).toHaveLength(0);
   });
 });

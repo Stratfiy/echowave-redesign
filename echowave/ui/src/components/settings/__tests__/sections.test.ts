@@ -12,15 +12,24 @@ describe("Settings' sections", () => {
     expect(SETTINGS_SECTIONS.map((s) => s.title)).toEqual([
       "General",
       "Team",
-      "Phone numbers",
       "Models",
-      "Apps and tools",
       "Knowledge",
+      "Apps and tools",
       "Channels",
+      "Phone numbers",
       "Company",
+      "Advanced",
       "Developer",
       "Compliance",
     ]);
+  });
+
+  it("puts every section in a group, and General has a page of its own on a phone", () => {
+    expect(new Set(SETTINGS_SECTIONS.map((s) => s.group))).toEqual(new Set(["You", "Assistant", "Identity", "Advanced"]));
+    const general = SETTINGS_SECTIONS.find((s) => s.id === "general");
+    expect(general?.mobileHref).toBe("/settings/general");
+    expect(existsSync(resolve(APP, "settings", "general", "page.tsx"))).toBe(true);
+    expect(activeSection("/settings/general")).toBe("general");
   });
 
   it.each(SETTINGS_SECTIONS.map((s) => [s.title, s.href]))("%s is a page (%s)", (_, href) => {

@@ -76,15 +76,34 @@ export default function ModelsPage() {
     void load();
   }, [authLoading, user, load]);
 
+  // One save per slot at a time, and only the latest answer is drawn. Two
+  // quick picks used to race: the slower response could land last and show
+  // a choice the server no longer held.
+  const [pending, setPending] = useState<Record<string, boolean>>({});
+  const latest = useRef(0);
+
   const choose = async (slot: ModelSlot, value: string, label: string) => {
-    const res = await setWorkspaceModelApiV1OrganizationsModelsPut({ body: { slot: slot.key, value } });
-    if (res.error) {
-      toast.error(detailFromError(res.error, "Could not change that"));
+    if (pending[slot.key]) return false;
+    const mine = ++latest.current;
+    setPending((was) => ({ ...was, [slot.key]: true }));
+    try {
+      const res = await setWorkspaceModelApiV1OrganizationsModelsPut({ body: { slot: slot.key, value } });
+      if (res.error) {
+        toast.error(detailFromError(res.error, "Could not change that"));
+        // Show what the server actually holds, not the last thing clicked.
+        if (mine === latest.current) void load();
+        return false;
+      }
+      if (mine === latest.current) setView(res.data as unknown as View);
+      toast.success(`${slot.label}: ${label}, for every agent`);
+      return true;
+    } catch {
+      toast.error("Could not reach the server. Your last saved choice is unchanged.");
+      if (mine === latest.current) void load();
       return false;
+    } finally {
+      setPending((was) => ({ ...was, [slot.key]: false }));
     }
-    setView(res.data as unknown as View);
-    toast.success(`${slot.label}: ${label}, for every agent`);
-    return true;
   };
 
   return (
@@ -118,6 +137,7 @@ export default function ModelsPage() {
                 <SlotPicker
                   slot={slot}
                   locked={Boolean(view.locked)}
+                  saving={Boolean(pending[slot.key])}
                   onChoose={(value, label) => void choose(slot, value, label)}
                   onOwn={(own) => setOwnFor({ slot, own })}
                 />
@@ -144,11 +164,13 @@ export default function ModelsPage() {
 function SlotPicker({
   slot,
   locked,
+  saving,
   onChoose,
   onOwn,
 }: {
   slot: ModelSlot;
   locked: boolean;
+  saving: boolean;
   onChoose: (value: string, label: string) => void;
   onOwn: (own: Own) => void;
 }) {
@@ -167,10 +189,12 @@ function SlotPicker({
         <button
           type="button"
           aria-label={`${slot.label}: ${slot.current_label}. Change`}
-          className="inline-flex h-9 max-w-full shrink-0 items-center gap-1.5 rounded-full bg-[var(--paper-2)] px-3.5 text-sm transition-colors hover:bg-[var(--line)]"
+          disabled={saving}
+          aria-busy={saving || undefined}
+          className="inline-flex h-9 max-w-full shrink-0 items-center gap-1.5 rounded-full bg-[var(--paper-2)] px-3.5 text-sm transition-colors hover:bg-[var(--line)] disabled:opacity-60"
         >
           {ownKey && <KeyRound className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />}
-          <span className="truncate">{slot.current_label}</span>
+          <span className="truncate">{saving ? "Saving…" : slot.current_label}</span>
           <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
         </button>
       </DropdownMenuTrigger>

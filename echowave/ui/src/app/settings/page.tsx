@@ -1,16 +1,12 @@
 "use client";
 
-import { ExternalLink } from "lucide-react";
 import { Suspense } from "react";
 
 import { ApprovalsSection } from "@/components/ApprovalsSection";
-import { CredentialsSection } from "@/components/CredentialsSection";
 import { DecibylAppsSection } from "@/components/DecibylAppsSection";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
-import { MCPSection } from "@/components/MCPSection";
 import { MfaSection } from "@/components/MfaSection";
 import { OrganizationPreferencesSection } from "@/components/OrganizationPreferencesSection";
-import { TelemetrySection } from "@/components/TelemetrySection";
 import { ThemeModeSection } from "@/components/ThemeModeSection";
 import {
   Card,
@@ -33,7 +29,7 @@ export default function SettingsPage() {
     <UnsavedChangesProvider>
       <PageHeader
         title="General"
-        description="Your workspace's defaults, how the app looks, and how you sign in."
+        description="Your workspace's defaults, how the app looks, and how you sign in. Tool credentials, MCP and tracing are under Advanced."
       />
       {/* Two columns from lg up. As a single max-w-2xl column this page put a
           670px stack of cards in the middle of a 1190px content area and left
@@ -65,6 +61,18 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle>Security</CardTitle>
+            <CardDescription>
+              Require a code from an authenticator app at sign-in, on top of
+              your password.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <MfaSection />
+          </CardContent>
+        </Card>
         {decibylApps && (
           <Card id="decibyl-apps">
             <CardHeader>
@@ -98,72 +106,6 @@ export default function SettingsPage() {
           </Card>
         )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Tool credentials</CardTitle>
-            <CardDescription>
-              The secrets your tools authenticate with. Rotate one and every tool
-              using it picks the new value up on its next call.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <CredentialsSection />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>MCP Server</CardTitle>
-            <CardDescription>
-              Let AI agents access your Decibyl workspace and documentation via
-              the Model Context Protocol.{" "}
-              <a
-                href="https://docs.decibyl.ai/integrations/mcp"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-0.5 underline"
-              >
-                Learn more <ExternalLink className="h-3 w-3" />
-              </a>
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <MCPSection />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Telemetry</CardTitle>
-            <CardDescription>
-              Configure Langfuse tracing for calls your agents take.{" "}
-              <a
-                href="https://docs.decibyl.ai/configurations/tracing"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-0.5 underline"
-              >
-                Learn more <ExternalLink className="h-3 w-3" />
-              </a>
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <TelemetrySection />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Security</CardTitle>
-            <CardDescription>
-              Require a code from an authenticator app at sign-in, on top of
-              your password.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <MfaSection />
-          </CardContent>
-        </Card>
       </PageBody>
     </UnsavedChangesProvider>
   );

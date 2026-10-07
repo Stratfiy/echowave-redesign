@@ -54,6 +54,11 @@ export default function PhoneNumbersPage() {
   const [verified, setVerified] = useState<VerifiedNumber[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "failed">("loading");
+  // Parts of the list that did not load. A carrier whose numbers failed is
+  // not a carrier with no numbers, and an empty agent list after a failure
+  // is not "No agents yet" -- so each failure is named, not defaulted to [].
+  const [missing, setMissing] = useState<string[]>([]);
+  const [agentsFailed, setAgentsFailed] = useState(false);
   const started = useRef(false);
 
   const load = useCallback(async () => {
@@ -63,11 +68,13 @@ export default function PhoneNumbersPage() {
       return;
     }
     const items = listed.data?.configurations ?? [];
+    const failed: string[] = [];
     const pairs = await Promise.all(
       items.map(async (config) => {
         const res = await listPhoneNumbersApiV1OrganizationsTelephonyConfigsConfigIdPhoneNumbersGet({
           path: { config_id: config.id },
         });
+        if (res.error) failed.push(config.is_platform_managed ? "bought numbers" : config.name);
         return [config.id, res.data?.phone_numbers ?? []] as const;
       }),
     );
@@ -75,10 +82,13 @@ export default function PhoneNumbersPage() {
       listNumbersApiV1VerifiedNumbersGet(),
       getWorkflowsSummaryApiV1WorkflowSummaryGet({ query: { status: "active" } }),
     ]);
+    if (verifiedRes.error) failed.push("verified caller IDs");
     setConfigs(items);
     setNumbers(Object.fromEntries(pairs));
     setVerified((verifiedRes.data as VerifiedNumber[] | undefined) ?? []);
     setAgents((agentsRes.data ?? []).map((w) => ({ id: w.id, name: w.name })));
+    setAgentsFailed(Boolean(agentsRes.error));
+    setMissing(failed);
     setState("ready");
   }, []);
 
@@ -151,7 +161,16 @@ export default function PhoneNumbersPage() {
             </div>
           )}
           {state === "failed" && <p className="text-sm text-muted-foreground">Could not load your numbers. Refresh to try again.</p>}
-          {state === "ready" && rows.length === 0 && (
+          {state === "ready" && (missing.length > 0 || agentsFailed) && (
+            <p className="mb-3 rounded-2xl bg-[var(--paper-2)] px-4 py-3 text-sm" role="alert" data-testid="numbers-partial">
+              {missing.length > 0 && <>Could not load {missing.join(", ")}, so this list may be missing numbers. </>}
+              {agentsFailed && <>Could not load your agents, so who answers cannot be changed right now. </>}
+              <button type="button" onClick={() => void load()} className="underline underline-offset-2">
+                Try again
+              </button>
+            </p>
+          )}
+          {state === "ready" && rows.length === 0 && missing.length === 0 && (
             <div className="rounded-2xl bg-[var(--paper-2)] p-6 text-sm">
               <p className="font-medium">No number yet.</p>
               <p className="mt-1 text-muted-foreground">
@@ -174,7 +193,14 @@ export default function PhoneNumbersPage() {
                   </div>
                   <div className="flex flex-1 flex-wrap gap-1.5">
                     {row.uses.map((use, i) => (
-                      <UseChip key={`${use.kind}-${i}`} row={row} use={use} agents={agents} onAssign={assign} />
+                      <UseChip
+                        key={`${use.kind}-${i}`}
+                        row={row}
+                        use={use}
+                        agents={agents}
+                        agentsFailed={agentsFailed}
+                        onAssign={assign}
+                      />
                     ))}
                   </div>
                 </li>
@@ -195,11 +221,13 @@ function UseChip({
   row,
   use,
   agents,
+  agentsFailed,
   onAssign,
 }: {
   row: NumberRow;
   use: NumberUse;
   agents: Agent[];
+  agentsFailed: boolean;
   onAssign: (row: NumberRow, workflowId: number | null) => void;
 }) {
   if (use.kind === "test_only") {
@@ -217,7 +245,8 @@ function UseChip({
       </span>
     );
   }
-  const changeable = Boolean(row.configId && row.phoneNumberId);
+  // Never offer a reassignment built on an agent list that failed to load.
+  const changeable = Boolean(row.configId && row.phoneNumberId) && !agentsFailed;
   const label = use.kind === "answers" ? `${use.name} answers ${row.address}. Change who answers` : `Nobody answers ${row.address}. Choose who answers`;
   const chip =
     use.kind === "answers" ? (
