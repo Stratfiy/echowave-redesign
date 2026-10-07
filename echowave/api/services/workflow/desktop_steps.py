@@ -15,9 +15,22 @@ action in ``actions.py``:
 4. **Running.** The computer claimed it -- a compare-and-swap from released,
    checked against the fingerprint of the step the person saw. A second
    claim, a retried request, or a step that differs by one pixel or one
-   character gets nothing. A card left here means the computer stopped
-   before it reported: the outcome is unknown and it is never run again.
-5. **Done / failed.** What the computer reported.
+   character gets nothing.
+5. **Done / failed / outcome unknown.** What the computer reported. A step
+   the computer took and never reported on is swept to ``outcome_unknown``
+   by ``actions.sweep_stale_running`` (task ledger), like any card whose job
+   died, and is never run again. A released step no computer took is swept
+   to cancelled by ``sweep_unclaimed``: nothing was done, and the card says so.
+
+With the task ledger on, the card carries the payload version controls
+binds approvals to: Confirm must name it, and ``actions.run`` re-checks it
+before releasing. A ``send`` step spends the confirming person's outbound
+messages quota, as every send does (``actions._is_outbound``).
+
+RELEASED and the fingerprint claim are this module's own: every other card
+is executed by ``actions.run`` on the server, so controls has no state for
+"approved, waiting for the person's computer to take it", and no other
+executor that must prove it runs the exact step that was approved.
 
 Only the person whose computer it is can answer the card or claim it
 (``args.user_id``); a teammate reading the thread cannot press Do it on
@@ -128,6 +141,9 @@ async def propose(
         waiting = await _waiting(organization_id, payload)
         if waiting is not None:
             return int(waiting.id)
+        if actions._ledger_on(organization_id):
+            # The exact act a Confirm will approve, as actions.propose stamps.
+            payload["version"] = actions.payload_version(payload)
         with agent_timeline.collecting() as rows:
             await agent_timeline.record(
                 organization_id=organization_id,
@@ -167,6 +183,16 @@ async def state(*, organization_id: int, user_id: int, event_id: int) -> dict[st
     }
 
 
+async def _cas(event: Any, from_state: str, payload: dict[str, Any]) -> bool:
+    """Compare-and-swap through actions._move, which also stamps the card's
+    task-ledger state. False when somebody moved it first."""
+    try:
+        await actions._move(event, from_state, payload)
+    except actions.ActionError:
+        return False
+    return True
+
+
 async def claim(
     *, organization_id: int, user_id: int, event_id: int, fingerprint: str
 ) -> bool:
@@ -180,18 +206,22 @@ async def claim(
         return False
     payload["state"] = actions.RUNNING
     payload["claimed"] = {"by": user_id, "at": datetime.now(UTC).isoformat()}
-    return await db_client.transition_agent_event_payload(
-        event.id,
-        organization_id=organization_id,
-        from_state=actions.RELEASED,
-        payload=payload,
-    )
+    return await _cas(event, actions.RELEASED, payload)
 
 
 async def report(
-    *, organization_id: int, user_id: int, event_id: int, ok: bool, note: str
+    *,
+    organization_id: int,
+    user_id: int,
+    event_id: int,
+    ok: bool | None,
+    note: str,
 ) -> dict[str, Any]:
-    """What happened on the computer. Only a claimed step can be reported."""
+    """What happened on the computer. Only a claimed step can be reported.
+
+    ``ok=None`` is the computer saying it does not know -- the action broke
+    part-way -- which is ``outcome_unknown``, never a failure it could retry.
+    """
     event = await _own_step(organization_id, user_id, event_id)
     payload = dict(event.payload or {})
     if payload.get("state") != actions.RUNNING or not payload.get("claimed"):
@@ -205,16 +235,20 @@ async def report(
             if note
             else "Done on your computer.",
         }
+    elif ok is None:
+        from api.services.workflow import task_ledger
+
+        payload["state"] = actions.OUTCOME_UNKNOWN
+        payload["error"] = task_ledger.UNKNOWN_COPY
+        payload["reason_code"] = "desktop_unsure"
     else:
         payload["state"] = actions.FAILED
         payload["error"] = note or "It did not work on your computer."
-    if not await db_client.transition_agent_event_payload(
-        event.id,
-        organization_id=organization_id,
-        from_state=actions.RUNNING,
-        payload=payload,
-    ):
+    if not await _cas(event, actions.RUNNING, payload):
         raise DesktopStepError("Already reported.")
+    await actions._emit(
+        "task_completed" if ok else "task_failed", event, payload, user_id
+    )
     return {"event_id": event.id, "state": payload["state"]}
 
 
@@ -243,14 +277,65 @@ async def cancel(*, organization_id: int, user_id: int, event_id: int) -> str:
     if current == actions.RELEASED:
         payload["state"] = actions.CANCELLED
         payload["cancelled"] = {"by": user_id, "at": datetime.now(UTC).isoformat()}
-        if await db_client.transition_agent_event_payload(
-            event.id,
-            organization_id=organization_id,
-            from_state=actions.RELEASED,
-            payload=payload,
-        ):
+        if await _cas(event, actions.RELEASED, payload):
             return actions.CANCELLED
     return current
+
+
+#: A released step no computer has taken after this long is not going to be
+#: taken: the app was quit, the computer slept, Stop was pressed offline.
+UNCLAIMED_MINUTES = 10
+
+
+async def sweep_unclaimed(now: datetime | None = None) -> int:
+    """Released steps nobody took become cancelled, with a line saying
+    nothing was done -- "Your computer will do this once" must not stay on
+    a card for something that will never happen. Returns how many."""
+    from datetime import timedelta
+
+    from sqlalchemy import text as sql
+
+    from api.services import features
+
+    if not features.on_anywhere("desktop_computer_use"):
+        return 0
+    now = now or datetime.now(UTC)
+    cutoff = now - timedelta(minutes=UNCLAIMED_MINUTES)
+    async with db_client.async_session() as session:
+        rows = (
+            await session.execute(
+                sql(
+                    "SELECT id, organization_id FROM agent_events "
+                    "WHERE kind = :kind AND payload->>'state' = :state "
+                    "AND payload->>'action' = :action ORDER BY id LIMIT 500"
+                ),
+                {
+                    "kind": AgentEventKind.ACTION_PROPOSED.value,
+                    "state": actions.RELEASED,
+                    "action": actions.DESKTOP_STEP,
+                },
+            )
+        ).all()
+    swept = 0
+    for event_id, organization_id in rows:
+        event = await db_client.get_agent_event(
+            event_id, organization_id=organization_id
+        )
+        if event is None:
+            continue
+        payload = dict(event.payload or {})
+        try:
+            released = datetime.fromisoformat((payload.get("released") or {})["at"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if released > cutoff:
+            continue
+        payload["state"] = actions.CANCELLED
+        payload["error"] = "Your computer did not take this in time. Nothing was done."
+        payload["reason_code"] = "desktop_unclaimed"
+        if await _cas(event, actions.RELEASED, payload):
+            swept += 1
+    return swept
 
 
 async def post_receipt(

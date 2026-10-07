@@ -46,4 +46,19 @@ def scrub_event(event: dict[str, Any], hint: Any = None) -> dict[str, Any]:
     if isinstance(user, dict):
         # Keep the id so errors can still be grouped per account; drop the rest.
         event["user"] = {"id": user["id"]} if "id" in user else {}
+    return _deep_scrub(event)
+
+
+def _deep_scrub(event: dict[str, Any]) -> dict[str, Any]:
+    """Messages, exception values, breadcrumbs and extras, while the
+    ``telemetry_redaction`` switch is on (stream ops, handoff 35). Never
+    raises: an error report must still go out if the scrub cannot run."""
+    try:
+        from api.services import features
+        from api.services.ops.redaction import scrub_sentry_event
+
+        if features.is_on("telemetry_redaction"):
+            return scrub_sentry_event(event)
+    except Exception:  # noqa: BLE001
+        pass
     return event

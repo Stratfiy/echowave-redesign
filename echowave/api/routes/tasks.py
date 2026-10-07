@@ -5,13 +5,14 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 from api.db import db_client
 from api.db.models import UserModel
+from api.services import features
 from api.services.auth.depends import get_user
-from api.services.workflow import tasks_board, visibility
+from api.services.workflow import task_ledger, tasks_board, visibility
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -211,7 +212,7 @@ async def set_task_status(
     task_id: int, body: TaskStatus, user: Annotated[UserModel, Depends(get_user)]
 ) -> dict[str, Any]:
     organization_id = _organization_id(user)
-    return await tasks_board.set_status(
+    out = await tasks_board.set_status(
         organization_id=organization_id,
         task_id=task_id,
         status=body.status,
@@ -219,6 +220,117 @@ async def set_task_status(
         user_id=user.id,
         actor_name=_person_name(user),
     )
+    # The ledger reads the same move in its own words (no-op while off).
+    await task_ledger.follow_board(
+        organization_id=organization_id,
+        task_id=task_id,
+        status=body.status,
+        user_id=user.id,
+    )
+    return out
+
+
+# --- the task ledger (launch stream controls) -------------------------------
+
+_ledger_flag = Depends(features.require("task_ledger", per_organization=True))
+
+
+class LedgerTaskWrite(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    brief: str = Field(default="", max_length=4_000)
+    #: queued | scheduled | awaiting_approval | needs_input.
+    state: str = Field(default=task_ledger.QUEUED, max_length=24)
+    due: str | None = Field(default=None, max_length=40)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class LedgerMove(BaseModel):
+    to: str = Field(min_length=1, max_length=24)
+    #: The version the client read. A stale one is a 409, nothing changes.
+    expected_version: int = Field(ge=0)
+    reason_code: str | None = Field(
+        default=None, max_length=64, pattern=r"^[a-z0-9_]*$"
+    )
+    #: What proves the outcome, required to complete: a message id, a link.
+    evidence: dict[str, Any] | None = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+def _ledger_error(exc: task_ledger.LedgerError) -> HTTPException:
+    if isinstance(exc, task_ledger.StaleState):
+        return HTTPException(
+            status_code=409,
+            detail={
+                "message": str(exc),
+                "current_version": exc.current,
+                "current_state": exc.current_state,
+            },
+        )
+    if isinstance(exc, task_ledger.NotAllowed):
+        return HTTPException(status_code=409, detail=str(exc))
+    if str(exc) == "That task is not here.":
+        return HTTPException(status_code=404, detail=str(exc))
+    return HTTPException(status_code=422, detail=str(exc))
+
+
+@router.post("/ledger", status_code=201, dependencies=[_ledger_flag])
+async def create_ledger_task(
+    body: LedgerTaskWrite,
+    user: Annotated[UserModel, Depends(get_user)],
+    idempotency_key: Annotated[str | None, Header(max_length=128)] = None,
+) -> dict[str, Any]:
+    """File a task in the ledger. Send an ``Idempotency-Key`` header: a
+    retry with the same key returns the task the first attempt made."""
+    organization_id = _organization_id(user)
+    try:
+        task, created = await task_ledger.create(
+            organization_id=organization_id,
+            title=body.title,
+            brief=body.brief,
+            created_by=user.id,
+            idempotency_key=idempotency_key,
+            state=body.state,
+        )
+    except task_ledger.LedgerError as exc:
+        raise _ledger_error(exc) from exc
+    return {**task_ledger.as_dict(task), "created": created}
+
+
+@router.get("/{task_id}/ledger", dependencies=[_ledger_flag])
+async def ledger_of_task(
+    task_id: int, user: Annotated[UserModel, Depends(get_user)]
+) -> dict[str, Any]:
+    """The task's state, version and every move it has made, in order."""
+    organization_id = _organization_id(user)
+    task = await db_client.get_task(task_id, organization_id=organization_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="That task is not here.")
+    return {
+        **task_ledger.as_dict(task),
+        "history": await task_ledger.history(organization_id, task_id),
+    }
+
+
+@router.post("/{task_id}/ledger/transition", dependencies=[_ledger_flag])
+async def move_ledger_task(
+    task_id: int, body: LedgerMove, user: Annotated[UserModel, Depends(get_user)]
+) -> dict[str, Any]:
+    organization_id = _organization_id(user)
+    try:
+        task = await task_ledger.transition(
+            organization_id=organization_id,
+            task_id=task_id,
+            to_state=body.to,
+            expected_version=body.expected_version,
+            actor_user_id=user.id,
+            reason_code=body.reason_code,
+            evidence=body.evidence,
+        )
+    except task_ledger.LedgerError as exc:
+        raise _ledger_error(exc) from exc
+    return task_ledger.as_dict(task)
 
 
 @router.delete("/{task_id}", status_code=204)

@@ -550,7 +550,9 @@ export async function runComputerTask(opts: RunOptions): Promise<Receipt> {
         } catch (err) {
             if (approvalId !== undefined)
                 await approvals
-                    .report(approvalId, false, (err as Error).message)
+                    // It may have half-happened (a click that landed, a key
+                    // that went): the server marks it outcome unknown.
+                    .report(approvalId, null, (err as Error).message)
                     .catch(() => undefined);
             receipt.add({
                 app: front.name,

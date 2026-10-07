@@ -426,3 +426,19 @@ describe('the receipt', () => {
         expect(receipt.endReason).toBe('refused');
     });
 });
+
+describe('an approved step that breaks part-way', () => {
+    it('is reported as unknown, never as a failure that could be retried', async () => {
+        const { driver, approvals, run } = setup([
+            reply([use('left_click', { coordinate: [100, 50] })]),
+            done(),
+        ]);
+        driver.label = 'Send';
+        driver.click = async () => {
+            throw new Error('input device went away');
+        };
+        const receipt = await run();
+        expect(approvals.reports).toEqual([{ id: 101, ok: null, note: 'input device went away' }]);
+        expect(receipt.steps.at(-1)?.outcome).toBe('failed');
+    });
+});

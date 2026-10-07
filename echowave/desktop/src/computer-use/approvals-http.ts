@@ -106,7 +106,7 @@ export function httpApprovals(opts: HttpApprovalOptions): ApprovalClient {
             return response.ok;
         },
 
-        async report(id: number, ok: boolean, note: string) {
+        async report(id: number, ok: boolean | null, note: string) {
             await call('POST', `/steps/${id}/outcome`, { ok, note: note.slice(0, 600) });
         },
 

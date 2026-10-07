@@ -18,10 +18,10 @@ a browser tab cannot:
 Everything new is behind two flags, both off by default
 (`api/services/features.py`):
 
-| Flag | Turns on |
-| --- | --- |
-| `desktop_app` | Native notifications from the bell, attach a folder, the watched folder |
-| `desktop_computer_use` | "Work on my computer" and the `/api/v1/desktop` routes (404 while off) |
+| Flag                   | Turns on                                                                |
+| ---------------------- | ----------------------------------------------------------------------- |
+| `desktop_app`          | Native notifications from the bell, attach a folder, the watched folder |
+| `desktop_computer_use` | "Work on my computer" and the `/api/v1/desktop` routes (404 while off)  |
 
 The app itself works with both off: it is then the web app in a window, with
 the tray, shortcut, links and updates.
@@ -53,7 +53,7 @@ desktop/
 ```bash
 cd echowave/desktop
 npm install          # downloads Electron; .npmrc sets legacy-peer-deps
-npm test             # vitest: 69 tests, no Electron or display needed
+npm test             # vitest: 70 tests, no Electron or display needed
 npm run typecheck
 npm run dev          # builds, then opens http://localhost:3000 (the ui dev server)
 ```
@@ -64,11 +64,11 @@ Which Decibyl opens, in order of precedence:
 2. `--env=production|staging|local` on the command line, or `DECIBYL_ENV`;
 3. the choice in the app's Settings window (Decibyl, Staging, Local, another address).
 
-| Name | URL |
-| --- | --- |
-| production | https://app.decibyl.ai |
-| staging | https://staging.decibyl.ai |
-| local | http://localhost:3000 |
+| Name       | URL                        |
+| ---------- | -------------------------- |
+| production | https://app.decibyl.ai     |
+| staging    | https://staging.decibyl.ai |
+| local      | http://localhost:3000      |
 
 To try "work on my computer" locally: run the api with
 `DESKTOP_COMPUTER_USE_ENABLED=true` (and `DESKTOP_APP_ENABLED=true` for files),
@@ -90,12 +90,12 @@ Output goes to `release/`. Without certificates the script says it is building
 
 What a Linux container can and cannot build (checked while writing this):
 
-| Package | In a Linux container |
-| --- | --- |
-| Windows installer, unsigned | Yes, with `wine64` and `wine32:i386` installed |
-| Windows installer, signed | Yes with a `.pfx` (`WIN_CSC_LINK`); an EV/HSM certificate needs Windows or Azure Trusted Signing |
-| macOS `.zip`, unsigned | Yes (`pack:mac-zip`) |
-| macOS `.dmg`, or anything signed or notarised | **No.** `hdiutil`, `sips`, `codesign` and `notarytool` exist only on macOS: use a macOS runner |
+| Package                                       | In a Linux container                                                                             |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Windows installer, unsigned                   | Yes, with `wine64` and `wine32:i386` installed                                                   |
+| Windows installer, signed                     | Yes with a `.pfx` (`WIN_CSC_LINK`); an EV/HSM certificate needs Windows or Azure Trusted Signing |
+| macOS `.zip`, unsigned                        | Yes (`pack:mac-zip`)                                                                             |
+| macOS `.dmg`, or anything signed or notarised | **No.** `hdiutil`, `sips`, `codesign` and `notarytool` exist only on macOS: use a macOS runner   |
 
 `.github/workflows/desktop.yml` runs the tests on every change to `desktop/`
 and, when started by hand, builds the Windows installer on `windows-latest` and
@@ -112,13 +112,13 @@ shell of whoever builds a release) under exactly these names.
    the app is signed as Decibyl and not as a person.
 2. A **Developer ID Application** certificate, exported from Keychain as a
    `.p12` with a password:
-   - `CSC_LINK`: the `.p12`, base64-encoded (or an https URL to it);
-   - `CSC_KEY_PASSWORD`: its password.
+    - `CSC_LINK`: the `.p12`, base64-encoded (or an https URL to it);
+    - `CSC_KEY_PASSWORD`: its password.
 3. **Notarisation** credentials, one of:
-   - an App Store Connect API key (preferred): `APPLE_API_KEY` (path to the
-     `.p8` file, written from a secret at build time), `APPLE_API_KEY_ID`,
-     `APPLE_API_ISSUER`; or
-   - `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`.
+    - an App Store Connect API key (preferred): `APPLE_API_KEY` (path to the
+      `.p8` file, written from a secret at build time), `APPLE_API_KEY_ID`,
+      `APPLE_API_ISSUER`; or
+    - `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`.
 
 Without 2 the package is unsigned and Gatekeeper blocks it on other Macs.
 With 2 but not 3 it is signed but not notarised, which macOS also blocks.
@@ -199,7 +199,7 @@ task and says so.
 4. **Only the apps the person picked.** Default deny. The model is told the
    name of an app it may not use, and the bar shows it, so a refusal is
    visible, never silent. `open_app` switches only between listed apps.
-5. **Passwords.** Typing needs a focused field the OS says is *not* a
+5. **Passwords.** Typing needs a focused field the OS says is _not_ a
    password field (macOS `AXSecureTextField`, Windows UI Automation
    `IsPassword`). If the OS will not say, Decibyl does not type. In a
    password field only Tab and Escape go through, to move away.
@@ -215,9 +215,19 @@ task and says so.
    compare-and-swap that checks the SHA-256 fingerprint of the exact step
    (app, action, real-screen coordinates, text); a second claim, a retried
    request or a step that differs at all gets nothing. The rest of that batch
-   is not run, because it was planned for the screen before. A step whose
-   computer stopped before reporting stays "running": outcome unknown, never
-   retried. Only the person whose computer it is can answer the card.
+   is not run, because it was planned for the screen before. Only the person
+   whose computer it is can answer the card.
+
+    With the task ledger on (stream `controls`), the card is bound to a
+    payload version like every other card: Confirm names the version on
+    screen and `actions.run` re-checks it before releasing. A step the
+    computer claimed and never reported is swept to `outcome_unknown`, and so
+    is one that broke part-way (the app reports "not known" rather than
+    "failed"); neither is ever run again. A released step no computer took
+    within ten minutes is cancelled with a line saying nothing was done. A
+    `send` step spends the confirming person's outbound-messages quota, as
+    every send does; the model calls run on the person's own key and use no
+    server quota.
 
 **The receipt.** Every task leaves one: each step with its app, what it did,
 its outcome and the card it ran under; totals for actions, time, cost and
@@ -253,14 +263,14 @@ sandbox, no Node). Main checks every call:
 npm test
 ```
 
-| File | What it holds |
-| --- | --- |
-| `test/agent.test.ts` | the loop with a fake driver: the toolset request, scaling, allowed apps, never-touch, passwords, approval gating and run-once, Stop (before a call, mid-batch, while a card waits), step/time/cost limits, the receipt |
-| `test/ipc.test.ts` | origins, surfaces, payload validation, the watched folder never set by path, Stop from every page |
-| `test/policy.test.ts` | never-touch list, default deny, what counts as consequential, the password rule |
-| `test/computer.test.ts` | refusals before starting, the bar, the receipt, Stop |
-| `test/approvals-http.test.ts` | the card over HTTP: text only, waiting, claim once, timeout |
-| `test/main-modules.test.ts` | environments, settings sanitizing, `decibyl://`, files and the watched folder |
+| File                          | What it holds                                                                                                                                                                                                          |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `test/agent.test.ts`          | the loop with a fake driver: the toolset request, scaling, allowed apps, never-touch, passwords, approval gating and run-once, Stop (before a call, mid-batch, while a card waits), step/time/cost limits, the receipt |
+| `test/ipc.test.ts`            | origins, surfaces, payload validation, the watched folder never set by path, Stop from every page                                                                                                                      |
+| `test/policy.test.ts`         | never-touch list, default deny, what counts as consequential, the password rule                                                                                                                                        |
+| `test/computer.test.ts`       | refusals before starting, the bar, the receipt, Stop                                                                                                                                                                   |
+| `test/approvals-http.test.ts` | the card over HTTP: text only, waiting, claim once, timeout                                                                                                                                                            |
+| `test/main-modules.test.ts`   | environments, settings sanitizing, `decibyl://`, files and the watched folder                                                                                                                                          |
 
 The backend half is `api/tests/test_desktop_steps.py`; the web app's half is in
 `ui/src/lib/__tests__/desktop.test.ts` and the ActionCard and ChannelComposer

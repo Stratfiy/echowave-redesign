@@ -8,6 +8,7 @@ import {
   getServerUser,
 } from "@/lib/auth/server";
 import logger from "@/lib/logger";
+import { shellLanding } from "@/lib/shell/landing";
 import { getRedirectUrl } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +25,10 @@ export default async function Home() {
     try {
       const accessToken = await getServerAccessToken();
       if (accessToken) {
+        // Launch shell (first_task_onboarding): onboarding, then Chat.
+        const landing = await shellLanding(accessToken);
+        if (landing) redirect(landing);
+
         const countResponse = await getWorkflowCountApiV1WorkflowCountGet({
           headers: {
             Authorization: `Bearer ${accessToken}`,

@@ -15,7 +15,7 @@
  * later is the record: who confirmed, who took it back, what it did.
  */
 
-import { Check, CircleSlash, Loader2, MessageSquare, Phone, Undo2, Zap } from 'lucide-react';
+import { Check, CircleHelp, CircleSlash, Loader2, MessageSquare, Phone, Undo2, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
@@ -35,7 +35,10 @@ export type ActionState =
     | 'failed'
     | 'undone'
     | 'cancelled'
-    | 'declined';
+    | 'declined'
+    /** The job lost track of a send (task ledger): whether it went is not
+     *  known, and it is never fired again on its own. */
+    | 'outcome_unknown';
 
 export type ActionPayload = {
     action?: string;
@@ -50,6 +53,9 @@ export type ActionPayload = {
     fires_at?: string;
     error?: string;
     done?: { at?: string; note?: string };
+    /** The exact payload version Confirm approves (task ledger). Sent back
+     *  with Confirm; an edited card has a new one. */
+    version?: string;
     /** What a build produced (KAN-140): where Hear it and Try it go. */
     result?: { workflow_id?: number; handle?: string | null; open_url?: string | null };
 };
@@ -100,7 +106,13 @@ export function ActionCard({
         setSaving(verb);
         setError(null);
         const result = await settleActionApiV1TimelineActionsSettlePost({
-            body: { event_id: event.id, verb },
+            // Confirm approves the version on screen and no other: a card
+            // edited since is refused, not run on words nobody read.
+            body: {
+                event_id: event.id,
+                verb,
+                ...(verb === 'confirm' && action.version ? { version: action.version } : {}),
+            },
         });
         setSaving(null);
         if (result.error) {
@@ -157,12 +169,9 @@ export function ActionCard({
                 <div className="mt-3 flex items-center gap-3 pl-6 text-sm">
                     <span className="flex items-center gap-1.5 text-muted-foreground" aria-live="polite">
                         <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
-                        {/* On a computer, running with no report means the
-                            computer stopped before it said: unknown, and it
-                            is never run again. */}
-                        {onComputer
-                            ? 'Your computer is doing this. If this does not change, the outcome is unknown and it will not be tried again.'
-                            : 'Doing this now…'}
+                        {/* A step on a computer that never reports is swept
+                            to outcome_unknown (actions.sweep_stale_running). */}
+                        {onComputer ? 'Your computer is doing this now…' : 'Doing this now…'}
                     </span>
                 </div>
             )}
@@ -244,10 +253,23 @@ export function ActionCard({
                 </p>
             )}
 
+            {state === 'outcome_unknown' && (
+                <p className="mt-3 flex items-start gap-1.5 pl-6 text-sm" role="status">
+                    <CircleHelp aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                    <span>
+                        {action.error ??
+                            'We are checking whether this was delivered. Please do not send it again.'}
+                    </span>
+                </p>
+            )}
+
             {(state === 'undone' || state === 'cancelled' || state === 'declined') && (
                 <p className="mt-3 flex items-center gap-1.5 pl-6 text-sm text-muted-foreground">
                     <Undo2 aria-hidden className="h-4 w-4" />
                     {state === 'undone' ? 'Put back' : state === 'cancelled' ? 'Undone before it ran' : 'Not done'}
+                    {/* Why, when the card knows: a desktop step no computer
+                        took in time (desktop_steps.sweep_unclaimed). */}
+                    {state === 'cancelled' && action.error && <span>· {action.error}</span>}
                 </p>
             )}
 

@@ -21,6 +21,9 @@ from loguru import logger
 
 from api import constants
 
+#: What one forward pass is sent; longer text is cut and the Decision says so.
+MAX_TEXT_CHARS = 4000
+
 
 @dataclass(frozen=True)
 class Decision:
@@ -29,8 +32,12 @@ class Decision:
     confidence: float | None
     elapsed_ms: int
     #: Why there is no label, when there is none: off, timeout, error,
-    #: malformed, low_confidence.
+    #: malformed, low_confidence (and, from services/ops/laya_eval:
+    #: rolled_back, circuit_open, deadline).
     abstained: str | None = None
+    #: Whether ``text`` was cut to fit what one forward pass reads. A label
+    #: about a truncated message is a label about part of it.
+    truncated: bool = False
 
 
 async def choose(
@@ -48,6 +55,7 @@ async def choose(
     whole inbox -- trimmed to what one forward pass reads.
     """
     started = time.monotonic()
+    truncated = len(text or "") > MAX_TEXT_CHARS
 
     def done(label=None, confidence=None, abstained=None) -> Decision:
         return Decision(
@@ -55,13 +63,14 @@ async def choose(
             confidence=confidence,
             elapsed_ms=int((time.monotonic() - started) * 1000),
             abstained=abstained,
+            truncated=truncated,
         )
 
     if not constants.LAYA_URL:
         return done(abstained="off")
 
     body = {
-        "state": {"body": (text or "")[:4000]},
+        "state": {"body": (text or "")[:MAX_TEXT_CHARS]},
         "questions": {
             "decision": {
                 "type": "choice",

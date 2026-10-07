@@ -157,6 +157,42 @@ describe("once done", () => {
     });
 });
 
+describe("approval bound to a version (task ledger)", () => {
+    it("confirms the exact version on screen", async () => {
+        settle.mockResolvedValue({ data: event({ state: "armed" }) });
+        render(<ActionCard event={event({ version: "a1b2c3d4e5f60718" })} />);
+        fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+        await waitFor(() => expect(settle).toHaveBeenCalled());
+        expect(settle.mock.calls[0][0].body).toEqual({
+            event_id: 99,
+            verb: "confirm",
+            version: "a1b2c3d4e5f60718",
+        });
+    });
+
+    it("never sends a version with Not now", async () => {
+        settle.mockResolvedValue({ data: event({ state: "declined" }) });
+        render(<ActionCard event={event({ version: "a1b2c3d4e5f60718" })} />);
+        fireEvent.click(screen.getByRole("button", { name: "Not now" }));
+        await waitFor(() => expect(settle).toHaveBeenCalled());
+        expect(settle.mock.calls[0][0].body).toEqual({ event_id: 99, verb: "decline" });
+    });
+
+    it("says a lost send is being checked, offers nothing to press, and is not a failure", () => {
+        render(
+            <ActionCard
+                event={event({
+                    state: "outcome_unknown",
+                    error: "We are checking whether this was delivered. Please do not send it again.",
+                })}
+            />,
+        );
+        expect(screen.getByRole("status").textContent).toContain("Please do not send it again");
+        expect(screen.queryByRole("button")).toBeNull();
+        expect(screen.queryByText("Could not")).toBeNull();
+    });
+});
+
 describe("a step on the person's own computer", () => {
     const desktop = (payload: Record<string, unknown>) =>
         event({
@@ -183,8 +219,36 @@ describe("a step on the person's own computer", () => {
         expect(screen.queryByTestId("action-preview")).toBeNull();
     });
 
-    it("says the outcome is unknown if the computer never reported", () => {
-        render(<ActionCard event={desktop({ state: "running" })} />);
-        expect(screen.getByText(/outcome is unknown and it will not be tried again/)).toBeTruthy();
+    it("confirms the version on screen, like every card", async () => {
+        settle.mockResolvedValue({ data: desktop({ state: "armed" }) });
+        render(<ActionCard event={desktop({ version: "0123456789abcdef" })} />);
+        fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+        await waitFor(() => expect(settle).toHaveBeenCalled());
+        expect(settle.mock.calls[0][0].body).toEqual({ event_id: 99, verb: "confirm", version: "0123456789abcdef" });
+    });
+
+    it("says the computer is doing it, then unknown if it never reported", () => {
+        const { unmount } = render(<ActionCard event={desktop({ state: "running" })} />);
+        expect(screen.getByText("Your computer is doing this now…")).toBeTruthy();
+        unmount();
+        render(
+            <ActionCard
+                event={desktop({
+                    state: "outcome_unknown",
+                    error: "We are checking whether this was delivered. Please do not send it again.",
+                })}
+            />,
+        );
+        expect(screen.getByRole("status").textContent).toContain("Please do not send it again");
+        expect(screen.queryByRole("button")).toBeNull();
+    });
+
+    it("says why when no computer took it", () => {
+        render(
+            <ActionCard
+                event={desktop({ state: "cancelled", error: "Your computer did not take this in time. Nothing was done." })}
+            />,
+        );
+        expect(screen.getByText(/did not take this in time/)).toBeTruthy();
     });
 });

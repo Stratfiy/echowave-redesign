@@ -20,6 +20,7 @@
 import {
     ArrowUp,
     AtSign,
+    AudioLines,
     Brain,
     Check,
     ChevronDown,
@@ -29,8 +30,10 @@ import {
     Loader2,
     Mic,
     Monitor,
+    NotebookPen,
     Paperclip,
     Square,
+    WifiOff,
     X,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -42,6 +45,8 @@ import {
     postMessageApiV1TimelineMessagePost,
     translateTextApiV1TranslatePost,
 } from '@/client/sdk.gen';
+import { AttachMenu } from '@/components/chat/AttachMenu';
+import { PasteNotesDialog } from '@/components/chat/PasteNotesDialog';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -69,6 +74,9 @@ import {
 import { type DesktopBridge, desktopBridge, toFiles } from '@/lib/desktop';
 import { useFeature } from '@/lib/features';
 import { hasIndicScript } from '@/lib/indic';
+import { useEntryPoint } from '@/lib/shell/chatEntryPoints';
+import { blockLabel, composeMessage,type ComposerBlock } from '@/lib/shell/composerBlocks';
+import { clearDraft, draftKey, readDraft, useOnline, writeDraft } from '@/lib/shell/drafts';
 import {
     ACCEPTED_FILE_TYPES,
     type KnowledgeTarget,
@@ -159,6 +167,10 @@ export function ChannelComposer({
     onSent,
     initialText,
     hero = false,
+    chatShell = false,
+    replying = false,
+    onStop,
+    draftRequest,
 }: {
     /** A channel, or -- with `workflowId` instead -- one bot's own chat, where
      *  there is nobody to @ because the bot is implied. */
@@ -180,8 +192,25 @@ export function ChannelComposer({
     /** Drawn as the centre of an empty screen, Grok's way: no docked edge,
      *  a larger, lifted box. Docked under a thread otherwise. */
     hero?: boolean;
+    /** Screens 03-04 (`chat_shell`): the attach menu, Dictate and Talk,
+     *  Stop, notes, a kept offline draft, 16px text and 44px targets on a
+     *  phone. Off, the box is exactly what it was. */
+    chatShell?: boolean;
+    /** A reply is forming: Send becomes Stop. */
+    replying?: boolean;
+    onStop?: () => void;
+    /** Words to put in the box, editable, from a starter. A new id each
+     *  time, so choosing the same starter twice still fills it. */
+    draftRequest?: { text: string; id: number } | null;
 }) {
     const [text, setText] = useState(initialText ?? '');
+    // Pasted notes and voice notes that go with the next message (screen 03).
+    const [blocks, setBlocks] = useState<ComposerBlock[]>([]);
+    const [pasteOpen, setPasteOpen] = useState(false);
+    const [entryNotice, setEntryNotice] = useState<string | null>(null);
+    const online = useOnline();
+    const talk = useEntryPoint('talk');
+    const meeting = useEntryPoint('meeting');
     const [sending, setSending] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
@@ -218,6 +247,16 @@ export function ChannelComposer({
             box.setSelectionRange(initialText.length, initialText.length);
         }
     }, [initialText]);
+    useEffect(() => {
+        if (!draftRequest) return;
+        setText(draftRequest.text);
+        requestAnimationFrame(() => {
+            const box = input.current;
+            if (!box) return;
+            box.focus();
+            box.setSelectionRange(draftRequest.text.length, draftRequest.text.length);
+        });
+    }, [draftRequest]);
     // Files already uploaded and waiting to go with the next message. The
     // upload happens on pick, not on send: a 5MB PDF takes a moment, and a
     // send button that stalls for it reads as broken.
@@ -228,6 +267,18 @@ export function ChannelComposer({
     // The brain for this message. Remembered per chat on this device.
     const chatKey =
         workflowId != null ? `bot:${workflowId}` : assistant ? 'assistant' : `channel:${folderId}`;
+    // The draft is kept on this device per conversation, so going offline,
+    // a reload or a closed tab never loses what was typed (screen 03).
+    const keptDraft = draftKey(chatKey, threadId);
+    useEffect(() => {
+        if (!chatShell || initialText) return;
+        const kept = readDraft(keptDraft);
+        if (kept) setText(kept);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [chatShell, keptDraft]);
+    useEffect(() => {
+        if (chatShell) writeDraft(keptDraft, text);
+    }, [chatShell, keptDraft, text]);
     const [preset, setPreset] = useState<string>(() => rememberedPreset(chatKey));
     const choosePreset = (slug: string) => {
         setPreset(slug);
@@ -402,6 +453,32 @@ export function ChannelComposer({
         setText((was) => appendDictation(was, transcript));
         requestAnimationFrame(() => input.current?.focus());
     });
+    // A voice note is recorded the same way and goes with the message as its
+    // own block, transcribed, rather than into the words of the question.
+    const voiceStarted = useRef<number>(0);
+    const voiceNote = useDictation((transcript) => {
+        const seconds = voiceStarted.current ? (Date.now() - voiceStarted.current) / 1000 : 0;
+        setBlocks((have) => [...have, { id: crypto.randomUUID(), kind: 'voice', text: transcript, seconds }]);
+    });
+    const toggleVoiceNote = () => {
+        if (voiceNote.listening) {
+            voiceNote.stop();
+            return;
+        }
+        voiceStarted.current = Date.now();
+        void voiceNote.start();
+    };
+    const entryContext = () => ({ threadId, draft: text });
+    const openTalk = () => {
+        if (talk.open(entryContext())) {
+            setEntryNotice(null);
+            return;
+        }
+        setEntryNotice('Live voice is not available yet. Use Dictate to speak your message instead.');
+    };
+    const openMeeting = () => {
+        if (!meeting.open(entryContext())) setEntryNotice('Meeting mode is not available yet.');
+    };
 
     const suggestions = useMemo(() => {
         if (tag === null) return [];
@@ -456,7 +533,7 @@ export function ChannelComposer({
     };
 
     const send = async () => {
-        const body = text.trim();
+        const body = chatShell ? composeMessage(text, blocks) : text.trim();
         if ((!body && attachments.length === 0) || sending || uploadingFile) return;
         setSending(true);
         setError(null);
@@ -482,6 +559,8 @@ export function ChannelComposer({
         setText('');
         if (input.current) input.current.style.height = 'auto';
         setAttachments([]);
+        setBlocks([]);
+        if (chatShell) clearDraft(keptDraft);
         setTag(null);
         setRouteTo(null);
 
@@ -520,9 +599,20 @@ export function ChannelComposer({
                     : "border-t border-border/70 bg-background px-4 pb-3 pt-2 sm:px-6",
             )}
         >
-            {(error || dictation.error) && (
+            {(error || dictation.error || voiceNote.error) && (
                 <p className="mb-2 text-sm text-destructive" role="alert">
-                    {error || dictation.error}
+                    {error || dictation.error || voiceNote.error}
+                </p>
+            )}
+            {chatShell && !online && (
+                <p className="mb-2 flex items-center gap-1.5 text-sm text-muted-foreground" role="status" data-testid="offline-notice">
+                    <WifiOff aria-hidden className="h-4 w-4 shrink-0" />
+                    You are offline. Your draft is kept here; send it when you are back.
+                </p>
+            )}
+            {chatShell && entryNotice && (
+                <p className="mb-2 text-sm text-muted-foreground" role="status">
+                    {entryNotice}
                 </p>
             )}
             {notice && (
@@ -588,8 +678,30 @@ export function ChannelComposer({
                         </button>
                     </div>
                 )}
-                {(attachments.length > 0 || uploadingFile) && (
+                {(attachments.length > 0 || uploadingFile || blocks.length > 0) && (
                     <ul className="mb-2 flex flex-wrap gap-2" aria-label="Attachments">
+                        {blocks.map((block) => (
+                            <li
+                                key={block.id}
+                                className="flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs"
+                                data-testid="composer-block"
+                            >
+                                {block.kind === 'voice' ? (
+                                    <Mic aria-hidden className="h-3.5 w-3.5 text-muted-foreground" />
+                                ) : (
+                                    <NotebookPen aria-hidden className="h-3.5 w-3.5 text-muted-foreground" />
+                                )}
+                                <span className="max-w-[12rem] truncate">{blockLabel(block)}</span>
+                                <button
+                                    type="button"
+                                    aria-label={`Remove ${blockLabel(block)}`}
+                                    className="flex h-6 w-6 items-center justify-center text-muted-foreground hover:text-foreground"
+                                    onClick={() => setBlocks((have) => have.filter((b) => b.id !== block.id))}
+                                >
+                                    <X className="h-3 w-3" />
+                                </button>
+                            </li>
+                        ))}
                         {attachments.map((file) => (
                             <li
                                 key={file.document_uuid}
@@ -638,6 +750,25 @@ export function ChannelComposer({
                             <span className="hidden sm:inline">Listening… press stop when done</span>
                         </div>
                     )}
+                    {chatShell && voiceNote.listening && (
+                        <div
+                            className="mb-2 flex min-h-11 items-center gap-3 rounded-lg border border-[var(--accent-brand)]/50 bg-background px-3 text-sm text-muted-foreground"
+                            data-testid="voice-note-recording"
+                        >
+                            <Waveform levels={voiceNote.levels} />
+                            <span className="min-w-0 flex-1">Recording a voice note</span>
+                            <Button type="button" size="sm" variant="outline" className="motion-m1 min-h-11 md:min-h-8" onClick={toggleVoiceNote}>
+                                <Square aria-hidden className="h-3.5 w-3.5" />
+                                Stop
+                            </Button>
+                        </div>
+                    )}
+                    {chatShell && voiceNote.transcribing && (
+                        <p className="mb-2 flex items-center gap-2 text-sm text-muted-foreground" role="status">
+                            <Loader2 aria-hidden className="motion-continuous h-3.5 w-3.5 animate-spin" />
+                            Writing out your voice note…
+                        </p>
+                    )}
                     <div className={cn('relative min-w-0', dictation.listening && 'hidden')}>
                     {routeTo && (
                         <span
@@ -661,7 +792,10 @@ export function ChannelComposer({
                     <div
                         ref={mirror}
                         aria-hidden="true"
-                        className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words px-1 py-1 text-sm"
+                        className={cn(
+                            'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words px-1 py-1',
+                            chatShell ? 'text-base leading-6 md:text-sm' : 'text-sm',
+                        )}
                     >
                         {tagTokens(text).map((token, index) =>
                             token.tag ? (
@@ -687,10 +821,15 @@ export function ChannelComposer({
                                 ? `Message ${channelName}`
                                 : `Message #${channelName} — @ an agent to ask it for something`
                         }
-                        className="relative max-h-40 min-h-[28px] w-full resize-none border-0 bg-transparent px-1 py-1 text-sm text-transparent caret-foreground outline-none"
+                        className={cn(
+                            'relative min-h-[28px] w-full resize-none border-0 bg-transparent px-1 py-1 text-transparent caret-foreground outline-none',
+                            // Six lines, then it scrolls (screen 04); 16px on
+                            // a phone so iOS does not zoom into the box.
+                            chatShell ? 'max-h-[156px] text-base leading-6 md:text-sm' : 'max-h-40 text-sm',
+                        )}
                         onChange={(event) => {
                             event.target.style.height = 'auto';
-                            event.target.style.height = `${Math.min(event.target.scrollHeight, 160)}px`;
+                            event.target.style.height = `${Math.min(event.target.scrollHeight, chatShell ? 156 : 160)}px`;
                             setText(event.target.value);
                             syncFragment(
                                 event.target.value,
@@ -755,6 +894,7 @@ export function ChannelComposer({
                                     if (file) void attach(file);
                                 }}
                             />
+                            {!chatShell && (
                             <Button
                                 type="button"
                                 variant="ghost"
@@ -767,6 +907,7 @@ export function ChannelComposer({
                             >
                                 <Paperclip className="h-4 w-4" />
                             </Button>
+                            )}
                             {desktopFiles && (
                                 <Button
                                     type="button"
@@ -797,6 +938,17 @@ export function ChannelComposer({
                             {startingOnComputer ? <Loader2 className="h-4 w-4 animate-spin" /> : <Monitor className="h-4 w-4" />}
                         </Button>
                     )}
+                    {chatShell && (
+                        <AttachMenu
+                            filesAvailable={!!target && !uploadingFile}
+                            onFiles={() => filePicker.current?.click()}
+                            onVoiceNote={toggleVoiceNote}
+                            voiceBusy={voiceNote.transcribing || dictation.listening}
+                            onPasteNotes={() => setPasteOpen(true)}
+                            onMeetingMode={openMeeting}
+                            meetingAvailable={meeting.available}
+                        />
+                    )}
                     {/* The mockup's affordance, and the discoverable half of
                         the autocomplete: typing @ opens the roster, and this
                         types the @ for somebody who did not know that. */}
@@ -807,7 +959,7 @@ export function ChannelComposer({
                         size="icon"
                         aria-label="Mention an agent"
                         title="Mention an agent"
-                        className="shrink-0 text-muted-foreground"
+                        className={cn('shrink-0 text-muted-foreground', chatShell && 'hidden sm:inline-flex')}
                         onMouseDown={(event) => {
                             event.preventDefault();
                             typeSigil('@');
@@ -824,7 +976,7 @@ export function ChannelComposer({
                         size="icon"
                         aria-label="Send to a channel"
                         title="Send to a channel"
-                        className="shrink-0 text-muted-foreground"
+                        className={cn('shrink-0 text-muted-foreground', chatShell && 'hidden sm:inline-flex')}
                         onMouseDown={(event) => {
                             event.preventDefault();
                             typeSigil('#');
@@ -835,12 +987,27 @@ export function ChannelComposer({
                     <Button
                         type="button"
                         variant="ghost"
-                        size="icon"
-                        aria-label={dictation.listening ? 'Stop listening' : 'Speak'}
-                        title={dictation.listening ? 'Stop listening' : 'Speak instead of typing'}
-                        disabled={dictation.transcribing}
+                        size={chatShell ? 'sm' : 'icon'}
+                        aria-label={
+                            chatShell
+                                ? dictation.listening
+                                    ? 'Stop dictating'
+                                    : 'Dictate'
+                                : dictation.listening
+                                  ? 'Stop listening'
+                                  : 'Speak'
+                        }
+                        title={
+                            chatShell
+                                ? 'Dictate: your words go into the box to edit before sending'
+                                : dictation.listening
+                                  ? 'Stop listening'
+                                  : 'Speak instead of typing'
+                        }
+                        disabled={dictation.transcribing || voiceNote.listening}
                         className={cn(
                             'shrink-0',
+                            chatShell && 'motion-m1 min-h-11 min-w-11 gap-1 px-2 md:min-h-8 md:min-w-8',
                             dictation.listening ? 'text-[var(--accent-brand)]' : 'text-muted-foreground',
                         )}
                         onClick={() => (dictation.listening ? dictation.stop() : void dictation.start())}
@@ -852,7 +1019,31 @@ export function ChannelComposer({
                         ) : (
                             <Mic className="h-4 w-4" />
                         )}
+                        {chatShell && <span className="hidden text-xs sm:inline">Dictate</span>}
                     </Button>
+                    {/* Talk is a live conversation (screen 05), not dictation:
+                        a different icon, its own word, and the voice stream's
+                        session behind it. Until that stream registers, the
+                        button says why it cannot start. */}
+                    {chatShell && (
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            aria-label="Talk: a live voice conversation"
+                            title={talk.available ? 'Talk with Decibyl' : 'Live voice is not available yet'}
+                            aria-disabled={!talk.available || undefined}
+                            data-available={talk.available}
+                            className={cn(
+                                'motion-m1 min-h-11 min-w-11 shrink-0 gap-1 px-2 md:min-h-8 md:min-w-8',
+                                talk.available ? 'text-foreground' : 'text-muted-foreground/70',
+                            )}
+                            onClick={openTalk}
+                        >
+                            <AudioLines className="h-4 w-4" />
+                            <span className="hidden text-xs sm:inline">Talk</span>
+                        </Button>
+                    )}
                     {memory && (
                         <span
                             role="img"
@@ -893,7 +1084,7 @@ export function ChannelComposer({
                                 size="sm"
                                 aria-label="Brain for this message"
                                 title="Brain for this message"
-                                className="shrink-0 gap-1 px-2 text-xs text-muted-foreground"
+                                className={cn('shrink-0 gap-1 px-2 text-xs text-muted-foreground', chatShell && 'min-h-11 min-w-11 md:min-h-8 md:min-w-8')}
                             >
                                 <Brain className="h-4 w-4" />
                                 <span className="hidden sm:inline">{presetLabel}</span>
@@ -963,11 +1154,27 @@ export function ChannelComposer({
                     </DropdownMenu>
                         </div>
                         <div className="flex items-center gap-2">
+                    {chatShell && replying && !sending ? (
+                        // Stop keeps what has been said: the server records
+                        // the text so far as the reply, marked partial.
+                        <Button
+                            size="icon"
+                            className="motion-m1 size-11 shrink-0 rounded-full bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 md:size-8"
+                            onClick={() => onStop?.()}
+                            aria-label="Stop"
+                            title="Stop. What has been written so far is kept."
+                        >
+                            <Square className="h-3.5 w-3.5 fill-current" />
+                        </Button>
+                    ) : (
                     <Button
                         size="icon"
-                        className="h-8 w-8 shrink-0 rounded-full bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
+                        className={cn(
+                            'h-8 w-8 shrink-0 rounded-full bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100',
+                            chatShell && 'motion-m1 size-11 md:size-8',
+                        )}
                         onClick={() => void send()}
-                        disabled={(!text.trim() && attachments.length === 0) || sending || !!uploadingFile}
+                        disabled={(!text.trim() && attachments.length === 0 && blocks.length === 0) || sending || !!uploadingFile}
                         aria-label="Send"
                     >
                         {sending ? (
@@ -976,10 +1183,18 @@ export function ChannelComposer({
                             <ArrowUp className="h-4 w-4" />
                         )}
                     </Button>
+                    )}
                         </div>
                     </div>
                 </div>
             </div>
+            {chatShell && (
+                <PasteNotesDialog
+                    open={pasteOpen}
+                    onOpenChange={setPasteOpen}
+                    onAdd={(notes) => setBlocks((have) => [...have, { id: crypto.randomUUID(), kind: 'notes', text: notes }])}
+                />
+            )}
         </div>
     );
 }

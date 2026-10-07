@@ -1,0 +1,158 @@
+/*
+ * Motion tokens M1-M8 (screen design handoff, "Motion and transition
+ * specification"). Durations and easings are named here once, so a
+ * component says what it is doing ("an inline state change") rather than
+ * picking a number. Only named properties animate -- never `transition: all`
+ * -- and every token has a reduced-motion answer at the bottom of the file.
+ *
+ * Read from JS through lib/motion.ts, which mirrors these numbers.
+ */
+
+:root {
+  /* Easing */
+  --ease-enter: cubic-bezier(0, 0, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --ease-change: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* M1 Feedback: hover, press, focus. Never delays input. */
+  --motion-m1-hover: 120ms;
+  --motion-m1-press: 90ms;
+  /* M2 Inline state: status crossfade, dropdown or accordion reveal. */
+  --motion-m2: 200ms;
+  /* M3 Detail panel: drawer enter and exit. */
+  --motion-m3-enter: 240ms;
+  --motion-m3-exit: 180ms;
+  --motion-m3-travel: 16px;
+  /* M4 Modal. */
+  --motion-m4-enter: 200ms;
+  --motion-m4-exit: 150ms;
+  /* M5 Route and tabs: immediate state, optional content crossfade. */
+  --motion-m5: 120ms;
+  /* M6 List change: a new row fades in with at most 4px of travel. */
+  --motion-m6: 180ms;
+  --motion-m6-travel: 4px;
+  /* M7 Voice and capture follows real input: no duration of its own. */
+  /* M8 Metrics and traces: tooltip fade only. */
+  --motion-m8: 120ms;
+}
+
+/* M1: every enabled control. Colour and the press scale only. */
+.motion-m1 {
+  transition-property: background-color, border-color, color, box-shadow, transform;
+  transition-duration: var(--motion-m1-hover);
+  transition-timing-function: var(--ease-change);
+}
+.motion-m1:active:not(:disabled) {
+  transform: scale(0.98);
+  transition-duration: var(--motion-m1-press);
+}
+
+/* M2: a label or panel changing state in place. The caller reserves the
+   space; this only fades. */
+.motion-m2 {
+  transition-property: opacity, color, background-color, border-color;
+  transition-duration: var(--motion-m2);
+  transition-timing-function: var(--ease-change);
+}
+@keyframes motion-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.motion-m2-enter {
+  animation: motion-fade-in var(--motion-m2) var(--ease-change) both;
+}
+
+/* M3: a detail panel or sources drawer. 16px of travel from its edge. */
+@keyframes motion-m3-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--motion-m3-travel));
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.motion-m3-enter {
+  animation: motion-m3-in var(--motion-m3-enter) var(--ease-enter) both;
+}
+
+/* M4: a centred dialog, .98 to 1. */
+@keyframes motion-m4-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.motion-m4-enter {
+  animation: motion-m4-in var(--motion-m4-enter) var(--ease-enter) both;
+}
+
+/* M5: route content crossfade. The shell itself never moves. */
+.motion-m5-enter {
+  animation: motion-fade-in var(--motion-m5) var(--ease-change) both;
+}
+
+/* M6: a new row in a list. */
+@keyframes motion-m6-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-m6-travel));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.motion-m6-enter {
+  animation: motion-m6-in var(--motion-m6) var(--ease-enter) both;
+}
+
+/* M8: an exact tooltip on a chart point or trace. */
+.motion-m8 {
+  transition-property: opacity;
+  transition-duration: var(--motion-m8);
+  transition-timing-function: var(--ease-change);
+}
+
+/* Reduced motion: no travel, no scale, no continuous effects. Colour and
+   focus still change, instantly; fades shorten to 100ms or less. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-m1-hover: 0ms;
+    --motion-m1-press: 0ms;
+    --motion-m2: 100ms;
+    --motion-m3-enter: 100ms;
+    --motion-m3-exit: 100ms;
+    --motion-m3-travel: 0px;
+    --motion-m4-enter: 100ms;
+    --motion-m4-exit: 100ms;
+    --motion-m5: 0ms;
+    --motion-m6: 0ms;
+    --motion-m6-travel: 0px;
+    --motion-m8: 100ms;
+  }
+  .motion-m1:active:not(:disabled) {
+    transform: none;
+  }
+  @keyframes motion-m4-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  /* A pulsing caret or spinner is a continuous effect. */
+  .motion-continuous {
+    animation: none !important;
+  }
+}

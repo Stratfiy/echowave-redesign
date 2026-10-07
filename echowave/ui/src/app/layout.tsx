@@ -1,7 +1,8 @@
 import "./globals.css";
 import "./shell-v2.css";
+import "./motion.css";
 
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import {
   Familjen_Grotesk,
   Geist_Mono,
@@ -16,6 +17,7 @@ import { DesktopSession } from "@/components/desktop/DesktopSession";
 import AppLayout from "@/components/layout/AppLayout";
 import PostHogIdentify from "@/components/PostHogIdentify";
 import { SentryErrorBoundary } from "@/components/SentryErrorBoundary";
+import SessionReplayGuard from "@/components/SessionReplayGuard";
 import SpinLoader from "@/components/SpinLoader";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Toaster } from "@/components/ui/sonner";
@@ -90,6 +92,16 @@ export const metadata: Metadata = {
     "Add an agent for a job — answering the phone, confirming orders, chasing payments, answering from your own documents. Self-hostable, BYOK, MCP-native.",
 };
 
+// viewport-fit=cover so env(safe-area-inset-*) reports the notch and the
+// home indicator on phones: without it every inset is 0 and the bottom bar
+// and composer sit under the home indicator. The shell pads by those insets
+// (AppLayout, MobileTabBar, the onboarding and early-access pages).
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -133,6 +145,7 @@ export default function RootLayout({
                       <OnboardingProvider>
                         <PostHogIdentify />
                         <DesktopSession />
+                        <SessionReplayGuard />
                         <AppLayout>{children}</AppLayout>
                         <Toaster />
                         <ChatwootWidget />

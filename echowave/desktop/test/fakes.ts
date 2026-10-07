@@ -147,7 +147,7 @@ export class ScriptedModel implements ModelClient {
 export class FakeApprovals implements ApprovalClient {
     proposed: ApprovalRequest[] = [];
     claims: Array<{ id: number; fingerprint: string }> = [];
-    reports: Array<{ id: number; ok: boolean; note: string }> = [];
+    reports: Array<{ id: number; ok: boolean | null; note: string }> = [];
     cancelled: number[] = [];
     outcome: ApprovalOutcome = 'released';
     claimResult = true;
@@ -173,7 +173,7 @@ export class FakeApprovals implements ApprovalClient {
         this.used.add(id);
         return true;
     }
-    async report(id: number, ok: boolean, note: string) {
+    async report(id: number, ok: boolean | null, note: string) {
         this.reports.push({ id, ok, note });
     }
     async cancel(id: number) {

@@ -128,8 +128,9 @@ async def record(
     is_deliverable: Optional[bool] = None,
     in_channel: bool = True,
     thread_id: Optional[str] = None,
-) -> None:
+) -> Optional[int]:
     """Write one line. Silent on failure, by design -- see the module docstring.
+    Returns the row's id, or None when nothing was written.
 
     ``in_channel=False`` keeps the row out of the bot's channel: a person
     talking to a bot on its own chat is not talking in the channel the bot
@@ -210,6 +211,7 @@ async def record(
         event_id=event_id,
         payload=payload or {},
     )
+    return event_id
 
 
 async def _ring_the_bell(

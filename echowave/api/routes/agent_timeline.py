@@ -541,6 +541,12 @@ async def post_message(
         return PostMessageResponse(asked=asked, unknown=[], ambiguous=[])
 
     if body.workflow_id is not None:
+        if await decibyl.turn_refused(
+            organization_id=organization_id,
+            user_id=user.id,
+            workflow_id=body.workflow_id,
+        ):
+            return PostMessageResponse(asked=[], unknown=[], ambiguous=[])
         return await _post_direct_message(
             organization_id=organization_id, user=user, body=body
         )
@@ -572,6 +578,12 @@ async def post_message(
     text, attachments, line, preset = await _what_was_said(body, organization_id)
 
     resolution = mentions.resolve(text, roster)
+    if resolution.mentioned and await decibyl.turn_refused(
+        organization_id=organization_id, user_id=user.id, folder_id=body.folder_id
+    ):
+        # Asking a bot in a channel is a turn too; a line that addresses no
+        # bot asks no model and is not counted.
+        return PostMessageResponse(asked=[], unknown=[], ambiguous=[])
 
     await agent_timeline.record(
         organization_id=organization_id,
@@ -846,6 +858,9 @@ class SettleActionRequest(BaseModel):
     event_id: int
     #: confirm | decline | undo. See services/workflow/actions.py.
     verb: str = Field(max_length=16)
+    #: The card's payload version the person was shown. With the task
+    #: ledger on, Confirm approves exactly that version and no other.
+    version: Optional[str] = Field(default=None, max_length=32)
 
 
 @router.post("/actions/settle", response_model=TimelineEvent)
@@ -864,6 +879,42 @@ async def settle_action(body: SettleActionRequest, user: UserModel = Depends(get
             organization_id=organization_id,
             event_id=body.event_id,
             verb=body.verb,
+            user_id=user.id,
+            version=body.version,
+        )
+    except actions.ActionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    row = await db_client.get_agent_event(
+        body.event_id, organization_id=organization_id
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="That proposal is not here")
+    return _as_event(row)
+
+
+class ReviseActionRequest(BaseModel):
+    event_id: int
+    #: The new arguments: a connected app's call arguments, or a document
+    #: card's note, recipient and channel.
+    arguments: dict[str, Any]
+
+
+@router.post("/actions/revise", response_model=TimelineEvent)
+async def revise_action(body: ReviseActionRequest, user: UserModel = Depends(get_user)):
+    """Edit what a waiting card will do (task ledger). The edit is a new
+    version; any Confirm given before it no longer stands."""
+    organization_id = user.selected_organization_id
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+    from api.services.workflow import task_ledger
+
+    if not task_ledger.enabled(organization_id):
+        raise HTTPException(status_code=404, detail="Not Found")
+    try:
+        await actions.revise(
+            organization_id=organization_id,
+            event_id=body.event_id,
+            arguments=body.arguments,
             user_id=user.id,
         )
     except actions.ActionError as exc:

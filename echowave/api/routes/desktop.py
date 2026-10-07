@@ -116,7 +116,8 @@ async def claim_step(
 
 
 class OutcomeRequest(BaseModel):
-    ok: bool
+    #: true done, false failed, null "the computer does not know" (unknown).
+    ok: bool | None
     note: str = Field(default="", max_length=600)
 
 

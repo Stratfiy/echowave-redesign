@@ -107,7 +107,9 @@ export interface ApprovalClient {
     waitForDecision(id: number, signal: AbortSignal): Promise<ApprovalOutcome>;
     /** Compare-and-swap on the server: true exactly once per card. */
     claim(id: number, fingerprint: string): Promise<boolean>;
-    report(id: number, ok: boolean, note: string): Promise<void>;
+    /** true done, false failed, null "not known whether it happened": an
+     *  approved step that broke part-way is outcome_unknown, never retried. */
+    report(id: number, ok: boolean | null, note: string): Promise<void>;
     /** Stop pressed while the card was waiting: take it off the thread. */
     cancel(id: number): Promise<void>;
 }
