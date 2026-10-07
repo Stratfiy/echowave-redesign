@@ -4,9 +4,12 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { useAppConfig } from "@/context/AppConfigContext";
+import { useOrgFeatures } from "@/context/OrgConfigContext";
+import type { Feature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
-import { activeSection, SETTINGS_GROUPS, SETTINGS_SECTIONS } from "./sections";
+import { activeSection, SETTINGS_GROUPS, visibleSections } from "./sections";
 
 /** True on the Settings root, where a phone shows the list of sections. */
 export function isSettingsRoot(pathname: string): boolean {
@@ -25,6 +28,11 @@ export function SettingsNav() {
   const pathname = usePathname() ?? "";
   const current = activeSection(pathname);
   const root = isSettingsRoot(pathname);
+  const { config } = useAppConfig();
+  const orgFeatures = useOrgFeatures();
+  const sections = visibleSections(
+    (feature: Feature) => Boolean(config?.features?.[feature]) || Boolean(orgFeatures?.[feature]),
+  );
   return (
     <>
       {!root && (
@@ -45,7 +53,7 @@ export function SettingsNav() {
             <div key={group} className="mb-4 md:mb-3">
               <h2 className="px-2.5 pb-1 text-xs text-muted-foreground">{group}</h2>
               <ul className="divide-y divide-[var(--line)] rounded-2xl bg-[var(--paper-2)] md:divide-y-0 md:rounded-none md:bg-transparent">
-                {SETTINGS_SECTIONS.filter((section) => section.group === group).map((section) => (
+                {sections.filter((section) => section.group === group).map((section) => (
                   <li key={section.id}>
                     {/* Phone link: full-width row to the section's own page. */}
                     <Link

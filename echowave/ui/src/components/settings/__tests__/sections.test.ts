@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { activeSection, SETTINGS_SECTIONS } from "../sections";
+import { activeSection, SETTINGS_SECTIONS, visibleSections } from "../sections";
 
 const APP = resolve(process.cwd(), "src/app");
 
@@ -12,6 +12,7 @@ describe("Settings' sections", () => {
     expect(SETTINGS_SECTIONS.map((s) => s.title)).toEqual([
       "General",
       "Team",
+      "Voice and language",
       "Models",
       "Knowledge",
       "Apps and tools",
@@ -45,5 +46,14 @@ describe("Settings' sections", () => {
     ["/do-not-call", "compliance"],
   ])("lights %s as %s", (path, id) => {
     expect(activeSection(path)).toBe(id);
+  });
+
+  it("lists Voice and language only while its switch is on", () => {
+    const off = visibleSections(() => false).map((s) => s.id);
+    expect(off).not.toContain("voice");
+    expect(off).toHaveLength(SETTINGS_SECTIONS.length - 1);
+    const on = visibleSections((f) => f === "voice_language_settings").map((s) => s.id);
+    expect(on).toContain("voice");
+    expect(activeSection("/settings/voice")).toBe("voice");
   });
 });
