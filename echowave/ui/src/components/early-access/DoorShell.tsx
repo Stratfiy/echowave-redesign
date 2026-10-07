@@ -25,13 +25,7 @@ export function DoorShell({
 }) {
     return (
         <div
-            className="flex min-h-dvh w-full flex-col items-center overflow-x-hidden bg-background px-6 text-foreground"
-            style={{
-                paddingTop: "max(2.5rem, env(safe-area-inset-top))",
-                paddingBottom: "max(2.5rem, env(safe-area-inset-bottom))",
-                paddingLeft: "max(1.5rem, env(safe-area-inset-left))",
-                paddingRight: "max(1.5rem, env(safe-area-inset-right))",
-            }}
+            className="flex min-h-dvh w-full flex-col items-center overflow-x-hidden bg-background pb-[max(2.5rem,env(safe-area-inset-bottom))] pl-[max(1.5rem,env(safe-area-inset-left))] pr-[max(1.5rem,env(safe-area-inset-right))] pt-[max(2.5rem,env(safe-area-inset-top))] text-foreground"
         >
             <header className="flex flex-col items-center">
                 <BrandLogo className="h-8" />
