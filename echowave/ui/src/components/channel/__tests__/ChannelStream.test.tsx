@@ -402,6 +402,23 @@ describe('the thread carries its own next steps', () => {
         expect(post.mock.calls[0][0].body).toEqual({ assistant: true, thread_id: null, text: 'check my email' });
     });
 
+    it('asks for the chips of this thread, and a follow-up goes back to its helper', async () => {
+        reply();
+        chips.mockResolvedValue({
+            data: { chips: [{ kind: 'follow_up', text: 'Go deeper on point 2', helper: 'research' }] },
+        });
+        render(<ChannelStream assistant threadId="t-9" botNames={{}} />);
+        fireEvent.click(await screen.findByRole('button', { name: 'Go deeper on point 2' }));
+        expect(chips.mock.calls[0][0].query.thread_id).toBe('t-9');
+        await waitFor(() => expect(post).toHaveBeenCalled());
+        expect(post.mock.calls[0][0].body).toEqual({
+            assistant: true,
+            thread_id: 't-9',
+            text: 'Go deeper on point 2',
+            helper: 'research',
+        });
+    });
+
     it('clears them once one is pressed', async () => {
         // Leaving them under the question they just asked reads as if
         // nothing happened.

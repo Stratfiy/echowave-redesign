@@ -781,6 +781,9 @@ class ThreadChip(BaseModel):
 
     kind: str
     text: str
+    #: The helper a tapped chip is sent to: the one that wrote the reply it
+    #: follows. Null is Automatic.
+    helper: Optional[str] = None
 
 
 class ThreadChipsResponse(BaseModel):
@@ -789,6 +792,7 @@ class ThreadChipsResponse(BaseModel):
 
 @router.get("/chips", response_model=ThreadChipsResponse)
 async def thread_chips(
+    thread_id: Annotated[Optional[str], Query(max_length=36)] = None,
     user: UserModel = Depends(get_user),
 ) -> ThreadChipsResponse:
     """What to offer under the last reply, so the thread carries its own
@@ -814,6 +818,18 @@ async def thread_chips(
     if not organization_id:
         raise HTTPException(status_code=400, detail="No organization selected")
 
+    # The reply on screen first: a helper's own next steps for what it just
+    # said (services/helpers/follow_ups.py), sent back to that helper.
+    follow: list[ThreadChip] = []
+    if thread_id is not None:
+        try:
+            await _assert_thread_is_theirs(user, organization_id, thread_id)
+            follow = await _follow_ups(organization_id, thread_id)
+        except HTTPException:
+            follow = []
+        except Exception as exc:  # noqa: BLE001 - the thread still works
+            logger.warning("Could not build follow-ups for {}: {}", thread_id, exc)
+
     try:
         from api.routes.team import _members
 
@@ -824,15 +840,43 @@ async def thread_chips(
         )
     except Exception as exc:  # noqa: BLE001 - the thread still works
         logger.warning("Could not build thread chips for {}: {}", organization_id, exc)
-        return ThreadChipsResponse(chips=[])
+        return ThreadChipsResponse(chips=follow)
 
     return ThreadChipsResponse(
-        chips=[
+        chips=follow
+        + [
             ThreadChip(kind=str(c.get("kind") or "suggestion"), text=str(c["text"]))
             for c in cards
             if c.get("text")
         ]
     )
+
+
+async def _follow_ups(organization_id: int, thread_id: str) -> list[ThreadChip]:
+    """Chips for the newest Decibyl reply in this thread, if a helper wrote
+    it and it did not fail or stop."""
+    from api.services.helpers import follow_ups
+
+    rows = await db_client.agent_events(
+        organization_id=organization_id,
+        assistant_thread=True,
+        thread_id=thread_id,
+        kinds=[AgentEventKind.MESSAGE.value],
+        limit=20,
+    )
+    for row in rows:
+        if row.actor != AgentEventActor.AGENT.value:
+            continue
+        payload = row.payload or {}
+        if payload.get("failed") or payload.get("stopped"):
+            return []
+        return [
+            ThreadChip(**chip)
+            for chip in follow_ups.for_reply(
+                payload.get("helper"), str(payload.get("body") or "")
+            )
+        ]
+    return []
 
 
 @router.post("/decide", response_model=TimelineEvent)

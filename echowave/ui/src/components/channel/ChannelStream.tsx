@@ -437,18 +437,20 @@ export function ChannelStream({
     const [sendingChip, setSendingChip] = useState<string | null>(null);
     const loadChips = useCallback(async () => {
         if (!assistant) return;
-        const response = await threadChipsApiV1TimelineChipsGet();
+        // This thread's, so a helper's follow-ups answer the reply on screen.
+        const response = await threadChipsApiV1TimelineChipsGet({ query: { thread_id: threadId ?? undefined } });
         if (response.error) return; // A thread with no chips is still a thread.
         setChips(response.data?.chips ?? []);
-    }, [assistant]);
-    const sendChip = async (text: string) => {
+    }, [assistant, threadId]);
+    const sendChip = async (text: string, helper?: string | null) => {
         setSendingChip(text);
         // Cleared first: the chips answer the reply that is on screen, and
         // leaving them under the question they just asked reads as if
         // nothing happened.
         setChips([]);
+        // A follow-up goes back to the helper that wrote the reply it follows.
         const response = await postMessageApiV1TimelineMessagePost({
-            body: { assistant: true, thread_id: threadId, text },
+            body: { assistant: true, thread_id: threadId, text, ...(helper ? { helper } : {}) },
         });
         setSendingChip(null);
         if (response.error) {
@@ -910,7 +912,7 @@ export function ChannelStream({
                             <button
                                 type="button"
                                 disabled={sendingChip !== null}
-                                onClick={() => void sendChip(chip.text)}
+                                onClick={() => void sendChip(chip.text, chip.helper)}
                                 className="rounded-full border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-[var(--accent-brand)] hover:text-foreground disabled:opacity-50"
                             >
                                 {chip.text}
