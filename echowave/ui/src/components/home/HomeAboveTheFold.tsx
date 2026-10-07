@@ -33,6 +33,7 @@ import { ThreadList } from "@/components/home/ThreadList";
 import { AuxiliaryPanel } from "@/components/layout/AuxiliaryPanel";
 import { Announcer } from "@/components/shell/Announcer";
 import { SourceCoverage } from "@/components/shell/SourceCoverage";
+import { ApprovalDock } from "@/components/today/ApprovalDock";
 import { jobArt } from "@/lib/art";
 import { useAuth } from "@/lib/auth";
 import { useFeature } from "@/lib/features";
@@ -148,6 +149,8 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   const { user, loading: authLoading } = useAuth();
   // Screens 03-04: starters that fill the box, Stop, sources, task states.
   const chatShell = useFeature("chat_shell");
+  // Stream today: a pending approval docks above the composer.
+  const approvalDock = useFeature("approval_dock");
   // Whether the thread's history loaded. A failure is shown as a failure
   // with Retry, never as the empty greeting (screen 03).
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
@@ -423,6 +426,12 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
           onOpenSources={chatShell ? onOpenSources : undefined}
         />
       </div>
+      {approvalDock && (
+        // The composer's own gutter, so the dock lines up with the box it sits on.
+        <div className="px-4 sm:px-6">
+          <ApprovalDock refreshKey={threadsVersion} onSettled={() => refreshStream.current()} />
+        </div>
+      )}
       <ChannelComposer
         hero={empty}
         assistant

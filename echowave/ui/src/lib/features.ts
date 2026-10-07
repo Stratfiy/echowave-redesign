@@ -61,7 +61,14 @@ export type Feature =
     | "early_access"
     | "first_task_onboarding"
     | "chat_shell"
-    | "shell_mobile";
+    | "shell_mobile"
+    // Launch stream `today` (LAUNCH-PLAN.md, phase 2).
+    | "today_list"
+    | "approval_dock"
+    | "today_reminders"
+    | "daily_brief"
+    | "end_of_day_note"
+    | "routine_start_on";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

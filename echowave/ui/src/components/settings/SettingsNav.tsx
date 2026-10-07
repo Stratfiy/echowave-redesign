@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { type Feature, useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 import { activeSection, SETTINGS_GROUPS, SETTINGS_SECTIONS } from "./sections";
@@ -25,6 +26,9 @@ export function SettingsNav() {
   const pathname = usePathname() ?? "";
   const current = activeSection(pathname);
   const root = isSettingsRoot(pathname);
+  // A section behind a switch is listed only while it is on.
+  const on: Partial<Record<Feature, boolean>> = { daily_brief: useFeature("daily_brief") };
+  const shown = SETTINGS_SECTIONS.filter((section) => !section.flag || on[section.flag]);
   return (
     <>
       {!root && (
@@ -45,7 +49,7 @@ export function SettingsNav() {
             <div key={group} className="mb-4 md:mb-3">
               <h2 className="px-2.5 pb-1 text-xs text-muted-foreground">{group}</h2>
               <ul className="divide-y divide-[var(--line)] rounded-2xl bg-[var(--paper-2)] md:divide-y-0 md:rounded-none md:bg-transparent">
-                {SETTINGS_SECTIONS.filter((section) => section.group === group).map((section) => (
+                {shown.filter((section) => section.group === group).map((section) => (
                   <li key={section.id}>
                     {/* Phone link: full-width row to the section's own page. */}
                     <Link

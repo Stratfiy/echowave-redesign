@@ -19,12 +19,15 @@ import { cn } from "@/lib/utils";
 
 export type ActionPreviewData = {
     id: string;
-    version: number;
+    /** The card's payload version: a number, or the controls card's hash. */
+    version: number | string;
     /** "Send email", "Book appointment". */
     action: string;
     /** The account it acts as: "nithya@clinic.in (Gmail)". */
     account?: string;
     recipient?: string;
+    /** The exact amount, as it will be paid: "₹4,800". */
+    amount?: string;
     /** The exact words or payload, as it will go. */
     content?: string;
     attachments?: string[];
@@ -57,15 +60,25 @@ export function ActionPreview({
     onCancel,
     now = Date.now(),
     className,
+    approveLabel = "Approve",
+    stickyDecision = false,
+    decisionNote,
 }: {
     preview: ActionPreviewData;
     status: ApprovalStatus;
-    onApprove: (id: string, version: number) => void;
+    onApprove: (id: string, version: number | string) => void;
     onEdit?: () => void;
     onCancel?: () => void;
     /** For tests and for a screen that ticks. */
     now?: number;
     className?: string;
+    /** The primary button's words: "Approve and send". */
+    approveLabel?: string;
+    /** Keep the decision in a footer that stays on screen (screen 08 on a
+     *  phone), with ``decisionNote`` -- the final recipient and action --
+     *  beside the button. */
+    stickyDecision?: boolean;
+    decisionNote?: ReactNode;
 }) {
     const expired =
         status === "expired" || (!!preview.expiresAt && new Date(preview.expiresAt).getTime() <= now);
@@ -88,6 +101,7 @@ export function ActionPreview({
             <dl className="flex flex-col gap-1.5">
                 {preview.account && <Row label="From">{preview.account}</Row>}
                 {preview.recipient && <Row label="To">{preview.recipient}</Row>}
+                {preview.amount && <Row label="Amount">{preview.amount}</Row>}
                 {preview.timing && <Row label="When">{preview.timing}</Row>}
                 {preview.content && (
                     <Row label="Content">
@@ -122,7 +136,16 @@ export function ActionPreview({
                     </Row>
                 )}
             </dl>
-            <div className="mt-4 flex flex-wrap items-center gap-2" role="group" aria-label="Decision">
+            <div
+                className={cn(
+                    "mt-4 flex flex-wrap items-center gap-2",
+                    stickyDecision &&
+                        "sticky bottom-0 -mx-4 -mb-4 border-t border-border bg-card px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]",
+                )}
+                role="group"
+                aria-label="Decision"
+            >
+                {decisionNote && !settled && <p className="w-full min-w-0 break-words text-sm text-muted-foreground">{decisionNote}</p>}
                 {status === "approved" && (
                     <p role="status" className="flex items-center gap-1.5 text-sm text-[#075A39] dark:text-emerald-300">
                         <CheckCircle2 aria-hidden className="h-4 w-4" />
@@ -152,7 +175,7 @@ export function ActionPreview({
                             onClick={() => onApprove(preview.id, preview.version)}
                         >
                             {committing && <Loader2 aria-hidden className="motion-continuous animate-spin" />}
-                            {committing ? "Approving…" : "Approve"}
+                            {committing ? "Approving…" : approveLabel}
                         </Button>
                         {onEdit && (
                             <Button type="button" variant="outline" className="motion-m1 min-h-11 md:min-h-9" disabled={committing} onClick={onEdit}>

@@ -457,6 +457,8 @@ export function ChannelStream({
     // Was this useful? under Decibyl's replies (reply_feedback). Read once
     // per batch of replies, after auth, so a reload shows what was said.
     const feedbackOn = useFeature('reply_feedback') && assistant;
+    // Stream today: a routine's result carries a small ✓ chip naming it.
+    const routineChip = useFeature('routine_start_on');
     const judgeable = feedbackOn ? events.filter(isJudgeableReply).map((e) => e.id) : [];
     const feedback = useMyFeedback(judgeable, feedbackOn && !authLoading && Boolean(user));
     // Whether the reader is at the bottom. Scrolling them back down while they
@@ -1308,6 +1310,15 @@ export function ChannelStream({
                                                 Handed to you
                                             </Link>
                                         )}
+                                        {routineChip &&
+                                            typeof (event.payload as { routine?: unknown } | null)?.routine === 'string' && (
+                                                <span
+                                                    className="ml-2 inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground"
+                                                    data-testid="routine-chip"
+                                                >
+                                                    ✓ {(event.payload as { routine: string }).routine}
+                                                </span>
+                                            )}
                                     </p>
                                 )}
                                 {/* whitespace-pre-wrap: somebody who typed a
