@@ -328,7 +328,9 @@ export function groupRows(inOrder: TimelineEvent[]): Group[] {
         const foldable =
             (event.kind === 'call_ended' && (event.payload as { answered?: boolean } | null)?.answered === false) ||
             event.kind === 'agent_acted' ||
-            event.kind === 'activity';
+            // A step with something to open (a course, a saved report) is
+            // a result, not a reading: folded, its button was out of sight.
+            (event.kind === 'activity' && !courseOf(event) && !savedReportOf(event));
         const key = foldable ? `${event.kind}:${event.workflow_id}` : '';
         const last = groups[groups.length - 1];
         if (foldable && last && last.key === key) {
@@ -682,6 +684,14 @@ export function ChannelStream({
             clearInterval(timer);
         };
     }, [waiting, assistant, workflowId, threadId]);
+
+    // Chips arrive after the reply they follow: keep them in view for a
+    // reader at the bottom, or on a phone they land below the fold.
+    useEffect(() => {
+        if (chips.length === 0) return;
+        const element = scroller.current;
+        if (pinned.current && element) element.scrollTop = element.scrollHeight;
+    }, [chips]);
 
     // The forming reply follows the reader only while they are at the
     // bottom; scrolled up, it waits behind New content (screen 04).

@@ -646,3 +646,73 @@ describe('a course started from the conversation', () => {
         expect(link.getAttribute('href')).toBe('/overview?learn=g-1');
     });
 });
+
+describe('a row with something to open is never folded away', () => {
+    it('keeps a course card and a saved report out of a run of steps', async () => {
+        const { groupRows } = await import('../ChannelStream');
+        const read = event({ id: 1, kind: 'activity', summary: 'Read the team (0 agents)', workflow_id: null, folder_id: null });
+        const course = event({
+            id: 2,
+            kind: 'activity',
+            summary: 'Course: Python',
+            workflow_id: null,
+            folder_id: null,
+            payload: { learning_course: { goal_id: 'g-1', title: 'Python', href: '/overview?learn=g-1' } },
+        });
+        const report = event({
+            id: 3,
+            kind: 'activity',
+            summary: 'Saved report: GST',
+            workflow_id: null,
+            folder_id: null,
+            payload: { saved_report: { uuid: 'r-1', title: 'GST' } },
+        });
+        const groups = groupRows([read, course, report] as never);
+        expect(groups.map((g) => g.events.map((e) => e.id))).toEqual([[1], [2], [3]]);
+    });
+
+    it('a course after a reading still shows its button', async () => {
+        timeline.mockResolvedValue({
+            data: {
+                events: [
+                    event({
+                        id: 2,
+                        kind: 'activity',
+                        at: '2026-09-13T06:00:02Z',
+                        summary: 'Course: Python',
+                        workflow_id: null,
+                        folder_id: null,
+                        payload: { learning_course: { goal_id: 'g-1', title: 'Python', href: '/overview?learn=g-1' } },
+                    }),
+                    event({ id: 1, kind: 'activity', summary: 'Read the team (0 agents)', workflow_id: null, folder_id: null }),
+                ],
+                next_before_at: null,
+                next_before_id: null,
+            },
+        });
+        render(<ChannelStream assistant botNames={{}} onOpenLesson={vi.fn()} />);
+        expect(await screen.findByRole('button', { name: 'Open the lesson' })).toBeTruthy();
+    });
+});
+
+describe('the next steps are in view', () => {
+    it('chips that arrive after the reply keep the thread at the bottom', async () => {
+        // At 390px the chips landed below the fold: the thread had been
+        // scrolled to the bottom before they arrived, and nobody saw them.
+        const height = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(1000);
+        let release: (v: unknown) => void = () => {};
+        chips.mockReturnValue(new Promise((resolve) => (release = resolve)));
+        timeline.mockResolvedValue({
+            data: { events: [event({ workflow_id: null, folder_id: null })], next_before_at: null, next_before_id: null },
+        });
+        const { container } = render(<ChannelStream assistant botNames={{}} />);
+        await screen.findByText('Booked Meera for 4pm.');
+        const scroller = container.firstElementChild as HTMLElement;
+        scroller.scrollTop = 0;
+        height.mockReturnValue(1400);
+        release({ data: { chips: [{ kind: 'follow_up', text: 'Quiz me on this', helper: 'learning_guide' }] } });
+        await screen.findByRole('button', { name: 'Quiz me on this' });
+        await waitFor(() => expect(scroller.scrollTop).toBe(1400));
+        height.mockRestore();
+    });
+});
