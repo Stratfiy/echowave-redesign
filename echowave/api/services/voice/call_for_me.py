@@ -237,6 +237,8 @@ async def execute(
                 "trigger_source": "call_for_me",
                 ANNOUNCEMENT_KEY: announcement(principal_name),
                 "principal_name": principal_name,
+                # Who to tell when the call ends (mobile_push.announce_call).
+                "principal_user_id": args.get("principal_user_id"),
                 "callee_name": args.get("callee") or "",
                 "call_purpose": args.get("purpose") or "",
                 "call_details": args.get("details") or "",

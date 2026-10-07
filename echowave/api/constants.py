@@ -975,6 +975,18 @@ CALL_APPOINTMENT_ENABLED = _flag("CALL_APPOINTMENT_ENABLED")
 # treated as lost (its microphone and slot released).
 VOICE_SESSION_STALE_SECONDS = int(os.getenv("VOICE_SESSION_STALE_SECONDS", "90"))
 
+# The native app for iOS and Android (mobile/, MOBILE.md). Off by default.
+# Push to the app goes through Expo's push service, which relays to APNs and
+# FCM with the credentials uploaded to the Expo project; the server holds no
+# Apple or Google key. EXPO_ACCESS_TOKEN is optional (only when the project
+# turns on "enhanced push security"); without it the request is unsigned,
+# which Expo accepts for projects that have not.
+MOBILE_PUSH_ENABLED = _flag("MOBILE_PUSH_ENABLED")
+EXPO_PUSH_URL = os.getenv(
+    "EXPO_PUSH_URL", "https://exp.host/--/api/v2/push/send"
+).strip()
+EXPO_ACCESS_TOKEN = os.getenv("EXPO_ACCESS_TOKEN", "").strip()
+
 # Free while we are early (October 2026): no plans, nothing charged, nothing
 # locked. On by default -- the one launch switch that is -- and reversible
 # from the environment or the staff console. See services/billing/free_mode.py.

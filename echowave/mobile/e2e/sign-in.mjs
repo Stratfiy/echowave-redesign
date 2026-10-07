@@ -1,0 +1,26 @@
+import { chromium } from 'playwright';
+const BASE = 'http://localhost:8081';
+const only = process.argv[2];
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH, args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] });
+const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: 'light', locale: 'en-IN', permissions: ['microphone'] });
+const page = await ctx.newPage();
+const errors = [];
+page.on('pageerror', (e) => errors.push('PAGEERROR ' + e.message));
+page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text().slice(0, 300)); });
+const shot = async (name) => { await page.waitForTimeout(900); await page.screenshot({ path: `out/${name}.png` }); console.log('shot', name, page.url()); };
+const tid = (id) => page.getByTestId(id);
+
+await page.goto(`${BASE}/sign-in`, { waitUntil: 'networkidle' });
+await shot('01-sign-in');
+await page.goto(`${BASE}/sign-up`, { waitUntil: 'networkidle' });
+await shot('02-sign-up');
+await page.goto(`${BASE}/sign-in`, { waitUntil: 'networkidle' });
+await tid('sign-in-email').fill('asha@example.com');
+await tid('sign-in-password').fill('walkthrough-2026');
+await tid('sign-in-submit').click();
+await tid('screen-chat-list').waitFor();
+await page.waitForTimeout(1500);
+await shot('03-chat-threads');
+console.log(errors.join('\n'));
+await ctx.storageState({ path: 'state.json' });
+await browser.close();

@@ -47,6 +47,7 @@ from api.routes.learning import router as learning_router
 from api.routes.managed_numbers import router as managed_numbers_router
 from api.routes.meetings import router as meetings_router
 from api.routes.missed_calls import router as missed_calls_router
+from api.routes.mobile_push import router as mobile_push_router
 from api.routes.node_types import router as node_types_router
 from api.routes.notifications import router as notifications_router
 from api.routes.onboarding import router as onboarding_router
@@ -222,6 +223,7 @@ router.include_router(support_router)
 router.include_router(support_admin_router)
 router.include_router(support_actions_router)
 router.include_router(identity_router)
+router.include_router(mobile_push_router)
 router.include_router(public_marketplace_router)
 router.include_router(workflow_embed_router)
 router.include_router(knowledge_base_router)
