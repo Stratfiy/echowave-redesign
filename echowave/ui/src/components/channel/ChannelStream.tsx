@@ -24,7 +24,7 @@
  * every few seconds does not justify building one.
  */
 
-import { AlertTriangle, ArrowDown, BookOpen, Bot, CheckCircle2, CircleSlash, Clock, FileText, Loader2, MessageSquare, Phone, RotateCcw, Wrench } from 'lucide-react';
+import { AlertTriangle, ArrowDown, BookOpen, Bot, CheckCircle2, CircleSlash, Clock, FileText, LifeBuoy, Loader2, MessageSquare, Phone, RotateCcw, Wrench } from 'lucide-react';
 import Link from 'next/link';
 import React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -457,6 +457,8 @@ export function ChannelStream({
     // Was this useful? under Decibyl's replies (reply_feedback). Read once
     // per batch of replies, after auth, so a reload shows what was said.
     const feedbackOn = useFeature('reply_feedback') && assistant;
+    // Screen 28: a failed reply offers Help about that one reply.
+    const helpOn = useFeature('support_help');
     const judgeable = feedbackOn ? events.filter(isJudgeableReply).map((e) => e.id) : [];
     const feedback = useMyFeedback(judgeable, feedbackOn && !authLoading && Boolean(user));
     // Whether the reader is at the bottom. Scrolling them back down while they
@@ -961,6 +963,16 @@ export function ChannelStream({
                             <RotateCcw aria-hidden className="h-3.5 w-3.5" />
                             {resending === event.id ? 'Asking again…' : 'Retry'}
                         </button>
+                        {helpOn && outcome.failed && (
+                            <Link
+                                href={`/help/new?reply=${event.id}`}
+                                className="motion-m1 inline-flex min-h-11 items-center gap-1 rounded-md px-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline md:min-h-6"
+                                data-testid="reply-get-help"
+                            >
+                                <LifeBuoy aria-hidden className="h-3.5 w-3.5" />
+                                Get help
+                            </Link>
+                        )}
                     </>
                 )}
                 {sources.length > 0 &&

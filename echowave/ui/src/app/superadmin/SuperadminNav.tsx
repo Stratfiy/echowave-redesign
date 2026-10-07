@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { useAccessRoles } from "@/hooks/useAccessRoles";
+import { useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 /**
@@ -29,14 +30,19 @@ export function isActive(pathname: string, href: string, exact?: boolean): boole
     return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+/** The support inbox (screen 32), listed while `support_inbox` is on. */
+export const SUPPORT_LINK: (typeof SUPERADMIN_LINKS)[number] = { href: "/superadmin/support", label: "Support" };
+
 export function SuperadminNav() {
     const roles = useAccessRoles();
     const pathname = usePathname() ?? "";
+    const supportInbox = useFeature("support_inbox");
     if (!roles.loaded || roles.staffRole !== "superadmin") return null;
+    const links = supportInbox ? [...SUPERADMIN_LINKS, SUPPORT_LINK] : SUPERADMIN_LINKS;
     return (
         <nav aria-label="Staff console" className="border-b border-border">
             <ul className="container mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 py-2 text-sm">
-                {SUPERADMIN_LINKS.map((link) => {
+                {links.map((link) => {
                     const active = isActive(pathname, link.href, link.exact);
                     return (
                         <li key={link.href}>

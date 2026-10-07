@@ -152,6 +152,7 @@ def as_dict(
         "requested_by": who(a.requested_by),
         "requested_by_id": a.requested_by,
         "approved_by": who(a.approved_by),
+        "approved_by_id": a.approved_by,
         "approved_version": a.approved_version,
         "approved_at": _iso(a.approved_at),
         "decided_note": a.decided_note,

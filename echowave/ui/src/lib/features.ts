@@ -61,7 +61,11 @@ export type Feature =
     | "early_access"
     | "first_task_onboarding"
     | "chat_shell"
-    | "shell_mobile";
+    | "shell_mobile"
+    // Launch stream `support` (LAUNCH-PLAN.md, phase 2).
+    | "support_help"
+    | "support_inbox"
+    | "support_actions";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();
