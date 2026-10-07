@@ -384,7 +384,7 @@ hourly, reviews and merges each PR, and starts the next streams.
 | support | 2 | claude/stream-support | | | | |
 | staff | 2 | claude/stream-staff | | | | |
 | ops | 2 | claude/stream-ops | #524 merged | yes; one analytics outbox with controls | 245 stream + core pass | |
-| aws-gateway | 2 | claude/stream-aws-gateway | #528 | yes; rebasing on phase 1 + ops | 63 pass (fakes) | |
+| aws-gateway | 2 | claude/stream-aws-gateway | #528 merged | yes (flags off; Bedrock needs setup until AWS clears the account) | 66 + 250 core pass | |
 | browser | 2 | claude/stream-browser | #529 | yes; moving to controls card states + quotas | 147 pass | |
 | reach | 2 | claude/stream-reach | | | | |
 | care | 2 | claude/stream-care | | | | |
