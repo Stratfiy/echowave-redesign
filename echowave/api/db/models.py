@@ -6903,6 +6903,9 @@ from api.db.meeting_models import (  # noqa: E402,F401
     MeetingModel,
     MeetingSegmentModel,
 )
+from api.db.mobile_push_models import (  # noqa: E402,F401
+    MobilePushTokenModel,
+)
 from api.db.ops_models import (  # noqa: E402,F401
     OpsCommandModel,
     OpsEvidenceModel,

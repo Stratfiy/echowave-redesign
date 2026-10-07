@@ -1322,7 +1322,7 @@ async def _answer(
             spoken.said = body
             await spoken.on_words(body)
         return body
-    await agent_timeline.record(
+    reply_id = await agent_timeline.record(
         organization_id=organization_id,
         kind=AgentEventKind.MESSAGE.value,
         actor=AgentEventActor.AGENT.value,
@@ -1350,6 +1350,17 @@ async def _answer(
     await reply_draft.clear(organization_id)
     if stopped:
         await reply_stop.clear(organization_id, thread_id)
+    # The person who asked, on their phone, while ``mobile_push`` is on
+    # (MOBILE.md). The app hides it while that thread is open. Never raises.
+    from api.services.identity import mobile_push
+
+    await mobile_push.announce_reply(
+        organization_id=organization_id,
+        user_id=author_id,
+        thread_id=thread_id,
+        event_id=reply_id,
+        body=body,
+    )
     # And into the graph, with time, so what the person said on the thread
     # can be asked about later (Family B). No graph, nothing happens.
     try:

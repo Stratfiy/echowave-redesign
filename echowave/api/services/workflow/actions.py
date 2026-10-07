@@ -1081,6 +1081,16 @@ async def propose(
             payload,
             acting.acting_user(),
         )
+        # The person who asked, on their phone (MOBILE.md). The notice opens
+        # the card; Confirm is only ever on the card. Never raises.
+        from api.services.identity import mobile_push
+
+        await mobile_push.announce_approval(
+            organization_id=organization_id,
+            user_id=acting.acting_user(),
+            event_id=recorded,
+            label=payload.get("label") or "",
+        )
     told = {
         "status": "proposed",
         "event_id": recorded,
