@@ -281,13 +281,13 @@ function MedicineRow({ medicine, onChanged }: { medicine: Medicine; onChanged: (
             {medicine.state === "active" && (
                 <Button type="button" variant="outline" className="min-h-11 self-start gap-2" disabled={busy} onClick={() => void act("pause")}>
                     <Pause aria-hidden className="h-4 w-4" />
-                    Pause the calls
+                    {medicine.channel === "app" ? "Pause the reminders" : "Pause the calls"}
                 </Button>
             )}
             {medicine.state === "paused" && (
                 <Button type="button" variant="outline" className="min-h-11 self-start gap-2" disabled={busy} onClick={() => void act("resume")}>
                     <Play aria-hidden className="h-4 w-4" />
-                    Start the calls again
+                    {medicine.channel === "app" ? "Start the reminders again" : "Start the calls again"}
                 </Button>
             )}
         </li>
@@ -353,7 +353,7 @@ export function MedicinesPanel() {
                     <p className="font-semibold">Phone calls need setting up</p>
                     <p>{data.calls.reason}</p>
                     <p>
-                        Until then, reminders come in Decibyl: {data.app.reason} No phone number is needed.
+                        Until then: {data.app.reason} No phone number is needed.
                     </p>
                     <Link href="/settings/phone-number" className="min-h-11 self-start py-2 font-medium underline underline-offset-4">
                         Set up a phone line for calls

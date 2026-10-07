@@ -183,6 +183,7 @@ describe("My medicine reminders", () => {
         expect(await screen.findByTestId("calls-needs-setup")).toBeTruthy();
         expect(screen.getByText(/No phone number is needed/)).toBeTruthy();
         expect(screen.getByRole("link", { name: "Set up a phone line for calls" }).getAttribute("href")).toBe("/settings/phone-number");
+        expect(screen.queryByRole("button", { name: "Pause the calls" })).toBeNull();
         fireEvent.click(screen.getByRole("button", { name: /Add a reminder/ }));
         const inApp = screen.getByRole("radio", { name: /In Decibyl/ }) as HTMLInputElement;
         const call = screen.getByRole("radio", { name: /A phone call/ }) as HTMLInputElement;
