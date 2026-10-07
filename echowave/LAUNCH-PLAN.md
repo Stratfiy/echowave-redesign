@@ -289,6 +289,11 @@ AWS (founder request): `CLAUDE_BACKEND` = anthropic | aws_platform (Claude
 Platform on AWS: Anthropic-operated, full API parity, IAM, AWS billing --
 recommended) | bedrock (Amazon Bedrock: feature subset), for chat, routing,
 the builder and the call pipeline's managed tier; instance roles, no keys.
+And an AWS model gateway beyond Claude: Bedrock as a managed provider per
+slot -- a fallback brain when Claude fails (Nova Pro or an open-weight model;
+Auto says so honestly), an optional cheap tier for labelling, embeddings
+(Cohere multilingual or Titan), and optional Nova 2 Sonic for Hindi and
+Indian English only. Sarvam stays for Indian-language voice (not on AWS).
 
 **`browser`** -- founder request. browser-use in the sandbox: one isolated
 browser per person and task, private addresses blocked, live view and Take
