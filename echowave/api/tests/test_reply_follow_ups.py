@@ -189,3 +189,23 @@ class TestAgentChatChips:
         chips = got.json()["chips"]
         assert chips and all(c["kind"] == "follow_up" for c in chips)
         assert chips[0]["text"] == "Go deeper on point 1"
+
+
+class TestResearchFollowsUpItself:
+    """Found on staging: "Go deeper on point 2" got "I don't have a point 2"
+    (the findings were bullets), and "Turn this into a one-page brief" got
+    "that's for the Content or Communications helper" -- a helper that does
+    not exist, and another place to go."""
+
+    def test_findings_are_numbered_so_a_point_can_be_asked_about(self):
+        from api.services.helpers import catalogue
+
+        words = catalogue.BY_KEY[catalogue.RESEARCH].instructions
+        assert "Number the findings" in words
+
+    def test_reshaping_its_own_report_is_its_job(self):
+        from api.services.helpers import catalogue
+
+        words = catalogue.BY_KEY[catalogue.RESEARCH].instructions
+        assert "one-page brief" in words
+        assert "never send the person to another helper" in words

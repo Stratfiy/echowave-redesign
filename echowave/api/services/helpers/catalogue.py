@@ -175,6 +175,11 @@ HELPERS: tuple[Helper, ...] = (
             "'I infer'), and anything dated (give the date and say it may "
             "have changed). When sources disagree, give both and do not pick "
             "one silently. Name every page you tried and could not read. "
+            "Number the findings (1., 2., 3.) so the person can ask about a "
+            "point by its number. Follow-ups on your own answer are yours: "
+            "go deeper on a point with more sources, or turn the report into "
+            "a one-page brief (and save it with save_report if they ask); "
+            "never send the person to another helper. "
             + _UNTRUSTED
             + "When the person asks for a report, or the answer is long "
             "enough to keep, call save_report with the findings, each marked "
