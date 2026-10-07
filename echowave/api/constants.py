@@ -1064,6 +1064,34 @@ SUPPORT_INBOX_ENABLED = os.getenv("SUPPORT_INBOX_ENABLED", "false").lower() == "
 SUPPORT_ACTIONS_ENABLED = (
     os.getenv("SUPPORT_ACTIONS_ENABLED", "false").lower() == "true"
 )
+# ---------------------------------------------------------------------------
+# Launch stream `staff` (LAUNCH-PLAN.md, phase 2; STAFF.md). Every one is off
+# by default; off, /superadmin is exactly what it was.
+# ---------------------------------------------------------------------------
+# The staff console: eight destinations, role-gated, under /superadmin.
+STAFF_CONSOLE_ENABLED = _flag("STAFF_CONSOLE_ENABLED")
+# Console roles beyond the two staff tiers: operations, finance and quality,
+# granted by an owner through an approved command (handoff 32).
+STAFF_ROLES_ENABLED = _flag("STAFF_ROLES_ENABLED")
+# Finance-only refunds: preview, second-person approval, run once, reconcile.
+STAFF_REFUNDS_ENABLED = _flag("STAFF_REFUNDS_ENABLED")
+# Versioned evaluation cases, runs and case comparison (screens 34-35).
+STAFF_EVALUATIONS_ENABLED = _flag("STAFF_EVALUATIONS_ENABLED")
+# Incidents with an approved runbook stepper (screen 41).
+STAFF_INCIDENTS_ENABLED = _flag("STAFF_INCIDENTS_ENABLED")
+# PLACEHOLDER (founder decision, LAUNCH-PLAN "Decisions still open"): how many
+# people the invite beta admits, and the beta's total spend budget in paise.
+# Unset means unknown, and the console says "needs setup" -- never unlimited.
+STAFF_PILOT_USER_CAPACITY = (
+    int(os.environ["STAFF_PILOT_USER_CAPACITY"])
+    if os.getenv("STAFF_PILOT_USER_CAPACITY", "").strip().isdigit()
+    else None
+)
+STAFF_PILOT_BUDGET_PAISE = (
+    int(os.environ["STAFF_PILOT_BUDGET_PAISE"])
+    if os.getenv("STAFF_PILOT_BUDGET_PAISE", "").strip().isdigit()
+    else None
+)
 
 # Where previews of Studio sites are served from. Set it to a host of its own
 # (https://sites.example.com, proxied to this api) so a generated site runs on

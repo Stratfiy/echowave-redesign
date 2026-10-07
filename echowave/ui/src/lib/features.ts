@@ -94,7 +94,13 @@ export type Feature =
     | "learning"
     | "learning_today"
     // Launch stream `meetings` (LAUNCH-PLAN.md, phase 2).
-    | "meeting_capture";
+    | "meeting_capture"
+    // Launch stream `staff` (LAUNCH-PLAN.md, phase 2; STAFF.md).
+    | "staff_console"
+    | "staff_roles"
+    | "staff_refunds"
+    | "staff_evaluations"
+    | "staff_incidents";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

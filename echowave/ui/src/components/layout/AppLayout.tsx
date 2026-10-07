@@ -104,6 +104,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   // The phone shell (shell_mobile): profile in a header, Chat and Today at
   // the bottom. Desktop is unchanged either way.
   const shellMobile = useFeature("shell_mobile");
+  // The staff console (staff_console) draws its own rail and header: the
+  // customer's Chat and Today are not embedded in it (screen 29).
+  const staffConsole = useFeature("staff_console");
 
   // Check if current route should have sidebar
   // Hide sidebar for root (/), /handler routes (Stack Auth routes), and /auth routes
@@ -126,7 +129,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     // questions after sign-in. One column, nothing to wander off into.
     !pathname.startsWith("/early-access") &&
     !pathname.startsWith("/invite/") &&
-    !pathname.startsWith("/welcome");
+    !pathname.startsWith("/welcome") &&
+    !(staffConsole && pathname.startsWith("/superadmin"));
 
   // Only match the exact editor page /workflow/<id>, not sub-routes like /workflow/<id>/runs
   const isWorkflowEditor = /^\/workflow\/\d+$/.test(pathname);

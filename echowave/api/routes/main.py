@@ -82,6 +82,7 @@ from api.routes.service_keys import router as service_keys_router
 from api.routes.shell import public_router as public_early_access_router
 from api.routes.shell import router as shell_router
 from api.routes.skills import router as skills_router
+from api.routes.staff_console import router as staff_console_router
 from api.routes.studio import public_router as public_studio_router
 from api.routes.studio import router as studio_router
 from api.routes.superuser import router as superuser_router
@@ -173,6 +174,7 @@ router.include_router(tasks_router)
 router.include_router(controls_router)
 router.include_router(care_router)
 router.include_router(controls_admin_router)
+router.include_router(staff_console_router)
 router.include_router(organisation_router)
 router.include_router(organisation_memory_router)
 router.include_router(packs_router)

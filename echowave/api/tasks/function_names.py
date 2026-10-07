@@ -27,6 +27,8 @@ class FunctionNames:
     FINISH_MEETING = "finish_meeting"
     #: An approved support action runs once (launch stream `support`).
     RUN_SUPPORT_ACTION = "run_support_action"
+    #: Launch stream staff: an approved staff command runs once.
+    RUN_STAFF_COMMAND = "run_staff_command"
     COMPACT_CHANNEL_CONTEXT = "compact_channel_context"
     EMAIL_TAX_DOCUMENT = "email_tax_document"
     PLACE_MISSED_CALL_CALLBACK = "place_missed_call_callback"

@@ -144,6 +144,12 @@ FLAGS: dict[str, str] = {
     "learning_today": "LEARNING_TODAY_ENABLED",
     # Launch stream `meetings` (LAUNCH-PLAN.md, phase 2).
     "meeting_capture": "MEETING_CAPTURE_ENABLED",
+    # Launch stream `staff` (LAUNCH-PLAN.md, phase 2; STAFF.md).
+    "staff_console": "STAFF_CONSOLE_ENABLED",
+    "staff_roles": "STAFF_ROLES_ENABLED",
+    "staff_refunds": "STAFF_REFUNDS_ENABLED",
+    "staff_evaluations": "STAFF_EVALUATIONS_ENABLED",
+    "staff_incidents": "STAFF_INCIDENTS_ENABLED",
 }
 
 
@@ -208,6 +214,11 @@ DESCRIPTIONS: dict[str, str] = {
     "early_access": "The public waitlist and invitation pages (screen 01).",
     "first_task_onboarding": "Language, timezone and a first task; new people land in Chat (screen 02).",
     "chat_shell": "Chat: three starters, attach menu, Dictate and Talk, Stop, New content, sources and task states (screens 03-04).",
+    "staff_console": "The staff console: eight role-gated destinations under /superadmin (screens 29-31, 34-44).",
+    "staff_roles": "Console roles (operations, finance, quality) granted by an owner through an approved command.",
+    "staff_refunds": "Finance-only refunds: preview, second-person approval, run once, reconcile.",
+    "staff_evaluations": "Versioned evaluation cases, runs against a fixed set, and case comparison.",
+    "staff_incidents": "Incidents with an approved runbook: preflight, approval, execution, verification.",
     "shell_mobile": "Phone shell: Chat and Today at the bottom, profile in the header, keyboard-aware bar, read-only workflow steps.",
     "support_help": "Help: ask support, choose exactly what is shared, follow the ticket (screen 28).",
     "support_inbox": "Staff support inbox and case with internal notes (screen 32).",
