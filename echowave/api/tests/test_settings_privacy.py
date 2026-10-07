@@ -228,4 +228,5 @@ class TestDeletion:
             "feedback",
             "temporary",
             "personal_space",
+            "people",
         }

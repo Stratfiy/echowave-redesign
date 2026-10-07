@@ -439,7 +439,7 @@ class TestMigration:
         migration = _migration()
 
         assert migration.revision == "20261009mobile"
-        assert migration.down_revision == "20261008voice"
+        assert migration.down_revision == "20261009people"
 
 
 @pytest.mark.asyncio

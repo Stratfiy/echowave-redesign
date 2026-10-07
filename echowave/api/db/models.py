@@ -6911,6 +6911,16 @@ from api.db.ops_models import (  # noqa: E402,F401
     OpsEvidenceModel,
     PlatformCredentialRotationModel,
 )
+from api.db.people_models import (  # noqa: E402,F401
+    PeopleSettingsModel,
+    PeopleSyncModel,
+    PersonHandleModel,
+    PersonInteractionModel,
+    PersonMergeModel,
+    PersonModel,
+    PersonShareModel,
+    PersonSourceModel,
+)
 from api.db.reach_models import (  # noqa: E402,F401
     ReachConnectionModel,
     ReachOrderDraftModel,

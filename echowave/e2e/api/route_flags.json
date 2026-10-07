@@ -782,6 +782,11 @@
    "learning"
   ]
  },
+ "/api/v1/learning/today": {
+  "GET": [
+   "learning"
+  ]
+ },
  "/api/v1/me/card-interest": {
   "PUT": [
    "identity_email"
@@ -883,6 +888,26 @@
  "/api/v1/me/memory/{fact_id}/share-preview": {
   "GET": [
    "memory_manager"
+  ]
+ },
+ "/api/v1/me/mobile-push/devices": {
+  "GET": [
+   "mobile_push"
+  ]
+ },
+ "/api/v1/me/mobile-push/devices/{device_id}": {
+  "DELETE": [
+   "mobile_push"
+  ]
+ },
+ "/api/v1/me/mobile-push/tokens": {
+  "POST": [
+   "mobile_push"
+  ]
+ },
+ "/api/v1/me/mobile-push/tokens/remove": {
+  "POST": [
+   "mobile_push"
   ]
  },
  "/api/v1/me/notifications": {

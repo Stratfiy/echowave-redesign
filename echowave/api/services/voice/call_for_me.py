@@ -227,8 +227,17 @@ async def execute(
         raise CallNotPossible(str(exc)) from exc
     telephony = await db_client.get_default_telephony_configuration(organization_id)
     provider = await get_default_telephony_provider(organization_id)
-    _, principal_name = await _principal(args.get("principal_user_id"))
+    principal_id, principal_name = await _principal(args.get("principal_user_id"))
     version = payload.get("version") or ""
+    from api.services.people import interactions as people_interactions
+    from api.services.people import tools as people_tools
+
+    # People: what the person keeps about whoever is called, only when they
+    # let agents read it (People settings). None otherwise, and the key is
+    # then empty.
+    callee_brief = await people_tools.brief_for_agent(
+        organization_id, principal_id, phone=dialable
+    )
     try:
         run_id = await outbound.dial_workflow(
             workflow=workflow,
@@ -248,6 +257,9 @@ async def execute(
                 "call_details": args.get("details") or "",
                 "card_event_id": event_id,
                 "idempotency_key": f"card:{event_id}:{version}",
+                # Whose call this is, for the record after it ends (People).
+                "principal_user_id": principal_id,
+                "callee_brief": callee_brief or "",
             },
         )
     except (
@@ -257,5 +269,15 @@ async def execute(
     ) as exc:
         raise CallNotPossible(str(exc) or "The call could not be placed.") from exc
     payload["result"] = {"workflow_run_id": run_id}
+    await people_interactions.record(
+        organization_id,
+        principal_id,
+        channel="call",
+        direction="out",
+        phone=dialable,
+        name=args.get("callee") or None,
+        line=f"Decibyl called for you: {args.get('purpose') or 'a call'}",
+        ref=f"run:{run_id}",
+    )
     who = args.get("callee") or masked(dialable)
     return f"Calling {who} now. The call opens by saying it is Decibyl calling for you."

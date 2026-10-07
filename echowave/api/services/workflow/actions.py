@@ -1742,6 +1742,36 @@ async def _execute_owned(organization_id: int, payload: dict[str, Any]) -> str:
     return f"Done: {args.get('tool')} on {row.name}."
 
 
+async def _people_note(
+    payload: dict[str, Any],
+    organization_id: int,
+    *,
+    channel: str,
+    to: str,
+    line: str,
+    ref: str,
+) -> None:
+    """Put a send on the contact's page in the confirming person's People.
+    Never raises; does nothing while People is off."""
+    from api.services.people import interactions as people_interactions
+
+    who = (payload.get("confirmed") or {}).get("by")
+    try:
+        owner = int(who) if who else None
+    except (TypeError, ValueError):
+        owner = None
+    await people_interactions.record(
+        organization_id,
+        owner,
+        channel=channel,
+        direction="out",
+        phone=to if channel == "whatsapp" else None,
+        email=to if channel == "email" else None,
+        line=line,
+        ref=ref,
+    )
+
+
 async def _execute(
     organization_id: int, payload: dict[str, Any], *, event_id: int | None = None
 ) -> str:
@@ -1996,7 +2026,7 @@ async def _execute(
 
         confirmed_at = str((payload.get("confirmed") or {}).get("at") or "")
         try:
-            return await documents.deliver(
+            line = await documents.deliver(
                 organization_id,
                 file_id=str(args.get("file_id") or ""),
                 name=str(args.get("name") or ""),
@@ -2007,6 +2037,15 @@ async def _execute(
             )
         except documents.DocumentError as exc:
             raise ActionError(str(exc)) from exc
+        await _people_note(
+            payload,
+            organization_id,
+            channel="whatsapp" if args.get("channel") == "whatsapp" else "email",
+            to=str(args.get("to") or ""),
+            line=f"Sent {args.get('name') or 'a file'}",
+            ref=f"card:{event_id}" if event_id else f"send_document:{confirmed_at}",
+        )
+        return line
     if action == BROWSER_STEP:
         from api.services.browser import session as browser_session
 
@@ -2054,6 +2093,23 @@ async def _execute(
         await send_approval.note_sent(
             organization_id, dict(args.get("arguments") or {})
         )
+        # People: a mail the person approved, to someone, from their app.
+        sent_to = send_approval.recipient_of(dict(args.get("arguments") or {}))
+        if sent_to:
+            toolkit = (connected_tools.toolkit_of(tool) or "").lower()
+            subject = send_approval.subject_of(dict(args.get("arguments") or {}))
+            await _people_note(
+                payload,
+                organization_id,
+                channel="email",
+                to=str(sent_to),
+                line=(
+                    f"Sent: {subject}"
+                    if subject
+                    else f"Sent with {toolkit or 'an app'}"
+                ),
+                ref=f"card:{event_id}" if event_id else f"run_tool:{confirmed_at}",
+            )
         return f"Done: {args.get('tool_name', 'the tool')}."
     raise ActionError("That is not something that can be done.")
 

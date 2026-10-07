@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpCircle, Bot, ChevronLeft, ChevronRight, HeartHandshake, LifeBuoy, LogOut, Settings, UserRound, X } from "lucide-react";
+import { ArrowUpCircle, Bot, ChevronLeft, ChevronRight, HeartHandshake, LifeBuoy, LogOut, Settings, UserRound, Users, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";
@@ -215,6 +215,7 @@ export function AccountMenu({
     useFeature("care_family_circle"),
   ].some(Boolean);
   const simple = useSimpleMode();
+  const peopleOn = useFeature("people");
 
   return (
     <DropdownMenu>
@@ -244,6 +245,15 @@ export function AccountMenu({
             <Link href="/care" onClick={onNavigate} data-testid="menu-care">
               <HeartHandshake className="mr-2 h-4 w-4" />
               Care
+            </Link>
+          </DropdownMenuItem>
+        )}
+        {/* People: the person's own contacts (PEOPLE.md). */}
+        {peopleOn && !simple.on && (
+          <DropdownMenuItem asChild>
+            <Link href="/people" onClick={onNavigate} data-testid="menu-people">
+              <Users className="mr-2 h-4 w-4" />
+              People
             </Link>
           </DropdownMenuItem>
         )}

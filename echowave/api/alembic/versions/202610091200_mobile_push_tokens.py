@@ -8,14 +8,14 @@ with the flag off the table is never read or written.
   Android app, owned by one person, with the workspace it registered in.
 
 Revision ID: 20261009mobile
-Revises: 20261008voice
+Revises: 20261009people
 """
 
 import sqlalchemy as sa
 from alembic import op
 
 revision = "20261009mobile"
-down_revision = "20261008voice"
+down_revision = "20261009people"
 branch_labels = None
 depends_on = None
 

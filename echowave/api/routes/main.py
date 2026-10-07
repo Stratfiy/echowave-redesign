@@ -61,6 +61,7 @@ from api.routes.packs import router as packs_router
 from api.routes.partner_admin import router as partner_admin_router
 from api.routes.partners import router as partners_router
 from api.routes.payments import router as payments_router
+from api.routes.people import router as people_router
 from api.routes.platform_credentials import router as platform_credentials_router
 from api.routes.privacy import router as privacy_router
 from api.routes.procurement import router as procurement_router
@@ -217,6 +218,7 @@ router.include_router(public_trust_router)
 router.include_router(public_early_access_router)
 router.include_router(shell_router)
 router.include_router(reach_router)
+router.include_router(people_router)
 router.include_router(learning_router)
 router.include_router(meetings_router)
 router.include_router(support_router)
