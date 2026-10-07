@@ -68,31 +68,41 @@ export function AuxiliaryPanel({
     action,
     children,
     className,
+    defaultWidth = AUX_DEFAULT_WIDTH_PX,
+    singlePaneBelow = AUX_SINGLE_PANE_BELOW_PX,
 }: {
     /** Names the region for a screen reader, and heads the panel. */
     label: string;
+    /** Opening width when nothing is remembered (the sources panel is 360). */
+    defaultWidth?: number;
+    /** Below this viewport width the panel takes the screen, with its close
+     *  control as Back (the sources panel keeps 560px for the chat). */
+    singlePaneBelow?: number;
     onClose?: () => void;
     /** The tenant's own control, opposite the collapse chevron. */
     action?: React.ReactNode;
     children: React.ReactNode;
     className?: string;
 }) {
-    const [width, setWidth] = React.useState(AUX_DEFAULT_WIDTH_PX);
+    const [width, setWidth] = React.useState(defaultWidth);
     const [viewport, setViewport] = React.useState<number | null>(null);
     const dragging = React.useRef<{ startX: number; startWidth: number } | null>(null);
 
     React.useEffect(() => {
-        setWidth(readStoredWidth());
+        setWidth(defaultWidth === AUX_DEFAULT_WIDTH_PX ? readStoredWidth() : defaultWidth);
         const onResize = () => setViewport(window.innerWidth);
         onResize();
         window.addEventListener("resize", onResize);
         return () => window.removeEventListener("resize", onResize);
+        // The opening width is read once, on mount; a later prop change
+        // must not undo a width the person dragged to.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Null until the first measurement, so the server and the first client
     // paint agree: a panel that guesses wide and corrects is a flash.
-    const singlePane = viewport !== null && viewport < AUX_SINGLE_PANE_BELOW_PX;
-    const resolved = viewport === null ? AUX_DEFAULT_WIDTH_PX : clampAuxWidth(width, viewport);
+    const singlePane = viewport !== null && viewport < singlePaneBelow;
+    const resolved = viewport === null ? defaultWidth : clampAuxWidth(width, viewport);
 
     const store = (next: number) => {
         setWidth(next);
@@ -142,7 +152,7 @@ export function AuxiliaryPanel({
                     title="Drag to resize. Double-click to reset."
                     data-testid="auxiliary-panel-resize"
                     className="group absolute inset-y-0 -left-1.5 z-50 w-3 cursor-col-resize"
-                    onDoubleClick={() => store(AUX_DEFAULT_WIDTH_PX)}
+                    onDoubleClick={() => store(defaultWidth)}
                     onPointerDown={(event) => {
                         dragging.current = { startX: event.clientX, startWidth: resolved };
                     }}

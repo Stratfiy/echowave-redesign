@@ -6767,6 +6767,28 @@ export type InviteRequest = {
 };
 
 /**
+ * InviteStatusResponse
+ */
+export type InviteStatusResponse = {
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Email Hint
+     */
+    email_hint?: string | null;
+    /**
+     * Expires At
+     */
+    expires_at?: string | null;
+    /**
+     * Code
+     */
+    code?: string | null;
+};
+
+/**
  * Inworld
  *
  * Inworld AI streaming text-to-speech with built-in and cloned voices. Defaults to the Ashley system voice on inworld-tts-2.
@@ -6851,6 +6873,16 @@ export type KnowledgeBaseUsageSchema = {
 };
 
 /**
+ * LandingResponse
+ */
+export type LandingResponse = {
+    /**
+     * Path
+     */
+    path?: string | null;
+};
+
+/**
  * LangfuseCredentialsRequest
  */
 export type LangfuseCredentialsRequest = {
@@ -6888,6 +6920,28 @@ export type LangfuseCredentialsResponse = {
      * Configured
      */
     configured?: boolean;
+};
+
+/**
+ * LanguageOption
+ */
+export type LanguageOption = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Native
+     */
+    native: string;
+    /**
+     * English
+     */
+    english: string;
+    /**
+     * Voice
+     */
+    voice: boolean;
 };
 
 /**
@@ -8310,6 +8364,66 @@ export type OfferedModelsRequest = {
     labels?: {
         [key: string]: string;
     };
+};
+
+/**
+ * OnboardingResponse
+ */
+export type OnboardingResponse = {
+    /**
+     * Enabled
+     */
+    enabled: boolean;
+    /**
+     * Language
+     */
+    language?: string | null;
+    /**
+     * Timezone
+     */
+    timezone?: string | null;
+    /**
+     * Timezone Confirmed
+     */
+    timezone_confirmed?: boolean;
+    /**
+     * Preferred Name
+     */
+    preferred_name?: string | null;
+    /**
+     * Completed
+     */
+    completed?: boolean;
+    /**
+     * Languages
+     */
+    languages: Array<LanguageOption>;
+};
+
+/**
+ * OnboardingSaveRequest
+ */
+export type OnboardingSaveRequest = {
+    /**
+     * Language
+     */
+    language: string;
+    /**
+     * Timezone
+     */
+    timezone: string;
+    /**
+     * Timezone Confirmed
+     */
+    timezone_confirmed: boolean;
+    /**
+     * Preferred Name
+     */
+    preferred_name?: string | null;
+    /**
+     * Complete
+     */
+    complete?: boolean;
 };
 
 /**
@@ -12230,6 +12344,26 @@ export type StatusRequest = {
 };
 
 /**
+ * StopRequest
+ */
+export type StopRequest = {
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
+};
+
+/**
+ * StopResponse
+ */
+export type StopResponse = {
+    /**
+     * Requested
+     */
+    requested: boolean;
+};
+
+/**
  * StudioChatRequest
  */
 export type StudioChatRequest = {
@@ -14545,6 +14679,50 @@ export type VonageConfigurationResponse = {
      * From Numbers
      */
     from_numbers: Array<string>;
+};
+
+/**
+ * WaitlistJoinRequest
+ */
+export type WaitlistJoinRequest = {
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Language
+     */
+    language?: string;
+    /**
+     * First Task
+     */
+    first_task?: string | null;
+    /**
+     * Phone
+     */
+    phone?: string | null;
+    /**
+     * Occupation
+     */
+    occupation?: string | null;
+    /**
+     * Renewal
+     */
+    renewal?: boolean;
+};
+
+/**
+ * WaitlistJoinResponse
+ */
+export type WaitlistJoinResponse = {
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Created
+     */
+    created: boolean;
 };
 
 /**
@@ -38233,6 +38411,289 @@ export type TrustApiV1PublicTrustGetResponses = {
 };
 
 export type TrustApiV1PublicTrustGetResponse = TrustApiV1PublicTrustGetResponses[keyof TrustApiV1PublicTrustGetResponses];
+
+export type EarlyAccessLanguagesApiV1PublicEarlyAccessLanguagesGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/public/early-access/languages';
+};
+
+export type EarlyAccessLanguagesApiV1PublicEarlyAccessLanguagesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+};
+
+export type EarlyAccessLanguagesApiV1PublicEarlyAccessLanguagesGetResponses = {
+    /**
+     * Response Early Access Languages Api V1 Public Early Access Languages Get
+     *
+     * Successful Response
+     */
+    200: Array<LanguageOption>;
+};
+
+export type EarlyAccessLanguagesApiV1PublicEarlyAccessLanguagesGetResponse = EarlyAccessLanguagesApiV1PublicEarlyAccessLanguagesGetResponses[keyof EarlyAccessLanguagesApiV1PublicEarlyAccessLanguagesGetResponses];
+
+export type JoinWaitlistApiV1PublicEarlyAccessWaitlistPostData = {
+    body: WaitlistJoinRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/public/early-access/waitlist';
+};
+
+export type JoinWaitlistApiV1PublicEarlyAccessWaitlistPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type JoinWaitlistApiV1PublicEarlyAccessWaitlistPostError = JoinWaitlistApiV1PublicEarlyAccessWaitlistPostErrors[keyof JoinWaitlistApiV1PublicEarlyAccessWaitlistPostErrors];
+
+export type JoinWaitlistApiV1PublicEarlyAccessWaitlistPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: WaitlistJoinResponse;
+};
+
+export type JoinWaitlistApiV1PublicEarlyAccessWaitlistPostResponse = JoinWaitlistApiV1PublicEarlyAccessWaitlistPostResponses[keyof JoinWaitlistApiV1PublicEarlyAccessWaitlistPostResponses];
+
+export type InviteStatusApiV1PublicEarlyAccessInvitesCodeGetData = {
+    body?: never;
+    path: {
+        /**
+         * Code
+         */
+        code: string;
+    };
+    query?: never;
+    url: '/api/v1/public/early-access/invites/{code}';
+};
+
+export type InviteStatusApiV1PublicEarlyAccessInvitesCodeGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type InviteStatusApiV1PublicEarlyAccessInvitesCodeGetError = InviteStatusApiV1PublicEarlyAccessInvitesCodeGetErrors[keyof InviteStatusApiV1PublicEarlyAccessInvitesCodeGetErrors];
+
+export type InviteStatusApiV1PublicEarlyAccessInvitesCodeGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: InviteStatusResponse;
+};
+
+export type InviteStatusApiV1PublicEarlyAccessInvitesCodeGetResponse = InviteStatusApiV1PublicEarlyAccessInvitesCodeGetResponses[keyof InviteStatusApiV1PublicEarlyAccessInvitesCodeGetResponses];
+
+export type LandingApiV1ShellLandingGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/shell/landing';
+};
+
+export type LandingApiV1ShellLandingGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LandingApiV1ShellLandingGetError = LandingApiV1ShellLandingGetErrors[keyof LandingApiV1ShellLandingGetErrors];
+
+export type LandingApiV1ShellLandingGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: LandingResponse;
+};
+
+export type LandingApiV1ShellLandingGetResponse = LandingApiV1ShellLandingGetResponses[keyof LandingApiV1ShellLandingGetResponses];
+
+export type GetOnboardingApiV1ShellOnboardingGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/shell/onboarding';
+};
+
+export type GetOnboardingApiV1ShellOnboardingGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetOnboardingApiV1ShellOnboardingGetError = GetOnboardingApiV1ShellOnboardingGetErrors[keyof GetOnboardingApiV1ShellOnboardingGetErrors];
+
+export type GetOnboardingApiV1ShellOnboardingGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: OnboardingResponse;
+};
+
+export type GetOnboardingApiV1ShellOnboardingGetResponse = GetOnboardingApiV1ShellOnboardingGetResponses[keyof GetOnboardingApiV1ShellOnboardingGetResponses];
+
+export type SaveOnboardingApiV1ShellOnboardingPutData = {
+    body: OnboardingSaveRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/shell/onboarding';
+};
+
+export type SaveOnboardingApiV1ShellOnboardingPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveOnboardingApiV1ShellOnboardingPutError = SaveOnboardingApiV1ShellOnboardingPutErrors[keyof SaveOnboardingApiV1ShellOnboardingPutErrors];
+
+export type SaveOnboardingApiV1ShellOnboardingPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: OnboardingResponse;
+};
+
+export type SaveOnboardingApiV1ShellOnboardingPutResponse = SaveOnboardingApiV1ShellOnboardingPutResponses[keyof SaveOnboardingApiV1ShellOnboardingPutResponses];
+
+export type SkipOnboardingApiV1ShellOnboardingSkipPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/shell/onboarding/skip';
+};
+
+export type SkipOnboardingApiV1ShellOnboardingSkipPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SkipOnboardingApiV1ShellOnboardingSkipPostError = SkipOnboardingApiV1ShellOnboardingSkipPostErrors[keyof SkipOnboardingApiV1ShellOnboardingSkipPostErrors];
+
+export type SkipOnboardingApiV1ShellOnboardingSkipPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: OnboardingResponse;
+};
+
+export type SkipOnboardingApiV1ShellOnboardingSkipPostResponse = SkipOnboardingApiV1ShellOnboardingSkipPostResponses[keyof SkipOnboardingApiV1ShellOnboardingSkipPostResponses];
+
+export type StopReplyApiV1ShellChatStopPostData = {
+    body: StopRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/shell/chat/stop';
+};
+
+export type StopReplyApiV1ShellChatStopPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StopReplyApiV1ShellChatStopPostError = StopReplyApiV1ShellChatStopPostErrors[keyof StopReplyApiV1ShellChatStopPostErrors];
+
+export type StopReplyApiV1ShellChatStopPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: StopResponse;
+};
+
+export type StopReplyApiV1ShellChatStopPostResponse = StopReplyApiV1ShellChatStopPostResponses[keyof StopReplyApiV1ShellChatStopPostResponses];
 
 export type PublicShelfApiV1PublicMarketplaceGetData = {
     body?: never;

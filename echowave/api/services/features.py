@@ -102,6 +102,11 @@ FLAGS: dict[str, str] = {
     "member_preferences": "MEMBER_PREFERENCES_ENABLED",
     "event_catalogue": "EVENT_CATALOGUE_ENABLED",
     "reply_feedback": "REPLY_FEEDBACK_ENABLED",
+    # Launch stream `shell` (LAUNCH-PLAN.md, phase 1).
+    "early_access": "EARLY_ACCESS_ENABLED",
+    "first_task_onboarding": "FIRST_TASK_ONBOARDING_ENABLED",
+    "chat_shell": "CHAT_SHELL_ENABLED",
+    "shell_mobile": "SHELL_MOBILE_ENABLED",
 }
 
 
@@ -153,6 +158,10 @@ DESCRIPTIONS: dict[str, str] = {
     "member_preferences": "A person's own language, timezone, voice and summary time.",
     "event_catalogue": "Versioned analytics events with a private envelope, sent from an outbox.",
     "reply_feedback": "Was this useful? Yes / Not quite under replies and finished tasks.",
+    "early_access": "The public waitlist and invitation pages (screen 01).",
+    "first_task_onboarding": "Language, timezone and a first task; new people land in Chat (screen 02).",
+    "chat_shell": "Chat: three starters, attach menu, Dictate and Talk, Stop, New content, sources and task states (screens 03-04).",
+    "shell_mobile": "Phone shell: Chat and Today at the bottom, profile in the header, keyboard-aware bar, read-only workflow steps.",
 }
 
 

@@ -142,6 +142,12 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             # A person's own preferences, allowances, personal space, and
             # their feedback on replies (launch stream controls).
             "controls",
+            # The door before an account exists (screen 01): the waitlist
+            # and what an invitation link says.
+            "public-early-access",
+            # Where a person lands after sign-in, their first answers, and
+            # Stop for a reply forming in Chat (launch stream `shell`).
+            "shell",
         ),
     ),
     (

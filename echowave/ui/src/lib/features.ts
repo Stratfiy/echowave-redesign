@@ -56,7 +56,12 @@ export type Feature =
     | "personal_space"
     | "member_preferences"
     | "event_catalogue"
-    | "reply_feedback";
+    | "reply_feedback"
+    // Launch stream `shell` (LAUNCH-PLAN.md, phase 1).
+    | "early_access"
+    | "first_task_onboarding"
+    | "chat_shell"
+    | "shell_mobile";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

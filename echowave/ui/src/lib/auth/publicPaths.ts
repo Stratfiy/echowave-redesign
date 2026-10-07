@@ -25,6 +25,11 @@ export const PUBLIC_PATHS = [
   // The public marketplace: a stranger browses what can be hired before
   // deciding to sign up. Hiring itself stays behind the account.
   "/agents",
+  // Early access (screen 01): the waitlist and an invitation's own page are
+  // read before an account exists. Both say nothing while `early_access` is
+  // off, and the invitation page never grants access by itself.
+  "/early-access",
+  "/invite",
 ] as const;
 
 export function isPublicPath(pathname: string): boolean {

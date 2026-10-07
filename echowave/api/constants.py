@@ -779,6 +779,21 @@ DECIBYL_TELEGRAM_ENABLED = _flag("DECIBYL_TELEGRAM_ENABLED")
 DECIBYL_SLACK_ENABLED = _flag("DECIBYL_SLACK_ENABLED")
 DECIBYL_TEAMS_ENABLED = _flag("DECIBYL_TEAMS_ENABLED")
 
+# Launch stream `shell` (7 October 2026). Each off by default; see
+# LAUNCH-PLAN.md and services/features.py.
+# Screen 01: the public waitlist and invitation redemption pages.
+EARLY_ACCESS_ENABLED = _flag("EARLY_ACCESS_ENABLED")
+# Screen 02: language, confirmed timezone and a first task; new people land
+# in Chat, never the build-an-agent journey.
+FIRST_TASK_ONBOARDING_ENABLED = _flag("FIRST_TASK_ONBOARDING_ENABLED")
+# Screens 03-04: three starters, the attach menu, Dictate and Talk, Stop,
+# New content, sources on demand and task states in Chat.
+CHAT_SHELL_ENABLED = _flag("CHAT_SHELL_ENABLED")
+# The phone shell: Chat and Today at the bottom, profile in the header, the
+# bar hidden while the keyboard is open, and a read-only step list in place
+# of the workflow canvas.
+SHELL_MOBILE_ENABLED = _flag("SHELL_MOBILE_ENABLED")
+
 # Free while we are early (October 2026): no plans, nothing charged, nothing
 # locked. On by default -- the one launch switch that is -- and reversible
 # from the environment or the staff console. See services/billing/free_mode.py.
