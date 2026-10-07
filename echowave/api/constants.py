@@ -811,9 +811,9 @@ CARE_FAMILY_CIRCLE_ENABLED = _flag("CARE_FAMILY_CIRCLE_ENABLED")
 # How long a reminder call may go without an outcome before it counts as not
 # answered and the family is told.
 CARE_CALL_ANSWER_MINUTES = int(os.getenv("CARE_CALL_ANSWER_MINUTES", "20"))
-# Test seam for reminder calls, never honoured in production: "taken",
-# "not_taken" or "no_answer" simulates that outcome instead of dialling, and
-# the care status says so ("test mode: nobody is rung").
+# Test seam for reminder calls, honoured only when ENVIRONMENT is local, dev
+# or test: "taken", "not_taken" or "no_answer" simulates that outcome instead
+# of dialling, and the care status says so ("test mode: nobody is rung").
 CARE_CALLS_FAKE = (os.getenv("CARE_CALLS_FAKE") or "").strip().lower()
 
 # Free while we are early (October 2026): no plans, nothing charged, nothing

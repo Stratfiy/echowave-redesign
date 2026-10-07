@@ -296,3 +296,22 @@ async def test_the_whole_journey_over_http(family):
         people = (await c.get("/api/v1/care/family")).json()["people"]
         assert people[0]["shares"] == ["medicine_alerts"]
         assert people[0]["medicines"] is None
+
+
+@pytest.mark.asyncio
+async def test_a_care_card_is_read_back_only_by_its_person(family):
+    amma, priya, colleague, stranger, org, other = family
+    made = await circle.propose_member(
+        org, amma.id, name="Priya", email=priya.email, shares=["medicine_alerts"]
+    )
+    async with cs.client(amma.id, org) as c:
+        r = await c.get(f"/api/v1/care/cards/{made['event_id']}")
+        assert r.status_code == 200 and r.json()["payload"]["state"] == "proposed"
+    async with cs.client(colleague.id, org) as c:
+        assert (
+            await c.get(f"/api/v1/care/cards/{made['event_id']}")
+        ).status_code == 404
+    async with cs.client(stranger.id, other) as c:
+        assert (
+            await c.get(f"/api/v1/care/cards/{made['event_id']}")
+        ).status_code == 404

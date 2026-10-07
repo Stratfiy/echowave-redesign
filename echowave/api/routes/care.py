@@ -78,10 +78,15 @@ class CarePart(BaseModel):
     reason: str | None = None
 
 
+class ShareOption(BaseModel):
+    key: str
+    label: str
+
+
 class CareStatus(BaseModel):
     parts: list[CarePart]
     #: What a family member may be shown, for the consent screens.
-    shares: list[dict[str, str]]
+    shares: list[ShareOption]
 
 
 def _any_care(user: Annotated[UserModel, Depends(get_user)]) -> None:
@@ -121,6 +126,30 @@ async def care_status(user: Annotated[UserModel, Depends(get_user)]) -> CareStat
     )
 
 
+@router.get(
+    "/cards/{event_id}", response_model=TimelineEvent, dependencies=[Depends(_any_care)]
+)
+async def care_card(
+    event_id: int, user: Annotated[UserModel, Depends(get_user)]
+) -> TimelineEvent:
+    """One care consent card as it stands now, for the screen that showed
+    it. Only care cards, only in this workspace, only the person's own."""
+    from api.enums import AgentEventKind
+    from api.services.workflow import actions
+
+    organization_id = _organization_id(user)
+    row = await db_client.get_agent_event(event_id, organization_id=organization_id)
+    payload = (row.payload or {}) if row is not None else {}
+    if (
+        row is None
+        or row.kind != AgentEventKind.ACTION_PROPOSED.value
+        or payload.get("action") not in actions.CARE_ACTIONS
+        or payload.get("only_user_id") != user.id
+    ):
+        raise HTTPException(status_code=404, detail="That card is not here.")
+    return _as_event(row)
+
+
 # --- family circle: the older person's side ---------------------------------
 
 _circle_flag = Depends(features.require(care.FAMILY_CIRCLE, per_organization=True))
@@ -142,7 +171,7 @@ class Circle(BaseModel):
     id: int
     display_name: str | None
     members: list[CircleMember]
-    shares: list[dict[str, str]]
+    shares: list[ShareOption]
 
 
 class CircleName(BaseModel):
@@ -278,6 +307,8 @@ class FamilyMedicine(BaseModel):
     id: int
     label: str
     times: list[str]
+    #: The times above are in this zone.
+    timezone: str
     state: str
     doses: list[FamilyDose]
 

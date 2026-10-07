@@ -1,6 +1,7 @@
 import "./globals.css";
 import "./shell-v2.css";
 import "./motion.css";
+import "./simple-mode.css";
 
 import type { Metadata, Viewport } from "next";
 import {

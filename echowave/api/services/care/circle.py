@@ -666,6 +666,7 @@ async def family_view(user_id: int, *, now: datetime | None = None) -> list[dict
                         "id": m.id,
                         "label": m.label,
                         "times": list(m.times or []),
+                        "timezone": m.timezone,
                         "state": m.state,
                         "doses": [
                             {

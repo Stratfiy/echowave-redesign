@@ -126,8 +126,10 @@ class TestSetUp:
             assert parts["care_medicine_calls"] == "needs_setup"
 
     async def test_test_mode_is_never_offered_in_production(self, home, monkeypatch):
-        monkeypatch.setattr(constants, "ENVIRONMENT", "production")
-        assert calls.fake_mode() is None
+        for environment in ("production", "staging", "something-new"):
+            monkeypatch.setattr(constants, "ENVIRONMENT", environment)
+            assert calls.fake_mode() is None
+            assert (await calls.readiness(home.org))["state"] == "needs_setup"
         monkeypatch.setattr(constants, "ENVIRONMENT", "test")
         assert (await calls.readiness(home.org))["state"] == "test_mode"
 

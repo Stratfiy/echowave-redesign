@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { useAppConfig } from "@/context/AppConfigContext";
 import { LeadFormsProvider } from "@/context/LeadFormsContext";
+import { SimpleModeProvider } from "@/lib/care/simpleMode";
 import { useFeature } from "@/lib/features";
 import { applyTheme, readStoredTheme } from "@/lib/themes";
 import { cn } from "@/lib/utils";
@@ -132,6 +133,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   // Always render SidebarProvider to keep the component tree shape consistent
   // across route changes (avoids React hooks ordering violations during navigation).
   return (
+    // Simple mode (stream `care`): reads and applies the person's own
+    // preference; does nothing at all while its switches are off.
+    <SimpleModeProvider>
     <SidebarProvider
       defaultOpen
       // KAN-208 UI-1: the v2 shell is the only one. The ui_shell_v2 flag that
@@ -198,6 +202,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         </div>
       )}
     </SidebarProvider>
+    </SimpleModeProvider>
   );
 };
 

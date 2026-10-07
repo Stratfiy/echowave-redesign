@@ -22,8 +22,9 @@ Anything but taken tells the family members named on the reminder, if they
 still share medicine alerts -- at most once per dose.
 
 ``CARE_CALLS_FAKE`` replaces the dial with a simulated outcome for local
-runs and tests; it is refused in production and the status says "test
-mode", so a simulated call is never mistaken for a real one.
+runs and tests; it is ignored in every other environment, and where it
+applies the status says "test mode", so a simulated call is never mistaken
+for a real one.
 """
 
 from __future__ import annotations
@@ -56,6 +57,7 @@ TELL_FAMILY = (NOT_TAKEN, NOT_ANSWERED, UNCLEAR, FAILED)
 LATE_MINUTES = 10
 
 FAKE_OUTCOMES = {"taken": TAKEN, "not_taken": NOT_TAKEN, "no_answer": NOT_ANSWERED}
+FAKE_ENVIRONMENTS = frozenset({"local", "dev", "development", "test"})
 
 
 class CallRefused(CareError):
@@ -75,7 +77,9 @@ def fake_mode() -> str | None:
     value = getattr(constants, "CARE_CALLS_FAKE", "") or ""
     if not value or value not in FAKE_OUTCOMES:
         return None
-    if str(getattr(constants, "ENVIRONMENT", "")).lower() in ("production", "prod"):
+    # Only where nobody could be misled: a local run or the tests. Any other
+    # environment (production, staging, anything new) dials for real.
+    if str(getattr(constants, "ENVIRONMENT", "")).lower() not in FAKE_ENVIRONMENTS:
         return None
     return value
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpCircle, Bot, ChevronLeft, ChevronRight, LifeBuoy, LogOut, Settings, UserRound, X } from "lucide-react";
+import { ArrowUpCircle, Bot, ChevronLeft, ChevronRight, HeartHandshake, LifeBuoy, LogOut, Settings, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";
@@ -21,6 +21,7 @@ import { useAppConfig } from "@/context/AppConfigContext";
 import { useAccessRoles } from "@/hooks/useAccessRoles";
 import { useLatestReleaseVersion } from "@/hooks/useLatestReleaseVersion";
 import { useAuth } from "@/lib/auth";
+import { useSimpleMode } from "@/lib/care/simpleMode";
 import { useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
@@ -203,6 +204,15 @@ export function AccountMenu({
   const manage = visibleShellManage(sections).filter((entry) => !(freeMode && entry.url === "/billing"));
   const staffUrls = new Set(STAFF_SECTION.items.map((item) => item.url));
   const staff = sections.flatMap((section) => section.items).filter((item) => staffUrls.has(item.url));
+  // Launch stream `care`: Care for whoever has a part of it switched on, and
+  // in Simple mode fewer choices -- Care, Settings, switching back, sign out.
+  const careOn = [
+    useFeature("care_scam_check"),
+    useFeature("care_tech_help"),
+    useFeature("care_medicine_calls"),
+    useFeature("care_family_circle"),
+  ].some(Boolean);
+  const simple = useSimpleMode();
 
   return (
     <DropdownMenu>
@@ -227,6 +237,14 @@ export function AccountMenu({
         )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align={compact ? "end" : "start"} side={side} className="max-h-[70vh] w-64 overflow-y-auto">
+        {(careOn || simple.offered) && (
+          <DropdownMenuItem asChild>
+            <Link href="/care" onClick={onNavigate} data-testid="menu-care">
+              <HeartHandshake className="mr-2 h-4 w-4" />
+              Care
+            </Link>
+          </DropdownMenuItem>
+        )}
         {/* Settings and the agent list: off the rail, never out of reach. */}
         <DropdownMenuItem asChild>
           <Link href="/settings" onClick={onNavigate}>
@@ -234,12 +252,23 @@ export function AccountMenu({
             Settings
           </Link>
         </DropdownMenuItem>
+        {simple.on ? (
+          <DropdownMenuItem onClick={() => void simple.setOn(false)} className="cursor-pointer" data-testid="menu-simple-off">
+            Switch back to the usual screen
+          </DropdownMenuItem>
+        ) : (
+          <>
         <DropdownMenuItem asChild>
           <Link href="/workflow" onClick={onNavigate}>
             <Bot className="mr-2 h-4 w-4" />
             Agents
           </Link>
         </DropdownMenuItem>
+        {simple.offered && (
+          <DropdownMenuItem onClick={() => void simple.setOn(true)} className="cursor-pointer" data-testid="menu-simple-on">
+            Turn on Simple mode
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         {manage.map((entry) => (
           <React.Fragment key={entry.title}>
@@ -276,6 +305,8 @@ export function AccountMenu({
                 </Link>
               </DropdownMenuItem>
             ))}
+          </>
+        )}
           </>
         )}
         <DropdownMenuSeparator />
