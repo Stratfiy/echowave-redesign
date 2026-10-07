@@ -552,6 +552,48 @@ A site's contact form posts to `/api/v1/public/sites/<token>/form` on
 `BACKEND_API_ENDPOINT`, from whatever domain the site is published on: the
 form sends `text/plain`, so no CORS preflight is involved.
 
+## 9b. Decibyl's private browser (stream `browser`)
+
+Off until `DECIBYL_BROWSER_ENABLED=true`, or switched on for one workspace
+from Super admin → Flags (`decibyl_browser`). One browser per person and
+task, in a box the sandbox starts; see `sandbox/browser/README.md`.
+
+```bash
+# On the api.
+DECIBYL_BROWSER_ENABLED=false
+# Empty picks the sandbox when SANDBOX_URL is set. `local` runs the box as a
+# subprocess (development only, refused in production); `fake` is for tests.
+BROWSER_DRIVER=
+# The model the browser thinks with, on the platform's Anthropic key
+# (Provider keys, component LLM). No key: a task fails and says so.
+BROWSER_MODEL=claude-sonnet-5-5
+# Per-task limits: the default a task gets, and the ceiling nobody passes.
+BROWSER_DEFAULT_STEPS=25
+BROWSER_MAX_STEPS=60
+BROWSER_DEFAULT_MINUTES=10
+BROWSER_MAX_MINUTES=30
+# Model spend per task at list price, in paise. A ceiling on our cost,
+# not a price; nothing is charged for browsing today.
+BROWSER_DEFAULT_COST_PAISE=1500
+BROWSER_MAX_COST_PAISE=5000
+BROWSER_PAISE_PER_USD=9000
+# How long an approval or a hand-back may wait before the task stops.
+BROWSER_WAIT_MINUTES=10
+BROWSER_MAX_LIVE=4
+
+# On the sandbox service. Unset, browsers are refused. The service creates
+# the network itself (inter-container traffic off); then run
+# sandbox/browser/egress-guard.sh as root on the host.
+SANDBOX_BROWSER_NETWORK=decibyl_sandbox_browser
+SANDBOX_BROWSER_IMAGE=ghcr.io/stratfiy/decibyl-browser-box:latest
+SANDBOX_BROWSER_SUBNET=172.30.240.0/24
+SANDBOX_MAX_BROWSERS=2
+```
+
+Saved logins (cookies only) are encrypted with `PLATFORM_CREDENTIAL_SECRET`;
+without it, logins are never kept and the panel says so. The staff's allow
+and deny list is at `/api/v1/admin/browser/sites` (superadmin, audited).
+
 ## Not environment variables
 
 Worth stating, because they are the three things most likely to be looked for

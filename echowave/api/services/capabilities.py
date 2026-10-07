@@ -304,7 +304,18 @@ CAPABILITIES: tuple[Capability, ...] = (
         "Decibyl's private browser",
         "founder",
         modules=("api.services.browser",),
-        planned_by="browser",
+        flags=("decibyl_browser",),
+        # Boxes run in the sandbox service; logins are kept encrypted.
+        settings=("SANDBOX_URL", "PLATFORM_CREDENTIAL_SECRET"),
+        tests=(
+            "test_browser_session.py",
+            "test_browser_injection.py",
+            "test_browser_privacy.py",
+            "test_browser_gate.py",
+            "test_browser_sites.py",
+            "test_sandbox_browser_box.py",
+        ),
+        note="Needs the browser box image and SANDBOX_BROWSER_NETWORK on the sandbox.",
     ),
     Capability(
         "virtual_card",

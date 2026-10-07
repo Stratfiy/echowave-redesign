@@ -36,6 +36,7 @@ from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
 from api.services import acting, features, prompt_budget, reporting_window
 from api.services.billing import model_usage
+from api.services.browser import tool as browser_tool
 from api.services.documents import tools as procurement
 from api.services.knowledge_graph import personal as personal_memory
 from api.services.knowledge_graph import quiet, recall, teach
@@ -241,6 +242,7 @@ def system_prompt(organization_id: int | None = None) -> str:
         SYSTEM
         + (procurement.RULES if procurement.enabled() else "")
         + (tables.RULES if tables.enabled(organization_id) else "")
+        + (browser_tool.RULE if browser_tool.enabled(organization_id) else "")
     )
 
 
@@ -261,6 +263,10 @@ def thread_filter(organization_id: int | None = None) -> dict[str, Any]:
             AgentEventKind.EDIT_PROPOSED.value,
             AgentEventKind.CONNECTOR_OFFERED.value,
             AgentEventKind.ACTIVITY.value,
+            # The private browser's panel: live view, then the receipt. Only
+            # written while ``decibyl_browser`` is on; listed always, since a
+            # kind missing here is a panel nobody ever sees.
+            AgentEventKind.BROWSER_SESSION.value,
             # The files the document tools hand over (a drafted PO, a
             # cost-bid sheet), shown on the thread with their downloads.
             *(
@@ -1454,6 +1460,11 @@ def office_tools(organization_id: int | None = None) -> list[dict[str, Any]]:
         ),
         *(procurement.schemas() if procurement.enabled() else ()),
         *(tables.schemas() if tables.enabled(organization_id) else ()),
+        *(
+            (browser_tool.tool_schema(),)
+            if browser_tool.enabled(organization_id)
+            else ()
+        ),
     ]
 
 
@@ -1718,6 +1729,14 @@ async def _tool(
             workflow_id=None,
             workflow_run_id=None,
             ref_id=f"decibyl:{organization_id}:{call.id or call.name}",
+        )
+    if call.name == browser_tool.TOOL_NAME and browser_tool.enabled(organization_id):
+        return await browser_tool.for_thread(
+            organization_id,
+            arguments,
+            author_id=author_id,
+            request=request,
+            thread_id=thread_id,
         )
     if call.name in tables.NAMES and tables.enabled(organization_id):
         return await tables.run(

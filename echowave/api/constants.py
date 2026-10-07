@@ -893,6 +893,47 @@ DESKTOP_COMPUTER_USE_ENABLED = (
 # turn that stops halfway leaves a broken build on screen.
 STUDIO_MAX_TOOL_CALLS_PER_TURN = int(os.getenv("STUDIO_MAX_TOOL_CALLS_PER_TURN", "40"))
 
+# Decibyl's private browser (stream ``browser``; services/browser/). Off by
+# default: it spends on our model key and opens the internet to a model, so
+# switching it on is a deliberate act, per organisation first.
+DECIBYL_BROWSER_ENABLED = (
+    os.getenv("DECIBYL_BROWSER_ENABLED", "false").strip().lower() == "true"
+)
+#: Which driver runs the browser: ``sandbox`` (a box per task through the
+#: sandbox service, production), ``local`` (the same box as a subprocess on
+#: this machine, refused in production) or ``fake`` (tests). Empty picks
+#: ``sandbox`` when SANDBOX_URL is set and refuses otherwise.
+BROWSER_DRIVER = (os.getenv("BROWSER_DRIVER") or "").strip().lower()
+#: The interpreter that runs the box for the ``local`` driver: one with
+#: browser-use installed (sandbox/browser/README.md).
+BROWSER_BOX_PYTHON = os.getenv("BROWSER_BOX_PYTHON") or None
+#: Chromium for the ``local`` driver; the box image carries its own.
+BROWSER_CHROMIUM_PATH = os.getenv("BROWSER_CHROMIUM_PATH") or None
+#: The model the browser thinks with, on the platform's Anthropic key.
+BROWSER_MODEL = os.getenv("BROWSER_MODEL", "claude-sonnet-5-5")
+#: Per-task limits. The defaults are what a task gets when nobody asks for
+#: less; the ceilings are what nobody can ask past.
+BROWSER_DEFAULT_STEPS = int(os.getenv("BROWSER_DEFAULT_STEPS", "25"))
+BROWSER_MAX_STEPS = int(os.getenv("BROWSER_MAX_STEPS", "60"))
+BROWSER_DEFAULT_MINUTES = int(os.getenv("BROWSER_DEFAULT_MINUTES", "10"))
+BROWSER_MAX_MINUTES = int(os.getenv("BROWSER_MAX_MINUTES", "30"))
+#: Model spend one task may run up, in paise, at the vendor's list price.
+#: A ceiling on our cost, not a price anybody is charged.
+BROWSER_DEFAULT_COST_PAISE = int(os.getenv("BROWSER_DEFAULT_COST_PAISE", "1500"))
+BROWSER_MAX_COST_PAISE = int(os.getenv("BROWSER_MAX_COST_PAISE", "5000"))
+#: Paise per US dollar for that ceiling. Deliberately a constant on the high
+#: side of the market rate: a limit that drifts with the rupee is a limit
+#: nobody can reason about.
+BROWSER_PAISE_PER_USD = int(os.getenv("BROWSER_PAISE_PER_USD", "9000"))
+#: How long a person has to answer an approval or hand the browser back
+#: before the task stops, in minutes. Counted inside BROWSER_MAX_MINUTES.
+BROWSER_WAIT_MINUTES = int(os.getenv("BROWSER_WAIT_MINUTES", "10"))
+#: Browsers running at once on this deployment.
+BROWSER_MAX_LIVE = int(os.getenv("BROWSER_MAX_LIVE", "4"))
+#: Development only: hosts a local box may open although they are private
+#: (a page this machine serves, for verifying the real browser). Ignored by
+#: the sandbox driver and outside dev/test/oss deployments.
+BROWSER_TEST_HOSTS = os.getenv("BROWSER_TEST_HOSTS", "")
 # ---------------------------------------------------------------------------
 # Launch stream `controls` (LAUNCH-PLAN.md, phase 1). Every one is off by
 # default; see services/features.py for what each turns on.

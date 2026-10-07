@@ -157,6 +157,26 @@ describe("once done", () => {
     });
 });
 
+describe('a browser step', () => {
+    it('shows exactly what the form sends before Confirm', () => {
+        render(
+            <ActionCard
+                event={event({
+                    action: 'browser_step',
+                    label: 'Pay: press “Place order ₹649” on kirana.test',
+                    effect: 'Presses that button in your browser on kirana.test, once.',
+                    reversible: false,
+                    args: { fields: [{ name: 'name', value: 'Asha' }, { name: 'password', value: '••••••' }] },
+                })}
+            />,
+        );
+        const sends = screen.getByLabelText('What it sends');
+        expect(sends.textContent).toContain('Asha');
+        expect(sends.textContent).toContain('••••••');
+        expect(screen.getByRole('button', { name: 'Confirm' })).toBeTruthy();
+    });
+});
+
 describe("approval bound to a version (task ledger)", () => {
     it("confirms the exact version on screen", async () => {
         settle.mockResolvedValue({ data: event({ state: "armed" }) });

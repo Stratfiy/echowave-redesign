@@ -73,7 +73,9 @@ export type Feature =
     | "session_replay"
     | "laya_guardrails"
     | "laya_rollback"
-    | "cost_stop";
+    | "cost_stop"
+    // Decibyl's private browser (stream browser).
+    | "decibyl_browser";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

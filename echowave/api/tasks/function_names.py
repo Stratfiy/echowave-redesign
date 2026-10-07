@@ -20,6 +20,8 @@ class FunctionNames:
     EXPORT_MEMORY = "export_memory"
     #: A confirmed action fires once its undo window has passed.
     RUN_PROPOSED_ACTION = "run_proposed_action"
+    #: Decibyl's private browser: one box from open to close.
+    RUN_BROWSER_SESSION = "run_browser_session"
     COMPACT_CHANNEL_CONTEXT = "compact_channel_context"
     EMAIL_TAX_DOCUMENT = "email_tax_document"
     PLACE_MISSED_CALL_CALLBACK = "place_missed_call_callback"

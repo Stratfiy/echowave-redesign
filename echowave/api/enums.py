@@ -913,6 +913,11 @@ class AgentEventKind(str, Enum):
     #: lives in ``payload["body"]`` and the summary is the display line. A
     #: message quietly cut at 500 characters is the product editing somebody.
     MESSAGE = "message"
+    #: Decibyl opened its private browser for a person's task. The row is the
+    #: panel on the thread -- live view while it runs, the receipt after --
+    #: and carries only the session's id; the session row holds the rest and
+    #: is readable by the person who asked alone. See services/browser/.
+    BROWSER_SESSION = "browser_session"
 
 
 class AgentEventActor(str, Enum):

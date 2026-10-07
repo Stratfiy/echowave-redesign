@@ -117,6 +117,12 @@ SCHEDULE_ROUTINE = "schedule_routine"
 #: the computer does -- so a fired card is RELEASED, not done, and the
 #: desktop claims it exactly once for the action the person saw.
 DESKTOP_STEP = "desktop_step"
+
+#: One consequential step in Decibyl's private browser -- a submit, a
+#: payment, a send, a booking, a sign-up (services/browser/). Proposed by the
+#: browser session itself with the exact button, page and form fields, never
+#: through propose_action: a model cannot ask for one, only a gate can.
+BROWSER_STEP = "browser_step"
 INTERNAL_ACTIONS = (
     RUN_TOOL,
     SEND_DOCUMENT,
@@ -124,6 +130,7 @@ INTERNAL_ACTIONS = (
     INSTALL_FROM_REPOSITORY,
     SCHEDULE_ROUTINE,
     DESKTOP_STEP,
+    BROWSER_STEP,
 )
 
 #: The states a proposal moves through. Terminal ones are the last four.
@@ -175,6 +182,29 @@ def payload_version(payload: dict[str, Any]) -> str:
         separators=(",", ":"),
     )
     return hashlib.sha256(canonical.encode()).hexdigest()[:16]
+
+
+def stamp_new_card(organization_id: int, payload: dict[str, Any]) -> None:
+    """For a card written straight to the timeline rather than through
+    ``propose`` (the browser's gate writes its own, with the step it saw):
+    the same version a proposed card carries, so Confirm must name it."""
+    if _ledger_on(organization_id):
+        payload["version"] = payload_version(payload)
+        _stamp_ledger_state(organization_id, payload)
+
+
+async def card_requested(
+    organization_id: int, event_id: int, payload: dict[str, Any], user_id: Any
+) -> None:
+    """The catalogue event ``propose`` emits, for such a card."""
+    from types import SimpleNamespace
+
+    await _emit(
+        "approval_requested",
+        SimpleNamespace(id=event_id, organization_id=organization_id),
+        payload,
+        user_id,
+    )
 
 
 def _is_outbound(payload: dict[str, Any]) -> bool:
@@ -296,6 +326,10 @@ class ActionError(ValueError):
     """The press cannot be honoured; the message says why, for the screen."""
 
 
+class OutcomeUnknown(ActionError):
+    """It was handed over and nobody knows whether it happened."""
+
+
 # --- resolving what was proposed -------------------------------------------
 
 
@@ -353,6 +387,12 @@ async def resolve(
     if action not in ACTIONS and action not in INTERNAL_ACTIONS:
         raise ActionError("That is not something I can propose.")
     why = str(arguments.get("why") or "").strip()[:MAX_WHY_CHARS]
+
+    if action == BROWSER_STEP:
+        # Only the browser's own gate writes this card, straight onto the
+        # timeline with the step it saw. A proposal arriving here came from
+        # a model, and a model does not get to describe the button.
+        raise ActionError("That is not something I can propose.")
 
     if action == RUN_TOOL:
         from api.services.workflow import connected_tools
@@ -852,6 +892,12 @@ async def settle(
         # press Do it on another person's screen.
         if int((payload.get("args") or {}).get("user_id") or 0) != user_id:
             raise ActionError("Only the person whose computer this is can answer this.")
+    if payload.get("action") == BROWSER_STEP and int(
+        payload.get("requested_by") or 0
+    ) != int(user_id):
+        # A person's browser is theirs: a colleague on the thread can read
+        # the card but cannot press on their behalf.
+        raise ActionError("Only the person whose browser it is can answer this.")
 
     if verb == "confirm":
         if state != PROPOSED:
@@ -913,6 +959,10 @@ async def settle(
         payload["declined"] = _stamp(user_id)
         await _move(event, PROPOSED, payload)
         await _audit(event, payload, audit_log.CARD_DECLINED, user_id, state)
+        if payload.get("action") == BROWSER_STEP:
+            from api.services.browser import session as browser_session
+
+            await browser_session.declined(payload)
         await _emit("approval_rejected", event, payload, user_id)
         if payload.get("action") == RUN_TOOL:
             # A declined send is an outcome too (OP-4): the prospect is
@@ -1257,6 +1307,21 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
             )
         except documents.DocumentError as exc:
             raise ActionError(str(exc)) from exc
+    if action == BROWSER_STEP:
+        from api.services.browser import session as browser_session
+
+        outcome = await browser_session.approved(
+            payload, organization_id=organization_id
+        )
+        if outcome.get("unknown"):
+            raise OutcomeUnknown(
+                "The browser did not report back in time, so whether it went "
+                "through is not known. Look at the page before trying again."
+            )
+        if not outcome.get("ok"):
+            raise ActionError(str(outcome.get("note") or "It did not go through."))
+        payload.setdefault("result", {})["url"] = outcome.get("url")
+        return str(outcome.get("note") or "Done in your browser.")
     if action == RUN_TOOL:
         from api.services.workflow import connected_tools
 
@@ -1382,6 +1447,15 @@ async def run(event_id: int, organization_id: int) -> None:
             return
     try:
         note = await _execute(organization_id, payload)
+    except OutcomeUnknown as exc:
+        # The ledger's state for it, with the browser's own words: the press
+        # was handed over and never reported back.
+        payload["state"] = OUTCOME_UNKNOWN
+        payload["error"] = str(exc)
+        await _write(event, payload)
+        await _say(event, f"Not known: {payload['label'].lower()}. {exc}")
+        await _emit("task_failed", event, payload, confirmer)
+        return
     except ActionError as exc:
         payload["state"] = FAILED
         payload["error"] = str(exc)

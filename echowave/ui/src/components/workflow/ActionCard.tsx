@@ -17,7 +17,7 @@
 
 import { Check, CircleHelp, CircleSlash, Loader2, MessageSquare, Phone, Undo2, Zap } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { settleActionApiV1TimelineActionsSettlePost } from '@/client/sdk.gen';
 import type { TimelineEvent } from '@/client/types.gen';
@@ -53,6 +53,9 @@ export type ActionPayload = {
     fires_at?: string;
     error?: string;
     done?: { at?: string; note?: string };
+    /** A browser step (services/browser/): the page and what the form
+     *  sends, as the box read it, secrets already masked. */
+    args?: { page_url?: string; fields?: { name: string; value: string }[] };
     /** The exact payload version Confirm approves (task ledger). Sent back
      *  with Confirm; an edited card has a new one. */
     version?: string;
@@ -147,6 +150,18 @@ export function ActionCard({
                 decide whether to offer "Put it back". */}
             {action.effect && state === 'proposed' && (
                 <p className="mt-2 pl-6 text-sm font-medium text-foreground">{action.effect}</p>
+            )}
+            {/* A browser step shows exactly what the form sends, so Confirm
+                is a decision about these values and not about a label. */}
+            {action.action === 'browser_step' && state === 'proposed' && (action.args?.fields ?? []).length > 0 && (
+                <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 pl-6 text-sm" aria-label="What it sends">
+                    {(action.args?.fields ?? []).map((field) => (
+                        <React.Fragment key={field.name}>
+                            <dt className="text-muted-foreground">{field.name}</dt>
+                            <dd className="break-all">{field.value || <span className="text-muted-foreground">empty</span>}</dd>
+                        </React.Fragment>
+                    ))}
+                </dl>
             )}
 
             {state === 'proposed' && (

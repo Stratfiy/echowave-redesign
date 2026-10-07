@@ -146,6 +146,9 @@ def _require_image(image: str) -> None:
 @asynccontextmanager
 async def _lifespan(_app):
     tasks = [asyncio.create_task(_ensure_image(image)) for image in _studio_images()]
+    if BROWSER_NETWORK:
+        tasks.append(asyncio.create_task(_ensure_browser_network()))
+        tasks.append(asyncio.create_task(_ensure_image(BROWSER_IMAGE)))
     yield
     for task in tasks:
         task.cancel()
@@ -169,6 +172,10 @@ class Job:
     id: str
     process: asyncio.subprocess.Process
     deadline: float
+    #: The container's name, for ``docker rm -f``.
+    container: str = ""
+    #: ``script`` or ``browser``: counted against separate ceilings.
+    kind: str = "script"
     requests: asyncio.Queue = field(default_factory=asyncio.Queue)
     output: list[str] = field(default_factory=list)
     output_chars: int = 0
@@ -279,7 +286,7 @@ async def _kill(job: Job) -> None:
         "docker",
         "rm",
         "-f",
-        f"sandbox-{job.id}",
+        job.container or f"sandbox-{job.id}",
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.DEVNULL,
     )
@@ -291,7 +298,7 @@ async def start(
     request: JobRequest, x_sandbox_secret: str | None = Header(default=None)
 ):
     _check(x_sandbox_secret)
-    live = [j for j in JOBS.values() if j.done is None]
+    live = [j for j in JOBS.values() if j.done is None and j.kind == "script"]
     if len(live) >= MAX_JOBS:
         raise HTTPException(status_code=429, detail="sandbox is full")
     job_id = uuid.uuid4().hex[:12]
@@ -302,7 +309,10 @@ async def start(
         stderr=asyncio.subprocess.PIPE,
     )
     job = Job(
-        id=job_id, process=process, deadline=time.monotonic() + request.timeout_seconds
+        id=job_id,
+        process=process,
+        deadline=time.monotonic() + request.timeout_seconds,
+        container=f"sandbox-{job_id}",
     )
     job.reader = asyncio.create_task(_read_stdout(job))
     job.watchdog = asyncio.create_task(_watchdog(job))
@@ -741,6 +751,175 @@ async def screenshots(
         }
 
 
+# --- Browsers (Decibyl's private browser) -------------------------------------
+#
+# One box per person and task, from the browser image (``browser/``):
+# browser-use driving Chromium, with the box's own proxy in front of every
+# request it makes. The one way a browser box differs from a script box is
+# the point of it: it has the internet. It gets it on one network,
+# SANDBOX_BROWSER_NETWORK, which this service creates with inter-container
+# traffic switched off, so a box cannot reach another box, the api, the
+# database or anything else on a compose network -- none of them is on it.
+# Private and link-local addresses (the metadata endpoint among them) are
+# refused by the box's proxy for every request the page makes, with the same
+# rule as the api's web fetcher; ``browser/egress-guard.sh`` adds the same
+# refusal on the host for anything that is not the browser.
+#
+# The box holds no credentials: its model calls come back to the api as
+# request lines (``api/services/browser/bridge.py``). Its profile is a tmpfs
+# that goes with the box. Unset, browsers are refused rather than started
+# on some other network.
+
+BROWSER_NETWORK = os.environ.get("SANDBOX_BROWSER_NETWORK", "")
+BROWSER_IMAGE = os.environ.get(
+    "SANDBOX_BROWSER_IMAGE", "ghcr.io/stratfiy/decibyl-browser-box:latest"
+)
+#: A subnet of its own, so the host's egress guard can name it.
+BROWSER_SUBNET = os.environ.get("SANDBOX_BROWSER_SUBNET", "172.30.240.0/24")
+MAX_BROWSERS = int(os.environ.get("SANDBOX_MAX_BROWSERS", "2"))
+#: One screenshot is a long line; the default 64 KB would cut it.
+BROWSER_LINE_LIMIT = 16 * 1024 * 1024
+NETWORK_STATE: dict[str, str] = {}
+
+
+async def _ensure_browser_network() -> None:
+    """Create the browser network once, with containers unable to talk to
+    each other. Never raises; /health says how it went."""
+    try:
+        inspect = await asyncio.create_subprocess_exec(
+            "docker",
+            "network",
+            "inspect",
+            BROWSER_NETWORK,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        if await inspect.wait() == 0:
+            NETWORK_STATE[BROWSER_NETWORK] = "ready"
+            return
+        create = await asyncio.create_subprocess_exec(
+            *browser_network_command(),
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        NETWORK_STATE[BROWSER_NETWORK] = (
+            "ready" if await create.wait() == 0 else "failed"
+        )
+    except OSError:
+        NETWORK_STATE[BROWSER_NETWORK] = "failed"
+
+
+def browser_network_command() -> list[str]:
+    return [
+        "docker",
+        "network",
+        "create",
+        "--driver",
+        "bridge",
+        "--subnet",
+        BROWSER_SUBNET,
+        "--opt",
+        "com.docker.network.bridge.enable_icc=false",
+        "--opt",
+        "com.docker.network.bridge.name=br-decibyl-web",
+        BROWSER_NETWORK,
+    ]
+
+
+class BrowserRequest(BaseModel):
+    timeout_seconds: int = Field(default=900, ge=60, le=2700)
+    memory_mb: int = Field(default=2048, ge=1024, le=4096)
+    cpus: float = Field(default=1.0, gt=0, le=2.0)
+
+
+def _browser_command(job_id: str, request: BrowserRequest) -> list[str]:
+    return [
+        "docker",
+        "run",
+        "-i",
+        "--rm",
+        "--name",
+        f"sandbox-browser-{job_id}",
+        "--network",
+        BROWSER_NETWORK,
+        "--memory",
+        f"{request.memory_mb}m",
+        "--memory-swap",
+        f"{request.memory_mb}m",
+        "--cpus",
+        str(request.cpus),
+        "--pids-limit",
+        "512",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges",
+        "--read-only",
+        # The profile, downloads and Chromium's caches: gone with the box.
+        "--tmpfs",
+        "/work:rw,size=512m,uid=1000,gid=1000",
+        "--tmpfs",
+        "/tmp:rw,size=512m,uid=1000,gid=1000",
+        "--shm-size",
+        "512m",
+        "--user",
+        "1000:1000",
+        "--workdir",
+        "/work",
+        "--env",
+        "HOME=/work",
+        "--env",
+        "PYTHONUNBUFFERED=1",
+        "--env",
+        "ANONYMIZED_TELEMETRY=false",
+        "--env",
+        "BROWSER_USE_SETUP_LOGGING=false",
+        BROWSER_IMAGE,
+    ]
+
+
+@app.post("/browsers")
+async def start_browser(
+    request: BrowserRequest, x_sandbox_secret: str | None = Header(default=None)
+):
+    """Start one browser box. Then the same calls as a job: ``/jobs/{id}/next``
+    for its lines, ``/jobs/{id}/reply`` for its stdin, ``DELETE /jobs/{id}``."""
+    _check(x_sandbox_secret)
+    if not BROWSER_NETWORK:
+        raise HTTPException(
+            status_code=503,
+            detail="browsers are not configured (SANDBOX_BROWSER_NETWORK)",
+        )
+    if NETWORK_STATE.get(BROWSER_NETWORK) != "ready":
+        raise HTTPException(
+            status_code=503,
+            detail="The browser network is not ready yet. Try again in a minute.",
+        )
+    _require_image(BROWSER_IMAGE)
+    live = [j for j in JOBS.values() if j.done is None and j.kind == "browser"]
+    if len(live) >= MAX_BROWSERS:
+        raise HTTPException(status_code=429, detail="every browser is busy")
+    job_id = uuid.uuid4().hex[:12]
+    process = await asyncio.create_subprocess_exec(
+        *_browser_command(job_id, request),
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        limit=BROWSER_LINE_LIMIT,
+    )
+    job = Job(
+        id=job_id,
+        process=process,
+        deadline=time.monotonic() + request.timeout_seconds,
+        container=f"sandbox-browser-{job_id}",
+        kind="browser",
+    )
+    job.reader = asyncio.create_task(_read_stdout(job))
+    job.watchdog = asyncio.create_task(_watchdog(job))
+    JOBS[job_id] = job
+    return {"id": job_id}
+
+
 @app.get("/health")
 async def health():
     live = sum(1 for j in JOBS.values() if j.done is None) + len(BUILDS)
@@ -749,6 +928,16 @@ async def health():
         "running": live,
         "capacity": MAX_JOBS,
         "builds": bool(BUILD_NETWORK),
+        "browsers": {
+            "configured": bool(BROWSER_NETWORK),
+            "network": NETWORK_STATE.get(BROWSER_NETWORK, "")
+            if BROWSER_NETWORK
+            else "",
+            "running": sum(
+                1 for j in JOBS.values() if j.done is None and j.kind == "browser"
+            ),
+            "capacity": MAX_BROWSERS,
+        },
         "images": dict(IMAGE_STATE),
     }
 

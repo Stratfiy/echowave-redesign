@@ -27,6 +27,7 @@ from api.constants import ARQ_MAX_JOBS
 from api.tasks.auto_topup import sweep_auto_topups
 from api.tasks.backup import run_database_backup, run_ledger_snapshot
 from api.tasks.billing_rollup import refresh_billing_rollups
+from api.tasks.browser import run_browser_session_job, sweep_browser_sessions
 from api.tasks.campaign_tasks import (
     process_campaign_batch,
     sync_campaign_source,
@@ -133,6 +134,7 @@ class WorkerSettings:
         sync_missing_tools,
         resurface_asked,
         run_proposed_action,
+        run_browser_session_job,
         compact_channel_context,
         translate_knowledge_base_document,
         deliver_analytics_outbox,
@@ -189,6 +191,14 @@ class WorkerSettings:
         # from a dead worker for the first minute. This is the only signal that
         # separates "the worker is down" from "nothing needed doing" — see
         # services/worker_health.py.
+        # A private-browser session whose job died (a deploy, a crash) is
+        # ended and its panel says so, rather than reading "working" forever.
+        cron(
+            sweep_browser_sessions,
+            minute=set(range(2, 60, 5)),
+            second=40,
+            run_at_startup=True,
+        ),
         cron(
             record_worker_heartbeat,
             minute=set(range(60)),

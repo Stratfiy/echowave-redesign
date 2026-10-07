@@ -52,6 +52,8 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "agent-builder",
             # Agents and a website for them, built from one chat.
             "studio",
+            # Decibyl's private browser: live view, Take over, saved logins.
+            "browser",
             "agent-templates",
             # A workspace's own saved roles, and sharing them (MP-2, MP-3).
             "workspace-roles",

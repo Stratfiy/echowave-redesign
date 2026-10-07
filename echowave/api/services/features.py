@@ -102,6 +102,8 @@ FLAGS: dict[str, str] = {
     "aws_cheap_tier": "AWS_CHEAP_TIER_ENABLED",
     "aws_embeddings": "AWS_EMBEDDINGS_ENABLED",
     "aws_nova_sonic": "AWS_NOVA_SONIC_ENABLED",
+    # Decibyl's private browser: one isolated browser per person and task.
+    "decibyl_browser": "DECIBYL_BROWSER_ENABLED",
     # Launch stream `controls` (LAUNCH-PLAN.md, phase 1).
     "capability_checklist": "CAPABILITY_CHECKLIST_ENABLED",
     "operational_quotas": "OPERATIONAL_QUOTAS_ENABLED",
@@ -173,6 +175,10 @@ DESCRIPTIONS: dict[str, str] = {
     "aws_cheap_tier": "A small Bedrock model sorts work for Auto instead of Laya.",
     "aws_embeddings": "Knowledge search on Bedrock embeddings as a managed choice.",
     "aws_nova_sonic": "Nova Sonic speech-to-speech, Hindi and Indian English only.",
+    "decibyl_browser": (
+        "Decibyl's private browser: browses for a person in an isolated box, "
+        "live view and Take over, asks before submit, pay, send or book."
+    ),
     "capability_checklist": "Staff see each capability's source, configuration and tested state.",
     "operational_quotas": "Daily limits per person (turns, voice, sends, browser), even in free mode.",
     "task_ledger": "One task state set, approvals bound to the exact payload, no stale updates.",
