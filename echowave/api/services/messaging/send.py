@@ -15,6 +15,8 @@ carries what went wrong so it can land on the run and be seen.
 from __future__ import annotations
 
 import re
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -23,6 +25,24 @@ from loguru import logger
 
 from api.services.billing import model_usage
 from api.utils.phone_masking import last_four
+
+#: A key Meta echoes back on this message's status webhooks
+#: (``biz_opaque_callback_data``), so a send whose outcome was unknown can be
+#: matched to what WhatsApp later says happened (launch stream identity,
+#: services/identity/reconcile.py). Unset, nothing is added.
+_CALLBACK_DATA: ContextVar[str | None] = ContextVar(
+    "whatsapp_callback_data", default=None
+)
+
+
+@contextmanager
+def callback_data(key: str | None):
+    token = _CALLBACK_DATA.set(key)
+    try:
+        yield
+    finally:
+        _CALLBACK_DATA.reset(token)
+
 
 #: Carriers that can send as well as dial. Twilio and Plivo both bill messaging
 #: to the same account as voice, so a customer who can place a call can already
@@ -360,6 +380,9 @@ async def _send_meta_whatsapp(
         payload.update({"type": "template", "template": component})
     else:
         payload.update({"type": "text", "text": {"body": body}})
+    callback = _CALLBACK_DATA.get()
+    if callback:
+        payload["biz_opaque_callback_data"] = callback[:512]
 
     response = await client.post(
         f"https://graph.facebook.com/{version}/{phone_number_id}/messages",

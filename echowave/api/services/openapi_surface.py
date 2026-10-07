@@ -103,6 +103,9 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             # WhatsApp, and linking those accounts to themselves (KAN-277).
             "public-decibyl-channels",
             "channel-links",
+            # A person's connections, Decibyl address, phone and
+            # verification, and notifications (launch stream identity).
+            "identity",
         ),
     ),
     (

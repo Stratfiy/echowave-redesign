@@ -356,10 +356,13 @@ async def handle(inbound: Inbound) -> str:
     nothing they send is filed or asked of Decibyl. A security fix, so it is
     not behind a switch.
     """
+    from api.services.identity import channel_health
     from api.services.messaging.channels import base as channel_base
     from api.services.messaging.channels import dispatch, identities
     from api.services.workflow import decibyl
 
+    # The webhook checked Meta's signature before calling this.
+    await channel_health.saw_verified_inbound(channel_base.WHATSAPP)
     identity = await identities.find(channel_base.WHATSAPP, inbound.sender)
     tap = channel_base.parse_button_id(inbound.text) if inbound.kind == BUTTON else None
     code = identities.code_in(inbound.text) if inbound.kind == TEXT else None

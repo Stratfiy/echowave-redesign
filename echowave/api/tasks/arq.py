@@ -42,6 +42,7 @@ from api.tasks.email_tax_document import email_tax_document
 from api.tasks.evals import run_eval_case
 from api.tasks.fx import refresh_exchange_rate
 from api.tasks.heartbeat import record_worker_heartbeat
+from api.tasks.identity import reconcile_unknown_outcomes
 from api.tasks.knowledge_base_processing import process_knowledge_base_document
 from api.tasks.knowledge_base_translation import translate_knowledge_base_document
 from api.tasks.low_balance import notify_low_balances
@@ -136,6 +137,7 @@ class WorkerSettings:
         translate_knowledge_base_document,
         deliver_analytics_outbox,
         sweep_unknown_outcomes,
+        reconcile_unknown_outcomes,
     ]
     cron_jobs = [
         # Launch stream controls: catalogue events to analytics, and cards
@@ -150,6 +152,14 @@ class WorkerSettings:
             sweep_unknown_outcomes,
             minute=set(range(1, 60, 5)),
             second=40,
+            run_at_startup=False,
+        ),
+        # Launch stream identity: ask each provider what happened to sends
+        # whose outcome is unknown. A no-op while off.
+        cron(
+            reconcile_unknown_outcomes,
+            minute=set(range(3, 60, 5)),
+            second=20,
             run_at_startup=False,
         ),
         # Reminders filed against a document's expiry (A4) go out once a day,

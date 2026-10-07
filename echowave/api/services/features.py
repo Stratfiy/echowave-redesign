@@ -107,6 +107,12 @@ FLAGS: dict[str, str] = {
     "first_task_onboarding": "FIRST_TASK_ONBOARDING_ENABLED",
     "chat_shell": "CHAT_SHELL_ENABLED",
     "shell_mobile": "SHELL_MOBILE_ENABLED",
+    # Launch stream `identity` (LAUNCH-PLAN.md, phase 2).
+    "identity_connections": "IDENTITY_CONNECTIONS_ENABLED",
+    "identity_email": "IDENTITY_EMAIL_ENABLED",
+    "identity_phone": "IDENTITY_PHONE_ENABLED",
+    "identity_notifications": "IDENTITY_NOTIFICATIONS_ENABLED",
+    "identity_reconciliation": "IDENTITY_RECONCILIATION_ENABLED",
 }
 
 
@@ -162,6 +168,11 @@ DESCRIPTIONS: dict[str, str] = {
     "first_task_onboarding": "Language, timezone and a first task; new people land in Chat (screen 02).",
     "chat_shell": "Chat: three starters, attach menu, Dictate and Talk, Stop, New content, sources and task states (screens 03-04).",
     "shell_mobile": "Phone shell: Chat and Today at the bottom, profile in the header, keyboard-aware bar, read-only workflow steps.",
+    "identity_connections": "Connected apps and channels per person: consent, revocation and verified channel capabilities (screen 22).",
+    "identity_email": "A person's Decibyl email address: alias lifecycle, inbound routing, sends through cards (screen 23).",
+    "identity_phone": "Phone and verification lifecycle with the number payment flow explained (screen 24).",
+    "identity_notifications": "Notification preferences per person and web push (screen 21).",
+    "identity_reconciliation": "Checks with each provider whether a send whose outcome was unknown arrived.",
 }
 
 

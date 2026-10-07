@@ -947,11 +947,17 @@ class AgentEventVisibility(str, Enum):
         for them, checked against the organisation's consent settings.
     OFF
         Suppressed for this organisation.
+    PRIVATE
+        One person's own card and the lines under it (launch stream
+        identity: disconnecting their app, sending from their address).
+        Never on a shared timeline; read only through that person's own
+        screens, which check the owner.
     """
 
     ALWAYS = "always"
     ON_REQUEST = "on_request"
     OFF = "off"
+    PRIVATE = "private"
 
 
 class KnowledgeScope(str, Enum):
