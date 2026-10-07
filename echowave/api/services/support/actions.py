@@ -659,11 +659,12 @@ async def run(*, action_id: int, staff: UserModel) -> tuple[dict[str, Any], bool
     from api.tasks.function_names import FunctionNames
 
     try:
-        await enqueue_job(
-            FunctionNames.RUN_SUPPORT_ACTION,
-            action_id,
-            _job_id=f"support-action-{action_id}",
-        )
+        # No fixed ARQ job id: the queued -> running claim already makes the
+        # run happen once, and a reused id (a restored database) would make
+        # ARQ refuse the job silently and leave the action queued forever.
+        job = await enqueue_job(FunctionNames.RUN_SUPPORT_ACTION, action_id)
+        if job is None:
+            raise RuntimeError("the queue refused the job")
     except Exception as exc:
         logger.error("Support action {} could not be queued: {}", action_id, exc)
         async with db_client.async_session() as session:

@@ -642,3 +642,25 @@ class TestRun:
                 ticket_id=desk.ticket,
                 params={"task_id": task.id},
             )
+
+
+@pytest.mark.asyncio
+async def test_a_refused_enqueue_is_said_and_the_action_stays_approved(desk, on):
+    """ARQ answers None for a job it will not take (a reused job id): that is
+    not "queued", so the action goes back to approved and Run can be retried."""
+    action = await _requested(desk)
+    await actions.approve(
+        action_id=action["id"],
+        staff=staff(desk.boss, "superadmin"),
+        version=action["version"],
+    )
+    with patch("api.tasks.arq.enqueue_job", new=AsyncMock(return_value=None)):
+        with pytest.raises(actions.ActionError, match="Could not be started"):
+            await actions.run(action_id=action["id"], staff=staff(desk.agent))
+    assert (await actions.get(action["id"]))["state"] == "approved"
+    with patch(
+        "api.tasks.arq.enqueue_job", new=AsyncMock(return_value=object())
+    ) as enqueue:
+        _, queued = await actions.run(action_id=action["id"], staff=staff(desk.agent))
+    assert queued is True
+    assert enqueue.await_args.kwargs == {}
