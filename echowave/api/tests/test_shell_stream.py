@@ -359,6 +359,25 @@ async def test_stop_route_is_hidden_while_off(
     assert response.status_code in (400, 404)
 
 
+async def test_stop_route_leaves_the_note_for_this_thread(test_client_factory, chat_on):
+    user = SimpleNamespace(id=5, selected_organization_id=7)
+    with patch.object(reply_stop, "request", new=AsyncMock(return_value=True)) as note:
+        async with test_client_factory(user) as client:
+            response = await client.post(
+                "/api/v1/shell/chat/stop", json={"thread_id": "t-1"}
+            )
+    assert response.json() == {"requested": True}
+    note.assert_awaited_once_with(7, "t-1")
+
+
+async def test_stop_route_says_when_the_note_did_not_land(test_client_factory, chat_on):
+    user = SimpleNamespace(id=5, selected_organization_id=7)
+    with patch.object(reply_stop, "request", new=AsyncMock(return_value=False)):
+        async with test_client_factory(user) as client:
+            response = await client.post("/api/v1/shell/chat/stop", json={})
+    assert response.json() == {"requested": False}
+
+
 def _session():
     session = AsyncMock()
     session.__aenter__ = AsyncMock(return_value=session)

@@ -34,7 +34,21 @@ vi.mock("@/components/channel/ChannelStream", () => ({
             (props.onCountChange as (n: number) => void)?.(seen.rows);
             (props.onLoadState as (s: string) => void)?.(seen.load);
         }, [props.onCountChange, props.onLoadState]);
-        return <div data-testid="stream" />;
+        return (
+            <div data-testid="stream">
+                <button
+                    type="button"
+                    onClick={() =>
+                        (props.onOpenSources as (s: unknown[], id: number) => void)?.(
+                            [{ kind: "team", label: "Your team", status: "read" }],
+                            9,
+                        )
+                    }
+                >
+                    open sources
+                </button>
+            </div>
+        );
     },
 }));
 vi.mock("@/components/home/ThreadList", () => ({ ThreadList: () => <div /> }));
@@ -135,6 +149,20 @@ describe("Chat start", () => {
         expect(stream.chatShell).toBe(true);
         expect(typeof stream.onOpenSources).toBe("function");
         expect(seen.composer[seen.composer.length - 1].chatShell).toBe(true);
+    });
+
+    it("opens sources beside the thread; Escape closes them and focus goes back", async () => {
+        api.home.mockResolvedValue({ data: { headline, suggestions: [], openers: [] } });
+        seen.rows = 2;
+        render(<HomeAboveTheFold />);
+        const trigger = await screen.findByText("open sources");
+        trigger.focus();
+        fireEvent.click(trigger);
+        expect(await screen.findByRole("complementary", { name: "Sources" })).toBeTruthy();
+        expect(screen.getByText("Your team")).toBeTruthy();
+        fireEvent.keyDown(document, { key: "Escape" });
+        await waitFor(() => expect(screen.queryByRole("complementary", { name: "Sources" })).toBeNull());
+        await waitFor(() => expect(document.activeElement).toBe(trigger));
     });
 
     it("keeps the old behaviour with the flag off: every opener sends", async () => {

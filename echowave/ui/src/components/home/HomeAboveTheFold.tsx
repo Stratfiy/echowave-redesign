@@ -297,7 +297,26 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   const onTurnStatus = useCallback((status: TurnStatus | null) => {
     setAnnouncement(status ? (TURN_ANNOUNCEMENT[status.state] ?? null) : null);
   }, []);
-  const onOpenSources = useCallback((list: SourceRead[], replyId: number) => setSources({ list, replyId }), []);
+  // The control that opened the sources panel, so closing it puts focus
+  // back where the person was (handoff section 26).
+  const sourcesTrigger = useRef<HTMLElement | null>(null);
+  const onOpenSources = useCallback((list: SourceRead[], replyId: number) => {
+    sourcesTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setSources({ list, replyId });
+  }, []);
+  const closeSources = useCallback(() => {
+    setSources(null);
+    requestAnimationFrame(() => sourcesTrigger.current?.focus());
+  }, []);
+  useEffect(() => {
+    if (!sources) return;
+    // Escape closes it: there is no unsaved work in a sources list.
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeSources();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [sources, closeSources]);
   const stop = async () => {
     setStopNotice(null);
     const response = await stopReplyApiV1ShellChatStopPost({ body: { thread_id: threadId } });
@@ -493,7 +512,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
     {chatShell && sources && (
       <AuxiliaryPanel
         label="Sources"
-        onClose={() => setSources(null)}
+        onClose={closeSources}
         defaultWidth={360}
         singlePaneBelow={920}
         className="motion-m3-enter"
