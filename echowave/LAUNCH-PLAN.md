@@ -367,6 +367,7 @@ hourly, reviews and merges each PR, and starts the next streams.
 | staff | session_01RiC2NEFF9hHD3gRGrmFKVi |
 | reach | session_015bZvzcdWNkr9Ezwq39ukz8 |
 | care | session_018WSGYyj3rNjPKiMfKBZpJz |
+| mobile | session_01BWBurqwedzUCEvdhs18xf4 |
 
 ## Status
 
@@ -389,3 +390,4 @@ hourly, reviews and merges each PR, and starts the next streams.
 | today | 2 | claude/stream-today | #535 merged | yes (docked approvals, one answer_refusal) | 335 + 245 pass | on staging, flags on, check 15/15 |
 | settings | 2 | claude/stream-settings | #538 merged | yes | 304 + 324 pass | on staging, flags on, check 15/15 |
 | voice | 2 | claude/stream-voice | #536 merged | yes (one speed setting with settings, one voice screen) | 345 pass | on staging, flags on, check 15/15 |
+| mobile | 2 | claude/mobile | #550 draft | yes (flag `mobile_push` off; People waits on the People API; store release needs the founder's accounts, MOBILE.md) | 27 server + 527 related; app 82 jest; full suite 12,741 pass | not on staging |
