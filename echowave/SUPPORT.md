@@ -167,5 +167,5 @@ Each flag off restores today's behaviour at once:
   not run and stays "queued" (visible as such once the switch is back on);
   request it again rather than expecting it to start by itself.
 
-Schema: `alembic downgrade 202610071500shell` drops the five `support_*`
+Schema: `alembic downgrade 202610071400ops` drops the five `support_*`
 tables (additive migration; nothing else depends on them).

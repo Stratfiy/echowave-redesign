@@ -16,6 +16,7 @@ import ChatwootWidget from "@/components/ChatwootWidget";
 import AppLayout from "@/components/layout/AppLayout";
 import PostHogIdentify from "@/components/PostHogIdentify";
 import { SentryErrorBoundary } from "@/components/SentryErrorBoundary";
+import SessionReplayGuard from "@/components/SessionReplayGuard";
 import SpinLoader from "@/components/SpinLoader";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Toaster } from "@/components/ui/sonner";
@@ -142,6 +143,7 @@ export default function RootLayout({
                     <TelephonyConfigWarningsProvider>
                       <OnboardingProvider>
                         <PostHogIdentify />
+                        <SessionReplayGuard />
                         <AppLayout>{children}</AppLayout>
                         <Toaster />
                         <ChatwootWidget />

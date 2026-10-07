@@ -2926,6 +2926,34 @@ export type CloudonixConfigurationResponse = {
 };
 
 /**
+ * CommandRequest
+ */
+export type CommandRequest = {
+    /**
+     * Command
+     */
+    command: string;
+    /**
+     * Target
+     */
+    target?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Idempotency Key
+     */
+    idempotency_key: string;
+    /**
+     * Environment
+     */
+    environment?: string | null;
+};
+
+/**
  * CommentWrite
  */
 export type CommentWrite = {
@@ -5282,6 +5310,34 @@ export type EventWebhookWrite = {
      * Rotate Secret
      */
     rotate_secret?: boolean;
+};
+
+/**
+ * EvidenceRequest
+ */
+export type EvidenceRequest = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Outcome
+     */
+    outcome: string;
+    /**
+     * Summary
+     */
+    summary: string;
+    /**
+     * Metrics
+     */
+    metrics?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Link
+     */
+    link?: string | null;
 };
 
 /**
@@ -12622,6 +12678,32 @@ export type StaffReply = {
 };
 
 /**
+ * StageRequest
+ */
+export type StageRequest = {
+    /**
+     * Component
+     */
+    component: string;
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Api Key
+     */
+    api_key: string;
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Label
+     */
+    label?: string | null;
+};
+
+/**
  * StartCampaignRequest
  */
 export type StartCampaignRequest = {
@@ -12689,6 +12771,20 @@ export type StatusRequest = {
      * Status
      */
     status: string;
+};
+
+/**
+ * StepRequest
+ */
+export type StepRequest = {
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Force
+     */
+    force?: boolean;
 };
 
 /**
@@ -16219,6 +16315,16 @@ export type ApiRoutesKycAdminRejectRequest = {
 };
 
 /**
+ * RejectRequest
+ */
+export type ApiRoutesOpsConsoleRejectRequest = {
+    /**
+     * Note
+     */
+    note?: string;
+};
+
+/**
  * ShelfResponse
  */
 export type ApiRoutesPacksShelfResponse = {
@@ -17827,6 +17933,658 @@ export type SetGlobalOverrideApiV1AdminFeaturesNameGlobalPutResponses = {
 };
 
 export type SetGlobalOverrideApiV1AdminFeaturesNameGlobalPutResponse = SetGlobalOverrideApiV1AdminFeaturesNameGlobalPutResponses[keyof SetGlobalOverrideApiV1AdminFeaturesNameGlobalPutResponses];
+
+export type OpsHealthApiV1AdminOpsHealthGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/ops/health';
+};
+
+export type OpsHealthApiV1AdminOpsHealthGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type OpsHealthApiV1AdminOpsHealthGetError = OpsHealthApiV1AdminOpsHealthGetErrors[keyof OpsHealthApiV1AdminOpsHealthGetErrors];
+
+export type OpsHealthApiV1AdminOpsHealthGetResponses = {
+    /**
+     * Response Ops Health Api V1 Admin Ops Health Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type OpsHealthApiV1AdminOpsHealthGetResponse = OpsHealthApiV1AdminOpsHealthGetResponses[keyof OpsHealthApiV1AdminOpsHealthGetResponses];
+
+export type OpsEvidenceApiV1AdminOpsEvidenceGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Kind
+         */
+        kind?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/admin/ops/evidence';
+};
+
+export type OpsEvidenceApiV1AdminOpsEvidenceGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type OpsEvidenceApiV1AdminOpsEvidenceGetError = OpsEvidenceApiV1AdminOpsEvidenceGetErrors[keyof OpsEvidenceApiV1AdminOpsEvidenceGetErrors];
+
+export type OpsEvidenceApiV1AdminOpsEvidenceGetResponses = {
+    /**
+     * Response Ops Evidence Api V1 Admin Ops Evidence Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type OpsEvidenceApiV1AdminOpsEvidenceGetResponse = OpsEvidenceApiV1AdminOpsEvidenceGetResponses[keyof OpsEvidenceApiV1AdminOpsEvidenceGetResponses];
+
+export type RecordEvidenceApiV1AdminOpsEvidencePostData = {
+    body: EvidenceRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/ops/evidence';
+};
+
+export type RecordEvidenceApiV1AdminOpsEvidencePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RecordEvidenceApiV1AdminOpsEvidencePostError = RecordEvidenceApiV1AdminOpsEvidencePostErrors[keyof RecordEvidenceApiV1AdminOpsEvidencePostErrors];
+
+export type RecordEvidenceApiV1AdminOpsEvidencePostResponses = {
+    /**
+     * Response Record Evidence Api V1 Admin Ops Evidence Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RecordEvidenceApiV1AdminOpsEvidencePostResponse = RecordEvidenceApiV1AdminOpsEvidencePostResponses[keyof RecordEvidenceApiV1AdminOpsEvidencePostResponses];
+
+export type ProviderKeysApiV1AdminOpsCredentialsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/ops/credentials';
+};
+
+export type ProviderKeysApiV1AdminOpsCredentialsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProviderKeysApiV1AdminOpsCredentialsGetError = ProviderKeysApiV1AdminOpsCredentialsGetErrors[keyof ProviderKeysApiV1AdminOpsCredentialsGetErrors];
+
+export type ProviderKeysApiV1AdminOpsCredentialsGetResponses = {
+    /**
+     * Response Provider Keys Api V1 Admin Ops Credentials Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ProviderKeysApiV1AdminOpsCredentialsGetResponse = ProviderKeysApiV1AdminOpsCredentialsGetResponses[keyof ProviderKeysApiV1AdminOpsCredentialsGetResponses];
+
+export type StageRotationApiV1AdminOpsCredentialsRotationsPostData = {
+    body: StageRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/ops/credentials/rotations';
+};
+
+export type StageRotationApiV1AdminOpsCredentialsRotationsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StageRotationApiV1AdminOpsCredentialsRotationsPostError = StageRotationApiV1AdminOpsCredentialsRotationsPostErrors[keyof StageRotationApiV1AdminOpsCredentialsRotationsPostErrors];
+
+export type StageRotationApiV1AdminOpsCredentialsRotationsPostResponses = {
+    /**
+     * Response Stage Rotation Api V1 Admin Ops Credentials Rotations Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type StageRotationApiV1AdminOpsCredentialsRotationsPostResponse = StageRotationApiV1AdminOpsCredentialsRotationsPostResponses[keyof StageRotationApiV1AdminOpsCredentialsRotationsPostResponses];
+
+export type RotationStepApiV1AdminOpsCredentialsRotationsRotationIdStepPostData = {
+    /**
+     * Body
+     */
+    body?: StepRequest | null;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Rotation Id
+         */
+        rotation_id: number;
+        /**
+         * Step
+         */
+        step: string;
+    };
+    query?: never;
+    url: '/api/v1/admin/ops/credentials/rotations/{rotation_id}/{step}';
+};
+
+export type RotationStepApiV1AdminOpsCredentialsRotationsRotationIdStepPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RotationStepApiV1AdminOpsCredentialsRotationsRotationIdStepPostError = RotationStepApiV1AdminOpsCredentialsRotationsRotationIdStepPostErrors[keyof RotationStepApiV1AdminOpsCredentialsRotationsRotationIdStepPostErrors];
+
+export type RotationStepApiV1AdminOpsCredentialsRotationsRotationIdStepPostResponses = {
+    /**
+     * Response Rotation Step Api V1 Admin Ops Credentials Rotations  Rotation Id   Step  Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RotationStepApiV1AdminOpsCredentialsRotationsRotationIdStepPostResponse = RotationStepApiV1AdminOpsCredentialsRotationsRotationIdStepPostResponses[keyof RotationStepApiV1AdminOpsCredentialsRotationsRotationIdStepPostResponses];
+
+export type CommandCatalogueApiV1AdminOpsCommandsCatalogueGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/ops/commands/catalogue';
+};
+
+export type CommandCatalogueApiV1AdminOpsCommandsCatalogueGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CommandCatalogueApiV1AdminOpsCommandsCatalogueGetError = CommandCatalogueApiV1AdminOpsCommandsCatalogueGetErrors[keyof CommandCatalogueApiV1AdminOpsCommandsCatalogueGetErrors];
+
+export type CommandCatalogueApiV1AdminOpsCommandsCatalogueGetResponses = {
+    /**
+     * Response Command Catalogue Api V1 Admin Ops Commands Catalogue Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CommandCatalogueApiV1AdminOpsCommandsCatalogueGetResponse = CommandCatalogueApiV1AdminOpsCommandsCatalogueGetResponses[keyof CommandCatalogueApiV1AdminOpsCommandsCatalogueGetResponses];
+
+export type ListCommandsApiV1AdminOpsCommandsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * State
+         */
+        state?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/admin/ops/commands';
+};
+
+export type ListCommandsApiV1AdminOpsCommandsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListCommandsApiV1AdminOpsCommandsGetError = ListCommandsApiV1AdminOpsCommandsGetErrors[keyof ListCommandsApiV1AdminOpsCommandsGetErrors];
+
+export type ListCommandsApiV1AdminOpsCommandsGetResponses = {
+    /**
+     * Response List Commands Api V1 Admin Ops Commands Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListCommandsApiV1AdminOpsCommandsGetResponse = ListCommandsApiV1AdminOpsCommandsGetResponses[keyof ListCommandsApiV1AdminOpsCommandsGetResponses];
+
+export type RequestCommandApiV1AdminOpsCommandsPostData = {
+    body: CommandRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/ops/commands';
+};
+
+export type RequestCommandApiV1AdminOpsCommandsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RequestCommandApiV1AdminOpsCommandsPostError = RequestCommandApiV1AdminOpsCommandsPostErrors[keyof RequestCommandApiV1AdminOpsCommandsPostErrors];
+
+export type RequestCommandApiV1AdminOpsCommandsPostResponses = {
+    /**
+     * Response Request Command Api V1 Admin Ops Commands Post
+     *
+     * Successful Response
+     */
+    202: {
+        [key: string]: unknown;
+    };
+};
+
+export type RequestCommandApiV1AdminOpsCommandsPostResponse = RequestCommandApiV1AdminOpsCommandsPostResponses[keyof RequestCommandApiV1AdminOpsCommandsPostResponses];
+
+export type GetCommandApiV1AdminOpsCommandsCommandIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Command Id
+         */
+        command_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/ops/commands/{command_id}';
+};
+
+export type GetCommandApiV1AdminOpsCommandsCommandIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCommandApiV1AdminOpsCommandsCommandIdGetError = GetCommandApiV1AdminOpsCommandsCommandIdGetErrors[keyof GetCommandApiV1AdminOpsCommandsCommandIdGetErrors];
+
+export type GetCommandApiV1AdminOpsCommandsCommandIdGetResponses = {
+    /**
+     * Response Get Command Api V1 Admin Ops Commands  Command Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetCommandApiV1AdminOpsCommandsCommandIdGetResponse = GetCommandApiV1AdminOpsCommandsCommandIdGetResponses[keyof GetCommandApiV1AdminOpsCommandsCommandIdGetResponses];
+
+export type ApproveCommandApiV1AdminOpsCommandsCommandIdApprovePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Command Id
+         */
+        command_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/ops/commands/{command_id}/approve';
+};
+
+export type ApproveCommandApiV1AdminOpsCommandsCommandIdApprovePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ApproveCommandApiV1AdminOpsCommandsCommandIdApprovePostError = ApproveCommandApiV1AdminOpsCommandsCommandIdApprovePostErrors[keyof ApproveCommandApiV1AdminOpsCommandsCommandIdApprovePostErrors];
+
+export type ApproveCommandApiV1AdminOpsCommandsCommandIdApprovePostResponses = {
+    /**
+     * Response Approve Command Api V1 Admin Ops Commands  Command Id  Approve Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ApproveCommandApiV1AdminOpsCommandsCommandIdApprovePostResponse = ApproveCommandApiV1AdminOpsCommandsCommandIdApprovePostResponses[keyof ApproveCommandApiV1AdminOpsCommandsCommandIdApprovePostResponses];
+
+export type RejectCommandApiV1AdminOpsCommandsCommandIdRejectPostData = {
+    body: ApiRoutesOpsConsoleRejectRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Command Id
+         */
+        command_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/ops/commands/{command_id}/reject';
+};
+
+export type RejectCommandApiV1AdminOpsCommandsCommandIdRejectPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RejectCommandApiV1AdminOpsCommandsCommandIdRejectPostError = RejectCommandApiV1AdminOpsCommandsCommandIdRejectPostErrors[keyof RejectCommandApiV1AdminOpsCommandsCommandIdRejectPostErrors];
+
+export type RejectCommandApiV1AdminOpsCommandsCommandIdRejectPostResponses = {
+    /**
+     * Response Reject Command Api V1 Admin Ops Commands  Command Id  Reject Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RejectCommandApiV1AdminOpsCommandsCommandIdRejectPostResponse = RejectCommandApiV1AdminOpsCommandsCommandIdRejectPostResponses[keyof RejectCommandApiV1AdminOpsCommandsCommandIdRejectPostResponses];
+
+export type LayaReportApiV1AdminOpsLayaGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+    };
+    url: '/api/v1/admin/ops/laya';
+};
+
+export type LayaReportApiV1AdminOpsLayaGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LayaReportApiV1AdminOpsLayaGetError = LayaReportApiV1AdminOpsLayaGetErrors[keyof LayaReportApiV1AdminOpsLayaGetErrors];
+
+export type LayaReportApiV1AdminOpsLayaGetResponses = {
+    /**
+     * Response Laya Report Api V1 Admin Ops Laya Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type LayaReportApiV1AdminOpsLayaGetResponse = LayaReportApiV1AdminOpsLayaGetResponses[keyof LayaReportApiV1AdminOpsLayaGetResponses];
+
+export type CostStopStatusApiV1AdminOpsCostStopGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/ops/cost-stop';
+};
+
+export type CostStopStatusApiV1AdminOpsCostStopGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CostStopStatusApiV1AdminOpsCostStopGetError = CostStopStatusApiV1AdminOpsCostStopGetErrors[keyof CostStopStatusApiV1AdminOpsCostStopGetErrors];
+
+export type CostStopStatusApiV1AdminOpsCostStopGetResponses = {
+    /**
+     * Response Cost Stop Status Api V1 Admin Ops Cost Stop Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CostStopStatusApiV1AdminOpsCostStopGetResponse = CostStopStatusApiV1AdminOpsCostStopGetResponses[keyof CostStopStatusApiV1AdminOpsCostStopGetResponses];
 
 export type GetOverviewApiV1AdminBillingOverviewGetData = {
     body?: never;

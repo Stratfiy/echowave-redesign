@@ -111,6 +111,14 @@ FLAGS: dict[str, str] = {
     "support_help": "SUPPORT_HELP_ENABLED",
     "support_inbox": "SUPPORT_INBOX_ENABLED",
     "support_actions": "SUPPORT_ACTIONS_ENABLED",
+    # Stream ops (handoff 11, 14, 15 G-H, 34, 35).
+    "ops_console": "OPS_CONSOLE_ENABLED",
+    "server_analytics": "SERVER_ANALYTICS_ENABLED",
+    "telemetry_redaction": "TELEMETRY_REDACTION_ENABLED",
+    "session_replay": "SESSION_REPLAY_ENABLED",
+    "laya_guardrails": "LAYA_GUARDRAILS_ENABLED",
+    "laya_rollback": "LAYA_ROLLBACK_ENABLED",
+    "cost_stop": "COST_STOP_ENABLED",
 }
 
 
@@ -169,6 +177,13 @@ DESCRIPTIONS: dict[str, str] = {
     "support_help": "Help: ask support, choose exactly what is shared, follow the ticket (screen 28).",
     "support_inbox": "Staff support inbox and case with internal notes (screen 32).",
     "support_actions": "Typed support actions with a preview, a second person's approval and an audit (screen 33).",
+    "ops_console": "Staff operations: health, provider key lifecycle, typed commands, evidence.",
+    "server_analytics": "Server-owned product events to PostHog through a durable outbox.",
+    "telemetry_redaction": "Redact secrets and personal data from logs and error reports.",
+    "session_replay": "Session replay on non-sensitive screens only (off: no replay at all).",
+    "laya_guardrails": "Laya hard deadline, circuit breaker and shadow agreement statistics.",
+    "laya_rollback": "Rollback: Auto routes by rules alone and never asks Laya.",
+    "cost_stop": "Stop new billable work when provider spend runs away.",
 }
 
 

@@ -1725,3 +1725,61 @@ PLATFORM_SMS_FROM_NUMBER = os.getenv("PLATFORM_SMS_FROM_NUMBER") or None
 # Indian destination rather than to the carrier.
 PLATFORM_TWILIO_ACCOUNT_SID = os.getenv("PLATFORM_TWILIO_ACCOUNT_SID") or None
 PLATFORM_TWILIO_AUTH_TOKEN = os.getenv("PLATFORM_TWILIO_AUTH_TOKEN") or None
+
+
+# ---------------------------------------------------------------------------
+# Stream `ops` (handoff 11, 14, 15 G-H, 34, 35). Every switch below is off by
+# default; services/features.py registers the boolean ones.
+# ---------------------------------------------------------------------------
+# The staff operations console's backing services: infrastructure health,
+# credential lifecycle, typed routine commands, evidence and Laya reports.
+OPS_CONSOLE_ENABLED = _flag("OPS_CONSOLE_ENABLED")
+# Ops and cost events into the controls event catalogue's outbox (needs
+# EVENT_CATALOGUE_ENABLED too; the outbox and its delivery are controls').
+SERVER_ANALYTICS_ENABLED = _flag("SERVER_ANALYTICS_ENABLED")
+# Deep redaction of logs and Sentry events (secrets, emails, phone numbers,
+# prompts and transcripts) on top of the baseline scrub.
+TELEMETRY_REDACTION_ENABLED = _flag("TELEMETRY_REDACTION_ENABLED")
+# Session replay in the browser, on non-sensitive screens only. Off means no
+# replay anywhere.
+SESSION_REPLAY_ENABLED = _flag("SESSION_REPLAY_ENABLED")
+# Laya guardrails: a hard deadline and circuit breaker around the decision
+# model, and shadow agreement statistics for the evaluation report.
+LAYA_GUARDRAILS_ENABLED = _flag("LAYA_GUARDRAILS_ENABLED")
+# The rollback switch: on means Auto routes by rules alone and never asks
+# Laya, whatever LAYA_ROUTING says. Flip it from the staff console.
+LAYA_ROLLBACK_ENABLED = _flag("LAYA_ROLLBACK_ENABLED")
+# Stop new billable work when spend runs away (services/ops/cost_stop.py).
+COST_STOP_ENABLED = _flag("COST_STOP_ENABLED")
+
+#: Hard ceiling on one Laya decision, whatever the HTTP client's per-phase
+#: timeouts add up to (connect + write + read can each take LAYA_TIMEOUT_MS).
+LAYA_HARD_DEADLINE_MS = int(os.getenv("LAYA_HARD_DEADLINE_MS", "500"))
+#: Consecutive failures (timeout, error, malformed) that open the breaker,
+#: and how long it stays open before Laya is asked again.
+LAYA_BREAKER_FAILURES = int(os.getenv("LAYA_BREAKER_FAILURES", "5"))
+LAYA_BREAKER_COOLDOWN_SECONDS = int(os.getenv("LAYA_BREAKER_COOLDOWN_SECONDS", "60"))
+
+#: Spend ceilings for the cost stop, in paise of provider cost per rolling
+#: hour. Unset (0) means that ceiling is not configured, which the console
+#: reports as "not monitored", never as healthy.
+COST_STOP_PLATFORM_HOURLY_PAISE = int(os.getenv("COST_STOP_PLATFORM_HOURLY_PAISE", "0"))
+COST_STOP_ORG_HOURLY_PAISE = int(os.getenv("COST_STOP_ORG_HOURLY_PAISE", "0"))
+
+#: Secret store the credential lifecycle mirrors activated keys into:
+#: ``database`` (the encrypted platform table only) or ``aws_secrets_manager``.
+OPS_SECRET_BACKEND = (os.getenv("OPS_SECRET_BACKEND") or "database").strip().lower()
+#: The only Secrets Manager prefix the backend may write under. Anything else
+#: is refused, so a typed command can never touch another secret.
+OPS_SECRET_NAMESPACE = (
+    os.getenv("OPS_SECRET_NAMESPACE") or f"decibyl/{ENVIRONMENT}/providers/"
+).strip()
+#: Systems Manager Automation documents the infrastructure commands may start,
+#: as ``command=DocumentName`` pairs separated by commas. Unset means those
+#: commands report that they need AWS set up rather than pretending.
+OPS_SSM_DOCUMENTS = os.getenv("OPS_SSM_DOCUMENTS", "")
+OPS_SSM_TARGET_INSTANCE_ID = os.getenv("OPS_SSM_TARGET_INSTANCE_ID", "")
+#: Pseudonymous analytics ids use ANALYTICS_PSEUDONYM_KEY, defined with the
+#: controls event catalogue above.
+#: How old a signal may be before the console stops calling it healthy.
+OPS_SIGNAL_STALE_SECONDS = int(os.getenv("OPS_SIGNAL_STALE_SECONDS", "900"))

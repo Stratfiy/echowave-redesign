@@ -65,7 +65,15 @@ export type Feature =
     // Launch stream `support` (LAUNCH-PLAN.md, phase 2).
     | "support_help"
     | "support_inbox"
-    | "support_actions";
+    | "support_actions"
+    // Stream ops (handoff 11, 14, 15 G-H, 34, 35).
+    | "ops_console"
+    | "server_analytics"
+    | "telemetry_redaction"
+    | "session_replay"
+    | "laya_guardrails"
+    | "laya_rollback"
+    | "cost_stop";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

@@ -49,6 +49,7 @@ from api.tasks.margin_watch import watch_margins
 from api.tasks.memory_export import export_memory
 from api.tasks.memory_notices import notice_connections, resurface_asked
 from api.tasks.missed_call_tasks import place_missed_call_callback
+from api.tasks.ops import run_ops_command, sweep_ops
 from api.tasks.plan_expiry import expire_lapsed_plan_balance
 from api.tasks.provider_balances import check_provider_balances
 from api.tasks.rental_billing import (
@@ -139,8 +140,19 @@ class WorkerSettings:
         sweep_unknown_outcomes,
         run_support_action,
         sweep_support_actions,
+        run_ops_command,
+        sweep_ops,
     ]
     cron_jobs = [
+        # Stream ops: expire unapproved commands, re-enqueue lost ones, lift
+        # timed pauses and check the cost-stop ceilings. Analytics delivery is
+        # the controls outbox's cron below. Each part is off behind its flag.
+        cron(
+            sweep_ops,
+            minute=set(range(0, 60, 5)),
+            second=20,
+            run_at_startup=False,
+        ),
         # Launch stream controls: catalogue events to analytics, and cards
         # whose job died marked outcome unknown. Both no-ops while off.
         cron(
