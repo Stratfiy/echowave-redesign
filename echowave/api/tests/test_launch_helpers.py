@@ -47,6 +47,8 @@ NEW = (
 def helpers_on(monkeypatch):
     for name in ALL_FLAGS:
         monkeypatch.setattr(constants, name, True)
+    # start_course is the learning stream's tool, offered with `learning`.
+    monkeypatch.setattr(constants, "LEARNING_ENABLED", True)
 
 
 @pytest.fixture

@@ -264,6 +264,14 @@ function savedReportOf(event: TimelineEvent): string | null {
     return typeof saved?.uuid === 'string' ? saved.uuid : null;
 }
 
+/** A course started from the conversation (stream `learning`'s start_course). */
+function courseOf(event: TimelineEvent): { goalId: string | null; title: string; href: string } | null {
+    const course = (event.payload as { learning_course?: { goal_id?: unknown; title?: unknown; href?: unknown } } | null)
+        ?.learning_course;
+    if (!course || typeof course.title !== 'string' || typeof course.href !== 'string') return null;
+    return { goalId: typeof course.goal_id === 'string' ? course.goal_id : null, title: course.title, href: course.href };
+}
+
 /** The files a message carried, if any. */
 function attachmentsOf(event: TimelineEvent): Attached[] {
     const list = (event.payload as { attachments?: unknown } | null)?.attachments;
@@ -357,6 +365,7 @@ export function ChannelStream({
     onWaitingChange,
     onTurnStatus,
     onOpenSources,
+    onOpenLesson,
 }: {
     /** A channel's thread, or -- with `workflowId` instead -- one bot's own
      *  chat. Exactly one of the two. */
@@ -370,6 +379,9 @@ export function ChannelStream({
      *  the account has always had, so a caller that says nothing reads what
      *  it always read. */
     threadId?: string | null;
+    /** Opens a lesson in this Chat column (Decibyl's thread). Without it a
+     *  course card is a link to the lesson. */
+    onOpenLesson?: (goalId: string | null, topic: string) => void;
     /** Bot id → display name, so an event can be attributed to a teammate
      *  rather than to an id. Missing names degrade to "A bot", never to a
      *  blank line. */
@@ -1158,6 +1170,25 @@ export function ChannelStream({
                             {divider}
                             <li className="flex gap-3">
                                 <ActivityRow event={event} who={activityWho(event)}>
+                                    {(() => {
+                                        const course = courseOf(event);
+                                        if (!course) return null;
+                                        const style = 'ml-2 inline-flex min-h-11 items-center font-medium underline md:min-h-0';
+                                        return onOpenLesson ? (
+                                            <button
+                                                type="button"
+                                                className={style}
+                                                data-testid="open-course"
+                                                onClick={() => onOpenLesson(course.goalId, course.title)}
+                                            >
+                                                Open the lesson
+                                            </button>
+                                        ) : (
+                                            <Link href={course.href} className={style} data-testid="open-course">
+                                                Open the lesson
+                                            </Link>
+                                        );
+                                    })()}
                                     {savedReportOf(event) && (
                                         <Link
                                             href={`/saved-reports/${savedReportOf(event)}`}

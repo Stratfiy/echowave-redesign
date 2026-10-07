@@ -606,3 +606,43 @@ describe("Decibyl's private browser", () => {
         expect((await screen.findByTestId('browser-panel')).textContent).toBe('abc-123');
     });
 });
+
+describe('a course started from the conversation', () => {
+    const course = (goalId: string | null) =>
+        event({
+            kind: 'activity',
+            summary: 'Course: Python basics',
+            workflow_id: null,
+            folder_id: null,
+            payload: {
+                learning_course: {
+                    goal_id: goalId,
+                    title: 'Python basics',
+                    href: goalId ? `/overview?learn=${goalId}` : '/overview?learn=new&topic=Python+basics',
+                },
+            },
+        });
+
+    it('opens the lesson right here in Chat, not on another screen', async () => {
+        timeline.mockResolvedValue({ data: { events: [course('g-1')], next_before_at: null, next_before_id: null } });
+        const onOpenLesson = vi.fn();
+        render(<ChannelStream assistant botNames={{}} onOpenLesson={onOpenLesson} />);
+        fireEvent.click(await screen.findByRole('button', { name: 'Open the lesson' }));
+        expect(onOpenLesson).toHaveBeenCalledWith('g-1', 'Python basics');
+    });
+
+    it('before it can start, the same button opens the start with the course named', async () => {
+        timeline.mockResolvedValue({ data: { events: [course(null)], next_before_at: null, next_before_id: null } });
+        const onOpenLesson = vi.fn();
+        render(<ChannelStream assistant botNames={{}} onOpenLesson={onOpenLesson} />);
+        fireEvent.click(await screen.findByRole('button', { name: 'Open the lesson' }));
+        expect(onOpenLesson).toHaveBeenCalledWith(null, 'Python basics');
+    });
+
+    it('without a lesson pane it is a link to the lesson', async () => {
+        timeline.mockResolvedValue({ data: { events: [course('g-1')], next_before_at: null, next_before_id: null } });
+        render(<ChannelStream assistant botNames={{}} />);
+        const link = await screen.findByRole('link', { name: 'Open the lesson' });
+        expect(link.getAttribute('href')).toBe('/overview?learn=g-1');
+    });
+});
