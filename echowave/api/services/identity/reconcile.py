@@ -155,7 +155,11 @@ async def _identity_email(event: Any, payload: dict[str, Any]) -> Verdict:
         # The record is written before the mail server is called; none means
         # it never got that far.
         return Verdict(NOT_DELIVERED, "It never reached the mail server.", "never_sent")
-    if sent.state in ("accepted", "delivered"):
+    if sent.state == "delivered":
+        return Verdict(
+            DELIVERED, f"The mail provider reported it delivered ({sent.message_id})."
+        )
+    if sent.state == "accepted":
         return Verdict(DELIVERED, f"The mail server accepted it ({sent.message_id}).")
     if sent.state in ("bounced", "complained", "failed"):
         return Verdict(

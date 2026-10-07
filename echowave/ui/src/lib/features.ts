@@ -61,7 +61,13 @@ export type Feature =
     | "early_access"
     | "first_task_onboarding"
     | "chat_shell"
-    | "shell_mobile";
+    | "shell_mobile"
+    // Launch stream `identity` (LAUNCH-PLAN.md, phase 2).
+    | "identity_connections"
+    | "identity_email"
+    | "identity_phone"
+    | "identity_notifications"
+    | "identity_reconciliation";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();
