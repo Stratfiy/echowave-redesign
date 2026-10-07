@@ -77,6 +77,9 @@ from api.routes.skills import router as skills_router
 from api.routes.studio import public_router as public_studio_router
 from api.routes.studio import router as studio_router
 from api.routes.superuser import router as superuser_router
+from api.routes.support import router as support_router
+from api.routes.support_admin import actions_router as support_actions_router
+from api.routes.support_admin import router as support_admin_router
 from api.routes.tasks import router as tasks_router
 from api.routes.team import router as team_router
 from api.routes.telephony import router as telephony_router
@@ -186,6 +189,9 @@ router.include_router(public_studio_router)
 router.include_router(public_trust_router)
 router.include_router(public_early_access_router)
 router.include_router(shell_router)
+router.include_router(support_router)
+router.include_router(support_admin_router)
+router.include_router(support_actions_router)
 router.include_router(public_marketplace_router)
 router.include_router(workflow_embed_router)
 router.include_router(knowledge_base_router)

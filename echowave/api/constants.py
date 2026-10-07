@@ -942,6 +942,16 @@ RELEASE = os.getenv("RELEASE") or os.getenv("SENTRY_RELEASE") or ""
 # tasks (handoff 6, "Useful feedback").
 REPLY_FEEDBACK_ENABLED = os.getenv("REPLY_FEEDBACK_ENABLED", "false").lower() == "true"
 
+# Launch stream `support` (LAUNCH-PLAN.md, phase 2; handoff 33, screens 28 and
+# 32-33). Customer Help and tickets with a data-sharing preview; the staff
+# support inbox and case with internal notes; typed support actions that a
+# second person approves.
+SUPPORT_HELP_ENABLED = os.getenv("SUPPORT_HELP_ENABLED", "false").lower() == "true"
+SUPPORT_INBOX_ENABLED = os.getenv("SUPPORT_INBOX_ENABLED", "false").lower() == "true"
+SUPPORT_ACTIONS_ENABLED = (
+    os.getenv("SUPPORT_ACTIONS_ENABLED", "false").lower() == "true"
+)
+
 # Where previews of Studio sites are served from. Set it to a host of its own
 # (https://sites.example.com, proxied to this api) so a generated site runs on
 # an origin that shares nothing with the app. Unset, previews are served from

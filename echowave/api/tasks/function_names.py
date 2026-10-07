@@ -20,6 +20,8 @@ class FunctionNames:
     EXPORT_MEMORY = "export_memory"
     #: A confirmed action fires once its undo window has passed.
     RUN_PROPOSED_ACTION = "run_proposed_action"
+    #: An approved support action runs once (launch stream `support`).
+    RUN_SUPPORT_ACTION = "run_support_action"
     COMPACT_CHANNEL_CONTEXT = "compact_channel_context"
     EMAIL_TAX_DOCUMENT = "email_tax_document"
     PLACE_MISSED_CALL_CALLBACK = "place_missed_call_callback"
