@@ -200,11 +200,15 @@ async def prompt_for_workflow(
         # imported. Only a reviewed one reaches a prompt -- an import waits
         # for its review, and a skill somebody wrote here is reviewed by
         # the person who wrote it.
-        own = await db_client.get_skill_document(organization_id=organization_id, slug=slug)
+        own = await db_client.get_skill_document(
+            organization_id=organization_id, slug=slug
+        )
         if own is not None and own.reviewed_at is not None:
             blocks.append(
                 prompt_block(
-                    PortableSkill(name=own.title, description=own.description, body=own.body)
+                    PortableSkill(
+                        name=own.title, description=own.description, body=own.body
+                    )
                 )
             )
     if not blocks:
@@ -245,14 +249,18 @@ async def write_own(
     description = (description or "").strip()
     if not title or not description:
         raise SkillError("Say what the skill is called and what it should do.")
-    workflow = await db_client.get_workflow(workflow_id, organization_id=organization_id)
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=organization_id
+    )
     if workflow is None:
         raise SkillError("That agent is not in this workspace.")
     count = await db_client.count_skills_on_workflow(
         organization_id=organization_id, workflow_id=workflow_id
     )
     if count >= MAX_PER_BOT:
-        raise SkillError(f"An agent can carry {MAX_PER_BOT} skills. Take one off first.")
+        raise SkillError(
+            f"An agent can carry {MAX_PER_BOT} skills. Take one off first."
+        )
 
     slug = _own_slug(title)
     now = datetime.now(UTC)
@@ -276,7 +284,10 @@ async def write_own(
         organization_id=organization_id, slug=slug, workflow_id=None, user_id=user_id
     )
     await db_client.add_organisation_skill(
-        organization_id=organization_id, slug=slug, workflow_id=workflow_id, user_id=user_id
+        organization_id=organization_id,
+        slug=slug,
+        workflow_id=workflow_id,
+        user_id=user_id,
     )
     return slug
 

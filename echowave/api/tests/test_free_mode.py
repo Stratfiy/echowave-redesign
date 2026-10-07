@@ -4,7 +4,13 @@ import pytest
 
 from api import constants
 from api.services import features
-from api.services.billing import free_mode, internal_accounts, plan_limits, subscription_plans, trial
+from api.services.billing import (
+    free_mode,
+    internal_accounts,
+    plan_limits,
+    subscription_plans,
+    trial,
+)
 
 
 @pytest.fixture
@@ -42,7 +48,9 @@ def test_the_trial_comes_back_when_switched_off(paid, monkeypatch):
 
 async def test_every_limit_is_unlimited(free):
     # Free mode answers before the session is touched.
-    limit = await plan_limits.limit_for_organization(None, organization_id=7, key="bots")
+    limit = await plan_limits.limit_for_organization(
+        None, organization_id=7, key="bots"
+    )
     assert limit.unlimited
     assert limit.raise_to is None
 
@@ -67,9 +75,13 @@ async def test_the_plan_allows_voice_and_the_whole_knowledge_base(free, monkeypa
     assert plan.code == subscription_plans.FREE
     assert plan.voice_allowed is True
     assert plan.knowledge_base_bytes == constants.STAFF_KNOWLEDGE_BASE_BYTES
-    assert await subscription_plans.assert_voice_allowed(None, organization_id=7) == plan
+    assert (
+        await subscription_plans.assert_voice_allowed(None, organization_id=7) == plan
+    )
 
 
 async def test_the_knowledge_base_is_not_capped(free):
-    allowance = await subscription_plans.knowledge_base_allowance_for(None, organization_id=7)
+    allowance = await subscription_plans.knowledge_base_allowance_for(
+        None, organization_id=7
+    )
     assert allowance == subscription_plans.STAFF_KNOWLEDGE_BASE

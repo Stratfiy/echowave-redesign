@@ -318,12 +318,12 @@ async def knowledge_base_allowance_for(
     Imported lazily because ``mandates`` imports this module for
     :func:`resolve`, and the cycle is only benign at call time.
     """
+    from api.services.billing import free_mode
     from api.services.billing.mandates import (
         PURPOSE_STARTER_PLAN,
         get_mandate,
         is_authorised,
     )
-    from api.services.billing import free_mode
     from api.services.billing.staff_accounts import is_staff_account
 
     if free_mode.on(organization_id):

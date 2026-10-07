@@ -2134,11 +2134,17 @@ def create_llm_service(user_config, correlation_id: str | None = None):
     api_key = user_config.llm.api_key
 
     kwargs: dict = {}
-    if provider == ServiceProviders.OPENAI.value or provider == ServiceProviders.OPENROUTER.value:
+    if (
+        provider == ServiceProviders.OPENAI.value
+        or provider == ServiceProviders.OPENROUTER.value
+    ):
         _carry(kwargs, user_config.llm, "base_url")
     elif provider == ServiceProviders.AZURE.value:
         _carry(kwargs, user_config.llm, "endpoint")
-    elif provider == ServiceProviders.SPEACHES.value or provider == ServiceProviders.CUSTOM_LLM.value:
+    elif (
+        provider == ServiceProviders.SPEACHES.value
+        or provider == ServiceProviders.CUSTOM_LLM.value
+    ):
         _carry(kwargs, user_config.llm, "base_url")
     elif provider == ServiceProviders.HUGGINGFACE.value:
         _carry(kwargs, user_config.llm, "base_url", "bill_to")

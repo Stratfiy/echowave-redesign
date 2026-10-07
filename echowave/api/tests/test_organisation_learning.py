@@ -191,7 +191,7 @@ class TestTheMemoryScreen:
 
     @pytest.mark.asyncio
     async def test_teaching_one_agent_writes_to_that_agents_memory(self):
-        """"Teach Riya something" on the agent's page: true of Riya, not of the
+        """ "Teach Riya something" on the agent's page: true of Riya, not of the
         bot answering the phone, so it is stored on her alone."""
         with (
             patch(
@@ -208,7 +208,9 @@ class TestTheMemoryScreen:
             ) as read,
         ):
             await write_facts(
-                FactsRequest(facts={"note": "Clinic is closed on Sundays"}, workflow_id=7),
+                FactsRequest(
+                    facts={"note": "Clinic is closed on Sundays"}, workflow_id=7
+                ),
                 user=_user(),
             )
         assert lookup.await_args.kwargs["organization_id"] == 42

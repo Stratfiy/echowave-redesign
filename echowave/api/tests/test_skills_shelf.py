@@ -155,7 +155,7 @@ class TestWhatTheBotIsTaught:
 
 @pytest.mark.asyncio
 class TestASkillDescribedInPlainWords:
-    """"+ Add skill -> describe your own" on the agent's page."""
+    """ "+ Add skill -> describe your own" on the agent's page."""
 
     async def test_it_lands_on_that_agent_alone_and_in_its_prompt(
         self, async_session, db_session
@@ -180,7 +180,11 @@ class TestASkillDescribedInPlainWords:
     ):
         user, org, bots = await _account(async_session, slug="own-off")
         slug = await shelf.write_own(
-            org.id, bots[0].id, title="Greet", description="Say namaste first.", user_id=user.id
+            org.id,
+            bots[0].id,
+            title="Greet",
+            description="Say namaste first.",
+            user_id=user.id,
         )
         assert await shelf.take_off(org.id, slug, bots[0].id) is True
         assert await shelf.for_workflow(org.id, bots[0].id) == []
@@ -207,8 +211,12 @@ class TestASkillDescribedInPlainWords:
 
         _, org, bots = await _account(async_session, slug="own-import")
         await db_client.upsert_skill_document(
-            organization_id=org.id, slug="imported-thing", title="Imported",
-            description="d", body="b", concerns=[],
+            organization_id=org.id,
+            slug="imported-thing",
+            title="Imported",
+            description="d",
+            body="b",
+            concerns=[],
         )
         await db_client.add_organisation_skill(
             organization_id=org.id, slug="imported-thing", workflow_id=bots[0].id
@@ -217,17 +225,25 @@ class TestASkillDescribedInPlainWords:
 
 
 @pytest.mark.asyncio
-async def test_the_agents_own_list_names_a_skill_written_here(async_session, db_session):
+async def test_the_agents_own_list_names_a_skill_written_here(
+    async_session, db_session
+):
     from types import SimpleNamespace
 
     from api.routes.skills import skills_on_workflow
 
     user, org, bots = await _account(async_session, slug="own-card")
     slug = await shelf.write_own(
-        org.id, bots[0].id, title="Check stock", description="Look it up first.", user_id=user.id
+        org.id,
+        bots[0].id,
+        title="Check stock",
+        description="Look it up first.",
+        user_id=user.id,
     )
     response = await skills_on_workflow(
         bots[0].id, user=SimpleNamespace(id=user.id, selected_organization_id=org.id)
     )
     assert response.slugs == [slug]
-    assert [(card.title, card.division) for card in response.skills] == [("Check stock", "Yours")]
+    assert [(card.title, card.division) for card in response.skills] == [
+        ("Check stock", "Yours")
+    ]
