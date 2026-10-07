@@ -1,0 +1,139 @@
+/**
+ * Chat start under `chat_shell` (screen 03): no more than three starters,
+ * each filling the box rather than sending; the first task from onboarding
+ * asked once; Stop sent to the server; and a history that failed is never
+ * drawn as the empty greeting.
+ */
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import React from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { HomeAboveTheFold, MAX_STARTERS } from "../HomeAboveTheFold";
+
+const api = vi.hoisted(() => ({ home: vi.fn(), post: vi.fn(), stop: vi.fn() }));
+const seen = vi.hoisted(() => ({
+    stream: [] as Record<string, unknown>[],
+    composer: [] as Record<string, unknown>[],
+    rows: 0,
+    load: "ready" as "ready" | "error",
+}));
+const flags = vi.hoisted(() => ({ chat_shell: true }));
+
+vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
+vi.mock("@/lib/features", () => ({ useFeature: (name: string) => Boolean((flags as Record<string, boolean>)[name]) }));
+vi.mock("@/client/sdk.gen", () => ({
+    teamHomeApiV1TeamHomeGet: api.home,
+    postMessageApiV1TimelineMessagePost: api.post,
+    stopReplyApiV1ShellChatStopPost: api.stop,
+    getWorkflowsApiV1WorkflowFetchGet: async () => ({ data: [] }),
+}));
+vi.mock("@/components/channel/ChannelStream", () => ({
+    ChannelStream: (props: Record<string, unknown>) => {
+        seen.stream.push(props);
+        React.useEffect(() => {
+            (props.onCountChange as (n: number) => void)?.(seen.rows);
+            (props.onLoadState as (s: string) => void)?.(seen.load);
+        }, [props.onCountChange, props.onLoadState]);
+        return <div data-testid="stream" />;
+    },
+}));
+vi.mock("@/components/home/ThreadList", () => ({ ThreadList: () => <div /> }));
+vi.mock("@/components/channel/ChannelComposer", () => ({
+    ChannelComposer: (props: Record<string, unknown>) => {
+        seen.composer.push(props);
+        return (
+            <div data-testid="composer" data-draft={(props.draftRequest as { text?: string } | null)?.text ?? ""}>
+                <button type="button" onClick={() => (props.onStop as () => void)?.()}>
+                    stop
+                </button>
+            </div>
+        );
+    },
+}));
+
+const headline = { agents: 1, live: 1, calls: 0, answered: 0, outcomes: 0, needs_attention: 0 };
+
+beforeEach(() => {
+    api.home.mockReset();
+    api.post.mockReset();
+    api.stop.mockReset();
+    api.post.mockResolvedValue({ data: { asked: [] } });
+    api.stop.mockResolvedValue({ data: { requested: true } });
+    seen.stream.length = 0;
+    seen.composer.length = 0;
+    seen.rows = 0;
+    seen.load = "ready";
+    flags.chat_shell = true;
+    window.history.replaceState(null, "", "/overview");
+});
+
+const openers = ["What needs my attention today?", "Help me plan today", "Teach me something", "Help with a reply", "What happened this week?"].map(
+    (text) => ({ kind: "time", text }),
+);
+
+describe("Chat start", () => {
+    it("shows at most three starters, and one fills the box without sending", async () => {
+        api.home.mockResolvedValue({ data: { headline, suggestions: [], openers } });
+        render(<HomeAboveTheFold firstName="Asha" />);
+        await screen.findByText("Help me plan today");
+        expect(screen.queryByText("Help with a reply")).toBeNull();
+        expect(MAX_STARTERS).toBe(3);
+        fireEvent.click(screen.getByText("Help me plan today"));
+        await waitFor(() => expect(screen.getByTestId("composer").getAttribute("data-draft")).toBe("Help me plan today"));
+        expect(api.post).not.toHaveBeenCalled();
+    });
+
+    it("asks the first task from onboarding exactly once, then takes it off the address", async () => {
+        api.home.mockResolvedValue({ data: { headline, suggestions: [], openers: [] } });
+        window.history.replaceState(null, "", "/overview?ask=Plan%20my%20week");
+        const { rerender } = render(<HomeAboveTheFold />);
+        await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1));
+        expect(api.post.mock.calls[0][0].body).toMatchObject({ assistant: true, text: "Plan my week" });
+        expect(window.location.search).toBe("");
+        rerender(<HomeAboveTheFold />);
+        expect(api.post).toHaveBeenCalledTimes(1);
+    });
+
+    it("sends Stop to the server for this thread", async () => {
+        api.home.mockResolvedValue({ data: { headline, suggestions: [], openers: [] } });
+        window.history.replaceState(null, "", "/overview?thread=t-9");
+        render(<HomeAboveTheFold />);
+        fireEvent.click(await screen.findByText("stop"));
+        await waitFor(() => expect(api.stop).toHaveBeenCalledWith({ body: { thread_id: "t-9" } }));
+    });
+
+    it("says when Stop did not land", async () => {
+        api.home.mockResolvedValue({ data: { headline, suggestions: [], openers: [] } });
+        api.stop.mockResolvedValue({ data: { requested: false } });
+        render(<HomeAboveTheFold />);
+        fireEvent.click(await screen.findByText("stop"));
+        expect(await screen.findByText(/Stop did not reach Decibyl/)).toBeTruthy();
+    });
+
+    it("never draws the empty greeting over a history that failed to load", async () => {
+        api.home.mockResolvedValue({ data: { headline, suggestions: [], openers: [] } });
+        seen.load = "error";
+        render(<HomeAboveTheFold />);
+        await waitFor(() => expect(seen.stream.length).toBeGreaterThan(0));
+        await waitFor(() => expect(screen.queryByText("Hi, I'm Decibyl!")).toBeNull());
+    });
+
+    it("passes the Chat states down to the stream and the composer", async () => {
+        api.home.mockResolvedValue({ data: { headline, suggestions: [], openers: [] } });
+        render(<HomeAboveTheFold />);
+        await waitFor(() => expect(seen.stream.length).toBeGreaterThan(0));
+        const stream = seen.stream[seen.stream.length - 1];
+        expect(stream.chatShell).toBe(true);
+        expect(typeof stream.onOpenSources).toBe("function");
+        expect(seen.composer[seen.composer.length - 1].chatShell).toBe(true);
+    });
+
+    it("keeps the old behaviour with the flag off: every opener sends", async () => {
+        flags.chat_shell = false;
+        api.home.mockResolvedValue({ data: { headline, suggestions: [], openers } });
+        render(<HomeAboveTheFold />);
+        expect(await screen.findByText("Help with a reply")).toBeTruthy();
+        fireEvent.click(screen.getByText("Help me plan today"));
+        await waitFor(() => expect(api.post).toHaveBeenCalled());
+    });
+});
