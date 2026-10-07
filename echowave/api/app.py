@@ -196,6 +196,20 @@ else:
     cors_origins = CORS_ALLOWED_ORIGINS
     cors_allow_credentials = True
 
+
+def _add_rate_limit_middleware() -> None:
+    # Added before CORS, so CORS wraps it: a refused request is still
+    # counted and refused before routing, auth or a database session, and
+    # its 429 carries the CORS headers. Outside CORS, a browser on another
+    # origin could not read the 429 or its Retry-After and saw only "Failed
+    # to fetch" (tests/test_rate_limit_answers_cross_origin.py).
+    from api.middleware_rate_limit import RateLimitMiddleware
+
+    app.add_middleware(RateLimitMiddleware)
+
+
+_add_rate_limit_middleware()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
@@ -213,16 +227,6 @@ def _add_public_embed_cors_middleware() -> None:
 
 _add_public_embed_cors_middleware()
 
-
-def _add_rate_limit_middleware() -> None:
-    # Added last so it wraps outermost: a rejected request is counted and
-    # refused before it reaches routing, auth or a database session.
-    from api.middleware_rate_limit import RateLimitMiddleware
-
-    app.add_middleware(RateLimitMiddleware)
-
-
-_add_rate_limit_middleware()
 
 # Outermost, so everything behind it -- the rate limit included -- sees the
 # route's own path. See services/api_paths.py.
