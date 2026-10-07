@@ -95,24 +95,37 @@ export function VerifyEmailBanner() {
     );
   };
 
+  // A phone gets two rows: what to do, then the code. Four rows of wrapped
+  // sentence sat above every screen and cost a quarter of it.
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b border-border bg-[var(--tint-amber)] px-6 py-2.5 text-sm">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-[var(--tint-amber)] px-4 py-2 text-sm md:px-6 md:py-2.5">
       <MailCheck className="h-4 w-4 shrink-0 text-foreground/70" />
-      <span className="min-w-0">
-        Verify {address ? <strong className="font-medium">{address}</strong> : "your email"} —
-        enter the six-digit code we sent you{freeMode ? "." : ", and your first 150 free credits land."}
+      <span className="min-w-0 flex-1 truncate md:flex-none md:whitespace-normal">
+        Verify {address ? <strong className="font-medium">{address}</strong> : "your email"}
+        <span className="hidden md:inline">
+          {" "}— enter the six-digit code we sent you{freeMode ? "." : ", and your first 150 free credits land."}
+        </span>
       </span>
-      <div className="flex items-center gap-2">
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="Dismiss"
+        className="ml-auto h-7 w-7 shrink-0 md:order-last"
+        onClick={() => setDismissed(true)}
+      >
+        <X className="h-4 w-4" />
+      </Button>
+      <div className="flex w-full items-center gap-2 md:w-auto">
         <Input
           value={code}
           onChange={(event) =>
             setCode(event.target.value.replace(/\D/g, "").slice(0, 6))
           }
-          placeholder="000000"
+          placeholder="6-digit code"
           aria-label="Six-digit verification code"
           inputMode="numeric"
           autoComplete="one-time-code"
-          className="h-8 w-28 bg-card font-mono tracking-[0.2em]"
+          className="h-8 min-w-0 flex-1 bg-card font-mono tracking-[0.2em] placeholder:font-sans placeholder:tracking-normal md:w-32 md:flex-none"
         />
         <Button size="sm" onClick={() => void verify()} disabled={busy || code.length < 6}>
           Verify
@@ -121,15 +134,6 @@ export function VerifyEmailBanner() {
           Resend
         </Button>
       </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label="Dismiss"
-        className="ml-auto h-7 w-7"
-        onClick={() => setDismissed(true)}
-      >
-        <X className="h-4 w-4" />
-      </Button>
     </div>
   );
 }

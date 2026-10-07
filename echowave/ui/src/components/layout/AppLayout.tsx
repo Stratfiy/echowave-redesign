@@ -15,6 +15,7 @@ import { applyTheme, readStoredTheme } from "@/lib/themes";
 
 import { TopBar } from "./TopBar";
 import { AppRailV2 } from "./v2/AppRailV2";
+import { MobileTabBar } from "./v2/MobileTabBar";
 
 /** The mock's rail is 224px; a touch wider for the workspace switcher. */
 const V2_RAIL_STYLE = { "--sidebar-width": "15rem" } as React.CSSProperties;
@@ -162,6 +163,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
               <main className="app-surface app-card min-h-0 flex-1 overflow-y-auto md:mb-2 md:mr-2 md:rounded-2xl">
                 {children}
               </main>
+              {/* Phones only: Chat, Today and the drawer, under the thumb. */}
+              {!isWorkflowEditor && <MobileTabBar />}
             </SidebarInset>
           </div>
         </LeadFormsProvider>

@@ -30,9 +30,13 @@ export function CreateFolderButton() {
 
     return (
         <>
-            <Button variant="outline" onClick={() => setIsOpen(true)}>
-                <FolderPlus className="w-4 h-4 mr-2" />
-                New Folder
+            <Button
+                aria-label="New Folder"
+                variant="outline"
+                onClick={() => setIsOpen(true)}
+            >
+                <FolderPlus className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">New Folder</span>
             </Button>
             <FolderFormDialog
                 open={isOpen}

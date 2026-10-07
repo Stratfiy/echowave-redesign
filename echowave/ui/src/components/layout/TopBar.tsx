@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleHelp, ExternalLink, Menu, Search } from "lucide-react";
+import { CircleHelp, ExternalLink, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
@@ -14,7 +14,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { useSidebar } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { HELP_LINKS } from "@/constants/community";
 import { type AccessRoles, useAccessRoles } from "@/hooks/useAccessRoles";
@@ -176,18 +175,10 @@ function GlobalSearch() {
 export function TopBar() {
   // Free while we are early: no balance to watch, no credit to earn.
   const freeMode = useFeature("free_mode");
-  const { toggleSidebar } = useSidebar();
   return (
     <header className="sticky top-0 z-40 flex h-11 shrink-0 items-center gap-2 px-3 text-rail-foreground">
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={toggleSidebar}
-        aria-label="Toggle navigation"
-        className="md:hidden"
-      >
-        <Menu className="h-5 w-5" />
-      </Button>
+      {/* No drawer toggle here: on a phone the bottom bar's Menu opens it,
+          next to Chat and Today (MobileTabBar). */}
 
       {/* Centred, the way Slack sets its search in the bar: the bar is the
           frame's top edge, and the search is the one thing on it. */}
