@@ -284,7 +284,11 @@ and audit.
 lifecycle and routine AWS operations via typed allowlisted commands;
 observability (Sentry, PostHog, infrastructure health) with privacy
 exclusions and replay exclusion on sensitive screens; Laya shadow evaluation
-with labels and rollback; backup restore drill; capacity review.
+with labels and rollback; backup restore drill; capacity review. Claude through
+AWS (founder request): `CLAUDE_BACKEND` = anthropic | aws_platform (Claude
+Platform on AWS: Anthropic-operated, full API parity, IAM, AWS billing --
+recommended) | bedrock (Amazon Bedrock: feature subset), for chat, routing,
+the builder and the call pipeline's managed tier; instance roles, no keys.
 
 **`browser`** -- founder request. browser-use in the sandbox: one isolated
 browser per person and task, private addresses blocked, live view and Take
