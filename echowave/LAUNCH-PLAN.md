@@ -388,4 +388,4 @@ hourly, reviews and merges each PR, and starts the next streams.
 | browser | 2 | claude/stream-browser | #529 | yes; moving to controls card states + quotas | 147 pass | |
 | reach | 2 | claude/stream-reach | | | | |
 | care | 2 | claude/stream-care | | | | |
-| desktop | 2 | claude/stream-desktop | #527 | yes; moving to controls card states | 69 app + 20 API pass | |
+| desktop | 2 | claude/stream-desktop | #527 merged | yes (flags off; signing needs Apple and Windows certificates) | 70 app + 220 core pass | |
