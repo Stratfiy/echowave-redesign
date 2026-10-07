@@ -74,7 +74,7 @@ read the endpoint for the live answer):
 | Free while early (no plans, nothing charged) | 4, 9 | present | `services.billing.free_mode` | free_mode | `test_free_mode.py` |
 | Exception and release tracking | 35 | present | `observability.sentry` | SENTRY_DSN | `test_sentry_scrub.py` |
 | One daily brief with source coverage | 10, 22 | absent (stream `today`) | `services.workflow.daily_brief` | — | — |
-| Meeting capture and record | 23 | absent (stream `meetings`) | `services.meetings` | — | — |
+| Meeting capture and record | 23, 31.6 | present (stream `meetings`, MEETINGS.md) | `services.meetings.records`, `.transcription`, `.reading`, `.follow_ups` | meeting_capture | `test_meetings.py` |
 | Decibyl's private browser | founder | absent (stream `browser`) | `services.browser` | — | — |
 | Virtual card | 4, 7 | absent (stream `identity`) | — | — | — |
 

@@ -367,7 +367,7 @@ hourly, reviews and merges each PR, and starts the next streams.
 | agents | 2 | claude/stream-agents | | | | |
 | learning | 2 | claude/stream-learning | | | | |
 | voice | 2 | claude/stream-voice | | | | |
-| meetings | 2 | claude/stream-meetings | | | | |
+| meetings | 2 | claude/stream-meetings | see PR | yes (MEETINGS.md) | 56 API + 38 UI; running-instance checks in PR | |
 | identity | 2 | claude/stream-identity | | | | |
 | settings | 2 | claude/stream-settings | | | | |
 | support | 2 | claude/stream-support | | | | |

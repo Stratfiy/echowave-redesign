@@ -573,6 +573,11 @@ def _clock(ms: int | None) -> str:
     return f"{seconds // 3600:d}:{seconds // 60 % 60:02d}:{seconds % 60:02d}"
 
 
+def _break_line(item: dict[str, Any]) -> str:
+    what = f"Gap: {item['reason_label']}" if item["kind"] == "gap" else "Paused"
+    return f"> [{_clock(item['at_ms'])}] {what}"
+
+
 async def export_markdown(meeting: Any) -> str:
     record = await as_record(meeting)
     lines = [
@@ -610,7 +615,7 @@ async def export_markdown(meeting: Any) -> str:
     gaps = sorted(record["breaks"], key=lambda b: b["at_ms"])
     for part in record["transcript"]:
         for gap in [g for g in gaps if g["at_ms"] <= part["start_ms"]]:
-            lines.append(f"> [{_clock(gap['at_ms'])}] {gap['reason_label']}")
+            lines.append(_break_line(gap))
             gaps.remove(gap)
         if part["status"] == "done":
             lines.append(f"[{_clock(part['start_ms'])}] {part['text']}")
@@ -619,7 +624,7 @@ async def export_markdown(meeting: Any) -> str:
                 f"[{_clock(part['start_ms'])}] (not transcribed: {part['error'] or part['status']})"
             )
     for gap in gaps:
-        lines.append(f"> [{_clock(gap['at_ms'])}] {gap['reason_label']}")
+        lines.append(_break_line(gap))
     return "\n".join(lines) + "\n"
 
 
@@ -659,44 +664,54 @@ async def deletion_preview(meeting: Any) -> dict[str, Any]:
 
 
 async def delete(meeting: Any, *, user_id: int, cancel_tasks: bool) -> dict[str, Any]:
+    from api.enums import AgentEventKind
+    from api.services.meetings import thread_for
     from api.services.workflow import actions
 
     org = meeting.organization_id
+    # Every card the meeting ever had -- the live ones and those an edit
+    # withdrew -- is on its own thread: withdraw what still waits, and take
+    # the meeting's words out of each.
+    cards = await db_client.agent_events(
+        organization_id=org,
+        kinds=[AgentEventKind.ACTION_PROPOSED.value],
+        assistant_thread=True,
+        thread_id=thread_for(meeting.public_id),
+        limit=500,
+    )
+    for card in cards or []:
+        verb = {"proposed": "decline", "armed": "undo"}.get(
+            (card.payload or {}).get("state")
+        )
+        if verb:
+            try:
+                await actions.settle(
+                    organization_id=org, event_id=card.id, verb=verb, user_id=user_id
+                )
+            except actions.ActionError as exc:
+                logger.info("Card {} moved on during delete: {}", card.id, exc)
+        fresh = await db_client.get_agent_event(card.id, organization_id=org)
+        payload = dict((fresh or card).payload or {})
+        args = dict(payload.get("args") or {})
+        if args.get("excerpt"):
+            args["excerpt"] = ""
+            payload["args"] = args
+            await db_client.set_agent_event_payload(
+                card.id, organization_id=org, payload=payload
+            )
     cancelled = kept = 0
     for item in await db_client.meeting_items(
         meeting.id, organization_id=org, kind="action"
     ):
-        card = await follow_ups.card_of(org, item)
-        if card is not None:
-            state = (card.payload or {}).get("state")
-            verb = {"proposed": "decline", "armed": "undo"}.get(state)
-            if verb:
-                try:
-                    await actions.settle(
-                        organization_id=org,
-                        event_id=card.id,
-                        verb=verb,
-                        user_id=user_id,
-                    )
-                except actions.ActionError as exc:
-                    logger.info("Card {} moved on during delete: {}", card.id, exc)
-            fresh = await db_client.get_agent_event(card.id, organization_id=org)
-            payload = dict((fresh or card).payload or {})
-            args = dict(payload.get("args") or {})
-            if args.get("excerpt"):
-                args["excerpt"] = ""
-                payload["args"] = args
-                await db_client.set_agent_event_payload(
-                    card.id, organization_id=org, payload=payload
-                )
-        if item.task_id:
-            task = await db_client.get_task(item.task_id, organization_id=org)
-            if task is None:
-                continue
-            if cancel_tasks and task.status in ("todo", "backlog"):
-                await follow_ups.cancel_task(org, task, reason_code="meeting_deleted")
-                cancelled += 1
-            else:
-                kept += 1
+        if not item.task_id:
+            continue
+        task = await db_client.get_task(item.task_id, organization_id=org)
+        if task is None:
+            continue
+        if cancel_tasks and task.status in ("todo", "backlog"):
+            await follow_ups.cancel_task(org, task, reason_code="meeting_deleted")
+            cancelled += 1
+        else:
+            kept += 1
     await db_client.delete_meeting(meeting.id, organization_id=org)
     return {"deleted": True, "tasks_cancelled": cancelled, "tasks_kept": kept}
