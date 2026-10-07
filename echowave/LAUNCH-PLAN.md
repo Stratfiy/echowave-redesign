@@ -383,9 +383,9 @@ hourly, reviews and merges each PR, and starts the next streams.
 | settings | 2 | claude/stream-settings | | | | |
 | support | 2 | claude/stream-support | | | | |
 | staff | 2 | claude/stream-staff | | | | |
-| ops | 2 | claude/stream-ops | #524 | yes; merging one analytics outbox with controls | see PR | |
-| aws-gateway | 2 | claude/stream-aws-gateway | | | | |
-| browser | 2 | claude/stream-browser | | | | |
+| ops | 2 | claude/stream-ops | #524 merged | yes; one analytics outbox with controls | 245 stream + core pass | |
+| aws-gateway | 2 | claude/stream-aws-gateway | #528 | yes; rebasing on phase 1 + ops | 63 pass (fakes) | |
+| browser | 2 | claude/stream-browser | #529 | yes; moving to controls card states + quotas | 147 pass | |
 | reach | 2 | claude/stream-reach | | | | |
 | care | 2 | claude/stream-care | | | | |
-| desktop | 2 | claude/stream-desktop | | | | |
+| desktop | 2 | claude/stream-desktop | #527 | yes; moving to controls card states | 69 app + 20 API pass | |
