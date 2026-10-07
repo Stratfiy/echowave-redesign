@@ -6,6 +6,7 @@ failed on its first turn. They take an effort level instead, and on a call that
 is the agent's reasoning-effort setting, ``low`` unless somebody raised it.
 """
 
+import pytest
 from pipecat.services.anthropic.llm import AnthropicLLMService
 
 from api.services.pipecat import reasoning_effort
@@ -93,7 +94,7 @@ def _context_after_a_thinking_turn(thought_text: str):
     return context
 
 
-def test_an_empty_thinking_block_goes_back_signed_not_as_a_crash():
+def test_an_empty_thinking_block_is_not_a_crash():
     """Sonnet 5.5 and Opus 5.5 return thinking with empty text by default.
     pipecat's adapter dropped it unconverted and the next turn raised
     KeyError: 'role' -- dead air for the rest of the call."""
@@ -105,11 +106,33 @@ def test_an_empty_thinking_block_goes_back_signed_not_as_a_crash():
         system_instruction=None,
     )
     assistant = next(m for m in params["messages"] if m["role"] == "assistant")
-    kinds = [block["type"] for block in assistant["content"]]
-    assert kinds[0] == "thinking"
-    assert assistant["content"][0]["signature"] == "sig-1"
-    assert "tool_use" in kinds
+    assert "tool_use" in [block["type"] for block in assistant["content"]]
     assert all("role" in m for m in params["messages"])
+
+
+@pytest.mark.parametrize("thought_text", ["", "Four is free."])
+def test_a_thinking_block_is_never_sent_back(thought_text):
+    """Found on staging: a research agent's first answer died with
+    "Invalid `signature` in `thinking` block. The block is bound to a
+    different conversation. Remove the block". A block is bound to the
+    conversation as it was when it was written; a node transition or a
+    resumed chat changes that, so a replayed block is refused. The API
+    accepts the turn without it (and Decibyl's own chat never sends one)."""
+    from api.services.pipecat.anthropic_llm import DecibylAnthropicLLMAdapter
+
+    params = DecibylAnthropicLLMAdapter().get_llm_invocation_params(
+        _context_after_a_thinking_turn(thought_text),
+        enable_prompt_caching=False,
+        system_instruction=None,
+    )
+    kinds = [
+        block.get("type")
+        for m in params["messages"]
+        if isinstance(m.get("content"), list)
+        for block in m["content"]
+    ]
+    assert "thinking" not in kinds
+    assert "tool_use" in kinds and "tool_result" in kinds
 
 
 def test_a_request_with_tools_asks_for_one_call_at_a_time():
