@@ -202,7 +202,9 @@ class TestTheCardDoesNotInventValues:
         """Found in phase 3: the card showed "password ••••••" for a password
         field nobody had typed in, so it claimed the form sent a secret it
         did not. Masking hides a value; it must not invent one."""
-        element = gate.Element.of({"form_fields": {"name": "Asha", "password": "", "otp": ""}})
+        element = gate.Element.of(
+            {"form_fields": {"name": "Asha", "password": "", "otp": ""}}
+        )
         shown = {f["name"]: f["value"] for f in gate.fields_shown(element)}
         assert shown == {"name": "Asha", "password": "", "otp": ""}
 
