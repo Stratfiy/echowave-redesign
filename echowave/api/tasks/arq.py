@@ -27,6 +27,7 @@ from api.constants import ARQ_MAX_JOBS
 from api.tasks.auto_topup import sweep_auto_topups
 from api.tasks.backup import run_database_backup, run_ledger_snapshot
 from api.tasks.billing_rollup import refresh_billing_rollups
+from api.tasks.browser import run_browser_session_job
 from api.tasks.campaign_tasks import (
     process_campaign_batch,
     sync_campaign_source,
@@ -131,6 +132,7 @@ class WorkerSettings:
         sync_missing_tools,
         resurface_asked,
         run_proposed_action,
+        run_browser_session_job,
         compact_channel_context,
         translate_knowledge_base_document,
     ]

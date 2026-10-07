@@ -6,6 +6,7 @@ from api.db.api_key_client import APIKeyClient
 from api.db.app_interaction_client import AppInteractionClient
 from api.db.bot_event_webhook_client import BotEventWebhookClient
 from api.db.bot_trigger_client import BotTriggerClient
+from api.db.browser_client import BrowserClient
 from api.db.campaign_client import CampaignClient
 from api.db.contact_client import ContactClient
 from api.db.do_not_call_client import DoNotCallClient
@@ -71,6 +72,7 @@ class DBClient(
     ReportsClient,
     SandboxJobClient,
     SiteProjectClient,
+    BrowserClient,
     APIKeyClient,
     EmbedTokenClient,
     AgentTriggerClient,

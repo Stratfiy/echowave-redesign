@@ -6795,6 +6795,11 @@ class ProcurementDocumentModel(Base):
 
 # Tables kept in their own modules (launch convention, KAN-276): imported here
 # so they are on Base.metadata for alembic and the tests.
+from api.db.browser_models import (  # noqa: E402,F401
+    BrowserSessionModel,
+    BrowserSiteLoginModel,
+    BrowserSiteRuleModel,
+)
 from api.db.channel_identity_models import (  # noqa: E402,F401
     ChannelIdentityModel,
     ChannelLinkCodeModel,

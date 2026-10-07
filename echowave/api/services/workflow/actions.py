@@ -108,12 +108,18 @@ INSTALL_FROM_REPOSITORY = "install_from_repository"
 #: services/workflow/routines.py). Internal like the three above: Decibyl
 #: reaches it through schedule_routine, which has already read the words.
 SCHEDULE_ROUTINE = "schedule_routine"
+#: One consequential step in Decibyl's private browser -- a submit, a
+#: payment, a send, a booking, a sign-up (services/browser/). Proposed by the
+#: browser session itself with the exact button, page and form fields, never
+#: through propose_action: a model cannot ask for one, only a gate can.
+BROWSER_STEP = "browser_step"
 INTERNAL_ACTIONS = (
     RUN_TOOL,
     SEND_DOCUMENT,
     BUILD_FROM_SPEC,
     INSTALL_FROM_REPOSITORY,
     SCHEDULE_ROUTINE,
+    BROWSER_STEP,
 )
 
 #: The states a proposal moves through. Terminal ones are the last four.
@@ -126,6 +132,10 @@ ARMED = "armed"
 RUNNING = "running"
 DONE = "done"
 FAILED = "failed"
+#: It was handed over and nobody can say whether it happened: the browser
+#: did not report back in time. Never fired again blind; the card says to
+#: look at the page before trying again.
+UNKNOWN = "unknown"
 UNDONE = "undone"
 CANCELLED = "cancelled"
 DECLINED = "declined"
@@ -208,6 +218,10 @@ class ActionError(ValueError):
     """The press cannot be honoured; the message says why, for the screen."""
 
 
+class OutcomeUnknown(ActionError):
+    """It was handed over and nobody knows whether it happened."""
+
+
 # --- resolving what was proposed -------------------------------------------
 
 
@@ -265,6 +279,12 @@ async def resolve(
     if action not in ACTIONS and action not in INTERNAL_ACTIONS:
         raise ActionError("That is not something I can propose.")
     why = str(arguments.get("why") or "").strip()[:MAX_WHY_CHARS]
+
+    if action == BROWSER_STEP:
+        # Only the browser's own gate writes this card, straight onto the
+        # timeline with the step it saw. A proposal arriving here came from
+        # a model, and a model does not get to describe the button.
+        raise ActionError("That is not something I can propose.")
 
     if action == RUN_TOOL:
         from api.services.workflow import connected_tools
@@ -709,6 +729,13 @@ async def settle(
     payload = dict(event.payload or {})
     state = payload.get("state") or PROPOSED
 
+    if payload.get("action") == BROWSER_STEP and int(
+        payload.get("requested_by") or 0
+    ) != int(user_id):
+        # A person's browser is theirs: a colleague on the thread can read
+        # the card but cannot press on their behalf.
+        raise ActionError("Only the person whose browser it is can answer this.")
+
     if verb == "confirm":
         if state != PROPOSED:
             raise ActionError("Already settled.")
@@ -751,6 +778,10 @@ async def settle(
         payload["declined"] = _stamp(user_id)
         await _move(event, PROPOSED, payload)
         await _audit(event, payload, audit_log.CARD_DECLINED, user_id, state)
+        if payload.get("action") == BROWSER_STEP:
+            from api.services.browser import session as browser_session
+
+            await browser_session.declined(payload)
         if payload.get("action") == RUN_TOOL:
             # A declined send is an outcome too (OP-4): the prospect is
             # marked, and the next run does not propose them as new.
@@ -1018,6 +1049,21 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
             )
         except documents.DocumentError as exc:
             raise ActionError(str(exc)) from exc
+    if action == BROWSER_STEP:
+        from api.services.browser import session as browser_session
+
+        outcome = await browser_session.approved(
+            payload, organization_id=organization_id
+        )
+        if outcome.get("unknown"):
+            raise OutcomeUnknown(
+                "The browser did not report back in time, so whether it went "
+                "through is not known. Look at the page before trying again."
+            )
+        if not outcome.get("ok"):
+            raise ActionError(str(outcome.get("note") or "It did not go through."))
+        payload.setdefault("result", {})["url"] = outcome.get("url")
+        return str(outcome.get("note") or "Done in your browser.")
     if action == RUN_TOOL:
         from api.services.workflow import connected_tools
 
@@ -1108,6 +1154,12 @@ async def run(event_id: int, organization_id: int) -> None:
         return
     try:
         note = await _execute(organization_id, payload)
+    except OutcomeUnknown as exc:
+        payload["state"] = UNKNOWN
+        payload["error"] = str(exc)
+        await _write(event, payload)
+        await _say(event, f"Not known: {payload['label'].lower()}. {exc}")
+        return
     except ActionError as exc:
         payload["state"] = FAILED
         payload["error"] = str(exc)

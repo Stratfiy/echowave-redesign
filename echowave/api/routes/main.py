@@ -18,6 +18,8 @@ from api.routes.auth import router as auth_router
 from api.routes.billing_dashboard import router as billing_dashboard_router
 from api.routes.bot_event_webhooks import router as bot_event_webhooks_router
 from api.routes.bot_triggers import router as bot_triggers_router
+from api.routes.browser import admin_router as browser_admin_router
+from api.routes.browser import router as browser_router
 from api.routes.budgets import router as budgets_router
 from api.routes.campaign import router as campaign_router
 from api.routes.channel_links import router as channel_links_router
@@ -117,6 +119,8 @@ router.include_router(referrals_router)
 router.include_router(promo_admin_router)
 router.include_router(agent_builder_router)
 router.include_router(studio_router)
+router.include_router(browser_router)
+router.include_router(browser_admin_router)
 router.include_router(agent_templates_router)
 router.include_router(agent_options_router)
 router.include_router(cost_estimate_router)

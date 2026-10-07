@@ -94,6 +94,8 @@ FLAGS: dict[str, str] = {
     "studio": "STUDIO_ENABLED",
     # Free while we are early: no plans, nothing charged (on by default).
     "free_mode": "FREE_MODE_ENABLED",
+    # Decibyl's private browser: one isolated browser per person and task.
+    "decibyl_browser": "DECIBYL_BROWSER_ENABLED",
 }
 
 
@@ -138,6 +140,10 @@ DESCRIPTIONS: dict[str, str] = {
     "decibyl_teams": "Decibyl in Microsoft Teams.",
     "studio": "Studio: build agents and a website for them from one chat.",
     "free_mode": "Free while we are early: no plans, nothing charged, nothing locked.",
+    "decibyl_browser": (
+        "Decibyl's private browser: browses for a person in an isolated box, "
+        "live view and Take over, asks before submit, pay, send or book."
+    ),
 }
 
 
