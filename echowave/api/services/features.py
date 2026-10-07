@@ -94,6 +94,11 @@ FLAGS: dict[str, str] = {
     "studio": "STUDIO_ENABLED",
     # Free while we are early: no plans, nothing charged (on by default).
     "free_mode": "FREE_MODE_ENABLED",
+    # AWS model gateway (stream aws-gateway).
+    "aws_fallback_brain": "AWS_FALLBACK_BRAIN_ENABLED",
+    "aws_cheap_tier": "AWS_CHEAP_TIER_ENABLED",
+    "aws_embeddings": "AWS_EMBEDDINGS_ENABLED",
+    "aws_nova_sonic": "AWS_NOVA_SONIC_ENABLED",
     # Launch stream `controls` (LAUNCH-PLAN.md, phase 1).
     "capability_checklist": "CAPABILITY_CHECKLIST_ENABLED",
     "operational_quotas": "OPERATIONAL_QUOTAS_ENABLED",
@@ -159,6 +164,10 @@ DESCRIPTIONS: dict[str, str] = {
     "decibyl_teams": "Decibyl in Microsoft Teams.",
     "studio": "Studio: build agents and a website for them from one chat.",
     "free_mode": "Free while we are early: no plans, nothing charged, nothing locked.",
+    "aws_fallback_brain": "A Bedrock model answers when Claude fails, and says so.",
+    "aws_cheap_tier": "A small Bedrock model sorts work for Auto instead of Laya.",
+    "aws_embeddings": "Knowledge search on Bedrock embeddings as a managed choice.",
+    "aws_nova_sonic": "Nova Sonic speech-to-speech, Hindi and Indian English only.",
     "capability_checklist": "Staff see each capability's source, configuration and tested state.",
     "operational_quotas": "Daily limits per person (turns, voice, sends, browser), even in free mode.",
     "task_ledger": "One task state set, approvals bound to the exact payload, no stale updates.",

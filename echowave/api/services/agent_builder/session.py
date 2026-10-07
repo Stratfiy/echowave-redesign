@@ -28,6 +28,7 @@ from api.services.agent_builder.client import (
     complete,
 )
 from api.services.agent_builder.settings import BuilderModel
+from api.services.aws_gateway import fallback
 from api.services.billing import model_usage
 
 SYSTEM_PROMPT = """\
@@ -220,7 +221,10 @@ async def run_turn(
 
         if not reply.wants_tools:
             return TurnResult(
-                reply=reply.text,
+                # Said when a backup model wrote it (aws_gateway/fallback.py).
+                reply=fallback.with_note(reply.text)
+                if reply.fallback_model
+                else reply.text,
                 conversation=conversation.messages,
                 actions=actions,
                 created_workflow_id=created_workflow_id,

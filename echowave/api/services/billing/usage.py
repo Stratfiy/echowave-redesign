@@ -51,7 +51,12 @@ from api.services.billing.cost_engine import UsageItem
 #: cached_tokens``, ``cachedContentTokenCount``). Getting this wrong double
 #: counts cached input on one vendor or bills it as free on the other, so the
 #: rule is by vendor and written down here rather than guessed per line.
-_CACHE_OUTSIDE_PROMPT_PROVIDERS = frozenset({"anthropic"})
+_CACHE_OUTSIDE_PROMPT_PROVIDERS = frozenset(
+    # Claude reports input net of its cache on every door it is served
+    # through, and Bedrock's Converse reports cache reads and writes beside
+    # ``inputTokens`` rather than inside it.
+    {"anthropic", "anthropic_aws", "aws_bedrock"}
+)
 
 # Processor class names carry the provider, e.g. "DeepgramSTTService" or
 # "DograhLLMService". Strip the service suffix and lower-case what remains.
@@ -97,6 +102,11 @@ _PROVIDER_ALIASES = {
     # Same for Claude: DecibylAnthropicLLMService fixes thinking blocks and
     # parallel tool calls, and is billed as the Anthropic call it is.
     "decibylanthropic": "anthropic",
+    # Claude and other models through AWS (stream aws-gateway): billed under
+    # the door the call went through, not under Anthropic's own invoice.
+    "decibylanthropicaws": "anthropic_aws",
+    "awsbedrock": "aws_bedrock",
+    "awsnovasonic": "aws_bedrock",
 }
 
 

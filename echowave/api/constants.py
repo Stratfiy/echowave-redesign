@@ -1717,6 +1717,69 @@ PLATFORM_TWILIO_ACCOUNT_SID = os.getenv("PLATFORM_TWILIO_ACCOUNT_SID") or None
 PLATFORM_TWILIO_AUTH_TOKEN = os.getenv("PLATFORM_TWILIO_AUTH_TOKEN") or None
 
 
+# --- Claude and other models through AWS (stream aws-gateway) ----------------
+#
+# Every value here is read by services/aws_gateway/config.py at call time, so
+# a test can monkeypatch it and a restart is all a change needs. Nothing has a
+# vendor default: every model id and region comes from this environment, and a
+# choice whose configuration is missing reports "needs setup" rather than
+# guessing. See echowave/DEPLOY.md, "Claude and other models through AWS".
+
+# Where Claude runs for the managed tiers (Decibyl chat, the builder, routing
+# and the call pipeline's managed brain). A workspace's own Anthropic key is
+# never affected; it always goes to Anthropic directly.
+#   anthropic     today's behaviour: Anthropic's API on the platform key
+#   aws_platform  Claude Platform on AWS (Anthropic-operated, full API parity)
+#   bedrock       Amazon Bedrock (a feature subset; we keep our own web tools)
+CLAUDE_BACKEND = (os.getenv("CLAUDE_BACKEND") or "anthropic").strip().lower()
+
+# Claude Platform on AWS: the region and the Claude workspace requests go to.
+# Credentials come from the standard AWS chain (the instance role on EC2).
+CLAUDE_AWS_REGION = (
+    os.getenv("CLAUDE_AWS_REGION") or os.getenv("AWS_REGION") or ""
+).strip()
+ANTHROPIC_AWS_WORKSPACE_ID = (os.getenv("ANTHROPIC_AWS_WORKSPACE_ID") or "").strip()
+
+# Amazon Bedrock: the region, and which Bedrock model id serves each Claude
+# model the managed tiers name ("claude-haiku-4-5=anthropic.claude-...,...").
+BEDROCK_REGION = (os.getenv("BEDROCK_REGION") or os.getenv("AWS_REGION") or "").strip()
+BEDROCK_CLAUDE_MODEL_IDS = os.getenv("BEDROCK_CLAUDE_MODEL_IDS", "").strip()
+
+# Bedrock model ids the operator has confirmed this account may invoke (model
+# access granted, agreement accepted). Anything not listed shows "needs setup"
+# and is never called: listing the region's models is not the same as being
+# allowed to use them, and the account check on 7 Oct 2026 found exactly that.
+BEDROCK_ENABLED_MODELS = os.getenv("BEDROCK_ENABLED_MODELS", "").strip()
+
+# The fallback brain: a Bedrock model that answers when Claude errors or times
+# out (flag aws_fallback_brain). The reply says a backup model answered.
+BEDROCK_FALLBACK_MODEL = (os.getenv("BEDROCK_FALLBACK_MODEL") or "").strip()
+BEDROCK_FALLBACK_TIMEOUT_SECONDS = float(
+    os.getenv("BEDROCK_FALLBACK_TIMEOUT_SECONDS", "60")
+)
+
+# The cheap tier for labelling and routing (flag aws_cheap_tier): a small
+# Bedrock model asked the routing question instead of Laya.
+BEDROCK_CHEAP_MODEL = (os.getenv("BEDROCK_CHEAP_MODEL") or "").strip()
+BEDROCK_CHEAP_TIMEOUT_MS = int(os.getenv("BEDROCK_CHEAP_TIMEOUT_MS", "1500"))
+
+# Knowledge search on Bedrock (flag aws_embeddings). The vector column holds
+# 1536 numbers, so the model must return that many (BEDROCK_EMBEDDING_DIMENSIONS).
+BEDROCK_EMBEDDING_MODEL = (os.getenv("BEDROCK_EMBEDDING_MODEL") or "").strip()
+BEDROCK_EMBEDDING_DIMENSIONS = int(os.getenv("BEDROCK_EMBEDDING_DIMENSIONS", "1536"))
+
+# Speech-to-speech on Amazon Nova Sonic (flag aws_nova_sonic), for Hindi and
+# Indian English only. Its own region: Nova Sonic is not served everywhere.
+NOVA_SONIC_MODEL = (os.getenv("NOVA_SONIC_MODEL") or "").strip()
+NOVA_SONIC_REGION = (os.getenv("NOVA_SONIC_REGION") or "").strip()
+NOVA_SONIC_VOICE = (os.getenv("NOVA_SONIC_VOICE") or "").strip()
+
+# The gateway's switches. Off by default; CLAUDE_BACKEND above is a setting,
+# not a flag, because "anthropic" is already today's behaviour.
+AWS_FALLBACK_BRAIN_ENABLED = _flag("AWS_FALLBACK_BRAIN_ENABLED")
+AWS_CHEAP_TIER_ENABLED = _flag("AWS_CHEAP_TIER_ENABLED")
+AWS_EMBEDDINGS_ENABLED = _flag("AWS_EMBEDDINGS_ENABLED")
+AWS_NOVA_SONIC_ENABLED = _flag("AWS_NOVA_SONIC_ENABLED")
 # ---------------------------------------------------------------------------
 # Stream `ops` (handoff 11, 14, 15 G-H, 34, 35). Every switch below is off by
 # default; services/features.py registers the boolean ones.

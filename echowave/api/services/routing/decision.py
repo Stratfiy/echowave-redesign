@@ -40,6 +40,16 @@ class Decision:
     truncated: bool = False
 
 
+def enabled() -> bool:
+    """Whether any decision model is there to ask: Laya, or the AWS cheap
+    tier when it is switched on and ready (``aws_gateway/cheap.py``)."""
+    if constants.LAYA_URL:
+        return True
+    from api.services.aws_gateway import cheap
+
+    return cheap.available()
+
+
 async def choose(
     question: str,
     labels: dict[str, str],
@@ -65,6 +75,23 @@ async def choose(
             abstained=abstained,
             truncated=truncated,
         )
+
+    from api.services.aws_gateway import cheap
+
+    if cheap.available():
+        # The AWS cheap tier, when it is on and ready, takes Laya's place:
+        # same question, same labels, same floor, same abstentions.
+        label, confidence, abstained = await cheap.choose(
+            question, labels, text, timeout_ms=timeout_ms
+        )
+        if abstained:
+            return done(abstained=abstained)
+        floor = (
+            constants.LAYA_MIN_CONFIDENCE if min_confidence is None else min_confidence
+        )
+        if confidence is None or confidence < floor:
+            return done(confidence=confidence, abstained="low_confidence")
+        return done(label=label, confidence=confidence)
 
     if not constants.LAYA_URL:
         return done(abstained="off")

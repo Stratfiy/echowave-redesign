@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api import constants
 from api.services.agent_builder.client import IMAGES_KEY, Conversation, complete
 from api.services.agent_builder.settings import BuilderModel
+from api.services.aws_gateway import fallback
 from api.services.billing import model_usage
 from api.services.studio import tools as studio_tools
 
@@ -245,7 +246,10 @@ async def run_turn(
         conversation.add_assistant(reply)
         if not reply.wants_tools:
             return TurnResult(
-                reply=reply.text,
+                # Said when a backup model wrote it (aws_gateway/fallback.py).
+                reply=fallback.with_note(reply.text)
+                if reply.fallback_model
+                else reply.text,
                 conversation=compact(conversation.messages),
                 actions=actions,
                 created_workflow_ids=created,

@@ -1023,6 +1023,8 @@ async def _answer(
         context = f"{context}\n\n{attached}"
     conversation.add_user(f"{context}\n\n## Question\n{text}{handed}")
 
+    #: The backup model's id when it answered any part of this turn.
+    backup_model = ""
     failed = False
     stopped = False
     # A Stop meant for an earlier reply must not end this one.
@@ -1048,6 +1050,7 @@ async def _answer(
         loaded: dict[str, dict[str, Any]] = {}
         tools = await tools_for(organization_id, loaded)
         reply = await _speak(model, conversation, organization_id, tools=tools)
+        backup_model = reply.fallback_model
         # Up to MAX_TOOL_ROUNDS rounds, not one: a read of a connected app
         # feeds the answer, and a read may precede a proposed write ("find
         # the lead, then draft the mail"). On the last allowed round the
@@ -1114,6 +1117,7 @@ async def _answer(
                 organization_id,
                 tools=tools if (reads_only and not capped) else None,
             )
+            backup_model = backup_model or reply.fallback_model
         body = (reply.text or "").strip()
         if not body:
             body = (
@@ -1121,6 +1125,13 @@ async def _answer(
                 if rounds >= MAX_TOOL_ROUNDS
                 else "I have nothing to add on that."
             )
+        if backup_model:
+            # A backup model answered some of this turn because Claude could
+            # not (services/aws_gateway/fallback.py). Said on the reply, never
+            # passed off as Claude's.
+            from api.services.aws_gateway import fallback
+
+            body = fallback.with_note(body)
     except reply_stop.Stopped as exc:
         # The person pressed Stop: what had formed is the reply, marked so
         # the screen says it is partial rather than presenting it as whole.
@@ -1162,7 +1173,16 @@ async def _answer(
             "body": body,
             "from": NAME,
             "preset": preset,
-            "model": f"{model.provider}:{model.model}" if model is not None else None,
+            # The model that actually answered: the backup model's, on
+            # Bedrock, when the fallback brain stood in for Claude.
+            "model": (
+                f"aws_bedrock:{backup_model}"
+                if backup_model
+                else f"{model.provider}:{model.model}"
+                if model is not None
+                else None
+            ),
+            **({"backup_model": backup_model} if backup_model else {}),
             **outcome,
         },
         in_channel=False,

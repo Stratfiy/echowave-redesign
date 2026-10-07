@@ -129,7 +129,7 @@ async def route(text: str, *, attachments: int = 0) -> Route:
 
     ruled = by_rules(text, attachments=attachments)
     mode = constants.LAYA_ROUTING
-    if mode not in ("shadow", "on") or not constants.LAYA_URL:
+    if mode not in ("shadow", "on") or not decision.enabled():
         return Route(kind=ruled, preset=PRESET_FOR[ruled], source="rules")
     # The rollback switch (stream ops): rules alone, Laya never asked.
     if laya_eval.rolled_back():

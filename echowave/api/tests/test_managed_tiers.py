@@ -167,8 +167,27 @@ class TestEveryTierNamesSomethingThatExists:
             (component, tier, upstream.provider)
             for (component, tier), upstream in managed_tiers._defaults().items()
             if upstream.provider not in REGISTRY[self.SERVICE_TYPES[component]]
+            and (component, upstream.provider) not in self.GATEWAY_ONLY
         ]
         assert missing == []
+
+    #: Managed-only providers of the AWS gateway (stream aws-gateway). They
+    #: have no registry class on purpose: they sign with the platform's own
+    #: AWS role, so no configuration a customer types may name them. The
+    #: factories build them by name instead, which the next test holds.
+    GATEWAY_ONLY = {
+        (managed_tiers.REALTIME_COMPONENT, managed_tiers.NOVA_SONIC_PROVIDER),
+        (managed_tiers.EMBEDDINGS_COMPONENT, managed_tiers.BEDROCK_PROVIDER),
+    }
+
+    def test_the_gateway_only_providers_are_built_by_name(self):
+        from pathlib import Path
+
+        api = Path(__file__).resolve().parents[1]
+        factory = (api / "services/pipecat/service_factory.py").read_text()
+        embeddings = (api / "services/gen_ai/embedding/factory.py").read_text()
+        assert f'provider == "{managed_tiers.NOVA_SONIC_PROVIDER}"' in factory
+        assert "ServiceProviders.AWS_BEDROCK.value" in embeddings
 
     def test_the_embeddings_tier_is_a_provider_the_factory_actually_branches_on(self):
         """``build_embedding_service`` names azure and decibyl, then falls

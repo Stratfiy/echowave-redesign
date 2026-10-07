@@ -311,6 +311,11 @@ def _compile_decibyl_configuration(
 
     realtime_tier = (configuration.realtime_tier or "").strip()
     if realtime_tier:
+        from api.services.configuration import managed_tiers
+
+        realtime_tier = managed_tiers.realtime_tier_for_language(
+            realtime_tier, configuration.language
+        )
         # No stt or tts slot at all. A realtime section that also named a
         # transcriber would be two answers to one question, and the compiler
         # would have to pick one. The llm slot still names the same tier

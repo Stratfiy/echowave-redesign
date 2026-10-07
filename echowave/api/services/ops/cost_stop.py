@@ -2,8 +2,10 @@
 
 Free beta means nothing is charged, so the credit ledger cannot see a
 runaway: a looping routine or a stuck campaign spends our provider money and
-debits nobody. This watches what the providers charge *us*
-(``call_cost_items.provider_cost_paise``) over a rolling hour, for the whole
+debits nobody. This watches what the providers charge *us* over a rolling hour -- call receipts
+(``call_cost_items.provider_cost_paise``) and direct model calls
+(``model_usage``, priced on the rate card; this includes the AWS fallback
+brain) -- for the whole
 platform and per workspace, and engages a stop when a ceiling is crossed.
 
 A stop refuses **new** billable work at the one gate every run already goes
@@ -124,6 +126,125 @@ class CallCostSpendSource:
             )
         ).all()
         return [(int(org), int(total or 0)) for org, total in rows]
+
+
+class ModelUsageSpendSource:
+    """Provider cost of model calls made outside a pipeline run: Decibyl's
+    replies, the builder, Studio, routing, and the AWS fallback brain when
+    it stands in for Claude (stream aws-gateway). Read from ``model_usage``
+    and priced against the rate card exactly as the token report prices
+    them (``billing/token_report.py``). A turn on a workspace's own key
+    (feature ``...:byok``) cost the platform nothing and is not counted.
+    """
+
+    async def _by_organization(
+        self, session: AsyncSession, since: datetime
+    ) -> dict[int | None, int]:
+        from api.db.models import ModelUsageModel
+        from api.services.billing.rates import resolve_provider_rate
+        from api.services.billing.token_report import (
+            AUDIO_FEATURES,
+            TOKEN_COMPONENTS,
+            _cost_paise,
+        )
+        from api.services.billing.usage import llm_split_items
+
+        rows = (
+            await session.execute(
+                select(
+                    ModelUsageModel.organization_id,
+                    ModelUsageModel.feature,
+                    ModelUsageModel.provider,
+                    ModelUsageModel.model,
+                    ModelUsageModel.prompt_tokens,
+                    ModelUsageModel.completion_tokens,
+                    ModelUsageModel.cache_read_input_tokens,
+                    ModelUsageModel.cache_creation_input_tokens,
+                ).where(
+                    ModelUsageModel.created_at >= since,
+                    ModelUsageModel.audio_seconds == 0,
+                    ModelUsageModel.quantity == 0,
+                    ~ModelUsageModel.feature.in_(AUDIO_FEATURES),
+                )
+            )
+        ).all()
+        rates: dict[tuple[str, str, str], Any] = {}
+        spent: dict[int | None, float] = {}
+        for org, feature, provider, model, prompt, completion, read, write in rows:
+            if str(feature or "").endswith(":byok"):
+                continue
+            items = llm_split_items(
+                {
+                    "prompt_tokens": prompt,
+                    "completion_tokens": completion,
+                    "cache_read_input_tokens": read,
+                    "cache_creation_input_tokens": write,
+                },
+                provider=provider,
+                model=model,
+            )
+            for item in items:
+                component = getattr(item.component, "value", item.component)
+                if component not in TOKEN_COMPONENTS:
+                    continue
+                rate = None
+                for m in (model or "", ""):
+                    key = (component, provider, m)
+                    if key not in rates:
+                        found = await resolve_provider_rate(
+                            session,
+                            provider=provider,
+                            component=component,
+                            at=datetime.now(UTC),
+                            model=m,
+                        )
+                        rates[key] = (
+                            found
+                            if found is not None and (m == "" or found.model == m)
+                            else None
+                        )
+                    rate = rates[key]
+                    if rate is not None:
+                        break
+                if rate is not None:
+                    spent[org] = spent.get(org, 0.0) + _cost_paise(item.quantity, rate)
+        return {org: int(round(paise)) for org, paise in spent.items()}
+
+    async def platform_paise(self, session: AsyncSession, since: datetime) -> int:
+        return sum((await self._by_organization(session, since)).values())
+
+    async def top_organizations(
+        self, session: AsyncSession, since: datetime, limit: int
+    ) -> list[tuple[int, int]]:
+        by_org = await self._by_organization(session, since)
+        ranked = sorted(
+            ((org, paise) for org, paise in by_org.items() if org is not None),
+            key=lambda pair: -pair[1],
+        )
+        return ranked[:limit]
+
+
+class CombinedSpendSource:
+    """Every provider cost the platform pays: call receipts and direct model
+    calls together, so a runaway in either is seen."""
+
+    def __init__(self, *sources: SpendSource):
+        self.sources = sources or (CallCostSpendSource(), ModelUsageSpendSource())
+
+    async def platform_paise(self, session: AsyncSession, since: datetime) -> int:
+        total = 0
+        for source in self.sources:
+            total += await source.platform_paise(session, since)
+        return total
+
+    async def top_organizations(
+        self, session: AsyncSession, since: datetime, limit: int
+    ) -> list[tuple[int, int]]:
+        summed: dict[int, int] = {}
+        for source in self.sources:
+            for org, paise in await source.top_organizations(session, since, limit):
+                summed[org] = summed.get(org, 0) + paise
+        return sorted(summed.items(), key=lambda pair: -pair[1])[:limit]
 
 
 def _redis():
@@ -288,7 +409,7 @@ async def evaluate(
         return {"skipped": "off"}
     if not configured():
         return {"skipped": "not_configured"}
-    source = source or CallCostSpendSource()
+    source = source or CombinedSpendSource()
     already = await engaged(client=client)
     stopped_orgs = {o["organization_id"] for o in already["organizations"]}
     since = (now or datetime.now(UTC)) - WINDOW
