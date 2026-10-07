@@ -424,3 +424,51 @@ class TestSignaling:
             assert ws_sender_registry.get_ws_sender(4242) is sender
         finally:
             ws_sender_registry.unregister_ws_sender(4242)
+
+
+@pytest.mark.asyncio
+class TestAMemberCanTalkFromTheStartScreen:
+    """Phase 3, found as a plain member with private threads on: Talk from
+    Chat's start screen (no thread chosen) failed with "Thread not found",
+    because the original conversation was not theirs. Voice now starts in a
+    new conversation of the person's own; a named thread that is somebody
+    else's is still not found."""
+
+    async def test_no_thread_starts_a_new_one_of_their_own(
+        self, people, monkeypatch, ready
+    ):
+        all_on(monkeypatch)
+        monkeypatch.setattr(constants, "DECIBYL_PRIVATE_THREADS_ENABLED", True)
+        async with client_as(people.as_b) as c:
+            started = await c.post("/api/v1/voice/sessions", json={})
+        assert started.status_code == 201, started.text
+        minted = started.json()["thread_id"]
+        assert minted and len(minted) == 36
+
+    async def test_someone_elses_thread_is_still_not_found(
+        self, people, monkeypatch, ready
+    ):
+        from api.services.voice import brain
+
+        all_on(monkeypatch)
+        monkeypatch.setattr(constants, "DECIBYL_PRIVATE_THREADS_ENABLED", True)
+        ledger = brain.TurnLedger(
+            session_id=0,
+            organization_id=people.org,
+            user_id=people.a.id,
+            thread_id="t-asha",
+        )
+        await brain.record_line(ledger, "Asha's own line")
+        async with client_as(people.as_b) as c:
+            refused = await c.post(
+                "/api/v1/voice/sessions", json={"thread_id": "t-asha"}
+            )
+        assert refused.status_code == 404
+
+    async def test_with_private_threads_off_the_original_thread_is_kept(
+        self, people, monkeypatch, ready
+    ):
+        all_on(monkeypatch)
+        async with client_as(people.as_b) as c:
+            started = await c.post("/api/v1/voice/sessions", json={})
+        assert started.status_code == 201 and started.json()["thread_id"] is None

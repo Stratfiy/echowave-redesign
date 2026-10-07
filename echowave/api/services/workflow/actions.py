@@ -1225,6 +1225,12 @@ def answer_refusal(payload: dict[str, Any], user_id: int) -> str | None:
         # An order or an outside write acts in one person's account: a
         # colleague who can see the card can neither approve nor stop it.
         return "Only the person this is for can decide on it."
+    if action == PLACE_CALL:
+        # A call for one person ("call it for me"): theirs alone, including
+        # cards made before they carried ``private_to``.
+        principal = (payload.get("args") or {}).get("principal_user_id")
+        if principal is not None and int(principal) != int(user_id):
+            return NOT_HERE
     if action == MEETING_FOLLOW_UP:
         from api.services.meetings import follow_ups
 
