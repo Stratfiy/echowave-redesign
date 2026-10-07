@@ -9,7 +9,7 @@ shared components, motion tokens). Everything ships **off**.
 | Flag | Constant | What it turns on |
 | --- | --- | --- |
 | `learning` | `LEARNING_ENABLED` | `/api/v1/learning/*`; the lesson inside Chat (screen 13); `/learning` and `/learning/{goal}` (screen 14). Honours per-organisation overrides. |
-| `learning_today` | `LEARNING_TODAY_ENABLED` | `GET /learning/reviews` and the Learning section at the top of Today (`/tasks`). Needs `learning` too. |
+| `learning_today` | `LEARNING_TODAY_ENABLED` | `GET /learning/reviews`, `GET /learning/today` and the Learning section at the top of Today (`/tasks`, both the list and the board). Needs `learning` too. |
 
 `LEARNING_TEACHER` (not a flag): `model` (default) writes and marks with the
 platform's model through the builder's client; `fake` is a fixed, offline
@@ -59,8 +59,23 @@ child flow.
   person in another workspace gets "not found". No route takes a user id.
 * **Progress is evaluated practice.** Only a marked attempt moves a skill:
   `Not practised yet` -> `Practised` / `Needs another attempt`. Reading,
-  chatting, Next and time spent change nothing. No percentages, streaks or
-  fluency labels. No practice is "No practice yet", not zero.
+  chatting, Next and time spent change nothing. No percentages or fluency
+  labels. No practice is "No practice yet", not zero. The streak (asked for
+  by the founder for the tutor, October 2026) is evidence too: days in a row,
+  in the person's own timezone, with at least one marked answer; a day not
+  practised yet does not break it until it is over (`core.streak`).
+* **A plan.** Placement writes 3-8 lesson names (`learning_goals.plan`,
+  migration `20261008learnplan`; a model plan that is not a usable list is
+  no plan, never a failed placement). Lessons follow it: the first lesson
+  not yet practised comes next, and one that was just missed comes back as a
+  smaller step before the plan moves on. "Try a smaller step" reteaches the
+  skill just missed. Goals placed before plans just carry on lesson by lesson.
+* **The day's lesson.** `core.today` / `GET /learning/today`: the streak and,
+  per goal (one still waiting on its first answer included), its next step
+  for today and whether it was practised today.
+* **Notes by link.** Notes that are just an http(s) link are read into the
+  notes (`web_tools.fetch`), headed with where they came from; a page that
+  cannot be read is refused ("paste it as text instead"), nothing saved.
 * **Once.** `POST .../attempts` needs an `Idempotency-Key`; the same key
   returns the first marking with `replayed: true` and changes nothing.
 * **Marking.** Against the rubric, criterion by criterion; "passed" is
@@ -106,8 +121,14 @@ child flow.
   to rubric and attempts; recent exercises; one next step; Continue practice;
   Edit goal (save contract, conflict shows what is saved); Export; Delete
   through `ActionPreview`. A failed refresh keeps the page, labelled stale.
-* **Today** (`LearningToday.tsx`): due reviews and suggestions; draws nothing
-  when there is nothing.
+* **Today** (`LearningToday.tsx`, in both `TodayPage` and the board): each
+  goal's lesson for today, the streak, due reviews and suggestions; draws
+  nothing when there is nothing.
+* **From Chat**: `start_course` (Learning Guide and Build something) starts
+  the record from the conversation and records a course card on the thread;
+  "Open the lesson" opens it in the Chat column. Before the adult confirm
+  (or a sensitive-details yes) it opens the start with the course filled in
+  (`?learn=new&topic=`). The same course again resumes it with the card.
 
 ## Not built here
 
