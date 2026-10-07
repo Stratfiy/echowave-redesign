@@ -57,9 +57,7 @@ class QuotasResponse(BaseModel):
 @router.get(
     "/me/quotas",
     response_model=QuotasResponse,
-    dependencies=[
-        Depends(features.require("operational_quotas"))
-    ],
+    dependencies=[Depends(features.require("operational_quotas"))],
 )
 async def my_quotas(user: Annotated[UserModel, Depends(get_user)]) -> QuotasResponse:
     """What is left of today's allowances, for the person asking."""
