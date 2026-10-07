@@ -794,6 +794,25 @@ CHAT_SHELL_ENABLED = _flag("CHAT_SHELL_ENABLED")
 # of the workflow canvas.
 SHELL_MOBILE_ENABLED = _flag("SHELL_MOBILE_ENABLED")
 
+# Launch stream `today` (8 October 2026). Each off by default; see
+# TODAY.md and services/features.py.
+# Screens 07-09: Today as one ordered list, the exact approval screen and
+# task detail with activity.
+TODAY_LIST_ENABLED = _flag("TODAY_LIST_ENABLED")
+# Pending approvals docked above the composer in Chat: "Decibyl wants to:
+# ..." with Do it / Don't, bound to the card's version.
+APPROVAL_DOCK_ENABLED = _flag("APPROVAL_DOCK_ENABLED")
+# Screen 10: reminders and event-linked reminders, with their delivery.
+TODAY_REMINDERS_ENABLED = _flag("TODAY_REMINDERS_ENABLED")
+# Screen 20: one daily brief with source coverage, in-app / WhatsApp / push
+# at the person's own time.
+DAILY_BRIEF_ENABLED = _flag("DAILY_BRIEF_ENABLED")
+# The end-of-day note: what was done, what is left, missed calls handled.
+END_OF_DAY_NOTE_ENABLED = _flag("END_OF_DAY_NOTE_ENABLED")
+# A routine set from chat starts on once its card is confirmed, instead of
+# being saved switched off and untested.
+ROUTINE_START_ON_ENABLED = _flag("ROUTINE_START_ON_ENABLED")
+
 # Free while we are early (October 2026): no plans, nothing charged, nothing
 # locked. On by default -- the one launch switch that is -- and reversible
 # from the environment or the staff console. See services/billing/free_mode.py.

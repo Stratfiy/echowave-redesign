@@ -1038,7 +1038,9 @@ async def _say(event: Any, line: str) -> None:
     )
 
 
-async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
+async def _execute(
+    organization_id: int, payload: dict[str, Any], event_id: int | None = None
+) -> str:
     """Do it. Returns one line on what happened; raises on refusal."""
     action = payload.get("action")
     args = payload.get("args") or {}
@@ -1073,6 +1075,30 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
             raise ActionError("That fact is no longer in memory.")
         return f"Forgotten: {args.get('key', 'that')}."
     if action == SCHEDULE_ROUTINE:
+        from api.services import features
+
+        if event_id is not None and features.is_on("routine_start_on", organization_id):
+            # Stream `today`: the person confirmed this exact schedule and
+            # instruction on the card, so it starts on, armed by that card
+            # (routines.may_arm). Said back in one sentence.
+            from api.services.workflow import routines
+
+            routine = await db_client.create_routine(
+                organization_id=organization_id,
+                workflow_id=None,
+                name=str(args.get("name") or "")[:120],
+                instruction=str(args.get("instruction") or ""),
+                cadence=str(args.get("cadence") or "daily"),
+                anchor=str(args.get("anchor") or "opening"),
+                at_minute=int(args.get("at_minute") or 0),
+                offset_minutes=int(args.get("offset_minutes") or 0),
+                weekday=int(args.get("weekday") or 0),
+                is_active=True,
+                armed_by_card_event_id=int(event_id),
+            )
+            payload.setdefault("result", {}).update({"routine_id": routine.id})
+            when = routines.describe(routines.spec_from_model(routine))
+            return f"Will do, {when[0].lower()}{when[1:]}."
         routine = await db_client.create_routine(
             organization_id=organization_id,
             workflow_id=None,
@@ -1348,7 +1374,7 @@ async def run(event_id: int, organization_id: int) -> None:
             await _emit("task_failed", event, payload, confirmer)
             return
     try:
-        note = await _execute(organization_id, payload)
+        note = await _execute(organization_id, payload, event_id=event.id)
     except ActionError as exc:
         payload["state"] = FAILED
         payload["error"] = str(exc)

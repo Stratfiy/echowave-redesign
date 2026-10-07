@@ -73,7 +73,9 @@ read the endpoint for the live answer):
 | Live voice in the browser | 4, 12 | present | `routes.webrtc_signaling`, `services.pipecat.run_pipeline` | — | `test_webrtc_signaling_concurrency.py` |
 | Free while early (no plans, nothing charged) | 4, 9 | present | `services.billing.free_mode` | free_mode | `test_free_mode.py` |
 | Exception and release tracking | 35 | present | `observability.sentry` | SENTRY_DSN | `test_sentry_scrub.py` |
-| One daily brief with source coverage | 10, 22 | absent (stream `today`) | `services.workflow.daily_brief` | — | — |
+| One daily brief with source coverage | 10, 22 | present (stream `today`) | `services.today.brief`, `services.today.ticks` | daily_brief, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID | `test_today_brief.py` |
+| Today as one ordered list, exact approvals, activity | 22 | present (stream `today`) | `services.today.listing`, `services.today.approvals`, `services.today.activity` | today_list, approval_dock | `test_today_list.py`, `test_today_approvals.py` |
+| Reminders and event-linked reminders | 22, 31.4 | present (stream `today`) | `services.today.reminders`, `services.today.delivery` | today_reminders | `test_today_reminders.py` |
 | Meeting capture and record | 23 | absent (stream `meetings`) | `services.meetings` | — | — |
 | Decibyl's private browser | founder | absent (stream `browser`) | `services.browser` | — | — |
 | Virtual card | 4, 7 | absent (stream `identity`) | — | — | — |

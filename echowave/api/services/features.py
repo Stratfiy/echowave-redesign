@@ -107,6 +107,13 @@ FLAGS: dict[str, str] = {
     "first_task_onboarding": "FIRST_TASK_ONBOARDING_ENABLED",
     "chat_shell": "CHAT_SHELL_ENABLED",
     "shell_mobile": "SHELL_MOBILE_ENABLED",
+    # Launch stream `today` (LAUNCH-PLAN.md, phase 2).
+    "today_list": "TODAY_LIST_ENABLED",
+    "approval_dock": "APPROVAL_DOCK_ENABLED",
+    "today_reminders": "TODAY_REMINDERS_ENABLED",
+    "daily_brief": "DAILY_BRIEF_ENABLED",
+    "end_of_day_note": "END_OF_DAY_NOTE_ENABLED",
+    "routine_start_on": "ROUTINE_START_ON_ENABLED",
 }
 
 
@@ -162,6 +169,12 @@ DESCRIPTIONS: dict[str, str] = {
     "first_task_onboarding": "Language, timezone and a first task; new people land in Chat (screen 02).",
     "chat_shell": "Chat: three starters, attach menu, Dictate and Talk, Stop, New content, sources and task states (screens 03-04).",
     "shell_mobile": "Phone shell: Chat and Today at the bottom, profile in the header, keyboard-aware bar, read-only workflow steps.",
+    "today_list": "Today as one ordered list, the exact approval screen, task detail and activity (screens 07-09).",
+    "approval_dock": 'Pending approvals docked above the composer: "Decibyl wants to: ..." with Do it / Don\'t.',
+    "today_reminders": "Reminders and event-linked reminders with their editor and delivery (screen 10).",
+    "daily_brief": "One daily brief with source coverage, in-app, WhatsApp and push at the person's time (screen 20).",
+    "end_of_day_note": "An end-of-day note: what was done, what is left, missed calls handled.",
+    "routine_start_on": "A routine set from chat starts on once its card is confirmed.",
 }
 
 

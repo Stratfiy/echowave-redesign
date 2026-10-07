@@ -69,6 +69,7 @@ from api.tasks.run_integrations import run_integrations_post_workflow_run
 from api.tasks.settlement import sweep_uncosted_runs
 from api.tasks.sunday_review import send_sunday_reviews
 from api.tasks.tax_invoices import issue_monthly_tax_invoices
+from api.tasks.today import deliver_due_briefs, deliver_due_reminders
 from api.tasks.trial_notices import send_trial_notices
 from api.tasks.webhook_delivery import deliver_webhook, sweep_webhook_deliveries
 from api.tasks.weekly_digest import send_weekly_digests
@@ -136,8 +137,14 @@ class WorkerSettings:
         translate_knowledge_base_document,
         deliver_analytics_outbox,
         sweep_unknown_outcomes,
+        deliver_due_reminders,
+        deliver_due_briefs,
     ]
     cron_jobs = [
+        # Launch stream today: reminders and briefs at each person's own
+        # minute, once each. Both no-ops while their switches are off.
+        cron(deliver_due_reminders, second=5, run_at_startup=False),
+        cron(deliver_due_briefs, second=25, run_at_startup=False),
         # Launch stream controls: catalogue events to analytics, and cards
         # whose job died marked outcome unknown. Both no-ops while off.
         cron(
