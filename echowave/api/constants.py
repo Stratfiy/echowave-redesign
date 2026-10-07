@@ -863,6 +863,14 @@ AGENT_BUILDER_ENABLED = os.getenv("AGENT_BUILDER_ENABLED", "false").lower() == "
 # builder -- it spends on our key -- and because a site build needs the
 # sandbox's build network (SANDBOX_BUILD_NETWORK) to exist.
 STUDIO_ENABLED = os.getenv("STUDIO_ENABLED", "false").lower() == "true"
+# The Windows and Mac app (echowave/desktop): native notifications, files
+# from disk and a watched folder in the web app when it runs inside it.
+DESKTOP_APP_ENABLED = os.getenv("DESKTOP_APP_ENABLED", "false").lower() == "true"
+# "Work on my computer": the desktop app's computer-use loop, and the
+# /desktop/steps approval cards it needs. Off until the founder tries it.
+DESKTOP_COMPUTER_USE_ENABLED = (
+    os.getenv("DESKTOP_COMPUTER_USE_ENABLED", "false").lower() == "true"
+)
 
 # How many tool calls one Studio turn may make. Higher than the builder's:
 # writing a site is write, build, read the error, fix, build again, and a

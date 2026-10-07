@@ -25,6 +25,7 @@ from api.routes.connectors import router as connectors_router
 from api.routes.contacts import router as contacts_router
 from api.routes.cost_estimate import router as cost_estimate_router
 from api.routes.credentials import router as credentials_router
+from api.routes.desktop import router as desktop_router
 from api.routes.dialer_connections import router as dialer_connections_router
 from api.routes.do_not_call import router as do_not_call_router
 from api.routes.evals import router as evals_router
@@ -117,6 +118,7 @@ router.include_router(referrals_router)
 router.include_router(promo_admin_router)
 router.include_router(agent_builder_router)
 router.include_router(studio_router)
+router.include_router(desktop_router)
 router.include_router(agent_templates_router)
 router.include_router(agent_options_router)
 router.include_router(cost_estimate_router)

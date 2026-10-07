@@ -518,6 +518,22 @@ SANDBOX_BUILD_IMAGE=node:22-slim
 SANDBOX_BUILD_REGISTRY=http://sandbox-registry:4873/
 ```
 
+## 9b. The Windows and Mac app
+
+Both off. `desktop_app` lets the web app, when it runs inside the desktop app
+(`desktop/`), raise native notifications, attach files and folders from disk
+and use a watched folder. `desktop_computer_use` turns on "work on my
+computer": the `/api/v1/desktop` routes (404 while off) that put a step the
+app wants to send, pay, delete or submit on an approval card. Screenshots
+never reach the server; the model key lives on the person's computer.
+
+```bash
+DESKTOP_APP_ENABLED=false
+DESKTOP_COMPUTER_USE_ENABLED=false
+```
+
+Building and signing the app itself is in `desktop/README.md`.
+
 The sandbox pulls `node:22-slim` itself when it starts; `/health` on the
 sandbox reports each image as `pulling`, `ready` or `failed`.
 

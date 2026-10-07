@@ -92,6 +92,9 @@ FLAGS: dict[str, str] = {
     "decibyl_teams": "DECIBYL_TEAMS_ENABLED",
     # Studio: agents and a website for them, built from one chat.
     "studio": "STUDIO_ENABLED",
+    # The Windows and Mac app, and working on a person's own computer.
+    "desktop_app": "DESKTOP_APP_ENABLED",
+    "desktop_computer_use": "DESKTOP_COMPUTER_USE_ENABLED",
     # Free while we are early: no plans, nothing charged (on by default).
     "free_mode": "FREE_MODE_ENABLED",
 }
@@ -137,6 +140,8 @@ DESCRIPTIONS: dict[str, str] = {
     "decibyl_slack": "Decibyl in Slack.",
     "decibyl_teams": "Decibyl in Microsoft Teams.",
     "studio": "Studio: build agents and a website for them from one chat.",
+    "desktop_app": "The Windows and Mac app: notifications, files from disk, a watched folder.",
+    "desktop_computer_use": "Work on my computer: Decibyl uses the apps a person allows, asking before it sends, pays, deletes or submits.",
     "free_mode": "Free while we are early: no plans, nothing charged, nothing locked.",
 }
 

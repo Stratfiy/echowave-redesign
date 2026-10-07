@@ -27,6 +27,9 @@ import { detailFromError } from '@/lib/apiError';
 export type ActionState =
     | 'proposed'
     | 'armed'
+    /** A step on the person's own computer, approved and waiting for the
+     *  computer to take it once (services/workflow/desktop_steps.py). */
+    | 'released'
     | 'running'
     | 'done'
     | 'failed'
@@ -39,6 +42,9 @@ export type ActionPayload = {
     label?: string;
     why?: string;
     effect?: string;
+    /** The exact detail to check -- recipient, amount, item -- when the
+     *  proposer wrote one (a step on the person's computer does). */
+    preview?: string;
     reversible?: boolean;
     state?: ActionState;
     fires_at?: string;
@@ -105,6 +111,7 @@ export function ActionCard({
     };
 
     const label = action.label ?? event.summary;
+    const onComputer = action.action === 'desktop_step';
 
     return (
         <div
@@ -117,6 +124,11 @@ export function ActionCard({
                 <span>{label}</span>
             </p>
             {action.why && <p className="mt-1 pl-6 text-sm text-muted-foreground">{action.why}</p>}
+            {action.preview && state === 'proposed' && (
+                <p className="mt-1 whitespace-pre-wrap break-words pl-6 text-sm" data-testid="action-preview">
+                    {action.preview}
+                </p>
+            )}
             {/* What Confirm actually does. Derived from the tool, not written
                 by the model, and shown while the buttons are still there --
                 `reversible` used to be read only after the thing had run, to
@@ -145,9 +157,21 @@ export function ActionCard({
                 <div className="mt-3 flex items-center gap-3 pl-6 text-sm">
                     <span className="flex items-center gap-1.5 text-muted-foreground" aria-live="polite">
                         <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
-                        Doing this now…
+                        {/* On a computer, running with no report means the
+                            computer stopped before it said: unknown, and it
+                            is never run again. */}
+                        {onComputer
+                            ? 'Your computer is doing this. If this does not change, the outcome is unknown and it will not be tried again.'
+                            : 'Doing this now…'}
                     </span>
                 </div>
+            )}
+
+            {state === 'released' && (
+                <p className="mt-3 flex items-center gap-1.5 pl-6 text-sm text-muted-foreground" aria-live="polite">
+                    <Check aria-hidden className="h-4 w-4 text-emerald-600" />
+                    Approved. Your computer will do this once.
+                </p>
             )}
 
             {state === 'armed' && (

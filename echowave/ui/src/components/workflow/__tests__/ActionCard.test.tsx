@@ -156,3 +156,35 @@ describe("once done", () => {
         expect(screen.getByText(/Outside calling hours/)).toBeTruthy();
     });
 });
+
+describe("a step on the person's own computer", () => {
+    const desktop = (payload: Record<string, unknown>) =>
+        event({
+            action: "desktop_step",
+            label: "Send the reply to Asha Rao",
+            why: "",
+            preview: 'To asha@example.com: "Thanks, see you Monday."',
+            effect: "Send in Mail on your computer, once. Nothing else is done until you answer.",
+            reversible: false,
+            ...payload,
+        });
+
+    it("shows the exact detail while it waits, beside the buttons", () => {
+        render(<ActionCard event={desktop({})} />);
+        expect(screen.getByTestId("action-preview").textContent).toBe('To asha@example.com: "Thanks, see you Monday."');
+        expect(screen.getByText(/Send in Mail on your computer, once/)).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Confirm" })).toBeTruthy();
+    });
+
+    it("says released, not done, once the window has passed", () => {
+        render(<ActionCard event={desktop({ state: "released" })} />);
+        expect(screen.getByText("Approved. Your computer will do this once.")).toBeTruthy();
+        expect(screen.queryByRole("button")).toBeNull();
+        expect(screen.queryByTestId("action-preview")).toBeNull();
+    });
+
+    it("says the outcome is unknown if the computer never reported", () => {
+        render(<ActionCard event={desktop({ state: "running" })} />);
+        expect(screen.getByText(/outcome is unknown and it will not be tried again/)).toBeTruthy();
+    });
+});
