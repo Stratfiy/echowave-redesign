@@ -365,7 +365,7 @@ hourly, reviews and merges each PR, and starts the next streams.
 | shell | 1 | claude/stream-shell | | | | |
 | today | 2 | claude/stream-today | | | | |
 | agents | 2 | claude/stream-agents | | | | |
-| learning | 2 | claude/stream-learning | | | | |
+| learning | 2 | claude/stream-learning | see PR | yes (`LEARNING.md`) | see PR | |
 | voice | 2 | claude/stream-voice | | | | |
 | meetings | 2 | claude/stream-meetings | | | | |
 | identity | 2 | claude/stream-identity | | | | |

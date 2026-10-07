@@ -41,6 +41,14 @@ export type Answer = { verdict: 'yes' | 'not_quite'; reasons: string[] };
 const SAVE_FAILED = 'Your feedback was not saved. Try again.';
 const DISMISSED_KEY = 'decibyl:feedback-dismissed';
 
+/** What can be judged: a reply, or a practised lesson (stream `learning`). */
+export type FeedbackSubject = 'reply' | 'lesson';
+
+/** Dismissals are kept per kind, so lesson 7 and reply 7 are not one. */
+function dismissedKey(kind: FeedbackSubject): string {
+    return kind === 'reply' ? DISMISSED_KEY : `${DISMISSED_KEY}:${kind}`;
+}
+
 /** A reply this person can judge: Decibyl's own answer on its thread, not
  *  a bot's, not a channel's, and not the line saying a limit was reached. */
 export function isJudgeableReply(event: TimelineEvent): boolean {
@@ -56,20 +64,20 @@ export function isJudgeableReply(event: TimelineEvent): boolean {
     );
 }
 
-function readDismissed(): Set<number> {
+function readDismissed(kind: FeedbackSubject = 'reply'): Set<number> {
     try {
-        const raw = window.localStorage.getItem(DISMISSED_KEY);
+        const raw = window.localStorage.getItem(dismissedKey(kind));
         return new Set<number>(raw ? (JSON.parse(raw) as number[]) : []);
     } catch {
         return new Set<number>();
     }
 }
 
-function writeDismissed(ids: Set<number>) {
+function writeDismissed(ids: Set<number>, kind: FeedbackSubject = 'reply') {
     try {
         // The newest few hundred are enough: an old reply scrolled far away
         // asking again is harmless.
-        window.localStorage.setItem(DISMISSED_KEY, JSON.stringify([...ids].slice(-300)));
+        window.localStorage.setItem(dismissedKey(kind), JSON.stringify([...ids].slice(-300)));
     } catch {
         // Private mode or blocked storage: it is dismissed for this visit.
     }
@@ -112,11 +120,18 @@ export function ReplyFeedback({
     eventId,
     answer,
     onAnswered,
+    subjectKind = 'reply',
+    roomy = false,
 }: {
     eventId: number;
     answer?: Answer;
     onAnswered: (answer: Answer) => void;
+    /** What ``eventId`` names: a reply (the default) or a lesson's id. */
+    subjectKind?: FeedbackSubject;
+    /** 44px targets, for a screen used by touch (the lesson). */
+    roomy?: boolean;
 }) {
+    const pad = roomy ? 'min-h-11 px-3' : 'px-2 py-0.5';
     const catalogueOn = useFeature('event_catalogue');
     const [dismissed, setDismissed] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -129,8 +144,8 @@ export function ReplyFeedback({
         if (answer) setShown(answer);
     }, [answer]);
     useEffect(() => {
-        setDismissed(readDismissed().has(eventId));
-    }, [eventId]);
+        setDismissed(readDismissed(subjectKind).has(eventId));
+    }, [eventId, subjectKind]);
 
     const save = async (next: Answer) => {
         setShown(next);
@@ -138,7 +153,7 @@ export function ReplyFeedback({
         setError(null);
         const response = await giveFeedbackApiV1FeedbackPost({
             body: {
-                subject_kind: 'reply',
+                subject_kind: subjectKind,
                 subject_id: eventId,
                 verdict: next.verdict,
                 reasons: next.reasons,
@@ -155,9 +170,9 @@ export function ReplyFeedback({
     };
 
     const dismiss = () => {
-        const ids = readDismissed();
+        const ids = readDismissed(subjectKind);
         ids.add(eventId);
-        writeDismissed(ids);
+        writeDismissed(ids, subjectKind);
         setDismissed(true);
         if (catalogueOn) {
             // Intent only, and nothing about the reply: the catalogue
@@ -188,7 +203,7 @@ export function ReplyFeedback({
                         <button
                             type="button"
                             disabled={saving}
-                            className="rounded-full border border-border px-2 py-0.5 hover:bg-accent disabled:opacity-50"
+                            className={cn('rounded-full border border-border hover:bg-accent disabled:opacity-50', pad)}
                             onClick={() => void save({ verdict: 'yes', reasons: [] })}
                         >
                             Yes
@@ -196,7 +211,7 @@ export function ReplyFeedback({
                         <button
                             type="button"
                             disabled={saving}
-                            className="rounded-full border border-border px-2 py-0.5 hover:bg-accent disabled:opacity-50"
+                            className={cn('rounded-full border border-border hover:bg-accent disabled:opacity-50', pad)}
                             onClick={() => void save({ verdict: 'not_quite', reasons: [] })}
                         >
                             Not quite
@@ -213,7 +228,8 @@ export function ReplyFeedback({
                                 aria-pressed={on}
                                 disabled={saving}
                                 className={cn(
-                                    'rounded-full border px-2 py-0.5 disabled:opacity-50',
+                                    'rounded-full border disabled:opacity-50',
+                                    pad,
                                     on
                                         ? 'border-foreground bg-foreground text-background'
                                         : 'border-border hover:bg-accent',
@@ -235,7 +251,7 @@ export function ReplyFeedback({
                     <button
                         type="button"
                         aria-label="Close"
-                        className="rounded p-0.5 text-muted-foreground hover:bg-accent"
+                        className={cn('rounded text-muted-foreground hover:bg-accent', roomy ? 'flex h-11 w-11 items-center justify-center' : 'p-0.5')}
                         onClick={dismiss}
                     >
                         <X aria-hidden className="h-3.5 w-3.5" />

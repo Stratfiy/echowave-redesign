@@ -61,7 +61,7 @@ read the endpoint for the live answer):
 | Daily limits per person, in free mode too | 9, 15 B | present | `services.quotas` | operational_quotas | `test_operational_quotas.py` |
 | Versioned analytics events through an outbox | 35, 36 | present | `services.events.catalogue`, `services.events.outbox` | event_catalogue, ANALYTICS_PSEUDONYM_KEY, POSTHOG_API_KEY | `test_event_catalogue.py` |
 | Was this useful? on replies and finished tasks | 2, 4, 6 | present | `services.feedback` | reply_feedback | `test_reply_feedback.py` |
-| Learning practice and progress | 3, 6, 23 | partial | `services.knowledge_graph.spaced_recall` | — | — |
+| Learning practice and progress | 3, 6, 23 | present (stream `learning`, see `LEARNING.md`) | `services.learning.core`, `services.learning.teacher`, `services.learning.guide`, `routes.learning` | learning | `test_learning.py`, `test_learning_routes.py` |
 | Skills shelf, catalogue and imports | 3, 8 | present | `services.skills.shelf`, `services.skills.catalogue`, `services.skills.imports` | — | `test_skills_shelf.py`, `test_skills_catalogue.py` |
 | Invite-only signup | 3, 16 | present | `services.auth.signup_invites` | invite_only_signup | `test_invite_only_signup.py` |
 | Decibyl on WhatsApp | 3, 7 | present | `services.messaging.channels.whatsapp` | decibyl_channels, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_APP_SECRET | `test_whatsapp_inbound.py`, `test_decibyl_channels.py` |

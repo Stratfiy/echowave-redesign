@@ -57,9 +57,7 @@ class QuotasResponse(BaseModel):
 @router.get(
     "/me/quotas",
     response_model=QuotasResponse,
-    dependencies=[
-        Depends(features.require("operational_quotas"))
-    ],
+    dependencies=[Depends(features.require("operational_quotas"))],
 )
 async def my_quotas(user: Annotated[UserModel, Depends(get_user)]) -> QuotasResponse:
     """What is left of today's allowances, for the person asking."""
@@ -174,7 +172,7 @@ async def my_personal_space(
 
 
 class FeedbackWrite(BaseModel):
-    subject_kind: Literal["reply", "task"]
+    subject_kind: Literal["reply", "task", "lesson"]
     subject_id: int
     verdict: Literal["yes", "not_quite"]
     reasons: list[str] = Field(default_factory=list, max_length=5)
@@ -224,7 +222,7 @@ async def give_feedback(
 @router.get("/feedback/mine", response_model=MyFeedback, dependencies=[_feedback_flag])
 async def my_feedback(
     user: Annotated[UserModel, Depends(get_user)],
-    subject_kind: Literal["reply", "task"] = "reply",
+    subject_kind: Literal["reply", "task", "lesson"] = "reply",
     ids: Annotated[list[int], Query(max_length=200)] = [],  # noqa: B006
 ) -> MyFeedback:
     organization_id = _organization_id(user)

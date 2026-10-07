@@ -107,6 +107,9 @@ FLAGS: dict[str, str] = {
     "first_task_onboarding": "FIRST_TASK_ONBOARDING_ENABLED",
     "chat_shell": "CHAT_SHELL_ENABLED",
     "shell_mobile": "SHELL_MOBILE_ENABLED",
+    # Launch stream `learning` (LAUNCH-PLAN.md, phase 2).
+    "learning": "LEARNING_ENABLED",
+    "learning_today": "LEARNING_TODAY_ENABLED",
 }
 
 
@@ -162,6 +165,8 @@ DESCRIPTIONS: dict[str, str] = {
     "first_task_onboarding": "Language, timezone and a first task; new people land in Chat (screen 02).",
     "chat_shell": "Chat: three starters, attach menu, Dictate and Talk, Stop, New content, sources and task states (screens 03-04).",
     "shell_mobile": "Phone shell: Chat and Today at the bottom, profile in the header, keyboard-aware bar, read-only workflow steps.",
+    "learning": "Learning Guide: goals on any subject, lessons in Chat, evaluated practice and progress (screens 13-14).",
+    "learning_today": "Learning reviews that are due, listed in Today.",
 }
 
 

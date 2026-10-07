@@ -794,6 +794,20 @@ CHAT_SHELL_ENABLED = _flag("CHAT_SHELL_ENABLED")
 # of the workflow canvas.
 SHELL_MOBILE_ENABLED = _flag("SHELL_MOBILE_ENABLED")
 
+# Launch stream `learning` (LAUNCH-PLAN.md, phase 2; handoff 6, 23; screens
+# 13-14). Each off by default; see LEARNING.md.
+# Learning Guide data: a learner profile, goals on any subject, lessons,
+# evaluated practice, progress from evaluated practice only, suggestions, and
+# the lesson inside Chat with a progress page.
+LEARNING_ENABLED = _flag("LEARNING_ENABLED")
+# Reviews that are due, listed at the top of Today. Its own switch because
+# Today is the `today` stream's page.
+LEARNING_TODAY_ENABLED = _flag("LEARNING_TODAY_ENABLED")
+# Who teaches and marks: ``model`` (the platform's model through the
+# builder's client; "needs setup" without a key) or ``fake`` (a fixed,
+# offline teacher for tests and local runs, labelled as such on screen).
+LEARNING_TEACHER = os.getenv("LEARNING_TEACHER", "model").strip().lower()
+
 # Free while we are early (October 2026): no plans, nothing charged, nothing
 # locked. On by default -- the one launch switch that is -- and reversible
 # from the environment or the staff console. See services/billing/free_mode.py.

@@ -6845,6 +6845,14 @@ from api.db.controls_models import (  # noqa: E402,F401
 from api.db.feature_override_models import (  # noqa: E402,F401
     FeatureOverrideModel,
 )
+from api.db.learning_models import (  # noqa: E402,F401
+    LearnerProfileModel,
+    LearningAttemptModel,
+    LearningExerciseModel,
+    LearningGoalModel,
+    LearningLessonModel,
+    LearningSkillModel,
+)
 from api.db.shell_models import (  # noqa: E402,F401
     UserOnboardingModel,
     WaitlistRequestModel,

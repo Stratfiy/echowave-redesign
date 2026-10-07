@@ -151,6 +151,22 @@ _ENTRIES: tuple[EventSpec, ...] = (
     ),
     _s("evaluation_completed", "quality", "An evaluation run finished.", "score"),
     _s("regression_detected", "quality", "An evaluation found a regression."),
+    # Learning (stream `learning`). Codes only: never the goal, the lesson
+    # or an answer.
+    _s(
+        "learning_goal_started",
+        "learning",
+        "A person started a learning goal.",
+        "has_material",
+    ),
+    _s(
+        "learning_practice_evaluated",
+        "learning",
+        "One practice answer was marked against its rubric.",
+        "outcome",
+        "exercise_kind",
+    ),
+    _s("learning_goal_deleted", "learning", "A person deleted a learning goal."),
     # Finance
     _s("payment_succeeded", "finance", "A payment cleared.", "currency"),
     _s("payment_failed", "finance", "A payment failed.", "currency"),
