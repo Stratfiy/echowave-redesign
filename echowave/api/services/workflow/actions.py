@@ -1558,7 +1558,14 @@ async def _audit(
         action=action,
         subject_kind="card",
         subject_id=event.id,
-        subject=str(payload.get("label") or payload.get("action") or "")[:255],
+        # A private card (stream `care`) names its own neutral subject: the
+        # workspace audit log is read by admins, not only by its owner.
+        subject=str(
+            payload.get("audit_subject")
+            or payload.get("label")
+            or payload.get("action")
+            or ""
+        )[:255],
         actor_user_id=user_id,
         before={"state": was},
         after={"state": payload.get("state"), "action": payload.get("action")},

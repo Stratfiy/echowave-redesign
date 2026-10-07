@@ -43,12 +43,14 @@ async def recents(
     viewer_id: int | None,
     viewer_is_admin: bool,
     limit: int = 12,
+    reader_id: int | None = None,
 ) -> list[dict[str, Any]]:
     threads = await db_client.assistant_threads(
         organization_id=organization_id,
         limit=limit,
         viewer_id=viewer_id,
         viewer_is_admin=viewer_is_admin,
+        reader_id=reader_id,
     )
     agents = await db_client.recent_agent_conversations(
         organization_id=organization_id, limit=limit

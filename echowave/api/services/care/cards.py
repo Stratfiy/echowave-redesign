@@ -17,6 +17,15 @@ from typing import Any
 from api.services.care import circle, medicines
 
 
+def _private(args: dict[str, Any], audit_subject: str) -> dict[str, Any]:
+    """Every care card is the older person's alone: ``private_to`` keeps the
+    card and the lines under it (which carry an invitation code, a medicine)
+    off every colleague's timeline, whatever the private-threads switch
+    says, and the workspace audit log records the press under a neutral
+    subject rather than the medicine or the family member's name."""
+    return {"private_to": args["person_user_id"], "audit_subject": audit_subject}
+
+
 def _actions():
     from api.services.workflow import actions
 
@@ -43,6 +52,7 @@ async def resolve(
                 "reversible": True,
                 "state": actions.PROPOSED,
                 "only_user_id": args["person_user_id"],
+                **_private(args, "Care: a family member added"),
             }
         if action == actions.CARE_FAMILY_SHARE:
             args = await circle.card_args(organization_id, arguments)
@@ -62,6 +72,7 @@ async def resolve(
                 "reversible": True,
                 "state": actions.PROPOSED,
                 "only_user_id": args["person_user_id"],
+                **_private(args, "Care: what family can see"),
             }
         if action == actions.CARE_MEDICINE_CALLS:
             args = await medicines.card_args(organization_id, arguments)
@@ -91,6 +102,7 @@ async def resolve(
                 "reversible": True,
                 "state": actions.PROPOSED,
                 "only_user_id": args["person_user_id"],
+                **_private(args, "Care: medicine reminders"),
             }
     except circle.CareError as exc:
         raise actions.ActionError(str(exc)) from exc
@@ -133,6 +145,7 @@ def _app_reminder_card(
         "reversible": True,
         "state": actions.PROPOSED,
         "only_user_id": args["person_user_id"],
+        **_private(args, "Care: medicine reminders"),
     }
 
 
