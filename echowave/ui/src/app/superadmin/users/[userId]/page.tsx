@@ -64,7 +64,7 @@ export default function UserDetailPage() {
 
     return (
         <div className="space-y-4">
-            <Panel query={detail} skeletonHeight={80} className="sticky top-14 z-[5] bg-background">
+            <Panel query={detail} skeletonHeight={80} className="sticky top-0 z-[5] bg-background lg:top-14">
                 {(d) => (
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-2" data-testid="pinned-identity">
                         <div className="min-w-0">

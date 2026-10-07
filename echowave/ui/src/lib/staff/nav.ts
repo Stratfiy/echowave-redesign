@@ -26,6 +26,8 @@ export type StaffLink = {
     legacy?: boolean;
     /** Built by another stream; shown, not linked, until it lands. */
     needsSetup?: string;
+    /** A page inside a destination that needs more than the destination. */
+    capability?: string;
 };
 
 export type DestinationSpec = {
@@ -98,7 +100,7 @@ export const DESTINATIONS: DestinationSpec[] = [
         children: [
             { href: "/superadmin/operations", label: "Jobs and delivery" },
             { href: "/superadmin/operations/latency", label: "Voice latency" },
-            { href: "/superadmin/operations/incidents", label: "Incidents" },
+            { href: "/superadmin/operations/incidents", label: "Incidents", capability: "operations.read" },
             { href: "/superadmin/system", label: "System", legacy: true },
             { href: "/superadmin/runs", label: "Runs", legacy: true },
         ],
@@ -108,10 +110,10 @@ export const DESTINATIONS: DestinationSpec[] = [
         label: "Controls and audit",
         href: "/superadmin/controls",
         children: [
-            { href: "/superadmin/controls/providers", label: "Providers and secrets" },
-            { href: "/superadmin/controls/policy", label: "Flags, budgets, models" },
-            { href: "/superadmin/controls/roles", label: "Staff roles" },
-            { href: "/superadmin/controls/audit", label: "Audit" },
+            { href: "/superadmin/controls/providers", label: "Providers and secrets", capability: "providers.read" },
+            { href: "/superadmin/controls/policy", label: "Flags, budgets, models", capability: "policy.read" },
+            { href: "/superadmin/controls/roles", label: "Staff roles", capability: "roles.manage" },
+            { href: "/superadmin/controls/audit", label: "Audit", capability: "audit.read" },
             { href: "/superadmin/flags", label: "Feature flags", legacy: true },
             { href: "/superadmin/provider-keys", label: "Provider keys", legacy: true },
         ],
@@ -161,11 +163,23 @@ export type Me = {
     features: Record<string, boolean>;
 };
 
+/** The capability a page needs beyond its destination, if any. */
+export function pageCapability(pathname: string): string | null {
+    for (const d of DESTINATIONS) {
+        for (const c of d.children) {
+            if (c.capability && under(pathname, c.href)) return c.capability;
+        }
+    }
+    return null;
+}
+
 export function canOpen(me: Me, pathname: string): boolean {
     const { destination, legacy } = classify(pathname);
     if (legacy) return me.roles.includes("owner");
     if (!destination) return false;
-    return me.destinations.some((d) => d.key === destination && d.allowed);
+    if (!me.destinations.some((d) => d.key === destination && d.allowed)) return false;
+    const needed = pageCapability(pathname);
+    return needed === null || me.capabilities.includes(needed);
 }
 
 export function firstAllowed(me: Me): string {

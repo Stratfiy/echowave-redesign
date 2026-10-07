@@ -50,7 +50,7 @@ export default function IncidentPage() {
 
     return (
         <div className="space-y-4">
-            <Panel query={query} className="sticky top-14 z-[5] bg-background">
+            <Panel query={query} className="sticky top-0 z-[5] bg-background lg:top-14">
                 {(i) => (
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                         <h1 className="text-xl font-semibold">

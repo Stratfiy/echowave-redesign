@@ -57,6 +57,13 @@ describe("who can open a page", () => {
         expect(canOpen(me(["quality"], ["quality"]), "/superadmin/something-new")).toBe(false);
     });
 
+    it("refuses a page inside an allowed destination that needs more", () => {
+        const finance = { ...me(["support", "finance"], ["overview", "revenue", "controls"]), capabilities: ["policy.read", "revenue.read"] };
+        expect(canOpen(finance, "/superadmin/controls/policy")).toBe(true);
+        expect(canOpen(finance, "/superadmin/controls/roles")).toBe(false);
+        expect(canOpen(finance, "/superadmin/controls/audit")).toBe(false);
+    });
+
     it("sends a person to the first destination they have", () => {
         expect(firstAllowed(me(["quality"], ["quality", "analytics"]))).toBe("/superadmin/quality");
     });

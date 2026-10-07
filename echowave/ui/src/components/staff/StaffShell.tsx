@@ -70,7 +70,7 @@ function Rail({ me, pathname, onNavigate }: { me: Me; pathname: string; onNaviga
         <nav aria-label="Staff console" className="flex flex-col gap-1 p-3 text-sm">
             {DESTINATIONS.filter((d) => allowed.has(d.key)).map((d) => {
                 const active = d.children.some((c) => pathname === c.href || pathname.startsWith(`${c.href}/`)) || pathname.startsWith(d.href);
-                const children = d.children.filter((c) => !c.legacy || owner);
+                const children = d.children.filter((c) => (!c.legacy || owner) && (!c.capability || me.capabilities.includes(c.capability)));
                 return (
                     <div key={d.key}>
                         <Link
@@ -191,7 +191,7 @@ export function StaffShell({ children }: { children: ReactNode }) {
                     <Rail me={me} pathname={pathname} />
                 </aside>
                 <div className="flex min-w-0 flex-1 flex-col">
-                    <header className="sticky top-0 z-10 flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-background px-4 py-2 lg:px-6">
+                    <header className="z-10 flex lg:sticky lg:top-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-background px-4 py-2 lg:px-6">
                         <Sheet open={drawer} onOpenChange={setDrawer}>
                             <SheetTrigger asChild>
                                 <Button variant="ghost" size="icon" className="min-h-11 min-w-11 lg:hidden" aria-label="Open staff navigation">
