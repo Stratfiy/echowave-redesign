@@ -794,6 +794,10 @@ class _Run:
             payload = dict(event.payload or {})
             if payload.get("state") == actions.PROPOSED:
                 payload["state"] = actions.CANCELLED
+                payload["error"] = (
+                    "The browser closed before you answered. Nothing was pressed."
+                )
+                payload["reason_code"] = "browser_closed"
                 payload["cancelled"] = {
                     "by": None,
                     "at": _now().isoformat(),
@@ -991,6 +995,10 @@ async def sweep() -> int:
             payload = dict(event.payload or {}) if event is not None else {}
             if payload.get("state") == actions.PROPOSED:
                 payload["state"] = actions.CANCELLED
+                payload["error"] = (
+                    "The browser closed before you answered. Nothing was pressed."
+                )
+                payload["reason_code"] = "browser_closed"
                 payload["cancelled"] = {
                     "by": None,
                     "at": _now().isoformat(),

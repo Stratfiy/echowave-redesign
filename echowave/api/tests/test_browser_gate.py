@@ -195,3 +195,17 @@ class TestTheCard:
         b = _press("Pay ₹23,400")
         assert gate.digest(a) == gate.digest(dict(a))
         assert gate.digest(a) != gate.digest(b)
+
+
+class TestTheCardDoesNotInventValues:
+    def test_an_empty_secret_field_reads_as_empty_not_as_dots(self):
+        """Found in phase 3: the card showed "password ••••••" for a password
+        field nobody had typed in, so it claimed the form sent a secret it
+        did not. Masking hides a value; it must not invent one."""
+        element = gate.Element.of({"form_fields": {"name": "Asha", "password": "", "otp": ""}})
+        shown = {f["name"]: f["value"] for f in gate.fields_shown(element)}
+        assert shown == {"name": "Asha", "password": "", "otp": ""}
+
+    def test_a_filled_secret_field_is_still_masked(self):
+        element = gate.Element.of({"form_fields": {"password": "hunter22"}})
+        assert gate.fields_shown(element) == [{"name": "password", "value": "••••••"}]
