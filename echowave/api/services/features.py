@@ -131,6 +131,10 @@ FLAGS: dict[str, str] = {
     "care_scam_check": "CARE_SCAM_CHECK_ENABLED",
     "care_tech_help": "CARE_TECH_HELP_ENABLED",
     "care_family_circle": "CARE_FAMILY_CIRCLE_ENABLED",
+    # Launch stream `reach` (LAUNCH-PLAN.md, phase 2).
+    "outside_tools": "OUTSIDE_TOOLS_ENABLED",
+    "ordering": "ORDERING_ENABLED",
+    "price_compare": "PRICE_COMPARE_ENABLED",
 }
 
 
@@ -208,6 +212,9 @@ DESCRIPTIONS: dict[str, str] = {
     "care_scam_check": "Is this a scam? Paste or describe a message or call; a plain answer and why.",
     "care_tech_help": "Step-by-step phone help in plain words, one step at a time, with did that work?",
     "care_family_circle": "A family circle the older person consents to; family see only what is shared with them.",
+    "outside_tools": "Outside AI tools (MCP servers) a person connects in the Chat thread and uses from Chat; writes ask first.",
+    "ordering": "Order food and groceries from a list in Chat (Zomato; Swiggy when access arrives), always through an order card.",
+    "price_compare": "Compare prices and coupons across the ordering apps a person has connected, saying which and when.",
 }
 
 

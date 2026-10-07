@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from typing import Any, Optional, Sequence
 
-from sqlalchemy import func, select, tuple_, update
+from sqlalchemy import func, or_, select, tuple_, update
 
 from api.db.base_client import BaseDBClient
 from api.db.models import AgentEventModel
@@ -148,8 +148,16 @@ class AgentEventClient(BaseDBClient):
         after_id: Optional[int] = None,
         assistant_thread: bool = False,
         thread_id: Optional[str] = None,
+        viewer_id: Optional[int] = None,
     ) -> list[AgentEventModel]:
         """The timeline, newest first.
+
+        ``viewer_id`` is who is reading. A row whose payload names a
+        ``private_to`` person (stream `reach`: a connect chip, a price
+        comparison, an order or outside-tool card and the lines under it) is
+        returned only to that person, and to no caller that names nobody --
+        deny by default, so a reader added later cannot show one person's
+        connections to a colleague by forgetting an argument.
 
         ``assistant_thread`` is Decibyl's own conversation: rows with neither
         a workflow nor a folder. Nothing else in the table has both empty
@@ -178,9 +186,13 @@ class AgentEventClient(BaseDBClient):
         if include_on_request:
             allowed.append(AgentEventVisibility.ON_REQUEST.value)
 
+        private_to = AgentEventModel.payload["private_to"].as_string()
         query = select(AgentEventModel).where(
             AgentEventModel.organization_id == organization_id,
             AgentEventModel.visibility.in_(allowed),
+            or_(private_to.is_(None), private_to == str(viewer_id))
+            if viewer_id is not None
+            else private_to.is_(None),
         )
 
         if workflow_id is not None:

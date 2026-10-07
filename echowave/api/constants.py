@@ -815,6 +815,25 @@ CARE_CALL_ANSWER_MINUTES = int(os.getenv("CARE_CALL_ANSWER_MINUTES", "20"))
 # or test: "taken", "not_taken" or "no_answer" simulates that outcome instead
 # of dialling, and the care status says so ("test mode: nobody is rung").
 CARE_CALLS_FAKE = (os.getenv("CARE_CALLS_FAKE") or "").strip().lower()
+# Launch stream `reach` (8 October 2026). Each off by default; see
+# LAUNCH-PLAN.md, REACH.md and services/features.py.
+# Outside AI tools (MCP servers) a person connects from Chat, in the thread.
+OUTSIDE_TOOLS_ENABLED = _flag("OUTSIDE_TOOLS_ENABLED")
+# Ordering food and groceries from a list in Chat, through an order card.
+ORDERING_ENABLED = _flag("ORDERING_ENABLED")
+# Price and coupon comparison across the ordering apps a person connected.
+PRICE_COMPARE_ENABLED = _flag("PRICE_COMPARE_ENABLED")
+# The official ordering servers. Unset, the provider shows "needs setup";
+# nothing is guessed. Zomato's is its own hosted MCP server, signed in to by
+# each person (OAuth); Swiggy's comes with Builders Club access.
+ZOMATO_MCP_URL = os.getenv("ZOMATO_MCP_URL") or None
+ZOMATO_OAUTH_CLIENT_ID = os.getenv("ZOMATO_OAUTH_CLIENT_ID") or None
+SWIGGY_MCP_URL = os.getenv("SWIGGY_MCP_URL") or None
+SWIGGY_OAUTH_CLIENT_ID = os.getenv("SWIGGY_OAUTH_CLIENT_ID") or None
+# Outside servers may be on a private address only in development and tests
+# (a fake server on 127.0.0.1); production refuses them, so a person cannot
+# point Decibyl at the inside of our own network.
+REACH_ALLOW_PRIVATE_SERVERS = _flag("REACH_ALLOW_PRIVATE_SERVERS")
 
 # Free while we are early (October 2026): no plans, nothing charged, nothing
 # locked. On by default -- the one launch switch that is -- and reversible

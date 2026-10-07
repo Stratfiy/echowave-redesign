@@ -81,7 +81,11 @@ export type Feature =
     | "care_medicine_calls"
     | "care_scam_check"
     | "care_tech_help"
-    | "care_family_circle";
+    | "care_family_circle"
+    // Launch stream `reach` (LAUNCH-PLAN.md, phase 2).
+    | "outside_tools"
+    | "ordering"
+    | "price_compare";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

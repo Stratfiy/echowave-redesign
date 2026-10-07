@@ -228,6 +228,9 @@ async def timeline(
         limit=limit,
         before_at=before_at,
         before_id=before_id,
+        # A person's own reach rows (connect chips, comparisons, order
+        # cards) are theirs alone, whatever thread they sit on.
+        viewer_id=user.id,
     )
 
     events = [_as_event(row) for row in rows]

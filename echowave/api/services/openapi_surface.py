@@ -130,6 +130,9 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "credentials",
             "provider-keys",
             "service-keys",
+            # A person's own outside tools and ordering apps, and their
+            # order cards (launch stream `reach`).
+            "reach",
         ),
     ),
     (
