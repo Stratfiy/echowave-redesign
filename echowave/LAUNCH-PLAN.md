@@ -1,188 +1,298 @@
-# Launch plan: Decibyl, invite-only, 28 October 2026
+# Launch plan: Decibyl, one launch with everything, 28 October 2026
 
 The single source of truth for the launch build. **Read this first in any new
-session.** Update the status table at the bottom whenever a stream moves.
+session**, then the two handoff documents in `handoff/`. Update the status
+table at the bottom whenever a stream moves.
 
-Companion documents (Claude Docs, private to the founder until shared):
-positioning and moat, the built-vs-not inventory, the product plan, the
-delivery plan. This file is the engineering copy of the last two.
+## The founder's instructions (7 October 2026)
+
+1. **Nothing from the two handoff documents is skipped.** Everything in
+   `handoff/product-engineering-handoff.txt` (sections 1-38) and
+   `handoff/screen-design-handoff.txt` (screens 01-45, shared rules, motion,
+   contracts, metrics) is in scope. The map below assigns every section and
+   every screen to a stream.
+2. **All capabilities ship at launch.** No relaunch cadence. The build runs in
+   three phases, all finished before launch.
+3. **Anything Claude adds beyond the documents is a suggestion**, marked as
+   such, and does not displace document scope.
+4. Capabilities the founder asked for in conversation are in scope too:
+   private browser (browser-use), ordering (Swiggy/Zomato), care for older
+   people (medicines, scams, simple mode, tech help), learning anything at
+   one's own pace with improvement-based suggestions, trading summaries by
+   interest, person + business as one with shared agents, knowledge and
+   learnings across teammates, "ask it to build or do anything".
+
+Where the documents and later founder decisions differ, the founder's later
+decision wins: the brain is **Auto** (Claude Haiku / Sonnet / Opus by kind of
+work, Laya in shadow) with **Sarvam for voice**; the documents' "prefer Sarvam
+for models" applies to voice.
 
 ## What we are building
 
 **One assistant for a person's whole life -- home, work and business -- that
 acts on the phone and WhatsApp in their language, teaches them at their own
-pace, and always asks before it acts.**
-
-The one reason to choose it over ChatGPT, Gemini, Grok or Meta AI: *they talk
-to you; Decibyl works for you.* It has its own number, so it calls, answers and
-follows up on WhatsApp for your home and your business, remembers both, and
-teaches you as it goes.
-
-- **Shape:** Chat and Today are the only two destinations. Settings and Agents
-  live in the profile menu. Phones get a bottom bar (Chat, Today, Menu).
-- **Brain:** Auto (Claude Haiku / Sonnet / Opus by kind of work; Laya routes
-  in shadow until it beats the rules). Voice: Sarvam for STT and TTS.
-- **Launch groups:** owner-operators first; families with an older parent in
-  relaunch 2. Learners, professionals, traders after.
-- **Free beta** with operating limits (usage caps per person per day).
+pace, and always asks before it acts.** Chat and Today are the only two
+destinations; Settings and Agents live in the profile menu; a separate,
+role-gated staff console runs the operation.
 
 ## Rules every stream follows
 
-1. **Behind a switch.** Every new capability ships off by default behind a
-   flag in `api/services/features.py` (+ `api/constants.py`), and is switched
-   on in production only after it passes on staging.
-2. **Ask before acting.** Any send, call, booking, payment or form submit goes
-   through an action card (`api/services/workflow/actions.py`): exact preview,
-   confirm, runs once (compare-and-swap; see `test_an_approved_action_runs_once.py`).
-3. **Personal stays personal.** Personal memory and private threads are per
-   person; nothing reaches the workspace unless the person shares it.
-4. **Say what is true.** No false empty states, no fake success; a brief says
-   which sources it checked; "I can't do that yet" over a guess.
-5. **Never send people to another screen.** Offer the fix in the thread.
-6. **Tests that fail on the old code** for every bug fix; arrival tests for
-   every feature (what must appear, not only what must not).
+1. **Behind a switch.** New capability ships off by default behind a flag in
+   `api/services/features.py` (+ `api/constants.py` + `DESCRIPTIONS`); the UI
+   hides it while off. Production switches on after staging passes.
+2. **Ask before acting.** Every send, call, booking, payment, form submit or
+   staff mutation goes through an exact preview bound to an immutable payload
+   version; runs once (compare-and-swap, `actions.py`); "outcome unknown" is a
+   state, never a blind retry.
+3. **Scope.** Every read and write is scoped by `organization_id`; personal
+   things by member; staff actions by role, target and reason, audited.
+4. **Honest states.** Loading, empty, stale, partial and failed are distinct;
+   no false empty, no fake success; capability states are available / needs
+   setup / disabled by policy / unavailable with a reason.
+5. **Never send people to another screen** to finish something.
+6. **Tests** that fail on the old code for every fix; arrival tests for every
+   feature; privacy tests (another person or workspace cannot see it).
 7. **Verify against a running instance** before calling anything done.
-8. No model IDs in commit messages, PR titles or bodies.
-9. No new plan, price or positioning string without the founder.
+8. No model IDs in commits, PR titles or bodies. No new price or positioning
+   string without the founder.
+9. Shared design rules: `handoff/screen-design-handoff.txt` "Visual system",
+   "Layout and responsive behavior", "Interaction rules", "Motion" (M1-M8),
+   "Shared state and data contracts". Reuse existing components and tokens.
 
 ## How to run and test (local)
 
 - Postgres: `su postgres -c "/usr/lib/postgresql/16/bin/pg_ctl -D /var/lib/postgresql/decibyl-test/data -l /tmp/pgtest.log start"`
+  (if absent in a fresh container, install postgresql-16 with pgvector, or run
+  `docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=postgres pgvector/pgvector:pg16`)
 - Redis: `redis-server --daemonize yes`
-- Backend tests: `DATABASE_URL=postgresql+asyncpg://postgres:<pw>@localhost:5432/test_<stream> REDIS_URL=redis://localhost:6379/<n> venv/bin/python -m pytest api/tests/<files>`
-  (each stream uses its own database name so parallel runs do not collide;
-  the conftest creates it and runs migrations).
+- Backend: `api/.env` style variables; tests with your own database name:
+  `DATABASE_URL=postgresql+asyncpg://postgres:<pw>@localhost:5432/test_<stream> venv/bin/python -m pytest api/tests/<files>`
 - UI: `cd ui && npx vitest run <paths> && npx tsc --noEmit -p .`
-- Format before commit: `scripts/format.sh` (ruff + prettier/eslint).
+- Format only changed files (ruff check --select I,F401,F821 --fix; ruff
+  format; prettier; eslint). The CI drift check runs `scripts/format.sh`.
 - New API route used by the UI: `python -m scripts.dump_docs_openapi` then
   `cd ui && npm run generate-client`.
-- Migrations chain from the current head; name the revision with the stream
-  key (e.g. `202610081000brief`). Parallel streams will create multiple heads;
-  the integrator adds one merge migration.
+- Migrations chain from the branch's current head; revision ids carry the
+  stream key. The integrator adds merge migrations.
 
 ## Staging
 
-The CI EC2 (runner label `ci`) also runs functional staging. Setup and the
-check are in `STAGING.md` ("Functional staging on the CI box"),
-`.github/workflows/deploy-staging.yml` and `scripts/staging_check.py`.
-Founder to do: DNS, `.env`, keys, GitHub `staging` environment and test
-accounts. Nothing is switched on in production until it passes there.
+The CI EC2 (runner `ci`) runs functional staging: `STAGING.md` ("Functional
+staging on the CI box"), `.github/workflows/deploy-staging.yml`,
+`scripts/staging_check.py`. Founder: DNS, `.env`, keys, GitHub `staging`
+environment, test accounts.
 
-## Timeline
+## Phases (all before launch)
 
-| When | What |
+| Phase | When | Streams | Why first |
+| --- | --- | --- | --- |
+| 1. Foundations | 7-11 Oct | `controls`, `shell` | Everything else builds on the task ledger, quotas, preferences, personal space, event catalogue and the shell |
+| 2. Capabilities | 11-21 Oct | `today`, `agents`, `learning`, `voice`, `meetings`, `identity`, `settings`, `support`, `staff`, `ops`, `browser`, `reach`, `care` | Independent once phase 1 has merged |
+| 3. Integrate and prove | 21-27 Oct | integrator + staging | Merge, resolve, staging checks, launch acceptance (handoff 16, 27, 38) |
+| **Launch** | **28 Oct** | Invite-only | Every capability on that has passed staging; anything not passed shows an honest "setting up" state, never a fake |
+
+## Coverage map: every handoff section and screen
+
+### Product and engineering handoff (sections 1-38)
+
+| Section | Stream |
 | --- | --- |
-| 7-13 Oct | Week 1: foundation stream; all build streams start |
-| 14-20 Oct | Week 2: daily loop; streams land behind switches |
-| 21-27 Oct | Week 3: owner set; staging passes; fix what testers hit |
-| **28 Oct** | **Invite-only launch** (owners + personal-assistant users) |
-| 11 Nov | Relaunch 1: push, receipts, what-I-learned, pattern-to-routine, voice notes |
-| 25 Nov | Relaunch 2: families |
-| 9 Dec | Relaunch 3: learning on any subject |
-| 23 Dec | Relaunch 4: live voice, call-it-for-me, private browser |
-| Jan | Relaunch 5: ordering, meeting capture, team playbook, personal space split |
+| 1 Demand validation, 2 Positioning, 13 Research methods, 17 Evidence register, 18 Technical source register | Reference (no code); positioning per founder |
+| 3 Existing vs required platform, 4 Launch surfaces, 29 Source check and reuse map | `controls` (capability checklist: source / configuration / tested) |
+| 5 One assistant and simple interface, 19 Product direction and navigation, 20 Screen inventory and route contracts | `shell` |
+| 6 Five launch agents (Inbox, Research, Follow-up, Learning Guide, Call and Appointment) | `agents` (+ `learning` for Learning Guide data, `voice` for Call and Appointment runtime) |
+| 7 Identity, channels and mobile | `identity` (+ `shell` for responsive web, `voice` for mobile voice) |
+| 8 Models, context, skills and memory | `settings` (model defaults, skills), `controls` (scoped context) |
+| 9 Free beta with operating limits | `controls` |
+| 10 Summaries, privacy and reliable actions | `today` (summaries), `controls` (reliable actions) |
+| 11 Clean AWS deployment plan, 34 Credentials and routine AWS operations | `ops` |
+| 12 Voice latency and quality targets | `voice` |
+| 14 Jev, Laya and guardrails | `ops` (shadow evaluation, labels, rollback) |
+| 15 Work packets A-H | A `controls`, B `controls`, C `shell`, D `identity`, E `agents`/`today`/`learning`, F `voice`/`shell`, G `ops`, H `ops`/`staff` |
+| 16 Launch proof and growth plan | Phase 3 + `staff` (pilot analytics) + `shell` (waitlist/invite) |
+| 21 Chat, voice and everyday assistance | `shell` (composer, starters, attach), `voice` |
+| 22 Today, reminders and proactive help | `today` |
+| 23 Meeting mode and learning journeys | `meetings`, `learning` |
+| 24 Settings catalogue for users, 25 Advanced settings and identity states | `settings`, `identity` |
+| 26 Dynamic components and accessible behavior | `shell` (shared components), every stream follows |
+| 27 Implementation contracts and verification, 38 Implementation acceptance | Phase 3 |
+| 28 Claude handoff and release checklist | Phase 3 |
+| 30 Settings changes and concrete failure cases | `settings` (+ already-fixed honest states in PR #523) |
+| 31 Concrete implementation order (items 1-8) | 1-2 `shell`, 3 `controls`, 4 `today`, 5 `agents`, 6 `voice`/`meetings`, 7 `identity`, 8 `controls`/`staff` |
+| 32 Admin console and operating model | `staff` |
+| 33 Customer support and requested actions | `support` |
+| 35 Observability and privacy | `ops` |
+| 36 Event catalogue and repository gaps | `controls` (catalogue), `staff` (analytics) |
+| 37 Quality, revenue and decision metrics | `staff` |
 
-All streams are built now, in parallel; the dates are when each is switched on
-for users, after staging.
+### Screen design handoff (screens 01-45)
+
+| Screens | Stream |
+| --- | --- |
+| 01 Early access and invitation, 02 Language and first task | `shell` |
+| 03 Chat start, 04 Conversation and useful result | `shell` |
+| 05 Live voice session | `voice` |
+| 06 Helper picker and capability detail | `agents` |
+| 07 Today, 08 Exact action approval, 09 Task detail and activity, 10 Routine and reminder editor | `today` (08 contract from `controls`) |
+| 11 Meeting capture, 12 Meeting record and actions | `meetings` |
+| 13 Learning session, 14 Learning progress | `learning` |
+| 15 Search and saved items, 16 Memory manager | `settings` |
+| 17 Account and settings shell, 18 Personalization, 19 Voice and language, 20 Daily brief settings, 21 Notifications | `settings` (20 with `today`, 21 with `identity`) |
+| 22 Connected apps and channel detail, 23 Email identity, 24 Phone and verification | `identity` |
+| 25 Privacy and security, 26 Model defaults and overrides, 27 Skills workspace and developer | `settings` |
+| 28 Customer help and ticket | `support` |
+| 29 Founder overview, 30 Users and access, 31 User and workspace detail | `staff` |
+| 32 Support inbox and case, 33 Support action preview and execution | `support` (inside the staff console shell from `staff`) |
+| 34 Evaluation runs, 35 Case comparison, 36 Product analytics, 37 Revenue and costs, 38 Ledger and refund | `staff` |
+| 39 Operations and delivery, 40 Task trace and voice latency, 41 Incident and runbook, 42 Providers and secrets, 43 Flags, budgets and model policy, 44 Staff roles and audit | `staff` (with `ops` for the backing services) |
+| 45 Advanced workflow editor | `shell` (kept reachable for authorized users; read-only step list on phone) |
+| Shared: visual system, layout, interaction, motion M1-M8, state contracts, metrics/events, privacy | `shell` builds shared pieces; every stream follows |
+
+### Founder-requested capabilities (from conversation)
+
+| Capability | Stream |
+| --- | --- |
+| Private browser for Decibyl (browser-use, isolated per person, live view, Take over, approvals) | `browser` |
+| Ordering (Zomato now, Swiggy on Builders Club access), outside AI tools from chat | `reach` |
+| Older people: simple mode, medicine calls with family alerts, scam check, tech help, family circle | `care` |
+| Learning anything at one's pace, improvement-based suggestions | `learning` |
+| Trading summaries by interest (information only, no advice) | `agents` (Research helper) |
+| Person + business as one; shared agents, knowledge and learnings across teammates | `controls` (personal space), `settings` (sharing), `agents` |
+| Ask Decibyl to build or do anything (agents, routines, trackers, pages) | `agents` (describe-it builder) |
+| Missed calls handled, who owes me, end-of-day note | `today` + `agents` (Follow-up, Call and Appointment) |
+
+### Suggestions from Claude (not required by the documents)
+
+Receipts under every action, "what I learned about you", pattern to routine,
+voice note in and actions out, bill and renewal radar, team playbook,
+new-hire lesson path, "sent by my assistant". Build where they fall inside a
+stream at little cost; never at the expense of document scope.
 
 ## Streams
 
-Each stream is a branch `claude/stream-<key>` off `claude/simpler-rail`, a
-separate PR, behind its own flag. Scope, then "done when".
+Each stream is a branch `claude/stream-<key>` off `claude/simpler-rail` (or
+off the merged phase-1 result for phase 2), one draft PR with base
+`claude/simpler-rail`, behind its own flag(s). Read the mapped handoff
+sections and screens in full before coding.
 
-### 1. `foundation` -- first run, limits, ratings, analytics, hiding
-- New users land in Chat (`/overview`), not the build-an-agent flow
-  (`ui/src/lib/utils.ts` getRedirectUrl); first run asks language and
-  timezone, then one question.
-- Usage limits on free mode: per person per day for model turns, voice
-  minutes and outbound messages (`api/services/quota_service.py`,
-  `billing/free_mode.py`); a clear message in the thread when reached.
-- Yes / Not quite under every Decibyl reply, stored with the turn.
-- Activation events: sign-up, first useful outcome, useful outcome by kind,
-  approval outcome, brief opened (`api/services/posthog_client.py`).
-- Hide back-office pages from customers (campaigns, missed calls, review,
-  analytics, audio clips, widget, billing while free): reachable under an
-  agent once it has a number.
-- Done when: a new account reaches a useful answer in 2 minutes; limits stop
-  a run cleanly; ratings and events are recorded.
+### Phase 1
 
-### 2. `daily` -- the brief, push, per-person delivery
-- One daily brief replacing the Monday digest, Sunday review and morning
-  routine; built from Today's data; says which sources it checked; delivered
-  by WhatsApp to the person and in the app, at the person's chosen time.
-- Installable web app (manifest + service worker) with web push.
-- Notifications per person (`InAppNotificationModel` gains `user_id`);
-  Decibyl's replies and routine results reach the bell.
-- Routines from chat start switched on after a confirm, with an editable time
-  and hour-level reminders; an editor for Decibyl's routines.
-- WhatsApp from an unknown sender is a stranger, never the workspace's first
-  user (`whatsapp_inbound.py` `_first_user`).
-- Done when: the brief arrives daily for 5 days with no silent failure.
+**`controls`** -- handoff 3, 4, 8 (scoped context), 9, 10 (reliable actions),
+15 A-B, 29, 31.3, 36 (event catalogue). Capability checklist (source /
+configuration / tested). Operational quotas outside billing (per person per
+day: model turns, voice minutes, outbound messages, browser minutes; staff can
+grant temporary allowances). Task ledger with the full state set (queued,
+running, needs input, awaiting approval, scheduled, completed, failed,
+cancelled, outcome unknown), approval binding to payload versions,
+idempotency keys, stale-event rejection. Personal space: every person has a
+personal scope distinct from business workspaces they join; member-owned
+preferences (language, timezone, voice, summary) that never change another
+member's settings. Event catalogue and envelope (handoff 36; design
+"Metrics events and release proof"). Yes / Not quite feedback with reasons,
+stored against output, model and task versions.
 
-### 3. `habit` -- receipts, what I learned, patterns, voice notes
-- A receipt card under every completed action: what, where, when, how to check.
-- "What I learned about you": weekly list of new personal memories, each
-  editable or deletable.
-- Pattern to routine: after the same action 3+ times, suggest a routine.
-- Voice note in, actions out: a WhatsApp or in-app voice note (Sarvam STT)
-  becomes tasks, reminders and drafts.
+**`shell`** -- handoff 5, 19, 20, 21, 26, 31.1-2; screens 01-04, 45; shared
+components. Waitlist and invitation redemption (01); language, timezone and
+first task (02); new users land in Chat; Chat start and conversation per
+03-04 (three starters, attach menu: files, voice note, meeting mode, paste
+notes; Dictate vs Talk; stream text; New content; Stop; sources panel);
+route migration with redirects for old links; mobile per the design (bottom
+Chat/Today, profile in header, hide bar while the keyboard is open,
+safe-area); shared components (TaskStatus, ActionPreview, SourceCoverage,
+ScopedSearch, SettingsSection, ConnectionRow, SaveBar, EmptyState,
+ErrorState, MetricDefinition, AuditTimeline, CommandPreview) reusing existing
+ones; motion tokens M1-M8 with reduced motion; workflow editor kept reachable.
 
-### 4. `owners` -- the business owner set
-- Who owes me: unpaid invoices from mail, WhatsApp and Tally into one list,
-  with a one-tap reminder (approval card).
-- Missed call, handled: call-back or WhatsApp within minutes, summary to the
-  owner (builds on `services/telephony/missed_call.py`).
-- End-of-day note for the owner and team.
-- Bill and renewal radar from mail.
+### Phase 2
 
-### 5. `families` -- simple mode and care
-- Simple mode: large text, voice first, one thing at a time.
-- Medicine call: a daily call in the parent's language ("did you take the 8am
-  tablet?"), alert to family on a miss or no answer.
-- Scam check: forward a message or describe a call; plain verdict and what
-  to do.
-- Family circle: link a parent and a child with consent; the child sees
-  medicines taken and alerts, never private chats.
+**`today`** -- handoff 10, 22, 31.4; screens 07-10, 20 (with `settings`).
+Today as the ordered list; exact action approval screen; task detail and
+activity; routine and reminder editor (event-linked reminders); one daily
+brief with source coverage, delivered in-app, by WhatsApp and push at the
+person's time; routines from chat start on after confirm; missed calls
+handled and end-of-day note.
 
-### 6. `learning` -- teach anything, at your pace
-- Learner profile in personal memory (goal, skills, attempts, mistakes).
-- Lessons on any subject in Chat: baseline question, short steps, practice
-  that makes you think (no answer-dumping), specific feedback.
-- Suggestions from improvement and upcoming events; reviews in Today.
-- "Teach me this" on any answer; progress counts evaluated practice only.
+**`agents`** -- handoff 6, 31.5; screen 06. The five launch agents as
+configurations over the existing runtime (Inbox, Research, Follow-up,
+Learning Guide, Call and Appointment) with their acceptance boundaries;
+helper picker with capability states; saved research reports with matching
+export; "who owes me" in Follow-up; trading summaries by interest in
+Research (information only); describe-it builder for agents, routines and
+trackers ("build or do anything").
 
-### 7. `voice` -- live voice and call it for me
-- Live voice with Decibyl (reuse the agents' pipecat pipeline): listen,
-  interrupt, mute, captions, continue in text.
-- Call it for me: Decibyl calls a business, announces itself as an
-  assistant, confirms on WhatsApp; approval first.
+**`learning`** -- handoff 6 (Learning Guide data), 23; screens 13-14.
+Learner profile, lessons on any subject, practice and feedback, reviews in
+Today, improvement-based suggestions, progress from evaluated practice only,
+adults first.
 
-### 8. `browser` -- Decibyl's private browser
-- browser-use (MIT) in our sandbox: one isolated browser per person and
-  task, internet on, private addresses blocked (reuse `web_tools.check_url`).
-- Live view and step list in Chat; Take over for logins and CAPTCHAs; only
-  site cookies kept, encrypted, per person; never passwords.
-- Approval before submit, pay, send or book; step, time and cost limits;
-  page text treated as data, never instructions; a prompt-injection test set.
+**`voice`** -- handoff 7 (mobile), 12, 15 F, 31.6; screens 05, 19 (with
+`settings`). Live voice with Decibyl distinct from dictation; interruption,
+mute, captions, reconnect, permission states; Call and Appointment runtime;
+"call it for me" with approval and announcement; latency measurement per
+handoff 12.
 
-### 9. `reach` -- tools from chat, ordering, meetings
-- Outside AI tools (MCP) usable from chat, not only calls
-  (`connected_tools.is_connected` accepts only Composio today).
-- Ordering: Zomato first; Swiggy when Builders Club access arrives.
-- Meeting capture: consent, record, transcript, actions into approvals.
+**`meetings`** -- handoff 23, 31.6; screens 11-12. Meeting capture with
+consent and a stated audio source, interruption gaps, transcript (Sarvam),
+summary / decisions / transcript, individually confirmed actions.
 
-### 10. `space` -- personal space, Today, merges
-- A personal space for every person, separate from business workspaces they
-  join; personal memory and threads belong to the person.
-- Today as an ordered list: approvals, due, brief, events, up to three
-  suggestions; the board stays as a view.
-- One way to create an agent (describe it in Chat), one phone page, one usage
-  view; remove dead switches and orphan pages.
+**`identity`** -- handoff 7, 15 D, 25, 31.7; screens 21 (with `settings`),
+22-24. Connected apps per person with consent and revocation; channels
+(WhatsApp, Telegram, Slack, Teams) with verified capability flags; Decibyl
+email identity lifecycle (virtual card "coming soon" row only); phone and
+KYC lifecycle with an explained number payment flow; notifications and web
+push; unknown WhatsApp senders treated as strangers.
+
+**`settings`** -- handoff 8, 24, 25, 30; screens 15-19, 25-27. Settings shell
+per 17 (Personal, Connections, Privacy, Advanced; workspace sections under a
+named heading; settings search with everyday synonyms; Save / Discard;
+conflict handling); personalization; voice and language; search and saved
+items; memory manager with provenance and sharing to the team; privacy and
+security (export, deletion, retention, MFA); model defaults showing
+inheritance; skills, knowledge, team, developer and compliance.
+
+**`support`** -- handoff 33; screens 28, 32-33. Customer help and tickets with
+a data-sharing preview; staff support inbox and case with internal notes;
+support action preview and typed, approved, audited execution.
+
+**`staff`** -- handoff 32, 36, 37; screens 29-31, 34-44. Role-gated staff
+console with eight destinations, reusing `/superadmin`: founder overview
+attention queue, users and invitations, user and workspace detail,
+evaluation runs and case comparison, product analytics, revenue and costs,
+ledger and refunds, operations, task trace and voice latency, incidents and
+runbooks, providers and secrets, flags / budgets / model policy, staff roles
+and audit.
+
+**`ops`** -- handoff 11, 14, 15 G-H, 34, 35. Clean AWS deployment, credential
+lifecycle and routine AWS operations via typed allowlisted commands;
+observability (Sentry, PostHog, infrastructure health) with privacy
+exclusions and replay exclusion on sensitive screens; Laya shadow evaluation
+with labels and rollback; backup restore drill; capacity review.
+
+**`browser`** -- founder request. browser-use in the sandbox: one isolated
+browser per person and task, private addresses blocked, live view and Take
+over, cookies only (encrypted, per person), approval before submit / pay /
+send / book, step / time / cost limits, page text as data, injection tests.
+
+**`reach`** -- founder request. Outside AI tools (MCP) usable from chat;
+Zomato ordering (Swiggy when access arrives) through approvals; price and
+coupon comparison only across officially connected apps.
+
+**`care`** -- founder request. Simple mode (large text, voice first, one thing
+at a time); medicine calls in the parent's language with family alerts;
+scam check; step-by-step tech help; family circle with consent.
+
+### Phase 3
+
+Integrator: merge every stream into `claude/simpler-rail`, merge migrations,
+resolve overlaps, full backend and UI suites, staging deploy and
+`staging_check.py`, the handoff's launch acceptance (sections 16, 27, 38 and
+the design's "Claude execution brief"), screenshots at 360 / 390 / 768 /
+1024 / 1440, and the rollback notes per flag.
 
 ## Decisions still open (founder)
 
-- [ ] One-line positioning (draft: "Your assistant, with a number. It handles your day and your business, in your language.")
-- [ ] Usage limits on the free beta (numbers)
+- [ ] One-line positioning
+- [ ] Usage limit numbers for the free beta
 - [ ] Who pays for numbers in the beta
 - [ ] Business model and prices after the beta
 - [ ] Apply to Swiggy Builders Club
@@ -194,24 +304,25 @@ separate PR, behind its own flag. Scope, then "done when".
 - Auto brain with Laya in shadow; Claude-on-calls fixes; Models page per workspace
 - Honest states (memory, phone numbers, models); grouped Settings on phones
 - Recents; Activity usage per agent and model; Sentry
-- Fixes found by switching the assistant features on: invites (500 on every
-  call), per-thread reply drafts (leak between people), run-once approvals
+- Fixes: invites (500 on every call), per-thread reply drafts, run-once approvals
 - Staging workflow and `scripts/staging_check.py`
 
 ## Status
 
-Update this table as streams move. "Staging" means it passed
-`staging_check.py` plus its own manual checks.
-
-| Stream | Branch | PR | Built | Tests | Staging | On for users |
+| Stream | Phase | Branch | PR | Built | Tests | Staging |
 | --- | --- | --- | --- | --- | --- | --- |
-| foundation | claude/stream-foundation | | | | | |
-| daily | claude/stream-daily | | | | | |
-| habit | claude/stream-habit | | | | | |
-| owners | claude/stream-owners | | | | | |
-| families | claude/stream-families | | | | | |
-| learning | claude/stream-learning | | | | | |
-| voice | claude/stream-voice | | | | | |
-| browser | claude/stream-browser | | | | | |
-| reach | claude/stream-reach | | | | | |
-| space | claude/stream-space | | | | | |
+| controls | 1 | claude/stream-controls | | | | |
+| shell | 1 | claude/stream-shell | | | | |
+| today | 2 | claude/stream-today | | | | |
+| agents | 2 | claude/stream-agents | | | | |
+| learning | 2 | claude/stream-learning | | | | |
+| voice | 2 | claude/stream-voice | | | | |
+| meetings | 2 | claude/stream-meetings | | | | |
+| identity | 2 | claude/stream-identity | | | | |
+| settings | 2 | claude/stream-settings | | | | |
+| support | 2 | claude/stream-support | | | | |
+| staff | 2 | claude/stream-staff | | | | |
+| ops | 2 | claude/stream-ops | | | | |
+| browser | 2 | claude/stream-browser | | | | |
+| reach | 2 | claude/stream-reach | | | | |
+| care | 2 | claude/stream-care | | | | |
