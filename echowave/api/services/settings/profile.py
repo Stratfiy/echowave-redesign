@@ -228,7 +228,8 @@ def prompt_block(stored: dict[str, Any], memory_off: str | None) -> str | None:
         )
     if not lines:
         return None
-    return "\n\nAbout this person:\n" + "\n".join(f"- {line}" for line in lines)
+    # Ends on a newline: the next rule in the system prompt starts with "- ".
+    return "\n\nAbout this person:\n" + "".join(f"- {line}\n" for line in lines)
 
 
 async def block_for_turn(

@@ -285,6 +285,22 @@ class TestTheNextTurn:
             people.org, people.a.id, None
         )
 
+    async def test_the_rule_after_the_block_starts_on_its_own_line(
+        self, people, shell_on, monkeypatch
+    ):
+        # Found by evals/decibyl: the block ended without a newline, so the
+        # call_for_me rule after it read "...instead of saying you will.-
+        # call_for_me places ONE phone call", one run-on line.
+        from api.services.workflow import decibyl
+
+        monkeypatch.setattr(constants, "CALL_FOR_ME_ENABLED", True)
+        block = profile.prompt_block({"preferred_name": "Nithya"}, None)
+        with profile.for_turn(block):
+            prompt = decibyl.system_prompt(people.org)
+        assert "Nithya." in prompt
+        assert "Nithya.- " not in prompt
+        assert "\n- call_for_me" in prompt
+
     async def test_the_block_reaches_the_system_prompt_for_that_turn_only(
         self, people, shell_on
     ):
