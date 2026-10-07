@@ -145,6 +145,10 @@ RUN_OUTSIDE_TOOL = "run_outside_tool"
 #: Cards that act in one person's own account: only that person may
 #: confirm, decline or undo them (``owner_user_id`` on the payload).
 OWNED_ACTIONS = (PLACE_ORDER, RUN_OUTSIDE_TOOL)
+#: Delete one person's learning goal and all its practice (launch stream
+#: `learning`; see services/learning). Internal: proposed from the progress
+#: page's Delete, never by a model; only the learner's own Confirm runs it.
+DELETE_LEARNING_GOAL = "delete_learning_goal"
 INTERNAL_ACTIONS = (
     PLACE_ORDER,
     RUN_OUTSIDE_TOOL,
@@ -156,6 +160,7 @@ INTERNAL_ACTIONS = (
     DESKTOP_STEP,
     BROWSER_STEP,
     *CARE_ACTIONS,
+    DELETE_LEARNING_GOAL,
 )
 
 #: The states a proposal moves through. Terminal ones are the last four.
@@ -580,6 +585,30 @@ async def resolve(
             "state": PROPOSED,
         }
 
+    if action == DELETE_LEARNING_GOAL:
+        from api.services.learning import core as learning
+
+        goal_uuid = str(arguments.get("goal_uuid") or "").strip()
+        try:
+            owner = int(arguments.get("user_id") or 0)
+        except (TypeError, ValueError):
+            owner = 0
+        if not goal_uuid or not owner:
+            raise ActionError("Say which learning goal, and whose.")
+        if not await learning.owns_goal(organization_id, owner, goal_uuid):
+            raise ActionError("That learning goal is not here.")
+        return {
+            "action": action,
+            # The title is not on the card: the card sits on a thread others
+            # in the workspace may read, and a goal is its learner's own. The
+            # learner's screen shows the title beside the card.
+            "args": {"goal_uuid": goal_uuid, "user_id": owner},
+            "label": "Delete a learning goal and all its practice",
+            "why": why or "Asked to delete it from the progress page.",
+            "reversible": False,
+            "state": PROPOSED,
+        }
+
     if action == SCHEDULE_ROUTINE:
         name = str(arguments.get("name") or "").strip()[:120]
         instruction = str(arguments.get("instruction") or "").strip()
@@ -897,6 +926,7 @@ async def propose(
     if waiting is not None:
         return {
             "status": "already_proposed",
+            "event_id": waiting.id,
             "note": (
                 f"{payload['label']} is already proposed and waiting on the "
                 "thread. Do not propose it again. Say you have already "
@@ -935,6 +965,39 @@ async def propose(
             "card before it happens. Say that you have proposed it, then end "
             "your reply."
         ),
+    }
+
+
+async def propose_learning_deletion(
+    *,
+    organization_id: int,
+    user_id: int,
+    goal_uuid: str,
+    thread_id: str | None,
+) -> dict[str, Any]:
+    """The delete card for a learning goal, on Decibyl's thread the goal
+    started in. Returns ``{"status", "event_id", "payload"}``; a card
+    already waiting is returned rather than doubled."""
+    with agent_timeline.in_thread(thread_id):
+        told = await propose(
+            organization_id=organization_id,
+            workflow_id=None,
+            workflow_run_id=None,
+            arguments={
+                "action": DELETE_LEARNING_GOAL,
+                "goal_uuid": goal_uuid,
+                "user_id": user_id,
+            },
+            in_channel=False,
+        )
+    event_id = told.get("event_id")
+    if not event_id:
+        raise ActionError(str(told.get("reason") or "The card could not be made."))
+    event = await db_client.get_agent_event(event_id, organization_id=organization_id)
+    return {
+        "status": told["status"],
+        "event_id": event_id,
+        "payload": dict(event.payload or {}) if event is not None else {},
     }
 
 
@@ -1402,6 +1465,20 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
     if action == DESKTOP_STEP:
         # Nothing happens on the server: the step is the computer's to take.
         return "Approved. Your computer will do this once."
+    if action == DELETE_LEARNING_GOAL:
+        from api.services.learning import core as learning
+
+        confirmed_by = int(((payload.get("confirmed") or {}).get("by")) or 0)
+        owner = int(args.get("user_id") or 0)
+        if not owner or confirmed_by != owner:
+            # A learning record is its learner's: a colleague's Confirm on a
+            # card they can see does not delete somebody else's practice.
+            raise ActionError("Only the learner can delete their learning goal.")
+        if not await learning.delete_goal(
+            organization_id, owner, str(args.get("goal_uuid") or "")
+        ):
+            raise ActionError("That learning goal was already deleted.")
+        return "Deleted the learning goal and all its practice."
     if action == SCHEDULE_ROUTINE:
         routine = await db_client.create_routine(
             organization_id=organization_id,

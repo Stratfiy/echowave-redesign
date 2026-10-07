@@ -14,6 +14,7 @@ import { listTasksApiV1TasksGet } from "@/client/sdk.gen";
 import { SimpleTaskBoard } from "@/components/desk/SimpleTaskBoard";
 import { type BoardPayload, TaskBoard } from "@/components/desk/TaskBoard";
 import { DESK_TABS } from "@/components/layout/SectionTabs";
+import { LearningToday } from "@/components/learning/LearningToday";
 import SpinLoader from "@/components/SpinLoader";
 import { useAuth } from "@/lib/auth";
 
@@ -34,6 +35,20 @@ export default function TasksPage() {
     }, [authLoading, user]);
 
     if (authLoading || payload === undefined) return <SpinLoader />;
-    if (payload?.board?.enabled) return <TaskBoard initial={payload} tabs={DESK_TABS} />;
-    return <SimpleTaskBoard tabs={DESK_TABS} />;
+    // Learning reviews that are due sit above the work (learning_today);
+    // the section draws nothing when there is nothing due.
+    if (payload?.board?.enabled) {
+        return (
+            <>
+                <LearningToday />
+                <TaskBoard initial={payload} tabs={DESK_TABS} />
+            </>
+        );
+    }
+    return (
+        <>
+            <LearningToday />
+            <SimpleTaskBoard tabs={DESK_TABS} />
+        </>
+    );
 }

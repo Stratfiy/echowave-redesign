@@ -5889,7 +5889,7 @@ export type FeedbackWrite = {
     /**
      * Subject Kind
      */
-    subject_kind: 'reply' | 'task';
+    subject_kind: 'reply' | 'task' | 'lesson';
     /**
      * Subject Id
      */
@@ -7704,6 +7704,597 @@ export type LastCampaignSettingsResponse = {
     max_concurrency?: number | null;
     schedule_config?: ScheduleConfigResponse | null;
     circuit_breaker?: CircuitBreakerConfigResponse | null;
+};
+
+/**
+ * LearnerProfile
+ */
+export type LearnerProfile = {
+    /**
+     * Explanation Language
+     */
+    explanation_language?: string | null;
+    /**
+     * Suggested Language
+     */
+    suggested_language?: string | null;
+    /**
+     * Learner Kind
+     */
+    learner_kind: string;
+    /**
+     * Studying For
+     */
+    studying_for?: string | null;
+    /**
+     * Adult Confirmed
+     */
+    adult_confirmed: boolean;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+};
+
+/**
+ * LearnerProfileWrite
+ */
+export type LearnerProfileWrite = {
+    /**
+     * Explanation Language
+     */
+    explanation_language?: string | null;
+    /**
+     * Learner Kind
+     */
+    learner_kind?: 'adult' | 'student' | 'course_learner' | null;
+    /**
+     * Studying For
+     */
+    studying_for?: string | null;
+    /**
+     * Adult Confirmed
+     */
+    adult_confirmed?: boolean | null;
+    /**
+     * Revision
+     */
+    revision: number;
+};
+
+/**
+ * LearningAttempt
+ */
+export type LearningAttempt = {
+    /**
+     * Attempt Id
+     */
+    attempt_id: number;
+    /**
+     * Answer
+     */
+    answer: string;
+    /**
+     * Outcome
+     */
+    outcome: string;
+    /**
+     * Rubric Results
+     */
+    rubric_results: Array<LearningRubricResult>;
+    /**
+     * Feedback
+     */
+    feedback: string;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    /**
+     * Exercise Prompt
+     */
+    exercise_prompt?: string | null;
+    /**
+     * Exercise Kind
+     */
+    exercise_kind?: string | null;
+};
+
+/**
+ * LearningAttemptResult
+ */
+export type LearningAttemptResult = {
+    attempt: LearningAttempt;
+    /**
+     * Replayed
+     */
+    replayed: boolean;
+    session: LearningSession;
+};
+
+/**
+ * LearningAttemptWrite
+ */
+export type LearningAttemptWrite = {
+    /**
+     * Exercise Id
+     */
+    exercise_id: string;
+    /**
+     * Answer
+     */
+    answer: string;
+};
+
+/**
+ * LearningBaselineAnswer
+ */
+export type LearningBaselineAnswer = {
+    /**
+     * Answer
+     */
+    answer: string;
+};
+
+/**
+ * LearningDeletionCard
+ */
+export type LearningDeletionCard = {
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Event Id
+     */
+    event_id: number;
+    /**
+     * Payload
+     */
+    payload: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * LearningExercise
+ */
+export type LearningExercise = {
+    /**
+     * Exercise Id
+     */
+    exercise_id: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Prompt
+     */
+    prompt: string;
+    /**
+     * Rubric
+     */
+    rubric: Array<LearningRubricItem>;
+    /**
+     * Status
+     */
+    status: string;
+};
+
+/**
+ * LearningGoal
+ */
+export type LearningGoal = {
+    /**
+     * Goal Id
+     */
+    goal_id: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Studying For
+     */
+    studying_for?: string | null;
+    /**
+     * Explanation Language
+     */
+    explanation_language: string;
+    /**
+     * Has Material
+     */
+    has_material: boolean;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Baseline Level
+     */
+    baseline_level?: string | null;
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
+    /**
+     * Review Reminders
+     */
+    review_reminders: boolean;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    /**
+     * Last Practised At
+     */
+    last_practised_at?: string | null;
+};
+
+/**
+ * LearningGoalStart
+ */
+export type LearningGoalStart = {
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Studying For
+     */
+    studying_for?: string | null;
+    /**
+     * Explanation Language
+     */
+    explanation_language?: string | null;
+    /**
+     * Material
+     */
+    material?: string | null;
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
+    /**
+     * Confirm Sensitive
+     */
+    confirm_sensitive?: boolean;
+};
+
+/**
+ * LearningGoalUpdate
+ */
+export type LearningGoalUpdate = {
+    /**
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Explanation Language
+     */
+    explanation_language?: string | null;
+    /**
+     * Review Reminders
+     */
+    review_reminders?: boolean | null;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Confirm Sensitive
+     */
+    confirm_sensitive?: boolean;
+};
+
+/**
+ * LearningLesson
+ */
+export type LearningLesson = {
+    /**
+     * Lesson Id
+     */
+    lesson_id: number;
+    /**
+     * Objective
+     */
+    objective: string;
+    /**
+     * Explanation
+     */
+    explanation: string;
+    /**
+     * Source Kind
+     */
+    source_kind: string;
+    /**
+     * Sources
+     */
+    sources: Array<string>;
+    /**
+     * Skill
+     */
+    skill: string;
+    /**
+     * Skill Id
+     */
+    skill_id: number;
+};
+
+/**
+ * LearningNextExercise
+ */
+export type LearningNextExercise = {
+    /**
+     * Easier
+     */
+    easier?: boolean;
+    /**
+     * Skill Id
+     */
+    skill_id?: number | null;
+};
+
+/**
+ * LearningNextStep
+ */
+export type LearningNextStep = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Skill Id
+     */
+    skill_id?: number | null;
+};
+
+/**
+ * LearningProgress
+ */
+export type LearningProgress = {
+    goal: LearningGoal;
+    /**
+     * Practice Count
+     */
+    practice_count: number;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Skills
+     */
+    skills: Array<LearningSkill>;
+    /**
+     * Recent
+     */
+    recent: Array<LearningAttempt>;
+    next_step: LearningNextStep;
+};
+
+/**
+ * LearningReviewDue
+ */
+export type LearningReviewDue = {
+    /**
+     * Goal Id
+     */
+    goal_id: string;
+    /**
+     * Goal Title
+     */
+    goal_title: string;
+    /**
+     * Skill Id
+     */
+    skill_id: number;
+    /**
+     * Skill Name
+     */
+    skill_name: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Due At
+     */
+    due_at?: string | null;
+};
+
+/**
+ * LearningReviewStart
+ */
+export type LearningReviewStart = {
+    /**
+     * Skill Id
+     */
+    skill_id: number;
+};
+
+/**
+ * LearningRubricItem
+ */
+export type LearningRubricItem = {
+    /**
+     * Criterion
+     */
+    criterion: string;
+    /**
+     * Description
+     */
+    description: string;
+};
+
+/**
+ * LearningRubricResult
+ */
+export type LearningRubricResult = {
+    /**
+     * Criterion
+     */
+    criterion?: string | null;
+    /**
+     * Met
+     */
+    met: boolean;
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+/**
+ * LearningSession
+ */
+export type LearningSession = {
+    goal: LearningGoal;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Baseline Question
+     */
+    baseline_question?: string | null;
+    /**
+     * Baseline Feedback
+     */
+    baseline_feedback?: string | null;
+    lesson?: LearningLesson | null;
+    exercise?: LearningExercise | null;
+    /**
+     * Attempts
+     */
+    attempts?: Array<LearningAttempt>;
+};
+
+/**
+ * LearningSkill
+ */
+export type LearningSkill = {
+    /**
+     * Skill Id
+     */
+    skill_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Evaluated Attempts
+     */
+    evaluated_attempts: number;
+    /**
+     * Passed Attempts
+     */
+    passed_attempts: number;
+    /**
+     * Last Outcome
+     */
+    last_outcome?: string | null;
+    /**
+     * Next Review At
+     */
+    next_review_at?: string | null;
+    /**
+     * Review Due
+     */
+    review_due: boolean;
+};
+
+/**
+ * LearningSkillDetail
+ */
+export type LearningSkillDetail = {
+    skill: LearningSkill;
+    /**
+     * Rubric
+     */
+    rubric: Array<LearningRubricItem>;
+    /**
+     * Attempts
+     */
+    attempts: Array<LearningAttempt>;
+};
+
+/**
+ * LearningStatus
+ */
+export type LearningStatus = {
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Teacher
+     */
+    teacher: string;
+    profile: LearnerProfile;
+    /**
+     * Languages
+     */
+    languages: Array<string>;
+    /**
+     * Today
+     */
+    today: boolean;
+};
+
+/**
+ * LearningSuggestion
+ */
+export type LearningSuggestion = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Goal Id
+     */
+    goal_id: string;
+    /**
+     * Skill Id
+     */
+    skill_id: number;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Action
+     */
+    action: string;
 };
 
 /**
@@ -35309,7 +35900,7 @@ export type MyFeedbackApiV1FeedbackMineGetData = {
         /**
          * Subject Kind
          */
-        subject_kind?: 'reply' | 'task';
+        subject_kind?: 'reply' | 'task' | 'lesson';
         /**
          * Ids
          */
@@ -42888,6 +43479,692 @@ export type CheckOrderApiV1ReachOrdersOrderIdCheckPostResponses = {
 };
 
 export type CheckOrderApiV1ReachOrdersOrderIdCheckPostResponse = CheckOrderApiV1ReachOrdersOrderIdCheckPostResponses[keyof CheckOrderApiV1ReachOrdersOrderIdCheckPostResponses];
+
+export type LearningStatusApiV1LearningStatusGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/learning/status';
+};
+
+export type LearningStatusApiV1LearningStatusGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LearningStatusApiV1LearningStatusGetError = LearningStatusApiV1LearningStatusGetErrors[keyof LearningStatusApiV1LearningStatusGetErrors];
+
+export type LearningStatusApiV1LearningStatusGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: LearningStatus;
+};
+
+export type LearningStatusApiV1LearningStatusGetResponse = LearningStatusApiV1LearningStatusGetResponses[keyof LearningStatusApiV1LearningStatusGetResponses];
+
+export type SaveLearnerProfileApiV1LearningProfilePutData = {
+    body: LearnerProfileWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/learning/profile';
+};
+
+export type SaveLearnerProfileApiV1LearningProfilePutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveLearnerProfileApiV1LearningProfilePutError = SaveLearnerProfileApiV1LearningProfilePutErrors[keyof SaveLearnerProfileApiV1LearningProfilePutErrors];
+
+export type SaveLearnerProfileApiV1LearningProfilePutResponses = {
+    /**
+     * Successful Response
+     */
+    200: LearnerProfile;
+};
+
+export type SaveLearnerProfileApiV1LearningProfilePutResponse = SaveLearnerProfileApiV1LearningProfilePutResponses[keyof SaveLearnerProfileApiV1LearningProfilePutResponses];
+
+export type MyLearningGoalsApiV1LearningGoalsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/learning/goals';
+};
+
+export type MyLearningGoalsApiV1LearningGoalsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyLearningGoalsApiV1LearningGoalsGetError = MyLearningGoalsApiV1LearningGoalsGetErrors[keyof MyLearningGoalsApiV1LearningGoalsGetErrors];
+
+export type MyLearningGoalsApiV1LearningGoalsGetResponses = {
+    /**
+     * Response My Learning Goals Api V1 Learning Goals Get
+     *
+     * Successful Response
+     */
+    200: Array<LearningGoal>;
+};
+
+export type MyLearningGoalsApiV1LearningGoalsGetResponse = MyLearningGoalsApiV1LearningGoalsGetResponses[keyof MyLearningGoalsApiV1LearningGoalsGetResponses];
+
+export type StartLearningGoalApiV1LearningGoalsPostData = {
+    body: LearningGoalStart;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/learning/goals';
+};
+
+export type StartLearningGoalApiV1LearningGoalsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StartLearningGoalApiV1LearningGoalsPostError = StartLearningGoalApiV1LearningGoalsPostErrors[keyof StartLearningGoalApiV1LearningGoalsPostErrors];
+
+export type StartLearningGoalApiV1LearningGoalsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: LearningSession;
+};
+
+export type StartLearningGoalApiV1LearningGoalsPostResponse = StartLearningGoalApiV1LearningGoalsPostResponses[keyof StartLearningGoalApiV1LearningGoalsPostResponses];
+
+export type UpdateLearningGoalApiV1LearningGoalsGoalIdPatchData = {
+    body: LearningGoalUpdate;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Goal Id
+         */
+        goal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/learning/goals/{goal_id}';
+};
+
+export type UpdateLearningGoalApiV1LearningGoalsGoalIdPatchErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateLearningGoalApiV1LearningGoalsGoalIdPatchError = UpdateLearningGoalApiV1LearningGoalsGoalIdPatchErrors[keyof UpdateLearningGoalApiV1LearningGoalsGoalIdPatchErrors];
+
+export type UpdateLearningGoalApiV1LearningGoalsGoalIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: LearningGoal;
+};
+
+export type UpdateLearningGoalApiV1LearningGoalsGoalIdPatchResponse = UpdateLearningGoalApiV1LearningGoalsGoalIdPatchResponses[keyof UpdateLearningGoalApiV1LearningGoalsGoalIdPatchResponses];
+
+export type LearningSessionApiV1LearningGoalsGoalIdSessionGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Goal Id
+         */
+        goal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/learning/goals/{goal_id}/session';
+};
+
+export type LearningSessionApiV1LearningGoalsGoalIdSessionGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LearningSessionApiV1LearningGoalsGoalIdSessionGetError = LearningSessionApiV1LearningGoalsGoalIdSessionGetErrors[keyof LearningSessionApiV1LearningGoalsGoalIdSessionGetErrors];
+
+export type LearningSessionApiV1LearningGoalsGoalIdSessionGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: LearningSession;
+};
+
+export type LearningSessionApiV1LearningGoalsGoalIdSessionGetResponse = LearningSessionApiV1LearningGoalsGoalIdSessionGetResponses[keyof LearningSessionApiV1LearningGoalsGoalIdSessionGetResponses];
+
+export type AnswerLearningBaselineApiV1LearningGoalsGoalIdBaselinePostData = {
+    body: LearningBaselineAnswer;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Goal Id
+         */
+        goal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/learning/goals/{goal_id}/baseline';
+};
+
+export type AnswerLearningBaselineApiV1LearningGoalsGoalIdBaselinePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AnswerLearningBaselineApiV1LearningGoalsGoalIdBaselinePostError = AnswerLearningBaselineApiV1LearningGoalsGoalIdBaselinePostErrors[keyof AnswerLearningBaselineApiV1LearningGoalsGoalIdBaselinePostErrors];
+
+export type AnswerLearningBaselineApiV1LearningGoalsGoalIdBaselinePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: LearningSession;
+};
+
+export type AnswerLearningBaselineApiV1LearningGoalsGoalIdBaselinePostResponse = AnswerLearningBaselineApiV1LearningGoalsGoalIdBaselinePostResponses[keyof AnswerLearningBaselineApiV1LearningGoalsGoalIdBaselinePostResponses];
+
+export type NextLearningExerciseApiV1LearningGoalsGoalIdNextPostData = {
+    body: LearningNextExercise;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Goal Id
+         */
+        goal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/learning/goals/{goal_id}/next';
+};
+
+export type NextLearningExerciseApiV1LearningGoalsGoalIdNextPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type NextLearningExerciseApiV1LearningGoalsGoalIdNextPostError = NextLearningExerciseApiV1LearningGoalsGoalIdNextPostErrors[keyof NextLearningExerciseApiV1LearningGoalsGoalIdNextPostErrors];
+
+export type NextLearningExerciseApiV1LearningGoalsGoalIdNextPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: LearningSession;
+};
+
+export type NextLearningExerciseApiV1LearningGoalsGoalIdNextPostResponse = NextLearningExerciseApiV1LearningGoalsGoalIdNextPostResponses[keyof NextLearningExerciseApiV1LearningGoalsGoalIdNextPostResponses];
+
+export type StartLearningReviewApiV1LearningGoalsGoalIdReviewPostData = {
+    body: LearningReviewStart;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Goal Id
+         */
+        goal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/learning/goals/{goal_id}/review';
+};
+
+export type StartLearningReviewApiV1LearningGoalsGoalIdReviewPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StartLearningReviewApiV1LearningGoalsGoalIdReviewPostError = StartLearningReviewApiV1LearningGoalsGoalIdReviewPostErrors[keyof StartLearningReviewApiV1LearningGoalsGoalIdReviewPostErrors];
+
+export type StartLearningReviewApiV1LearningGoalsGoalIdReviewPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: LearningSession;
+};
+
+export type StartLearningReviewApiV1LearningGoalsGoalIdReviewPostResponse = StartLearningReviewApiV1LearningGoalsGoalIdReviewPostResponses[keyof StartLearningReviewApiV1LearningGoalsGoalIdReviewPostResponses];
+
+export type SubmitLearningAttemptApiV1LearningGoalsGoalIdAttemptsPostData = {
+    body: LearningAttemptWrite;
+    headers: {
+        /**
+         * Idempotency-Key
+         */
+        'Idempotency-Key': string;
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Goal Id
+         */
+        goal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/learning/goals/{goal_id}/attempts';
+};
+
+export type SubmitLearningAttemptApiV1LearningGoalsGoalIdAttemptsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SubmitLearningAttemptApiV1LearningGoalsGoalIdAttemptsPostError = SubmitLearningAttemptApiV1LearningGoalsGoalIdAttemptsPostErrors[keyof SubmitLearningAttemptApiV1LearningGoalsGoalIdAttemptsPostErrors];
+
+export type SubmitLearningAttemptApiV1LearningGoalsGoalIdAttemptsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: LearningAttemptResult;
+};
+
+export type SubmitLearningAttemptApiV1LearningGoalsGoalIdAttemptsPostResponse = SubmitLearningAttemptApiV1LearningGoalsGoalIdAttemptsPostResponses[keyof SubmitLearningAttemptApiV1LearningGoalsGoalIdAttemptsPostResponses];
+
+export type LearningProgressApiV1LearningGoalsGoalIdProgressGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Goal Id
+         */
+        goal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/learning/goals/{goal_id}/progress';
+};
+
+export type LearningProgressApiV1LearningGoalsGoalIdProgressGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LearningProgressApiV1LearningGoalsGoalIdProgressGetError = LearningProgressApiV1LearningGoalsGoalIdProgressGetErrors[keyof LearningProgressApiV1LearningGoalsGoalIdProgressGetErrors];
+
+export type LearningProgressApiV1LearningGoalsGoalIdProgressGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: LearningProgress;
+};
+
+export type LearningProgressApiV1LearningGoalsGoalIdProgressGetResponse = LearningProgressApiV1LearningGoalsGoalIdProgressGetResponses[keyof LearningProgressApiV1LearningGoalsGoalIdProgressGetResponses];
+
+export type LearningSkillApiV1LearningGoalsGoalIdSkillsSkillIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Goal Id
+         */
+        goal_id: string;
+        /**
+         * Skill Id
+         */
+        skill_id: number;
+    };
+    query?: never;
+    url: '/api/v1/learning/goals/{goal_id}/skills/{skill_id}';
+};
+
+export type LearningSkillApiV1LearningGoalsGoalIdSkillsSkillIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LearningSkillApiV1LearningGoalsGoalIdSkillsSkillIdGetError = LearningSkillApiV1LearningGoalsGoalIdSkillsSkillIdGetErrors[keyof LearningSkillApiV1LearningGoalsGoalIdSkillsSkillIdGetErrors];
+
+export type LearningSkillApiV1LearningGoalsGoalIdSkillsSkillIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: LearningSkillDetail;
+};
+
+export type LearningSkillApiV1LearningGoalsGoalIdSkillsSkillIdGetResponse = LearningSkillApiV1LearningGoalsGoalIdSkillsSkillIdGetResponses[keyof LearningSkillApiV1LearningGoalsGoalIdSkillsSkillIdGetResponses];
+
+export type ExportLearningGoalApiV1LearningGoalsGoalIdExportGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Goal Id
+         */
+        goal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/learning/goals/{goal_id}/export';
+};
+
+export type ExportLearningGoalApiV1LearningGoalsGoalIdExportGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ExportLearningGoalApiV1LearningGoalsGoalIdExportGetError = ExportLearningGoalApiV1LearningGoalsGoalIdExportGetErrors[keyof ExportLearningGoalApiV1LearningGoalsGoalIdExportGetErrors];
+
+export type ExportLearningGoalApiV1LearningGoalsGoalIdExportGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type RequestLearningDeletionApiV1LearningGoalsGoalIdDeletionPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Goal Id
+         */
+        goal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/learning/goals/{goal_id}/deletion';
+};
+
+export type RequestLearningDeletionApiV1LearningGoalsGoalIdDeletionPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RequestLearningDeletionApiV1LearningGoalsGoalIdDeletionPostError = RequestLearningDeletionApiV1LearningGoalsGoalIdDeletionPostErrors[keyof RequestLearningDeletionApiV1LearningGoalsGoalIdDeletionPostErrors];
+
+export type RequestLearningDeletionApiV1LearningGoalsGoalIdDeletionPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: LearningDeletionCard;
+};
+
+export type RequestLearningDeletionApiV1LearningGoalsGoalIdDeletionPostResponse = RequestLearningDeletionApiV1LearningGoalsGoalIdDeletionPostResponses[keyof RequestLearningDeletionApiV1LearningGoalsGoalIdDeletionPostResponses];
+
+export type LearningReviewsDueApiV1LearningReviewsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/learning/reviews';
+};
+
+export type LearningReviewsDueApiV1LearningReviewsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LearningReviewsDueApiV1LearningReviewsGetError = LearningReviewsDueApiV1LearningReviewsGetErrors[keyof LearningReviewsDueApiV1LearningReviewsGetErrors];
+
+export type LearningReviewsDueApiV1LearningReviewsGetResponses = {
+    /**
+     * Response Learning Reviews Due Api V1 Learning Reviews Get
+     *
+     * Successful Response
+     */
+    200: Array<LearningReviewDue>;
+};
+
+export type LearningReviewsDueApiV1LearningReviewsGetResponse = LearningReviewsDueApiV1LearningReviewsGetResponses[keyof LearningReviewsDueApiV1LearningReviewsGetResponses];
+
+export type LearningSuggestionsApiV1LearningSuggestionsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/learning/suggestions';
+};
+
+export type LearningSuggestionsApiV1LearningSuggestionsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LearningSuggestionsApiV1LearningSuggestionsGetError = LearningSuggestionsApiV1LearningSuggestionsGetErrors[keyof LearningSuggestionsApiV1LearningSuggestionsGetErrors];
+
+export type LearningSuggestionsApiV1LearningSuggestionsGetResponses = {
+    /**
+     * Response Learning Suggestions Api V1 Learning Suggestions Get
+     *
+     * Successful Response
+     */
+    200: Array<LearningSuggestion>;
+};
+
+export type LearningSuggestionsApiV1LearningSuggestionsGetResponse = LearningSuggestionsApiV1LearningSuggestionsGetResponses[keyof LearningSuggestionsApiV1LearningSuggestionsGetResponses];
 
 export type PublicShelfApiV1PublicMarketplaceGetData = {
     body?: never;

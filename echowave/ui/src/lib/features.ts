@@ -85,7 +85,10 @@ export type Feature =
     // Launch stream `reach` (LAUNCH-PLAN.md, phase 2).
     | "outside_tools"
     | "ordering"
-    | "price_compare";
+    | "price_compare"
+    // Launch stream `learning` (LAUNCH-PLAN.md, phase 2).
+    | "learning"
+    | "learning_today";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

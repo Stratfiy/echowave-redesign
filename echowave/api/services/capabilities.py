@@ -176,10 +176,18 @@ CAPABILITIES: tuple[Capability, ...] = (
         "learning",
         "Learning practice and progress",
         "3, 6, 23",
-        modules=("api.services.knowledge_graph.spaced_recall",),
-        tests=(),
-        note="Recalled facts only; no curriculum or mastery yet (stream learning).",
-        extra={"partial": True},
+        modules=(
+            "api.services.learning.core",
+            "api.services.learning.teacher",
+            "api.services.learning.guide",
+            "api.routes.learning",
+        ),
+        flags=("learning",),
+        tests=("test_learning.py", "test_learning_routes.py"),
+        note=(
+            "Goals on any subject, lessons, evaluated practice and progress; "
+            "lessons need a model key (needs setup without one)."
+        ),
     ),
     Capability(
         "skills",

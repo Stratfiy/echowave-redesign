@@ -41,7 +41,8 @@ export type Home = {
 };
 
 export const HOMES: readonly Home[] = [
-  { id: "chat", title: "Chat", url: "/overview", icon: MessageCircle, activePaths: ["/workflow", "/channels"] },
+  // Learning progress (/learning) opens from its conversation (screen 14).
+  { id: "chat", title: "Chat", url: "/overview", icon: MessageCircle, activePaths: ["/workflow", "/channels", "/learning"] },
   {
     id: "today",
     title: "Today",

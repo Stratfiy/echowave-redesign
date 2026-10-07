@@ -159,6 +159,9 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             # Older people and their families: medicine reminder calls,
             # scam checks, tech help and the family circle (stream `care`).
             "care",
+            # A person's learning goals, lessons, practice and progress
+            # (launch stream `learning`).
+            "learning",
         ),
     ),
     (
