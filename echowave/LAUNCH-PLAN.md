@@ -352,7 +352,8 @@ hourly, reviews and merges each PR, and starts the next streams.
 | --- | --- |
 | controls | session_019YoNV9e1VRicijtBy3dqkK |
 | shell | session_017pePFdhf7extTGvF4vmJTU |
-| ops (+ aws-gateway) | session_01KBVvNANs8kwyrHBMKDox7d |
+| ops | session_01KBVvNANs8kwyrHBMKDox7d |
+| aws-gateway | session_01K3AYRzykvKavBj3jXmZ454 |
 | browser | session_01Me1mkRqDovMsuhnAMz4NUK |
 | desktop | session_01HnRghELvdY4pxEZobCWn4Z |
 
