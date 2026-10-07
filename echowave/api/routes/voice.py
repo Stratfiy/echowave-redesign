@@ -451,9 +451,17 @@ async def save_appointment_policy(
             detail={"message": str(exc), "stored": _policy(exc.stored).model_dump()},
         ) from exc
     if saved.get("call_workflow_id"):
-        # The helper gets the booking tool; attaching it to the agent's steps
-        # is the agent owner's choice in the editor.
-        await appointments.ensure_tool(organization_id=organization_id, user_id=user.id)
+        # The helper gets the booking tool, on the steps that talk to the
+        # caller: choosing it here is the owner saying this agent books.
+        tool_uuid = await appointments.ensure_tool(
+            organization_id=organization_id, user_id=user.id
+        )
+        if tool_uuid:
+            await appointments.attach_to_agent(
+                organization_id=organization_id,
+                workflow_id=int(saved["call_workflow_id"]),
+                tool_uuid=tool_uuid,
+            )
     return _policy(saved)
 
 

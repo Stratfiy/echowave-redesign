@@ -35,6 +35,8 @@ Off (``call_appointment``), the tool is not offered and the routes are 404s.
 
 from __future__ import annotations
 
+import json
+
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -704,3 +706,58 @@ async def ensure_tool(*, organization_id: int, user_id: int) -> str | None:
         icon_color="#075A39",
     )
     return str(created.tool_uuid)
+
+
+async def attach_to_agent(
+    *, organization_id: int, workflow_id: int, tool_uuid: str
+) -> int:
+    """Put the booking tool on the talking steps of the agent the policy
+    names, in its draft. Returns how many steps gained it (0 when they all
+    had it already).
+
+    Choosing "the helper that answers booking calls" is the owner's choice
+    that this agent books; leaving the tool for them to find in the editor
+    was a dead end they could not see. A draft, like every change made for
+    an owner -- a person publishes -- and appended, never replacing a tool a
+    step already holds.
+    """
+    from api.services.workflow import brief_apps
+
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=organization_id
+    )
+    if workflow is None:
+        return 0
+    draft = await db_client.get_draft_version(workflow.id)
+    source = (
+        draft.workflow_json
+        if draft is not None
+        else (
+            workflow.released_definition.workflow_json
+            if getattr(workflow, "released_definition", None) is not None
+            else workflow.workflow_definition
+        )
+    )
+    definition = json.loads(json.dumps(source or {}))
+    before = sum(
+        tool_uuid in ((n.get("data") or {}).get("tool_uuids") or [])
+        for n in definition.get("nodes") or []
+        if isinstance(n, dict)
+    )
+    definition = brief_apps.attach(definition, [tool_uuid])
+    after = sum(
+        tool_uuid in ((n.get("data") or {}).get("tool_uuids") or [])
+        for n in definition.get("nodes") or []
+        if isinstance(n, dict)
+    )
+    if after == before:
+        return 0
+    await db_client.update_workflow(
+        workflow.id,
+        name=None,
+        workflow_definition=definition,
+        template_context_variables=None,
+        workflow_configurations=None,
+        organization_id=organization_id,
+    )
+    return after - before
