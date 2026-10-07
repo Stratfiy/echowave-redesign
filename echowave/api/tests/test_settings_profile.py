@@ -256,6 +256,35 @@ class TestTheNextTurn:
         assert "You may send email without asking me." in block
         assert "do not grant any permission" in block
 
+    async def test_simple_mode_reaches_the_turn(self, people, shell_on, monkeypatch):
+        # Found by evals/decibyl (care): with Simple mode on, the preference
+        # was saved and drew the large-text screen, but the assistant was
+        # never told, so it answered with the same lists and choices.
+        monkeypatch.setattr(constants, "CARE_SIMPLE_MODE_ENABLED", True)
+        await member_preferences.save(people.a.id, {"simple_mode": True}, revision=0)
+        block = await profile.block_for_turn(people.org, people.a.id, None)
+        assert block is not None
+        assert "Simple mode" in block and "one thing at a time" in block
+
+    async def test_simple_mode_off_or_not_offered_says_nothing(
+        self, people, shell_on, monkeypatch
+    ):
+        await member_preferences.save(
+            people.a.id, {"preferred_name": "Nithya"}, revision=0
+        )
+        monkeypatch.setattr(constants, "CARE_SIMPLE_MODE_ENABLED", True)
+        assert "Simple mode" not in await profile.block_for_turn(
+            people.org, people.a.id, None
+        )
+        stored = await member_preferences.get(people.a.id)
+        await member_preferences.save(
+            people.a.id, {"simple_mode": True}, revision=int(stored["revision"])
+        )
+        monkeypatch.setattr(constants, "CARE_SIMPLE_MODE_ENABLED", False)
+        assert "Simple mode" not in await profile.block_for_turn(
+            people.org, people.a.id, None
+        )
+
     async def test_the_block_reaches_the_system_prompt_for_that_turn_only(
         self, people, shell_on
     ):
