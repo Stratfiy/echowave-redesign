@@ -388,4 +388,4 @@ hourly, reviews and merges each PR, and starts the next streams.
 | agents | 2 | claude/stream-agents | #532 merged | yes (Learning Guide reads learning's services) | 244 core + 156 pass | on staging, flags on, check 15/15 |
 | today | 2 | claude/stream-today | #535 merged | yes (docked approvals, one answer_refusal) | 335 + 245 pass | on staging, flags on, check 15/15 |
 | settings | 2 | claude/stream-settings | #538 merged | yes | 304 + 324 pass | on staging, flags on, check 15/15 |
-| voice | 2 | claude/stream-voice | #536 merged | yes (one speed setting with settings, one voice screen) | 345 pass | deploying |
+| voice | 2 | claude/stream-voice | #536 merged | yes (one speed setting with settings, one voice screen) | 345 pass | on staging, flags on, check 15/15 |
