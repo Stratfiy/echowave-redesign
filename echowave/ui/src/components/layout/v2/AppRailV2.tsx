@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpCircle, Bot, ChevronLeft, ChevronRight, LifeBuoy, LogOut, Settings, X } from "lucide-react";
+import { ArrowUpCircle, Bot, ChevronLeft, ChevronRight, LifeBuoy, LogOut, Settings, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";
@@ -215,7 +215,8 @@ export function AccountMenu({
             data-testid="header-profile"
           >
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-              {initials}
+              {/* No name or email to take letters from: a person, not "?". */}
+              {initials === "?" ? <UserRound aria-hidden className="h-4 w-4" /> : initials}
             </span>
           </button>
         ) : (

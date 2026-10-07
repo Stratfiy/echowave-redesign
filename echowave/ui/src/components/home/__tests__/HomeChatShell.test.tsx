@@ -83,6 +83,15 @@ describe("Chat start", () => {
         expect(api.post).not.toHaveBeenCalled();
     });
 
+    it("offers everyday starters, not agent-building jobs, when the server has none", async () => {
+        api.home.mockResolvedValue({ data: { headline: { ...headline, agents: 0 }, suggestions: [], openers: [] } });
+        render(<HomeAboveTheFold />);
+        expect(await screen.findByText("Help me plan today")).toBeTruthy();
+        expect(screen.getByText("Teach me something")).toBeTruthy();
+        expect(screen.getByText("Help with a reply")).toBeTruthy();
+        expect(screen.queryByText("Answer my phone and book appointments")).toBeNull();
+    });
+
     it("asks the first task from onboarding exactly once, then takes it off the address", async () => {
         api.home.mockResolvedValue({ data: { headline, suggestions: [], openers: [] } });
         window.history.replaceState(null, "", "/overview?ask=Plan%20my%20week");

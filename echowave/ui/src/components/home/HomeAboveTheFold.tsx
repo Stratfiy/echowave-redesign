@@ -60,6 +60,14 @@ export const FIRST_JOBS = [
   "Send me a summary every morning",
 ] as const;
 
+/** The Chat start's own starters (handoff section 21), for an account the
+ *  server has no cards for yet: everyday help first, not building an agent. */
+export const CHAT_STARTERS = [
+  "Help me plan today",
+  "Teach me something",
+  "Help with a reply",
+] as const;
+
 /** At most three starters on the Chat start (screen 03). */
 export const MAX_STARTERS = 3;
 
@@ -421,7 +429,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         >
           {(openers.length > 0
             ? openers
-            : (brandNew ? FIRST_JOBS : OPENERS).map((text, index) => ({
+            : (chatShell ? CHAT_STARTERS : brandNew ? FIRST_JOBS : OPENERS).map((text, index) => ({
                 kind: brandNew || index === 0 ? "time" : "attention",
                 text,
               }))
