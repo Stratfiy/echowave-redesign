@@ -368,7 +368,7 @@ hourly, reviews and merges each PR, and starts the next streams.
 | learning | 2 | claude/stream-learning | | | | |
 | voice | 2 | claude/stream-voice | | | | |
 | meetings | 2 | claude/stream-meetings | | | | |
-| identity | 2 | claude/stream-identity | draft | yes (IDENTITY.md) | 171 backend + 33 UI new; running-instance checks pass | |
+| identity | 2 | claude/stream-identity | draft | yes (IDENTITY.md) | 117 backend + 29 UI new tests; 34 running-instance checks pass | |
 | settings | 2 | claude/stream-settings | | | | |
 | support | 2 | claude/stream-support | | | | |
 | staff | 2 | claude/stream-staff | | | | |
