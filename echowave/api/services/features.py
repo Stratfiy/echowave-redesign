@@ -125,6 +125,12 @@ FLAGS: dict[str, str] = {
     "laya_guardrails": "LAYA_GUARDRAILS_ENABLED",
     "laya_rollback": "LAYA_ROLLBACK_ENABLED",
     "cost_stop": "COST_STOP_ENABLED",
+    # Launch stream `care` (LAUNCH-PLAN.md, phase 2).
+    "care_simple_mode": "CARE_SIMPLE_MODE_ENABLED",
+    "care_medicine_calls": "CARE_MEDICINE_CALLS_ENABLED",
+    "care_scam_check": "CARE_SCAM_CHECK_ENABLED",
+    "care_tech_help": "CARE_TECH_HELP_ENABLED",
+    "care_family_circle": "CARE_FAMILY_CIRCLE_ENABLED",
 }
 
 
@@ -197,6 +203,11 @@ DESCRIPTIONS: dict[str, str] = {
     "laya_guardrails": "Laya hard deadline, circuit breaker and shadow agreement statistics.",
     "laya_rollback": "Rollback: Auto routes by rules alone and never asks Laya.",
     "cost_stop": "Stop new billable work when provider spend runs away.",
+    "care_simple_mode": "Simple mode: large text, voice first, one thing at a time (needs member_preferences).",
+    "care_medicine_calls": "Medicine reminder calls in the person's language, with a family alert when a dose is missed.",
+    "care_scam_check": "Is this a scam? Paste or describe a message or call; a plain answer and why.",
+    "care_tech_help": "Step-by-step phone help in plain words, one step at a time, with did that work?",
+    "care_family_circle": "A family circle the older person consents to; family see only what is shared with them.",
 }
 
 

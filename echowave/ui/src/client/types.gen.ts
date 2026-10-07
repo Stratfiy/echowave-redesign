@@ -229,6 +229,30 @@ export type AcceptInvitationRequest = {
 };
 
 /**
+ * AcceptInvite
+ */
+export type AcceptInvite = {
+    /**
+     * Code
+     */
+    code: string;
+};
+
+/**
+ * Accepted
+ */
+export type Accepted = {
+    /**
+     * Person
+     */
+    person: string;
+    /**
+     * Shares
+     */
+    shares: Array<string>;
+};
+
+/**
  * ActiveCallsResponse
  */
 export type ActiveCallsResponse = {
@@ -2611,6 +2635,68 @@ export type CampaignsResponse = {
 };
 
 /**
+ * CarePart
+ */
+export type CarePart = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+};
+
+/**
+ * CareStatus
+ */
+export type CareStatus = {
+    /**
+     * Parts
+     */
+    parts: Array<CarePart>;
+    /**
+     * Shares
+     */
+    shares: Array<ShareOption>;
+};
+
+/**
+ * CaredFor
+ */
+export type CaredFor = {
+    /**
+     * Member Id
+     */
+    member_id: number;
+    /**
+     * Person
+     */
+    person: string;
+    /**
+     * Shares
+     */
+    shares: Array<string>;
+    /**
+     * Alerts
+     */
+    alerts: Array<FamilyAlert>;
+    /**
+     * Medicines
+     */
+    medicines?: Array<FamilyMedicine> | null;
+    /**
+     * Scam Checks
+     */
+    scam_checks?: Array<FamilyScamCheck> | null;
+};
+
+/**
  * CarrierVerdictRequest
  *
  * Records what the carrier decided.
@@ -2903,6 +2989,80 @@ export type ChunkSearchResponseSchema = {
      * Total Results
      */
     total_results: number;
+};
+
+/**
+ * Circle
+ */
+export type Circle = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Display Name
+     */
+    display_name: string | null;
+    /**
+     * Members
+     */
+    members: Array<CircleMember>;
+    /**
+     * Shares
+     */
+    shares: Array<ShareOption>;
+};
+
+/**
+ * CircleMember
+ */
+export type CircleMember = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Shares
+     */
+    shares: Array<string>;
+    /**
+     * Pending Shares
+     */
+    pending_shares: Array<string>;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Consent Event Id
+     */
+    consent_event_id?: number | null;
+    /**
+     * Invite Expires At
+     */
+    invite_expires_at?: string | null;
+    /**
+     * Accepted At
+     */
+    accepted_at?: string | null;
+};
+
+/**
+ * CircleName
+ */
+export type CircleName = {
+    /**
+     * Display Name
+     */
+    display_name: string;
 };
 
 /**
@@ -4959,6 +5119,32 @@ export type DoorAnswers = {
 };
 
 /**
+ * Dose
+ */
+export type Dose = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Due At
+     */
+    due_at: string;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Alerted
+     */
+    alerted: boolean;
+};
+
+/**
  * DraftResponse
  */
 export type DraftResponse = {
@@ -5562,6 +5748,108 @@ export type FallbackServiceConfiguration = {
      * Language
      */
     language?: string;
+};
+
+/**
+ * FamilyAlert
+ */
+export type FamilyAlert = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * At
+     */
+    at: string;
+    /**
+     * Read
+     */
+    read: boolean;
+};
+
+/**
+ * FamilyDose
+ */
+export type FamilyDose = {
+    /**
+     * Due At
+     */
+    due_at: string;
+    /**
+     * State
+     */
+    state: string;
+};
+
+/**
+ * FamilyMedicine
+ */
+export type FamilyMedicine = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Times
+     */
+    times: Array<string>;
+    /**
+     * Timezone
+     */
+    timezone: string;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Doses
+     */
+    doses: Array<FamilyDose>;
+};
+
+/**
+ * FamilyScamCheck
+ */
+export type FamilyScamCheck = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Verdict
+     */
+    verdict: string;
+    /**
+     * Signals
+     */
+    signals: Array<string>;
+    /**
+     * At
+     */
+    at: string;
+};
+
+/**
+ * FamilyView
+ */
+export type FamilyView = {
+    /**
+     * People
+     */
+    people: Array<CaredFor>;
 };
 
 /**
@@ -6513,6 +6801,127 @@ export type HealthResponse = {
     features?: {
         [key: string]: boolean;
     };
+};
+
+/**
+ * HelpAnswer
+ */
+export type HelpAnswer = {
+    /**
+     * Worked
+     */
+    worked: boolean;
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * HelpSession
+ */
+export type HelpSession = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Guide
+     */
+    guide: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Step Number
+     */
+    step_number: number;
+    /**
+     * Steps Total
+     */
+    steps_total: number;
+    /**
+     * Say
+     */
+    say: string;
+    /**
+     * Is Alternative
+     */
+    is_alternative: boolean;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Family Told
+     */
+    family_told?: Array<string>;
+};
+
+/**
+ * HelpStart
+ */
+export type HelpStart = {
+    /**
+     * Guide
+     */
+    guide?: string | null;
+    /**
+     * Question
+     */
+    question?: string;
+};
+
+/**
+ * HelpStarted
+ */
+export type HelpStarted = {
+    /**
+     * Matched
+     */
+    matched: boolean;
+    session?: HelpSession | null;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Topics
+     */
+    topics?: Array<HelpTopic>;
+};
+
+/**
+ * HelpTopic
+ */
+export type HelpTopic = {
+    /**
+     * Slug
+     */
+    slug: string;
+    /**
+     * Title
+     */
+    title: string;
+};
+
+/**
+ * HelpTopics
+ */
+export type HelpTopics = {
+    /**
+     * Topics
+     */
+    topics: Array<HelpTopic>;
 };
 
 /**
@@ -7563,6 +7972,16 @@ export type MarkReadRequest = {
 };
 
 /**
+ * MarkTaken
+ */
+export type MarkTaken = {
+    /**
+     * Due At
+     */
+    due_at: string;
+};
+
+/**
  * MarkupChangeRequest
  */
 export type MarkupChangeRequest = {
@@ -7721,6 +8140,112 @@ export type McpToolDefinition = {
 };
 
 /**
+ * Medicine
+ */
+export type Medicine = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Times
+     */
+    times: Array<string>;
+    /**
+     * Timezone
+     */
+    timezone: string;
+    /**
+     * Language
+     */
+    language: string;
+    /**
+     * Language Name
+     */
+    language_name: string;
+    /**
+     * Phone Masked
+     */
+    phone_masked: string;
+    /**
+     * Alert Member Ids
+     */
+    alert_member_ids: Array<number>;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Card Event Id
+     */
+    card_event_id?: number | null;
+    /**
+     * Doses
+     */
+    doses?: Array<Dose>;
+};
+
+/**
+ * MedicineList
+ */
+export type MedicineList = {
+    /**
+     * Medicines
+     */
+    medicines: Array<Medicine>;
+    /**
+     * Calls
+     */
+    calls: {
+        [key: string]: string;
+    };
+    /**
+     * Languages
+     */
+    languages: {
+        [key: string]: string;
+    };
+};
+
+/**
+ * MedicineProposed
+ */
+export type MedicineProposed = {
+    medicine: Medicine;
+    card?: TimelineEvent | null;
+};
+
+/**
+ * MedicineWrite
+ */
+export type MedicineWrite = {
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Times
+     */
+    times: Array<string>;
+    /**
+     * Phone
+     */
+    phone: string;
+    /**
+     * Language
+     */
+    language?: string | null;
+    /**
+     * Alert Member Ids
+     */
+    alert_member_ids?: Array<number>;
+};
+
+/**
  * MemberPreferences
  */
 export type MemberPreferences = {
@@ -7740,6 +8265,10 @@ export type MemberPreferences = {
      * Summary Time
      */
     summary_time?: string | null;
+    /**
+     * Simple Mode
+     */
+    simple_mode?: boolean | null;
     /**
      * Revision
      */
@@ -7778,9 +8307,39 @@ export type MemberPreferencesWrite = {
      */
     summary_time?: string | null;
     /**
+     * Simple Mode
+     */
+    simple_mode?: boolean | null;
+    /**
      * Revision
      */
     revision: number;
+};
+
+/**
+ * MemberProposed
+ */
+export type MemberProposed = {
+    member: CircleMember;
+    card?: TimelineEvent | null;
+};
+
+/**
+ * MemberWrite
+ */
+export type MemberWrite = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Shares
+     */
+    shares: Array<string>;
 };
 
 /**
@@ -11921,6 +12480,112 @@ export type SaveRequest = {
 };
 
 /**
+ * ScamAnswer
+ */
+export type ScamAnswer = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Verdict
+     */
+    verdict: string;
+    /**
+     * Headline
+     */
+    headline: string;
+    /**
+     * Reasons
+     */
+    reasons: Array<ScamReason>;
+    /**
+     * What To Do
+     */
+    what_to_do: Array<string>;
+    /**
+     * Never Asks
+     */
+    never_asks: string;
+    /**
+     * Limits
+     */
+    limits: string;
+};
+
+/**
+ * ScamCheckWrite
+ */
+export type ScamCheckWrite = {
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Kind
+     */
+    kind?: 'message' | 'call';
+};
+
+/**
+ * ScamHistory
+ */
+export type ScamHistory = {
+    /**
+     * Checks
+     */
+    checks: Array<ScamHistoryItem>;
+};
+
+/**
+ * ScamHistoryItem
+ */
+export type ScamHistoryItem = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Verdict
+     */
+    verdict: string;
+    /**
+     * Headline
+     */
+    headline: string;
+    /**
+     * Signals
+     */
+    signals: Array<string>;
+    /**
+     * At
+     */
+    at: string;
+};
+
+/**
+ * ScamReason
+ */
+export type ScamReason = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Why
+     */
+    why: string;
+};
+
+/**
  * ScheduleConfigRequest
  */
 export type ScheduleConfigRequest = {
@@ -12208,6 +12873,20 @@ export type ShareLinkSettings = {
 };
 
 /**
+ * ShareOption
+ */
+export type ShareOption = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
+};
+
+/**
  * SharedOutboundRequest
  */
 export type SharedOutboundRequest = {
@@ -12215,6 +12894,16 @@ export type SharedOutboundRequest = {
      * Shared
      */
     shared?: boolean;
+};
+
+/**
+ * SharesWrite
+ */
+export type SharesWrite = {
+    /**
+     * Shares
+     */
+    shares: Array<string>;
 };
 
 /**
@@ -34334,6 +35023,870 @@ export type ClientEventApiV1EventsClientPostResponses = {
 };
 
 export type ClientEventApiV1EventsClientPostResponse = ClientEventApiV1EventsClientPostResponses[keyof ClientEventApiV1EventsClientPostResponses];
+
+export type CareStatusApiV1CareStatusGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/care/status';
+};
+
+export type CareStatusApiV1CareStatusGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CareStatusApiV1CareStatusGetError = CareStatusApiV1CareStatusGetErrors[keyof CareStatusApiV1CareStatusGetErrors];
+
+export type CareStatusApiV1CareStatusGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: CareStatus;
+};
+
+export type CareStatusApiV1CareStatusGetResponse = CareStatusApiV1CareStatusGetResponses[keyof CareStatusApiV1CareStatusGetResponses];
+
+export type CareCardApiV1CareCardsEventIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Event Id
+         */
+        event_id: number;
+    };
+    query?: never;
+    url: '/api/v1/care/cards/{event_id}';
+};
+
+export type CareCardApiV1CareCardsEventIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CareCardApiV1CareCardsEventIdGetError = CareCardApiV1CareCardsEventIdGetErrors[keyof CareCardApiV1CareCardsEventIdGetErrors];
+
+export type CareCardApiV1CareCardsEventIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TimelineEvent;
+};
+
+export type CareCardApiV1CareCardsEventIdGetResponse = CareCardApiV1CareCardsEventIdGetResponses[keyof CareCardApiV1CareCardsEventIdGetResponses];
+
+export type MyCircleApiV1CareCircleGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/care/circle';
+};
+
+export type MyCircleApiV1CareCircleGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyCircleApiV1CareCircleGetError = MyCircleApiV1CareCircleGetErrors[keyof MyCircleApiV1CareCircleGetErrors];
+
+export type MyCircleApiV1CareCircleGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: Circle;
+};
+
+export type MyCircleApiV1CareCircleGetResponse = MyCircleApiV1CareCircleGetResponses[keyof MyCircleApiV1CareCircleGetResponses];
+
+export type NameMyCircleApiV1CareCirclePutData = {
+    body: CircleName;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/care/circle';
+};
+
+export type NameMyCircleApiV1CareCirclePutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type NameMyCircleApiV1CareCirclePutError = NameMyCircleApiV1CareCirclePutErrors[keyof NameMyCircleApiV1CareCirclePutErrors];
+
+export type NameMyCircleApiV1CareCirclePutResponses = {
+    /**
+     * Successful Response
+     */
+    200: Circle;
+};
+
+export type NameMyCircleApiV1CareCirclePutResponse = NameMyCircleApiV1CareCirclePutResponses[keyof NameMyCircleApiV1CareCirclePutResponses];
+
+export type AddMemberApiV1CareCircleMembersPostData = {
+    body: MemberWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/care/circle/members';
+};
+
+export type AddMemberApiV1CareCircleMembersPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddMemberApiV1CareCircleMembersPostError = AddMemberApiV1CareCircleMembersPostErrors[keyof AddMemberApiV1CareCircleMembersPostErrors];
+
+export type AddMemberApiV1CareCircleMembersPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MemberProposed;
+};
+
+export type AddMemberApiV1CareCircleMembersPostResponse = AddMemberApiV1CareCircleMembersPostResponses[keyof AddMemberApiV1CareCircleMembersPostResponses];
+
+export type ChangeMemberSharesApiV1CareCircleMembersMemberIdSharesPutData = {
+    body: SharesWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Member Id
+         */
+        member_id: number;
+    };
+    query?: never;
+    url: '/api/v1/care/circle/members/{member_id}/shares';
+};
+
+export type ChangeMemberSharesApiV1CareCircleMembersMemberIdSharesPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ChangeMemberSharesApiV1CareCircleMembersMemberIdSharesPutError = ChangeMemberSharesApiV1CareCircleMembersMemberIdSharesPutErrors[keyof ChangeMemberSharesApiV1CareCircleMembersMemberIdSharesPutErrors];
+
+export type ChangeMemberSharesApiV1CareCircleMembersMemberIdSharesPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: MemberProposed;
+};
+
+export type ChangeMemberSharesApiV1CareCircleMembersMemberIdSharesPutResponse = ChangeMemberSharesApiV1CareCircleMembersMemberIdSharesPutResponses[keyof ChangeMemberSharesApiV1CareCircleMembersMemberIdSharesPutResponses];
+
+export type RemoveMemberApiV1CareCircleMembersMemberIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Member Id
+         */
+        member_id: number;
+    };
+    query?: never;
+    url: '/api/v1/care/circle/members/{member_id}';
+};
+
+export type RemoveMemberApiV1CareCircleMembersMemberIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RemoveMemberApiV1CareCircleMembersMemberIdDeleteError = RemoveMemberApiV1CareCircleMembersMemberIdDeleteErrors[keyof RemoveMemberApiV1CareCircleMembersMemberIdDeleteErrors];
+
+export type RemoveMemberApiV1CareCircleMembersMemberIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: CircleMember;
+};
+
+export type RemoveMemberApiV1CareCircleMembersMemberIdDeleteResponse = RemoveMemberApiV1CareCircleMembersMemberIdDeleteResponses[keyof RemoveMemberApiV1CareCircleMembersMemberIdDeleteResponses];
+
+export type AcceptInviteApiV1CareFamilyAcceptPostData = {
+    body: AcceptInvite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/care/family/accept';
+};
+
+export type AcceptInviteApiV1CareFamilyAcceptPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AcceptInviteApiV1CareFamilyAcceptPostError = AcceptInviteApiV1CareFamilyAcceptPostErrors[keyof AcceptInviteApiV1CareFamilyAcceptPostErrors];
+
+export type AcceptInviteApiV1CareFamilyAcceptPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: Accepted;
+};
+
+export type AcceptInviteApiV1CareFamilyAcceptPostResponse = AcceptInviteApiV1CareFamilyAcceptPostResponses[keyof AcceptInviteApiV1CareFamilyAcceptPostResponses];
+
+export type FamilyApiV1CareFamilyGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/care/family';
+};
+
+export type FamilyApiV1CareFamilyGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type FamilyApiV1CareFamilyGetError = FamilyApiV1CareFamilyGetErrors[keyof FamilyApiV1CareFamilyGetErrors];
+
+export type FamilyApiV1CareFamilyGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: FamilyView;
+};
+
+export type FamilyApiV1CareFamilyGetResponse = FamilyApiV1CareFamilyGetResponses[keyof FamilyApiV1CareFamilyGetResponses];
+
+export type ReadAlertApiV1CareFamilyAlertsAlertIdReadPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Alert Id
+         */
+        alert_id: number;
+    };
+    query?: never;
+    url: '/api/v1/care/family/alerts/{alert_id}/read';
+};
+
+export type ReadAlertApiV1CareFamilyAlertsAlertIdReadPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadAlertApiV1CareFamilyAlertsAlertIdReadPostError = ReadAlertApiV1CareFamilyAlertsAlertIdReadPostErrors[keyof ReadAlertApiV1CareFamilyAlertsAlertIdReadPostErrors];
+
+export type ReadAlertApiV1CareFamilyAlertsAlertIdReadPostResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type ReadAlertApiV1CareFamilyAlertsAlertIdReadPostResponse = ReadAlertApiV1CareFamilyAlertsAlertIdReadPostResponses[keyof ReadAlertApiV1CareFamilyAlertsAlertIdReadPostResponses];
+
+export type MyMedicinesApiV1CareMedicinesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/care/medicines';
+};
+
+export type MyMedicinesApiV1CareMedicinesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyMedicinesApiV1CareMedicinesGetError = MyMedicinesApiV1CareMedicinesGetErrors[keyof MyMedicinesApiV1CareMedicinesGetErrors];
+
+export type MyMedicinesApiV1CareMedicinesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: MedicineList;
+};
+
+export type MyMedicinesApiV1CareMedicinesGetResponse = MyMedicinesApiV1CareMedicinesGetResponses[keyof MyMedicinesApiV1CareMedicinesGetResponses];
+
+export type AddMedicineApiV1CareMedicinesPostData = {
+    body: MedicineWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/care/medicines';
+};
+
+export type AddMedicineApiV1CareMedicinesPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddMedicineApiV1CareMedicinesPostError = AddMedicineApiV1CareMedicinesPostErrors[keyof AddMedicineApiV1CareMedicinesPostErrors];
+
+export type AddMedicineApiV1CareMedicinesPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MedicineProposed;
+};
+
+export type AddMedicineApiV1CareMedicinesPostResponse = AddMedicineApiV1CareMedicinesPostResponses[keyof AddMedicineApiV1CareMedicinesPostResponses];
+
+export type PauseMedicineApiV1CareMedicinesMedicineIdPausePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Medicine Id
+         */
+        medicine_id: number;
+    };
+    query?: never;
+    url: '/api/v1/care/medicines/{medicine_id}/pause';
+};
+
+export type PauseMedicineApiV1CareMedicinesMedicineIdPausePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PauseMedicineApiV1CareMedicinesMedicineIdPausePostError = PauseMedicineApiV1CareMedicinesMedicineIdPausePostErrors[keyof PauseMedicineApiV1CareMedicinesMedicineIdPausePostErrors];
+
+export type PauseMedicineApiV1CareMedicinesMedicineIdPausePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: Medicine;
+};
+
+export type PauseMedicineApiV1CareMedicinesMedicineIdPausePostResponse = PauseMedicineApiV1CareMedicinesMedicineIdPausePostResponses[keyof PauseMedicineApiV1CareMedicinesMedicineIdPausePostResponses];
+
+export type ResumeMedicineApiV1CareMedicinesMedicineIdResumePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Medicine Id
+         */
+        medicine_id: number;
+    };
+    query?: never;
+    url: '/api/v1/care/medicines/{medicine_id}/resume';
+};
+
+export type ResumeMedicineApiV1CareMedicinesMedicineIdResumePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ResumeMedicineApiV1CareMedicinesMedicineIdResumePostError = ResumeMedicineApiV1CareMedicinesMedicineIdResumePostErrors[keyof ResumeMedicineApiV1CareMedicinesMedicineIdResumePostErrors];
+
+export type ResumeMedicineApiV1CareMedicinesMedicineIdResumePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MedicineProposed;
+};
+
+export type ResumeMedicineApiV1CareMedicinesMedicineIdResumePostResponse = ResumeMedicineApiV1CareMedicinesMedicineIdResumePostResponses[keyof ResumeMedicineApiV1CareMedicinesMedicineIdResumePostResponses];
+
+export type MarkTakenApiV1CareMedicinesMedicineIdTakenPostData = {
+    body: MarkTaken;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Medicine Id
+         */
+        medicine_id: number;
+    };
+    query?: never;
+    url: '/api/v1/care/medicines/{medicine_id}/taken';
+};
+
+export type MarkTakenApiV1CareMedicinesMedicineIdTakenPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MarkTakenApiV1CareMedicinesMedicineIdTakenPostError = MarkTakenApiV1CareMedicinesMedicineIdTakenPostErrors[keyof MarkTakenApiV1CareMedicinesMedicineIdTakenPostErrors];
+
+export type MarkTakenApiV1CareMedicinesMedicineIdTakenPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: Dose;
+};
+
+export type MarkTakenApiV1CareMedicinesMedicineIdTakenPostResponse = MarkTakenApiV1CareMedicinesMedicineIdTakenPostResponses[keyof MarkTakenApiV1CareMedicinesMedicineIdTakenPostResponses];
+
+export type CheckForScamApiV1CareScamCheckPostData = {
+    body: ScamCheckWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/care/scam-check';
+};
+
+export type CheckForScamApiV1CareScamCheckPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CheckForScamApiV1CareScamCheckPostError = CheckForScamApiV1CareScamCheckPostErrors[keyof CheckForScamApiV1CareScamCheckPostErrors];
+
+export type CheckForScamApiV1CareScamCheckPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ScamAnswer;
+};
+
+export type CheckForScamApiV1CareScamCheckPostResponse = CheckForScamApiV1CareScamCheckPostResponses[keyof CheckForScamApiV1CareScamCheckPostResponses];
+
+export type RecentScamChecksApiV1CareScamCheckRecentGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/care/scam-check/recent';
+};
+
+export type RecentScamChecksApiV1CareScamCheckRecentGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RecentScamChecksApiV1CareScamCheckRecentGetError = RecentScamChecksApiV1CareScamCheckRecentGetErrors[keyof RecentScamChecksApiV1CareScamCheckRecentGetErrors];
+
+export type RecentScamChecksApiV1CareScamCheckRecentGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ScamHistory;
+};
+
+export type RecentScamChecksApiV1CareScamCheckRecentGetResponse = RecentScamChecksApiV1CareScamCheckRecentGetResponses[keyof RecentScamChecksApiV1CareScamCheckRecentGetResponses];
+
+export type HelpTopicsApiV1CareHelpTopicsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/care/help/topics';
+};
+
+export type HelpTopicsApiV1CareHelpTopicsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type HelpTopicsApiV1CareHelpTopicsGetError = HelpTopicsApiV1CareHelpTopicsGetErrors[keyof HelpTopicsApiV1CareHelpTopicsGetErrors];
+
+export type HelpTopicsApiV1CareHelpTopicsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: HelpTopics;
+};
+
+export type HelpTopicsApiV1CareHelpTopicsGetResponse = HelpTopicsApiV1CareHelpTopicsGetResponses[keyof HelpTopicsApiV1CareHelpTopicsGetResponses];
+
+export type StartHelpApiV1CareHelpSessionsPostData = {
+    body: HelpStart;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/care/help/sessions';
+};
+
+export type StartHelpApiV1CareHelpSessionsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StartHelpApiV1CareHelpSessionsPostError = StartHelpApiV1CareHelpSessionsPostErrors[keyof StartHelpApiV1CareHelpSessionsPostErrors];
+
+export type StartHelpApiV1CareHelpSessionsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: HelpStarted;
+};
+
+export type StartHelpApiV1CareHelpSessionsPostResponse = StartHelpApiV1CareHelpSessionsPostResponses[keyof StartHelpApiV1CareHelpSessionsPostResponses];
+
+export type GetHelpApiV1CareHelpSessionsSessionIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: number;
+    };
+    query?: never;
+    url: '/api/v1/care/help/sessions/{session_id}';
+};
+
+export type GetHelpApiV1CareHelpSessionsSessionIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetHelpApiV1CareHelpSessionsSessionIdGetError = GetHelpApiV1CareHelpSessionsSessionIdGetErrors[keyof GetHelpApiV1CareHelpSessionsSessionIdGetErrors];
+
+export type GetHelpApiV1CareHelpSessionsSessionIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: HelpSession;
+};
+
+export type GetHelpApiV1CareHelpSessionsSessionIdGetResponse = GetHelpApiV1CareHelpSessionsSessionIdGetResponses[keyof GetHelpApiV1CareHelpSessionsSessionIdGetResponses];
+
+export type AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostData = {
+    body: HelpAnswer;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: number;
+    };
+    query?: never;
+    url: '/api/v1/care/help/sessions/{session_id}/answer';
+};
+
+export type AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostError = AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostErrors[keyof AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostErrors];
+
+export type AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: HelpSession;
+};
+
+export type AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostResponse = AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostResponses[keyof AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostResponses];
 
 export type CapabilityChecklistApiV1AdminControlsCapabilitiesGetData = {
     body?: never;

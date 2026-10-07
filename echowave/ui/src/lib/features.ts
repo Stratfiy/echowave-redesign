@@ -75,7 +75,13 @@ export type Feature =
     | "laya_rollback"
     | "cost_stop"
     // Decibyl's private browser (stream browser).
-    | "decibyl_browser";
+    | "decibyl_browser"
+    // Launch stream `care` (LAUNCH-PLAN.md, phase 2).
+    | "care_simple_mode"
+    | "care_medicine_calls"
+    | "care_scam_check"
+    | "care_tech_help"
+    | "care_family_circle";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

@@ -1,0 +1,44 @@
+/*
+ * Simple mode (launch stream `care`): large text and large targets, from
+ * one attribute on <html> set by SimpleModeProvider. Nothing here applies
+ * unless a person has turned Simple mode on.
+ *
+ * rem-based sizes everywhere grow with the root size; the target rule lifts
+ * every control to 56px (the shell's usual minimum is 44px), and the care
+ * screens add their own larger buttons on top.
+ */
+
+html[data-simple-mode="on"] {
+  font-size: 118.75%; /* 19px from 16px */
+}
+
+@media (min-width: 768px) {
+  html[data-simple-mode="on"] {
+    font-size: 125%; /* 20px */
+  }
+}
+
+html[data-simple-mode="on"] button,
+html[data-simple-mode="on"] [role="button"],
+html[data-simple-mode="on"] a[href],
+html[data-simple-mode="on"] input:not([type="checkbox"]):not([type="radio"]),
+html[data-simple-mode="on"] select,
+html[data-simple-mode="on"] textarea {
+  min-height: 3.5rem;
+}
+
+html[data-simple-mode="on"] input[type="checkbox"],
+html[data-simple-mode="on"] input[type="radio"] {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+html[data-simple-mode="on"] body {
+  line-height: 1.6;
+}
+
+/* Calm: Simple mode never animates things that move across the screen. */
+html[data-simple-mode="on"] .motion-m3-enter,
+html[data-simple-mode="on"] .motion-m4-enter {
+  animation-duration: 1ms;
+}

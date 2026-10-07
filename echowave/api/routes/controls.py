@@ -74,6 +74,9 @@ class MemberPreferences(BaseModel):
     timezone: str | None = None
     voice: str | None = None
     summary_time: str | None = None
+    #: Simple mode (stream `care`). Always null while ``care_simple_mode``
+    #: is off, so a screen that reads it changes nothing until it is on.
+    simple_mode: bool | None = None
     revision: int
     updated_at: str | None = None
     #: The languages a person can choose from.
@@ -88,14 +91,23 @@ class MemberPreferencesWrite(BaseModel):
     timezone: str | None = Field(default=None, max_length=64)
     voice: str | None = Field(default=None, max_length=64)
     summary_time: str | None = Field(default=None, max_length=5)
+    #: Refused (422) while ``care_simple_mode`` is off.
+    simple_mode: bool | None = None
     revision: int = Field(ge=0)
 
     model_config = ConfigDict(extra="forbid")
 
 
-def _prefs(row: dict[str, Any]) -> MemberPreferences:
+def _prefs(
+    row: dict[str, Any], organization_id: int | None = None
+) -> MemberPreferences:
     return MemberPreferences(
         **{k: row.get(k) for k in ("language", "timezone", "voice", "summary_time")},
+        simple_mode=(
+            row.get("simple_mode")
+            if member_preferences.simple_mode_offered(organization_id)
+            else None
+        ),
         revision=row["revision"],
         updated_at=row.get("updated_at"),
         languages=list(member_preferences.LANGUAGES),
@@ -111,7 +123,7 @@ _prefs_flag = Depends(features.require("member_preferences", per_organization=Tr
 async def my_preferences(
     user: Annotated[UserModel, Depends(get_user)],
 ) -> MemberPreferences:
-    return _prefs(await member_preferences.get(user.id))
+    return _prefs(await member_preferences.get(user.id), user.selected_organization_id)
 
 
 @router.put(
@@ -122,6 +134,12 @@ async def save_my_preferences(
 ) -> MemberPreferences:
     changes = body.model_dump(exclude_unset=True)
     revision = changes.pop("revision")
+    organization_id = user.selected_organization_id
+    if (
+        member_preferences.SIMPLE_MODE in changes
+        and not member_preferences.simple_mode_offered(organization_id)
+    ):
+        raise HTTPException(status_code=422, detail="Simple mode is not offered yet.")
     try:
         row = await member_preferences.save(user.id, changes, revision=revision)
     except member_preferences.PreferenceInvalid as exc:
@@ -131,10 +149,10 @@ async def save_my_preferences(
             status_code=409,
             detail={
                 "message": "These were changed somewhere else. Here is what is saved now.",
-                "stored": _prefs(exc.stored).model_dump(),
+                "stored": _prefs(exc.stored, organization_id).model_dump(),
             },
         ) from exc
-    return _prefs(row)
+    return _prefs(row, organization_id)
 
 
 # --- personal space ---------------------------------------------------------

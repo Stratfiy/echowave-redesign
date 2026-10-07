@@ -37,6 +37,7 @@ from api.enums import AgentEventActor, AgentEventKind
 from api.services import acting, features, prompt_budget, reporting_window
 from api.services.billing import model_usage
 from api.services.browser import tool as browser_tool
+from api.services.care import tools as care_tools
 from api.services.documents import tools as procurement
 from api.services.knowledge_graph import personal as personal_memory
 from api.services.knowledge_graph import quiet, recall, teach
@@ -243,6 +244,7 @@ def system_prompt(organization_id: int | None = None) -> str:
         + (procurement.RULES if procurement.enabled() else "")
         + (tables.RULES if tables.enabled(organization_id) else "")
         + (browser_tool.RULE if browser_tool.enabled(organization_id) else "")
+        + care_tools.rules(organization_id)
     )
 
 
@@ -1465,6 +1467,7 @@ def office_tools(organization_id: int | None = None) -> list[dict[str, Any]]:
             if browser_tool.enabled(organization_id)
             else ()
         ),
+        *care_tools.schemas(organization_id),
     ]
 
 
@@ -1510,6 +1513,10 @@ def _was_a_read(call: Any, result: Any) -> bool:
         # first", "which template"): the model must be able to ask or retry.
         # Counted as a card, it lost its tools and answered with nothing.
         return True
+    if name in care_tools.NAMES and isinstance(result, dict):
+        # A scam check or a phone-help step is answered in the turn; a
+        # reminder card ends the round like any other card.
+        return name in care_tools.READS or result.get("status") != "proposed"
     if name in tables.NAMES and isinstance(result, dict):
         # Describe, then rank, then export is one answer: a table read keeps
         # the tools open. A handed-over workbook ends the round like a card.
@@ -1737,6 +1744,13 @@ async def _tool(
             author_id=author_id,
             request=request,
             thread_id=thread_id,
+        )
+    if call.name in care_tools.NAMES:
+        return await care_tools.run(
+            call.name,
+            organization_id=organization_id,
+            user_id=author_id,
+            arguments=arguments,
         )
     if call.name in tables.NAMES and tables.enabled(organization_id):
         return await tables.run(

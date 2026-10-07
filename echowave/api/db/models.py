@@ -6834,6 +6834,15 @@ from api.db.browser_models import (  # noqa: E402,F401
     BrowserSiteLoginModel,
     BrowserSiteRuleModel,
 )
+from api.db.care_models import (  # noqa: E402,F401
+    CareAlertModel,
+    CareCircleMemberModel,
+    CareCircleModel,
+    CareDoseCallModel,
+    CareHelpSessionModel,
+    CareMedicineModel,
+    CareScamCheckModel,
+)
 from api.db.channel_identity_models import (  # noqa: E402,F401
     ChannelIdentityModel,
     ChannelLinkCodeModel,
