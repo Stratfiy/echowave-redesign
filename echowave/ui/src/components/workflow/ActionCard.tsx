@@ -54,6 +54,9 @@ export type ActionPayload = {
     fires_at?: string;
     error?: string;
     done?: { at?: string; note?: string };
+    /** Who took it back. Absent or no person: the system cancelled it (a
+     *  browser that closed, a computer that never took the step). */
+    cancelled?: { by?: number | null; at?: string };
     /** A browser step (services/browser/): the page and what the form
      *  sends, as the box read it, secrets already masked. An order card
      *  (stream `reach`): its draft. */
@@ -326,7 +329,11 @@ export function ActionCard({
             {(state === 'undone' || state === 'cancelled' || state === 'declined') && (
                 <p className="mt-3 flex items-center gap-1.5 pl-6 text-sm text-muted-foreground">
                     <Undo2 aria-hidden className="h-4 w-4" />
-                    {state === 'undone' ? 'Put back' : state === 'cancelled' ? 'Undone before it ran' : 'Not done'}
+                    {state === 'undone'
+                        ? 'Put back'
+                        : state === 'cancelled' && action.cancelled?.by
+                          ? 'Undone before it ran'
+                          : 'Not done'}
                     {/* Why, when the card knows: a desktop step no computer
                         took in time (desktop_steps.sweep_unclaimed). */}
                     {state === 'cancelled' && action.error && <span>· {action.error}</span>}

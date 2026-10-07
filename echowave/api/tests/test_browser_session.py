@@ -306,6 +306,10 @@ class TestApprovalBeforeSubmit:
         await asyncio.wait_for(job, timeout=20)
         card = await db_client.get_agent_event(card_id, organization_id=org.id)
         assert card.payload["state"] == actions.CANCELLED
+        # Said as what happened: nobody pressed Undo, the browser closed.
+        assert card.payload["cancelled"]["by"] is None
+        assert card.payload["reason_code"] == "browser_closed"
+        assert "browser closed" in card.payload["error"]
         with pytest.raises(actions.ActionError):
             await actions.settle(
                 organization_id=org.id,
