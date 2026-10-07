@@ -162,6 +162,22 @@ environment, test accounts.
 | Ask Decibyl to build or do anything (agents, routines, trackers, pages) | `agents` (describe-it builder) |
 | Missed calls handled, who owes me, end-of-day note | `today` + `agents` (Follow-up, Call and Appointment) |
 
+### Design reference: approvals (founder-supplied, 7 Oct)
+
+From a comparable product's approval screen (Bops; design only, its FSL
+license forbids reusing code):
+
+- A pending approval docks directly above the composer until answered.
+- One plain sentence: "Decibyl wants to: Pay Acme Print's invoice: ₹4,800".
+- One line of exact detail: item, date, account with masked digits.
+- Two buttons: "Do it" and "Don't". Run-once, undo window and honest
+  after-states stay as in `actions.py`.
+- Routines set from chat are confirmed in one sentence ("Will do, every
+  Monday at 10."); results read as sentences with numbers, with a small ✓
+  chip naming the task that ran.
+
+Applies to `shell` (ActionPreview, Chat) and `today` (screen 08).
+
 ### Suggestions from Claude (not required by the documents)
 
 Receipts under every action, "what I learned about you", pattern to routine,
