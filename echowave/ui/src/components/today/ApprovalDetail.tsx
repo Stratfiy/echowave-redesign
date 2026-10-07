@@ -198,6 +198,9 @@ export function ApprovalDetail({
             {!settledDown && state !== "pending" && (
                 <div role="status" aria-live="polite" className="motion-m2 flex flex-wrap items-center gap-2">
                     <TaskStatus state={LEDGER[state]} />
+                    {preview.state === "released" && (
+                        <span className="text-sm text-muted-foreground">Handed to your computer. It takes this step once.</span>
+                    )}
                     {state === "approved" && (
                         <>
                             <span className="text-sm text-muted-foreground">Runs in a few seconds. You can still undo.</span>
@@ -282,6 +285,7 @@ export function ApprovalDetail({
                     approveLabel={preview.recipient ? "Approve and send" : "Approve"}
                     stickyDecision
                     decisionNote={preview.detail || preview.verb}
+                    readOnly={preview.can_answer ? undefined : preview.answer_refusal ?? "Someone else answers this one."}
                     onApprove={() => void settle("confirm")}
                     onCancel={() => void settle("decline")}
                     onEdit={

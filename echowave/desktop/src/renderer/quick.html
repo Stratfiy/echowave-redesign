@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta
+            http-equiv="Content-Security-Policy"
+            content="default-src 'self'; script-src 'self'; style-src 'self'"
+        />
+        <title>Ask Decibyl</title>
+        <link rel="stylesheet" href="style.css" />
+        <link rel="stylesheet" href="quick.css" />
+    </head>
+    <body>
+        <form id="ask" autocomplete="off">
+            <textarea
+                id="text"
+                rows="2"
+                placeholder="Ask Decibyl anything"
+                aria-label="Ask Decibyl"
+            ></textarea>
+            <div class="row">
+                <label id="computer-row" hidden
+                    ><input type="checkbox" id="computer" /> Work on my computer</label
+                >
+                <span id="message" class="muted" role="status"></span>
+                <button type="submit" class="primary">Ask</button>
+            </div>
+        </form>
+        <script src="quick.js"></script>
+    </body>
+</html>

@@ -7,7 +7,44 @@ import { usePathname } from "next/navigation";
 import { type Feature, useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
-import { activeSection, SETTINGS_GROUPS, SETTINGS_SECTIONS } from "./sections";
+import { activeSection, SETTINGS_GROUPS, SETTINGS_SECTIONS, type SettingsSection } from "./sections";
+
+/** A section behind switches is listed only while one of them is on. The
+ *  hooks run in a fixed order: every section asks for the same flags on
+ *  every render. */
+function useVisible(section: SettingsSection): boolean {
+  const flags: Feature[] = section.flags ?? [];
+  const first = useFeature(flags[0] ?? "free_mode");
+  const second = useFeature(flags[1] ?? "free_mode");
+  if (!flags.length) return true;
+  return first || (flags.length > 1 && second);
+}
+
+function SectionItem({ section, current }: { section: SettingsSection; current: string | undefined }) {
+  if (!useVisible(section)) return null;
+  return (
+    <li>
+      {/* Phone link: full-width row to the section's own page. */}
+      <Link
+        href={section.mobileHref ?? section.href}
+        className="flex items-center justify-between px-4 py-3 text-[15px] md:hidden"
+      >
+        {section.title}
+        <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+      </Link>
+      <Link
+        href={section.href}
+        aria-current={current === section.id ? "page" : undefined}
+        className={cn(
+          "hidden whitespace-nowrap rounded-[10px] px-2.5 py-1.5 text-sm text-foreground transition-colors hover:bg-[var(--line)] md:block",
+          current === section.id && "bg-[var(--line)] font-medium",
+        )}
+      >
+        {section.title}
+      </Link>
+    </li>
+  );
+}
 
 /** True on the Settings root, where a phone shows the list of sections. */
 export function isSettingsRoot(pathname: string): boolean {
@@ -26,9 +63,6 @@ export function SettingsNav() {
   const pathname = usePathname() ?? "";
   const current = activeSection(pathname);
   const root = isSettingsRoot(pathname);
-  // A section behind a switch is listed only while it is on.
-  const on: Partial<Record<Feature, boolean>> = { daily_brief: useFeature("daily_brief") };
-  const shown = SETTINGS_SECTIONS.filter((section) => !section.flag || on[section.flag]);
   return (
     <>
       {!root && (
@@ -49,27 +83,8 @@ export function SettingsNav() {
             <div key={group} className="mb-4 md:mb-3">
               <h2 className="px-2.5 pb-1 text-xs text-muted-foreground">{group}</h2>
               <ul className="divide-y divide-[var(--line)] rounded-2xl bg-[var(--paper-2)] md:divide-y-0 md:rounded-none md:bg-transparent">
-                {shown.filter((section) => section.group === group).map((section) => (
-                  <li key={section.id}>
-                    {/* Phone link: full-width row to the section's own page. */}
-                    <Link
-                      href={section.mobileHref ?? section.href}
-                      className="flex items-center justify-between px-4 py-3 text-[15px] md:hidden"
-                    >
-                      {section.title}
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                    </Link>
-                    <Link
-                      href={section.href}
-                      aria-current={current === section.id ? "page" : undefined}
-                      className={cn(
-                        "hidden whitespace-nowrap rounded-[10px] px-2.5 py-1.5 text-sm text-foreground transition-colors hover:bg-[var(--line)] md:block",
-                        current === section.id && "bg-[var(--line)] font-medium",
-                      )}
-                    >
-                      {section.title}
-                    </Link>
-                  </li>
+                {SETTINGS_SECTIONS.filter((section) => section.group === group).map((section) => (
+                  <SectionItem key={section.id} section={section} current={current} />
                 ))}
               </ul>
             </div>

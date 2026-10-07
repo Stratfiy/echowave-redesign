@@ -21,6 +21,9 @@ from loguru import logger
 
 from api import constants
 
+#: What one forward pass is sent; longer text is cut and the Decision says so.
+MAX_TEXT_CHARS = 4000
+
 
 @dataclass(frozen=True)
 class Decision:
@@ -29,8 +32,22 @@ class Decision:
     confidence: float | None
     elapsed_ms: int
     #: Why there is no label, when there is none: off, timeout, error,
-    #: malformed, low_confidence.
+    #: malformed, low_confidence (and, from services/ops/laya_eval:
+    #: rolled_back, circuit_open, deadline).
     abstained: str | None = None
+    #: Whether ``text`` was cut to fit what one forward pass reads. A label
+    #: about a truncated message is a label about part of it.
+    truncated: bool = False
+
+
+def enabled() -> bool:
+    """Whether any decision model is there to ask: Laya, or the AWS cheap
+    tier when it is switched on and ready (``aws_gateway/cheap.py``)."""
+    if constants.LAYA_URL:
+        return True
+    from api.services.aws_gateway import cheap
+
+    return cheap.available()
 
 
 async def choose(
@@ -48,6 +65,7 @@ async def choose(
     whole inbox -- trimmed to what one forward pass reads.
     """
     started = time.monotonic()
+    truncated = len(text or "") > MAX_TEXT_CHARS
 
     def done(label=None, confidence=None, abstained=None) -> Decision:
         return Decision(
@@ -55,13 +73,31 @@ async def choose(
             confidence=confidence,
             elapsed_ms=int((time.monotonic() - started) * 1000),
             abstained=abstained,
+            truncated=truncated,
         )
+
+    from api.services.aws_gateway import cheap
+
+    if cheap.available():
+        # The AWS cheap tier, when it is on and ready, takes Laya's place:
+        # same question, same labels, same floor, same abstentions.
+        label, confidence, abstained = await cheap.choose(
+            question, labels, text, timeout_ms=timeout_ms
+        )
+        if abstained:
+            return done(abstained=abstained)
+        floor = (
+            constants.LAYA_MIN_CONFIDENCE if min_confidence is None else min_confidence
+        )
+        if confidence is None or confidence < floor:
+            return done(confidence=confidence, abstained="low_confidence")
+        return done(label=label, confidence=confidence)
 
     if not constants.LAYA_URL:
         return done(abstained="off")
 
     body = {
-        "state": {"body": (text or "")[:4000]},
+        "state": {"body": (text or "")[:MAX_TEXT_CHARS]},
         "questions": {
             "decision": {
                 "type": "choice",

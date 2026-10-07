@@ -56,6 +56,8 @@ const full = {
     fires_at: null,
     editable: true,
     bound_to_version: true,
+    can_answer: true,
+    answer_refusal: null,
     arguments: { to: "accounts@acmeprint.example", amount: "4800" },
 };
 
@@ -153,6 +155,20 @@ describe("The exact approval screen", () => {
         fireEvent.click(await screen.findByRole("button", { name: "Approve and send" }));
         expect(await screen.findByText(/This is the new version/)).toBeTruthy();
         expect(screen.getByText("new@acme.example")).toBeTruthy();
+    });
+
+    it("someone else's card is read-only, with the reason and no Approve", async () => {
+        preview.mockResolvedValue({ data: { ...full, can_answer: false, answer_refusal: "Only the person this is about can answer this card." } });
+        render(<ApprovalDetail eventId={51} />);
+        expect(await screen.findByText("Only the person this is about can answer this card.")).toBeTruthy();
+        expect(screen.queryByRole("button", { name: "Approve and send" })).toBeNull();
+    });
+
+    it("a desktop step handed to the computer says so, never Done", async () => {
+        preview.mockResolvedValue({ data: { ...full, state: "released", screen_state: "executing" } });
+        render(<ApprovalDetail eventId={51} />);
+        expect(await screen.findByText("Handed to your computer. It takes this step once.")).toBeTruthy();
+        expect(screen.queryByText(/^Done/)).toBeNull();
     });
 
     it("editing saves a new version through revise", async () => {

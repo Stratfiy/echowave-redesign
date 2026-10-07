@@ -58,6 +58,9 @@ export type ApprovalPreview = {
     fires_at: string | null;
     editable: boolean;
     bound_to_version: boolean;
+    /** False when someone else must answer it (their consent, order or computer). */
+    can_answer: boolean;
+    answer_refusal: string | null;
     arguments: Record<string, unknown> | null;
     workflow_id: number | null;
     thread_id: string | null;

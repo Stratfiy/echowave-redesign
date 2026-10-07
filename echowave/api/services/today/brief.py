@@ -518,7 +518,9 @@ async def _done_today(
             at = datetime.fromisoformat(stamp)
         except ValueError:
             continue
-        if not (start <= at < end) or not approvals_service._may_see(card, threads):
+        if not (start <= at < end) or not approvals_service._may_see(
+            card, threads, viewer.user_id
+        ):
             continue
         done.append(
             {

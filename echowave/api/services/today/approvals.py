@@ -64,6 +64,9 @@ SCREEN_STATE = {
     actions.DECLINED: "cancelled",
     actions.CANCELLED: "cancelled",
     actions.UNDONE: "cancelled",
+    # A desktop step past its undo window: handed to the person's computer,
+    # which takes it once. Executing, not done.
+    actions.RELEASED: "executing",
 }
 
 
@@ -155,6 +158,42 @@ def describe(payload: dict[str, Any], *, actor: str = "Decibyl") -> dict[str, An
     elif action == actions.SCHEDULE_ROUTINE:
         content_parts = [f"Instruction: {args.get('instruction', '')}"]
         timing = str(args.get("said") or "")
+    elif action == actions.SEND_IDENTITY_EMAIL:
+        app = str(args.get("from_address") or "")
+        timing = ""
+    elif action == actions.BROWSER_STEP:
+        # The exact button and page, with the fields as they will be sent.
+        app = "your private browser"
+        content_parts = [
+            f"Press: {args.get('button', '')}",
+            f"Page: {args.get('page_url', '')}",
+            *(f"{k}: {_as_text(v)}" for k, v in dict(args.get("fields") or {}).items()),
+        ]
+    elif action == actions.DESKTOP_STEP:
+        app = " on ".join(
+            part
+            for part in (str(args.get("app") or ""), str(args.get("device") or ""))
+            if part
+        )
+        content_parts = [f"Step: {args.get('step_name', '')}"]
+        timing = (
+            "Your computer takes it once, after you approve and the undo window passes."
+        )
+    elif action == actions.MEETING_FOLLOW_UP:
+        content_parts = [
+            f"Task: {args.get('task', '')}",
+            *([f"For: {args['owner_name']}"] if args.get("owner_name") else []),
+            *([f"Due: {args['due_text']}"] if args.get("due_text") else []),
+            *(
+                [f"From the meeting: {args['meeting_title']}"]
+                if args.get("meeting_title")
+                else []
+            ),
+        ]
+        timing = ""
+    elif action == actions.PLACE_ORDER:
+        app = str(args.get("provider") or "")
+        timing = ""
     elif action == actions.CREATE_BOT:
         content_parts = [
             f"{k}: {v}" for k, v in dict(args.get("variables") or {}).items()
@@ -226,7 +265,16 @@ async def _visible_threads(viewer: Viewer, rows: list[Any]) -> dict[str | None, 
     return out
 
 
-def _may_see(row: Any, threads: dict[str | None, bool]) -> bool:
+def _may_see(
+    row: Any, threads: dict[str | None, bool], user_id: int | None = None
+) -> bool:
+    """Whether a card is visible at all: its conversation's privacy, and --
+    given the viewer -- a private card (a meeting's, an identity act) that
+    is someone else's reads as not there."""
+    if user_id is not None:
+        refusal = actions.answer_refusal(dict(row.payload or {}), user_id)
+        if refusal == actions.NOT_HERE:
+            return False
     if row.workflow_id is not None or row.folder_id is not None:
         return True
     return threads.get(row.thread_id, False)
@@ -278,7 +326,17 @@ async def pending(viewer: Viewer, *, limit: int = QUEUE_LIMIT) -> dict[str, Any]
     async with db_client.async_session() as session:
         rows = list((await session.execute(query)).scalars().all())
     threads = await _visible_threads(viewer, rows)
-    visible = [r for r in rows if _may_see(r, threads)]
+    # Only cards this person may answer: a care card goes to the person it is
+    # about, an order or outside write to its owner, a desktop or browser step
+    # to the person whose machine it is, a meeting follow-up to whoever
+    # captured the meeting (actions.answer_refusal). Nobody is offered a
+    # Do it the card would refuse.
+    visible = [
+        r
+        for r in rows
+        if _may_see(r, threads)
+        and actions.answer_refusal(dict(r.payload or {}), viewer.user_id) is None
+    ]
     names = await _actor_names(viewer.organization_id, visible)
     items = [
         _row_view(
@@ -287,6 +345,19 @@ async def pending(viewer: Viewer, *, limit: int = QUEUE_LIMIT) -> dict[str, Any]
         for r in visible[:limit]
     ]
     return {"count": len(visible), "items": items}
+
+
+def _editable(payload: dict[str, Any]) -> dict[str, Any] | None:
+    """The fields a person may change before approving (actions.revise)."""
+    action = payload.get("action")
+    args = dict(payload.get("args") or {})
+    if action == actions.RUN_TOOL:
+        return dict(args.get("arguments") or {})
+    if action == actions.SEND_DOCUMENT:
+        return {k: args.get(k) or "" for k in ("to", "channel", "note")}
+    if action == actions.SEND_IDENTITY_EMAIL:
+        return {k: args.get(k) or "" for k in ("to", "subject", "body")}
+    return None
 
 
 async def preview(viewer: Viewer, event_id: int) -> dict[str, Any]:
@@ -299,12 +370,15 @@ async def preview(viewer: Viewer, event_id: int) -> dict[str, Any]:
     threads = await _visible_threads(viewer, [event])
     if not _may_see(event, threads):
         raise NotFound("That approval is not here.")
+    payload = dict(event.payload or {})
+    refusal = actions.answer_refusal(payload, viewer.user_id)
+    if refusal == actions.NOT_HERE:
+        raise NotFound("That approval is not here.")
     actor = "Decibyl"
     if event.workflow_id is not None:
         actor = (await _actor_names(viewer.organization_id, [event])).get(
             event.workflow_id, actor
         )
-    payload = dict(event.payload or {})
     view = describe(payload, actor=actor)
     from api.services.workflow import task_ledger
 
@@ -319,11 +393,11 @@ async def preview(viewer: Viewer, event_id: int) -> dict[str, Any]:
             and payload.get("action") in actions.REVISABLE
             and view["state"] in (actions.PROPOSED, actions.ARMED),
             "bound_to_version": ledger,
-            "arguments": (
-                dict((payload.get("args") or {}).get("arguments") or {})
-                if payload.get("action") == actions.RUN_TOOL
-                else None
-            ),
+            # Who may answer it; a card someone else must answer is shown
+            # read-only with the reason, never with a Do it that is refused.
+            "can_answer": refusal is None,
+            "answer_refusal": refusal,
+            "arguments": _editable(payload),
         }
     )
     return view

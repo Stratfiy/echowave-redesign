@@ -6,14 +6,14 @@ code before this revision runs unchanged against the upgraded schema, and a
 downgrade drops only what this added.
 
 Revision ID: 20261008today
-Revises: 202610071500shell
+Revises: 20261008identity
 """
 
 import sqlalchemy as sa
 from alembic import op
 
 revision = "20261008today"
-down_revision = "202610071500shell"
+down_revision = "20261008identity"
 branch_labels = None
 depends_on = None
 

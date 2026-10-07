@@ -67,7 +67,7 @@ async def _cards(viewer: Viewer, since: datetime) -> list[Any]:
             ).scalars()
         )
     threads = await approvals._visible_threads(viewer, rows)
-    return [r for r in rows if approvals._may_see(r, threads)]
+    return [r for r in rows if approvals._may_see(r, threads, viewer.user_id)]
 
 
 def _card_item(row: Any, names: dict[int, str]) -> dict[str, Any]:

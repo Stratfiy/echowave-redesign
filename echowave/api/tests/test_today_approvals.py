@@ -247,3 +247,213 @@ class TestArrival:
             assert (
                 await client.get(f"/api/v1/today/approvals/{event_id}")
             ).status_code == 404
+
+
+def _kind(action: str, **extra) -> dict:
+    payload = {
+        "state": actions.PROPOSED,
+        "label": f"Do the {action}",
+        "action": action,
+        "args": {},
+        **extra,
+    }
+    payload["version"] = actions.payload_version(payload)
+    return payload
+
+
+@pytest.mark.asyncio
+class TestEveryCardKindOnTheBranch:
+    """The dock and the queue offer a card only to whoever may answer it --
+    the same rule settle enforces (actions.answer_refusal)."""
+
+    async def _two_cards(self, people, payload_for):
+        org = people.me.organization_id
+        mine = await _card(org, payload_for(people.me.user_id))
+        theirs = await _card(org, payload_for(people.colleague.user_id))
+        return mine, theirs
+
+    @pytest.mark.parametrize(
+        "payload_for",
+        [
+            # Care: answered only by the person it is about.
+            lambda u: _kind(actions.CARE_FAMILY_INVITE, only_user_id=u),
+            # Reach: an order and an outside-tool write, owned by one person.
+            lambda u: _kind(
+                actions.PLACE_ORDER,
+                owner_user_id=u,
+                args={"draft": "d", "digest": "x", "provider": "zomato"},
+            ),
+            lambda u: _kind(
+                actions.RUN_OUTSIDE_TOOL,
+                owner_user_id=u,
+                args={"connection": "c", "tool": "t", "arguments": {}},
+            ),
+            # Browser and desktop steps: the person whose machine it is.
+            lambda u: _kind(
+                actions.BROWSER_STEP,
+                requested_by=u,
+                args={
+                    "button": "Pay",
+                    "page_url": "https://shop.example/pay",
+                    "fields": {"amount": "4800"},
+                },
+            ),
+            lambda u: _kind(
+                actions.DESKTOP_STEP,
+                args={"user_id": u, "app": "Mail", "step_name": "Send the reply"},
+            ),
+        ],
+        ids=["care", "order", "outside_tool", "browser_step", "desktop_step"],
+    )
+    async def test_only_the_person_who_may_answer_is_offered_it(
+        self, people, payload_for
+    ):
+        mine, theirs = await self._two_cards(people, payload_for)
+        queue = await approvals.pending(people.me)
+        assert [i["id"] for i in queue["items"]] == [mine] and queue["count"] == 1
+        other = await approvals.pending(people.colleague)
+        assert [i["id"] for i in other["items"]] == [theirs]
+        # Visible read-only to the colleague, with the reason; never a Do it
+        # that settle would refuse.
+        view = await approvals.preview(people.colleague, mine)
+        assert view["can_answer"] is False and view["answer_refusal"]
+        assert (await approvals.preview(people.me, mine))["can_answer"] is True
+
+    @pytest.mark.parametrize(
+        "payload_for",
+        [
+            lambda u: _kind(
+                actions.MEETING_FOLLOW_UP,
+                args={
+                    "owner_user_id": u,
+                    "task": "Send the deck",
+                    "meeting_title": "Board",
+                },
+            ),
+            lambda u: _kind(
+                actions.SEND_IDENTITY_EMAIL,
+                private_to=u,
+                args={
+                    "owner_user_id": u,
+                    "from_address": "asha@decibyl.ai",
+                    "to": "ravi@example.com",
+                    "subject": "Hi",
+                    "body": "The deck",
+                },
+            ),
+        ],
+        ids=["meeting_follow_up", "identity_send"],
+    )
+    async def test_a_private_card_is_not_there_for_anyone_else(
+        self, people, payload_for
+    ):
+        mine, _ = await self._two_cards(people, payload_for)
+        assert (await approvals.pending(people.me))["count"] == 1
+        with pytest.raises(NotFound):
+            await approvals.preview(people.colleague, mine)
+
+    async def test_the_new_kinds_say_exactly_what_they_will_do(self, people):
+        org, me = people.me.organization_id, people.me.user_id
+        browser = await approvals.preview(
+            people.me,
+            await _card(
+                org,
+                _kind(
+                    actions.BROWSER_STEP,
+                    requested_by=me,
+                    args={
+                        "button": "Pay now",
+                        "page_url": "https://shop.example/pay",
+                        "fields": {"amount": "4800"},
+                    },
+                ),
+            ),
+        )
+        assert (
+            "Press: Pay now" in browser["content"]
+            and "Page: https://shop.example/pay" in browser["content"]
+        )
+        desktop = await approvals.preview(
+            people.me,
+            await _card(
+                org,
+                _kind(
+                    actions.DESKTOP_STEP,
+                    args={
+                        "user_id": me,
+                        "app": "Mail",
+                        "device": "Asha's laptop",
+                        "step_name": "Send the reply",
+                    },
+                ),
+            ),
+        )
+        assert (
+            desktop["account"] == "Mail on Asha's laptop"
+            and "Send the reply" in desktop["content"]
+        )
+        email = await approvals.preview(
+            people.me,
+            await _card(
+                org,
+                _kind(
+                    actions.SEND_IDENTITY_EMAIL,
+                    private_to=me,
+                    args={
+                        "from_address": "asha@decibyl.ai",
+                        "to": "ravi@example.com",
+                        "subject": "Hi",
+                        "body": "The deck",
+                    },
+                ),
+            ),
+        )
+        assert (
+            email["recipient"] == "ravi@example.com"
+            and email["account"] == "asha@decibyl.ai"
+        )
+        assert email["arguments"] == {
+            "to": "ravi@example.com",
+            "subject": "Hi",
+            "body": "The deck",
+        }
+        meeting = await approvals.preview(
+            people.me,
+            await _card(
+                org,
+                _kind(
+                    actions.MEETING_FOLLOW_UP,
+                    args={
+                        "owner_user_id": me,
+                        "task": "Send the deck",
+                        "due_text": "Friday",
+                        "meeting_title": "Board",
+                    },
+                ),
+            ),
+        )
+        assert (
+            "Task: Send the deck" in meeting["content"]
+            and "Due: Friday" in meeting["content"]
+        )
+
+    async def test_released_and_unknown_read_as_the_screen_names_them(self):
+        released = _kind(actions.DESKTOP_STEP)
+        released["state"] = actions.RELEASED
+        assert approvals.describe(released)["screen_state"] == "executing"
+        unknown = _kind(actions.PLACE_ORDER)
+        unknown["state"] = actions.OUTCOME_UNKNOWN
+        assert approvals.describe(unknown)["screen_state"] == "outcome_unknown"
+
+    async def test_the_dock_route_hides_a_colleagues_care_card(
+        self, people, monkeypatch
+    ):
+        switch_on(monkeypatch, "approval_dock")
+        await _card(
+            people.me.organization_id,
+            _kind(actions.CARE_MEDICINE_CALLS, only_user_id=people.me.user_id),
+        )
+        async with client_as(people.colleague_user) as client:
+            assert (await client.get("/api/v1/today/approvals")).json()["count"] == 0
+        async with client_as(people.me_user) as client:
+            assert (await client.get("/api/v1/today/approvals")).json()["count"] == 1

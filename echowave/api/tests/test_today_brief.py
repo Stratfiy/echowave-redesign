@@ -385,3 +385,49 @@ class TestArrival:
                 {"o": people.me.organization_id},
             )
         assert count == 1
+
+
+@pytest.mark.asyncio
+class TestPushThroughIdentity:
+    """Push goes through the identity stream's web push: needs setup until
+    its switch, the VAPID keys and a device are there; then accepted (a push
+    service took it), with generic lock-screen text by default."""
+
+    async def test_needs_setup_names_what_is_missing(self, people, on, monkeypatch):
+        state = await delivery.channel_state(
+            people.me.organization_id, people.me.user_id, "push"
+        )
+        assert state["state"] == "needs_setup" and "not switched on" in state["reason"]
+        from api import constants
+
+        monkeypatch.setattr(constants, "IDENTITY_NOTIFICATIONS_ENABLED", True)
+        with patch("api.services.identity.push.configured", return_value=True):
+            state = await delivery.channel_state(
+                people.me.organization_id, people.me.user_id, "push"
+            )
+        assert (
+            state["state"] == "needs_setup"
+            and "Turn on notifications" in state["reason"]
+        )
+
+    async def test_a_device_gets_it_with_private_text(self, people, on, monkeypatch):
+        from api import constants
+
+        monkeypatch.setattr(constants, "IDENTITY_NOTIFICATIONS_ENABLED", True)
+        await _accept(people.me, channels=["push"])
+        sent = AsyncMock(return_value="sent")
+        with (
+            _calls(),
+            patch("api.services.identity.push.configured", return_value=True),
+            patch.object(delivery, "_push_devices", AsyncMock(return_value=1)),
+            patch("api.services.identity.notifications._push", sent),
+        ):
+            await ticks.deliver_due_briefs(now=AT_NINE)
+        row = (await _deliveries(people.me))[0]
+        assert (row.channel, row.status, row.evidence) == (
+            "push",
+            "accepted",
+            "push:sent",
+        )
+        payload = sent.await_args.args[1]
+        assert payload["title"] == "Decibyl" and "Your brief" not in payload["body"]

@@ -47,6 +47,10 @@ export type Feature =
     | "decibyl_slack"
     | "decibyl_teams"
     | "studio"
+    // The Windows and Mac app (echowave/desktop), and working on a person's
+    // own computer from it.
+    | "desktop_app"
+    | "desktop_computer_use"
     // Free while we are early: no plans, nothing charged (on by default).
     | "free_mode"
     // Launch stream controls (LAUNCH-PLAN.md, phase 1).
@@ -68,7 +72,48 @@ export type Feature =
     | "today_reminders"
     | "daily_brief"
     | "end_of_day_note"
-    | "routine_start_on";
+    | "routine_start_on"
+    // Launch stream `support` (LAUNCH-PLAN.md, phase 2).
+    | "support_help"
+    | "support_inbox"
+    | "support_actions"
+    // Stream ops (handoff 11, 14, 15 G-H, 34, 35).
+    | "ops_console"
+    | "server_analytics"
+    | "telemetry_redaction"
+    | "session_replay"
+    | "laya_guardrails"
+    | "laya_rollback"
+    | "cost_stop"
+    // Decibyl's private browser (stream browser).
+    | "decibyl_browser"
+    // Launch stream `care` (LAUNCH-PLAN.md, phase 2).
+    | "care_simple_mode"
+    | "care_medicine_calls"
+    | "care_scam_check"
+    | "care_tech_help"
+    | "care_family_circle"
+    // Launch stream `reach` (LAUNCH-PLAN.md, phase 2).
+    | "outside_tools"
+    | "ordering"
+    | "price_compare"
+    // Launch stream `learning` (LAUNCH-PLAN.md, phase 2).
+    | "learning"
+    | "learning_today"
+    // Launch stream `meetings` (LAUNCH-PLAN.md, phase 2).
+    | "meeting_capture"
+    // Launch stream `staff` (LAUNCH-PLAN.md, phase 2; STAFF.md).
+    | "staff_console"
+    | "staff_roles"
+    | "staff_refunds"
+    | "staff_evaluations"
+    | "staff_incidents"
+    // Launch stream `identity` (LAUNCH-PLAN.md, phase 2).
+    | "identity_connections"
+    | "identity_email"
+    | "identity_phone"
+    | "identity_notifications"
+    | "identity_reconciliation";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

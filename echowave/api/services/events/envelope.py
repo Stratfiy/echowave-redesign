@@ -62,9 +62,7 @@ def _clean_value(event: str, key: str, value: Any) -> Any:
         return value
     if isinstance(value, str):
         if not _CODE.match(value):
-            raise EventRefused(
-                f"{event}.{key} must be a short code, not free text"
-            )
+            raise EventRefused(f"{event}.{key} must be a short code, not free text")
         return value
     if isinstance(value, (list, tuple)):
         if len(value) > MAX_LIST:

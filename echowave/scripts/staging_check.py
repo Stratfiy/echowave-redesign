@@ -63,6 +63,24 @@ def check(name: str, ok: bool, detail: str = "") -> bool:
     return ok
 
 
+def skip(name: str, why: str) -> None:
+    """Not run, and said so: a check that cannot apply is neither a pass nor
+    a failure, and must never be counted as either."""
+    print(f"SKIP  {name} -- {why}")
+
+
+#: What Decibyl says when it could not reach a model. It is an agent message
+#: like any other, so a check that only looks for one passes on it.
+FAILURE_REPLY = "I could not think that through"
+
+
+def _real_reply(event: dict) -> bool:
+    payload = event.get("payload") or {}
+    if payload.get("failed") or payload.get("stopped"):
+        return False
+    return not str(payload.get("body") or "").startswith(FAILURE_REPLY)
+
+
 def login(email_var: str, password_var: str) -> str | None:
     email, password = os.environ.get(email_var), os.environ.get(password_var)
     if not email or not password:
@@ -85,7 +103,8 @@ def main() -> int:
     )
     if not up:
         return report()
-    on = sorted(k for k, v in ((health or {}).get("features") or {}).items() if v)
+    features = (health or {}).get("features") or {}
+    on = sorted(k for k, v in features.items() if v)
     check("features reported", True, ", ".join(on) or "none on")
 
     a = login("STAGING_EMAIL_A", "STAGING_PASSWORD_A")
@@ -116,25 +135,37 @@ def main() -> int:
         },
     )
     check("A can message Decibyl", status == 200, f"HTTP {status}")
-    replied = False
+    replies: list[dict] = []
     deadline = time.time() + REPLY_WAIT_SECONDS
-    while time.time() < deadline and not replied:
+    while time.time() < deadline and not replies:
         _, page = call("GET", f"/timeline?assistant=true&thread_id={thread}", a)
         events = (page or {}).get("events") or []
-        replied = any(
-            e.get("actor") == "agent" and e.get("kind") == "message" for e in events
-        )
-        if not replied:
+        replies = [
+            e
+            for e in events
+            if e.get("actor") == "agent" and e.get("kind") == "message"
+        ]
+        if not replies:
             time.sleep(4)
+    real = any(_real_reply(e) for e in replies)
     check(
         "Decibyl answers with a real model",
-        replied,
+        real,
         ""
-        if replied
-        else f"no reply in {REPLY_WAIT_SECONDS}s: check model keys and the worker",
+        if real
+        else (
+            "it replied that it could not reach a model: add a model key"
+            if replies
+            else f"no reply in {REPLY_WAIT_SECONDS}s: check model keys and the worker"
+        ),
     )
 
-    if b and same_workspace:
+    if b and same_workspace and not features.get("decibyl_private_threads"):
+        skip(
+            "thread and draft privacy between A and B",
+            "decibyl_private_threads is off here, so threads are shared by design",
+        )
+    elif b and same_workspace:
         _, mine = call("GET", "/timeline/threads?limit=50", b)
         ids = {t.get("thread_id") for t in (mine or {}).get("threads") or []}
         check("A's thread is not in B's list", thread not in ids)

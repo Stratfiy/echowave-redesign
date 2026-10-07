@@ -1,0 +1,39 @@
+{
+  "name": "decibyl-desktop",
+  "productName": "Decibyl",
+  "version": "0.1.0",
+  "description": "Decibyl for Windows and macOS",
+  "private": true,
+  "author": "Decibyl",
+  "license": "UNLICENSED",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/copy-renderer.mjs",
+    "dev": "npm run build && electron . --env=local",
+    "start": "npm run build && electron .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "pack:mac": "npm run build && node scripts/package.mjs mac",
+    "pack:win": "npm run build && node scripts/package.mjs win",
+    "pack:dir": "npm run build && node scripts/package.mjs dir",
+    "release:mac": "npm run build && node scripts/package.mjs mac --publish",
+    "release:win": "npm run build && node scripts/package.mjs win --publish",
+    "format": "prettier --write \"src/**/*.{ts,js,html,css}\" \"test/**/*.ts\" \"scripts/**/*.mjs\" README.md",
+    "pack:mac-zip": "npm run build && node scripts/package.mjs mac-zip"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
+    "electron-updater": "^6.8.9"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.30",
+    "electron": "^44.6.0",
+    "electron-builder": "^26.15.3",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3",
+    "vitest": "4.1.10"
+  },
+  "optionalDependencies": {
+    "@nut-tree-fork/nut-js": "^4.2.6"
+  }
+}

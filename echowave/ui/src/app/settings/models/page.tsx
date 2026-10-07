@@ -32,7 +32,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
-type Ours = { value: string; label: string; blurb: string; serves: string };
+type Ours = {
+  value: string;
+  label: string;
+  blurb: string;
+  serves: string;
+  // Listed before it is ready (the AWS choices): shown, never choosable.
+  status?: string;
+  status_note?: string;
+};
 type More = { value: string; label: string; vendor: string };
 type Own = { vendor: string; label: string; models: string[]; has_key: boolean };
 export type ModelSlot = {
@@ -200,23 +208,33 @@ function SlotPicker({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="max-h-[70vh] w-80 overflow-y-auto">
         <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Included, free</DropdownMenuLabel>
-        {slot.ours.map((option) => (
-          <DropdownMenuItem
-            key={option.value}
-            onClick={() => onChoose(option.value, option.label)}
-            className="flex items-start gap-2"
-          >
-            <Check
-              className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${option.value === slot.current ? "" : "invisible"}`}
-              aria-hidden="true"
-            />
-            <span className="min-w-0">
-              <span className="block">{option.label}</span>
-              <span className="block text-xs text-muted-foreground">{option.blurb || option.serves}</span>
-              {option.blurb && <span className="block text-xs text-muted-foreground">{option.serves}</span>}
-            </span>
-          </DropdownMenuItem>
-        ))}
+        {slot.ours.map((option) => {
+          const notReady = Boolean(option.status && option.status !== "available");
+          return (
+            <DropdownMenuItem
+              key={option.value}
+              disabled={notReady}
+              onClick={() => onChoose(option.value, option.label)}
+              className="flex items-start gap-2"
+            >
+              <Check
+                className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${option.value === slot.current ? "" : "invisible"}`}
+                aria-hidden="true"
+              />
+              <span className="min-w-0">
+                <span className="block">
+                  {option.label}
+                  {notReady && <span className="ml-1.5 text-xs text-muted-foreground">· Needs setup</span>}
+                </span>
+                <span className="block text-xs text-muted-foreground">{option.blurb || option.serves}</span>
+                {option.blurb && <span className="block text-xs text-muted-foreground">{option.serves}</span>}
+                {notReady && option.status_note && (
+                  <span className="block text-xs text-muted-foreground">{option.status_note}</span>
+                )}
+              </span>
+            </DropdownMenuItem>
+          );
+        })}
         {slot.more.length > 0 && (
           <>
             <DropdownMenuSeparator />

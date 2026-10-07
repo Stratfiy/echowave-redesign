@@ -341,7 +341,7 @@ class TestDeliveredOnce:
         )
         await ticks.deliver_due_reminders(now=datetime(2026, 10, 9, 3, 31, tzinfo=UTC))
         rows = await _deliveries(saved["id"])
-        assert rows[0].status == "needs_setup" and "not set up" in rows[0].detail
+        assert rows[0].status == "needs_setup" and "not switched on" in rows[0].detail
 
 
 @pytest.mark.asyncio

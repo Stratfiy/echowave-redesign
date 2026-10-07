@@ -62,6 +62,35 @@ async def get_user(
     authorization: Annotated[str | None, Header()] = None,
     x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
 ) -> UserModel:
+    user = await _authenticate(request, authorization, x_api_key)
+    _refuse_if_suspended(user)
+    return user
+
+
+#: What a suspended account is told. Plain, and the same on every route.
+SUSPENDED_DETAIL = (
+    "This account is suspended. Write to support if you think this is a mistake."
+)
+
+
+def _refuse_if_suspended(user: UserModel) -> None:
+    """Launch stream `staff`: an account staff suspended through an approved
+    command is refused everywhere, while ``staff_console`` is on. Reads the
+    column already loaded with the user, so it costs no query. Staff are never
+    suspended (the command refuses them), so this cannot lock staff out."""
+    if getattr(user, "staff_suspended_at", None) is None:
+        return
+    from api.services import features
+
+    if features.is_on("staff_console"):
+        raise HTTPException(status_code=403, detail=SUSPENDED_DETAIL)
+
+
+async def _authenticate(
+    request: Request = None,  # type: ignore[assignment]
+    authorization: str | None = None,
+    x_api_key: str | None = None,
+) -> UserModel:
     # ------------------------------------------------------------------
     # Check if API key is provided (takes precedence)
     # ------------------------------------------------------------------

@@ -5,6 +5,8 @@ import { useEffect } from 'react';
 
 import { PostHogEvent } from '@/constants/posthog-events';
 import { useAuth } from '@/lib/auth';
+import { useFeature } from '@/lib/features';
+import { identifyProperties } from '@/lib/telemetry/privacy';
 
 /**
  * PostHogIdentify
@@ -17,6 +19,8 @@ import { useAuth } from '@/lib/auth';
  */
 export default function PostHogIdentify() {
     const { user } = useAuth();
+    // While on, no email address or name reaches PostHog (handoff 35).
+    const redact = useFeature('telemetry_redaction');
 
     useEffect(() => {
         if (user) {
@@ -41,10 +45,10 @@ export default function PostHogIdentify() {
                             ? String(user.provider_id)
                             : String(user.id);
 
-                    posthog.identify(distinctId, {
-                        ...(email && { email }),
-                        ...(name && { name }),
-                    });
+                    posthog.identify(
+                        distinctId,
+                        identifyProperties(email, name, redact),
+                    );
                     posthog.capture(PostHogEvent.SIGNED_IN);
                 } catch (err) {
                     console.warn('Failed to identify user in PostHog', err);
@@ -70,7 +74,7 @@ export default function PostHogIdentify() {
         } else {
             posthog.reset();
         }
-    }, [user]);
+    }, [user, redact]);
 
     return null;
 }

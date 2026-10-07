@@ -93,6 +93,25 @@ per-workspace overrides from the staff console.
   ₹4,800"), one line of detail, Do it and Don't, a link to see everything,
   and how many more are waiting. Undo stays available through the window.
 
+### Every card kind on the branch
+
+Who may answer a card is decided in one place,
+`actions.answer_refusal(payload, user_id)`. `settle` raises its reason. The
+queue, the badge and the dock list only the cards the viewer may answer, so
+nobody is offered a Do it that would be refused:
+
+| Card | Who answers it | In the preview |
+| --- | --- | --- |
+| Care (`care_*`, `only_user_id`) | The person it is about | Read-only for anyone else, with the reason |
+| Reach order and outside-tool write (`owner_user_id`) | The owner | Read-only for others |
+| `browser_step` (`requested_by`) | The person whose browser it is | Button, page and every field |
+| `desktop_step` (`args.user_id`) | The person whose computer it is | App and device, the step; `released` reads "Handed to your computer. It takes this step once." (executing, never done) |
+| `meeting_follow_up` | Whoever captured the meeting | Not there for anyone else |
+| Identity acts (`private_to`) | Their owner | Not there for anyone else; an email shows the from-address, recipient, subject and body, editable before approval |
+| Any card whose outcome is unknown | — | Check delivery, never Retry |
+
+Activity and the end-of-day note hide private cards the same way.
+
 ## Activity (screen 09)
 
 Approval cards, board tasks and deliveries share one list in the ledger's
@@ -175,7 +194,7 @@ Test presses deliver an occurrence once. The status says what happened:
 | --- | --- |
 | In the app | `sent`; the evidence is the delivery row, and it is shown in Today |
 | WhatsApp | `needs_setup` until the platform sender is configured (`WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`) **and** the person has linked WhatsApp (`channel_identities`). `skipped` with the reason while WhatsApp's 24-hour window is closed (there is no template path yet). `accepted` when Meta takes the message, never "delivered". It spends the person's `outbound_messages` allowance, and a send that breaks midway is `unknown` and never retried |
-| Phone notification | `needs_setup` ("Phone notifications are not set up yet."): web push is the `identity` stream's |
+| Phone notification | Through the `identity` stream's web push (`notifications._push`). It is `needs_setup` until `identity_notifications` is on, the VAPID keys are set and the person has allowed a device. Then it is `accepted` (a push service took it, which is not proof it was seen), with generic lock-screen text while the person's private previews are on |
 
 Sending to a person's own WhatsApp at the time they confirmed is what they
 asked for in the editor or settings. The confirmation is the exact schedule
@@ -204,7 +223,7 @@ finishes.
 
 ## Migration
 
-`20261008today` (down to `202610071500shell`) is additive. It adds the tables
+`20261008today` (down to `20261008identity`, the head after phase-2 integration) is additive. It adds the tables
 `today_events`, `today_reminders`, `today_deliveries`, `daily_brief_settings`,
 `daily_briefs` and `today_dismissals`, all with `organization_id` and
 `user_id` foreign keys (cascade) and the unique keys described above, plus one
@@ -236,5 +255,5 @@ behaviour at once:
   Routines already armed by a card stay on; switch them off on Routines if
   needed.
 
-Schema: `alembic downgrade 202610071500shell` drops the six tables and the
+Schema: `alembic downgrade 20261008identity` drops the six tables and the
 column. Nothing else depends on them.

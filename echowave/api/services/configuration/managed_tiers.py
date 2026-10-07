@@ -161,6 +161,30 @@ REALTIME_TIER_LABELS: dict[str, tuple[str, str]] = {
         "Premium",
         "The most capable speech model. Noticeably dearer a minute.",
     ),
+    "nova": (
+        "Hindi live",
+        "Speech-to-speech on Amazon Nova Sonic. Hindi and Indian English only.",
+    ),
+}
+
+#: Amazon Nova Sonic (stream aws-gateway). Not in ``REALTIME_TIERS``: it is on
+#: sale only while ``aws_nova_sonic`` is on and configured (see ``tiers_for``),
+#: and only for Hindi and Indian English (``realtime_tier_for_language``).
+NOVA_SONIC_TIER = "nova"
+NOVA_SONIC_PROVIDER = "aws_nova_sonic"
+
+#: Knowledge search on Bedrock embeddings (stream aws-gateway), on sale only
+#: while ``aws_embeddings`` is on and configured. Chosen from Settings ->
+#: Models, which stores it as the slot choice ``decibyl/aws``.
+BEDROCK_EMBEDDINGS_TIER = "aws"
+BEDROCK_PROVIDER = "aws_bedrock"
+
+EMBEDDINGS_TIER_LABELS: dict[str, tuple[str, str]] = {
+    "default": ("Standard", "Finds the right passage in your documents."),
+    "aws": (
+        "Multilingual (AWS)",
+        "Cohere's multilingual search on Amazon Bedrock. Re-reads your documents.",
+    ),
 }
 
 #: Embeddings are billed, in both of the places they are incurred, and this
@@ -217,12 +241,51 @@ def tiers_for(component: CostComponent | str) -> tuple[str, ...]:
         .lower()
     )
     tiers = _TIERS_BY_COMPONENT.get(key, ())
+    if key == REALTIME_COMPONENT and nova_sonic_on_sale():
+        tiers = (*tiers, NOVA_SONIC_TIER)
+    if key == EMBEDDINGS_COMPONENT and bedrock_embeddings_on_sale():
+        tiers = (*tiers, BEDROCK_EMBEDDINGS_TIER)
     if key == REALTIME_COMPONENT and gemini_only():
         # No OpenAI realtime on the managed offering: the tier that only
         # ever meant "OpenAI" is not on sale. ``default`` stays, resolving
         # to Gemini Live below.
         return tuple(t for t in tiers if t != "premium")
     return tiers
+
+
+def nova_sonic_on_sale() -> bool:
+    """Whether Nova Sonic is offered: switched on and configured. Offered
+    while still waiting on model access, so the gap shows as needs setup
+    (``managed_resolution.tier_availability`` marks it unavailable)."""
+    from api.services.aws_gateway import config as aws_config
+
+    return aws_config.nova_sonic_status().configured
+
+
+def bedrock_embeddings_on_sale() -> bool:
+    """Whether Bedrock embeddings are offered: switched on and configured."""
+    from api.services.aws_gateway import config as aws_config
+
+    return aws_config.embeddings_status().configured
+
+
+def realtime_tier_for_language(tier: str, language: str | None) -> str:
+    """The speech-to-speech tier to run for an account's language.
+
+    Nova Sonic is for Hindi and Indian English only; any other language on
+    it runs on the default speech-to-speech tier instead, and the log says
+    so rather than letting a Tamil caller reach a model that cannot hear
+    them. Every other tier is returned unchanged."""
+    from api.services.aws_gateway import config as aws_config
+
+    if tier != NOVA_SONIC_TIER or aws_config.nova_sonic_allows(language):
+        return tier
+    logger.warning(
+        "Nova Sonic is offered for Hindi and Indian English only; language {!r} "
+        "runs on the natural speech-to-speech tier instead.",
+        language,
+    )
+    return "natural"
 
 
 def gemini_only() -> bool:
@@ -369,6 +432,16 @@ def _defaults() -> dict[tuple[str, str], ManagedUpstream]:
             "google_realtime",
             "gemini-3.1-flash-live-preview",
         ),
+        # Amazon Nova Sonic, for Hindi and Indian English (stream
+        # aws-gateway). The model id is configuration, never a default here.
+        (REALTIME_COMPONENT, NOVA_SONIC_TIER): ManagedUpstream(
+            NOVA_SONIC_PROVIDER, _nova_sonic_model()
+        ),
+        # Bedrock embeddings (stream aws-gateway); the model id is
+        # configuration, never a default here.
+        (EMBEDDINGS_COMPONENT, BEDROCK_EMBEDDINGS_TIER): ManagedUpstream(
+            BEDROCK_PROVIDER, _bedrock_embedding_model()
+        ),
         # --- Embeddings ----------------------------------------------------
         # OpenAI, and it has to be: **there is no Google embeddings service in
         # this codebase.** ``REGISTRY[ServiceType.EMBEDDINGS]`` holds azure,
@@ -400,6 +473,18 @@ def _defaults() -> dict[tuple[str, str], ManagedUpstream]:
             EMBEDDINGS_COMPONENT, "default", "openai", "text-embedding-3-small"
         ),
     }
+
+
+def _bedrock_embedding_model() -> str:
+    from api import constants
+
+    return constants.BEDROCK_EMBEDDING_MODEL
+
+
+def _nova_sonic_model() -> str:
+    from api import constants
+
+    return constants.NOVA_SONIC_MODEL
 
 
 #: Operator-chosen mappings, loaded from the database and refreshed when one
@@ -503,6 +588,19 @@ def resolve(component: CostComponent | str, tier: str | None) -> ManagedUpstream
         if fallback is None:
             raise KeyError(f"No managed tier mapping for component {component_value!r}")
         upstream = fallback
+
+    # The AWS gateway's tiers resolve only while they are on sale. A stored
+    # choice of one outlives its flag -- the founder switches it off, or its
+    # model id is removed -- and must then run on the tier it stands in for
+    # rather than reach a provider with no credential and fail at dial time.
+    if key == (EMBEDDINGS_COMPONENT, BEDROCK_EMBEDDINGS_TIER) and not (
+        bedrock_embeddings_on_sale()
+    ):
+        logger.warning("Bedrock embeddings are off; using the default embeddings tier.")
+        return mappings[(EMBEDDINGS_COMPONENT, "default")]
+    if key == (REALTIME_COMPONENT, NOVA_SONIC_TIER) and not nova_sonic_on_sale():
+        logger.warning("Nova Sonic is off; using the natural speech-to-speech tier.")
+        upstream = mappings[(REALTIME_COMPONENT, "natural")]
 
     if (
         component_value == REALTIME_COMPONENT

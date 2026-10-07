@@ -13,12 +13,15 @@ describe("Settings' sections", () => {
       "General",
       "Team",
       "Daily brief",
+      "Notifications",
       "Models",
       "Knowledge",
       "Apps and tools",
       "Channels",
       "Phone numbers",
       "Company",
+      "Connections",
+      "Decibyl identity",
       "Advanced",
       "Developer",
       "Compliance",
@@ -44,7 +47,20 @@ describe("Settings' sections", () => {
     ["/telephony-configurations/4", "phone-number"],
     ["/tools/abc", "apps"],
     ["/do-not-call", "compliance"],
+    ["/settings/connections", "connections"],
+    ["/settings/identity", "identity"],
+    ["/settings/notifications", "notifications"],
   ])("lights %s as %s", (path, id) => {
     expect(activeSection(path)).toBe(id);
+  });
+});
+
+describe("Identity sections (launch stream identity)", () => {
+  it("are behind their own switches", () => {
+    const byId = Object.fromEntries(SETTINGS_SECTIONS.map((s) => [s.id, s.flags]));
+    expect(byId.connections).toEqual(["identity_connections"]);
+    expect(byId.identity).toEqual(["identity_email", "identity_phone"]);
+    expect(byId.notifications).toEqual(["identity_notifications"]);
+    expect(byId.general).toBeUndefined();
   });
 });

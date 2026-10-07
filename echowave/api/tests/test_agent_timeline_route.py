@@ -18,7 +18,7 @@ from api.routes.main import router as api_router
 
 
 def _user(org=42):
-    return SimpleNamespace(selected_organization_id=org)
+    return SimpleNamespace(id=5, selected_organization_id=org)
 
 
 def _row(id=1, **kwargs):

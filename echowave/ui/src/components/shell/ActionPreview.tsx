@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 
 export type ActionPreviewData = {
     id: string;
-    /** The card's payload version: a number, or the controls card's hash. */
+    /** A counter, or the payload hash the server binds approval to. */
     version: number | string;
     /** "Send email", "Book appointment". */
     action: string;
@@ -63,6 +63,7 @@ export function ActionPreview({
     approveLabel = "Approve",
     stickyDecision = false,
     decisionNote,
+    readOnly,
 }: {
     preview: ActionPreviewData;
     status: ApprovalStatus;
@@ -79,6 +80,9 @@ export function ActionPreview({
      *  beside the button. */
     stickyDecision?: boolean;
     decisionNote?: ReactNode;
+    /** Shown instead of the decision when this person may not answer the
+     *  card (someone else's consent, order or computer): why, in words. */
+    readOnly?: ReactNode;
 }) {
     const expired =
         status === "expired" || (!!preview.expiresAt && new Date(preview.expiresAt).getTime() <= now);
@@ -95,7 +99,7 @@ export function ActionPreview({
             <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold">{preview.action}</h3>
                 <span className="font-mono text-[11px] text-muted-foreground" title="Preview version">
-                    v{preview.version}
+                    v{String(preview.version).slice(0, 8)}
                 </span>
             </header>
             <dl className="flex flex-col gap-1.5">
@@ -165,7 +169,12 @@ export function ActionPreview({
                             : "This changed since you saw it. Review the new version."}
                     </p>
                 )}
-                {!settled && (
+                {readOnly && !settled && (
+                    <p role="note" className="text-sm text-muted-foreground" data-testid="action-preview-read-only">
+                        {readOnly}
+                    </p>
+                )}
+                {!settled && !readOnly && (
                     <>
                         <Button
                             type="button"

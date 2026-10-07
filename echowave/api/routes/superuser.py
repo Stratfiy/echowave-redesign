@@ -387,3 +387,15 @@ async def set_trial_end(
         await session.commit()
         status_ = await trial_service.status(session, organization_id=organization_id)
     return {"organization_id": organization_id, "trial": status_.as_dict()}
+
+
+@router.get("/aws-gateway")
+async def aws_gateway_status(user: UserModel = Depends(get_superuser)):
+    """Claude and other models through AWS: each part's state and, when it is
+    not ready, the step that makes it ready (stream aws-gateway).
+
+    Configuration and Bedrock model access only; nothing here calls AWS.
+    """
+    from api.services.aws_gateway import config as aws_config
+
+    return aws_config.overview()

@@ -18,8 +18,11 @@ from api.routes.auth import router as auth_router
 from api.routes.billing_dashboard import router as billing_dashboard_router
 from api.routes.bot_event_webhooks import router as bot_event_webhooks_router
 from api.routes.bot_triggers import router as bot_triggers_router
+from api.routes.browser import admin_router as browser_admin_router
+from api.routes.browser import router as browser_router
 from api.routes.budgets import router as budgets_router
 from api.routes.campaign import router as campaign_router
+from api.routes.care import router as care_router
 from api.routes.channel_links import router as channel_links_router
 from api.routes.connectors import router as connectors_router
 from api.routes.contacts import router as contacts_router
@@ -27,21 +30,26 @@ from api.routes.controls import router as controls_router
 from api.routes.controls_admin import router as controls_admin_router
 from api.routes.cost_estimate import router as cost_estimate_router
 from api.routes.credentials import router as credentials_router
+from api.routes.desktop import router as desktop_router
 from api.routes.dialer_connections import router as dialer_connections_router
 from api.routes.do_not_call import router as do_not_call_router
 from api.routes.evals import router as evals_router
 from api.routes.extraction_library import router as extraction_library_router
 from api.routes.feature_admin import router as feature_admin_router
 from api.routes.folder import router as folder_router
+from api.routes.identity import router as identity_router
 from api.routes.impersonation import router as impersonation_router
 from api.routes.knowledge_base import router as knowledge_base_router
 from api.routes.kyc import router as kyc_router
 from api.routes.kyc_admin import router as kyc_admin_router
+from api.routes.learning import router as learning_router
 from api.routes.managed_numbers import router as managed_numbers_router
+from api.routes.meetings import router as meetings_router
 from api.routes.missed_calls import router as missed_calls_router
 from api.routes.node_types import router as node_types_router
 from api.routes.notifications import router as notifications_router
 from api.routes.onboarding import router as onboarding_router
+from api.routes.ops_console import router as ops_console_router
 from api.routes.organisation import router as organisation_router
 from api.routes.organisation_memory import router as organisation_memory_router
 from api.routes.organization import router as organization_router
@@ -65,6 +73,7 @@ from api.routes.public_marketplace import router as public_marketplace_router
 from api.routes.public_triggers import router as public_triggers_router
 from api.routes.public_trust import router as public_trust_router
 from api.routes.public_whatsapp import router as public_whatsapp_router
+from api.routes.reach import router as reach_router
 from api.routes.referrals import router as referrals_router
 from api.routes.reports import router as reports_router
 from api.routes.routines import all_router as all_routines_router
@@ -74,9 +83,13 @@ from api.routes.service_keys import router as service_keys_router
 from api.routes.shell import public_router as public_early_access_router
 from api.routes.shell import router as shell_router
 from api.routes.skills import router as skills_router
+from api.routes.staff_console import router as staff_console_router
 from api.routes.studio import public_router as public_studio_router
 from api.routes.studio import router as studio_router
 from api.routes.superuser import router as superuser_router
+from api.routes.support import router as support_router
+from api.routes.support_admin import actions_router as support_actions_router
+from api.routes.support_admin import router as support_admin_router
 from api.routes.tasks import router as tasks_router
 from api.routes.team import router as team_router
 from api.routes.telephony import router as telephony_router
@@ -113,6 +126,7 @@ router.include_router(telephony_router)
 router.include_router(telephony_admin_router)
 router.include_router(superuser_router)
 router.include_router(feature_admin_router)
+router.include_router(ops_console_router)
 router.include_router(billing_dashboard_router)
 router.include_router(admin_kpis_router)
 router.include_router(admin_console_router)
@@ -122,6 +136,9 @@ router.include_router(referrals_router)
 router.include_router(promo_admin_router)
 router.include_router(agent_builder_router)
 router.include_router(studio_router)
+router.include_router(desktop_router)
+router.include_router(browser_router)
+router.include_router(browser_admin_router)
 router.include_router(agent_templates_router)
 router.include_router(agent_options_router)
 router.include_router(cost_estimate_router)
@@ -157,8 +174,10 @@ router.include_router(bot_triggers_router)
 router.include_router(skills_router)
 router.include_router(tasks_router)
 router.include_router(controls_router)
+router.include_router(care_router)
 router.include_router(controls_admin_router)
 router.include_router(today_router)
+router.include_router(staff_console_router)
 router.include_router(organisation_router)
 router.include_router(organisation_memory_router)
 router.include_router(packs_router)
@@ -188,6 +207,13 @@ router.include_router(public_studio_router)
 router.include_router(public_trust_router)
 router.include_router(public_early_access_router)
 router.include_router(shell_router)
+router.include_router(reach_router)
+router.include_router(learning_router)
+router.include_router(meetings_router)
+router.include_router(support_router)
+router.include_router(support_admin_router)
+router.include_router(support_actions_router)
+router.include_router(identity_router)
 router.include_router(public_marketplace_router)
 router.include_router(workflow_embed_router)
 router.include_router(knowledge_base_router)

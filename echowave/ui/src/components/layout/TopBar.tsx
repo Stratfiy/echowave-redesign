@@ -175,6 +175,8 @@ function GlobalSearch() {
 export function TopBar() {
   // Free while we are early: no balance to watch, no credit to earn.
   const freeMode = useFeature("free_mode");
+  const supportHelp = useFeature("support_help");
+  const router = useRouter();
   return (
     <header className="sticky top-0 z-40 flex h-11 shrink-0 items-center gap-2 px-3 text-rail-foreground">
       {/* No drawer toggle here: on a phone the bottom bar's Menu opens it,
@@ -231,6 +233,19 @@ export function TopBar() {
           <DropdownMenuContent align="end" className="w-60">
             <DropdownMenuLabel>Help</DropdownMenuLabel>
             <DropdownMenuSeparator />
+            {/* Our own support desk (screen 28), first when it is on: a
+                request about this account, answered in the product. */}
+            {supportHelp && (
+              <DropdownMenuItem
+                className="flex cursor-pointer flex-col items-start"
+                onSelect={() => router.push("/help")}
+              >
+                <span>Ask Decibyl support</span>
+                <span className="text-xs text-muted-foreground">
+                  You see what is shared before it is sent
+                </span>
+              </DropdownMenuItem>
+            )}
             {HELP_LINKS.map((link) => (
               <DropdownMenuItem key={link.key} asChild>
                 <a

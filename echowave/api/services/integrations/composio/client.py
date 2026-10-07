@@ -604,3 +604,85 @@ async def connected_accounts(
             }
         )
     return accounts
+
+
+class ComposioUnavailable(RuntimeError):
+    """Composio could not be asked. Distinct from "nothing is connected":
+    a failed read must never be shown as an empty list (handoff 30)."""
+
+
+async def accounts_with_status(
+    organization_id: Optional[int],
+    *,
+    user_id: Optional[int] = None,
+    timeout_secs: float = COMPOSIO_TIMEOUT_SECS,
+) -> list[dict[str, Any]]:
+    """Every account under one tenant, in any state, for the Connections
+    screen (launch stream identity). Unlike :func:`connected_accounts`, this
+    raises ComposioUnavailable rather than answering [] when it cannot ask,
+    and keeps expired and failed accounts so the screen can say so."""
+    tenant = tenant_user_id(organization_id, user_id)
+    headers = _headers()
+    try:
+        async with httpx.AsyncClient(timeout=timeout_secs) as client:
+            response = await client.get(
+                f"{COMPOSIO_BASE_URL}/api/v3.1/connected_accounts",
+                headers=headers,
+                params={"user_ids": tenant},
+            )
+            response.raise_for_status()
+            body = response.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        raise ComposioUnavailable(str(exc)) from exc
+    items = body.get("items") if isinstance(body, dict) else None
+    if not isinstance(items, list):
+        raise ComposioUnavailable("unexpected response")
+    accounts: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict) or not isinstance(item.get("id"), str):
+            continue
+        # Composio filters by user_ids; checked again here because the
+        # boundary between two people's mail is not one to take on trust.
+        owner = item.get("user_id")
+        if isinstance(owner, str) and owner != tenant:
+            continue
+        toolkit = item.get("toolkit")
+        slug = toolkit.get("slug") if isinstance(toolkit, dict) else toolkit
+        accounts.append(
+            {
+                "connected_account_id": item["id"],
+                "app": slug.lower() if isinstance(slug, str) else None,
+                "label": item.get("alias") or item.get("word_id") or item["id"],
+                "status": str(item.get("status") or "").upper(),
+                "connected_at": item.get("created_at"),
+                "updated_at": item.get("updated_at"),
+            }
+        )
+    return accounts
+
+
+async def delete_connected_account(
+    connected_account_id: str,
+    *,
+    timeout_secs: float = COMPOSIO_TIMEOUT_SECS,
+) -> None:
+    """Revoke one account at Composio. The caller has already checked, from
+    the tenant's own listing, that the account is the caller's to revoke.
+    Raises ComposioExecutionError on a refusal (nothing changed) and
+    ComposioUnavailable when whether it happened is not known."""
+    headers = _headers()
+    try:
+        async with httpx.AsyncClient(timeout=timeout_secs) as client:
+            response = await client.delete(
+                f"{COMPOSIO_BASE_URL}/api/v3/connected_accounts/{connected_account_id}",
+                headers=headers,
+            )
+    except httpx.HTTPError as exc:
+        raise ComposioUnavailable(str(exc)) from exc
+    if response.status_code == 404:
+        # Already gone: revoked is what was asked for.
+        return
+    if 400 <= response.status_code < 500:
+        raise ComposioExecutionError(f"refused ({response.status_code})")
+    if response.status_code >= 500:
+        raise ComposioUnavailable(f"server error ({response.status_code})")

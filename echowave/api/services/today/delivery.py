@@ -47,12 +47,56 @@ PUSH_NOT_READY = (
     "Phone notifications are not set up yet. You will see this in Today in "
     "the meantime."
 )
+PUSH_NOT_ON = (
+    "Phone notifications are not switched on here yet. You will see this in "
+    "Today in the meantime."
+)
+PUSH_NO_DEVICE = "Turn on notifications on your phone or browser in Settings first."
 WHATSAPP_NOT_CONFIGURED = "WhatsApp is not set up for Decibyl yet."
 WHATSAPP_NOT_LINKED = "Link your WhatsApp to Decibyl to get this there."
 WHATSAPP_WINDOW_CLOSED = (
     "WhatsApp only lets Decibyl message you within 24 hours of your last "
     "message to it. Say hello on WhatsApp to open it again."
 )
+
+
+async def _push_devices(user_id: int) -> int:
+    from sqlalchemy import func
+
+    from api.db.identity_models import PushSubscriptionModel
+
+    async with db_client.async_session() as session:
+        return int(
+            await session.scalar(
+                select(func.count(PushSubscriptionModel.id)).where(
+                    PushSubscriptionModel.user_id == user_id,
+                    PushSubscriptionModel.revoked_at.is_(None),
+                )
+            )
+            or 0
+        )
+
+
+async def _send_push(user_id: int, text: str) -> tuple[str, str | None, str | None]:
+    """Through the identity stream's push sender, so devices, revoked
+    permissions and failures are kept in one place. Lock-screen text stays
+    generic while the person's private previews are on (their default).
+    (status, reason_code, evidence)."""
+    from api.services.identity import notifications
+
+    prefs = await notifications.get(user_id)
+    title, body = "Decibyl", text
+    if prefs.get("private_previews", True):
+        title, body = notifications.GENERIC_TITLE, notifications.GENERIC_BODY
+    outcome = await notifications._push(
+        user_id, {"title": title, "body": body[:500], "url": "/tasks", "tag": "today"}
+    )
+    if outcome in ("sent", "partial"):
+        # A push service took it; that is not proof the person saw it.
+        return "accepted", None, f"push:{outcome}"
+    if outcome in ("needs_setup", "no_device"):
+        return NEEDS_SETUP, f"push_{outcome}", None
+    return "failed", "push_failed", None
 
 
 async def _whatsapp_number(organization_id: int, user_id: int) -> str | None:
@@ -73,7 +117,19 @@ async def channel_state(
     if channel == IN_APP:
         return {"channel": channel, "state": AVAILABLE, "reason": None}
     if channel == PUSH:
-        return {"channel": channel, "state": NEEDS_SETUP, "reason": PUSH_NOT_READY}
+        # Web push is the identity stream's (services/identity): its switch,
+        # the operator's VAPID keys, and at least one device this person
+        # allowed. Any one missing is "needs setup", said in words.
+        from api.services import features
+        from api.services.identity import push
+
+        if not features.is_on("identity_notifications", organization_id):
+            return {"channel": channel, "state": NEEDS_SETUP, "reason": PUSH_NOT_ON}
+        if not push.configured():
+            return {"channel": channel, "state": NEEDS_SETUP, "reason": PUSH_NOT_READY}
+        if not await _push_devices(user_id):
+            return {"channel": channel, "state": NEEDS_SETUP, "reason": PUSH_NO_DEVICE}
+        return {"channel": channel, "state": AVAILABLE, "reason": None}
     if channel == WHATSAPP:
         from api.services.messaging import platform_whatsapp
 
@@ -224,6 +280,8 @@ async def deliver(
             )
         elif channel == IN_APP:
             evidence = f"in_app:{delivery_id}"
+        elif channel == PUSH:
+            status, reason, evidence = await _send_push(user_id, text)
         elif channel == WHATSAPP:
             from api.services.messaging import whatsapp_inbound
 

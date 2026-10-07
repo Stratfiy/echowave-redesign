@@ -52,6 +52,8 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "agent-builder",
             # Agents and a website for them, built from one chat.
             "studio",
+            # Decibyl's private browser: live view, Take over, saved logins.
+            "browser",
             "agent-templates",
             # A workspace's own saved roles, and sharing them (MP-2, MP-3).
             "workspace-roles",
@@ -105,6 +107,12 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             # WhatsApp, and linking those accounts to themselves (KAN-277).
             "public-decibyl-channels",
             "channel-links",
+            # The Windows and Mac app: approval cards for steps it takes on
+            # a person's own computer, and the receipt it leaves.
+            "desktop",
+            # A person's connections, Decibyl address, phone and
+            # verification, and notifications (launch stream identity).
+            "identity",
         ),
     ),
     (
@@ -127,6 +135,9 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "credentials",
             "provider-keys",
             "service-keys",
+            # A person's own outside tools and ordering apps, and their
+            # order cards (launch stream `reach`).
+            "reach",
         ),
     ),
     (
@@ -150,6 +161,18 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             # Where a person lands after sign-in, their first answers, and
             # Stop for a reply forming in Chat (launch stream `shell`).
             "shell",
+            # Older people and their families: medicine reminder calls,
+            # scam checks, tech help and the family circle (stream `care`).
+            "care",
+            # A person's learning goals, lessons, practice and progress
+            # (launch stream `learning`).
+            "learning",
+            # Meeting capture and the meeting record (launch stream
+            # `meetings`, screens 11-12).
+            "meetings",
+            # Help: a person's own support requests, what they share with
+            # support and the replies (launch stream `support`).
+            "support",
         ),
     ),
     (
