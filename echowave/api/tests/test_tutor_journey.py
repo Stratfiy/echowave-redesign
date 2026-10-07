@@ -222,3 +222,17 @@ class TestOverHttp:
                 assert (await c.get("/api/v1/learning/today")).status_code == 404
         finally:
             app.dependency_overrides.pop(get_user, None)
+
+
+@pytest.mark.asyncio
+class TestACourseNotYetBegun:
+    async def test_today_asks_for_the_first_answer(self, learner, learning_on):
+        # A course started from Chat waits on its first question; Today
+        # showed nothing for it, so the person had no way back to it.
+        a, org = learner
+        await core.save_profile(org, a.id, {"adult_confirmed": True}, revision=0)
+        started = await core.start_goal(org, a.id, title="Python")
+        [lesson] = (await core.today(org, a.id))["lessons"]
+        assert lesson["goal_id"] == started["goal"]["goal_id"]
+        assert lesson["kind"] == "baseline"
+        assert lesson["text"] == "Answer the first question to begin."

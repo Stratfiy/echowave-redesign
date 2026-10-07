@@ -1234,7 +1234,9 @@ async def today(
     today_local = now.astimezone(zone).date()
     lessons = []
     for goal in await list_goals(organization_id, user_id):
-        if goal["status"] != "active":
+        # A course waiting on its first answer is shown too: it is the way
+        # back to a course started from Chat.
+        if goal["status"] not in ("active", "baseline"):
             continue
         got = await progress(organization_id, user_id, goal["goal_id"], now=now)
         step = got["next_step"]
