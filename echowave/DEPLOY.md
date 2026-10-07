@@ -85,12 +85,15 @@ use one or the other, never both.)
 **The box needs to be able to pull at all.** Two credentials, neither of them
 Decibyl's:
 
-* **Docker Hub.** `postgres`, `redis`, `minio`, `nginx`, `coturn` and the rest
-  come from Docker Hub, and an unauthenticated daemon shares one small pull
-  quota with every other machine on its IP. When that runs out the error names
-  the image and not the cause — `pull access denied for minio/minio,
-  repository does not exist or may require 'docker login'` on an image that is
-  public. `docker login` with any free account on the box fixes it.
+* **Docker Hub.** `postgres`, `redis`, `nginx`, `coturn` and the rest come
+  from Docker Hub, and an unauthenticated daemon shares one small pull quota
+  with every other machine on its IP. When that runs out the error names the
+  image and not the cause — `pull access denied for redis, repository does not
+  exist or may require 'docker login'` on an image that is public. `docker
+  login` with any free account on the box fixes it. MinIO is the exception:
+  `minio/minio` really is gone from Docker Hub, so compose builds it from
+  `deploy/minio/Dockerfile` (Chainguard's server plus curl for the health
+  check) on first `up`.
 * **GHCR.** `decibyl-api`, `decibyl-ui` and `decibyl-sandbox` are published to
   `ghcr.io/stratfiy`. If those packages are private the box needs a read token:
   `echo "$TOKEN" | docker login ghcr.io -u <user> --password-stdin`. Making the

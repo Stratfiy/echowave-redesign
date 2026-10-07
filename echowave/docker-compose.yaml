@@ -165,7 +165,9 @@ services:
     restart: unless-stopped
     # Ceiling; see the note on postgres.
     mem_limit: 512m
-    image: minio/minio
+    # Built here: minio/minio is no longer published. See deploy/minio/Dockerfile.
+    build: ./deploy/minio
+    image: decibyl-minio:local
     container_name: minio
     command: server /data --console-address ":9001"
     environment:
@@ -488,7 +490,11 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      # The ui waits for this to be healthy. 60s was too short on a t3.large
+      # with the launch flags on: the api came up fine, but `up` gave up on
+      # it first and never started the ui. A healthy api still passes on its
+      # first check, so this only lengthens how long a broken one is waited on.
+      start_period: 180s
     networks:
       - app-network
 

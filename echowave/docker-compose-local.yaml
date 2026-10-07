@@ -39,7 +39,9 @@ services:
       - app-network
 
   minio:
-    image: minio/minio
+    # Built here: minio/minio is no longer published. See deploy/minio/Dockerfile.
+    build: ./deploy/minio
+    image: decibyl-minio:local
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin
