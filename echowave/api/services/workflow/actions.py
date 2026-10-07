@@ -154,6 +154,14 @@ DELETE_LEARNING_GOAL = "delete_learning_goal"
 #: the meeting record, never by a model, and only the person who captured
 #: the meeting may settle it.
 MEETING_FOLLOW_UP = "meeting_follow_up"
+#: A person's own identity acts (launch stream identity; see
+#: services/identity/cards.py): disconnect an app they connected, send from
+#: their Decibyl address, request a phone number. Proposed from Settings,
+#: never by the model, and private to the person who asked.
+DISCONNECT_APP = "disconnect_app"
+SEND_IDENTITY_EMAIL = "send_identity_email"
+REQUEST_NUMBER = "request_number"
+IDENTITY_ACTIONS = (DISCONNECT_APP, SEND_IDENTITY_EMAIL, REQUEST_NUMBER)
 INTERNAL_ACTIONS = (
     PLACE_ORDER,
     RUN_OUTSIDE_TOOL,
@@ -167,6 +175,7 @@ INTERNAL_ACTIONS = (
     *CARE_ACTIONS,
     DELETE_LEARNING_GOAL,
     MEETING_FOLLOW_UP,
+    *IDENTITY_ACTIONS,
 )
 
 #: The states a proposal moves through. Terminal ones are the last four.
@@ -247,7 +256,7 @@ def _is_outbound(payload: dict[str, Any]) -> bool:
     """Whether running the card reaches somebody: a send, not a read or a
     draft. What the operational quota counts as an outbound message."""
     action = payload.get("action")
-    if action == SEND_DOCUMENT:
+    if action in (SEND_DOCUMENT, SEND_IDENTITY_EMAIL):
         return True
     if action == DESKTOP_STEP:
         # A send on the person's own computer is a send all the same.
@@ -446,6 +455,13 @@ async def resolve(
         )
     if action in OWNED_ACTIONS:
         return await _resolve_owned(organization_id, action, arguments, why)
+    if action in IDENTITY_ACTIONS:
+        from api.services.identity import cards as identity_cards
+
+        try:
+            return await identity_cards.resolve(organization_id, arguments)
+        except identity_cards.CardError as exc:
+            raise ActionError(str(exc)) from exc
 
     if action == RUN_TOOL:
         from api.services.workflow import connected_tools
@@ -902,8 +918,12 @@ async def propose(
     workflow_run_id: int | None,
     arguments: dict[str, Any],
     in_channel: bool = True,
+    include_event_id: bool = False,
 ) -> dict[str, Any]:
     """Record the proposal. Returns what the model is told.
+
+    ``include_event_id`` adds the card's id for a screen that shows the card
+    itself (Settings, stream identity); the model is never told it.
 
     ``in_channel=False`` is Decibyl: the row has no bot and no channel, which
     is what puts it on Decibyl's own thread (see decibyl.thread_filter).
@@ -957,6 +977,7 @@ async def propose(
         workflow_run_id=workflow_run_id,
         payload=payload,
         in_channel=in_channel,
+        visibility=_visibility(payload),
     )
     if recorded is not None:
         from types import SimpleNamespace
@@ -969,7 +990,7 @@ async def propose(
             payload,
             acting.acting_user(),
         )
-    return {
+    told = {
         "status": "proposed",
         "event_id": recorded,
         "note": (
@@ -978,6 +999,9 @@ async def propose(
             "your reply."
         ),
     }
+    if include_event_id:
+        told["event_id"] = recorded
+    return told
 
 
 async def propose_learning_deletion(
@@ -1014,6 +1038,23 @@ async def propose_learning_deletion(
 
 
 # --- the person's half ------------------------------------------------------
+
+
+def _visibility(payload: dict[str, Any]) -> str | None:
+    """A card private to one person is never on a shared timeline."""
+    from api.enums import AgentEventVisibility
+
+    if payload.get("private_to"):
+        return AgentEventVisibility.PRIVATE.value
+    return None
+
+
+def _assert_owner(payload: dict[str, Any], user_id: int) -> None:
+    """A private card is settled and edited by its owner and nobody else --
+    not a colleague, not an admin. Said the way a wrong tenant is."""
+    owner = payload.get("private_to")
+    if owner is not None and owner != user_id:
+        raise ActionError("That proposal is not here.")
 
 
 def _stamp(user_id: int) -> dict[str, Any]:
@@ -1110,6 +1151,7 @@ async def settle(
             # A meeting is private to whoever captured it; to anyone else
             # its card is not there, the way a wrong tenant is not.
             raise ActionError("That proposal is not here.")
+    _assert_owner(payload, user_id)
 
     if verb == "confirm":
         if state != PROPOSED:
@@ -1270,7 +1312,9 @@ async def reconcile(
 
 #: The actions whose arguments a person may edit on the card before
 #: confirming. Each edit is a new version (``payload_version``).
-REVISABLE = (RUN_TOOL, SEND_DOCUMENT)
+REVISABLE = (RUN_TOOL, SEND_DOCUMENT, SEND_IDENTITY_EMAIL)
+#: The fields of a SEND_IDENTITY_EMAIL card a person may change.
+_EMAIL_FIELDS = ("to", "subject", "body")
 #: The fields of a SEND_DOCUMENT card a person may change.
 _DOCUMENT_FIELDS = ("note", "to", "channel")
 
@@ -1297,6 +1341,7 @@ async def revise(
     event = await _proposal(organization_id, event_id)
     payload = dict(event.payload or {})
     state = payload.get("state") or PROPOSED
+    _assert_owner(payload, user_id)
     if state not in (PROPOSED, ARMED):
         raise ActionError("This has already run or been settled.")
     action = payload.get("action")
@@ -1307,6 +1352,16 @@ async def revise(
     args = dict(payload.get("args") or {})
     if action == RUN_TOOL:
         args["arguments"] = dict(arguments)
+    elif action == SEND_IDENTITY_EMAIL:
+        from api.services.identity import cards as identity_cards
+
+        unknown = set(arguments) - set(_EMAIL_FIELDS)
+        if unknown:
+            raise ActionError(f"Cannot change {', '.join(sorted(unknown))}.")
+        try:
+            args = identity_cards.revise_email(args, arguments)
+        except identity_cards.CardError as exc:
+            raise ActionError(str(exc)) from exc
     else:
         unknown = set(arguments) - set(_DOCUMENT_FIELDS)
         if unknown:
@@ -1376,6 +1431,10 @@ async def _say(event: Any, line: str) -> None:
         payload["private_to"] = event.payload["private_to"]
     if event.workflow_id is None:
         payload["from"] = decibyl.NAME
+    owner = (event.payload or {}).get("private_to")
+    if owner:
+        # The line about a private card is as private as the card.
+        payload["private_to"] = owner
     await agent_timeline.record(
         organization_id=event.organization_id,
         kind=AgentEventKind.MESSAGE.value,
@@ -1385,6 +1444,7 @@ async def _say(event: Any, line: str) -> None:
         folder_id=event.folder_id,
         payload=payload,
         in_channel=event.folder_id is not None,
+        visibility=_visibility(payload),
     )
 
 
@@ -1445,12 +1505,23 @@ async def _execute_owned(organization_id: int, payload: dict[str, Any]) -> str:
     return f"Done: {args.get('tool')} on {row.name}."
 
 
-async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
+async def _execute(
+    organization_id: int, payload: dict[str, Any], *, event_id: int | None = None
+) -> str:
     """Do it. Returns one line on what happened; raises on refusal."""
     action = payload.get("action")
     args = payload.get("args") or {}
     if action in OWNED_ACTIONS:
         return await _execute_owned(organization_id, payload)
+    if action in IDENTITY_ACTIONS:
+        from api.services.identity import cards as identity_cards
+
+        try:
+            return await identity_cards.execute(
+                organization_id, payload, event_id=event_id
+            )
+        except identity_cards.CardError as exc:
+            raise ActionError(str(exc)) from exc
     if action in (TURN_BOT_ON, TURN_BOT_OFF):
         try:
             await db_client.set_workflow_live(
@@ -1808,7 +1879,11 @@ async def run(event_id: int, organization_id: int) -> None:
             return
     payload.setdefault("event_id", event.id)
     try:
-        note = await _execute(organization_id, payload)
+        from api.services.identity import reconcile
+        from api.services.messaging.send import callback_data
+
+        with callback_data(reconcile.callback_key(organization_id, payload)):
+            note = await _execute(organization_id, payload, event_id=event.id)
     except OutcomeUnknown as exc:
         # A browser press that never reported back, or an order or outside
         # write that may have happened: said so whatever the ledger switch,
@@ -1830,7 +1905,10 @@ async def run(event_id: int, organization_id: int) -> None:
         logger.error("Action {} failed: {}", event_id, exc)
         if payload.get("action") in OWNED_ACTIONS or (
             ledger
-            and (_is_outbound(payload) or payload.get("action") == RETURN_MISSED_CALL)
+            and (
+                _is_outbound(payload)
+                or payload.get("action") in (RETURN_MISSED_CALL, *IDENTITY_ACTIONS)
+            )
         ):
             # Something reached the outside service and broke: whether it
             # went is not known. Said so, and never retried blind.

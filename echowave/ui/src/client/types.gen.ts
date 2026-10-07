@@ -487,6 +487,38 @@ export type AgentSetupResponse = {
 };
 
 /**
+ * AliasCheck
+ */
+export type AliasCheck = {
+    /**
+     * Alias
+     */
+    alias: string;
+    /**
+     * Available
+     */
+    available: boolean;
+    /**
+     * Reason
+     */
+    reason?: 'invalid' | 'reserved' | 'taken' | 'yours' | null;
+    /**
+     * Message
+     */
+    message?: string | null;
+};
+
+/**
+ * AliasRequest
+ */
+export type AliasRequest = {
+    /**
+     * Alias
+     */
+    alias: string;
+};
+
+/**
  * AllowanceRow
  */
 export type AllowanceRow = {
@@ -642,6 +674,68 @@ export type AnthropicLlmConfiguration = {
      * How long a reasoning model may think before answering. Only models that accept it are sent it. Thinking time is dead air on a phone call, but too little of it and the model answers in words where it should have called a tool -- which, in a workflow, means never moving off the first step. One of: minimal, low, medium, high.
      */
     reasoning_effort?: string | null;
+};
+
+/**
+ * AppItem
+ */
+export type AppItem = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Toolkit
+     */
+    toolkit: string;
+    /**
+     * App Name
+     */
+    app_name: string;
+    /**
+     * Account
+     */
+    account?: string | null;
+    /**
+     * Owner
+     */
+    owner: 'you' | 'workspace';
+    /**
+     * Scope
+     */
+    scope: string;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Connected At
+     */
+    connected_at?: string | null;
+    /**
+     * Last Success At
+     */
+    last_success_at?: string | null;
+    /**
+     * Access
+     */
+    access?: Array<string>;
+    /**
+     * Purpose
+     */
+    purpose?: string | null;
+    /**
+     * Can Disconnect
+     */
+    can_disconnect?: boolean;
+    /**
+     * Consent Id
+     */
+    consent_id?: number | null;
 };
 
 /**
@@ -812,6 +906,28 @@ export type ApproveRequest = {
      * Why this rate. Shown to the applicant.
      */
     note?: string | null;
+};
+
+/**
+ * AppsSection
+ */
+export type AppsSection = {
+    /**
+     * State
+     */
+    state: 'ok' | 'needs_setup' | 'error';
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Per Person
+     */
+    per_person: boolean;
+    /**
+     * Items
+     */
+    items: Array<AppItem>;
 };
 
 /**
@@ -1023,6 +1139,24 @@ export type AutoTopupRequest = {
      * Never top up more than this many times in a calendar month.
      */
     max_per_month?: number;
+};
+
+/**
+ * AutopayState
+ */
+export type AutopayState = {
+    /**
+     * Required
+     */
+    required: boolean;
+    /**
+     * Authorised
+     */
+    authorised: boolean;
+    /**
+     * Status
+     */
+    status?: string | null;
 };
 
 /**
@@ -2805,6 +2939,16 @@ export type CardArgs = {
 };
 
 /**
+ * CardInterest
+ */
+export type CardInterest = {
+    /**
+     * Interested
+     */
+    interested: boolean;
+};
+
+/**
  * CarePart
  */
 export type CarePart = {
@@ -3055,6 +3199,70 @@ export type CerebrasLlmConfiguration = {
      * How long a reasoning model may think before answering. Only models that accept it are sent it. Thinking time is dead air on a phone call, but too little of it and the model answers in words where it should have called a tool -- which, in a workflow, means never moving off the first step. One of: minimal, low, medium, high.
      */
     reasoning_effort?: string | null;
+};
+
+/**
+ * ChannelAvailability
+ */
+export type ChannelAvailability = {
+    /**
+     * Available
+     */
+    available: boolean;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+};
+
+/**
+ * ChannelItem
+ */
+export type ChannelItem = {
+    /**
+     * Channel
+     */
+    channel: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Capability
+     */
+    capability: 'available' | 'needs_setup' | 'disabled_by_policy' | 'unavailable';
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Verified At
+     */
+    verified_at?: string | null;
+    /**
+     * Last Delivery Ok At
+     */
+    last_delivery_ok_at?: string | null;
+    /**
+     * Delivery Failing
+     */
+    delivery_failing: boolean;
+    /**
+     * Proactive
+     */
+    proactive: string;
+    /**
+     * Reads Other Messages
+     */
+    reads_other_messages: boolean;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Linked
+     */
+    linked: Array<LinkedChannel>;
 };
 
 /**
@@ -3610,6 +3818,47 @@ export type ConnectedAccountsResponse = {
 };
 
 /**
+ * ConnectionPreview
+ */
+export type ConnectionPreview = {
+    /**
+     * Toolkit
+     */
+    toolkit: string;
+    /**
+     * App Name
+     */
+    app_name: string;
+    /**
+     * Access
+     */
+    access: Array<string>;
+    /**
+     * Per Person
+     */
+    per_person: boolean;
+    /**
+     * Can Connect For Workspace
+     */
+    can_connect_for_workspace: boolean;
+};
+
+/**
+ * ConnectionsResponse
+ */
+export type ConnectionsResponse = {
+    apps: AppsSection;
+    /**
+     * Channels
+     */
+    channels: Array<ChannelItem>;
+    /**
+     * Is Admin
+     */
+    is_admin: boolean;
+};
+
+/**
  * ConnectorActivity
  */
 export type ConnectorActivity = {
@@ -3733,6 +3982,60 @@ export type ConnectorResponse = {
      * Connected By
      */
     connected_by?: string | null;
+};
+
+/**
+ * ConsentView
+ */
+export type ConsentView = {
+    /**
+     * Consent Id
+     */
+    consent_id: number;
+    /**
+     * Toolkit
+     */
+    toolkit: string;
+    /**
+     * Scope
+     */
+    scope: string;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Reason Code
+     */
+    reason_code?: string | null;
+    /**
+     * Purpose
+     */
+    purpose?: string | null;
+    /**
+     * Access
+     */
+    access: Array<string>;
+    /**
+     * Return To
+     */
+    return_to?: string | null;
+    /**
+     * Connected Account Id
+     */
+    connected_account_id?: string | null;
+    /**
+     * Started At
+     */
+    started_at?: string | null;
+    /**
+     * Ready At
+     */
+    ready_at?: string | null;
 };
 
 /**
@@ -5133,6 +5436,50 @@ export type DemoAgentRequest = {
 };
 
 /**
+ * Device
+ */
+export type Device = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Last Success At
+     */
+    last_success_at?: string | null;
+    /**
+     * Last Failure At
+     */
+    last_failure_at?: string | null;
+    /**
+     * State
+     */
+    state: 'active' | 'failing' | 'revoked';
+};
+
+/**
+ * Disconnect
+ */
+export type Disconnect = {
+    /**
+     * Scope
+     */
+    scope: 'mine' | 'workspace';
+    /**
+     * Connected Account Id
+     */
+    connected_account_id: string;
+};
+
+/**
  * DisplayOptions
  *
  * Conditional visibility rules.
@@ -5590,6 +5937,112 @@ export type ElevenlabsTtsConfiguration = {
      * ElevenLabs API base URL. Override to use a Data Residency endpoint (e.g. https://api.eu.residency.elevenlabs.io) for GDPR / HIPAA / regional compliance.
      */
     base_url?: string;
+};
+
+/**
+ * EmailIdentityView
+ */
+export type EmailIdentityView = {
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Alias
+     */
+    alias?: string | null;
+    /**
+     * Address
+     */
+    address?: string | null;
+    /**
+     * Pending Address
+     */
+    pending_address?: string | null;
+    /**
+     * Domain
+     */
+    domain: string;
+    /**
+     * Next Step
+     */
+    next_step?: string | null;
+    /**
+     * Issue Code
+     */
+    issue_code?: string | null;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Reserved At
+     */
+    reserved_at?: string | null;
+    /**
+     * Active At
+     */
+    active_at?: string | null;
+    inbound: EmailReady;
+    outbound: EmailReady;
+    /**
+     * Card Interest
+     */
+    card_interest: boolean;
+    /**
+     * Threads
+     */
+    threads?: Array<EmailThread>;
+};
+
+/**
+ * EmailReady
+ */
+export type EmailReady = {
+    /**
+     * Ready
+     */
+    ready: boolean;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+};
+
+/**
+ * EmailThread
+ */
+export type EmailThread = {
+    /**
+     * Thread Key
+     */
+    thread_key: string;
+    /**
+     * From Address
+     */
+    from_address?: string | null;
+    /**
+     * Subject
+     */
+    subject?: string | null;
+    /**
+     * Received At
+     */
+    received_at: string;
+    /**
+     * Messages
+     */
+    messages: number;
+    /**
+     * Attachments
+     */
+    attachments: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Preview
+     */
+    preview: string;
 };
 
 /**
@@ -7302,6 +7755,20 @@ export type HelpTopics = {
 };
 
 /**
+ * HelperRow
+ */
+export type HelperRow = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
  * HireRequest
  */
 export type HireRequest = {
@@ -7646,6 +8113,88 @@ export type HuggingFaceSttConfiguration = {
      * Request timestamp chunks when supported by the selected provider/model.
      */
     return_timestamps?: boolean;
+};
+
+/**
+ * IdentityCard
+ *
+ * One private card, in the shape the screen's approval panel reads.
+ */
+export type IdentityCard = {
+    /**
+     * Event Id
+     */
+    event_id: number;
+    /**
+     * Action
+     */
+    action: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Effect
+     */
+    effect?: string | null;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Version
+     */
+    version?: string | null;
+    /**
+     * Revisions
+     */
+    revisions?: number;
+    /**
+     * Args
+     */
+    args?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Affected
+     */
+    affected?: Array<string>;
+    /**
+     * Error
+     */
+    error?: string | null;
+    /**
+     * Done Note
+     */
+    done_note?: string | null;
+    /**
+     * Fires At
+     */
+    fires_at?: string | null;
+    /**
+     * Needs Person
+     */
+    needs_person?: boolean;
+    /**
+     * Reconciled
+     */
+    reconciled?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * At
+     */
+    at?: string | null;
+};
+
+/**
+ * IdentityCards
+ */
+export type IdentityCards = {
+    /**
+     * Cards
+     */
+    cards: Array<IdentityCard>;
 };
 
 /**
@@ -8879,6 +9428,28 @@ export type LibraryToolParameter = {
      * Required
      */
     required?: boolean;
+};
+
+/**
+ * LinkedChannel
+ */
+export type LinkedChannel = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Display Name
+     */
+    display_name?: string | null;
+    /**
+     * Handle
+     */
+    handle: string;
+    /**
+     * Linked At
+     */
+    linked_at?: string | null;
 };
 
 /**
@@ -10503,6 +11074,102 @@ export type NoticeOption = {
 };
 
 /**
+ * NotificationsChange
+ */
+export type NotificationsChange = {
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Channels
+     */
+    channels?: {
+        [key: string]: boolean;
+    } | null;
+    /**
+     * Topics
+     */
+    topics?: {
+        [key: string]: {
+            [key: string]: unknown;
+        };
+    } | null;
+    /**
+     * Quiet Start
+     */
+    quiet_start?: string | null;
+    /**
+     * Quiet End
+     */
+    quiet_end?: string | null;
+    /**
+     * Private Previews
+     */
+    private_previews?: boolean | null;
+};
+
+/**
+ * NotificationsView
+ */
+export type NotificationsView = {
+    /**
+     * Channels
+     */
+    channels: {
+        [key: string]: boolean;
+    };
+    /**
+     * Topics
+     */
+    topics: {
+        [key: string]: TopicSetting;
+    };
+    /**
+     * Quiet Start
+     */
+    quiet_start?: string | null;
+    /**
+     * Quiet End
+     */
+    quiet_end?: string | null;
+    /**
+     * Private Previews
+     */
+    private_previews: boolean;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+    /**
+     * Topic List
+     */
+    topic_list: Array<TopicMeta>;
+    /**
+     * Availability
+     */
+    availability: {
+        [key: string]: ChannelAvailability;
+    };
+    /**
+     * Devices
+     */
+    devices: Array<Device>;
+    /**
+     * Push Public Key
+     */
+    push_public_key?: string | null;
+    /**
+     * Suggestion Daily Cap
+     */
+    suggestion_daily_cap: number;
+};
+
+/**
  * NumberInputOptions
  *
  * Renderer hints for numeric inputs.
@@ -10514,6 +11181,24 @@ export type NumberInputOptions = {
      * Allow arbitrary fractional values via step='any'.
      */
     fractional?: boolean;
+};
+
+/**
+ * NumberRequest
+ */
+export type NumberRequest = {
+    /**
+     * Telephony Configuration Id
+     */
+    telephony_configuration_id?: number | null;
+    /**
+     * Address
+     */
+    address: string;
+    /**
+     * Helper Id
+     */
+    helper_id: number;
 };
 
 /**
@@ -11256,6 +11941,16 @@ export type OutcomeAction = {
 };
 
 /**
+ * OutcomeAnswer
+ */
+export type OutcomeAnswer = {
+    /**
+     * Arrived
+     */
+    arrived: boolean;
+};
+
+/**
  * OutcomeCountResponse
  */
 export type OutcomeCountResponse = {
@@ -11295,6 +11990,22 @@ export type OutcomeRequest = {
      * Note
      */
     note?: string;
+};
+
+/**
+ * OutcomeSettled
+ */
+export type OutcomeSettled = {
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Reconciled
+     */
+    reconciled?: {
+        [key: string]: unknown;
+    } | null;
 };
 
 /**
@@ -11512,6 +12223,32 @@ export type PartnerApplicationRequest = {
 };
 
 /**
+ * PaymentPolicy
+ */
+export type PaymentPolicy = {
+    /**
+     * Key
+     */
+    key?: string | null;
+    /**
+     * Decided
+     */
+    decided: boolean;
+    /**
+     * Who Pays
+     */
+    who_pays: string;
+    /**
+     * Amount
+     */
+    amount: string;
+    /**
+     * Steps
+     */
+    steps: Array<string>;
+};
+
+/**
  * PersonalSpace
  */
 export type PersonalSpace = {
@@ -11535,6 +12272,49 @@ export type PersonalSpace = {
      * Selected
      */
     selected: boolean;
+};
+
+/**
+ * PhoneIdentityView
+ */
+export type PhoneIdentityView = {
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Next Step
+     */
+    next_step?: string | null;
+    /**
+     * Verification Status
+     */
+    verification_status?: string | null;
+    /**
+     * Sources
+     */
+    sources: {
+        [key: string]: string;
+    };
+    /**
+     * Numbers
+     */
+    numbers?: Array<PhoneNumberRow> | null;
+    /**
+     * Helpers
+     */
+    helpers?: Array<HelperRow> | null;
+    autopay?: AutopayState | null;
+    payment: PaymentPolicy;
+    request: RequestState;
+    /**
+     * Chat Needs Number
+     */
+    chat_needs_number: boolean;
+    /**
+     * Is Admin
+     */
+    is_admin?: boolean;
 };
 
 /**
@@ -11700,6 +12480,44 @@ export type PhoneNumberResponse = {
      * Predeclaration Status
      */
     predeclaration_status?: string | null;
+};
+
+/**
+ * PhoneNumberRow
+ */
+export type PhoneNumberRow = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Address
+     */
+    address: string;
+    /**
+     * Label
+     */
+    label?: string | null;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Assigned Helper Id
+     */
+    assigned_helper_id?: number | null;
+    /**
+     * Incoming Call Ok At
+     */
+    incoming_call_ok_at?: string | null;
+    /**
+     * Escalation Ok At
+     */
+    escalation_ok_at?: string | null;
+    /**
+     * Provisioned At
+     */
+    provisioned_at?: string | null;
 };
 
 /**
@@ -12737,6 +13555,35 @@ export type PublicPackDetail = {
 };
 
 /**
+ * PushKeys
+ */
+export type PushKeys = {
+    /**
+     * P256Dh
+     */
+    p256dh: string;
+    /**
+     * Auth
+     */
+    auth: string;
+};
+
+/**
+ * PushSubscription
+ */
+export type PushSubscription = {
+    /**
+     * Endpoint
+     */
+    endpoint: string;
+    keys: PushKeys;
+    /**
+     * Device Label
+     */
+    device_label?: string | null;
+};
+
+/**
  * QuotasResponse
  */
 export type QuotasResponse = {
@@ -13264,6 +14111,20 @@ export type ReachToolSummary = {
 };
 
 /**
+ * Readiness
+ */
+export type Readiness = {
+    /**
+     * Incoming Call Ok
+     */
+    incoming_call_ok: boolean;
+    /**
+     * Escalation Ok
+     */
+    escalation_ok: boolean;
+};
+
+/**
  * ReadinessItem
  */
 export type ReadinessItem = {
@@ -13718,6 +14579,20 @@ export type ReplyWrite = {
      * Client Key
      */
     client_key?: string | null;
+};
+
+/**
+ * RequestState
+ */
+export type RequestState = {
+    /**
+     * Available
+     */
+    available: boolean;
+    /**
+     * Reason
+     */
+    reason?: string | null;
 };
 
 /**
@@ -14439,6 +15314,24 @@ export type SeedRatesRequest = {
      * Dry Run
      */
     dry_run?: boolean;
+};
+
+/**
+ * SendFromAddress
+ */
+export type SendFromAddress = {
+    /**
+     * To
+     */
+    to: string;
+    /**
+     * Subject
+     */
+    subject: string;
+    /**
+     * Body
+     */
+    body: string;
 };
 
 /**
@@ -15291,6 +16184,28 @@ export type StartCampaignRequest = {
 };
 
 /**
+ * StartConnection
+ */
+export type StartConnection = {
+    /**
+     * Toolkit
+     */
+    toolkit: string;
+    /**
+     * Scope
+     */
+    scope?: 'mine' | 'workspace';
+    /**
+     * Purpose
+     */
+    purpose?: string | null;
+    /**
+     * Return To
+     */
+    return_to?: string | null;
+};
+
+/**
  * StartLink
  */
 export type StartLink = {
@@ -15338,6 +16253,32 @@ export type StartResponse = {
      * Language
      */
     language?: string | null;
+};
+
+/**
+ * StartedConnection
+ */
+export type StartedConnection = {
+    /**
+     * Consent Id
+     */
+    consent_id: number;
+    /**
+     * Url
+     */
+    url: string;
+    /**
+     * Expires At
+     */
+    expires_at?: string | null;
+    /**
+     * Access
+     */
+    access: Array<string>;
+    /**
+     * App Name
+     */
+    app_name: string;
 };
 
 /**
@@ -16056,6 +16997,16 @@ export type TelnyxConfigurationResponse = {
 };
 
 /**
+ * TestResult
+ */
+export type TestResult = {
+    /**
+     * Push
+     */
+    push: string;
+};
+
+/**
  * TextArtifactResponse
  */
 export type TextArtifactResponse = {
@@ -16592,6 +17543,38 @@ export type ToolResponse = {
      */
     updated_at: string | null;
     created_by?: CreatedByResponse | null;
+};
+
+/**
+ * TopicMeta
+ */
+export type TopicMeta = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Requested
+     */
+    requested: boolean;
+};
+
+/**
+ * TopicSetting
+ */
+export type TopicSetting = {
+    /**
+     * On
+     */
+    on: boolean;
+    /**
+     * Snoozed Until
+     */
+    snoozed_until?: string | null;
 };
 
 /**
@@ -49270,6 +50253,975 @@ export type SupportActionReconcileApiV1AdminSupportActionsActionIdReconcilePostR
 };
 
 export type SupportActionReconcileApiV1AdminSupportActionsActionIdReconcilePostResponse = SupportActionReconcileApiV1AdminSupportActionsActionIdReconcilePostResponses[keyof SupportActionReconcileApiV1AdminSupportActionsActionIdReconcilePostResponses];
+
+export type MyIdentityCardsApiV1MeIdentityCardsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/identity-cards';
+};
+
+export type MyIdentityCardsApiV1MeIdentityCardsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyIdentityCardsApiV1MeIdentityCardsGetError = MyIdentityCardsApiV1MeIdentityCardsGetErrors[keyof MyIdentityCardsApiV1MeIdentityCardsGetErrors];
+
+export type MyIdentityCardsApiV1MeIdentityCardsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: IdentityCards;
+};
+
+export type MyIdentityCardsApiV1MeIdentityCardsGetResponse = MyIdentityCardsApiV1MeIdentityCardsGetResponses[keyof MyIdentityCardsApiV1MeIdentityCardsGetResponses];
+
+export type SayWhetherItArrivedApiV1MeOutcomesEventIdPostData = {
+    body: OutcomeAnswer;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Event Id
+         */
+        event_id: number;
+    };
+    query?: never;
+    url: '/api/v1/me/outcomes/{event_id}';
+};
+
+export type SayWhetherItArrivedApiV1MeOutcomesEventIdPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SayWhetherItArrivedApiV1MeOutcomesEventIdPostError = SayWhetherItArrivedApiV1MeOutcomesEventIdPostErrors[keyof SayWhetherItArrivedApiV1MeOutcomesEventIdPostErrors];
+
+export type SayWhetherItArrivedApiV1MeOutcomesEventIdPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: OutcomeSettled;
+};
+
+export type SayWhetherItArrivedApiV1MeOutcomesEventIdPostResponse = SayWhetherItArrivedApiV1MeOutcomesEventIdPostResponses[keyof SayWhetherItArrivedApiV1MeOutcomesEventIdPostResponses];
+
+export type MyConnectionsApiV1MeConnectionsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/connections';
+};
+
+export type MyConnectionsApiV1MeConnectionsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyConnectionsApiV1MeConnectionsGetError = MyConnectionsApiV1MeConnectionsGetErrors[keyof MyConnectionsApiV1MeConnectionsGetErrors];
+
+export type MyConnectionsApiV1MeConnectionsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ConnectionsResponse;
+};
+
+export type MyConnectionsApiV1MeConnectionsGetResponse = MyConnectionsApiV1MeConnectionsGetResponses[keyof MyConnectionsApiV1MeConnectionsGetResponses];
+
+export type PreviewConnectionApiV1MeConnectionsPreviewGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query: {
+        /**
+         * Toolkit
+         */
+        toolkit: string;
+    };
+    url: '/api/v1/me/connections/preview';
+};
+
+export type PreviewConnectionApiV1MeConnectionsPreviewGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PreviewConnectionApiV1MeConnectionsPreviewGetError = PreviewConnectionApiV1MeConnectionsPreviewGetErrors[keyof PreviewConnectionApiV1MeConnectionsPreviewGetErrors];
+
+export type PreviewConnectionApiV1MeConnectionsPreviewGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ConnectionPreview;
+};
+
+export type PreviewConnectionApiV1MeConnectionsPreviewGetResponse = PreviewConnectionApiV1MeConnectionsPreviewGetResponses[keyof PreviewConnectionApiV1MeConnectionsPreviewGetResponses];
+
+export type StartConnectionApiV1MeConnectionsStartPostData = {
+    body: StartConnection;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/connections/start';
+};
+
+export type StartConnectionApiV1MeConnectionsStartPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StartConnectionApiV1MeConnectionsStartPostError = StartConnectionApiV1MeConnectionsStartPostErrors[keyof StartConnectionApiV1MeConnectionsStartPostErrors];
+
+export type StartConnectionApiV1MeConnectionsStartPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: StartedConnection;
+};
+
+export type StartConnectionApiV1MeConnectionsStartPostResponse = StartConnectionApiV1MeConnectionsStartPostResponses[keyof StartConnectionApiV1MeConnectionsStartPostResponses];
+
+export type CompleteConnectionApiV1MeConnectionsConsentsConsentIdCompletePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Consent Id
+         */
+        consent_id: number;
+    };
+    query?: never;
+    url: '/api/v1/me/connections/consents/{consent_id}/complete';
+};
+
+export type CompleteConnectionApiV1MeConnectionsConsentsConsentIdCompletePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CompleteConnectionApiV1MeConnectionsConsentsConsentIdCompletePostError = CompleteConnectionApiV1MeConnectionsConsentsConsentIdCompletePostErrors[keyof CompleteConnectionApiV1MeConnectionsConsentsConsentIdCompletePostErrors];
+
+export type CompleteConnectionApiV1MeConnectionsConsentsConsentIdCompletePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ConsentView;
+};
+
+export type CompleteConnectionApiV1MeConnectionsConsentsConsentIdCompletePostResponse = CompleteConnectionApiV1MeConnectionsConsentsConsentIdCompletePostResponses[keyof CompleteConnectionApiV1MeConnectionsConsentsConsentIdCompletePostResponses];
+
+export type ProposeDisconnectApiV1MeConnectionsDisconnectPostData = {
+    body: Disconnect;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/connections/disconnect';
+};
+
+export type ProposeDisconnectApiV1MeConnectionsDisconnectPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProposeDisconnectApiV1MeConnectionsDisconnectPostError = ProposeDisconnectApiV1MeConnectionsDisconnectPostErrors[keyof ProposeDisconnectApiV1MeConnectionsDisconnectPostErrors];
+
+export type ProposeDisconnectApiV1MeConnectionsDisconnectPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: IdentityCard;
+};
+
+export type ProposeDisconnectApiV1MeConnectionsDisconnectPostResponse = ProposeDisconnectApiV1MeConnectionsDisconnectPostResponses[keyof ProposeDisconnectApiV1MeConnectionsDisconnectPostResponses];
+
+export type MyEmailIdentityApiV1MeEmailIdentityGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/email-identity';
+};
+
+export type MyEmailIdentityApiV1MeEmailIdentityGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyEmailIdentityApiV1MeEmailIdentityGetError = MyEmailIdentityApiV1MeEmailIdentityGetErrors[keyof MyEmailIdentityApiV1MeEmailIdentityGetErrors];
+
+export type MyEmailIdentityApiV1MeEmailIdentityGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: EmailIdentityView;
+};
+
+export type MyEmailIdentityApiV1MeEmailIdentityGetResponse = MyEmailIdentityApiV1MeEmailIdentityGetResponses[keyof MyEmailIdentityApiV1MeEmailIdentityGetResponses];
+
+export type CheckAliasApiV1MeEmailIdentityCheckPostData = {
+    body: AliasRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/email-identity/check';
+};
+
+export type CheckAliasApiV1MeEmailIdentityCheckPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CheckAliasApiV1MeEmailIdentityCheckPostError = CheckAliasApiV1MeEmailIdentityCheckPostErrors[keyof CheckAliasApiV1MeEmailIdentityCheckPostErrors];
+
+export type CheckAliasApiV1MeEmailIdentityCheckPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: AliasCheck;
+};
+
+export type CheckAliasApiV1MeEmailIdentityCheckPostResponse = CheckAliasApiV1MeEmailIdentityCheckPostResponses[keyof CheckAliasApiV1MeEmailIdentityCheckPostResponses];
+
+export type ReserveAliasApiV1MeEmailIdentityReservePostData = {
+    body: AliasRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/email-identity/reserve';
+};
+
+export type ReserveAliasApiV1MeEmailIdentityReservePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReserveAliasApiV1MeEmailIdentityReservePostError = ReserveAliasApiV1MeEmailIdentityReservePostErrors[keyof ReserveAliasApiV1MeEmailIdentityReservePostErrors];
+
+export type ReserveAliasApiV1MeEmailIdentityReservePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: EmailIdentityView;
+};
+
+export type ReserveAliasApiV1MeEmailIdentityReservePostResponse = ReserveAliasApiV1MeEmailIdentityReservePostResponses[keyof ReserveAliasApiV1MeEmailIdentityReservePostResponses];
+
+export type ProvisionAliasApiV1MeEmailIdentityProvisionPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/email-identity/provision';
+};
+
+export type ProvisionAliasApiV1MeEmailIdentityProvisionPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProvisionAliasApiV1MeEmailIdentityProvisionPostError = ProvisionAliasApiV1MeEmailIdentityProvisionPostErrors[keyof ProvisionAliasApiV1MeEmailIdentityProvisionPostErrors];
+
+export type ProvisionAliasApiV1MeEmailIdentityProvisionPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: EmailIdentityView;
+};
+
+export type ProvisionAliasApiV1MeEmailIdentityProvisionPostResponse = ProvisionAliasApiV1MeEmailIdentityProvisionPostResponses[keyof ProvisionAliasApiV1MeEmailIdentityProvisionPostResponses];
+
+export type ReleaseAliasApiV1MeEmailIdentityReleasePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/email-identity/release';
+};
+
+export type ReleaseAliasApiV1MeEmailIdentityReleasePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReleaseAliasApiV1MeEmailIdentityReleasePostError = ReleaseAliasApiV1MeEmailIdentityReleasePostErrors[keyof ReleaseAliasApiV1MeEmailIdentityReleasePostErrors];
+
+export type ReleaseAliasApiV1MeEmailIdentityReleasePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: EmailIdentityView;
+};
+
+export type ReleaseAliasApiV1MeEmailIdentityReleasePostResponse = ReleaseAliasApiV1MeEmailIdentityReleasePostResponses[keyof ReleaseAliasApiV1MeEmailIdentityReleasePostResponses];
+
+export type ProposeSendApiV1MeEmailIdentitySendPostData = {
+    body: SendFromAddress;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/email-identity/send';
+};
+
+export type ProposeSendApiV1MeEmailIdentitySendPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProposeSendApiV1MeEmailIdentitySendPostError = ProposeSendApiV1MeEmailIdentitySendPostErrors[keyof ProposeSendApiV1MeEmailIdentitySendPostErrors];
+
+export type ProposeSendApiV1MeEmailIdentitySendPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: IdentityCard;
+};
+
+export type ProposeSendApiV1MeEmailIdentitySendPostResponse = ProposeSendApiV1MeEmailIdentitySendPostResponses[keyof ProposeSendApiV1MeEmailIdentitySendPostResponses];
+
+export type CardInterestApiV1MeCardInterestPutData = {
+    body: CardInterest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/card-interest';
+};
+
+export type CardInterestApiV1MeCardInterestPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CardInterestApiV1MeCardInterestPutError = CardInterestApiV1MeCardInterestPutErrors[keyof CardInterestApiV1MeCardInterestPutErrors];
+
+export type CardInterestApiV1MeCardInterestPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: CardInterest;
+};
+
+export type CardInterestApiV1MeCardInterestPutResponse = CardInterestApiV1MeCardInterestPutResponses[keyof CardInterestApiV1MeCardInterestPutResponses];
+
+export type EmailIdentityInboundApiV1PublicEmailIdentityInboundPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * X-Decibyl-Signature
+         */
+        'x-decibyl-signature'?: string | null;
+        /**
+         * X-Decibyl-Timestamp
+         */
+        'x-decibyl-timestamp'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/public/email-identity/inbound';
+};
+
+export type EmailIdentityInboundApiV1PublicEmailIdentityInboundPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EmailIdentityInboundApiV1PublicEmailIdentityInboundPostError = EmailIdentityInboundApiV1PublicEmailIdentityInboundPostErrors[keyof EmailIdentityInboundApiV1PublicEmailIdentityInboundPostErrors];
+
+export type EmailIdentityInboundApiV1PublicEmailIdentityInboundPostResponses = {
+    /**
+     * Response Email Identity Inbound Api V1 Public Email Identity Inbound Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: string;
+    };
+};
+
+export type EmailIdentityInboundApiV1PublicEmailIdentityInboundPostResponse = EmailIdentityInboundApiV1PublicEmailIdentityInboundPostResponses[keyof EmailIdentityInboundApiV1PublicEmailIdentityInboundPostResponses];
+
+export type EmailIdentityEventsApiV1PublicEmailIdentityEventsPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * X-Decibyl-Signature
+         */
+        'x-decibyl-signature'?: string | null;
+        /**
+         * X-Decibyl-Timestamp
+         */
+        'x-decibyl-timestamp'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/public/email-identity/events';
+};
+
+export type EmailIdentityEventsApiV1PublicEmailIdentityEventsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EmailIdentityEventsApiV1PublicEmailIdentityEventsPostError = EmailIdentityEventsApiV1PublicEmailIdentityEventsPostErrors[keyof EmailIdentityEventsApiV1PublicEmailIdentityEventsPostErrors];
+
+export type EmailIdentityEventsApiV1PublicEmailIdentityEventsPostResponses = {
+    /**
+     * Response Email Identity Events Api V1 Public Email Identity Events Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: number;
+    };
+};
+
+export type EmailIdentityEventsApiV1PublicEmailIdentityEventsPostResponse = EmailIdentityEventsApiV1PublicEmailIdentityEventsPostResponses[keyof EmailIdentityEventsApiV1PublicEmailIdentityEventsPostResponses];
+
+export type MyPhoneIdentityApiV1MePhoneIdentityGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/phone-identity';
+};
+
+export type MyPhoneIdentityApiV1MePhoneIdentityGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyPhoneIdentityApiV1MePhoneIdentityGetError = MyPhoneIdentityApiV1MePhoneIdentityGetErrors[keyof MyPhoneIdentityApiV1MePhoneIdentityGetErrors];
+
+export type MyPhoneIdentityApiV1MePhoneIdentityGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PhoneIdentityView;
+};
+
+export type MyPhoneIdentityApiV1MePhoneIdentityGetResponse = MyPhoneIdentityApiV1MePhoneIdentityGetResponses[keyof MyPhoneIdentityApiV1MePhoneIdentityGetResponses];
+
+export type ProposeNumberApiV1MePhoneIdentityRequestPostData = {
+    body: NumberRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/phone-identity/request';
+};
+
+export type ProposeNumberApiV1MePhoneIdentityRequestPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProposeNumberApiV1MePhoneIdentityRequestPostError = ProposeNumberApiV1MePhoneIdentityRequestPostErrors[keyof ProposeNumberApiV1MePhoneIdentityRequestPostErrors];
+
+export type ProposeNumberApiV1MePhoneIdentityRequestPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: IdentityCard;
+};
+
+export type ProposeNumberApiV1MePhoneIdentityRequestPostResponse = ProposeNumberApiV1MePhoneIdentityRequestPostResponses[keyof ProposeNumberApiV1MePhoneIdentityRequestPostResponses];
+
+export type RecordReadinessApiV1MePhoneIdentityNumbersPhoneNumberIdReadinessPostData = {
+    body: Readiness;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Phone Number Id
+         */
+        phone_number_id: number;
+    };
+    query?: never;
+    url: '/api/v1/me/phone-identity/numbers/{phone_number_id}/readiness';
+};
+
+export type RecordReadinessApiV1MePhoneIdentityNumbersPhoneNumberIdReadinessPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RecordReadinessApiV1MePhoneIdentityNumbersPhoneNumberIdReadinessPostError = RecordReadinessApiV1MePhoneIdentityNumbersPhoneNumberIdReadinessPostErrors[keyof RecordReadinessApiV1MePhoneIdentityNumbersPhoneNumberIdReadinessPostErrors];
+
+export type RecordReadinessApiV1MePhoneIdentityNumbersPhoneNumberIdReadinessPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: PhoneIdentityView;
+};
+
+export type RecordReadinessApiV1MePhoneIdentityNumbersPhoneNumberIdReadinessPostResponse = RecordReadinessApiV1MePhoneIdentityNumbersPhoneNumberIdReadinessPostResponses[keyof RecordReadinessApiV1MePhoneIdentityNumbersPhoneNumberIdReadinessPostResponses];
+
+export type MyNotificationsApiV1MeNotificationsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/notifications';
+};
+
+export type MyNotificationsApiV1MeNotificationsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyNotificationsApiV1MeNotificationsGetError = MyNotificationsApiV1MeNotificationsGetErrors[keyof MyNotificationsApiV1MeNotificationsGetErrors];
+
+export type MyNotificationsApiV1MeNotificationsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: NotificationsView;
+};
+
+export type MyNotificationsApiV1MeNotificationsGetResponse = MyNotificationsApiV1MeNotificationsGetResponses[keyof MyNotificationsApiV1MeNotificationsGetResponses];
+
+export type SaveNotificationsApiV1MeNotificationsPutData = {
+    body: NotificationsChange;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/notifications';
+};
+
+export type SaveNotificationsApiV1MeNotificationsPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveNotificationsApiV1MeNotificationsPutError = SaveNotificationsApiV1MeNotificationsPutErrors[keyof SaveNotificationsApiV1MeNotificationsPutErrors];
+
+export type SaveNotificationsApiV1MeNotificationsPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: NotificationsView;
+};
+
+export type SaveNotificationsApiV1MeNotificationsPutResponse = SaveNotificationsApiV1MeNotificationsPutResponses[keyof SaveNotificationsApiV1MeNotificationsPutResponses];
+
+export type AddPushSubscriptionApiV1MePushSubscriptionsPostData = {
+    body: PushSubscription;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/push-subscriptions';
+};
+
+export type AddPushSubscriptionApiV1MePushSubscriptionsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddPushSubscriptionApiV1MePushSubscriptionsPostError = AddPushSubscriptionApiV1MePushSubscriptionsPostErrors[keyof AddPushSubscriptionApiV1MePushSubscriptionsPostErrors];
+
+export type AddPushSubscriptionApiV1MePushSubscriptionsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: NotificationsView;
+};
+
+export type AddPushSubscriptionApiV1MePushSubscriptionsPostResponse = AddPushSubscriptionApiV1MePushSubscriptionsPostResponses[keyof AddPushSubscriptionApiV1MePushSubscriptionsPostResponses];
+
+export type RemovePushSubscriptionApiV1MePushSubscriptionsSubscriptionIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Subscription Id
+         */
+        subscription_id: number;
+    };
+    query?: never;
+    url: '/api/v1/me/push-subscriptions/{subscription_id}';
+};
+
+export type RemovePushSubscriptionApiV1MePushSubscriptionsSubscriptionIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RemovePushSubscriptionApiV1MePushSubscriptionsSubscriptionIdDeleteError = RemovePushSubscriptionApiV1MePushSubscriptionsSubscriptionIdDeleteErrors[keyof RemovePushSubscriptionApiV1MePushSubscriptionsSubscriptionIdDeleteErrors];
+
+export type RemovePushSubscriptionApiV1MePushSubscriptionsSubscriptionIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: NotificationsView;
+};
+
+export type RemovePushSubscriptionApiV1MePushSubscriptionsSubscriptionIdDeleteResponse = RemovePushSubscriptionApiV1MePushSubscriptionsSubscriptionIdDeleteResponses[keyof RemovePushSubscriptionApiV1MePushSubscriptionsSubscriptionIdDeleteResponses];
+
+export type TestNotificationApiV1MeNotificationsTestPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/notifications/test';
+};
+
+export type TestNotificationApiV1MeNotificationsTestPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TestNotificationApiV1MeNotificationsTestPostError = TestNotificationApiV1MeNotificationsTestPostErrors[keyof TestNotificationApiV1MeNotificationsTestPostErrors];
+
+export type TestNotificationApiV1MeNotificationsTestPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: TestResult;
+};
+
+export type TestNotificationApiV1MeNotificationsTestPostResponse = TestNotificationApiV1MeNotificationsTestPostResponses[keyof TestNotificationApiV1MeNotificationsTestPostResponses];
 
 export type PublicShelfApiV1PublicMarketplaceGetData = {
     body?: never;

@@ -857,6 +857,52 @@ MEETING_CAPTURE_ENABLED = _flag("MEETING_CAPTURE_ENABLED")
 MEETINGS_MAX_UPLOAD_MB = int(os.getenv("MEETINGS_MAX_UPLOAD_MB", "50"))
 # The longest meeting, recorded or uploaded, that is transcribed.
 MEETINGS_MAX_MINUTES = int(os.getenv("MEETINGS_MAX_MINUTES", "120"))
+# Launch stream `identity` (LAUNCH-PLAN.md, phase 2; IDENTITY.md). Each off by
+# default; turning one off restores the behaviour before it.
+# Screen 22: connected apps and channels per person, with consent before
+# connecting, revocation through an action card, and channel capability
+# flags that come from verified traffic rather than configuration alone.
+IDENTITY_CONNECTIONS_ENABLED = _flag("IDENTITY_CONNECTIONS_ENABLED")
+# Screen 23: the person's Decibyl email address -- alias lifecycle, inbound
+# routing to its owner, sends through action cards, and the virtual card
+# "coming soon" row with optional interest.
+IDENTITY_EMAIL_ENABLED = _flag("IDENTITY_EMAIL_ENABLED")
+# Screen 24: phone and verification lifecycle with the number payment flow
+# explained; a number request is an action card.
+IDENTITY_PHONE_ENABLED = _flag("IDENTITY_PHONE_ENABLED")
+# Screen 21: notification preferences per person and web push.
+IDENTITY_NOTIFICATIONS_ENABLED = _flag("IDENTITY_NOTIFICATIONS_ENABLED")
+# Per-provider reconciliation of cards whose send outcome is unknown.
+IDENTITY_RECONCILIATION_ENABLED = _flag("IDENTITY_RECONCILIATION_ENABLED")
+
+# Decibyl email identity (stream identity). The domain aliases live on, and
+# the secret the inbound mail provider signs its webhook with. Without the
+# secret no inbound mail is accepted, so no address can become active.
+EMAIL_IDENTITY_DOMAIN = os.getenv("EMAIL_IDENTITY_DOMAIN", "decibyl.ai").strip()
+EMAIL_IDENTITY_WEBHOOK_SECRET = os.getenv("EMAIL_IDENTITY_WEBHOOK_SECRET", "")
+# Set to "true" only once the domain's SPF, DKIM and DMARC are verified for
+# outbound mail from aliases; until then sending shows "needs setup".
+EMAIL_IDENTITY_OUTBOUND_VERIFIED = _flag("EMAIL_IDENTITY_OUTBOUND_VERIFIED")
+EMAIL_IDENTITY_MAX_INBOUND_BYTES = int(
+    os.getenv("EMAIL_IDENTITY_MAX_INBOUND_BYTES", str(10 * 1024 * 1024))
+)
+
+# Phone numbers (stream identity): who pays for a number is the founder's
+# open decision ("Who pays for numbers in the beta"). Until it is set to
+# "sponsored" or "provider_autopay", requesting a number is unavailable and
+# says so.
+NUMBER_PAYMENT_POLICY = os.getenv("NUMBER_PAYMENT_POLICY", "").strip().lower()
+
+# Web push (stream identity). VAPID keys from the operator; without them push
+# shows "needs setup". Never generated on the fly: a key that changes on
+# restart silently orphans every subscription.
+VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "").strip()
+VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "").strip()
+VAPID_SUBJECT = os.getenv("VAPID_SUBJECT", "mailto:support@decibyl.ai").strip()
+# Optional suggestions a person may be sent in a day (handoff 21: "pilot
+# suggestion cap comes from server policy"). A placeholder number for the
+# founder's decision, like the operational quotas.
+NOTIFY_SUGGESTION_DAILY_CAP = int(os.getenv("NOTIFY_SUGGESTION_DAILY_CAP", "2"))
 
 # Free while we are early (October 2026): no plans, nothing charged, nothing
 # locked. On by default -- the one launch switch that is -- and reversible

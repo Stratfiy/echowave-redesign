@@ -108,6 +108,9 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             # The Windows and Mac app: approval cards for steps it takes on
             # a person's own computer, and the receipt it leaves.
             "desktop",
+            # A person's connections, Decibyl address, phone and
+            # verification, and notifications (launch stream identity).
+            "identity",
         ),
     ),
     (

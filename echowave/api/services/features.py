@@ -150,6 +150,12 @@ FLAGS: dict[str, str] = {
     "staff_refunds": "STAFF_REFUNDS_ENABLED",
     "staff_evaluations": "STAFF_EVALUATIONS_ENABLED",
     "staff_incidents": "STAFF_INCIDENTS_ENABLED",
+    # Launch stream `identity` (LAUNCH-PLAN.md, phase 2).
+    "identity_connections": "IDENTITY_CONNECTIONS_ENABLED",
+    "identity_email": "IDENTITY_EMAIL_ENABLED",
+    "identity_phone": "IDENTITY_PHONE_ENABLED",
+    "identity_notifications": "IDENTITY_NOTIFICATIONS_ENABLED",
+    "identity_reconciliation": "IDENTITY_RECONCILIATION_ENABLED",
 }
 
 
@@ -241,6 +247,11 @@ DESCRIPTIONS: dict[str, str] = {
     "learning": "Learning Guide: goals on any subject, lessons in Chat, evaluated practice and progress (screens 13-14).",
     "learning_today": "Learning reviews that are due, listed in Today.",
     "meeting_capture": "Meeting mode: record, upload or paste a meeting with consent; Sarvam transcript; summary, decisions and follow-ups confirmed one card at a time (screens 11-12).",
+    "identity_connections": "Connected apps and channels per person: consent, revocation and verified channel capabilities (screen 22).",
+    "identity_email": "A person's Decibyl email address: alias lifecycle, inbound routing, sends through cards (screen 23).",
+    "identity_phone": "Phone and verification lifecycle with the number payment flow explained (screen 24).",
+    "identity_notifications": "Notification preferences per person and web push (screen 21).",
+    "identity_reconciliation": "Checks with each provider whether a send whose outcome was unknown arrived.",
 }
 
 

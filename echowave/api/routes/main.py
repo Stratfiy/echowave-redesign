@@ -37,6 +37,7 @@ from api.routes.evals import router as evals_router
 from api.routes.extraction_library import router as extraction_library_router
 from api.routes.feature_admin import router as feature_admin_router
 from api.routes.folder import router as folder_router
+from api.routes.identity import router as identity_router
 from api.routes.impersonation import router as impersonation_router
 from api.routes.knowledge_base import router as knowledge_base_router
 from api.routes.kyc import router as kyc_router
@@ -210,6 +211,7 @@ router.include_router(meetings_router)
 router.include_router(support_router)
 router.include_router(support_admin_router)
 router.include_router(support_actions_router)
+router.include_router(identity_router)
 router.include_router(public_marketplace_router)
 router.include_router(workflow_embed_router)
 router.include_router(knowledge_base_router)

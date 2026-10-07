@@ -100,7 +100,13 @@ export type Feature =
     | "staff_roles"
     | "staff_refunds"
     | "staff_evaluations"
-    | "staff_incidents";
+    | "staff_incidents"
+    // Launch stream `identity` (LAUNCH-PLAN.md, phase 2).
+    | "identity_connections"
+    | "identity_email"
+    | "identity_phone"
+    | "identity_notifications"
+    | "identity_reconciliation";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();
