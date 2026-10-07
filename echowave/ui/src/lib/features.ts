@@ -66,6 +66,10 @@ export type Feature =
     | "first_task_onboarding"
     | "chat_shell"
     | "shell_mobile"
+    // Launch stream `support` (LAUNCH-PLAN.md, phase 2).
+    | "support_help"
+    | "support_inbox"
+    | "support_actions"
     // Stream ops (handoff 11, 14, 15 G-H, 34, 35).
     | "ops_console"
     | "server_analytics"

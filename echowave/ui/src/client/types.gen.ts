@@ -253,6 +253,70 @@ export type Accepted = {
 };
 
 /**
+ * ActionRequest
+ */
+export type ActionRequest = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Organization Id
+     */
+    organization_id: number;
+    /**
+     * Target User Id
+     */
+    target_user_id?: number | null;
+    /**
+     * Ticket Id
+     */
+    ticket_id?: number | null;
+    /**
+     * Params
+     */
+    params?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Expected Version
+     */
+    expected_version?: string | null;
+};
+
+/**
+ * ActionTarget
+ */
+export type ActionTarget = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Organization Id
+     */
+    organization_id: number;
+    /**
+     * Target User Id
+     */
+    target_user_id?: number | null;
+    /**
+     * Ticket Id
+     */
+    ticket_id?: number | null;
+    /**
+     * Params
+     */
+    params?: {
+        [key: string]: unknown;
+    };
+};
+
+/**
  * ActiveCallsResponse
  */
 export type ActiveCallsResponse = {
@@ -310,6 +374,20 @@ export type AddNumbersResponse = {
      * Rejected
      */
     rejected: Array<string>;
+};
+
+/**
+ * Affected
+ */
+export type Affected = {
+    /**
+     * Kind
+     */
+    kind: 'task' | 'reply';
+    /**
+     * Id
+     */
+    id: number;
 };
 
 /**
@@ -700,6 +778,16 @@ export type ApprovalRulesResponse = {
      * Rules
      */
     rules: Array<ApprovalRuleOut>;
+};
+
+/**
+ * Approve
+ */
+export type Approve = {
+    /**
+     * Version
+     */
+    version: string;
 };
 
 /**
@@ -1587,6 +1675,16 @@ export type BodyAddSegmentApiV1MeetingsMeetingIdSegmentsPost = {
      * End Ms
      */
     end_ms: number;
+};
+
+/**
+ * Body_attach_api_v1_help_tickets__ticket_id__attachments_post
+ */
+export type BodyAttachApiV1HelpTicketsTicketIdAttachmentsPost = {
+    /**
+     * File
+     */
+    file: Blob | File;
 };
 
 /**
@@ -2871,6 +2969,46 @@ export type CartesiaTtsConfiguration = {
      * Cartesia language code for TTS synthesis (e.g. 'en', 'tr', 'fr', 'de').
      */
     language?: string;
+};
+
+/**
+ * CaseUpdate
+ */
+export type CaseUpdate = {
+    /**
+     * Expected Version
+     */
+    expected_version: number;
+    /**
+     * Assignee User Id
+     */
+    assignee_user_id?: number | null;
+    /**
+     * Severity
+     */
+    severity?: string | null;
+    /**
+     * Status
+     */
+    status?: string | null;
+    /**
+     * Linked Incident
+     */
+    linked_incident?: string | null;
+};
+
+/**
+ * Category
+ */
+export type Category = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
 };
 
 /**
@@ -7063,6 +7201,28 @@ export type HelpAnswer = {
 };
 
 /**
+ * HelpOptions
+ */
+export type HelpOptions = {
+    /**
+     * Categories
+     */
+    categories: Array<Category>;
+    /**
+     * Not Shared
+     */
+    not_shared: string;
+    /**
+     * Max Attachment Bytes
+     */
+    max_attachment_bytes: number;
+    /**
+     * Attachment Types
+     */
+    attachment_types: Array<string>;
+};
+
+/**
  * HelpSession
  */
 export type HelpSession = {
@@ -10335,6 +10495,20 @@ export type NoiseSuppressionConfigurationDefaults = {
 };
 
 /**
+ * NoteWrite
+ */
+export type NoteWrite = {
+    /**
+     * Body
+     */
+    body: string;
+    /**
+     * Client Key
+     */
+    client_key?: string | null;
+};
+
+/**
  * NoticeOption
  */
 export type NoticeOption = {
@@ -13489,6 +13663,16 @@ export type RegisterList = {
 };
 
 /**
+ * Reject
+ */
+export type Reject = {
+    /**
+     * Note
+     */
+    note: string;
+};
+
+/**
  * ReleaseRequest
  */
 export type ReleaseRequest = {
@@ -13522,6 +13706,30 @@ export type RenameRequest = {
      * Title
      */
     title: string;
+};
+
+/**
+ * ReopenWrite
+ */
+export type ReopenWrite = {
+    /**
+     * Body
+     */
+    body?: string | null;
+};
+
+/**
+ * ReplyWrite
+ */
+export type ReplyWrite = {
+    /**
+     * Body
+     */
+    body: string;
+    /**
+     * Client Key
+     */
+    client_key?: string | null;
 };
 
 /**
@@ -13632,6 +13840,18 @@ export type RetryConfigResponse = {
      * Retry On Voicemail
      */
     retry_on_voicemail: boolean;
+};
+
+/**
+ * Revise
+ */
+export type Revise = {
+    /**
+     * Params
+     */
+    params: {
+        [key: string]: unknown;
+    };
 };
 
 /**
@@ -14429,6 +14649,20 @@ export type SetupFieldResponse = {
 };
 
 /**
+ * ShareField
+ */
+export type ShareField = {
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Value
+     */
+    value?: unknown;
+};
+
+/**
  * ShareLinkResponse
  */
 export type ShareLinkResponse = {
@@ -14497,6 +14731,65 @@ export type ShareOption = {
 };
 
 /**
+ * SharePreview
+ */
+export type SharePreview = {
+    affected?: Affected | null;
+    /**
+     * Sections
+     */
+    sections: Array<ShareSection>;
+    /**
+     * Not Shared
+     */
+    not_shared: string;
+};
+
+/**
+ * SharePreviewRequest
+ */
+export type SharePreviewRequest = {
+    /**
+     * Affected Kind
+     */
+    affected_kind?: 'task' | 'reply' | null;
+    /**
+     * Affected Id
+     */
+    affected_id?: number | null;
+    /**
+     * Share
+     */
+    share?: Array<string> | null;
+};
+
+/**
+ * ShareSection
+ */
+export type ShareSection = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Included
+     */
+    included: boolean;
+    /**
+     * Required
+     */
+    required: boolean;
+    /**
+     * Fields
+     */
+    fields: Array<ShareField>;
+};
+
+/**
  * SharedOutboundRequest
  */
 export type SharedOutboundRequest = {
@@ -14504,6 +14797,43 @@ export type SharedOutboundRequest = {
      * Shared
      */
     shared?: boolean;
+};
+
+/**
+ * SharedSection
+ */
+export type SharedSection = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Fields
+     */
+    fields: Array<ShareField>;
+};
+
+/**
+ * SharedSnapshot
+ */
+export type SharedSnapshot = {
+    affected?: Affected | null;
+    /**
+     * Sections
+     */
+    sections?: Array<SharedSection>;
+    /**
+     * Left Out
+     */
+    left_out?: Array<string>;
+    /**
+     * Shared At
+     */
+    shared_at?: string | null;
 };
 
 /**
@@ -14916,6 +15246,24 @@ export type SpendCapRequest = {
      * The agent's monthly cap in credits, hard stop; null removes it.
      */
     credits_per_month?: number | null;
+};
+
+/**
+ * StaffReply
+ */
+export type StaffReply = {
+    /**
+     * Body
+     */
+    body: string;
+    /**
+     * Client Key
+     */
+    client_key?: string | null;
+    /**
+     * Then Status
+     */
+    then_status?: string | null;
 };
 
 /**
@@ -15794,6 +16142,224 @@ export type ThreadsResponse = {
      * Threads
      */
     threads: Array<ThreadSummary>;
+};
+
+/**
+ * TicketAction
+ */
+export type TicketAction = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Summary
+     */
+    summary?: string | null;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Finished At
+     */
+    finished_at?: string | null;
+};
+
+/**
+ * TicketAttachment
+ */
+export type TicketAttachment = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * File Name
+     */
+    file_name: string;
+    /**
+     * Content Type
+     */
+    content_type: string;
+    /**
+     * Size Bytes
+     */
+    size_bytes: number;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+};
+
+/**
+ * TicketCreate
+ */
+export type TicketCreate = {
+    /**
+     * Affected Kind
+     */
+    affected_kind?: 'task' | 'reply' | null;
+    /**
+     * Affected Id
+     */
+    affected_id?: number | null;
+    /**
+     * Share
+     */
+    share?: Array<string> | null;
+    /**
+     * Category
+     */
+    category: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Subject
+     */
+    subject?: string | null;
+};
+
+/**
+ * TicketCreated
+ */
+export type TicketCreated = {
+    ticket: TicketSummary;
+    /**
+     * Created
+     */
+    created: boolean;
+};
+
+/**
+ * TicketDetail
+ */
+export type TicketDetail = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Category
+     */
+    category: string;
+    /**
+     * Category Label
+     */
+    category_label: string;
+    /**
+     * Subject
+     */
+    subject: string;
+    /**
+     * Status
+     */
+    status: string;
+    affected?: Affected | null;
+    /**
+     * Reopened Count
+     */
+    reopened_count: number;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+    /**
+     * Resolved At
+     */
+    resolved_at?: string | null;
+    /**
+     * Support Replied
+     */
+    support_replied?: boolean;
+    shared: SharedSnapshot;
+    /**
+     * Messages
+     */
+    messages: Array<TicketMessage>;
+    /**
+     * Attachments
+     */
+    attachments: Array<TicketAttachment>;
+    /**
+     * Actions
+     */
+    actions: Array<TicketAction>;
+};
+
+/**
+ * TicketMessage
+ */
+export type TicketMessage = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Author Kind
+     */
+    author_kind: string;
+    /**
+     * Body
+     */
+    body: string;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+};
+
+/**
+ * TicketSummary
+ */
+export type TicketSummary = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Category
+     */
+    category: string;
+    /**
+     * Category Label
+     */
+    category_label: string;
+    /**
+     * Subject
+     */
+    subject: string;
+    /**
+     * Status
+     */
+    status: string;
+    affected?: Affected | null;
+    /**
+     * Reopened Count
+     */
+    reopened_count: number;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+    /**
+     * Resolved At
+     */
+    resolved_at?: string | null;
+    /**
+     * Support Replied
+     */
+    support_replied?: boolean;
 };
 
 /**
@@ -45798,6 +46364,1305 @@ export type SettleActionApiV1MeetingsMeetingIdActionsItemIdSettlePostResponses =
 };
 
 export type SettleActionApiV1MeetingsMeetingIdActionsItemIdSettlePostResponse = SettleActionApiV1MeetingsMeetingIdActionsItemIdSettlePostResponses[keyof SettleActionApiV1MeetingsMeetingIdActionsItemIdSettlePostResponses];
+
+export type HelpOptionsApiV1HelpOptionsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/help/options';
+};
+
+export type HelpOptionsApiV1HelpOptionsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type HelpOptionsApiV1HelpOptionsGetError = HelpOptionsApiV1HelpOptionsGetErrors[keyof HelpOptionsApiV1HelpOptionsGetErrors];
+
+export type HelpOptionsApiV1HelpOptionsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: HelpOptions;
+};
+
+export type HelpOptionsApiV1HelpOptionsGetResponse = HelpOptionsApiV1HelpOptionsGetResponses[keyof HelpOptionsApiV1HelpOptionsGetResponses];
+
+export type SharePreviewApiV1HelpSharePreviewPostData = {
+    body: SharePreviewRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/help/share-preview';
+};
+
+export type SharePreviewApiV1HelpSharePreviewPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SharePreviewApiV1HelpSharePreviewPostError = SharePreviewApiV1HelpSharePreviewPostErrors[keyof SharePreviewApiV1HelpSharePreviewPostErrors];
+
+export type SharePreviewApiV1HelpSharePreviewPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SharePreview;
+};
+
+export type SharePreviewApiV1HelpSharePreviewPostResponse = SharePreviewApiV1HelpSharePreviewPostResponses[keyof SharePreviewApiV1HelpSharePreviewPostResponses];
+
+export type MyTicketsApiV1HelpTicketsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/help/tickets';
+};
+
+export type MyTicketsApiV1HelpTicketsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyTicketsApiV1HelpTicketsGetError = MyTicketsApiV1HelpTicketsGetErrors[keyof MyTicketsApiV1HelpTicketsGetErrors];
+
+export type MyTicketsApiV1HelpTicketsGetResponses = {
+    /**
+     * Response My Tickets Api V1 Help Tickets Get
+     *
+     * Successful Response
+     */
+    200: Array<TicketSummary>;
+};
+
+export type MyTicketsApiV1HelpTicketsGetResponse = MyTicketsApiV1HelpTicketsGetResponses[keyof MyTicketsApiV1HelpTicketsGetResponses];
+
+export type CreateTicketApiV1HelpTicketsPostData = {
+    body: TicketCreate;
+    headers?: {
+        /**
+         * Idempotency-Key
+         */
+        'Idempotency-Key'?: string | null;
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/help/tickets';
+};
+
+export type CreateTicketApiV1HelpTicketsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateTicketApiV1HelpTicketsPostError = CreateTicketApiV1HelpTicketsPostErrors[keyof CreateTicketApiV1HelpTicketsPostErrors];
+
+export type CreateTicketApiV1HelpTicketsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: TicketCreated;
+};
+
+export type CreateTicketApiV1HelpTicketsPostResponse = CreateTicketApiV1HelpTicketsPostResponses[keyof CreateTicketApiV1HelpTicketsPostResponses];
+
+export type MyTicketApiV1HelpTicketsTicketIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: number;
+    };
+    query?: never;
+    url: '/api/v1/help/tickets/{ticket_id}';
+};
+
+export type MyTicketApiV1HelpTicketsTicketIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyTicketApiV1HelpTicketsTicketIdGetError = MyTicketApiV1HelpTicketsTicketIdGetErrors[keyof MyTicketApiV1HelpTicketsTicketIdGetErrors];
+
+export type MyTicketApiV1HelpTicketsTicketIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TicketDetail;
+};
+
+export type MyTicketApiV1HelpTicketsTicketIdGetResponse = MyTicketApiV1HelpTicketsTicketIdGetResponses[keyof MyTicketApiV1HelpTicketsTicketIdGetResponses];
+
+export type ReplyApiV1HelpTicketsTicketIdMessagesPostData = {
+    body: ReplyWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: number;
+    };
+    query?: never;
+    url: '/api/v1/help/tickets/{ticket_id}/messages';
+};
+
+export type ReplyApiV1HelpTicketsTicketIdMessagesPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReplyApiV1HelpTicketsTicketIdMessagesPostError = ReplyApiV1HelpTicketsTicketIdMessagesPostErrors[keyof ReplyApiV1HelpTicketsTicketIdMessagesPostErrors];
+
+export type ReplyApiV1HelpTicketsTicketIdMessagesPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: TicketMessage;
+};
+
+export type ReplyApiV1HelpTicketsTicketIdMessagesPostResponse = ReplyApiV1HelpTicketsTicketIdMessagesPostResponses[keyof ReplyApiV1HelpTicketsTicketIdMessagesPostResponses];
+
+export type ResolveApiV1HelpTicketsTicketIdResolvePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: number;
+    };
+    query?: never;
+    url: '/api/v1/help/tickets/{ticket_id}/resolve';
+};
+
+export type ResolveApiV1HelpTicketsTicketIdResolvePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ResolveApiV1HelpTicketsTicketIdResolvePostError = ResolveApiV1HelpTicketsTicketIdResolvePostErrors[keyof ResolveApiV1HelpTicketsTicketIdResolvePostErrors];
+
+export type ResolveApiV1HelpTicketsTicketIdResolvePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: TicketDetail;
+};
+
+export type ResolveApiV1HelpTicketsTicketIdResolvePostResponse = ResolveApiV1HelpTicketsTicketIdResolvePostResponses[keyof ResolveApiV1HelpTicketsTicketIdResolvePostResponses];
+
+export type ReopenApiV1HelpTicketsTicketIdReopenPostData = {
+    body: ReopenWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: number;
+    };
+    query?: never;
+    url: '/api/v1/help/tickets/{ticket_id}/reopen';
+};
+
+export type ReopenApiV1HelpTicketsTicketIdReopenPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReopenApiV1HelpTicketsTicketIdReopenPostError = ReopenApiV1HelpTicketsTicketIdReopenPostErrors[keyof ReopenApiV1HelpTicketsTicketIdReopenPostErrors];
+
+export type ReopenApiV1HelpTicketsTicketIdReopenPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: TicketDetail;
+};
+
+export type ReopenApiV1HelpTicketsTicketIdReopenPostResponse = ReopenApiV1HelpTicketsTicketIdReopenPostResponses[keyof ReopenApiV1HelpTicketsTicketIdReopenPostResponses];
+
+export type AttachApiV1HelpTicketsTicketIdAttachmentsPostData = {
+    body: BodyAttachApiV1HelpTicketsTicketIdAttachmentsPost;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: number;
+    };
+    query?: never;
+    url: '/api/v1/help/tickets/{ticket_id}/attachments';
+};
+
+export type AttachApiV1HelpTicketsTicketIdAttachmentsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AttachApiV1HelpTicketsTicketIdAttachmentsPostError = AttachApiV1HelpTicketsTicketIdAttachmentsPostErrors[keyof AttachApiV1HelpTicketsTicketIdAttachmentsPostErrors];
+
+export type AttachApiV1HelpTicketsTicketIdAttachmentsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: TicketAttachment;
+};
+
+export type AttachApiV1HelpTicketsTicketIdAttachmentsPostResponse = AttachApiV1HelpTicketsTicketIdAttachmentsPostResponses[keyof AttachApiV1HelpTicketsTicketIdAttachmentsPostResponses];
+
+export type SupportQueueApiV1AdminSupportTicketsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Status
+         */
+        status?: string | null;
+        /**
+         * Assignee
+         */
+        assignee?: string | null;
+        /**
+         * Severity
+         */
+        severity?: string | null;
+        /**
+         * Overdue
+         */
+        overdue?: boolean;
+    };
+    url: '/api/v1/admin/support/tickets';
+};
+
+export type SupportQueueApiV1AdminSupportTicketsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportQueueApiV1AdminSupportTicketsGetError = SupportQueueApiV1AdminSupportTicketsGetErrors[keyof SupportQueueApiV1AdminSupportTicketsGetErrors];
+
+export type SupportQueueApiV1AdminSupportTicketsGetResponses = {
+    /**
+     * Response Support Queue Api V1 Admin Support Tickets Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportQueueApiV1AdminSupportTicketsGetResponse = SupportQueueApiV1AdminSupportTicketsGetResponses[keyof SupportQueueApiV1AdminSupportTicketsGetResponses];
+
+export type SupportCaseApiV1AdminSupportTicketsTicketIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/support/tickets/{ticket_id}';
+};
+
+export type SupportCaseApiV1AdminSupportTicketsTicketIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportCaseApiV1AdminSupportTicketsTicketIdGetError = SupportCaseApiV1AdminSupportTicketsTicketIdGetErrors[keyof SupportCaseApiV1AdminSupportTicketsTicketIdGetErrors];
+
+export type SupportCaseApiV1AdminSupportTicketsTicketIdGetResponses = {
+    /**
+     * Response Support Case Api V1 Admin Support Tickets  Ticket Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportCaseApiV1AdminSupportTicketsTicketIdGetResponse = SupportCaseApiV1AdminSupportTicketsTicketIdGetResponses[keyof SupportCaseApiV1AdminSupportTicketsTicketIdGetResponses];
+
+export type SupportUpdateApiV1AdminSupportTicketsTicketIdPatchData = {
+    body: CaseUpdate;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/support/tickets/{ticket_id}';
+};
+
+export type SupportUpdateApiV1AdminSupportTicketsTicketIdPatchErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportUpdateApiV1AdminSupportTicketsTicketIdPatchError = SupportUpdateApiV1AdminSupportTicketsTicketIdPatchErrors[keyof SupportUpdateApiV1AdminSupportTicketsTicketIdPatchErrors];
+
+export type SupportUpdateApiV1AdminSupportTicketsTicketIdPatchResponses = {
+    /**
+     * Response Support Update Api V1 Admin Support Tickets  Ticket Id  Patch
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportUpdateApiV1AdminSupportTicketsTicketIdPatchResponse = SupportUpdateApiV1AdminSupportTicketsTicketIdPatchResponses[keyof SupportUpdateApiV1AdminSupportTicketsTicketIdPatchResponses];
+
+export type SupportReplyApiV1AdminSupportTicketsTicketIdRepliesPostData = {
+    body: StaffReply;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/support/tickets/{ticket_id}/replies';
+};
+
+export type SupportReplyApiV1AdminSupportTicketsTicketIdRepliesPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportReplyApiV1AdminSupportTicketsTicketIdRepliesPostError = SupportReplyApiV1AdminSupportTicketsTicketIdRepliesPostErrors[keyof SupportReplyApiV1AdminSupportTicketsTicketIdRepliesPostErrors];
+
+export type SupportReplyApiV1AdminSupportTicketsTicketIdRepliesPostResponses = {
+    /**
+     * Response Support Reply Api V1 Admin Support Tickets  Ticket Id  Replies Post
+     *
+     * Successful Response
+     */
+    201: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportReplyApiV1AdminSupportTicketsTicketIdRepliesPostResponse = SupportReplyApiV1AdminSupportTicketsTicketIdRepliesPostResponses[keyof SupportReplyApiV1AdminSupportTicketsTicketIdRepliesPostResponses];
+
+export type SupportNoteApiV1AdminSupportTicketsTicketIdNotesPostData = {
+    body: NoteWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/support/tickets/{ticket_id}/notes';
+};
+
+export type SupportNoteApiV1AdminSupportTicketsTicketIdNotesPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportNoteApiV1AdminSupportTicketsTicketIdNotesPostError = SupportNoteApiV1AdminSupportTicketsTicketIdNotesPostErrors[keyof SupportNoteApiV1AdminSupportTicketsTicketIdNotesPostErrors];
+
+export type SupportNoteApiV1AdminSupportTicketsTicketIdNotesPostResponses = {
+    /**
+     * Response Support Note Api V1 Admin Support Tickets  Ticket Id  Notes Post
+     *
+     * Successful Response
+     */
+    201: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportNoteApiV1AdminSupportTicketsTicketIdNotesPostResponse = SupportNoteApiV1AdminSupportTicketsTicketIdNotesPostResponses[keyof SupportNoteApiV1AdminSupportTicketsTicketIdNotesPostResponses];
+
+export type AttachmentLinkApiV1AdminSupportAttachmentsAttachmentIdLinkGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Attachment Id
+         */
+        attachment_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/support/attachments/{attachment_id}/link';
+};
+
+export type AttachmentLinkApiV1AdminSupportAttachmentsAttachmentIdLinkGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AttachmentLinkApiV1AdminSupportAttachmentsAttachmentIdLinkGetError = AttachmentLinkApiV1AdminSupportAttachmentsAttachmentIdLinkGetErrors[keyof AttachmentLinkApiV1AdminSupportAttachmentsAttachmentIdLinkGetErrors];
+
+export type AttachmentLinkApiV1AdminSupportAttachmentsAttachmentIdLinkGetResponses = {
+    /**
+     * Response Attachment Link Api V1 Admin Support Attachments  Attachment Id  Link Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type AttachmentLinkApiV1AdminSupportAttachmentsAttachmentIdLinkGetResponse = AttachmentLinkApiV1AdminSupportAttachmentsAttachmentIdLinkGetResponses[keyof AttachmentLinkApiV1AdminSupportAttachmentsAttachmentIdLinkGetResponses];
+
+export type SupportStaffApiV1AdminSupportStaffGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/support/staff';
+};
+
+export type SupportStaffApiV1AdminSupportStaffGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportStaffApiV1AdminSupportStaffGetError = SupportStaffApiV1AdminSupportStaffGetErrors[keyof SupportStaffApiV1AdminSupportStaffGetErrors];
+
+export type SupportStaffApiV1AdminSupportStaffGetResponses = {
+    /**
+     * Response Support Staff Api V1 Admin Support Staff Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportStaffApiV1AdminSupportStaffGetResponse = SupportStaffApiV1AdminSupportStaffGetResponses[keyof SupportStaffApiV1AdminSupportStaffGetResponses];
+
+export type SupportSummaryApiV1AdminSupportSummaryGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+    };
+    url: '/api/v1/admin/support/summary';
+};
+
+export type SupportSummaryApiV1AdminSupportSummaryGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportSummaryApiV1AdminSupportSummaryGetError = SupportSummaryApiV1AdminSupportSummaryGetErrors[keyof SupportSummaryApiV1AdminSupportSummaryGetErrors];
+
+export type SupportSummaryApiV1AdminSupportSummaryGetResponses = {
+    /**
+     * Response Support Summary Api V1 Admin Support Summary Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportSummaryApiV1AdminSupportSummaryGetResponse = SupportSummaryApiV1AdminSupportSummaryGetResponses[keyof SupportSummaryApiV1AdminSupportSummaryGetResponses];
+
+export type SupportCommandsApiV1AdminSupportActionsCommandsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Organization Id
+         */
+        organization_id?: number | null;
+    };
+    url: '/api/v1/admin/support/actions/commands';
+};
+
+export type SupportCommandsApiV1AdminSupportActionsCommandsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportCommandsApiV1AdminSupportActionsCommandsGetError = SupportCommandsApiV1AdminSupportActionsCommandsGetErrors[keyof SupportCommandsApiV1AdminSupportActionsCommandsGetErrors];
+
+export type SupportCommandsApiV1AdminSupportActionsCommandsGetResponses = {
+    /**
+     * Response Support Commands Api V1 Admin Support Actions Commands Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportCommandsApiV1AdminSupportActionsCommandsGetResponse = SupportCommandsApiV1AdminSupportActionsCommandsGetResponses[keyof SupportCommandsApiV1AdminSupportActionsCommandsGetResponses];
+
+export type SupportActionPreviewApiV1AdminSupportActionsPreviewPostData = {
+    body: ActionTarget;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/support/actions/preview';
+};
+
+export type SupportActionPreviewApiV1AdminSupportActionsPreviewPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportActionPreviewApiV1AdminSupportActionsPreviewPostError = SupportActionPreviewApiV1AdminSupportActionsPreviewPostErrors[keyof SupportActionPreviewApiV1AdminSupportActionsPreviewPostErrors];
+
+export type SupportActionPreviewApiV1AdminSupportActionsPreviewPostResponses = {
+    /**
+     * Response Support Action Preview Api V1 Admin Support Actions Preview Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportActionPreviewApiV1AdminSupportActionsPreviewPostResponse = SupportActionPreviewApiV1AdminSupportActionsPreviewPostResponses[keyof SupportActionPreviewApiV1AdminSupportActionsPreviewPostResponses];
+
+export type SupportActionListApiV1AdminSupportActionsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * State
+         */
+        state?: string | null;
+        /**
+         * Ticket Id
+         */
+        ticket_id?: number | null;
+    };
+    url: '/api/v1/admin/support/actions';
+};
+
+export type SupportActionListApiV1AdminSupportActionsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportActionListApiV1AdminSupportActionsGetError = SupportActionListApiV1AdminSupportActionsGetErrors[keyof SupportActionListApiV1AdminSupportActionsGetErrors];
+
+export type SupportActionListApiV1AdminSupportActionsGetResponses = {
+    /**
+     * Response Support Action List Api V1 Admin Support Actions Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportActionListApiV1AdminSupportActionsGetResponse = SupportActionListApiV1AdminSupportActionsGetResponses[keyof SupportActionListApiV1AdminSupportActionsGetResponses];
+
+export type SupportActionRequestApiV1AdminSupportActionsPostData = {
+    body: ActionRequest;
+    headers?: {
+        /**
+         * Idempotency-Key
+         */
+        'Idempotency-Key'?: string | null;
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/support/actions';
+};
+
+export type SupportActionRequestApiV1AdminSupportActionsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportActionRequestApiV1AdminSupportActionsPostError = SupportActionRequestApiV1AdminSupportActionsPostErrors[keyof SupportActionRequestApiV1AdminSupportActionsPostErrors];
+
+export type SupportActionRequestApiV1AdminSupportActionsPostResponses = {
+    /**
+     * Response Support Action Request Api V1 Admin Support Actions Post
+     *
+     * Successful Response
+     */
+    201: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportActionRequestApiV1AdminSupportActionsPostResponse = SupportActionRequestApiV1AdminSupportActionsPostResponses[keyof SupportActionRequestApiV1AdminSupportActionsPostResponses];
+
+export type SupportActionApiV1AdminSupportActionsActionIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Action Id
+         */
+        action_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/support/actions/{action_id}';
+};
+
+export type SupportActionApiV1AdminSupportActionsActionIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportActionApiV1AdminSupportActionsActionIdGetError = SupportActionApiV1AdminSupportActionsActionIdGetErrors[keyof SupportActionApiV1AdminSupportActionsActionIdGetErrors];
+
+export type SupportActionApiV1AdminSupportActionsActionIdGetResponses = {
+    /**
+     * Response Support Action Api V1 Admin Support Actions  Action Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportActionApiV1AdminSupportActionsActionIdGetResponse = SupportActionApiV1AdminSupportActionsActionIdGetResponses[keyof SupportActionApiV1AdminSupportActionsActionIdGetResponses];
+
+export type SupportActionApproveApiV1AdminSupportActionsActionIdApprovePostData = {
+    body: Approve;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Action Id
+         */
+        action_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/support/actions/{action_id}/approve';
+};
+
+export type SupportActionApproveApiV1AdminSupportActionsActionIdApprovePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportActionApproveApiV1AdminSupportActionsActionIdApprovePostError = SupportActionApproveApiV1AdminSupportActionsActionIdApprovePostErrors[keyof SupportActionApproveApiV1AdminSupportActionsActionIdApprovePostErrors];
+
+export type SupportActionApproveApiV1AdminSupportActionsActionIdApprovePostResponses = {
+    /**
+     * Response Support Action Approve Api V1 Admin Support Actions  Action Id  Approve Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportActionApproveApiV1AdminSupportActionsActionIdApprovePostResponse = SupportActionApproveApiV1AdminSupportActionsActionIdApprovePostResponses[keyof SupportActionApproveApiV1AdminSupportActionsActionIdApprovePostResponses];
+
+export type SupportActionRejectApiV1AdminSupportActionsActionIdRejectPostData = {
+    body: Reject;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Action Id
+         */
+        action_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/support/actions/{action_id}/reject';
+};
+
+export type SupportActionRejectApiV1AdminSupportActionsActionIdRejectPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportActionRejectApiV1AdminSupportActionsActionIdRejectPostError = SupportActionRejectApiV1AdminSupportActionsActionIdRejectPostErrors[keyof SupportActionRejectApiV1AdminSupportActionsActionIdRejectPostErrors];
+
+export type SupportActionRejectApiV1AdminSupportActionsActionIdRejectPostResponses = {
+    /**
+     * Response Support Action Reject Api V1 Admin Support Actions  Action Id  Reject Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportActionRejectApiV1AdminSupportActionsActionIdRejectPostResponse = SupportActionRejectApiV1AdminSupportActionsActionIdRejectPostResponses[keyof SupportActionRejectApiV1AdminSupportActionsActionIdRejectPostResponses];
+
+export type SupportActionWithdrawApiV1AdminSupportActionsActionIdWithdrawPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Action Id
+         */
+        action_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/support/actions/{action_id}/withdraw';
+};
+
+export type SupportActionWithdrawApiV1AdminSupportActionsActionIdWithdrawPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportActionWithdrawApiV1AdminSupportActionsActionIdWithdrawPostError = SupportActionWithdrawApiV1AdminSupportActionsActionIdWithdrawPostErrors[keyof SupportActionWithdrawApiV1AdminSupportActionsActionIdWithdrawPostErrors];
+
+export type SupportActionWithdrawApiV1AdminSupportActionsActionIdWithdrawPostResponses = {
+    /**
+     * Response Support Action Withdraw Api V1 Admin Support Actions  Action Id  Withdraw Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportActionWithdrawApiV1AdminSupportActionsActionIdWithdrawPostResponse = SupportActionWithdrawApiV1AdminSupportActionsActionIdWithdrawPostResponses[keyof SupportActionWithdrawApiV1AdminSupportActionsActionIdWithdrawPostResponses];
+
+export type SupportActionReviseApiV1AdminSupportActionsActionIdRevisePostData = {
+    body: Revise;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Action Id
+         */
+        action_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/support/actions/{action_id}/revise';
+};
+
+export type SupportActionReviseApiV1AdminSupportActionsActionIdRevisePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportActionReviseApiV1AdminSupportActionsActionIdRevisePostError = SupportActionReviseApiV1AdminSupportActionsActionIdRevisePostErrors[keyof SupportActionReviseApiV1AdminSupportActionsActionIdRevisePostErrors];
+
+export type SupportActionReviseApiV1AdminSupportActionsActionIdRevisePostResponses = {
+    /**
+     * Response Support Action Revise Api V1 Admin Support Actions  Action Id  Revise Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportActionReviseApiV1AdminSupportActionsActionIdRevisePostResponse = SupportActionReviseApiV1AdminSupportActionsActionIdRevisePostResponses[keyof SupportActionReviseApiV1AdminSupportActionsActionIdRevisePostResponses];
+
+export type SupportActionRunApiV1AdminSupportActionsActionIdRunPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Action Id
+         */
+        action_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/support/actions/{action_id}/run';
+};
+
+export type SupportActionRunApiV1AdminSupportActionsActionIdRunPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportActionRunApiV1AdminSupportActionsActionIdRunPostError = SupportActionRunApiV1AdminSupportActionsActionIdRunPostErrors[keyof SupportActionRunApiV1AdminSupportActionsActionIdRunPostErrors];
+
+export type SupportActionRunApiV1AdminSupportActionsActionIdRunPostResponses = {
+    /**
+     * Response Support Action Run Api V1 Admin Support Actions  Action Id  Run Post
+     *
+     * Successful Response
+     */
+    202: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportActionRunApiV1AdminSupportActionsActionIdRunPostResponse = SupportActionRunApiV1AdminSupportActionsActionIdRunPostResponses[keyof SupportActionRunApiV1AdminSupportActionsActionIdRunPostResponses];
+
+export type SupportActionReconcileApiV1AdminSupportActionsActionIdReconcilePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Action Id
+         */
+        action_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/support/actions/{action_id}/reconcile';
+};
+
+export type SupportActionReconcileApiV1AdminSupportActionsActionIdReconcilePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportActionReconcileApiV1AdminSupportActionsActionIdReconcilePostError = SupportActionReconcileApiV1AdminSupportActionsActionIdReconcilePostErrors[keyof SupportActionReconcileApiV1AdminSupportActionsActionIdReconcilePostErrors];
+
+export type SupportActionReconcileApiV1AdminSupportActionsActionIdReconcilePostResponses = {
+    /**
+     * Response Support Action Reconcile Api V1 Admin Support Actions  Action Id  Reconcile Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportActionReconcileApiV1AdminSupportActionsActionIdReconcilePostResponse = SupportActionReconcileApiV1AdminSupportActionsActionIdReconcilePostResponses[keyof SupportActionReconcileApiV1AdminSupportActionsActionIdReconcilePostResponses];
 
 export type PublicShelfApiV1PublicMarketplaceGetData = {
     body?: never;

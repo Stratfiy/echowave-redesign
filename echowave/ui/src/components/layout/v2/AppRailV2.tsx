@@ -199,6 +199,8 @@ export function AccountMenu({
     isOrganizationAdmin: roles.isOrganizationAdmin,
     isSuperadmin: roles.staffRole === "superadmin",
   });
+  const help = useFeature("support_help");
+  const supportInbox = useFeature("support_inbox");
   const freeMode = useFeature("free_mode");
   // Free while we are early: nothing to pay, so no Billing in the menu.
   const manage = visibleShellManage(sections).filter((entry) => !(freeMode && entry.url === "/billing"));
@@ -269,6 +271,15 @@ export function AccountMenu({
             Turn on Simple mode
           </DropdownMenuItem>
         )}
+        {/* Help (screen 28): ask support and follow the answer. */}
+        {help && (
+          <DropdownMenuItem asChild>
+            <Link href="/help" onClick={onNavigate}>
+              <LifeBuoy className="mr-2 h-4 w-4" />
+              Help
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         {manage.map((entry) => (
           <React.Fragment key={entry.title}>
@@ -297,6 +308,15 @@ export function AccountMenu({
           <>
             <DropdownMenuSeparator />
             <DropdownMenuLabel>Staff</DropdownMenuLabel>
+            {/* The support inbox (screen 32): support and superadmin alike. */}
+            {supportInbox && (
+              <DropdownMenuItem asChild>
+                <Link href="/superadmin/support" onClick={onNavigate}>
+                  <LifeBuoy className="mr-2 h-4 w-4" />
+                  Support inbox
+                </Link>
+              </DropdownMenuItem>
+            )}
             {staff.map((item) => (
               <DropdownMenuItem key={item.url} asChild>
                 <Link href={item.url} onClick={onNavigate}>

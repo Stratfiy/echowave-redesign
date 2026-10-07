@@ -6893,3 +6893,10 @@ from api.db.signup_invite_models import (  # noqa: E402,F401
 from api.db.site_project_models import (  # noqa: E402,F401
     SiteProjectModel,
 )
+from api.db.support_models import (  # noqa: E402,F401
+    SupportActionModel,
+    SupportAttachmentModel,
+    SupportMessageModel,
+    SupportNoteModel,
+    SupportTicketModel,
+)

@@ -25,6 +25,8 @@ class FunctionNames:
     #: Launch stream `meetings`: one live segment, and the work after Stop.
     TRANSCRIBE_MEETING_SEGMENT = "transcribe_meeting_segment"
     FINISH_MEETING = "finish_meeting"
+    #: An approved support action runs once (launch stream `support`).
+    RUN_SUPPORT_ACTION = "run_support_action"
     COMPACT_CHANNEL_CONTEXT = "compact_channel_context"
     EMAIL_TAX_DOCUMENT = "email_tax_document"
     PLACE_MISSED_CALL_CALLBACK = "place_missed_call_callback"

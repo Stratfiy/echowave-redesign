@@ -117,6 +117,10 @@ FLAGS: dict[str, str] = {
     "first_task_onboarding": "FIRST_TASK_ONBOARDING_ENABLED",
     "chat_shell": "CHAT_SHELL_ENABLED",
     "shell_mobile": "SHELL_MOBILE_ENABLED",
+    # Launch stream `support` (LAUNCH-PLAN.md, phase 2).
+    "support_help": "SUPPORT_HELP_ENABLED",
+    "support_inbox": "SUPPORT_INBOX_ENABLED",
+    "support_actions": "SUPPORT_ACTIONS_ENABLED",
     # Stream ops (handoff 11, 14, 15 G-H, 34, 35).
     "ops_console": "OPS_CONSOLE_ENABLED",
     "server_analytics": "SERVER_ANALYTICS_ENABLED",
@@ -205,6 +209,9 @@ DESCRIPTIONS: dict[str, str] = {
     "first_task_onboarding": "Language, timezone and a first task; new people land in Chat (screen 02).",
     "chat_shell": "Chat: three starters, attach menu, Dictate and Talk, Stop, New content, sources and task states (screens 03-04).",
     "shell_mobile": "Phone shell: Chat and Today at the bottom, profile in the header, keyboard-aware bar, read-only workflow steps.",
+    "support_help": "Help: ask support, choose exactly what is shared, follow the ticket (screen 28).",
+    "support_inbox": "Staff support inbox and case with internal notes (screen 32).",
+    "support_actions": "Typed support actions with a preview, a second person's approval and an audit (screen 33).",
     "ops_console": "Staff operations: health, provider key lifecycle, typed commands, evidence.",
     "server_analytics": "Server-owned product events to PostHog through a durable outbox.",
     "telemetry_redaction": "Redact secrets and personal data from logs and error reports.",

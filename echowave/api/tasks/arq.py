@@ -72,6 +72,7 @@ from api.tasks.routines import (
 from api.tasks.run_integrations import run_integrations_post_workflow_run
 from api.tasks.settlement import sweep_uncosted_runs
 from api.tasks.sunday_review import send_sunday_reviews
+from api.tasks.support import run_support_action, sweep_support_actions
 from api.tasks.tax_invoices import issue_monthly_tax_invoices
 from api.tasks.trial_notices import send_trial_notices
 from api.tasks.webhook_delivery import deliver_webhook, sweep_webhook_deliveries
@@ -141,6 +142,8 @@ class WorkerSettings:
         translate_knowledge_base_document,
         deliver_analytics_outbox,
         sweep_unknown_outcomes,
+        run_support_action,
+        sweep_support_actions,
         run_ops_command,
         sweep_ops,
         care_medicine_tick,
@@ -179,6 +182,14 @@ class WorkerSettings:
             sweep_unknown_outcomes,
             minute=set(range(1, 60, 5)),
             second=40,
+            run_at_startup=False,
+        ),
+        # Launch stream support: support actions whose worker died become
+        # outcome unknown; lapsed requests and approvals expire. No-op off.
+        cron(
+            sweep_support_actions,
+            minute=set(range(3, 60, 5)),
+            second=20,
             run_at_startup=False,
         ),
         # Reminders filed against a document's expiry (A4) go out once a day,
