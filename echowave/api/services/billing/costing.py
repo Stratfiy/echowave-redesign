@@ -480,6 +480,25 @@ async def cost_workflow_run(
         recost=recost,
     )
 
+    # The server-owned record of what this run cost (stream ops, handoff 35):
+    # written to the analytics outbox in this transaction, so it exists only
+    # if the receipt does. A no-op while server_analytics is off.
+    from api.services.ops import telemetry
+
+    await telemetry.record(
+        session,
+        "usage_cost_recorded",
+        workspace_id=organization_id,
+        task_id=f"run-{workflow_run_id}",
+        properties={
+            "status": "recosted" if recost else "costed",
+            "duration_ms": int(billable_seconds or 0) * 1000,
+            "provider_cost_paise": int(cost.total_provider_cost_paise or 0),
+            "charged_paise": int(cost.total_charged_paise or 0),
+            "uncosted_items": len(uncosted_labels),
+        },
+    )
+
     await session.flush()
 
     return cost

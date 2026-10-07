@@ -94,6 +94,14 @@ FLAGS: dict[str, str] = {
     "studio": "STUDIO_ENABLED",
     # Free while we are early: no plans, nothing charged (on by default).
     "free_mode": "FREE_MODE_ENABLED",
+    # Stream ops (handoff 11, 14, 15 G-H, 34, 35).
+    "ops_console": "OPS_CONSOLE_ENABLED",
+    "server_analytics": "SERVER_ANALYTICS_ENABLED",
+    "telemetry_redaction": "TELEMETRY_REDACTION_ENABLED",
+    "session_replay": "SESSION_REPLAY_ENABLED",
+    "laya_guardrails": "LAYA_GUARDRAILS_ENABLED",
+    "laya_rollback": "LAYA_ROLLBACK_ENABLED",
+    "cost_stop": "COST_STOP_ENABLED",
 }
 
 
@@ -138,6 +146,13 @@ DESCRIPTIONS: dict[str, str] = {
     "decibyl_teams": "Decibyl in Microsoft Teams.",
     "studio": "Studio: build agents and a website for them from one chat.",
     "free_mode": "Free while we are early: no plans, nothing charged, nothing locked.",
+    "ops_console": "Staff operations: health, provider key lifecycle, typed commands, evidence.",
+    "server_analytics": "Server-owned product events to PostHog through a durable outbox.",
+    "telemetry_redaction": "Redact secrets and personal data from logs and error reports.",
+    "session_replay": "Session replay on non-sensitive screens only (off: no replay at all).",
+    "laya_guardrails": "Laya hard deadline, circuit breaker and shadow agreement statistics.",
+    "laya_rollback": "Rollback: Auto routes by rules alone and never asks Laya.",
+    "cost_stop": "Stop new billable work when provider spend runs away.",
 }
 
 
