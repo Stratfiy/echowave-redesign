@@ -54,6 +54,7 @@ from api.tasks.memory_export import export_memory
 from api.tasks.memory_notices import notice_connections, resurface_asked
 from api.tasks.missed_call_tasks import place_missed_call_callback
 from api.tasks.ops import run_ops_command, sweep_ops
+from api.tasks.people import resync_people, sync_people, write_due_briefs
 from api.tasks.plan_expiry import expire_lapsed_plan_balance
 from api.tasks.provider_balances import check_provider_balances
 from api.tasks.rental_billing import (
@@ -161,6 +162,7 @@ class WorkerSettings:
         sweep_staff_commands,
         reconcile_unknown_outcomes,
         build_personal_export,
+        sync_people,
         purge_temporary_conversations,
         sweep_stale_voice_sessions,
     ]
@@ -225,6 +227,15 @@ class WorkerSettings:
             second=20,
             run_at_startup=False,
         ),
+        # People: briefs whose debounce window passed, and syncs hours old
+        # re-run so contacts stay current. No-ops while off.
+        cron(
+            write_due_briefs,
+            minute=set(range(1, 60, 2)),
+            second=35,
+            run_at_startup=False,
+        ),
+        cron(resync_people, minute={17}, second=10, run_at_startup=False),
         # Launch stream settings: temporary conversations deleted on time.
         cron(
             purge_temporary_conversations,

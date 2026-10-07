@@ -130,7 +130,9 @@ export type Feature =
     | "decibyl_voice"
     | "voice_latency"
     | "call_for_me"
-    | "call_appointment";
+    | "call_appointment"
+    // People: synced contacts with context (PEOPLE.md).
+    | "people";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

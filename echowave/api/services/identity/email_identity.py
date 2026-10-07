@@ -550,6 +550,19 @@ async def receive(recipient: str, raw_mime: bytes) -> str:
             link="/settings/identity",
             dedupe_key=f"mail:{identity.id}:{message_id}"[:128],
         )
+        from api.services.people import interactions as people_interactions
+
+        sender_name, sender = parseaddr(str(message.get("From") or ""))
+        await people_interactions.record(
+            identity.organization_id,
+            identity.user_id,
+            channel="email",
+            direction="in",
+            email=sender,
+            name=sender_name or None,
+            line=f"Mail to your Decibyl address: {subject or '(no subject)'}",
+            ref=f"mail:{message_id}",
+        )
     return status
 
 
@@ -717,6 +730,18 @@ async def send(
     # server took it is not known, and the card says so. The row stays
     # "sending" for reconciliation.
     await _send_state(card_event_id, "accepted", None)
+    from api.services.people import interactions as people_interactions
+
+    await people_interactions.record(
+        identity.organization_id,
+        user_id,
+        channel="email",
+        direction="out",
+        email=parseaddr(to)[1] or to,
+        name=parseaddr(to)[0] or None,
+        line=f"Mail from your Decibyl address: {subject or '(no subject)'}",
+        ref=f"mail:{message_id}",
+    )
     return f"Sent from {address} to {to}."
 
 

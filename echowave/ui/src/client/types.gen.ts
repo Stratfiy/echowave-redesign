@@ -1966,6 +1966,16 @@ export type BodyImportContactsApiV1ContactListsContactListIdImportPost = {
 };
 
 /**
+ * Body_import_people_api_v1_people_import_post
+ */
+export type BodyImportPeopleApiV1PeopleImportPost = {
+    /**
+     * File
+     */
+    file: Blob | File;
+};
+
+/**
  * Body_transcribe_audio_api_v1_workflow_recordings_transcribe_post
  */
 export type BodyTranscribeAudioApiV1WorkflowRecordingsTranscribePost = {
@@ -3812,6 +3822,30 @@ export type CloudonixConfigurationResponse = {
 };
 
 /**
+ * Colleague
+ */
+export type Colleague = {
+    /**
+     * User Id
+     */
+    user_id: number;
+    /**
+     * Label
+     */
+    label: string;
+};
+
+/**
+ * ColleagueList
+ */
+export type ColleagueList = {
+    /**
+     * Colleagues
+     */
+    colleagues: Array<Colleague>;
+};
+
+/**
  * CommentWrite
  */
 export type CommentWrite = {
@@ -4034,6 +4068,20 @@ export type ConfirmRequest = {
      * Code
      */
     code: string;
+};
+
+/**
+ * ConnectLink
+ */
+export type ConnectLink = {
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Connect Url
+     */
+    connect_url: string;
 };
 
 /**
@@ -8879,6 +8927,36 @@ export type ImportResponse = {
 };
 
 /**
+ * ImportResult
+ */
+export type ImportResult = {
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * Added
+     */
+    added: number;
+    /**
+     * Updated
+     */
+    updated: number;
+    /**
+     * Unchanged
+     */
+    unchanged: number;
+    /**
+     * Skipped
+     */
+    skipped: number;
+    /**
+     * Open Merges
+     */
+    open_merges: number;
+};
+
+/**
  * Improvement
  *
  * One thing this business could do better, with the count behind it.
@@ -11444,6 +11522,46 @@ export type MemorySwitch = {
 };
 
 /**
+ * MergeDecision
+ */
+export type MergeDecision = {
+    /**
+     * Action
+     */
+    action: 'merge' | 'keep_both';
+};
+
+/**
+ * MergeList
+ */
+export type MergeList = {
+    /**
+     * Merges
+     */
+    merges: Array<MergeSuggestion>;
+};
+
+/**
+ * MergeSuggestion
+ */
+export type MergeSuggestion = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Value
+     */
+    value: string;
+    keep: PersonSummary;
+    other: PersonSummary;
+};
+
+/**
  * MfaDisableRequest
  *
  * Disabling needs the password as well as a current code. Otherwise a
@@ -13179,6 +13297,248 @@ export type PaymentPolicy = {
 };
 
 /**
+ * PeopleList
+ */
+export type PeopleList = {
+    /**
+     * People
+     */
+    people: Array<PersonSummary>;
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Shared
+     */
+    shared?: Array<SharedCard>;
+};
+
+/**
+ * PeopleSettings
+ */
+export type PeopleSettings = {
+    /**
+     * Agents May Read
+     */
+    agents_may_read: boolean;
+};
+
+/**
+ * PeopleStatus
+ */
+export type PeopleStatus = {
+    /**
+     * Providers
+     */
+    providers: Array<ProviderStatus>;
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Open Merges
+     */
+    open_merges: number;
+    /**
+     * Agents May Read
+     */
+    agents_may_read: boolean;
+};
+
+/**
+ * PersonCreate
+ */
+export type PersonCreate = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Phones
+     */
+    phones?: Array<string>;
+    /**
+     * Emails
+     */
+    emails?: Array<string>;
+    /**
+     * Company
+     */
+    company?: string | null;
+    /**
+     * Relation
+     */
+    relation?: string | null;
+};
+
+/**
+ * PersonDetail
+ */
+export type PersonDetail = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Company
+     */
+    company?: string | null;
+    /**
+     * Relation
+     */
+    relation?: string | null;
+    /**
+     * Phones
+     */
+    phones?: Array<string>;
+    /**
+     * Emails
+     */
+    emails?: Array<string>;
+    /**
+     * Sources
+     */
+    sources?: Array<string>;
+    /**
+     * Brief
+     */
+    brief?: string | null;
+    /**
+     * Last Interaction At
+     */
+    last_interaction_at?: string | null;
+    /**
+     * Brief By
+     */
+    brief_by?: string | null;
+    /**
+     * Brief At
+     */
+    brief_at?: string | null;
+    /**
+     * Brief Pending
+     */
+    brief_pending?: boolean;
+    /**
+     * Interactions
+     */
+    interactions?: Array<PersonInteraction>;
+    /**
+     * Shared With
+     */
+    shared_with?: Array<number>;
+};
+
+/**
+ * PersonEdit
+ */
+export type PersonEdit = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Phones
+     */
+    phones?: Array<string> | null;
+    /**
+     * Emails
+     */
+    emails?: Array<string> | null;
+    /**
+     * Company
+     */
+    company?: string | null;
+    /**
+     * Relation
+     */
+    relation?: string | null;
+    /**
+     * Brief
+     */
+    brief?: string | null;
+};
+
+/**
+ * PersonInteraction
+ */
+export type PersonInteraction = {
+    /**
+     * Channel
+     */
+    channel: string;
+    /**
+     * Direction
+     */
+    direction: string;
+    /**
+     * At
+     */
+    at?: string | null;
+    /**
+     * Line
+     */
+    line: string;
+};
+
+/**
+ * PersonShareRequest
+ */
+export type PersonShareRequest = {
+    /**
+     * User Id
+     */
+    user_id: number;
+};
+
+/**
+ * PersonSummary
+ */
+export type PersonSummary = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Company
+     */
+    company?: string | null;
+    /**
+     * Relation
+     */
+    relation?: string | null;
+    /**
+     * Phones
+     */
+    phones?: Array<string>;
+    /**
+     * Emails
+     */
+    emails?: Array<string>;
+    /**
+     * Sources
+     */
+    sources?: Array<string>;
+    /**
+     * Brief
+     */
+    brief?: string | null;
+    /**
+     * Last Interaction At
+     */
+    last_interaction_at?: string | null;
+};
+
+/**
  * PersonalSpace
  */
 export type PersonalSpace = {
@@ -13515,6 +13875,34 @@ export type PhoneNumberUpdateRequest = {
      * Inbound Allow List
      */
     inbound_allow_list?: Array<string> | null;
+};
+
+/**
+ * PickerContact
+ */
+export type PickerContact = {
+    /**
+     * Name
+     */
+    name?: Array<string>;
+    /**
+     * Tel
+     */
+    tel?: Array<string>;
+    /**
+     * Email
+     */
+    email?: Array<string>;
+};
+
+/**
+ * PickerImport
+ */
+export type PickerImport = {
+    /**
+     * Contacts
+     */
+    contacts: Array<PickerContact>;
 };
 
 /**
@@ -14582,6 +14970,42 @@ export type ProviderRatesRequest = {
      * Source Checked On
      */
     source_checked_on?: string | null;
+};
+
+/**
+ * ProviderStatus
+ */
+export type ProviderStatus = {
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Toolkit
+     */
+    toolkit: string;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Detail
+     */
+    detail?: string | null;
+    /**
+     * Last Synced At
+     */
+    last_synced_at?: string | null;
+    /**
+     * Counts
+     */
+    counts?: {
+        [key: string]: number;
+    };
 };
 
 /**
@@ -17442,6 +17866,39 @@ export type ShareSection = {
 };
 
 /**
+ * SharedCard
+ *
+ * A colleague's contact they chose to show you. Never their brief or
+ * their interactions.
+ */
+export type SharedCard = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Company
+     */
+    company?: string | null;
+    /**
+     * Phones
+     */
+    phones?: Array<string>;
+    /**
+     * Emails
+     */
+    emails?: Array<string>;
+    /**
+     * Shared By
+     */
+    shared_by?: string | null;
+};
+
+/**
  * SharedOutboundRequest
  */
 export type SharedOutboundRequest = {
@@ -18321,6 +18778,20 @@ export type SwitchOrganizationRequest = {
      * Organization Id
      */
     organization_id: number;
+};
+
+/**
+ * SyncStarted
+ */
+export type SyncStarted = {
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * State
+     */
+    state: string;
 };
 
 /**
@@ -53405,6 +53876,820 @@ export type CheckOrderApiV1ReachOrdersOrderIdCheckPostResponses = {
 };
 
 export type CheckOrderApiV1ReachOrdersOrderIdCheckPostResponse = CheckOrderApiV1ReachOrdersOrderIdCheckPostResponses[keyof CheckOrderApiV1ReachOrdersOrderIdCheckPostResponses];
+
+export type MyPeopleApiV1PeopleGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Q
+         */
+        q?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
+    url: '/api/v1/people';
+};
+
+export type MyPeopleApiV1PeopleGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyPeopleApiV1PeopleGetError = MyPeopleApiV1PeopleGetErrors[keyof MyPeopleApiV1PeopleGetErrors];
+
+export type MyPeopleApiV1PeopleGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PeopleList;
+};
+
+export type MyPeopleApiV1PeopleGetResponse = MyPeopleApiV1PeopleGetResponses[keyof MyPeopleApiV1PeopleGetResponses];
+
+export type AddPersonApiV1PeoplePostData = {
+    body: PersonCreate;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/people';
+};
+
+export type AddPersonApiV1PeoplePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddPersonApiV1PeoplePostError = AddPersonApiV1PeoplePostErrors[keyof AddPersonApiV1PeoplePostErrors];
+
+export type AddPersonApiV1PeoplePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: PersonDetail;
+};
+
+export type AddPersonApiV1PeoplePostResponse = AddPersonApiV1PeoplePostResponses[keyof AddPersonApiV1PeoplePostResponses];
+
+export type PeopleStatusApiV1PeopleStatusGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/people/status';
+};
+
+export type PeopleStatusApiV1PeopleStatusGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PeopleStatusApiV1PeopleStatusGetError = PeopleStatusApiV1PeopleStatusGetErrors[keyof PeopleStatusApiV1PeopleStatusGetErrors];
+
+export type PeopleStatusApiV1PeopleStatusGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PeopleStatus;
+};
+
+export type PeopleStatusApiV1PeopleStatusGetResponse = PeopleStatusApiV1PeopleStatusGetResponses[keyof PeopleStatusApiV1PeopleStatusGetResponses];
+
+export type MyMergesApiV1PeopleMergesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/people/merges';
+};
+
+export type MyMergesApiV1PeopleMergesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyMergesApiV1PeopleMergesGetError = MyMergesApiV1PeopleMergesGetErrors[keyof MyMergesApiV1PeopleMergesGetErrors];
+
+export type MyMergesApiV1PeopleMergesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: MergeList;
+};
+
+export type MyMergesApiV1PeopleMergesGetResponse = MyMergesApiV1PeopleMergesGetResponses[keyof MyMergesApiV1PeopleMergesGetResponses];
+
+export type MyPeopleSettingsApiV1PeopleSettingsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/people/settings';
+};
+
+export type MyPeopleSettingsApiV1PeopleSettingsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyPeopleSettingsApiV1PeopleSettingsGetError = MyPeopleSettingsApiV1PeopleSettingsGetErrors[keyof MyPeopleSettingsApiV1PeopleSettingsGetErrors];
+
+export type MyPeopleSettingsApiV1PeopleSettingsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PeopleSettings;
+};
+
+export type MyPeopleSettingsApiV1PeopleSettingsGetResponse = MyPeopleSettingsApiV1PeopleSettingsGetResponses[keyof MyPeopleSettingsApiV1PeopleSettingsGetResponses];
+
+export type SavePeopleSettingsApiV1PeopleSettingsPutData = {
+    body: PeopleSettings;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/people/settings';
+};
+
+export type SavePeopleSettingsApiV1PeopleSettingsPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SavePeopleSettingsApiV1PeopleSettingsPutError = SavePeopleSettingsApiV1PeopleSettingsPutErrors[keyof SavePeopleSettingsApiV1PeopleSettingsPutErrors];
+
+export type SavePeopleSettingsApiV1PeopleSettingsPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: PeopleSettings;
+};
+
+export type SavePeopleSettingsApiV1PeopleSettingsPutResponse = SavePeopleSettingsApiV1PeopleSettingsPutResponses[keyof SavePeopleSettingsApiV1PeopleSettingsPutResponses];
+
+export type PeopleColleaguesApiV1PeopleColleaguesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/people/colleagues';
+};
+
+export type PeopleColleaguesApiV1PeopleColleaguesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PeopleColleaguesApiV1PeopleColleaguesGetError = PeopleColleaguesApiV1PeopleColleaguesGetErrors[keyof PeopleColleaguesApiV1PeopleColleaguesGetErrors];
+
+export type PeopleColleaguesApiV1PeopleColleaguesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ColleagueList;
+};
+
+export type PeopleColleaguesApiV1PeopleColleaguesGetResponse = PeopleColleaguesApiV1PeopleColleaguesGetResponses[keyof PeopleColleaguesApiV1PeopleColleaguesGetResponses];
+
+export type SharedCardApiV1PeopleSharedPersonIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Person Id
+         */
+        person_id: string;
+    };
+    query?: never;
+    url: '/api/v1/people/shared/{person_id}';
+};
+
+export type SharedCardApiV1PeopleSharedPersonIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SharedCardApiV1PeopleSharedPersonIdGetError = SharedCardApiV1PeopleSharedPersonIdGetErrors[keyof SharedCardApiV1PeopleSharedPersonIdGetErrors];
+
+export type SharedCardApiV1PeopleSharedPersonIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SharedCard;
+};
+
+export type SharedCardApiV1PeopleSharedPersonIdGetResponse = SharedCardApiV1PeopleSharedPersonIdGetResponses[keyof SharedCardApiV1PeopleSharedPersonIdGetResponses];
+
+export type DeletePersonApiV1PeoplePersonIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Person Id
+         */
+        person_id: string;
+    };
+    query?: never;
+    url: '/api/v1/people/{person_id}';
+};
+
+export type DeletePersonApiV1PeoplePersonIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeletePersonApiV1PeoplePersonIdDeleteError = DeletePersonApiV1PeoplePersonIdDeleteErrors[keyof DeletePersonApiV1PeoplePersonIdDeleteErrors];
+
+export type DeletePersonApiV1PeoplePersonIdDeleteResponses = {
+    /**
+     * Response Delete Person Api V1 People  Person Id  Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: boolean;
+    };
+};
+
+export type DeletePersonApiV1PeoplePersonIdDeleteResponse = DeletePersonApiV1PeoplePersonIdDeleteResponses[keyof DeletePersonApiV1PeoplePersonIdDeleteResponses];
+
+export type MyPersonApiV1PeoplePersonIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Person Id
+         */
+        person_id: string;
+    };
+    query?: never;
+    url: '/api/v1/people/{person_id}';
+};
+
+export type MyPersonApiV1PeoplePersonIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyPersonApiV1PeoplePersonIdGetError = MyPersonApiV1PeoplePersonIdGetErrors[keyof MyPersonApiV1PeoplePersonIdGetErrors];
+
+export type MyPersonApiV1PeoplePersonIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PersonDetail;
+};
+
+export type MyPersonApiV1PeoplePersonIdGetResponse = MyPersonApiV1PeoplePersonIdGetResponses[keyof MyPersonApiV1PeoplePersonIdGetResponses];
+
+export type EditPersonApiV1PeoplePersonIdPatchData = {
+    body: PersonEdit;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Person Id
+         */
+        person_id: string;
+    };
+    query?: never;
+    url: '/api/v1/people/{person_id}';
+};
+
+export type EditPersonApiV1PeoplePersonIdPatchErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EditPersonApiV1PeoplePersonIdPatchError = EditPersonApiV1PeoplePersonIdPatchErrors[keyof EditPersonApiV1PeoplePersonIdPatchErrors];
+
+export type EditPersonApiV1PeoplePersonIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: PersonDetail;
+};
+
+export type EditPersonApiV1PeoplePersonIdPatchResponse = EditPersonApiV1PeoplePersonIdPatchResponses[keyof EditPersonApiV1PeoplePersonIdPatchResponses];
+
+export type RewriteBriefApiV1PeoplePersonIdBriefPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Person Id
+         */
+        person_id: string;
+    };
+    query?: never;
+    url: '/api/v1/people/{person_id}/brief';
+};
+
+export type RewriteBriefApiV1PeoplePersonIdBriefPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RewriteBriefApiV1PeoplePersonIdBriefPostError = RewriteBriefApiV1PeoplePersonIdBriefPostErrors[keyof RewriteBriefApiV1PeoplePersonIdBriefPostErrors];
+
+export type RewriteBriefApiV1PeoplePersonIdBriefPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: PersonDetail;
+};
+
+export type RewriteBriefApiV1PeoplePersonIdBriefPostResponse = RewriteBriefApiV1PeoplePersonIdBriefPostResponses[keyof RewriteBriefApiV1PeoplePersonIdBriefPostResponses];
+
+export type SharePersonApiV1PeoplePersonIdSharePostData = {
+    body: PersonShareRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Person Id
+         */
+        person_id: string;
+    };
+    query?: never;
+    url: '/api/v1/people/{person_id}/share';
+};
+
+export type SharePersonApiV1PeoplePersonIdSharePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SharePersonApiV1PeoplePersonIdSharePostError = SharePersonApiV1PeoplePersonIdSharePostErrors[keyof SharePersonApiV1PeoplePersonIdSharePostErrors];
+
+export type SharePersonApiV1PeoplePersonIdSharePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: PersonDetail;
+};
+
+export type SharePersonApiV1PeoplePersonIdSharePostResponse = SharePersonApiV1PeoplePersonIdSharePostResponses[keyof SharePersonApiV1PeoplePersonIdSharePostResponses];
+
+export type UnsharePersonApiV1PeoplePersonIdShareUserIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Person Id
+         */
+        person_id: string;
+        /**
+         * User Id
+         */
+        user_id: number;
+    };
+    query?: never;
+    url: '/api/v1/people/{person_id}/share/{user_id}';
+};
+
+export type UnsharePersonApiV1PeoplePersonIdShareUserIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UnsharePersonApiV1PeoplePersonIdShareUserIdDeleteError = UnsharePersonApiV1PeoplePersonIdShareUserIdDeleteErrors[keyof UnsharePersonApiV1PeoplePersonIdShareUserIdDeleteErrors];
+
+export type UnsharePersonApiV1PeoplePersonIdShareUserIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: PersonDetail;
+};
+
+export type UnsharePersonApiV1PeoplePersonIdShareUserIdDeleteResponse = UnsharePersonApiV1PeoplePersonIdShareUserIdDeleteResponses[keyof UnsharePersonApiV1PeoplePersonIdShareUserIdDeleteResponses];
+
+export type DecideMergeApiV1PeopleMergesMergeIdPostData = {
+    body: MergeDecision;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Merge Id
+         */
+        merge_id: string;
+    };
+    query?: never;
+    url: '/api/v1/people/merges/{merge_id}';
+};
+
+export type DecideMergeApiV1PeopleMergesMergeIdPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DecideMergeApiV1PeopleMergesMergeIdPostError = DecideMergeApiV1PeopleMergesMergeIdPostErrors[keyof DecideMergeApiV1PeopleMergesMergeIdPostErrors];
+
+export type DecideMergeApiV1PeopleMergesMergeIdPostResponses = {
+    /**
+     * Response Decide Merge Api V1 People Merges  Merge Id  Post
+     *
+     * Successful Response
+     */
+    200: PersonDetail | null;
+};
+
+export type DecideMergeApiV1PeopleMergesMergeIdPostResponse = DecideMergeApiV1PeopleMergesMergeIdPostResponses[keyof DecideMergeApiV1PeopleMergesMergeIdPostResponses];
+
+export type ImportPeopleApiV1PeopleImportPostData = {
+    body: BodyImportPeopleApiV1PeopleImportPost;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/people/import';
+};
+
+export type ImportPeopleApiV1PeopleImportPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ImportPeopleApiV1PeopleImportPostError = ImportPeopleApiV1PeopleImportPostErrors[keyof ImportPeopleApiV1PeopleImportPostErrors];
+
+export type ImportPeopleApiV1PeopleImportPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportResult;
+};
+
+export type ImportPeopleApiV1PeopleImportPostResponse = ImportPeopleApiV1PeopleImportPostResponses[keyof ImportPeopleApiV1PeopleImportPostResponses];
+
+export type ImportPickedApiV1PeopleImportPickerPostData = {
+    body: PickerImport;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/people/import/picker';
+};
+
+export type ImportPickedApiV1PeopleImportPickerPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ImportPickedApiV1PeopleImportPickerPostError = ImportPickedApiV1PeopleImportPickerPostErrors[keyof ImportPickedApiV1PeopleImportPickerPostErrors];
+
+export type ImportPickedApiV1PeopleImportPickerPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportResult;
+};
+
+export type ImportPickedApiV1PeopleImportPickerPostResponse = ImportPickedApiV1PeopleImportPickerPostResponses[keyof ImportPickedApiV1PeopleImportPickerPostResponses];
+
+export type StartSyncApiV1PeopleSyncProviderPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Provider
+         */
+        provider: 'google' | 'microsoft';
+    };
+    query?: never;
+    url: '/api/v1/people/sync/{provider}';
+};
+
+export type StartSyncApiV1PeopleSyncProviderPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StartSyncApiV1PeopleSyncProviderPostError = StartSyncApiV1PeopleSyncProviderPostErrors[keyof StartSyncApiV1PeopleSyncProviderPostErrors];
+
+export type StartSyncApiV1PeopleSyncProviderPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SyncStarted;
+};
+
+export type StartSyncApiV1PeopleSyncProviderPostResponse = StartSyncApiV1PeopleSyncProviderPostResponses[keyof StartSyncApiV1PeopleSyncProviderPostResponses];
+
+export type ConnectProviderApiV1PeopleConnectProviderPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Provider
+         */
+        provider: 'google' | 'microsoft';
+    };
+    query?: never;
+    url: '/api/v1/people/connect/{provider}';
+};
+
+export type ConnectProviderApiV1PeopleConnectProviderPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ConnectProviderApiV1PeopleConnectProviderPostError = ConnectProviderApiV1PeopleConnectProviderPostErrors[keyof ConnectProviderApiV1PeopleConnectProviderPostErrors];
+
+export type ConnectProviderApiV1PeopleConnectProviderPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ConnectLink;
+};
+
+export type ConnectProviderApiV1PeopleConnectProviderPostResponse = ConnectProviderApiV1PeopleConnectProviderPostResponses[keyof ConnectProviderApiV1PeopleConnectProviderPostResponses];
 
 export type LearningStatusApiV1LearningStatusGetData = {
     body?: never;

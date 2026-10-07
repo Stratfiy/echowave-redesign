@@ -194,6 +194,7 @@ async def finish(meeting_id: int, organization_id: int) -> str | None:
             organization_id=organization_id,
             properties={"status": status, "reason_code": reading_status},
         )
+        await _people_note(meeting, organization_id)
         return status
     except Exception as exc:  # noqa: BLE001 - the record must say something
         logger.exception("Processing meeting {} broke: {}", meeting_id, exc)
@@ -204,6 +205,39 @@ async def finish(meeting_id: int, organization_id: int) -> str | None:
             status_reason="Something went wrong on our side while processing. Try again.",
         )
         return "failed"
+
+
+async def _people_note(meeting, organization_id: int) -> None:
+    """Each named participant's page in the owner's People gets the meeting.
+    Names only -- a meeting has no numbers -- so a name matches one contact
+    exactly or a new contact is added. Nothing while People is off."""
+    from api.services.people import enabled as people_enabled
+    from api.services.people import interactions as people_interactions
+    from api.services.people.normalise import name_key
+
+    if not people_enabled(organization_id) or not meeting.participants:
+        return
+    # Read again: the summary was written after this row was loaded.
+    meeting = (
+        await db_client.get_meeting_by_id(meeting.id, organization_id=organization_id)
+        or meeting
+    )
+    summary = meeting.summary if isinstance(meeting.summary, dict) else {}
+    first = (summary.get("summary") or [""])[0] if summary.get("summary") else ""
+    line = f"Meeting: {meeting.title}" + (f" -- {first}" if first else "")
+    for name in (meeting.participants or [])[:30]:
+        if not isinstance(name, str) or not name.strip():
+            continue
+        await people_interactions.record(
+            organization_id,
+            meeting.owner_user_id,
+            channel="meeting",
+            direction="both",
+            name=name,
+            line=line,
+            ref=f"meeting:{meeting.id}:{name_key(name)}"[:200],
+            at=meeting.created_at,
+        )
 
 
 async def reread(meeting_id: int, organization_id: int) -> str:

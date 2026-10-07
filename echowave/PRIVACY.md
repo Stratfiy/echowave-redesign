@@ -218,6 +218,19 @@ under Art 34 can be worked out.
 **Counts and identifiers, never content.** A breach report that itself contains
 the compromised data is a second incident.
 
+### A person's contacts (People) -- private to that person
+
+`api/services/people/`, flag `people`; the detail is in `PEOPLE.md`.
+
+A member's contacts, the briefs Decibyl writes about them and the history of
+calls, mail and meetings with them belong to that member, not the workspace:
+every query names the owner, a colleague's id is answered as not found, and a
+contact card is shown to a colleague only when its owner shares it (never the
+brief or the history). The brief model is sent names and interaction lines,
+never a number or an address. The person's own export and deletion in the
+privacy center cover all of it (store `people`). Agents read a brief only
+when the person has allowed it.
+
 ### Security controls that support both regimes
 
 * Recordings and transcripts are reachable only by **expiring presigned URL**;
