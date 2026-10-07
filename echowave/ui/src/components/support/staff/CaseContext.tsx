@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { AuditTimeline, TaskStatus } from "@/components/shell";
+import { showShared } from "@/components/support/SharePreviewPanel";
 import { Button } from "@/components/ui/button";
 import { TASK_STATES, type TaskState } from "@/lib/shell/taskState";
 import {
@@ -94,7 +95,7 @@ export function CaseContext({
                             {section.fields.map((field) => (
                                 <div key={field.label} className="contents">
                                     <dt className="text-muted-foreground">{field.label}</dt>
-                                    <dd className="min-w-0 whitespace-pre-wrap break-words">{String(field.value ?? "—")}</dd>
+                                    <dd className="min-w-0 whitespace-pre-wrap break-words">{showShared(field.value)}</dd>
                                 </div>
                             ))}
                         </dl>

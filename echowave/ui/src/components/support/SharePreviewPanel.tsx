@@ -15,7 +15,7 @@ import { useId } from "react";
 import type { SharePreview } from "@/lib/support/help";
 import { cn } from "@/lib/utils";
 
-function show(value: unknown): string {
+export function showShared(value: unknown): string {
     if (value === null || value === undefined || value === "") return "—";
     if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
         const date = new Date(value);
@@ -87,7 +87,7 @@ export function SharePreviewPanel({
                                 {section.fields.map((field) => (
                                     <div key={field.label} className="contents">
                                         <dt className="text-muted-foreground no-underline">{field.label}</dt>
-                                        <dd className="min-w-0 whitespace-pre-wrap break-words">{show(field.value)}</dd>
+                                        <dd className="min-w-0 whitespace-pre-wrap break-words">{showShared(field.value)}</dd>
                                     </div>
                                 ))}
                             </dl>

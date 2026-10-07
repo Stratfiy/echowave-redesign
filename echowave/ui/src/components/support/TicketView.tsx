@@ -29,6 +29,7 @@ import {
 } from "@/lib/support/help";
 import { cn } from "@/lib/utils";
 
+import { showShared as formatShared } from "./SharePreviewPanel";
 import { TicketThread } from "./TicketThread";
 
 const FIELD = "w-full rounded-[var(--radius-control)] border border-input bg-background px-3 py-2 text-base md:text-sm";
@@ -166,7 +167,7 @@ export function TicketView({ ticketId, attachmentFailed = false }: { ticketId: n
                                     {section.fields.map((field) => (
                                         <div key={field.label} className="contents">
                                             <dt className="text-muted-foreground">{field.label}</dt>
-                                            <dd className="min-w-0 whitespace-pre-wrap break-words">{String(field.value ?? "—")}</dd>
+                                            <dd className="min-w-0 whitespace-pre-wrap break-words">{formatShared(field.value)}</dd>
                                         </div>
                                     ))}
                                 </dl>
