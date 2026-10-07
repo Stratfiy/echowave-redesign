@@ -197,6 +197,11 @@ async def save_onboarding(
         )
     except onboarding.Invalid as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    # The answers are the person's own preferences too: with the settings
+    # shell on they reach Settings now (services/settings/profile.py).
+    from api.services.settings import profile as settings_profile
+
+    await settings_profile.onboarding_saved(user.id, user.selected_organization_id)
     return _onboarding_response(state)
 
 

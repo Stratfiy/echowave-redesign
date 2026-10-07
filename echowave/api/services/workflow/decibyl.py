@@ -237,10 +237,15 @@ def system_prompt(organization_id: int | None = None) -> str:
     The procurement rules are said only while those tools are offered: a
     rule for a tool the model is not holding is a tool it will describe and
     cannot call (``test_decibyl_knows_what_it_has``)."""
+    from api.services.settings import profile as settings_profile
+
     return (
         SYSTEM
         + (procurement.RULES if procurement.enabled() else "")
         + (tables.RULES if tables.enabled(organization_id) else "")
+        # The person's own choices for this turn (settings stream); "" when
+        # none were set or the switches are off.
+        + settings_profile.turn_block()
     )
 
 
@@ -945,7 +950,25 @@ async def answer(
     # And it runs as the person who asked: their Gmail, not the
     # workspace's, when they have one (WS-1), and their own memory beside
     # the workspace's (MEM-1).
-    with agent_timeline.in_thread(thread_id), acting.acting_as(author_id):
+    # Memory starts off until the person chooses it, and a temporary
+    # conversation never writes any (settings stream; services/settings/
+    # temporary.py). Read once here, like the two above; None while the
+    # memory manager is off, which is exactly the old behaviour.
+    from api.services.settings import profile as settings_profile
+    from api.services.settings import temporary as memory_choice
+
+    memory_off = await memory_choice.reason_for_turn(
+        organization_id, author_id, thread_id
+    )
+    person = await settings_profile.block_for_turn(
+        organization_id, author_id, memory_off
+    )
+    with (
+        agent_timeline.in_thread(thread_id),
+        acting.acting_as(author_id),
+        memory_choice.paused(memory_off),
+        settings_profile.for_turn(person),
+    ):
         return await _answer(
             organization_id,
             text,

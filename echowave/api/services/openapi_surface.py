@@ -148,6 +148,9 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             # Where a person lands after sign-in, their first answers, and
             # Stop for a reply forming in Chat (launch stream `shell`).
             "shell",
+            # A person's own settings, memory, saved items and data rights
+            # (launch stream `settings`).
+            "settings",
         ),
     ),
     (

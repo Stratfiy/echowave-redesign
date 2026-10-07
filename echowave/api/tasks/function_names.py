@@ -23,3 +23,5 @@ class FunctionNames:
     COMPACT_CHANNEL_CONTEXT = "compact_channel_context"
     EMAIL_TAX_DOCUMENT = "email_tax_document"
     PLACE_MISSED_CALL_CALLBACK = "place_missed_call_callback"
+    #: Launch stream settings: a person's own export, built off the request.
+    BUILD_PERSONAL_EXPORT = "build_personal_export"

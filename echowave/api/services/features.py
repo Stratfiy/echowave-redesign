@@ -107,6 +107,12 @@ FLAGS: dict[str, str] = {
     "first_task_onboarding": "FIRST_TASK_ONBOARDING_ENABLED",
     "chat_shell": "CHAT_SHELL_ENABLED",
     "shell_mobile": "SHELL_MOBILE_ENABLED",
+    # Launch stream `settings` (LAUNCH-PLAN.md, phase 2).
+    "settings_shell": "SETTINGS_SHELL_ENABLED",
+    "memory_manager": "MEMORY_MANAGER_ENABLED",
+    "privacy_center": "PRIVACY_CENTER_ENABLED",
+    "saved_items": "SAVED_ITEMS_ENABLED",
+    "model_inheritance": "MODEL_INHERITANCE_ENABLED",
 }
 
 
@@ -162,6 +168,11 @@ DESCRIPTIONS: dict[str, str] = {
     "first_task_onboarding": "Language, timezone and a first task; new people land in Chat (screen 02).",
     "chat_shell": "Chat: three starters, attach menu, Dictate and Talk, Stop, New content, sources and task states (screens 03-04).",
     "shell_mobile": "Phone shell: Chat and Today at the bottom, profile in the header, keyboard-aware bar, read-only workflow steps.",
+    "settings_shell": "Settings grouped as Personal, Connections, Privacy, Advanced and the workspace, with search; Account, Personalization and Voice on the person's own preferences (screens 17-19).",
+    "memory_manager": "Memory manager: opt-in memory, provenance, edits as revisions, forget through a card, share to a team, temporary chats (screen 16).",
+    "privacy_center": "Privacy and security: personal export, personal deletion through a card, effective retention, MFA (screen 25).",
+    "saved_items": "Saved items and search in one scope at a time (screen 15).",
+    "model_inheritance": "Model defaults show where each comes from, readiness and agent overrides; saves are revision-checked (screen 26).",
 }
 
 

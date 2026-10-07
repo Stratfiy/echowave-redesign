@@ -6845,6 +6845,12 @@ from api.db.controls_models import (  # noqa: E402,F401
 from api.db.feature_override_models import (  # noqa: E402,F401
     FeatureOverrideModel,
 )
+from api.db.settings_models import (  # noqa: E402,F401
+    MemoryFactRevisionModel,
+    PersonalDataRequestModel,
+    SavedItemModel,
+    TemporaryConversationModel,
+)
 from api.db.shell_models import (  # noqa: E402,F401
     UserOnboardingModel,
     WaitlistRequestModel,

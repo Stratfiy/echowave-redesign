@@ -794,6 +794,28 @@ CHAT_SHELL_ENABLED = _flag("CHAT_SHELL_ENABLED")
 # of the workflow canvas.
 SHELL_MOBILE_ENABLED = _flag("SHELL_MOBILE_ENABLED")
 
+# Launch stream `settings` (8 October 2026). Each off by default; see
+# SETTINGS.md and services/features.py. Off, Settings is what it was.
+# Screen 17-19: the grouped Settings shell (Personal, Connections, Privacy,
+# Advanced, then the workspace), settings search, Account, Personalization
+# and Voice and language on the person's own preferences.
+SETTINGS_SHELL_ENABLED = _flag("SETTINGS_SHELL_ENABLED")
+# Screen 16: the memory manager -- memory opt-in, provenance, edits as
+# revisions, forget through a card, sharing to a team, temporary chats.
+MEMORY_MANAGER_ENABLED = _flag("MEMORY_MANAGER_ENABLED")
+# Screen 25: privacy and security -- personal export, personal deletion
+# through a card, effective retention and MFA in one place.
+PRIVACY_CENTER_ENABLED = _flag("PRIVACY_CENTER_ENABLED")
+# Screen 15: saved items and search in one scope at a time.
+SAVED_ITEMS_ENABLED = _flag("SAVED_ITEMS_ENABLED")
+# Screen 26: model defaults showing where each comes from, readiness, agent
+# overrides, and revision-checked saves.
+MODEL_INHERITANCE_ENABLED = _flag("MODEL_INHERITANCE_ENABLED")
+#: How long a temporary conversation is kept before it is deleted, in hours.
+TEMPORARY_CONVERSATION_HOURS = int(os.getenv("TEMPORARY_CONVERSATION_HOURS", "24"))
+#: How long a personal export can be downloaded, in days.
+PERSONAL_EXPORT_DAYS = int(os.getenv("PERSONAL_EXPORT_DAYS", "7"))
+
 # Free while we are early (October 2026): no plans, nothing charged, nothing
 # locked. On by default -- the one launch switch that is -- and reversible
 # from the environment or the staff console. See services/billing/free_mode.py.

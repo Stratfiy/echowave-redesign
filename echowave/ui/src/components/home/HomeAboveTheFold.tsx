@@ -31,6 +31,7 @@ import { type ChannelBot, ChannelComposer } from "@/components/channel/ChannelCo
 import { ChannelStream } from "@/components/channel/ChannelStream";
 import { ThreadList } from "@/components/home/ThreadList";
 import { AuxiliaryPanel } from "@/components/layout/AuxiliaryPanel";
+import { TemporaryBanner } from "@/components/settings/TemporaryBanner";
 import { Announcer } from "@/components/shell/Announcer";
 import { SourceCoverage } from "@/components/shell/SourceCoverage";
 import { jobArt } from "@/lib/art";
@@ -148,6 +149,8 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   const { user, loading: authLoading } = useAuth();
   // Screens 03-04: starters that fill the box, Stop, sources, task states.
   const chatShell = useFeature("chat_shell");
+  // A temporary conversation says so above the thread (settings stream).
+  const memoryManager = useFeature("memory_manager");
   // Whether the thread's history loaded. A failure is shown as a failure
   // with Retry, never as the empty greeting (screen 03).
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
@@ -407,6 +410,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         {/* Keyed on the chat, so switching remounts the stream clean:
             no rows from the last chat showing until the poll catches up,
             no cursor pointing into a different conversation. */}
+        {memoryManager && threadId?.startsWith("tmp-") && <TemporaryBanner threadId={threadId} />}
         <ChannelStream
           key={threadId ?? "original"}
           assistant

@@ -22,6 +22,14 @@ from api.services.knowledge_graph import episodes, ingest, personal, scoping
 from api.services.knowledge_graph.client import graph_is_configured
 
 
+def _memory_paused() -> bool:
+    """A person's turn with memory off, or a temporary conversation
+    (settings stream): what was said is not kept in the graph either."""
+    from api.services.settings import temporary as memory_choice
+
+    return memory_choice.is_paused()
+
+
 def _partition(organization_id: int) -> str:
     """Where a line said to Decibyl is written: the member's own partition
     when personal memory is on and the turn runs as a member (MEM-1), the
@@ -81,6 +89,8 @@ async def remember_exchange(
     answered. The person's words are where promises, decisions and
     complaints live; the answer is kept so a fact Decibyl stated (from the
     record) is anchored to the same moment."""
+    if _memory_paused():
+        return False
     if not graph_is_configured():
         return False
     person_said = (person_said or "").strip()
@@ -150,6 +160,8 @@ async def remember_correction(
     """A correction the person made (B5), as its own dated episode, so the
     graph closes the edge it contradicts. Stated plainly and marked
     confirmed, which is how the extractor is told it outranks the rest."""
+    if _memory_paused():
+        return False
     if not graph_is_configured():
         return False
     body = f"Correction confirmed by the person: {subject} — {key}: {value}."
@@ -174,6 +186,8 @@ async def remember_correction(
 
 async def remember_decision(*, organization_id: int, line: str, at: datetime) -> bool:
     """A decision the journal noted (B2), as a dated episode of its own."""
+    if _memory_paused():
+        return False
     if not graph_is_configured():
         return False
     try:

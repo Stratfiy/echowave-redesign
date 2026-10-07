@@ -44,6 +44,7 @@ import { BlockedCard } from '@/components/channel/BlockedCard';
 import { tagTokens } from '@/components/channel/ChannelComposer';
 import { emphasisTokens } from '@/components/channel/emphasis';
 import { isJudgeableReply, ReplyFeedback, useMyFeedback } from '@/components/channel/ReplyFeedback';
+import { SaveReplyButton } from '@/components/settings/SaveReplyButton';
 import { ErrorState } from '@/components/shell/ErrorState';
 import { SourceCoverage } from '@/components/shell/SourceCoverage';
 import { TaskStatus } from '@/components/shell/TaskStatus';
@@ -457,6 +458,8 @@ export function ChannelStream({
     // Was this useful? under Decibyl's replies (reply_feedback). Read once
     // per batch of replies, after auth, so a reload shows what was said.
     const feedbackOn = useFeature('reply_feedback') && assistant;
+    // Keep a reply in saved items (settings stream, screen 15).
+    const savingOn = useFeature('saved_items') && assistant;
     const judgeable = feedbackOn ? events.filter(isJudgeableReply).map((e) => e.id) : [];
     const feedback = useMyFeedback(judgeable, feedbackOn && !authLoading && Boolean(user));
     // Whether the reader is at the bottom. Scrolling them back down while they
@@ -1408,6 +1411,7 @@ export function ChannelStream({
                                         onAnswered={(answer) => feedback.remember(event.id, answer)}
                                     />
                                 )}
+                                {savingOn && isJudgeableReply(event) && <SaveReplyButton event={event} threadId={threadId} />}
                                 {attachmentsOf(event).length > 0 && (
                                     <ul className="mt-1.5 flex flex-wrap gap-2" aria-label="Files">
                                         {attachmentsOf(event).map((file) => (

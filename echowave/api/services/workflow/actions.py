@@ -756,6 +756,54 @@ async def propose(
     }
 
 
+#: Cards raised by a Settings screen rather than by a model (settings stream,
+#: services/settings/cards.py). Their payload is built by that module, not
+#: resolved from model arguments; they are settled on the screen that raised
+#: them, belong to one person (``owner_user_id``), and say nothing on the
+#: shared thread.
+SETTINGS_ORIGIN = "settings"
+
+
+def _from_settings(payload: dict[str, Any]) -> bool:
+    return payload.get("origin") == SETTINGS_ORIGIN
+
+
+async def propose_prepared(
+    *,
+    organization_id: int,
+    payload: dict[str, Any],
+    thread_id: str,
+) -> int | None:
+    """Record a card whose payload a screen built (settings stream). The
+    same proposed -> armed -> running -> done life as every other card, the
+    same version binding and the same run-once claim. Returns the card id."""
+    if not _from_settings(payload):
+        raise ActionError("Only a Settings card is recorded this way.")
+    payload = dict(payload)
+    payload["state"] = PROPOSED
+    # Always versioned: the screen confirms exactly what it showed.
+    payload["version"] = payload_version(payload)
+    _stamp_ledger_state(organization_id, payload)
+    recorded = await agent_timeline.record(
+        organization_id=organization_id,
+        kind=AgentEventKind.ACTION_PROPOSED.value,
+        summary=payload["label"],
+        payload=payload,
+        in_channel=False,
+        thread_id=thread_id,
+    )
+    if recorded is not None:
+        from types import SimpleNamespace
+
+        await _emit(
+            "approval_requested",
+            SimpleNamespace(id=recorded, organization_id=organization_id),
+            payload,
+            payload.get("owner_user_id"),
+        )
+    return recorded
+
+
 # --- the person's half ------------------------------------------------------
 
 
@@ -844,9 +892,15 @@ async def settle(
         # The approval matrix (KAN-160): a card is a "card" subject with no
         # amount. Raises ApprovalRequired, naming who must, before anything
         # is armed; a no-op while the switch is off.
-        await approvals.check(
-            organization_id, subject=approvals.CARD, amount_paise=None, user_id=user_id
-        )
+        if not _from_settings(payload):
+            # A person's own Settings card (their memory, their saved item,
+            # their data) is theirs to approve, not a workspace approver's.
+            await approvals.check(
+                organization_id,
+                subject=approvals.CARD,
+                amount_paise=None,
+                user_id=user_id,
+            )
         fires_at = datetime.now(UTC) + timedelta(seconds=UNDO_WINDOW_SECONDS)
         payload["state"] = ARMED
         payload["confirmed"] = _stamp(user_id)
@@ -1023,6 +1077,10 @@ async def _say(event: Any, line: str) -> None:
     what happened without opening the card."""
     from api.services.workflow import decibyl
 
+    if _from_settings(dict(event.payload or {})):
+        # A person's own Settings card reports on the screen that raised it:
+        # a line on the shared thread would tell colleagues what they did.
+        return
     payload: dict[str, Any] = {"body": line, "action_event_id": event.id}
     if event.workflow_id is None:
         payload["from"] = decibyl.NAME
@@ -1040,6 +1098,10 @@ async def _say(event: Any, line: str) -> None:
 
 async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
     """Do it. Returns one line on what happened; raises on refusal."""
+    if _from_settings(payload):
+        from api.services.settings import cards as settings_cards
+
+        return await settings_cards.execute(organization_id, payload)
     action = payload.get("action")
     args = payload.get("args") or {}
     if action in (TURN_BOT_ON, TURN_BOT_OFF):
@@ -1258,6 +1320,11 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
 
 async def _reverse(organization_id: int, payload: dict[str, Any]) -> None:
     """The inverse, for the actions that have one."""
+    if _from_settings(payload):
+        from api.services.settings import cards as settings_cards
+
+        await settings_cards.reverse(organization_id, payload)
+        return
     action = payload.get("action")
     args = payload.get("args") or {}
     if action in (TURN_BOT_ON, TURN_BOT_OFF):

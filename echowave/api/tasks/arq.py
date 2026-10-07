@@ -66,6 +66,7 @@ from api.tasks.routines import (
     run_proposed_action,
 )
 from api.tasks.run_integrations import run_integrations_post_workflow_run
+from api.tasks.settings import build_personal_export, purge_temporary_conversations
 from api.tasks.settlement import sweep_uncosted_runs
 from api.tasks.sunday_review import send_sunday_reviews
 from api.tasks.tax_invoices import issue_monthly_tax_invoices
@@ -136,6 +137,8 @@ class WorkerSettings:
         translate_knowledge_base_document,
         deliver_analytics_outbox,
         sweep_unknown_outcomes,
+        build_personal_export,
+        purge_temporary_conversations,
     ]
     cron_jobs = [
         # Launch stream controls: catalogue events to analytics, and cards
@@ -150,6 +153,13 @@ class WorkerSettings:
             sweep_unknown_outcomes,
             minute=set(range(1, 60, 5)),
             second=40,
+            run_at_startup=False,
+        ),
+        # Launch stream settings: temporary conversations deleted on time.
+        cron(
+            purge_temporary_conversations,
+            minute=set(range(3, 60, 10)),
+            second=20,
             run_at_startup=False,
         ),
         # Reminders filed against a document's expiry (A4) go out once a day,

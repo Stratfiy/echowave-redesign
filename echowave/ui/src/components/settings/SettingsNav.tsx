@@ -4,9 +4,11 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 import { activeSection, SETTINGS_GROUPS, SETTINGS_SECTIONS } from "./sections";
+import { ShellSettingsNav } from "./ShellSettingsNav";
 
 /** True on the Settings root, where a phone shows the list of sections. */
 export function isSettingsRoot(pathname: string): boolean {
@@ -22,6 +24,13 @@ export function isSettingsRoot(pathname: string): boolean {
  * hunt through.
  */
 export function SettingsNav() {
+  // The Settings shell (screen 17) when it is on; this list, unchanged, when
+  // it is off.
+  if (useFeature("settings_shell")) return <ShellSettingsNav />;
+  return <ClassicSettingsNav />;
+}
+
+function ClassicSettingsNav() {
   const pathname = usePathname() ?? "";
   const current = activeSection(pathname);
   const root = isSettingsRoot(pathname);

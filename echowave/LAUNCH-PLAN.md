@@ -369,7 +369,7 @@ hourly, reviews and merges each PR, and starts the next streams.
 | voice | 2 | claude/stream-voice | | | | |
 | meetings | 2 | claude/stream-meetings | | | | |
 | identity | 2 | claude/stream-identity | | | | |
-| settings | 2 | claude/stream-settings | | | | |
+| settings | 2 | claude/stream-settings | draft | yes (SETTINGS.md) | 60 API + 66 UI new; live checks | |
 | support | 2 | claude/stream-support | | | | |
 | staff | 2 | claude/stream-staff | | | | |
 | ops | 2 | claude/stream-ops | #524 | yes | see PR | |

@@ -61,7 +61,13 @@ export type Feature =
     | "early_access"
     | "first_task_onboarding"
     | "chat_shell"
-    | "shell_mobile";
+    | "shell_mobile"
+    // Launch stream `settings` (LAUNCH-PLAN.md, phase 2; SETTINGS.md).
+    | "settings_shell"
+    | "memory_manager"
+    | "privacy_center"
+    | "saved_items"
+    | "model_inheritance";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();
