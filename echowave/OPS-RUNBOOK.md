@@ -163,14 +163,15 @@ Rotating `PLATFORM_CREDENTIAL_SECRET` itself is a different job:
 | CloudWatch / CloudTrail | Infrastructure metrics and alarms / AWS API activity | No |
 | Application database | Tasks, approvals, usage ledger, audit, `ops_commands`, `ops_evidence` | **Yes** |
 
-**Server events** go through `analytics_outbox` in the same transaction as
-the change (first wired: `usage_cost_recorded` when a run is costed, and
-the ops events); `sweep_ops` sends them every five minutes with
-`event_id` as PostHog's uuid. Envelope: event_id, schema_version,
-occurred_at (UTC), environment, release, pseudonymous user_id (HMAC under
-`ANALYTICS_PSEUDONYM_KEY`; without it nothing is sent), workspace_id,
-task_id, trace_id, configuration_version. The `controls` stream owns the
-catalogue; until it merges, `SERVER_EVENTS` in `telemetry.py` is the list.
+**Server events** use the `controls` stream's event catalogue
+(`api/services/events/`): one `analytics_outbox`, written in the same
+transaction as the change, delivered by `deliver_analytics_outbox` with the
+event id as PostHog's uuid, under the catalogue's envelope (pseudonymous
+user and workspace ids, typed properties, codes not free text). Ops adds
+`ops_command_executed`, `cost_stop_engaged` and `cost_stop_released`
+(domain `ops`) and the cost amounts on `usage_cost_recorded`, written when a
+run is costed. Ops events need both `server_analytics` and `event_catalogue`
+on; `api/services/ops/telemetry.py` redacts before the catalogue's check.
 
 **Never in telemetry:** prompts, transcripts, audio, email bodies, keys, KYC
 documents, card details. Enforced by `api/services/ops/redaction.py`:
@@ -331,12 +332,12 @@ off is its rollback.
 | Flag | On means | Off (rollback) means |
 | --- | --- | --- |
 | `ops_console` | `/api/v1/admin/ops/*` answers; the command sweep runs | 404; nothing scheduled runs |
-| `server_analytics` | Server events written to the outbox and sent | Nothing written or sent; the outbox keeps what it has |
+| `server_analytics` | Ops and cost events written to the controls outbox (with `event_catalogue` on) | None written; the outbox keeps what it has |
 | `telemetry_redaction` | Deep scrub of logs and Sentry; no email/name to PostHog | Baseline Sentry scrub and phone masking only |
 | `session_replay` | Masked replay on allowlisted screens | No replay anywhere |
 | `laya_guardrails` | Hard deadline, breaker, shadow counters | `decision.choose` exactly as before |
 | `laya_rollback` | Rules only, Laya never called | Auto as `LAYA_ROUTING` says |
 | `cost_stop` | Ceilings evaluated; stops refuse new runs | Never refuses; engaged stops are ignored |
 
-The migration `202610071400ops` only adds four tables; downgrading drops
+The migration `202610071400ops` (after `202610071500shell`) only adds three tables; downgrading drops
 them and loses command history and evidence, so prefer switching flags off.

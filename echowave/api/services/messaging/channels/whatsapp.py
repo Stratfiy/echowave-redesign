@@ -46,7 +46,7 @@ def interactive_payload(to: str, card: Card) -> dict[str, Any] | None:
                     {
                         "type": "reply",
                         "reply": {
-                            "id": button_id(card.event_id, verb),
+                            "id": button_id(card.event_id, verb, card.version),
                             "title": label[:MAX_TITLE],
                         },
                     }

@@ -69,6 +69,13 @@ async def _capture_call_event(
             event=event,
             properties=properties,
         )
+        # The catalogue's voice_session_* events and the voice allowance
+        # (launch stream controls). No-ops while their switches are off.
+        from api.services import voice_controls
+
+        await voice_controls.after_call_event(
+            workflow_run, user_provider_id, event, extra_properties
+        )
     except Exception:
         logger.exception(f"Background PostHog capture failed for '{event}'")
 

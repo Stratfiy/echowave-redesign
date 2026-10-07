@@ -32,6 +32,7 @@ from api.tasks.campaign_tasks import (
     sync_campaign_source,
 )
 from api.tasks.connector_tools import sync_missing_tools
+from api.tasks.controls import deliver_analytics_outbox, sweep_unknown_outcomes
 from api.tasks.credential_health import check_platform_credentials
 from api.tasks.credit_reservations import sweep_credit_reservations
 from api.tasks.data_retention import close_due_workspaces, purge_expired_call_data
@@ -134,17 +135,33 @@ class WorkerSettings:
         run_proposed_action,
         compact_channel_context,
         translate_knowledge_base_document,
+        deliver_analytics_outbox,
+        sweep_unknown_outcomes,
         run_ops_command,
         sweep_ops,
     ]
     cron_jobs = [
-        # Stream ops: expire unapproved commands, lift timed pauses, check the
-        # cost-stop ceilings and send the analytics outbox. Each part is off
-        # behind its own flag, so this is a no-op until one is switched on.
+        # Stream ops: expire unapproved commands, re-enqueue lost ones, lift
+        # timed pauses and check the cost-stop ceilings. Analytics delivery is
+        # the controls outbox's cron below. Each part is off behind its flag.
         cron(
             sweep_ops,
             minute=set(range(0, 60, 5)),
             second=20,
+            run_at_startup=False,
+        ),
+        # Launch stream controls: catalogue events to analytics, and cards
+        # whose job died marked outcome unknown. Both no-ops while off.
+        cron(
+            deliver_analytics_outbox,
+            minute=set(range(0, 60, 2)),
+            second=15,
+            run_at_startup=False,
+        ),
+        cron(
+            sweep_unknown_outcomes,
+            minute=set(range(1, 60, 5)),
+            second=40,
             run_at_startup=False,
         ),
         # Reminders filed against a document's expiry (A4) go out once a day,

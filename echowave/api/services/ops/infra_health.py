@@ -295,12 +295,12 @@ async def _capacity_review() -> Signal:
 
 async def _analytics() -> Signal:
     from api.db import db_client
-    from api.services import features
+    from api.services.events import outbox
     from api.services.ops import telemetry
 
-    if not features.is_on(telemetry.FLAG):
+    if not outbox.enabled():
         return Signal(
-            "analytics_outbox", NOT_CONFIGURED, "Server analytics is switched off."
+            "analytics_outbox", NOT_CONFIGURED, "The event catalogue is switched off."
         )
     if not constants.POSTHOG_API_KEY or not constants.ANALYTICS_PSEUDONYM_KEY:
         return Signal(

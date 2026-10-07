@@ -1,12 +1,13 @@
-"""Stream ops, handoff 35-36: server-owned events through a durable outbox.
+"""Stream ops, handoff 35-36: ops and cost events through the controls
+event catalogue's outbox.
 
-What these defend: the envelope has every field the handoff names, nullable
-ones explicitly null; an event name outside the catalogue fails loudly; the
-user id is pseudonymous and absent without a key; nothing is written while
-``server_analytics`` is off; the outbox row commits with the caller's
-transaction; delivery sends ``event_id`` as PostHog's uuid (dedupe), marks
-rows delivered, counts failures, and holds everything without a pseudonym
-key rather than sending reversible ids.
+What these defend: ops events are catalogue entries and an unknown name
+fails loudly; redaction runs before the catalogue's strict check, so a
+sensitive or unknown property is dropped rather than the event refused;
+nothing is written unless both ``server_analytics`` and the catalogue's
+``event_catalogue`` are on; the event joins the caller's transaction (it
+exists only if the receipt does); outbox health reads the shared outbox;
+and the ops sweep no longer delivers analytics (controls' cron does).
 """
 
 from __future__ import annotations
@@ -17,8 +18,9 @@ import pytest
 from sqlalchemy import select
 
 from api import constants
-from api.db.ops_models import AnalyticsOutboxModel
+from api.db.controls_models import AnalyticsOutboxModel
 from api.services import features
+from api.services.events import catalogue
 from api.services.ops import telemetry
 
 
@@ -26,145 +28,93 @@ from api.services.ops import telemetry
 def _clean(monkeypatch):
     features.clear_snapshot()
     monkeypatch.setattr(constants, "SERVER_ANALYTICS_ENABLED", False)
+    monkeypatch.setattr(constants, "EVENT_CATALOGUE_ENABLED", False)
     monkeypatch.setattr(constants, "ANALYTICS_PSEUDONYM_KEY", "test-pseudonym-key")
     yield
     features.clear_snapshot()
 
 
-class FakePostHog:
-    def __init__(self, fail_on: set[str] | None = None):
-        self.sent: list[dict] = []
-        self.fail_on = fail_on or set()
-
-    def capture(self, **kwargs):
-        if kwargs["event"] in self.fail_on:
-            raise TimeoutError("posthog slow")
-        self.sent.append(kwargs)
+@pytest.fixture
+def both_on(monkeypatch):
+    monkeypatch.setattr(constants, "SERVER_ANALYTICS_ENABLED", True)
+    monkeypatch.setattr(constants, "EVENT_CATALOGUE_ENABLED", True)
 
 
-def test_envelope_has_every_field_and_explicit_nulls():
-    envelope = telemetry.build(
-        "task_completed",
-        user_id=7,
-        workspace_id=3,
-        properties={"channel": "web", "duration_ms": 120, "prompt": "secret"},
-    )
-    payload = envelope.payload()
-    for name in (
-        "event_id",
-        "schema_version",
-        "occurred_at",
-        "environment",
-        "release",
-        "user_id",
-        "workspace_id",
-        "task_id",
-        "trace_id",
-        "configuration_version",
-    ):
-        assert name in payload
-    assert payload["task_id"] is None
-    assert payload["trace_id"] is None
-    assert payload["user_id"].startswith("u_") and "7" != payload["user_id"]
-    assert payload["occurred_at"].endswith("+00:00")
-    assert payload["properties"]["channel"] == "web"
-    assert "prompt" not in payload["properties"]
-    assert payload["properties"]["_redacted"] == ["prompt"]
+def test_ops_events_are_catalogue_entries_owned_by_the_server():
+    for name in ("ops_command_executed", "cost_stop_engaged", "cost_stop_released"):
+        spec = catalogue.get(name)
+        assert spec.owner == catalogue.SERVER and spec.domain == "ops"
+        assert not (spec.allowed & catalogue.FORBIDDEN_PROPERTIES)
+    usage = catalogue.get("usage_cost_recorded").allowed
+    assert {"provider_cost_paise", "charged_paise", "uncosted_items"} <= usage
 
 
 def test_unknown_event_name_is_refused():
     with pytest.raises(telemetry.UnknownEvent):
-        telemetry.build("button_clicked")
+        telemetry.prepare("button_clicked", {})
 
 
-def test_pseudonym_is_stable_keyed_and_absent_without_a_key(monkeypatch):
-    first = telemetry.pseudonymous_id(42)
-    assert first == telemetry.pseudonymous_id(42)
-    assert first != telemetry.pseudonymous_id(43)
-    monkeypatch.setattr(constants, "ANALYTICS_PSEUDONYM_KEY", "another-key")
-    assert telemetry.pseudonymous_id(42) != first
-    monkeypatch.setattr(constants, "ANALYTICS_PSEUDONYM_KEY", "")
-    assert telemetry.pseudonymous_id(42) is None
-
-
-def test_free_text_reason_becomes_a_code():
-    envelope = telemetry.build(
-        "task_failed",
-        properties={"reason_code": "HTTP 429 from vendor for asha@example.com"},
+def test_redaction_runs_before_the_strict_check():
+    props = telemetry.prepare(
+        "ops_command_executed",
+        {
+            "status": "failed",
+            "command": "agent.pause",
+            "reason_code": "HTTP 429 from vendor for asha@example.com",
+            "prompt": "secret plans",
+            "not_in_the_catalogue": 3,
+        },
     )
-    assert envelope.properties["reason_code"] == "rate_limited"
+    assert props == {
+        "status": "failed",
+        "command": "agent.pause",
+        "reason_code": "rate_limited",
+    }
+
+
+def test_a_missing_reason_stays_null_not_other():
+    assert telemetry.prepare("task_completed", {"reason_code": None}) == {
+        "reason_code": None
+    }
 
 
 @pytest.mark.asyncio
-async def test_nothing_is_written_while_off(db_session, async_session):
-    assert await telemetry.record(async_session, "task_started", workspace_id=1) is None
-    await async_session.flush()
-    rows = (await async_session.scalars(select(AnalyticsOutboxModel))).all()
-    assert rows == []
-
-
-@pytest.mark.asyncio
-async def test_record_and_dispatch_once_with_the_event_id_as_uuid(
+async def test_nothing_is_written_unless_both_switches_are_on(
     db_session, async_session, monkeypatch
 ):
+    assert await telemetry.record(async_session, "cost_stop_engaged") is None
     monkeypatch.setattr(constants, "SERVER_ANALYTICS_ENABLED", True)
+    assert await telemetry.record(async_session, "cost_stop_engaged") is None
+    monkeypatch.setattr(constants, "SERVER_ANALYTICS_ENABLED", False)
+    monkeypatch.setattr(constants, "EVENT_CATALOGUE_ENABLED", True)
+    assert await telemetry.record(async_session, "cost_stop_engaged") is None
+    await async_session.flush()
+    assert (await async_session.scalars(select(AnalyticsOutboxModel))).all() == []
+
+
+@pytest.mark.asyncio
+async def test_record_writes_one_pseudonymous_row_and_health_sees_it(
+    db_session, async_session, both_on
+):
     event_id = await telemetry.record(
         async_session,
-        "approval_granted",
+        "ops_command_executed",
         user_id=5,
-        workspace_id=None,
+        workspace_id=9,
+        task_id="ops-12",
         occurred_at=datetime(2026, 10, 7, 9, 0, tzinfo=UTC),
-        properties={"channel": "whatsapp"},
+        properties={"status": "succeeded", "command": "laya.rollback"},
     )
-    await async_session.commit()
-    client = FakePostHog()
-    counts = await telemetry.dispatch_pending(async_session, client=client)
-    assert counts["sent"] == 1
-    assert client.sent[0]["uuid"] == event_id
-    assert client.sent[0]["event"] == "approval_granted"
-    assert client.sent[0]["properties"]["channel"] == "whatsapp"
-    assert "groups" not in client.sent[0]
-    # Delivered rows are not sent again.
-    again = await telemetry.dispatch_pending(async_session, client=client)
-    assert again["sent"] == 0
-    assert len(client.sent) == 1
+    assert event_id
+    row = await async_session.scalar(select(AnalyticsOutboxModel))
+    assert row.name == "ops_command_executed"
+    env = row.envelope
+    assert env["user_id"].startswith("u_") and env["workspace_id"].startswith("w_")
+    assert "9" != env["workspace_id"]
+    assert env["task_id"] == "ops-12"
+    assert env["properties"] == {"status": "succeeded", "command": "laya.rollback"}
     health = await telemetry.outbox_health(async_session)
-    assert health["pending"] == 0
-
-
-@pytest.mark.asyncio
-async def test_a_failed_delivery_is_counted_and_retried(
-    db_session, async_session, monkeypatch
-):
-    monkeypatch.setattr(constants, "SERVER_ANALYTICS_ENABLED", True)
-    await telemetry.record(async_session, "task_failed", workspace_id=9)
-    await telemetry.record(async_session, "task_completed", workspace_id=9)
-    await async_session.commit()
-    client = FakePostHog(fail_on={"task_failed"})
-    counts = await telemetry.dispatch_pending(async_session, client=client)
-    assert counts == {"sent": 1, "failed": 1, "skipped": 0}
-    stuck = await async_session.scalar(
-        select(AnalyticsOutboxModel).where(AnalyticsOutboxModel.event == "task_failed")
-    )
-    assert stuck.delivered_at is None
-    assert stuck.attempts == 1
-    assert stuck.last_error_code == "timeout"
-    sent = client.sent[0]
-    assert sent["groups"] == {"organization": "9"}
-
-
-@pytest.mark.asyncio
-async def test_without_a_pseudonym_key_the_outbox_is_held(
-    db_session, async_session, monkeypatch
-):
-    monkeypatch.setattr(constants, "SERVER_ANALYTICS_ENABLED", True)
-    await telemetry.record(async_session, "task_started", workspace_id=2)
-    await async_session.commit()
-    monkeypatch.setattr(constants, "ANALYTICS_PSEUDONYM_KEY", "")
-    client = FakePostHog()
-    counts = await telemetry.dispatch_pending(async_session, client=client)
-    assert counts["skipped"] == -1
-    assert client.sent == []
+    assert health["pending"] == 1 and health["stuck"] == 0
 
 
 @pytest.mark.asyncio
@@ -216,15 +166,16 @@ async def test_costing_a_run_records_usage_cost_in_the_same_transaction(
     assert (await async_session.scalars(select(AnalyticsOutboxModel))).all() == []
 
     monkeypatch.setattr(constants, "SERVER_ANALYTICS_ENABLED", True)
+    monkeypatch.setattr(constants, "EVENT_CATALOGUE_ENABLED", True)
     on = await run()
     await cost_workflow_run(async_session, on.id)
     rows = (await async_session.scalars(select(AnalyticsOutboxModel))).all()
-    assert [r.event for r in rows] == ["usage_cost_recorded"]
-    payload = rows[0].payload
-    assert payload["workspace_id"] == org.id
-    assert payload["task_id"] == f"run-{on.id}"
-    assert payload["properties"]["status"] == "costed"
-    assert payload["properties"]["duration_ms"] == 60_000
+    assert [r.name for r in rows] == ["usage_cost_recorded"]
+    env = rows[0].envelope
+    assert env["task_id"] == f"run-{on.id}"
+    assert env["properties"]["cost_status"] == "costed"
+    assert env["properties"]["currency"] == "INR"
+    assert env["properties"]["duration_ms"] == 60_000
 
 
 @pytest.mark.asyncio
@@ -232,11 +183,4 @@ async def test_the_sweep_is_a_no_op_with_every_flag_off(db_session, async_sessio
     from api.tasks.ops import sweep_ops
 
     out = await sweep_ops({})
-    assert out["cost_stop"] == {"skipped": "off"}
-    assert out["analytics"]["skipped"] == -1
-    assert "commands" not in out
-
-
-def test_a_missing_reason_stays_null_not_other():
-    envelope = telemetry.build("task_completed", properties={"reason_code": None})
-    assert envelope.properties["reason_code"] is None
+    assert out == {"cost_stop": {"skipped": "off"}}

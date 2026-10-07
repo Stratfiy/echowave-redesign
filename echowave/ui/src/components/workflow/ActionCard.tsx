@@ -15,7 +15,7 @@
  * later is the record: who confirmed, who took it back, what it did.
  */
 
-import { Check, CircleSlash, Loader2, MessageSquare, Phone, Undo2, Zap } from 'lucide-react';
+import { Check, CircleHelp, CircleSlash, Loader2, MessageSquare, Phone, Undo2, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
@@ -32,7 +32,10 @@ export type ActionState =
     | 'failed'
     | 'undone'
     | 'cancelled'
-    | 'declined';
+    | 'declined'
+    /** The job lost track of a send (task ledger): whether it went is not
+     *  known, and it is never fired again on its own. */
+    | 'outcome_unknown';
 
 export type ActionPayload = {
     action?: string;
@@ -44,6 +47,9 @@ export type ActionPayload = {
     fires_at?: string;
     error?: string;
     done?: { at?: string; note?: string };
+    /** The exact payload version Confirm approves (task ledger). Sent back
+     *  with Confirm; an edited card has a new one. */
+    version?: string;
     /** What a build produced (KAN-140): where Hear it and Try it go. */
     result?: { workflow_id?: number; handle?: string | null; open_url?: string | null };
 };
@@ -94,7 +100,13 @@ export function ActionCard({
         setSaving(verb);
         setError(null);
         const result = await settleActionApiV1TimelineActionsSettlePost({
-            body: { event_id: event.id, verb },
+            // Confirm approves the version on screen and no other: a card
+            // edited since is refused, not run on words nobody read.
+            body: {
+                event_id: event.id,
+                verb,
+                ...(verb === 'confirm' && action.version ? { version: action.version } : {}),
+            },
         });
         setSaving(null);
         if (result.error) {
@@ -217,6 +229,16 @@ export function ActionCard({
                     <CircleSlash aria-hidden className="h-4 w-4 text-destructive" />
                     <span className="font-medium">Could not</span>
                     {action.error && <span className="text-muted-foreground">· {action.error}</span>}
+                </p>
+            )}
+
+            {state === 'outcome_unknown' && (
+                <p className="mt-3 flex items-start gap-1.5 pl-6 text-sm" role="status">
+                    <CircleHelp aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                    <span>
+                        {action.error ??
+                            'We are checking whether this was delivered. Please do not send it again.'}
+                    </span>
                 </p>
             )}
 

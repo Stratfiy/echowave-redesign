@@ -337,5 +337,5 @@ async def _announce(session: AsyncSession, stop: Stop) -> None:
         session,
         "cost_stop_engaged",
         workspace_id=stop.organization_id,
-        properties={"status": stop.scope, "reason_code": "cost_stopped"},
+        properties={"scope": stop.scope, "reason_code": "cost_stopped"},
     )

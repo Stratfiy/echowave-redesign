@@ -13,6 +13,7 @@ import {
 } from "@/lib/auth/server";
 import { HIRE_COOKIE, resumePath } from "@/lib/hireResume";
 import logger from "@/lib/logger";
+import { shellLanding } from "@/lib/shell/landing";
 import { getRedirectUrl } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -78,6 +79,14 @@ export default async function AfterSignInPage() {
       if (resume) {
         logger.debug("[AfterSignInPage] Resuming a hire:", resume);
         redirect(resume);
+      }
+
+      // Launch shell (first_task_onboarding): the first questions, then
+      // Chat -- never the build-an-agent journey. Null keeps the rule below.
+      const landing = await shellLanding(accessToken);
+      if (landing) {
+        logger.debug("[AfterSignInPage] Shell landing:", landing);
+        redirect(landing);
       }
 
       const countResponse = await getWorkflowCountApiV1WorkflowCountGet({

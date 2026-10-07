@@ -491,7 +491,8 @@ async def cost_workflow_run(
         workspace_id=organization_id,
         task_id=f"run-{workflow_run_id}",
         properties={
-            "status": "recosted" if recost else "costed",
+            "cost_status": "recosted" if recost else "costed",
+            "currency": "INR",
             "duration_ms": int(billable_seconds or 0) * 1000,
             "provider_cost_paise": int(cost.total_provider_cost_paise or 0),
             "charged_paise": int(cost.total_charged_paise or 0),

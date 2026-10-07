@@ -1,11 +1,12 @@
-"""Stream ops: commands, credential rotations, evidence and the analytics outbox
+"""Stream ops: commands, credential rotations and evidence
 
-Four new tables, nothing existing touched (see api/db/ops_models.py). Every
-reader of them sits behind a flag that is off by default, so the upgrade
-changes no behaviour; the downgrade drops them.
+Three new tables (see api/db/ops_models.py), nothing existing touched; ops
+analytics events go through the controls stream's analytics_outbox. Every
+reader sits behind a flag that is off by default, so the upgrade changes no
+behaviour; the downgrade drops the three tables.
 
 Revision ID: 202610071400ops
-Revises: 202610071200auto
+Revises: 202610071500shell
 """
 
 import sqlalchemy as sa
@@ -13,7 +14,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision = "202610071400ops"
-down_revision = "202610071200auto"
+down_revision = "202610071500shell"
 branch_labels = None
 depends_on = None
 
@@ -133,29 +134,8 @@ def upgrade() -> None:
         "ix_ops_evidence_kind_time", "ops_evidence", ["kind", "occurred_at"]
     )
 
-    op.create_table(
-        "analytics_outbox",
-        sa.Column("id", sa.BigInteger(), primary_key=True),
-        sa.Column("event_id", sa.String(64), nullable=False, unique=True),
-        sa.Column("event", sa.String(64), nullable=False),
-        sa.Column("payload", postgresql.JSONB(), nullable=False),
-        sa.Column("occurred_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("attempts", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("delivered_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("last_error_code", sa.String(64), nullable=True),
-    )
-    op.create_index(
-        "ix_analytics_outbox_pending",
-        "analytics_outbox",
-        ["created_at"],
-        postgresql_where=sa.text("delivered_at IS NULL"),
-    )
-
 
 def downgrade() -> None:
-    op.drop_index("ix_analytics_outbox_pending", table_name="analytics_outbox")
-    op.drop_table("analytics_outbox")
     op.drop_index("ix_ops_evidence_kind_time", table_name="ops_evidence")
     op.drop_index("ix_ops_evidence_kind", table_name="ops_evidence")
     op.drop_table("ops_evidence")

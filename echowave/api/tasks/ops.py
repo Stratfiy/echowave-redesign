@@ -3,7 +3,8 @@
 ``run_ops_command`` executes one accepted command; the compare-and-swap in
 ``commands.execute`` makes a duplicate enqueue harmless. ``sweep_ops`` runs
 every five minutes: expire unapproved requests, lift timed pauses, check
-spend against the cost-stop ceilings, and send the analytics outbox. Each
+spend against the cost-stop ceilings. (The analytics outbox is delivered by
+the controls stream's deliver_analytics_outbox.) Each
 part is behind its own flag and none can stop the others.
 """
 
@@ -25,7 +26,7 @@ async def run_ops_command(_ctx, command_id: int) -> None:
 
 async def sweep_ops(_ctx) -> dict:
     from api.services import features
-    from api.services.ops import commands, cost_stop, telemetry
+    from api.services.ops import commands, cost_stop
 
     out: dict = {}
     if features.is_on("ops_console"):
@@ -39,9 +40,4 @@ async def sweep_ops(_ctx) -> dict:
             out["cost_stop"] = await cost_stop.evaluate(session)
     except Exception as exc:  # noqa: BLE001
         logger.exception("Cost stop evaluation failed: {}", type(exc).__name__)
-    try:
-        async with db_client.async_session() as session:
-            out["analytics"] = await telemetry.dispatch_pending(session)
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("Analytics dispatch failed: {}", type(exc).__name__)
     return out

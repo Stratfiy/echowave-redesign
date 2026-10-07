@@ -566,7 +566,7 @@ async def _cost_stop_engage(session, target: CostStopTarget, command) -> dict[st
         session,
         "cost_stop_engaged",
         workspace_id=target.organization_id,
-        properties={"status": target.scope, "reason_code": "cost_stopped"},
+        properties={"scope": target.scope, "reason_code": "cost_stopped"},
     )
     return stop.as_dict()
 
@@ -583,7 +583,7 @@ async def _cost_stop_release(
         session,
         "cost_stop_released",
         workspace_id=target.organization_id,
-        properties={"status": target.scope},
+        properties={"scope": target.scope},
     )
     return {
         "released": removed,
@@ -1174,7 +1174,7 @@ async def _announce(session: AsyncSession, row: OpsCommandModel) -> None:
         properties={
             "status": row.state,
             "reason_code": row.reason_code,
-            "agent_type": row.command,
+            "command": row.command,
         },
     )
 

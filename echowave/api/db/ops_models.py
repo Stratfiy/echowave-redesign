@@ -4,7 +4,7 @@ Kept out of ``models.py`` (launch convention, KAN-276); ``models.py`` imports
 this module at its end so the tables are on ``Base.metadata`` for alembic and
 the tests.
 
-Four records, each the authoritative copy of something monitoring tools only
+Three records, each the authoritative copy of something monitoring tools only
 help investigate:
 
 * ``ops_commands`` -- every routine operation a staff member asked for: the
@@ -15,15 +15,11 @@ help investigate:
 * ``ops_evidence`` -- proof an operation happened: a restore drill, a
   capacity review, a backup, a deployment. Read by the console's "last
   restore test" and "last capacity review" rows.
-* ``analytics_outbox`` -- server events waiting to reach PostHog, written in
-  the same transaction as the state change they describe, so analytics can
-  neither block a business write nor invent one.
 """
 
 from datetime import UTC, datetime
 
 from sqlalchemy import (
-    BigInteger,
     Boolean,
     Column,
     DateTime,
@@ -149,33 +145,3 @@ class OpsEvidenceModel(Base):
     recorded_at = Column(DateTime(timezone=True), nullable=False, default=_now)
 
     __table_args__ = (Index("ix_ops_evidence_kind_time", "kind", "occurred_at"),)
-
-
-class AnalyticsOutboxModel(Base):
-    """A server event waiting for PostHog (handoff 35, "Authoritative events").
-
-    ``event_id`` is the deduplication key all the way through: unique here,
-    and sent to PostHog as the event's uuid, so a retried delivery is one
-    event there too.
-    """
-
-    __tablename__ = "analytics_outbox"
-
-    id = Column(BigInteger, primary_key=True)
-    event_id = Column(String(64), nullable=False, unique=True)
-    event = Column(String(64), nullable=False)
-    #: The redacted envelope and properties, exactly as they will be sent.
-    payload = Column(JSONB, nullable=False)
-    occurred_at = Column(DateTime(timezone=True), nullable=False)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=_now)
-    attempts = Column(Integer, nullable=False, server_default="0")
-    delivered_at = Column(DateTime(timezone=True), nullable=True)
-    last_error_code = Column(String(64), nullable=True)
-
-    __table_args__ = (
-        Index(
-            "ix_analytics_outbox_pending",
-            "created_at",
-            postgresql_where=text("delivered_at IS NULL"),
-        ),
-    )

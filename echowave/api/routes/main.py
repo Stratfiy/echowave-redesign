@@ -23,6 +23,8 @@ from api.routes.campaign import router as campaign_router
 from api.routes.channel_links import router as channel_links_router
 from api.routes.connectors import router as connectors_router
 from api.routes.contacts import router as contacts_router
+from api.routes.controls import router as controls_router
+from api.routes.controls_admin import router as controls_admin_router
 from api.routes.cost_estimate import router as cost_estimate_router
 from api.routes.credentials import router as credentials_router
 from api.routes.dialer_connections import router as dialer_connections_router
@@ -70,6 +72,8 @@ from api.routes.routines import all_router as all_routines_router
 from api.routes.routines import router as routines_router
 from api.routes.s3_signed_url import router as s3_router
 from api.routes.service_keys import router as service_keys_router
+from api.routes.shell import public_router as public_early_access_router
+from api.routes.shell import router as shell_router
 from api.routes.skills import router as skills_router
 from api.routes.studio import public_router as public_studio_router
 from api.routes.studio import router as studio_router
@@ -153,6 +157,8 @@ router.include_router(bot_event_webhooks_router)
 router.include_router(bot_triggers_router)
 router.include_router(skills_router)
 router.include_router(tasks_router)
+router.include_router(controls_router)
+router.include_router(controls_admin_router)
 router.include_router(organisation_router)
 router.include_router(organisation_memory_router)
 router.include_router(packs_router)
@@ -180,6 +186,8 @@ router.include_router(channel_links_router)
 router.include_router(public_download_router)
 router.include_router(public_studio_router)
 router.include_router(public_trust_router)
+router.include_router(public_early_access_router)
+router.include_router(shell_router)
 router.include_router(public_marketplace_router)
 router.include_router(workflow_embed_router)
 router.include_router(knowledge_base_router)

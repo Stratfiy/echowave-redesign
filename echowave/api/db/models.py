@@ -55,7 +55,9 @@ class UserModel(Base):
     selected_organization_id = Column(
         Integer, ForeignKey("organizations.id"), nullable=True
     )
-    selected_organization = relationship("OrganizationModel")
+    selected_organization = relationship(
+        "OrganizationModel", foreign_keys=[selected_organization_id]
+    )
     memberships = relationship(
         "OrganizationMembershipModel",
         back_populates="user",
@@ -195,6 +197,14 @@ class OrganizationModel(Base):
     # rather than a Postgres ENUM so new account types need no migration —
     # same convention as workflow_runs.mode. Values: see AccountType.
     account_type = Column(String(32), nullable=True)
+    #: ``personal`` for a person's own space (services/personal_space.py);
+    #: NULL for a workspace, which is every row written before it existed.
+    kind = Column(String(16), nullable=True)
+    #: The one person a personal space belongs to. A database trigger refuses
+    #: any other membership in it, whichever code path tries.
+    personal_owner_user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True
+    )
     # A staff-set date until which the account may buy the gated ₹500 pack
     # (KAN-47). "Early" ends on a date rather than living forever.
     early_adopter_until = Column(DateTime(timezone=True), nullable=True)
@@ -6408,9 +6418,33 @@ class AgentTaskModel(Base):
     started_at = Column(DateTime(timezone=True), nullable=True)
     finished_at = Column(DateTime(timezone=True), nullable=True)
 
+    #: The task ledger (launch stream `controls`, services/tasks/ledger.py).
+    #: One of the nine states every channel shows; NULL on a row the ledger
+    #: never touched, whose state is read from ``status`` instead.
+    ledger_state = Column(String(24), nullable=True)
+    #: Bumped by every ledger transition. A writer names the version it read,
+    #: and a write from an older one is refused rather than applied.
+    state_version = Column(Integer, nullable=False, default=0, server_default=text("0"))
+    #: The caller's key for "this same request": a retry with the same key
+    #: gets the task it already made, never a second one.
+    idempotency_key = Column(String(128), nullable=True)
+    #: What proves the outcome: a message id, a calendar entry, a card id.
+    outcome_evidence = Column(JSON, nullable=True)
+    #: The approval card this task waits on, and the exact payload version
+    #: that approval was for.
+    approval_event_id = Column(Integer, nullable=True)
+    payload_version = Column(String(64), nullable=True)
+
     __table_args__ = (
         Index("ix_agent_tasks_org_status", "organization_id", "status"),
         UniqueConstraint("organization_id", "number", name="uq_agent_tasks_org_number"),
+        Index(
+            "uq_agent_tasks_org_idempotency_key",
+            "organization_id",
+            "idempotency_key",
+            unique=True,
+            postgresql_where=text("idempotency_key IS NOT NULL"),
+        ),
     )
 
 
@@ -6800,14 +6834,25 @@ from api.db.channel_identity_models import (  # noqa: E402,F401
     ChannelLinkCodeModel,
     SlackInstallationModel,
 )
+from api.db.controls_models import (  # noqa: E402,F401
+    AgentTaskTransitionModel,
+    AnalyticsOutboxModel,
+    MemberPreferencesModel,
+    OperationalUsageModel,
+    OutputFeedbackModel,
+    QuotaAllowanceModel,
+)
 from api.db.feature_override_models import (  # noqa: E402,F401
     FeatureOverrideModel,
 )
 from api.db.ops_models import (  # noqa: E402,F401
-    AnalyticsOutboxModel,
     OpsCommandModel,
     OpsEvidenceModel,
     PlatformCredentialRotationModel,
+)
+from api.db.shell_models import (  # noqa: E402,F401
+    UserOnboardingModel,
+    WaitlistRequestModel,
 )
 from api.db.signup_invite_models import (  # noqa: E402,F401
     SignupInviteModel,

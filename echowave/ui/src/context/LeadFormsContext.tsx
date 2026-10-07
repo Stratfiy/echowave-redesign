@@ -9,8 +9,10 @@ import { HireExpertModal } from "@/components/lead-forms/HireExpertModal";
 import type { LeadSource } from "@/components/lead-forms/leadFieldOptions";
 import { OnboardingModal } from "@/components/lead-forms/OnboardingModal";
 import { PostHogEvent } from "@/constants/posthog-events";
+import { useAppConfig } from "@/context/AppConfigContext";
 import { useOnboarding } from "@/context/OnboardingContext";
 import { useAuth } from "@/lib/auth";
+import { useFeature } from "@/lib/features";
 
 interface LeadFormsContextValue {
   openHireExpert: (source: LeadSource) => void;
@@ -44,6 +46,12 @@ export function LeadFormsProvider({ children }: { children: ReactNode }) {
     markOnboardingCompleted,
   } = useOnboarding();
   const [onboardingOpen, setOnboardingOpen] = useState(false);
+  // first_task_onboarding (screen 02) is the door now: language, timezone
+  // and a first task, then Chat. These three questions on top of it would be
+  // a second compulsory form over the first answer, so they wait while the
+  // flag is on. Read once the flags have arrived, never before.
+  const { loading: configLoading } = useAppConfig();
+  const firstTaskOnboarding = useFeature("first_task_onboarding");
   // Guard so the one-time workflow-count check runs at most once per mount.
   const onboardingCheckedRef = useRef(false);
   // Live view of the gate for the post-await re-check below.
@@ -51,12 +59,13 @@ export function LeadFormsProvider({ children }: { children: ReactNode }) {
   onboardingDoneRef.current = Boolean(onboardingCompletedAt) || onboardingSkipped;
 
   useEffect(() => {
-    if (authLoading || onboardingLoading || !user || onboardingCheckedRef.current) {
+    if (authLoading || onboardingLoading || configLoading || !user || onboardingCheckedRef.current) {
       return;
     }
 
     onboardingCheckedRef.current = true;
     if (onboardingDoneRef.current) return; // already done — never show
+    if (firstTaskOnboarding) return; // screen 02 asked what matters
 
     // Only brand-new users (no workflows yet) see the form. The count is
     // org-scoped (the user's selected organization), so a new user joining an
@@ -77,7 +86,7 @@ export function LeadFormsProvider({ children }: { children: ReactNode }) {
         // existing users are never disrupted.
       }
     })();
-  }, [authLoading, onboardingLoading, user]);
+  }, [authLoading, onboardingLoading, configLoading, firstTaskOnboarding, user]);
 
   const completeOnboarding = useCallback((skipped: boolean) => {
     // Dismiss immediately, then persist the flag through OnboardingContext

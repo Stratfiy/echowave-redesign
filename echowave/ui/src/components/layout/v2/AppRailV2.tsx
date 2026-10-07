@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpCircle, Bot, ChevronLeft, ChevronRight, LifeBuoy, LogOut, Settings, X } from "lucide-react";
+import { ArrowUpCircle, Bot, ChevronLeft, ChevronRight, LifeBuoy, LogOut, Settings, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";
@@ -165,7 +165,19 @@ export function AppRailV2() {
  * so no existing route is lost from the rail. Role filtering is the old
  * rail's own.
  */
-function AccountMenu({ collapsed, onNavigate }: { collapsed: boolean; onNavigate: () => void }) {
+export function AccountMenu({
+  collapsed,
+  onNavigate,
+  side = "top",
+  compact = false,
+}: {
+  collapsed: boolean;
+  onNavigate: () => void;
+  /** "bottom" when the menu opens from the phone header (shell_mobile). */
+  side?: "top" | "bottom";
+  /** Initials only, at a 44px target: the phone header's profile button. */
+  compact?: boolean;
+}) {
   const { user, logout } = useAuth();
   const roles = useAccessRoles();
   const identity =
@@ -195,12 +207,26 @@ function AccountMenu({ collapsed, onNavigate }: { collapsed: boolean; onNavigate
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
+        {compact ? (
+          <button
+            type="button"
+            aria-label="Profile and settings"
+            className="motion-m1 flex h-11 w-11 items-center justify-center rounded-full"
+            data-testid="header-profile"
+          >
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+              {/* No name or email to take letters from: a person, not "?". */}
+              {initials === "?" ? <UserRound aria-hidden className="h-4 w-4" /> : initials}
+            </span>
+          </button>
+        ) : (
         <button type="button" aria-label="Account menu" className={cn("v2-account", collapsed && "v2-account-collapsed")}>
           <span className="v2-initials">{initials}</span>
           {!collapsed && <span className="v2-account-name">{user?.displayName || identity || "You"}</span>}
         </button>
+        )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" side="top" className="max-h-[70vh] w-64 overflow-y-auto">
+      <DropdownMenuContent align={compact ? "end" : "start"} side={side} className="max-h-[70vh] w-64 overflow-y-auto">
         {/* Settings and the agent list: off the rail, never out of reach. */}
         <DropdownMenuItem asChild>
           <Link href="/settings" onClick={onNavigate}>
