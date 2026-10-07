@@ -69,6 +69,8 @@ from api.routes.routines import all_router as all_routines_router
 from api.routes.routines import router as routines_router
 from api.routes.s3_signed_url import router as s3_router
 from api.routes.service_keys import router as service_keys_router
+from api.routes.shell import public_router as public_early_access_router
+from api.routes.shell import router as shell_router
 from api.routes.skills import router as skills_router
 from api.routes.studio import public_router as public_studio_router
 from api.routes.studio import router as studio_router
@@ -178,6 +180,8 @@ router.include_router(channel_links_router)
 router.include_router(public_download_router)
 router.include_router(public_studio_router)
 router.include_router(public_trust_router)
+router.include_router(public_early_access_router)
+router.include_router(shell_router)
 router.include_router(public_marketplace_router)
 router.include_router(workflow_embed_router)
 router.include_router(knowledge_base_router)

@@ -94,6 +94,11 @@ FLAGS: dict[str, str] = {
     "studio": "STUDIO_ENABLED",
     # Free while we are early: no plans, nothing charged (on by default).
     "free_mode": "FREE_MODE_ENABLED",
+    # Launch stream `shell` (LAUNCH-PLAN.md, phase 1).
+    "early_access": "EARLY_ACCESS_ENABLED",
+    "first_task_onboarding": "FIRST_TASK_ONBOARDING_ENABLED",
+    "chat_shell": "CHAT_SHELL_ENABLED",
+    "shell_mobile": "SHELL_MOBILE_ENABLED",
 }
 
 
@@ -138,6 +143,10 @@ DESCRIPTIONS: dict[str, str] = {
     "decibyl_teams": "Decibyl in Microsoft Teams.",
     "studio": "Studio: build agents and a website for them from one chat.",
     "free_mode": "Free while we are early: no plans, nothing charged, nothing locked.",
+    "early_access": "The public waitlist and invitation pages (screen 01).",
+    "first_task_onboarding": "Language, timezone and a first task; new people land in Chat (screen 02).",
+    "chat_shell": "Chat: three starters, attach menu, Dictate and Talk, Stop, New content, sources and task states (screens 03-04).",
+    "shell_mobile": "Phone shell: Chat and Today at the bottom, profile in the header, keyboard-aware bar, read-only workflow steps.",
 }
 
 
