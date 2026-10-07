@@ -67,6 +67,7 @@ from api.tasks.routines import (
 )
 from api.tasks.run_integrations import run_integrations_post_workflow_run
 from api.tasks.settlement import sweep_uncosted_runs
+from api.tasks.staff import run_staff_command, sweep_staff_commands
 from api.tasks.sunday_review import send_sunday_reviews
 from api.tasks.tax_invoices import issue_monthly_tax_invoices
 from api.tasks.trial_notices import send_trial_notices
@@ -136,6 +137,8 @@ class WorkerSettings:
         translate_knowledge_base_document,
         deliver_analytics_outbox,
         sweep_unknown_outcomes,
+        run_staff_command,
+        sweep_staff_commands,
     ]
     cron_jobs = [
         # Launch stream controls: catalogue events to analytics, and cards
@@ -150,6 +153,14 @@ class WorkerSettings:
             sweep_unknown_outcomes,
             minute=set(range(1, 60, 5)),
             second=40,
+            run_at_startup=False,
+        ),
+        # Launch stream staff: expire, re-enqueue and reconcile staff
+        # commands and refunds. A no-op while staff_console is off.
+        cron(
+            sweep_staff_commands,
+            minute=set(range(0, 60, 2)),
+            second=45,
             run_at_startup=False,
         ),
         # Reminders filed against a document's expiry (A4) go out once a day,

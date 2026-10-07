@@ -61,7 +61,13 @@ export type Feature =
     | "early_access"
     | "first_task_onboarding"
     | "chat_shell"
-    | "shell_mobile";
+    | "shell_mobile"
+    // Launch stream `staff` (LAUNCH-PLAN.md, phase 2; STAFF.md).
+    | "staff_console"
+    | "staff_roles"
+    | "staff_refunds"
+    | "staff_evaluations"
+    | "staff_incidents";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

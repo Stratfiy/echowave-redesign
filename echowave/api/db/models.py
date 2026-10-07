@@ -67,6 +67,10 @@ class UserModel(Base):
     # StaffRole in api/enums.py. Nullable rather than a Postgres ENUM so a
     # future tier needs no migration — same convention as account_type below.
     staff_role = Column(String(16), nullable=True)
+    #: Launch stream `staff`: when staff suspended this account through an
+    #: approved command. Honoured by ``get_user`` while ``staff_console`` is
+    #: on; NULL means not suspended.
+    staff_suspended_at = Column(DateTime(timezone=True), nullable=True)
     email = Column(String, nullable=True)
     password_hash = Column(String, nullable=True)
 
@@ -6855,4 +6859,14 @@ from api.db.signup_invite_models import (  # noqa: E402,F401
 )
 from api.db.site_project_models import (  # noqa: E402,F401
     SiteProjectModel,
+)
+from api.db.staff_models import (  # noqa: E402,F401
+    QualityEvalCaseModel,
+    QualityEvalResultModel,
+    QualityEvalRunModel,
+    StaffCommandModel,
+    StaffIncidentModel,
+    StaffIncidentStepModel,
+    StaffRefundModel,
+    StaffRoleGrantModel,
 )

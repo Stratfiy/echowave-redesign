@@ -2788,6 +2788,34 @@ export type CloudonixConfigurationResponse = {
 };
 
 /**
+ * CommandRequest
+ */
+export type CommandRequest = {
+    /**
+     * Command
+     */
+    command: string;
+    /**
+     * Target
+     */
+    target?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Idempotency Key
+     */
+    idempotency_key: string;
+    /**
+     * Environment
+     */
+    environment?: string | null;
+};
+
+/**
  * CommentWrite
  */
 export type CommentWrite = {
@@ -9951,6 +9979,22 @@ export type PresignedUploadUrlResponse = {
 };
 
 /**
+ * PreviewRequest
+ */
+export type PreviewRequest = {
+    /**
+     * Command
+     */
+    command: string;
+    /**
+     * Target
+     */
+    target?: {
+        [key: string]: unknown;
+    };
+};
+
+/**
  * ProcessDocumentRequestSchema
  *
  * Request schema for triggering document processing.
@@ -15702,6 +15746,16 @@ export type ApiRoutesSkillsShelfResponse = {
      * Max Per Bot
      */
     max_per_bot: number;
+};
+
+/**
+ * RejectRequest
+ */
+export type ApiRoutesStaffConsoleRejectRequest = {
+    /**
+     * Note
+     */
+    note?: string;
 };
 
 export type InitiateCallApiV1TelephonyInitiateCallPostData = {
@@ -32664,6 +32718,1559 @@ export type RevokeAllowanceApiV1AdminControlsQuotasGrantsAllowanceIdDeleteRespon
 };
 
 export type RevokeAllowanceApiV1AdminControlsQuotasGrantsAllowanceIdDeleteResponse = RevokeAllowanceApiV1AdminControlsQuotasGrantsAllowanceIdDeleteResponses[keyof RevokeAllowanceApiV1AdminControlsQuotasGrantsAllowanceIdDeleteResponses];
+
+export type MeApiV1AdminStaffMeGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/staff/me';
+};
+
+export type MeApiV1AdminStaffMeGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MeApiV1AdminStaffMeGetError = MeApiV1AdminStaffMeGetErrors[keyof MeApiV1AdminStaffMeGetErrors];
+
+export type MeApiV1AdminStaffMeGetResponses = {
+    /**
+     * Response Me Api V1 Admin Staff Me Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type MeApiV1AdminStaffMeGetResponse = MeApiV1AdminStaffMeGetResponses[keyof MeApiV1AdminStaffMeGetResponses];
+
+export type FounderOverviewApiV1AdminStaffOverviewGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/staff/overview';
+};
+
+export type FounderOverviewApiV1AdminStaffOverviewGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type FounderOverviewApiV1AdminStaffOverviewGetError = FounderOverviewApiV1AdminStaffOverviewGetErrors[keyof FounderOverviewApiV1AdminStaffOverviewGetErrors];
+
+export type FounderOverviewApiV1AdminStaffOverviewGetResponses = {
+    /**
+     * Response Founder Overview Api V1 Admin Staff Overview Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type FounderOverviewApiV1AdminStaffOverviewGetResponse = FounderOverviewApiV1AdminStaffOverviewGetResponses[keyof FounderOverviewApiV1AdminStaffOverviewGetResponses];
+
+export type ListUsersApiV1AdminStaffUsersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Q
+         */
+        q?: string | null;
+        /**
+         * State
+         */
+        state?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/admin/staff/users';
+};
+
+export type ListUsersApiV1AdminStaffUsersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListUsersApiV1AdminStaffUsersGetError = ListUsersApiV1AdminStaffUsersGetErrors[keyof ListUsersApiV1AdminStaffUsersGetErrors];
+
+export type ListUsersApiV1AdminStaffUsersGetResponses = {
+    /**
+     * Response List Users Api V1 Admin Staff Users Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListUsersApiV1AdminStaffUsersGetResponse = ListUsersApiV1AdminStaffUsersGetResponses[keyof ListUsersApiV1AdminStaffUsersGetResponses];
+
+export type WaitlistApiV1AdminStaffWaitlistGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Status
+         */
+        status?: string | null;
+    };
+    url: '/api/v1/admin/staff/waitlist';
+};
+
+export type WaitlistApiV1AdminStaffWaitlistGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type WaitlistApiV1AdminStaffWaitlistGetError = WaitlistApiV1AdminStaffWaitlistGetErrors[keyof WaitlistApiV1AdminStaffWaitlistGetErrors];
+
+export type WaitlistApiV1AdminStaffWaitlistGetResponses = {
+    /**
+     * Response Waitlist Api V1 Admin Staff Waitlist Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type WaitlistApiV1AdminStaffWaitlistGetResponse = WaitlistApiV1AdminStaffWaitlistGetResponses[keyof WaitlistApiV1AdminStaffWaitlistGetResponses];
+
+export type UserDetailApiV1AdminStaffUsersUserIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * User Id
+         */
+        user_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/staff/users/{user_id}';
+};
+
+export type UserDetailApiV1AdminStaffUsersUserIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UserDetailApiV1AdminStaffUsersUserIdGetError = UserDetailApiV1AdminStaffUsersUserIdGetErrors[keyof UserDetailApiV1AdminStaffUsersUserIdGetErrors];
+
+export type UserDetailApiV1AdminStaffUsersUserIdGetResponses = {
+    /**
+     * Response User Detail Api V1 Admin Staff Users  User Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type UserDetailApiV1AdminStaffUsersUserIdGetResponse = UserDetailApiV1AdminStaffUsersUserIdGetResponses[keyof UserDetailApiV1AdminStaffUsersUserIdGetResponses];
+
+export type UserTasksApiV1AdminStaffUsersUserIdTasksGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * User Id
+         */
+        user_id: number;
+    };
+    query?: {
+        /**
+         * Organization Id
+         */
+        organization_id?: number | null;
+    };
+    url: '/api/v1/admin/staff/users/{user_id}/tasks';
+};
+
+export type UserTasksApiV1AdminStaffUsersUserIdTasksGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UserTasksApiV1AdminStaffUsersUserIdTasksGetError = UserTasksApiV1AdminStaffUsersUserIdTasksGetErrors[keyof UserTasksApiV1AdminStaffUsersUserIdTasksGetErrors];
+
+export type UserTasksApiV1AdminStaffUsersUserIdTasksGetResponses = {
+    /**
+     * Response User Tasks Api V1 Admin Staff Users  User Id  Tasks Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type UserTasksApiV1AdminStaffUsersUserIdTasksGetResponse = UserTasksApiV1AdminStaffUsersUserIdTasksGetResponses[keyof UserTasksApiV1AdminStaffUsersUserIdTasksGetResponses];
+
+export type CommandCatalogueApiV1AdminStaffCommandsCatalogueGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/staff/commands/catalogue';
+};
+
+export type CommandCatalogueApiV1AdminStaffCommandsCatalogueGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CommandCatalogueApiV1AdminStaffCommandsCatalogueGetError = CommandCatalogueApiV1AdminStaffCommandsCatalogueGetErrors[keyof CommandCatalogueApiV1AdminStaffCommandsCatalogueGetErrors];
+
+export type CommandCatalogueApiV1AdminStaffCommandsCatalogueGetResponses = {
+    /**
+     * Response Command Catalogue Api V1 Admin Staff Commands Catalogue Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CommandCatalogueApiV1AdminStaffCommandsCatalogueGetResponse = CommandCatalogueApiV1AdminStaffCommandsCatalogueGetResponses[keyof CommandCatalogueApiV1AdminStaffCommandsCatalogueGetResponses];
+
+export type ListCommandsApiV1AdminStaffCommandsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * State
+         */
+        state?: string | null;
+        /**
+         * Prefix
+         */
+        prefix?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/admin/staff/commands';
+};
+
+export type ListCommandsApiV1AdminStaffCommandsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListCommandsApiV1AdminStaffCommandsGetError = ListCommandsApiV1AdminStaffCommandsGetErrors[keyof ListCommandsApiV1AdminStaffCommandsGetErrors];
+
+export type ListCommandsApiV1AdminStaffCommandsGetResponses = {
+    /**
+     * Response List Commands Api V1 Admin Staff Commands Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListCommandsApiV1AdminStaffCommandsGetResponse = ListCommandsApiV1AdminStaffCommandsGetResponses[keyof ListCommandsApiV1AdminStaffCommandsGetResponses];
+
+export type RequestCommandApiV1AdminStaffCommandsPostData = {
+    body: CommandRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/staff/commands';
+};
+
+export type RequestCommandApiV1AdminStaffCommandsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RequestCommandApiV1AdminStaffCommandsPostError = RequestCommandApiV1AdminStaffCommandsPostErrors[keyof RequestCommandApiV1AdminStaffCommandsPostErrors];
+
+export type RequestCommandApiV1AdminStaffCommandsPostResponses = {
+    /**
+     * Response Request Command Api V1 Admin Staff Commands Post
+     *
+     * Successful Response
+     */
+    202: {
+        [key: string]: unknown;
+    };
+};
+
+export type RequestCommandApiV1AdminStaffCommandsPostResponse = RequestCommandApiV1AdminStaffCommandsPostResponses[keyof RequestCommandApiV1AdminStaffCommandsPostResponses];
+
+export type PreviewCommandApiV1AdminStaffCommandsPreviewPostData = {
+    body: PreviewRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/staff/commands/preview';
+};
+
+export type PreviewCommandApiV1AdminStaffCommandsPreviewPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PreviewCommandApiV1AdminStaffCommandsPreviewPostError = PreviewCommandApiV1AdminStaffCommandsPreviewPostErrors[keyof PreviewCommandApiV1AdminStaffCommandsPreviewPostErrors];
+
+export type PreviewCommandApiV1AdminStaffCommandsPreviewPostResponses = {
+    /**
+     * Response Preview Command Api V1 Admin Staff Commands Preview Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type PreviewCommandApiV1AdminStaffCommandsPreviewPostResponse = PreviewCommandApiV1AdminStaffCommandsPreviewPostResponses[keyof PreviewCommandApiV1AdminStaffCommandsPreviewPostResponses];
+
+export type GetCommandApiV1AdminStaffCommandsCommandIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Command Id
+         */
+        command_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/staff/commands/{command_id}';
+};
+
+export type GetCommandApiV1AdminStaffCommandsCommandIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCommandApiV1AdminStaffCommandsCommandIdGetError = GetCommandApiV1AdminStaffCommandsCommandIdGetErrors[keyof GetCommandApiV1AdminStaffCommandsCommandIdGetErrors];
+
+export type GetCommandApiV1AdminStaffCommandsCommandIdGetResponses = {
+    /**
+     * Response Get Command Api V1 Admin Staff Commands  Command Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetCommandApiV1AdminStaffCommandsCommandIdGetResponse = GetCommandApiV1AdminStaffCommandsCommandIdGetResponses[keyof GetCommandApiV1AdminStaffCommandsCommandIdGetResponses];
+
+export type ApproveCommandApiV1AdminStaffCommandsCommandIdApprovePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Command Id
+         */
+        command_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/staff/commands/{command_id}/approve';
+};
+
+export type ApproveCommandApiV1AdminStaffCommandsCommandIdApprovePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ApproveCommandApiV1AdminStaffCommandsCommandIdApprovePostError = ApproveCommandApiV1AdminStaffCommandsCommandIdApprovePostErrors[keyof ApproveCommandApiV1AdminStaffCommandsCommandIdApprovePostErrors];
+
+export type ApproveCommandApiV1AdminStaffCommandsCommandIdApprovePostResponses = {
+    /**
+     * Response Approve Command Api V1 Admin Staff Commands  Command Id  Approve Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ApproveCommandApiV1AdminStaffCommandsCommandIdApprovePostResponse = ApproveCommandApiV1AdminStaffCommandsCommandIdApprovePostResponses[keyof ApproveCommandApiV1AdminStaffCommandsCommandIdApprovePostResponses];
+
+export type RejectCommandApiV1AdminStaffCommandsCommandIdRejectPostData = {
+    body: ApiRoutesStaffConsoleRejectRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Command Id
+         */
+        command_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/staff/commands/{command_id}/reject';
+};
+
+export type RejectCommandApiV1AdminStaffCommandsCommandIdRejectPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RejectCommandApiV1AdminStaffCommandsCommandIdRejectPostError = RejectCommandApiV1AdminStaffCommandsCommandIdRejectPostErrors[keyof RejectCommandApiV1AdminStaffCommandsCommandIdRejectPostErrors];
+
+export type RejectCommandApiV1AdminStaffCommandsCommandIdRejectPostResponses = {
+    /**
+     * Response Reject Command Api V1 Admin Staff Commands  Command Id  Reject Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RejectCommandApiV1AdminStaffCommandsCommandIdRejectPostResponse = RejectCommandApiV1AdminStaffCommandsCommandIdRejectPostResponses[keyof RejectCommandApiV1AdminStaffCommandsCommandIdRejectPostResponses];
+
+export type EvalDatasetsApiV1AdminStaffQualityDatasetsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/staff/quality/datasets';
+};
+
+export type EvalDatasetsApiV1AdminStaffQualityDatasetsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EvalDatasetsApiV1AdminStaffQualityDatasetsGetError = EvalDatasetsApiV1AdminStaffQualityDatasetsGetErrors[keyof EvalDatasetsApiV1AdminStaffQualityDatasetsGetErrors];
+
+export type EvalDatasetsApiV1AdminStaffQualityDatasetsGetResponses = {
+    /**
+     * Response Eval Datasets Api V1 Admin Staff Quality Datasets Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type EvalDatasetsApiV1AdminStaffQualityDatasetsGetResponse = EvalDatasetsApiV1AdminStaffQualityDatasetsGetResponses[keyof EvalDatasetsApiV1AdminStaffQualityDatasetsGetResponses];
+
+export type EvalCasesApiV1AdminStaffQualityDatasetsDatasetCasesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Dataset
+         */
+        dataset: string;
+    };
+    query?: never;
+    url: '/api/v1/admin/staff/quality/datasets/{dataset}/cases';
+};
+
+export type EvalCasesApiV1AdminStaffQualityDatasetsDatasetCasesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EvalCasesApiV1AdminStaffQualityDatasetsDatasetCasesGetError = EvalCasesApiV1AdminStaffQualityDatasetsDatasetCasesGetErrors[keyof EvalCasesApiV1AdminStaffQualityDatasetsDatasetCasesGetErrors];
+
+export type EvalCasesApiV1AdminStaffQualityDatasetsDatasetCasesGetResponses = {
+    /**
+     * Response Eval Cases Api V1 Admin Staff Quality Datasets  Dataset  Cases Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type EvalCasesApiV1AdminStaffQualityDatasetsDatasetCasesGetResponse = EvalCasesApiV1AdminStaffQualityDatasetsDatasetCasesGetResponses[keyof EvalCasesApiV1AdminStaffQualityDatasetsDatasetCasesGetResponses];
+
+export type EvalRunsApiV1AdminStaffQualityRunsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Dataset
+         */
+        dataset?: string | null;
+    };
+    url: '/api/v1/admin/staff/quality/runs';
+};
+
+export type EvalRunsApiV1AdminStaffQualityRunsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EvalRunsApiV1AdminStaffQualityRunsGetError = EvalRunsApiV1AdminStaffQualityRunsGetErrors[keyof EvalRunsApiV1AdminStaffQualityRunsGetErrors];
+
+export type EvalRunsApiV1AdminStaffQualityRunsGetResponses = {
+    /**
+     * Response Eval Runs Api V1 Admin Staff Quality Runs Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type EvalRunsApiV1AdminStaffQualityRunsGetResponse = EvalRunsApiV1AdminStaffQualityRunsGetResponses[keyof EvalRunsApiV1AdminStaffQualityRunsGetResponses];
+
+export type EvalRunApiV1AdminStaffQualityRunsRunIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/staff/quality/runs/{run_id}';
+};
+
+export type EvalRunApiV1AdminStaffQualityRunsRunIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EvalRunApiV1AdminStaffQualityRunsRunIdGetError = EvalRunApiV1AdminStaffQualityRunsRunIdGetErrors[keyof EvalRunApiV1AdminStaffQualityRunsRunIdGetErrors];
+
+export type EvalRunApiV1AdminStaffQualityRunsRunIdGetResponses = {
+    /**
+     * Response Eval Run Api V1 Admin Staff Quality Runs  Run Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type EvalRunApiV1AdminStaffQualityRunsRunIdGetResponse = EvalRunApiV1AdminStaffQualityRunsRunIdGetResponses[keyof EvalRunApiV1AdminStaffQualityRunsRunIdGetResponses];
+
+export type EvalCompareApiV1AdminStaffQualityRunsRunIdCasesCaseIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: number;
+        /**
+         * Case Id
+         */
+        case_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/staff/quality/runs/{run_id}/cases/{case_id}';
+};
+
+export type EvalCompareApiV1AdminStaffQualityRunsRunIdCasesCaseIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EvalCompareApiV1AdminStaffQualityRunsRunIdCasesCaseIdGetError = EvalCompareApiV1AdminStaffQualityRunsRunIdCasesCaseIdGetErrors[keyof EvalCompareApiV1AdminStaffQualityRunsRunIdCasesCaseIdGetErrors];
+
+export type EvalCompareApiV1AdminStaffQualityRunsRunIdCasesCaseIdGetResponses = {
+    /**
+     * Response Eval Compare Api V1 Admin Staff Quality Runs  Run Id  Cases  Case Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type EvalCompareApiV1AdminStaffQualityRunsRunIdCasesCaseIdGetResponse = EvalCompareApiV1AdminStaffQualityRunsRunIdCasesCaseIdGetResponses[keyof EvalCompareApiV1AdminStaffQualityRunsRunIdCasesCaseIdGetResponses];
+
+export type ProductAnalyticsApiV1AdminStaffAnalyticsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+    };
+    url: '/api/v1/admin/staff/analytics';
+};
+
+export type ProductAnalyticsApiV1AdminStaffAnalyticsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProductAnalyticsApiV1AdminStaffAnalyticsGetError = ProductAnalyticsApiV1AdminStaffAnalyticsGetErrors[keyof ProductAnalyticsApiV1AdminStaffAnalyticsGetErrors];
+
+export type ProductAnalyticsApiV1AdminStaffAnalyticsGetResponses = {
+    /**
+     * Response Product Analytics Api V1 Admin Staff Analytics Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ProductAnalyticsApiV1AdminStaffAnalyticsGetResponse = ProductAnalyticsApiV1AdminStaffAnalyticsGetResponses[keyof ProductAnalyticsApiV1AdminStaffAnalyticsGetResponses];
+
+export type AnalyticsRecordsApiV1AdminStaffAnalyticsRecordsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+    };
+    url: '/api/v1/admin/staff/analytics/records';
+};
+
+export type AnalyticsRecordsApiV1AdminStaffAnalyticsRecordsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AnalyticsRecordsApiV1AdminStaffAnalyticsRecordsGetError = AnalyticsRecordsApiV1AdminStaffAnalyticsRecordsGetErrors[keyof AnalyticsRecordsApiV1AdminStaffAnalyticsRecordsGetErrors];
+
+export type AnalyticsRecordsApiV1AdminStaffAnalyticsRecordsGetResponses = {
+    /**
+     * Response Analytics Records Api V1 Admin Staff Analytics Records Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type AnalyticsRecordsApiV1AdminStaffAnalyticsRecordsGetResponse = AnalyticsRecordsApiV1AdminStaffAnalyticsRecordsGetResponses[keyof AnalyticsRecordsApiV1AdminStaffAnalyticsRecordsGetResponses];
+
+export type RevenueReportApiV1AdminStaffRevenueGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+    };
+    url: '/api/v1/admin/staff/revenue';
+};
+
+export type RevenueReportApiV1AdminStaffRevenueGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RevenueReportApiV1AdminStaffRevenueGetError = RevenueReportApiV1AdminStaffRevenueGetErrors[keyof RevenueReportApiV1AdminStaffRevenueGetErrors];
+
+export type RevenueReportApiV1AdminStaffRevenueGetResponses = {
+    /**
+     * Response Revenue Report Api V1 Admin Staff Revenue Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RevenueReportApiV1AdminStaffRevenueGetResponse = RevenueReportApiV1AdminStaffRevenueGetResponses[keyof RevenueReportApiV1AdminStaffRevenueGetResponses];
+
+export type LedgerApiV1AdminStaffLedgerGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Status
+         */
+        status?: string | null;
+        /**
+         * Organization Id
+         */
+        organization_id?: number | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/admin/staff/ledger';
+};
+
+export type LedgerApiV1AdminStaffLedgerGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LedgerApiV1AdminStaffLedgerGetError = LedgerApiV1AdminStaffLedgerGetErrors[keyof LedgerApiV1AdminStaffLedgerGetErrors];
+
+export type LedgerApiV1AdminStaffLedgerGetResponses = {
+    /**
+     * Response Ledger Api V1 Admin Staff Ledger Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type LedgerApiV1AdminStaffLedgerGetResponse = LedgerApiV1AdminStaffLedgerGetResponses[keyof LedgerApiV1AdminStaffLedgerGetResponses];
+
+export type LedgerExportApiV1AdminStaffLedgerExportCsvGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Status
+         */
+        status?: string | null;
+        /**
+         * Organization Id
+         */
+        organization_id?: number | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/admin/staff/ledger/export.csv';
+};
+
+export type LedgerExportApiV1AdminStaffLedgerExportCsvGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LedgerExportApiV1AdminStaffLedgerExportCsvGetError = LedgerExportApiV1AdminStaffLedgerExportCsvGetErrors[keyof LedgerExportApiV1AdminStaffLedgerExportCsvGetErrors];
+
+export type LedgerExportApiV1AdminStaffLedgerExportCsvGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: string;
+};
+
+export type LedgerExportApiV1AdminStaffLedgerExportCsvGetResponse = LedgerExportApiV1AdminStaffLedgerExportCsvGetResponses[keyof LedgerExportApiV1AdminStaffLedgerExportCsvGetResponses];
+
+export type LedgerTransactionApiV1AdminStaffLedgerPaymentIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Payment Id
+         */
+        payment_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/staff/ledger/{payment_id}';
+};
+
+export type LedgerTransactionApiV1AdminStaffLedgerPaymentIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LedgerTransactionApiV1AdminStaffLedgerPaymentIdGetError = LedgerTransactionApiV1AdminStaffLedgerPaymentIdGetErrors[keyof LedgerTransactionApiV1AdminStaffLedgerPaymentIdGetErrors];
+
+export type LedgerTransactionApiV1AdminStaffLedgerPaymentIdGetResponses = {
+    /**
+     * Response Ledger Transaction Api V1 Admin Staff Ledger  Payment Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type LedgerTransactionApiV1AdminStaffLedgerPaymentIdGetResponse = LedgerTransactionApiV1AdminStaffLedgerPaymentIdGetResponses[keyof LedgerTransactionApiV1AdminStaffLedgerPaymentIdGetResponses];
+
+export type OperationsSummaryApiV1AdminStaffOperationsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Hours
+         */
+        hours?: number;
+    };
+    url: '/api/v1/admin/staff/operations';
+};
+
+export type OperationsSummaryApiV1AdminStaffOperationsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type OperationsSummaryApiV1AdminStaffOperationsGetError = OperationsSummaryApiV1AdminStaffOperationsGetErrors[keyof OperationsSummaryApiV1AdminStaffOperationsGetErrors];
+
+export type OperationsSummaryApiV1AdminStaffOperationsGetResponses = {
+    /**
+     * Response Operations Summary Api V1 Admin Staff Operations Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type OperationsSummaryApiV1AdminStaffOperationsGetResponse = OperationsSummaryApiV1AdminStaffOperationsGetResponses[keyof OperationsSummaryApiV1AdminStaffOperationsGetResponses];
+
+export type TaskTraceApiV1AdminStaffOperationsTraceTaskIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/staff/operations/trace/{task_id}';
+};
+
+export type TaskTraceApiV1AdminStaffOperationsTraceTaskIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TaskTraceApiV1AdminStaffOperationsTraceTaskIdGetError = TaskTraceApiV1AdminStaffOperationsTraceTaskIdGetErrors[keyof TaskTraceApiV1AdminStaffOperationsTraceTaskIdGetErrors];
+
+export type TaskTraceApiV1AdminStaffOperationsTraceTaskIdGetResponses = {
+    /**
+     * Response Task Trace Api V1 Admin Staff Operations Trace  Task Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type TaskTraceApiV1AdminStaffOperationsTraceTaskIdGetResponse = TaskTraceApiV1AdminStaffOperationsTraceTaskIdGetResponses[keyof TaskTraceApiV1AdminStaffOperationsTraceTaskIdGetResponses];
+
+export type VoiceLatencyApiV1AdminStaffOperationsLatencyGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+        /**
+         * Language
+         */
+        language?: string | null;
+        /**
+         * Organization Id
+         */
+        organization_id?: number | null;
+    };
+    url: '/api/v1/admin/staff/operations/latency';
+};
+
+export type VoiceLatencyApiV1AdminStaffOperationsLatencyGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type VoiceLatencyApiV1AdminStaffOperationsLatencyGetError = VoiceLatencyApiV1AdminStaffOperationsLatencyGetErrors[keyof VoiceLatencyApiV1AdminStaffOperationsLatencyGetErrors];
+
+export type VoiceLatencyApiV1AdminStaffOperationsLatencyGetResponses = {
+    /**
+     * Response Voice Latency Api V1 Admin Staff Operations Latency Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type VoiceLatencyApiV1AdminStaffOperationsLatencyGetResponse = VoiceLatencyApiV1AdminStaffOperationsLatencyGetResponses[keyof VoiceLatencyApiV1AdminStaffOperationsLatencyGetResponses];
+
+export type ListIncidentsApiV1AdminStaffIncidentsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Open Only
+         */
+        open_only?: boolean;
+    };
+    url: '/api/v1/admin/staff/incidents';
+};
+
+export type ListIncidentsApiV1AdminStaffIncidentsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListIncidentsApiV1AdminStaffIncidentsGetError = ListIncidentsApiV1AdminStaffIncidentsGetErrors[keyof ListIncidentsApiV1AdminStaffIncidentsGetErrors];
+
+export type ListIncidentsApiV1AdminStaffIncidentsGetResponses = {
+    /**
+     * Response List Incidents Api V1 Admin Staff Incidents Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListIncidentsApiV1AdminStaffIncidentsGetResponse = ListIncidentsApiV1AdminStaffIncidentsGetResponses[keyof ListIncidentsApiV1AdminStaffIncidentsGetResponses];
+
+export type IncidentApiV1AdminStaffIncidentsIncidentIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Incident Id
+         */
+        incident_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/staff/incidents/{incident_id}';
+};
+
+export type IncidentApiV1AdminStaffIncidentsIncidentIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type IncidentApiV1AdminStaffIncidentsIncidentIdGetError = IncidentApiV1AdminStaffIncidentsIncidentIdGetErrors[keyof IncidentApiV1AdminStaffIncidentsIncidentIdGetErrors];
+
+export type IncidentApiV1AdminStaffIncidentsIncidentIdGetResponses = {
+    /**
+     * Response Incident Api V1 Admin Staff Incidents  Incident Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type IncidentApiV1AdminStaffIncidentsIncidentIdGetResponse = IncidentApiV1AdminStaffIncidentsIncidentIdGetResponses[keyof IncidentApiV1AdminStaffIncidentsIncidentIdGetResponses];
+
+export type PolicyReportApiV1AdminStaffPolicyGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/staff/policy';
+};
+
+export type PolicyReportApiV1AdminStaffPolicyGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PolicyReportApiV1AdminStaffPolicyGetError = PolicyReportApiV1AdminStaffPolicyGetErrors[keyof PolicyReportApiV1AdminStaffPolicyGetErrors];
+
+export type PolicyReportApiV1AdminStaffPolicyGetResponses = {
+    /**
+     * Response Policy Report Api V1 Admin Staff Policy Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type PolicyReportApiV1AdminStaffPolicyGetResponse = PolicyReportApiV1AdminStaffPolicyGetResponses[keyof PolicyReportApiV1AdminStaffPolicyGetResponses];
+
+export type StaffRolesApiV1AdminStaffRolesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/staff/roles';
+};
+
+export type StaffRolesApiV1AdminStaffRolesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StaffRolesApiV1AdminStaffRolesGetError = StaffRolesApiV1AdminStaffRolesGetErrors[keyof StaffRolesApiV1AdminStaffRolesGetErrors];
+
+export type StaffRolesApiV1AdminStaffRolesGetResponses = {
+    /**
+     * Response Staff Roles Api V1 Admin Staff Roles Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type StaffRolesApiV1AdminStaffRolesGetResponse = StaffRolesApiV1AdminStaffRolesGetResponses[keyof StaffRolesApiV1AdminStaffRolesGetResponses];
+
+export type StaffAuditApiV1AdminStaffAuditGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Actor User Id
+         */
+        actor_user_id?: number | null;
+        /**
+         * Action
+         */
+        action?: string | null;
+        /**
+         * Before
+         */
+        before?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/admin/staff/audit';
+};
+
+export type StaffAuditApiV1AdminStaffAuditGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StaffAuditApiV1AdminStaffAuditGetError = StaffAuditApiV1AdminStaffAuditGetErrors[keyof StaffAuditApiV1AdminStaffAuditGetErrors];
+
+export type StaffAuditApiV1AdminStaffAuditGetResponses = {
+    /**
+     * Response Staff Audit Api V1 Admin Staff Audit Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type StaffAuditApiV1AdminStaffAuditGetResponse = StaffAuditApiV1AdminStaffAuditGetResponses[keyof StaffAuditApiV1AdminStaffAuditGetResponses];
 
 export type OrganisationApiV1OrganisationGetData = {
     body?: never;

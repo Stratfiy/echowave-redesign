@@ -371,7 +371,7 @@ hourly, reviews and merges each PR, and starts the next streams.
 | identity | 2 | claude/stream-identity | | | | |
 | settings | 2 | claude/stream-settings | | | | |
 | support | 2 | claude/stream-support | | | | |
-| staff | 2 | claude/stream-staff | | | | |
+| staff | 2 | claude/stream-staff | draft | yes (STAFF.md) | see PR | |
 | ops | 2 | claude/stream-ops | #524 | yes | see PR | |
 | aws-gateway | 2 | claude/stream-aws-gateway | | | | |
 | browser | 2 | claude/stream-browser | | | | |
