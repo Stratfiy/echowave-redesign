@@ -308,6 +308,19 @@ the design's "Claude execution brief"), screenshots at 360 / 390 / 768 /
 - Fixes: invites (500 on every call), per-thread reply drafts, run-once approvals
 - Staging workflow and `scripts/staging_check.py`
 
+## Running cloud sessions
+
+Each stream runs as its own Claude Code cloud session (one machine each) and
+opens a draft PR into `claude/simpler-rail`. The parent session checks them
+hourly, reviews and merges each PR, and starts the next streams.
+
+| Stream | Session |
+| --- | --- |
+| controls | session_019YoNV9e1VRicijtBy3dqkK |
+| shell | session_017pePFdhf7extTGvF4vmJTU |
+| ops | session_01KBVvNANs8kwyrHBMKDox7d |
+| browser | session_01Me1mkRqDovMsuhnAMz4NUK |
+
 ## Status
 
 | Stream | Phase | Branch | PR | Built | Tests | Staging |
