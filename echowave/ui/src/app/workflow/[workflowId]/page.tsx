@@ -9,10 +9,13 @@ import { getWorkflowApiV1WorkflowFetchWorkflowIdGet } from '@/client/sdk.gen';
 import type { WorkflowResponse } from '@/client/types.gen';
 import { FlowEdge, FlowNode } from '@/components/flow/types';
 import SpinLoader from '@/components/SpinLoader';
+import { ReadOnlyStepList } from '@/components/workflow/ReadOnlyStepList';
 import { SetupRail } from '@/components/workflow/SetupRail';
 import { PostHogEvent } from '@/constants/posthog-events';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { detailFromResult } from '@/lib/apiError';
 import { useAuth } from '@/lib/auth';
+import { useFeature } from '@/lib/features';
 import logger from '@/lib/logger';
 import { WorkflowConfigurations } from '@/types/workflow-configurations';
 
@@ -24,6 +27,11 @@ export default function WorkflowDetailPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const { user, redirectToLogin, loading: authLoading } = useAuth();
+    // Screen 45 on a phone (shell_mobile): the steps as a readable list, not
+    // a canvas too small to use. The full editor stays one tap away.
+    const shellMobile = useFeature('shell_mobile');
+    const isMobile = useIsMobile();
+    const [editorAnyway, setEditorAnyway] = useState(false);
 
     // Redirect if not authenticated
     useEffect(() => {
@@ -97,6 +105,19 @@ export default function WorkflowDetailPage() {
                     <div className="text-lg text-destructive">{error || 'Workflow not found'}</div>
                 </div>
             </>
+        );
+    }
+    else if (shellMobile && isMobile && !editorAnyway) {
+        return (
+            <ReadOnlyStepList
+                workflowId={workflow.id}
+                name={workflow.name}
+                nodes={(workflow.workflow_definition.nodes ?? []) as FlowNode[]}
+                edges={(workflow.workflow_definition.edges ?? []) as FlowEdge[]}
+                versionStatus={workflow.version_status ?? null}
+                totalRuns={workflow.total_runs ?? 0}
+                onOpenEditor={() => setEditorAnyway(true)}
+            />
         );
     }
     else {

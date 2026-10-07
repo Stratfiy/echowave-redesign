@@ -167,6 +167,9 @@ TIMELINE_PRICES: dict[str, str] = {
     # thread costs nothing, and the sign-in it leads to is the vendor's.
     AgentEventKind.CONNECTOR_OFFERED.value: INCLUDED,
     AgentEventKind.ACTIVITY.value: INCLUDED,
+    # The private browser's panel. Whether browsing is charged is the
+    # founder's decision (LAUNCH-PLAN, decisions open); until then it is not.
+    AgentEventKind.BROWSER_SESSION.value: INCLUDED,
     AgentEventKind.MEMORY_LEARNED.value: INCLUDED,
     AgentEventKind.ROUTINE_FIRED.value: INCLUDED,
     AgentEventKind.ROUTINE_SKIPPED.value: INCLUDED,

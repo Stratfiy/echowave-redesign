@@ -502,6 +502,25 @@ async def _authorize_workflow_run_start(
                     workflow_run.definition.workflow_configurations
                 )
 
+        # A cost stop (stream ops, handoff 15 H) refuses new billable work
+        # while spend is being checked; work already running is untouched.
+        # Off while the cost_stop flag is off, and fails open on Redis errors.
+        from api.services.ops import cost_stop
+
+        stopped = await cost_stop.check(organization_id)
+        if stopped.stopped:
+            logger.warning(
+                "Workflow start authorization denied: cost stop engaged for org {} "
+                "(workflow {})",
+                organization_id,
+                workflow_id,
+            )
+            return QuotaCheckResult(
+                has_quota=False,
+                error_code=stopped.error_code,
+                error_message=stopped.message,
+            )
+
         # Before the gateway round-trip: there is no point minting a
         # correlation ID for a call we are about to refuse.
         if not await _has_credit(organization_id, workflow_run_id):

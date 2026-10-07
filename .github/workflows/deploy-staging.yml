@@ -85,23 +85,43 @@ jobs:
           fi
           # Never production's config: the staging path, always.
           export CONFIG_SSM_PATH="/decibyl/staging/"
+          # Fetch with this job's own token, which actions/checkout above left
+          # in the workspace and which expires when the job ends. The staging
+          # checkout keeps no GitHub key of its own, and never production's.
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="http.https://github.com/.extraheader"
+          GIT_CONFIG_VALUE_0="$(git -C "$GITHUB_WORKSPACE" config --get http.https://github.com/.extraheader)"
+          export GIT_CONFIG_VALUE_0
           # The same guard as production: run the deploy script read straight
           # out of the fetched commit, never the copy in the working tree it is
           # about to rewrite (see the long note in deploy.yml).
           git -C "$PROJECT_DIR" fetch --prune origin "$DEPLOY_REF"
           git -C "$PROJECT_DIR" show FETCH_HEAD:echowave/scripts/ci_deploy.sh > /tmp/ci_deploy.staging.sh
-          sudo --preserve-env=CONFIG_SSM_PATH,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_SESSION_TOKEN \
+          sudo --preserve-env=CONFIG_SSM_PATH,GIT_CONFIG_COUNT,GIT_CONFIG_KEY_0,GIT_CONFIG_VALUE_0,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_SESSION_TOKEN \
             REF="$DEPLOY_REF" PROJECT_DIR="$PROJECT_DIR" RUN_AS="$RUN_AS" AWS_REGION="$REGION" \
             bash /tmp/ci_deploy.staging.sh
 
       - name: Check every core flow
         env:
-          STAGING_URL: ${{ vars.STAGING_URL || 'https://staging.decibyl.ai' }}
+          # The runner is on the staging box, so the check can always reach
+          # the API on loopback, with or without a public hostname.
+          STAGING_URL: ${{ vars.STAGING_URL || 'http://127.0.0.1:8000' }}
           STAGING_EMAIL_A: ${{ secrets.STAGING_EMAIL_A }}
           STAGING_PASSWORD_A: ${{ secrets.STAGING_PASSWORD_A }}
           STAGING_EMAIL_B: ${{ secrets.STAGING_EMAIL_B }}
           STAGING_PASSWORD_B: ${{ secrets.STAGING_PASSWORD_B }}
         run: |
+          # Without the secrets, use the two test accounts created on the box
+          # (root-only file, see echowave/STAGING.md), passwords masked.
+          if [ -z "${STAGING_EMAIL_A:-}" ] && sudo test -f /home/ubuntu/decibyl-staging/check.env; then
+            while IFS='=' read -r key value; do
+              case "$key" in
+                STAGING_URL|STAGING_EMAIL_A|STAGING_PASSWORD_A|STAGING_EMAIL_B|STAGING_PASSWORD_B)
+                  case "$key" in *PASSWORD*) echo "::add-mask::$value" ;; esac
+                  export "$key=$value" ;;
+              esac
+            done < <(sudo cat /home/ubuntu/decibyl-staging/check.env)
+          fi
           python3 echowave/scripts/staging_check.py
 
       - name: Summary
@@ -113,6 +133,6 @@ jobs:
             echo "| | |"
             echo "|---|---|"
             echo "| Ref | \`${{ steps.target.outputs.ref }}\` |"
-            echo "| URL | ${{ vars.STAGING_URL || 'https://staging.decibyl.ai' }} |"
+            echo "| URL | ${{ vars.STAGING_URL || 'http://127.0.0.1:8000 (on the box)' }} |"
             echo "| Actor | @${{ github.actor }} |"
           } >> "$GITHUB_STEP_SUMMARY"

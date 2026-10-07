@@ -25,3 +25,5 @@ class FunctionNames:
     COMPACT_CHANNEL_CONTEXT = "compact_channel_context"
     EMAIL_TAX_DOCUMENT = "email_tax_document"
     PLACE_MISSED_CALL_CALLBACK = "place_missed_call_callback"
+    #: Stream ops: one accepted routine command (services/ops/commands.py).
+    RUN_OPS_COMMAND = "run_ops_command"

@@ -157,23 +157,6 @@ describe("once done", () => {
     });
 });
 
-describe('an outcome nobody can confirm', () => {
-    it('says it is not known, never done', () => {
-        render(
-            <ActionCard
-                event={event({
-                    action: 'browser_step',
-                    state: 'unknown',
-                    error: 'The browser did not report back in time.',
-                })}
-            />,
-        );
-        expect(screen.getByText('Not known whether it went through')).toBeTruthy();
-        expect(screen.getByText(/did not report back in time/)).toBeTruthy();
-        expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull();
-    });
-});
-
 describe('a browser step', () => {
     it('shows exactly what the form sends before Confirm', () => {
         render(
@@ -191,5 +174,41 @@ describe('a browser step', () => {
         expect(sends.textContent).toContain('Asha');
         expect(sends.textContent).toContain('••••••');
         expect(screen.getByRole('button', { name: 'Confirm' })).toBeTruthy();
+    });
+});
+
+describe("approval bound to a version (task ledger)", () => {
+    it("confirms the exact version on screen", async () => {
+        settle.mockResolvedValue({ data: event({ state: "armed" }) });
+        render(<ActionCard event={event({ version: "a1b2c3d4e5f60718" })} />);
+        fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+        await waitFor(() => expect(settle).toHaveBeenCalled());
+        expect(settle.mock.calls[0][0].body).toEqual({
+            event_id: 99,
+            verb: "confirm",
+            version: "a1b2c3d4e5f60718",
+        });
+    });
+
+    it("never sends a version with Not now", async () => {
+        settle.mockResolvedValue({ data: event({ state: "declined" }) });
+        render(<ActionCard event={event({ version: "a1b2c3d4e5f60718" })} />);
+        fireEvent.click(screen.getByRole("button", { name: "Not now" }));
+        await waitFor(() => expect(settle).toHaveBeenCalled());
+        expect(settle.mock.calls[0][0].body).toEqual({ event_id: 99, verb: "decline" });
+    });
+
+    it("says a lost send is being checked, offers nothing to press, and is not a failure", () => {
+        render(
+            <ActionCard
+                event={event({
+                    state: "outcome_unknown",
+                    error: "We are checking whether this was delivered. Please do not send it again.",
+                })}
+            />,
+        );
+        expect(screen.getByRole("status").textContent).toContain("Please do not send it again");
+        expect(screen.queryByRole("button")).toBeNull();
+        expect(screen.queryByText("Could not")).toBeNull();
     });
 });

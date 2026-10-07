@@ -22,6 +22,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getWorkflowsApiV1WorkflowFetchGet,
   postMessageApiV1TimelineMessagePost,
+  stopReplyApiV1ShellChatStopPost,
   teamHomeApiV1TeamHomeGet,
 } from "@/client/sdk.gen";
 import type { Headline, Opener, Suggestion } from "@/client/types.gen";
@@ -29,8 +30,13 @@ import { ArtImage } from "@/components/art/Art3D";
 import { type ChannelBot, ChannelComposer } from "@/components/channel/ChannelComposer";
 import { ChannelStream } from "@/components/channel/ChannelStream";
 import { ThreadList } from "@/components/home/ThreadList";
+import { AuxiliaryPanel } from "@/components/layout/AuxiliaryPanel";
+import { Announcer } from "@/components/shell/Announcer";
+import { SourceCoverage } from "@/components/shell/SourceCoverage";
 import { jobArt } from "@/lib/art";
 import { useAuth } from "@/lib/auth";
+import { useFeature } from "@/lib/features";
+import type { SourceRead, TaskState, TurnStatus } from "@/lib/shell/taskState";
 import { cn } from "@/lib/utils";
 
 /** The fallback when the server sends no cards of its own: the two
@@ -53,6 +59,28 @@ export const FIRST_JOBS = [
   "Answer staff questions from our documents",
   "Send me a summary every morning",
 ] as const;
+
+/** The Chat start's own starters (handoff section 21), for an account the
+ *  server has no cards for yet: everyday help first, not building an agent. */
+export const CHAT_STARTERS = [
+  "Help me plan today",
+  "Teach me something",
+  "Help with a reply",
+] as const;
+
+/** At most three starters on the Chat start (screen 03). */
+export const MAX_STARTERS = 3;
+
+/** What the polite live region says when the latest turn changes state:
+ *  once per change, never per token (handoff section 26). */
+export const TURN_ANNOUNCEMENT: Partial<Record<TaskState, string>> = {
+  running: "Decibyl is working on it.",
+  completed: "Decibyl replied.",
+  partial: "Stopped. The answer so far is kept.",
+  failed: "Decibyl could not answer. You can retry.",
+  needs_input: "Decibyl needs something from you.",
+  awaiting_approval: "Decibyl is waiting for your approval.",
+};
 
 /** Built from the reader's own clock. The server's is in a data centre, and
  *  half the accounts would be wished good morning at nine in the evening. */
@@ -118,6 +146,32 @@ function Chip({ chip }: { chip: Suggestion }) {
 
 export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   const { user, loading: authLoading } = useAuth();
+  // Screens 03-04: starters that fill the box, Stop, sources, task states.
+  const chatShell = useFeature("chat_shell");
+  // Whether the thread's history loaded. A failure is shown as a failure
+  // with Retry, never as the empty greeting (screen 03).
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const [replying, setReplying] = useState(false);
+  const [draftRequest, setDraftRequest] = useState<{ text: string; id: number } | null>(null);
+  const [announcement, setAnnouncement] = useState<string | null>(null);
+  const [stopNotice, setStopNotice] = useState<string | null>(null);
+  const [sources, setSources] = useState<{ list: SourceRead[]; replyId: number } | null>(null);
+  // "?ask=": the first task from onboarding (screen 02), asked once on
+  // arrival and taken off the address so a refresh does not ask it again.
+  const [ask, setAsk] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const task = params.get("ask");
+      if (!task) return;
+      setAsk(task);
+      params.delete("ask");
+      const rest = params.toString();
+      window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}`);
+    } catch {
+      // No URL to read: nothing to ask.
+    }
+  }, []);
   const [headline, setHeadline] = useState<Headline | null>(null);
   // What the headline's counts are over, in the server's words. Not written
   // here: this sentence said "today" over a rolling 24-hour window.
@@ -195,7 +249,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   // No bot yet: the door has just closed behind them. The two questions
   // about what happened have no answer, so the cards are the first job.
   const brandNew = headline !== null && headline.agents === 0;
-  const empty = rows === 0;
+  const empty = rows === 0 && loadState !== "error";
 
   useEffect(() => {
     if (authLoading || !user) return;
@@ -232,6 +286,45 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   const asked = () =>
     setWaitingFor({ since: new Date().toISOString(), bots: [0] });
 
+  const asked_ = useRef(false);
+  useEffect(() => {
+    if (!ask || asked_.current || authLoading || !user) return;
+    asked_.current = true;
+    void sendOpener(ask);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ask, authLoading, user]);
+
+  const onTurnStatus = useCallback((status: TurnStatus | null) => {
+    setAnnouncement(status ? (TURN_ANNOUNCEMENT[status.state] ?? null) : null);
+  }, []);
+  // The control that opened the sources panel, so closing it puts focus
+  // back where the person was (handoff section 26).
+  const sourcesTrigger = useRef<HTMLElement | null>(null);
+  const onOpenSources = useCallback((list: SourceRead[], replyId: number) => {
+    sourcesTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setSources({ list, replyId });
+  }, []);
+  const closeSources = useCallback(() => {
+    setSources(null);
+    requestAnimationFrame(() => sourcesTrigger.current?.focus());
+  }, []);
+  useEffect(() => {
+    if (!sources) return;
+    // Escape closes it: there is no unsaved work in a sources list.
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeSources();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [sources, closeSources]);
+  const stop = async () => {
+    setStopNotice(null);
+    const response = await stopReplyApiV1ShellChatStopPost({ body: { thread_id: threadId } });
+    if (response.error || !response.data?.requested) {
+      setStopNotice("Stop did not reach Decibyl. The reply may still finish.");
+    }
+  };
+
   const sendOpener = async (text: string) => {
     setSendingOpener(text);
     const response = await postMessageApiV1TimelineMessagePost({
@@ -253,11 +346,13 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
     // of the page. Talking, it is a reading column with the box docked at
     // the bottom. The stream and the box keep their places in the tree in
     // both, so nothing remounts when the first reply lands.
-    <div className="flex h-full min-h-0 flex-col gap-3">
+    <div className="flex h-full min-h-0">
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-3">
+      {chatShell && <Announcer message={announcement} />}
       <div
         className={cn(
           "mx-auto flex min-h-0 w-full flex-1 flex-col",
-          empty ? "max-w-2xl justify-center overflow-y-auto py-6" : "max-w-4xl",
+          empty ? "max-w-2xl justify-center overflow-y-auto py-6" : chatShell ? "max-w-[760px]" : "max-w-4xl",
         )}
       >
       {empty && (
@@ -321,6 +416,11 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
           onRegisterRefresh={registerRefresh}
           onCountChange={onCountChange}
           waitingFor={waitingFor}
+          onLoadState={setLoadState}
+          chatShell={chatShell}
+          onWaitingChange={chatShell ? setReplying : undefined}
+          onTurnStatus={chatShell ? onTurnStatus : undefined}
+          onOpenSources={chatShell ? onOpenSources : undefined}
         />
       </div>
       <ChannelComposer
@@ -330,6 +430,10 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         bots={bots}
         initialText={prefill || undefined}
         channelName="Decibyl"
+        chatShell={chatShell}
+        replying={replying}
+        onStop={() => void stop()}
+        draftRequest={draftRequest}
         onSent={() => {
           asked();
           setThreadsVersion((v) => v + 1);
@@ -344,17 +448,25 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         >
           {(openers.length > 0
             ? openers
-            : (brandNew ? FIRST_JOBS : OPENERS).map((text, index) => ({
+            : (chatShell ? CHAT_STARTERS : brandNew ? FIRST_JOBS : OPENERS).map((text, index) => ({
                 kind: brandNew || index === 0 ? "time" : "attention",
                 text,
               }))
-          ).map(({ text }) => {
+          )
+            // Screen 03: no more than three, and choosing one puts it in the
+            // box to edit rather than sending it.
+            .slice(0, chatShell ? MAX_STARTERS : undefined)
+            .map(({ text }) => {
             return (
               <button
                 key={text}
                 type="button"
                 disabled={sendingOpener !== null}
-                onClick={() => void sendOpener(text)}
+                onClick={() =>
+                  chatShell
+                    ? setDraftRequest({ text, id: Date.now() })
+                    : void sendOpener(text)
+                }
                 className="group flex w-full items-center gap-3 rounded-2xl border border-border bg-card/70 px-3.5 py-3 text-left text-sm font-medium transition-colors hover:border-[var(--accent-brand)]/40 hover:bg-card disabled:opacity-60"
               >
                 <ArtImage name={jobArt(text, "sphere")} size={28} />
@@ -371,7 +483,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
             );
           })}
         </div>
-        {suggestions.length > 0 ? (
+        {suggestions.length > 0 && !chatShell ? (
           <div className="mt-3 flex flex-wrap justify-center gap-2">
             {suggestions.map((chip) => (
               <Chip key={`${chip.kind}-${chip.text}`} chip={chip} />
@@ -381,6 +493,11 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         </div>
       )}
       </div>
+      {chatShell && stopNotice && (
+        <p role="status" className="px-4 text-sm text-muted-foreground sm:px-6">
+          {stopNotice}
+        </p>
+      )}
       {/* Under the composer, out of the thread's way. */}
       <ThreadList
         current={threadId}
@@ -388,6 +505,23 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         onNew={newThread}
         refreshKey={threadsVersion}
       />
+    </div>
+    {/* Sources on demand (screen 04): 360px beside the thread on a wide
+        screen, leaving the chat at least 560px; the whole screen with a
+        way back on a phone. */}
+    {chatShell && sources && (
+      <AuxiliaryPanel
+        label="Sources"
+        onClose={closeSources}
+        defaultWidth={360}
+        singlePaneBelow={920}
+        className="motion-m3-enter"
+      >
+        <div className="p-4">
+          <SourceCoverage sources={sources.list} defaultOpen />
+        </div>
+      </AuxiliaryPanel>
+    )}
     </div>
   );
 }

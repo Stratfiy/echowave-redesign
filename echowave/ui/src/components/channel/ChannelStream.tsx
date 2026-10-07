@@ -24,10 +24,10 @@
  * every few seconds does not justify building one.
  */
 
-import { AlertTriangle, Bot, CheckCircle2, CircleSlash, Clock, FileText, Loader2, MessageSquare, Phone, Wrench } from 'lucide-react';
+import { AlertTriangle, ArrowDown, BookOpen, Bot, CheckCircle2, CircleSlash, Clock, FileText, Loader2, MessageSquare, Phone, RotateCcw, Wrench } from 'lucide-react';
 import Link from 'next/link';
 import React from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
     postMessageApiV1TimelineMessagePost,
@@ -44,6 +44,10 @@ import { type AttachedFile,AttachedFileChip } from '@/components/channel/Attache
 import { BlockedCard } from '@/components/channel/BlockedCard';
 import { tagTokens } from '@/components/channel/ChannelComposer';
 import { emphasisTokens } from '@/components/channel/emphasis';
+import { isJudgeableReply, ReplyFeedback, useMyFeedback } from '@/components/channel/ReplyFeedback';
+import { ErrorState } from '@/components/shell/ErrorState';
+import { SourceCoverage } from '@/components/shell/SourceCoverage';
+import { TaskStatus } from '@/components/shell/TaskStatus';
 import { Button } from '@/components/ui/button';
 import { ActionCard } from '@/components/workflow/ActionCard';
 import { ConnectorCard } from '@/components/workflow/ConnectorCard';
@@ -53,7 +57,10 @@ import { SecretCard } from '@/components/workflow/SecretCard';
 import { detailFromResult } from '@/lib/apiError';
 import { useAuth } from '@/lib/auth';
 import { markSeen } from '@/lib/botSeen';
+import { useFeature } from '@/lib/features';
 import { hasIndicScript } from '@/lib/indic';
+import { scrollBehavior, useReducedMotion } from '@/lib/motion';
+import { latestTurnStatus, type SourceRead, sourcesForReply, type TurnStatus } from '@/lib/shell/taskState';
 import { cn } from '@/lib/utils';
 
 /** How often to look for new rows. */
@@ -322,6 +329,11 @@ export function ChannelStream({
     onRegisterRefresh,
     onCountChange,
     waitingFor,
+    chatShell = false,
+    onLoadState,
+    onWaitingChange,
+    onTurnStatus,
+    onOpenSources,
 }: {
     /** A channel's thread, or -- with `workflowId` instead -- one bot's own
      *  chat. Exactly one of the two. */
@@ -346,12 +358,31 @@ export function ChannelStream({
     /** Bots asked something at this time and not yet heard from. Each shows
      *  as a thinking row until a row of theirs newer than this arrives. */
     waitingFor?: { since: string; bots: number[] } | null;
+    /** Screens 03-04 (`chat_shell`): New content, the turn's status under
+     *  the request, Retry on a failed or stopped reply, and Sources. */
+    chatShell?: boolean;
+    /** Whether the history loaded. "error" only when nothing could be shown:
+     *  the caller must not draw an empty conversation over a failure. */
+    onLoadState?: (state: 'loading' | 'ready' | 'error') => void;
+    /** True while a reply is forming, for the composer's Stop. */
+    onWaitingChange?: (waiting: boolean) => void;
+    onTurnStatus?: (status: TurnStatus | null) => void;
+    /** Open a reply's sources beside the thread; inline when not given. */
+    onOpenSources?: (sources: SourceRead[], replyId: number) => void;
 }) {
     const { user, loading: authLoading } = useAuth();
     const [events, setEvents] = useState<TimelineEvent[]>([]);
     const [cursor, setCursor] = useState<{ at: string; id: number } | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    // Whether any page has ever loaded. A failure before that is a failed
+    // history, shown as such with Retry -- never as an empty thread.
+    const [loadedOnce, setLoadedOnce] = useState(false);
+    const [retrying, setRetrying] = useState(false);
+    // New rows (or a growing reply) arrived while the reader was scrolled up.
+    const [hasNew, setHasNew] = useState(false);
+    const reducedMotion = useReducedMotion();
+    const [inlineSources, setInlineSources] = useState<Record<number, boolean>>({});
     const started = useRef(false);
     const scroller = useRef<HTMLDivElement | null>(null);
     const bottom = useRef<HTMLDivElement | null>(null);
@@ -424,6 +455,11 @@ export function ChannelStream({
           ? { workflow_id: workflowId }
           : { folder_id: folderId };
     const fallbackName = assistant ? assistantName : 'An agent';
+    // Was this useful? under Decibyl's replies (reply_feedback). Read once
+    // per batch of replies, after auth, so a reload shows what was said.
+    const feedbackOn = useFeature('reply_feedback') && assistant;
+    const judgeable = feedbackOn ? events.filter(isJudgeableReply).map((e) => e.id) : [];
+    const feedback = useMyFeedback(judgeable, feedbackOn && !authLoading && Boolean(user));
     // Whether the reader is at the bottom. Scrolling them back down while they
     // are reading something further up is worse than a missed new message.
     const pinned = useRef(true);
@@ -440,6 +476,7 @@ export function ChannelStream({
             return;
         }
         setError(null);
+        setLoadedOnce(true);
         setEvents(response.data?.events ?? []);
         const at = response.data?.next_before_at ?? null;
         const id = response.data?.next_before_id ?? null;
@@ -499,13 +536,35 @@ export function ChannelStream({
         onCountChange?.(events.length);
     }, [onCountChange, events.length]);
 
+    const historyFailed = !loading && !loadedOnce && !!error;
+    useEffect(() => {
+        onLoadState?.(loading ? 'loading' : historyFailed ? 'error' : 'ready');
+    }, [onLoadState, loading, historyFailed]);
+
+    const retryHistory = async () => {
+        setRetrying(true);
+        await loadLatest();
+        setRetrying(false);
+    };
+
+    const scrollToBottom = () => {
+        const element = scroller.current;
+        if (!element) return;
+        pinned.current = true;
+        setHasNew(false);
+        element.scrollTo?.({ top: element.scrollHeight, behavior: scrollBehavior(reducedMotion) });
+        if (!element.scrollTo) element.scrollTop = element.scrollHeight;
+    };
+
     useEffect(() => {
         const newest = events[0]?.id ?? null;
         if (newest === newestSeen.current) return;
         newestSeen.current = newest;
         const element = scroller.current;
         if (pinned.current && element) element.scrollTop = element.scrollHeight;
-    }, [events]);
+        // Never moved while reading further up: a control says there is more.
+        else if (chatShell && newest !== null) setHasNew(true);
+    }, [events, chatShell]);
 
     // Bots asked and not yet heard from. A row of theirs newer than the
     // question ends it; so does the clock, because a reply that has not
@@ -572,8 +631,61 @@ export function ChannelStream({
         };
     }, [waiting, assistant, workflowId, threadId]);
 
+    // The forming reply follows the reader only while they are at the
+    // bottom; scrolled up, it waits behind New content (screen 04).
+    useEffect(() => {
+        if (!chatShell || !draft) return;
+        const element = scroller.current;
+        if (pinned.current && element) element.scrollTop = element.scrollHeight;
+        else setHasNew(true);
+    }, [chatShell, draft]);
+
+    useEffect(() => {
+        onWaitingChange?.(waiting);
+    }, [onWaitingChange, waiting]);
+
+    const turn = useMemo(
+        () => (chatShell && assistant ? latestTurnStatus([...events].reverse(), waiting) : null),
+        [chatShell, assistant, events, waiting],
+    );
+    const turnKey = turn ? `${turn.requestId}:${turn.state}` : '';
+    useEffect(() => {
+        onTurnStatus?.(turn);
+        // Reported when the state changes, not on every poll.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [onTurnStatus, turnKey]);
+
+    const [resending, setResending] = useState<number | null>(null);
+    const askAgain = async (reply: TimelineEvent, ordered: TimelineEvent[]) => {
+        const index = ordered.findIndex((e) => e.id === reply.id);
+        const request = [...ordered.slice(0, index)].reverse().find((e) => e.actor === 'human');
+        const text = request ? messageBody(request) : '';
+        if (!text) return;
+        setResending(reply.id);
+        const response = await postMessageApiV1TimelineMessagePost({
+            body: { assistant: true, thread_id: threadId, text },
+        });
+        setResending(null);
+        if (!response.error) void loadLatest();
+    };
+
     if (loading) {
         return <p className="px-6 py-8 text-sm text-muted-foreground">Loading…</p>;
+    }
+
+    if (historyFailed && events.length === 0) {
+        // Not "This channel is quiet": the history did not load, and saying
+        // it is empty would be a fabricated conversation (screen 03).
+        return (
+            <div className="min-h-0 flex-1 overflow-y-auto bg-background px-4 py-4 sm:px-6">
+                <ErrorState
+                    title="Could not load this conversation"
+                    description="Nothing is lost. Your messages are still there."
+                    onRetry={() => void retryHistory()}
+                    retrying={retrying}
+                />
+            </div>
+        );
     }
 
     // Oldest first for reading. The API answers newest-first because that is
@@ -593,6 +705,7 @@ export function ChannelStream({
                 const element = scroll.currentTarget;
                 pinned.current =
                     element.scrollHeight - element.scrollTop - element.clientHeight < 80;
+                if (pinned.current && hasNew) setHasNew(false);
             }}
         >
             {error && (
@@ -731,7 +844,7 @@ export function ChannelStream({
                                         marker and reads as the text it is
                                         until the rest arrives. */}
                                     <Emphasised text={draft} />
-                                    <span className="ml-0.5 inline-block h-3.5 w-1.5 animate-pulse bg-[var(--accent-brand)] align-middle" aria-hidden />
+                                    <span className="motion-continuous ml-0.5 inline-block h-3.5 w-1.5 animate-pulse bg-[var(--accent-brand)] align-middle" aria-hidden />
                                 </p>
                             ) : (
                                 <p className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -769,6 +882,19 @@ export function ChannelStream({
                 </ul>
             )}
             <div ref={bottom} />
+            {chatShell && hasNew && (
+                <div className="pointer-events-none sticky bottom-2 flex justify-center">
+                    <button
+                        type="button"
+                        onClick={scrollToBottom}
+                        className="motion-m1 motion-m2-enter pointer-events-auto inline-flex min-h-11 items-center gap-1.5 rounded-[var(--radius-pill)] border border-border bg-background px-4 text-sm shadow-[var(--shadow-raised)] hover:bg-accent md:min-h-9"
+                        data-testid="new-content"
+                    >
+                        <ArrowDown aria-hidden className="h-4 w-4" />
+                        New content
+                    </button>
+                </div>
+            )}
         </div>
     );
 
@@ -803,6 +929,69 @@ export function ChannelStream({
                         </li>
                     )}
             </>
+        );
+    }
+
+    /** Screen 04 under a row: the latest request's state, a stopped or
+     *  failed reply's state with Retry, and a reply's sources on demand. */
+    function rowExtras(event: TimelineEvent) {
+        const fromPerson = event.actor === 'human';
+        if (fromPerson) {
+            if (!turn || turn.requestId !== event.id || turn.state === 'partial' || turn.state === 'failed') return null;
+            return (
+                <div className="mt-1" data-testid="turn-status">
+                    <TaskStatus state={turn.state} stage={turn.state === 'running' ? turn.stage : undefined} />
+                </div>
+            );
+        }
+        if (event.kind !== 'message' || event.workflow_id != null) return null;
+        const outcome = (event.payload ?? {}) as { stopped?: boolean; failed?: boolean };
+        const sources = sourcesForReply(inOrder, event.id);
+        if (!outcome.stopped && !outcome.failed && sources.length === 0) return null;
+        return (
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                {(outcome.stopped || outcome.failed) && (
+                    <>
+                        <TaskStatus state={outcome.stopped ? 'partial' : 'failed'} />
+                        <button
+                            type="button"
+                            disabled={resending === event.id}
+                            onClick={() => void askAgain(event, inOrder)}
+                            className="motion-m1 inline-flex min-h-11 items-center gap-1 rounded-md px-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:opacity-60 md:min-h-6"
+                        >
+                            <RotateCcw aria-hidden className="h-3.5 w-3.5" />
+                            {resending === event.id ? 'Asking again…' : 'Retry'}
+                        </button>
+                    </>
+                )}
+                {sources.length > 0 &&
+                    (onOpenSources ? (
+                        <button
+                            type="button"
+                            onClick={() => onOpenSources(sources, event.id)}
+                            className="motion-m1 inline-flex min-h-11 items-center gap-1 rounded-md px-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline md:min-h-6"
+                            data-testid="open-sources"
+                        >
+                            <BookOpen aria-hidden className="h-3.5 w-3.5" />
+                            Sources
+                        </button>
+                    ) : (
+                        <div className="w-full">
+                            {inlineSources[event.id] ? (
+                                <SourceCoverage sources={sources} defaultOpen />
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => setInlineSources((all) => ({ ...all, [event.id]: true }))}
+                                    className="motion-m1 inline-flex min-h-11 items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:underline md:min-h-6"
+                                >
+                                    <BookOpen aria-hidden className="h-3.5 w-3.5" />
+                                    Sources
+                                </button>
+                            )}
+                        </div>
+                    ))}
+            </div>
         );
     }
 
@@ -1243,6 +1432,13 @@ export function ChannelStream({
                                         )}
                                     </div>
                                 )}
+                                {feedbackOn && isJudgeableReply(event) && (
+                                    <ReplyFeedback
+                                        eventId={event.id}
+                                        answer={feedback.answers[event.id]}
+                                        onAnswered={(answer) => feedback.remember(event.id, answer)}
+                                    />
+                                )}
                                 {attachmentsOf(event).length > 0 && (
                                     <ul className="mt-1.5 flex flex-wrap gap-2" aria-label="Files">
                                         {attachmentsOf(event).map((file) => (
@@ -1250,6 +1446,7 @@ export function ChannelStream({
                                         ))}
                                     </ul>
                                 )}
+                                {chatShell && assistant && rowExtras(event)}
                             </div>
                         </li>
                         </React.Fragment>

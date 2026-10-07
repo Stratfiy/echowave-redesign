@@ -146,7 +146,7 @@ def adaptive_card(card: Card) -> dict[str, Any]:
                 {
                     "type": "Action.Submit",
                     "title": label,
-                    "data": {"card": button_id(card.event_id, verb)},
+                    "data": {"card": button_id(card.event_id, verb, card.version)},
                     **({"style": "positive"} if verb == "confirm" else {}),
                 }
                 for verb, label in card.buttons()

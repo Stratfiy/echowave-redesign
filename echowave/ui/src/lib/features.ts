@@ -49,6 +49,27 @@ export type Feature =
     | "studio"
     // Free while we are early: no plans, nothing charged (on by default).
     | "free_mode"
+    // Launch stream controls (LAUNCH-PLAN.md, phase 1).
+    | "capability_checklist"
+    | "operational_quotas"
+    | "task_ledger"
+    | "personal_space"
+    | "member_preferences"
+    | "event_catalogue"
+    | "reply_feedback"
+    // Launch stream `shell` (LAUNCH-PLAN.md, phase 1).
+    | "early_access"
+    | "first_task_onboarding"
+    | "chat_shell"
+    | "shell_mobile"
+    // Stream ops (handoff 11, 14, 15 G-H, 34, 35).
+    | "ops_console"
+    | "server_analytics"
+    | "telemetry_redaction"
+    | "session_replay"
+    | "laya_guardrails"
+    | "laya_rollback"
+    | "cost_stop"
     // Decibyl's private browser (stream browser).
     | "decibyl_browser";
 

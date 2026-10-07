@@ -88,7 +88,7 @@ environment, test accounts.
 | Phase | Streams | Why in this order |
 | --- | --- | --- |
 | 1. Foundations | `controls`, `shell` | Everything else builds on the task ledger, quotas, preferences, personal space, event catalogue and the shell |
-| 2. Capabilities | `today`, `agents`, `learning`, `voice`, `meetings`, `identity`, `settings`, `support`, `staff`, `ops`, `browser`, `reach`, `care` | Independent once phase 1 has merged; each starts as soon as the one before it is reviewed |
+| 2. Capabilities | `today`, `agents`, `learning`, `voice`, `meetings`, `identity`, `settings`, `support`, `staff`, `ops`, `browser`, `reach`, `care`, `desktop` | Independent once phase 1 has merged; each starts as soon as the one before it is reviewed |
 | 3. Integrate and prove | integrator + staging | Merge, resolve, staging checks, launch acceptance (handoff 16, 27, 38) |
 | **Launch** | Invite-only | When phase 3 passes: every capability on; anything still waiting on a provider shows an honest "setting up" state, never a fake |
 
@@ -160,7 +160,24 @@ environment, test accounts.
 | Trading summaries by interest (information only, no advice) | `agents` (Research helper) |
 | Person + business as one; shared agents, knowledge and learnings across teammates | `controls` (personal space), `settings` (sharing), `agents` |
 | Ask Decibyl to build or do anything (agents, routines, trackers, pages) | `agents` (describe-it builder) |
+| Desktop app for Windows and Mac; work on my computer (Claude computer use, per-app permission, Stop, approvals); local files | `desktop` |
 | Missed calls handled, who owes me, end-of-day note | `today` + `agents` (Follow-up, Call and Appointment) |
+
+### Design reference: approvals (founder-supplied, 7 Oct)
+
+From a comparable product's approval screen (Bops; design only, its FSL
+license forbids reusing code):
+
+- A pending approval docks directly above the composer until answered.
+- One plain sentence: "Decibyl wants to: Pay Acme Print's invoice: ₹4,800".
+- One line of exact detail: item, date, account with masked digits.
+- Two buttons: "Do it" and "Don't". Run-once, undo window and honest
+  after-states stay as in `actions.py`.
+- Routines set from chat are confirmed in one sentence ("Will do, every
+  Monday at 10."); results read as sentences with numbers, with a small ✓
+  chip naming the task that ran.
+
+Applies to `shell` (ActionPreview, Chat) and `today` (screen 08).
 
 ### Suggestions from Claude (not required by the documents)
 
@@ -267,7 +284,16 @@ and audit.
 lifecycle and routine AWS operations via typed allowlisted commands;
 observability (Sentry, PostHog, infrastructure health) with privacy
 exclusions and replay exclusion on sensitive screens; Laya shadow evaluation
-with labels and rollback; backup restore drill; capacity review.
+with labels and rollback; backup restore drill; capacity review. Claude through
+AWS (founder request): `CLAUDE_BACKEND` = anthropic | aws_platform (Claude
+Platform on AWS: Anthropic-operated, full API parity, IAM, AWS billing --
+recommended) | bedrock (Amazon Bedrock: feature subset), for chat, routing,
+the builder and the call pipeline's managed tier; instance roles, no keys.
+And an AWS model gateway beyond Claude: Bedrock as a managed provider per
+slot -- a fallback brain when Claude fails (Nova Pro or an open-weight model;
+Auto says so honestly), an optional cheap tier for labelling, embeddings
+(Cohere multilingual or Titan), and optional Nova 2 Sonic for Hindi and
+Indian English only. Sarvam stays for Indian-language voice (not on AWS).
 
 **`browser`** -- founder request. browser-use in the sandbox: one isolated
 browser per person and task, private addresses blocked, live view and Take
@@ -277,6 +303,14 @@ send / book, step / time / cost limits, page text as data, injection tests.
 **`reach`** -- founder request. Outside AI tools (MCP) usable from chat;
 Zomato ordering (Swiggy when access arrives) through approvals; price and
 coupon comparison only across officially connected apps.
+
+**`desktop`** -- founder request. Electron app for Windows and macOS loading
+the web app: tray, notifications, global shortcut to ask or talk, start at
+login, deep links, auto-update and signing (founder provides Apple Developer
+ID and a Windows code-signing certificate). Work on my computer with Claude
+computer use behind `desktop_computer_use`: per-app allow list, visible
+working bar with Stop, approvals for send/pay/delete/submit, never password
+fields, limits, receipts. Local files and an opt-in watched folder.
 
 **`care`** -- founder request. Simple mode (large text, voice first, one thing
 at a time); medicine calls in the parent's language with family alerts;
@@ -308,12 +342,38 @@ the design's "Claude execution brief"), screenshots at 360 / 390 / 768 /
 - Fixes: invites (500 on every call), per-thread reply drafts, run-once approvals
 - Staging workflow and `scripts/staging_check.py`
 
+## Running cloud sessions
+
+Each stream runs as its own Claude Code cloud session (one machine each) and
+opens a draft PR into `claude/simpler-rail`. The parent session checks them
+hourly, reviews and merges each PR, and starts the next streams.
+
+| Stream | Session |
+| --- | --- |
+| controls | session_019YoNV9e1VRicijtBy3dqkK |
+| shell | session_017pePFdhf7extTGvF4vmJTU |
+| ops | session_01KBVvNANs8kwyrHBMKDox7d |
+| aws-gateway | session_01K3AYRzykvKavBj3jXmZ454 |
+| browser | session_01Me1mkRqDovMsuhnAMz4NUK |
+| desktop | session_01HnRghELvdY4pxEZobCWn4Z |
+| today | session_013M4ceoY8k2xj6jMKMfWekw |
+| agents | session_01Dj9ocx4DncksTFv4f5orXr |
+| learning | session_014nHaFAYMsZUqZ9ZgB6U7vC |
+| voice | session_01Jt7GMP2KthoGRkr1S6t1WQ |
+| meetings | session_0118WbnQjCKNfd4XkJCMVmro |
+| identity | session_011VRsGQ8MpWfhhLdRv95G7G |
+| settings | session_01JwKLX85yc8BC3QFuTocXcP |
+| support | session_01YPq58BgCMr9bJxzF3wfTf1 |
+| staff | session_01RiC2NEFF9hHD3gRGrmFKVi |
+| reach | session_015bZvzcdWNkr9Ezwq39ukz8 |
+| care | session_018WSGYyj3rNjPKiMfKBZpJz |
+
 ## Status
 
 | Stream | Phase | Branch | PR | Built | Tests | Staging |
 | --- | --- | --- | --- | --- | --- | --- |
-| controls | 1 | claude/stream-controls | | | | |
-| shell | 1 | claude/stream-shell | | | | |
+| controls | 1 | claude/stream-controls | #525 merged | yes | 247 stream + core pass; UI 1414 pass | |
+| shell | 1 | claude/stream-shell | #526 merged | yes | as controls (merged together) | |
 | today | 2 | claude/stream-today | | | | |
 | agents | 2 | claude/stream-agents | | | | |
 | learning | 2 | claude/stream-learning | | | | |
@@ -323,7 +383,9 @@ the design's "Claude execution brief"), screenshots at 360 / 390 / 768 /
 | settings | 2 | claude/stream-settings | | | | |
 | support | 2 | claude/stream-support | | | | |
 | staff | 2 | claude/stream-staff | | | | |
-| ops | 2 | claude/stream-ops | | | | |
-| browser | 2 | claude/stream-browser | | | | |
+| ops | 2 | claude/stream-ops | #524 merged | yes; one analytics outbox with controls | 245 stream + core pass | |
+| aws-gateway | 2 | claude/stream-aws-gateway | #528 | yes; rebasing on phase 1 + ops | 63 pass (fakes) | |
+| browser | 2 | claude/stream-browser | #529 | yes; moving to controls card states + quotas | 147 pass | |
 | reach | 2 | claude/stream-reach | | | | |
 | care | 2 | claude/stream-care | | | | |
+| desktop | 2 | claude/stream-desktop | #527 | yes; moving to controls card states | 69 app + 20 API pass | |

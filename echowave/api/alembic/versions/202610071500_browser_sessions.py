@@ -2,7 +2,7 @@
 private browser (stream ``browser``).
 
 Revision ID: 202610071500browser
-Revises: 202610071200auto
+Revises: 202610071400ops
 Create Date: 2026-10-07
 """
 
@@ -13,7 +13,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "202610071500browser"
-down_revision: Union[str, None] = "202610071200auto"
+down_revision: Union[str, None] = "202610071400ops"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

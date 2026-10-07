@@ -366,7 +366,7 @@ class TestApprovalBeforeSubmit:
         )
         await actions.run(card_id, org.id)
         card = await db_client.get_agent_event(card_id, organization_id=org.id)
-        assert card.payload["state"] == actions.UNKNOWN
+        assert card.payload["state"] == actions.OUTCOME_UNKNOWN
         assert "not known" in card.payload["error"]
         await channel.push_command(row.session_uuid, {"cmd": "stop"})
         await asyncio.wait_for(job, timeout=20)
@@ -579,3 +579,163 @@ class TestADeadJob:
         card = await db_client.get_agent_event(card_id, organization_id=org.id)
         assert card.payload["state"] == actions.CANCELLED
         assert await db_client.count_live_browser_sessions() == 0
+
+
+class TestVersionedCards:
+    """With the task ledger on, a browser card carries a version like every
+    other card, and Confirm must name it."""
+
+    async def test_confirm_must_name_the_version_and_then_presses_once(
+        self, browser_on, monkeypatch, async_session
+    ):
+        monkeypatch.setattr(constants, "TASK_LEDGER_ENABLED", True)
+        fake = _form_fake()
+        org, user = await account(async_session, "versioned")
+        row = await start(org, user, request=FORM_REQUEST, start_url=FORM_URL)
+        from api.services.browser import drivers
+
+        drivers.use(fake)
+        job = asyncio.create_task(session.run(row.session_uuid, FORM_URL))
+        waiting = await until(lambda: _pending(row))
+        card_id = waiting.pending["event_id"]
+        card = await db_client.get_agent_event(card_id, organization_id=org.id)
+        version = card.payload["version"]
+        assert version == actions.payload_version(card.payload)
+
+        with pytest.raises(actions.ActionError):
+            await actions.settle(
+                organization_id=org.id,
+                event_id=card_id,
+                verb="confirm",
+                user_id=user.id,
+            )
+        armed = await actions.settle(
+            organization_id=org.id,
+            event_id=card_id,
+            verb="confirm",
+            user_id=user.id,
+            version=version,
+        )
+        assert armed["confirmed"]["version"] == version
+        await actions.run(card_id, org.id)
+        card = await db_client.get_agent_event(card_id, organization_id=org.id)
+        assert card.payload["state"] == actions.DONE, card.payload
+        assert fake.boxes["fake-1"].pressed == [("submit", FORM_URL)]
+        await asyncio.wait_for(job, timeout=20)
+
+
+@pytest.fixture
+async def committed(monkeypatch, test_engine):
+    """The browser switched on against the real test database, as controls'
+    own quota tests run: ``quotas.consume`` rolls back on a refusal, and in
+    the shared transactional session that would roll back the test itself.
+    Everything made here is deleted afterwards."""
+    from uuid import uuid4
+
+    from sqlalchemy import text
+
+    import api.tasks.arq as arq
+
+    monkeypatch.setattr(constants, "DECIBYL_BROWSER_ENABLED", True)
+    monkeypatch.setattr(constants, "BROWSER_DRIVER", "fake")
+    monkeypatch.setattr(constants, "OPERATIONAL_QUOTAS_ENABLED", True)
+
+    async def enqueue(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(arq, "enqueue_job", enqueue)
+    channel.reset()
+    run_id = uuid4().hex[:8]
+    async with db_client.async_session() as s:
+        org_id = (
+            await s.execute(
+                text(
+                    "INSERT INTO organizations (provider_id, quota_decibyl_tokens, created_at) "
+                    "VALUES (:p, 0, now()) RETURNING id"
+                ),
+                {"p": f"org-minutes-{run_id}"},
+            )
+        ).scalar_one()
+        await s.commit()
+    user, _ = await db_client.get_or_create_user_by_provider_id(
+        f"user-minutes-{run_id}"
+    )
+    async with db_client.async_session() as s:
+        await s.execute(
+            text("UPDATE users SET selected_organization_id = :o WHERE id = :u"),
+            {"o": org_id, "u": user.id},
+        )
+        await s.commit()
+    try:
+        yield SimpleNamespace(id=org_id), SimpleNamespace(id=user.id)
+    finally:
+        from api.services.browser import drivers
+
+        drivers.use(None)
+        channel.reset()
+        async with db_client.async_session() as s:
+            for sql in (
+                "DELETE FROM operational_usage WHERE user_id = :u",
+                "DELETE FROM browser_sessions WHERE user_id = :u",
+                "DELETE FROM agent_events WHERE organization_id = :o",
+                "DELETE FROM users WHERE id = :u",
+                "DELETE FROM organizations WHERE id = :o",
+            ):
+                await s.execute(text(sql), {"u": user.id, "o": org_id})
+            await s.commit()
+
+
+class TestBrowserMinutes:
+    """Each task spends the person's daily browser minutes (controls'
+    operational quotas): one as it starts, one per further minute."""
+
+    async def test_at_the_limit_no_browser_opens_and_the_thread_says_why(
+        self, committed, monkeypatch
+    ):
+        from api.services import quotas
+
+        monkeypatch.setattr(constants, "OPERATIONAL_QUOTA_BROWSER_MINUTES", 1)
+        org, user = committed
+        await quotas.consume(user.id, quotas.BROWSER_MINUTES)
+        result = await tool.for_thread(
+            org.id,
+            {"task": "Check my bill", "sites": [SITE]},
+            author_id=user.id,
+            request=f"Check my bill on {SITE}",
+            thread_id=None,
+        )
+        assert result["status"] == "quota_reached"
+        assert "browser minute" in result["reason"]
+        rows = await db_client.agent_events(
+            organization_id=org.id,
+            kinds=["message", "browser_session"],
+            assistant_thread=True,
+        )
+        assert [r.kind for r in rows] == ["message"]
+        assert rows[0].payload["quota"]["kind"] == "browser_minutes"
+
+    async def test_a_running_task_spends_minutes_and_stops_at_the_limit(
+        self, committed, monkeypatch
+    ):
+        from api.services import quotas
+
+        monkeypatch.setattr(constants, "OPERATIONAL_QUOTA_BROWSER_MINUTES", 3)
+        org, user = committed
+        row = await start(org, user, request=f"Check my bill on {SITE}", minutes=30)
+        assert (await quotas.usage(user.id, quotas.BROWSER_MINUTES)).used == 1
+        clock = {"t": 1000.0}
+
+        def monotonic():
+            clock["t"] += 15
+            return clock["t"]
+
+        monkeypatch.setattr(session, "time", SimpleNamespace(monotonic=monotonic))
+        fake = FakeDriver(
+            pages={BILL_URL: Page(BILL_URL, bill_page())},
+            plan=[Step("navigate", BILL_URL) for _ in range(60)],
+            step_delay=0.02,
+        )
+        row = await run(row, fake)
+        assert row.state == "limit_reached"
+        assert "browser minutes" in row.state_note
+        assert (await quotas.usage(user.id, quotas.BROWSER_MINUTES)).used == 3

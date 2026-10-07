@@ -133,6 +133,36 @@ def without_query(url: str) -> str:
     return f"{parts.scheme}://{parts.netloc}{parts.path}"
 
 
+# --- browser minutes (operational quotas) -------------------------------------------
+
+
+async def quota_line(user_id: int, exc: Any) -> tuple[str, dict[str, Any]]:
+    """The controls message for a used-up allowance, in the person's time."""
+    from api.services import member_preferences, quotas
+
+    usage = exc.usage
+    line = quotas.message(usage, await member_preferences.timezone_of(user_id))
+    return line, usage.as_dict()
+
+
+async def say_quota(
+    *, organization_id: int, user_id: int, thread_id: str | None, exc: Any
+) -> str:
+    """Say on the thread that today's browser minutes are used, the way a
+    used-up turn is said (``decibyl.turn_refused``). Returns the line."""
+    line, usage = await quota_line(user_id, exc)
+    await agent_timeline.record(
+        organization_id=organization_id,
+        kind=AgentEventKind.MESSAGE.value,
+        actor=AgentEventActor.AGENT.value,
+        summary=line,
+        payload={"body": line, "from": "Decibyl", "quota": usage},
+        in_channel=False,
+        thread_id=thread_id,
+    )
+    return line
+
+
 # --- the tool's half --------------------------------------------------------------
 
 
@@ -184,6 +214,26 @@ async def start(
         return {
             "status": "unavailable",
             "reason": "Every private browser is busy just now; try again in a few minutes.",
+        }
+
+    # The first browser minute is spent as the task starts, like a voice
+    # session's: a person at today's limit gets the controls message on the
+    # thread and no browser. Later minutes are spent while it runs.
+    from api.services import quotas
+
+    try:
+        await quotas.consume(user_id, quotas.BROWSER_MINUTES)
+    except quotas.QuotaExceeded as exc:
+        line = await say_quota(
+            organization_id=organization_id,
+            user_id=user_id,
+            thread_id=thread_id,
+            exc=exc,
+        )
+        return {
+            "status": "quota_reached",
+            "reason": line,
+            "note": "That is already said on the thread; do not repeat it. End your reply.",
         }
 
     verbs = gate.allowed_verbs(request, verbs_declared)
@@ -279,6 +329,9 @@ class _Run:
         self.result = ""
         self.loaded_logins: list[str] = []
         self.started = time.monotonic()
+        #: Browser minutes spent from the person's daily allowance; the
+        #: first was spent when the task started.
+        self.charged_minutes = 1
         self.wait_until: float | None = None
         self.dirty = True
         self.task = gate.Task(
@@ -385,6 +438,9 @@ class _Run:
             "state": actions.PROPOSED,
             "requested_by": self.row.user_id,
         }
+        # Versioned like every other card (task ledger): Confirm must name
+        # this version, and the job re-checks it before anything is pressed.
+        actions.stamp_new_card(self.row.organization_id, payload)
         with agent_timeline.collecting() as written:
             await agent_timeline.record(
                 organization_id=self.row.organization_id,
@@ -405,6 +461,9 @@ class _Run:
                 call_id, {"decision": "refuse", "reason": "approval unavailable"}
             )
             return
+        await actions.card_requested(
+            self.row.organization_id, event_id, payload, self.row.user_id
+        )
         self.pending = {
             "gate_id": gate_id,
             "call_id": call_id,
@@ -844,6 +903,23 @@ async def run(session_uuid: str, start_url: str = "") -> None:
         )
 
 
+async def _charge_minutes(run: _Run) -> bool:
+    """Spend one browser minute for each minute begun since the last.
+    False, with the task ended and the controls message said, at the limit."""
+    from api.services import quotas
+
+    begun = int((time.monotonic() - run.started) // 60) + 1
+    while run.charged_minutes < begun:
+        try:
+            await quotas.consume(run.row.user_id, quotas.BROWSER_MINUTES)
+        except quotas.QuotaExceeded as exc:
+            line, _ = await quota_line(run.row.user_id, exc)
+            await run.finish(LIMIT, line)
+            return False
+        run.charged_minutes += 1
+    return True
+
+
 async def _drive(run: _Run) -> None:
     rules = await sites.staff_rules()
     run.task.rules = rules
@@ -875,6 +951,8 @@ async def _drive(run: _Run) -> None:
                 STOPPED,
                 f"Nobody answered for {constants.BROWSER_WAIT_MINUTES} minutes, so it stopped.",
             )
+            break
+        if not await _charge_minutes(run):
             break
         for command in await channel.pop_commands(run.row.session_uuid):
             if not await run.on_command(command):

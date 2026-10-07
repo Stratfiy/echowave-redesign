@@ -5,6 +5,7 @@ import { getAuthUserApiV1UserAuthUserGet } from "@/client/sdk.gen";
 import { getWorkflowCountApiV1WorkflowCountGet } from "@/client/sdk.gen";
 import { impersonateApiV1SuperuserImpersonatePost } from "@/client/sdk.gen";
 import { detailFromResult } from "@/lib/apiError";
+import { shellLanding } from "@/lib/shell/landing";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -96,6 +97,12 @@ export async function getRedirectUrl(
       console.log("[getRedirectUrl] User is staff, redirecting to /superadmin");
       return "/superadmin";
     }
+
+    // Launch shell (first_task_onboarding): new people answer the first
+    // questions, then land in Chat -- never the build-an-agent journey,
+    // whatever their permissions or agent count. Null keeps the rule below.
+    const landing = await shellLanding(token);
+    if (landing) return landing;
 
     const hasAdminPermission = permissions.some((p) => p.id === "admin");
     console.log("[getRedirectUrl] Admin permission check:", {

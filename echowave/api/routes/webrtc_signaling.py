@@ -468,6 +468,32 @@ class SignalingManager:
             )
             return
 
+        if pc_id not in self._peer_connections:
+            # The person's daily voice minutes (operational quotas), held in
+            # free mode too. A new session takes its first minute now, so a
+            # stream of instant reconnects is not free; the rest is settled
+            # when it ends (services/voice_controls.py). No-op while off.
+            from api.services import quotas
+
+            try:
+                await quotas.consume(user.id, quotas.VOICE_MINUTES)
+            except quotas.QuotaExceeded as exc:
+                from api.services import member_preferences
+
+                await ws.send_json(
+                    {
+                        "type": "error",
+                        "payload": {
+                            "error_type": "voice_limit_reached",
+                            "message": quotas.message(
+                                exc.usage,
+                                await member_preferences.timezone_of(user.id),
+                            ),
+                        },
+                    }
+                )
+                return
+
         if pc_id in self._peer_connections:
             if self._peer_connection_owners.get(pc_id) != connection_key:
                 await ws.send_json(
