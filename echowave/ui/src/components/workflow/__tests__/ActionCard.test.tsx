@@ -134,6 +134,25 @@ describe("once done", () => {
         expect(screen.queryByText(/Cannot be undone/)).toBeNull();
     });
 
+    it("a built chat agent opens its own chat, and has no Hear it", () => {
+        render(
+            <ActionCard
+                event={event({
+                    action: "build_from_spec",
+                    label: "Build Research agent from the spec",
+                    reversible: false,
+                    state: "done",
+                    done: { note: "Built Research agent — 5 steps." },
+                    result: { workflow_id: 7, handle: "research-agent", channel: "chat" },
+                })}
+            />,
+        );
+        expect(screen.getByRole("link", { name: /Open its chat/ }).getAttribute("href")).toBe(
+            "/workflow/7/thread",
+        );
+        expect(screen.queryByRole("link", { name: /Hear it/ })).toBeNull();
+    });
+
     it("a placed call says it cannot be undone and offers nothing", () => {
         render(
             <ActionCard
