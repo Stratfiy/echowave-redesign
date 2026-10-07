@@ -291,6 +291,10 @@ class PostMessageRequest(BaseModel):
     #: Any id the client mints; the thread exists from its first message.
     #: Null is the original thread.
     thread_id: Optional[str] = Field(default=None, max_length=36)
+    #: With ``assistant``: the helper chosen in the picker (screen 06), or
+    #: null for Automatic. Only an available helper is accepted; the server
+    #: decides, not the button (launch stream `agents`).
+    helper: Optional[str] = Field(default=None, max_length=32)
 
 
 class PostMessageResponse(BaseModel):
@@ -535,8 +539,19 @@ async def post_message(
             detail="Say it in a channel, to an agent, or to Decibyl, one of the three",
         )
 
+    if body.helper is not None and not body.assistant:
+        raise HTTPException(
+            status_code=422, detail="A helper is chosen for Decibyl only"
+        )
     if body.assistant:
         await _assert_thread_is_theirs(user, organization_id, body.thread_id)
+        if body.helper:
+            from api.services.helpers import states as helper_states
+
+            try:
+                await helper_states.assert_usable(organization_id, body.helper)
+            except helper_states.Unusable as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from exc
         text, attachments, line, preset = await _what_was_said(body, organization_id)
         asked = await decibyl.ask(
             organization_id=organization_id,
@@ -546,6 +561,7 @@ async def post_message(
             line=line,
             preset=preset,
             thread_id=body.thread_id,
+            **({"helper": body.helper} if body.helper else {}),
         )
         return PostMessageResponse(asked=asked, unknown=[], ambiguous=[])
 

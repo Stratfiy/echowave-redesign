@@ -3638,6 +3638,129 @@ export type CommentWrite = {
 };
 
 /**
+ * CommitmentChange
+ */
+export type CommitmentChange = {
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Status
+     */
+    status?: 'open' | 'settled' | 'cancelled' | null;
+    /**
+     * Visibility
+     */
+    visibility?: 'private' | 'workspace' | null;
+};
+
+/**
+ * CommitmentCreate
+ */
+export type CommitmentCreate = {
+    /**
+     * Direction
+     */
+    direction?: 'owed_to_me' | 'i_owe';
+    /**
+     * Counterparty
+     */
+    counterparty: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Contact
+     */
+    contact?: string | null;
+    /**
+     * Amount
+     */
+    amount?: string | null;
+    /**
+     * Currency
+     */
+    currency?: string | null;
+    /**
+     * Due On
+     */
+    due_on?: string | null;
+    /**
+     * Visibility
+     */
+    visibility?: 'private' | 'workspace';
+};
+
+/**
+ * CommitmentOut
+ */
+export type CommitmentOut = {
+    /**
+     * Uuid
+     */
+    uuid: string;
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Direction
+     */
+    direction: string;
+    /**
+     * Counterparty
+     */
+    counterparty: string;
+    /**
+     * Contact
+     */
+    contact?: string | null;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Amount Minor
+     */
+    amount_minor?: number | null;
+    /**
+     * Currency
+     */
+    currency?: string | null;
+    /**
+     * Amount
+     */
+    amount?: string | null;
+    /**
+     * Due On
+     */
+    due_on?: string | null;
+    /**
+     * Overdue
+     */
+    overdue: boolean;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Visibility
+     */
+    visibility: string;
+    /**
+     * Mine
+     */
+    mine: boolean;
+    /**
+     * Revision
+     */
+    revision: number;
+    follow_up?: FollowUpState | null;
+};
+
+/**
  * ComposioToolConfig
  *
  * Configuration for one tool on one Composio-connected app.
@@ -6825,6 +6948,28 @@ export type FollowUpCard = {
 };
 
 /**
+ * FollowUpState
+ */
+export type FollowUpState = {
+    /**
+     * Card Id
+     */
+    card_id: number;
+    /**
+     * Delivery
+     */
+    delivery: string;
+    /**
+     * Label
+     */
+    label?: string | null;
+    /**
+     * Error
+     */
+    error?: string | null;
+};
+
+/**
  * ForgetEverythingRequest
  */
 export type ForgetEverythingRequest = {
@@ -6876,6 +7021,16 @@ export type ForwardRequest = {
      * Carrier
      */
     carrier?: string | null;
+};
+
+/**
+ * FromReplyRequest
+ */
+export type FromReplyRequest = {
+    /**
+     * Event Id
+     */
+    event_id: number;
 };
 
 /**
@@ -7755,6 +7910,84 @@ export type HelpTopics = {
 };
 
 /**
+ * HelperAdvanced
+ */
+export type HelperAdvanced = {
+    /**
+     * Tools
+     */
+    tools: Array<string>;
+    /**
+     * Skills
+     */
+    skills: Array<string>;
+    /**
+     * Model
+     */
+    model: string;
+    /**
+     * Voice
+     */
+    voice: string;
+};
+
+/**
+ * HelperOut
+ */
+export type HelperOut = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Job
+     */
+    job: string;
+    /**
+     * Evidence
+     */
+    evidence: string;
+    /**
+     * Boundary
+     */
+    boundary: string;
+    /**
+     * Example
+     */
+    example: string;
+    /**
+     * Permissions
+     */
+    permissions: Array<string>;
+    /**
+     * Connections
+     */
+    connections: Array<string>;
+    /**
+     * Templates
+     */
+    templates: Array<string>;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    setup?: HelperSetup | null;
+    /**
+     * Notes
+     */
+    notes: Array<string>;
+    advanced?: HelperAdvanced | null;
+};
+
+/**
  * HelperRow
  */
 export type HelperRow = {
@@ -7766,6 +7999,39 @@ export type HelperRow = {
      * Name
      */
     name: string;
+};
+
+/**
+ * HelperSetup
+ */
+export type HelperSetup = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * App
+     */
+    app?: string | null;
+};
+
+/**
+ * HelpersResponse
+ */
+export type HelpersResponse = {
+    /**
+     * Helpers
+     */
+    helpers: Array<HelperOut>;
+    builder?: HelperOut | null;
+    /**
+     * Can Manage
+     */
+    can_manage: boolean;
 };
 
 /**
@@ -8389,6 +8655,52 @@ export type InstallRequest = {
      * Slug
      */
     slug: string;
+};
+
+/**
+ * Interest
+ */
+export type Interest = {
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Kind
+     */
+    kind?: 'ticker' | 'sector' | 'topic';
+};
+
+/**
+ * InterestsOut
+ */
+export type InterestsOut = {
+    /**
+     * Interests
+     */
+    interests: Array<Interest>;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Notice
+     */
+    notice: string;
+};
+
+/**
+ * InterestsWrite
+ */
+export type InterestsWrite = {
+    /**
+     * Interests
+     */
+    interests: Array<Interest>;
+    /**
+     * Revision
+     */
+    revision: number;
 };
 
 /**
@@ -10892,6 +11204,24 @@ export type ModelSlotRequest = {
 };
 
 /**
+ * MoneyTotal
+ */
+export type MoneyTotal = {
+    /**
+     * Currency
+     */
+    currency: string;
+    /**
+     * Amount Minor
+     */
+    amount_minor: number;
+    /**
+     * Amount
+     */
+    amount?: string | null;
+};
+
+/**
  * MoveWorkflowToFolderRequest
  *
  * Move a workflow into a folder, or to "Uncategorized" when null.
@@ -12856,6 +13186,10 @@ export type PostMessageRequest = {
      * Thread Id
      */
     thread_id?: string | null;
+    /**
+     * Helper
+     */
+    helper?: string | null;
 };
 
 /**
@@ -14582,6 +14916,178 @@ export type ReplyWrite = {
 };
 
 /**
+ * ReportConflict
+ */
+export type ReportConflict = {
+    /**
+     * Statement
+     */
+    statement: string;
+    /**
+     * Sources
+     */
+    sources?: Array<number>;
+};
+
+/**
+ * ReportFinding
+ */
+export type ReportFinding = {
+    /**
+     * Statement
+     */
+    statement: string;
+    /**
+     * Basis
+     */
+    basis: string;
+    /**
+     * Sources
+     */
+    sources?: Array<number>;
+    /**
+     * As Of
+     */
+    as_of?: string | null;
+};
+
+/**
+ * ReportInaccessible
+ */
+export type ReportInaccessible = {
+    /**
+     * Url
+     */
+    url: string;
+    /**
+     * Reason
+     */
+    reason: string;
+};
+
+/**
+ * ReportOut
+ */
+export type ReportOut = {
+    /**
+     * Uuid
+     */
+    uuid: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Question
+     */
+    question?: string | null;
+    /**
+     * Summary
+     */
+    summary?: string | null;
+    /**
+     * Findings
+     */
+    findings: Array<ReportFinding>;
+    /**
+     * Conflicts
+     */
+    conflicts: Array<ReportConflict>;
+    /**
+     * Inaccessible
+     */
+    inaccessible: Array<ReportInaccessible>;
+    /**
+     * Sources
+     */
+    sources: Array<ReportSource>;
+    /**
+     * Body
+     */
+    body: string;
+    /**
+     * Content Hash
+     */
+    content_hash: string;
+    /**
+     * Visibility
+     */
+    visibility: string;
+    /**
+     * Mine
+     */
+    mine: boolean;
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    /**
+     * Notice
+     */
+    notice?: string | null;
+};
+
+/**
+ * ReportSource
+ */
+export type ReportSource = {
+    /**
+     * N
+     */
+    n: number;
+    /**
+     * Url
+     */
+    url: string;
+    /**
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Accessed
+     */
+    accessed?: string | null;
+};
+
+/**
+ * ReportSummary
+ */
+export type ReportSummary = {
+    /**
+     * Uuid
+     */
+    uuid: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Visibility
+     */
+    visibility: string;
+    /**
+     * Mine
+     */
+    mine: boolean;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+};
+
+/**
  * RequestState
  */
 export type RequestState = {
@@ -15530,6 +16036,30 @@ export type SetupFieldResponse = {
 };
 
 /**
+ * SetupRequest
+ */
+export type SetupRequest = {
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
+};
+
+/**
+ * SetupResponse
+ */
+export type SetupResponse = {
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+/**
  * ShareField
  */
 export type ShareField = {
@@ -16362,6 +16892,26 @@ export type Suggestion = {
      * Href
      */
     href?: string | null;
+};
+
+/**
+ * SummaryRequest
+ */
+export type SummaryRequest = {
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
+};
+
+/**
+ * SummaryResponse
+ */
+export type SummaryResponse = {
+    /**
+     * Asked
+     */
+    asked: string;
 };
 
 /**
@@ -17604,6 +18154,116 @@ export type TopupRequest = {
 };
 
 /**
+ * TrackerColumn
+ */
+export type TrackerColumn = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Type
+     */
+    type: string;
+};
+
+/**
+ * TrackerDetail
+ */
+export type TrackerDetail = {
+    /**
+     * Uuid
+     */
+    uuid: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Columns
+     */
+    columns: Array<TrackerColumn>;
+    /**
+     * Visibility
+     */
+    visibility: string;
+    /**
+     * Mine
+     */
+    mine: boolean;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    /**
+     * Rows
+     */
+    rows: Array<TrackerRow>;
+};
+
+/**
+ * TrackerOut
+ */
+export type TrackerOut = {
+    /**
+     * Uuid
+     */
+    uuid: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Columns
+     */
+    columns: Array<TrackerColumn>;
+    /**
+     * Visibility
+     */
+    visibility: string;
+    /**
+     * Mine
+     */
+    mine: boolean;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+};
+
+/**
+ * TrackerRow
+ */
+export type TrackerRow = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Values
+     */
+    values: {
+        [key: string]: unknown;
+    };
+    /**
+     * At
+     */
+    at: string;
+};
+
+/**
+ * TrackerRowWrite
+ */
+export type TrackerRowWrite = {
+    /**
+     * Values
+     */
+    values: {
+        [key: string]: unknown;
+    };
+};
+
+/**
  * TranscriptPart
  */
 export type TranscriptPart = {
@@ -18669,6 +19329,16 @@ export type VersionOutcome = {
 };
 
 /**
+ * VisibilityRequest
+ */
+export type VisibilityRequest = {
+    /**
+     * Visibility
+     */
+    visibility: 'private' | 'workspace';
+};
+
+/**
  * VobizConfigurationRequest
  *
  * Request schema for Vobiz configuration.
@@ -19046,6 +19716,24 @@ export type WebToolDefinition = {
  * Webhook credential authentication types
  */
 export type WebhookCredentialType = 'none' | 'api_key' | 'bearer_token' | 'basic_auth' | 'custom_header' | 'oauth2';
+
+/**
+ * WhoOwesMeResponse
+ */
+export type WhoOwesMeResponse = {
+    /**
+     * Items
+     */
+    items: Array<CommitmentOut>;
+    /**
+     * Totals
+     */
+    totals: Array<MoneyTotal>;
+    /**
+     * Overdue
+     */
+    overdue: number;
+};
 
 /**
  * WorkerHealthResponse
@@ -19854,6 +20542,16 @@ export type WorkspaceModelChoice = {
      * Value
      */
     value: string;
+};
+
+/**
+ * WorkspaceSwitch
+ */
+export type WorkspaceSwitch = {
+    /**
+     * Enabled
+     */
+    enabled: boolean;
 };
 
 /**
@@ -38314,6 +39012,766 @@ export type ClientEventApiV1EventsClientPostResponses = {
 };
 
 export type ClientEventApiV1EventsClientPostResponse = ClientEventApiV1EventsClientPostResponses[keyof ClientEventApiV1EventsClientPostResponses];
+
+export type ListHelpersApiV1HelpersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/helpers';
+};
+
+export type ListHelpersApiV1HelpersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListHelpersApiV1HelpersGetError = ListHelpersApiV1HelpersGetErrors[keyof ListHelpersApiV1HelpersGetErrors];
+
+export type ListHelpersApiV1HelpersGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: HelpersResponse;
+};
+
+export type ListHelpersApiV1HelpersGetResponse = ListHelpersApiV1HelpersGetResponses[keyof ListHelpersApiV1HelpersGetResponses];
+
+export type SetWorkspaceSwitchApiV1HelpersKeyWorkspacePutData = {
+    body: WorkspaceSwitch;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Key
+         */
+        key: string;
+    };
+    query?: never;
+    url: '/api/v1/helpers/{key}/workspace';
+};
+
+export type SetWorkspaceSwitchApiV1HelpersKeyWorkspacePutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetWorkspaceSwitchApiV1HelpersKeyWorkspacePutError = SetWorkspaceSwitchApiV1HelpersKeyWorkspacePutErrors[keyof SetWorkspaceSwitchApiV1HelpersKeyWorkspacePutErrors];
+
+export type SetWorkspaceSwitchApiV1HelpersKeyWorkspacePutResponses = {
+    /**
+     * Successful Response
+     */
+    200: HelpersResponse;
+};
+
+export type SetWorkspaceSwitchApiV1HelpersKeyWorkspacePutResponse = SetWorkspaceSwitchApiV1HelpersKeyWorkspacePutResponses[keyof SetWorkspaceSwitchApiV1HelpersKeyWorkspacePutResponses];
+
+export type SetupHelperApiV1HelpersKeySetupPostData = {
+    body: SetupRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Key
+         */
+        key: string;
+    };
+    query?: never;
+    url: '/api/v1/helpers/{key}/setup';
+};
+
+export type SetupHelperApiV1HelpersKeySetupPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetupHelperApiV1HelpersKeySetupPostError = SetupHelperApiV1HelpersKeySetupPostErrors[keyof SetupHelperApiV1HelpersKeySetupPostErrors];
+
+export type SetupHelperApiV1HelpersKeySetupPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SetupResponse;
+};
+
+export type SetupHelperApiV1HelpersKeySetupPostResponse = SetupHelperApiV1HelpersKeySetupPostResponses[keyof SetupHelperApiV1HelpersKeySetupPostResponses];
+
+export type ListReportsApiV1HelpersReportsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/helpers/reports';
+};
+
+export type ListReportsApiV1HelpersReportsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListReportsApiV1HelpersReportsGetError = ListReportsApiV1HelpersReportsGetErrors[keyof ListReportsApiV1HelpersReportsGetErrors];
+
+export type ListReportsApiV1HelpersReportsGetResponses = {
+    /**
+     * Response List Reports Api V1 Helpers Reports Get
+     *
+     * Successful Response
+     */
+    200: Array<ReportSummary>;
+};
+
+export type ListReportsApiV1HelpersReportsGetResponse = ListReportsApiV1HelpersReportsGetResponses[keyof ListReportsApiV1HelpersReportsGetResponses];
+
+export type GetReportApiV1HelpersReportsReportUuidGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Report Uuid
+         */
+        report_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/helpers/reports/{report_uuid}';
+};
+
+export type GetReportApiV1HelpersReportsReportUuidGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetReportApiV1HelpersReportsReportUuidGetError = GetReportApiV1HelpersReportsReportUuidGetErrors[keyof GetReportApiV1HelpersReportsReportUuidGetErrors];
+
+export type GetReportApiV1HelpersReportsReportUuidGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReportOut;
+};
+
+export type GetReportApiV1HelpersReportsReportUuidGetResponse = GetReportApiV1HelpersReportsReportUuidGetResponses[keyof GetReportApiV1HelpersReportsReportUuidGetResponses];
+
+export type ExportReportApiV1HelpersReportsReportUuidExportGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Report Uuid
+         */
+        report_uuid: string;
+    };
+    query?: {
+        /**
+         * Format
+         */
+        format?: 'md' | 'html';
+    };
+    url: '/api/v1/helpers/reports/{report_uuid}/export';
+};
+
+export type ExportReportApiV1HelpersReportsReportUuidExportGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ExportReportApiV1HelpersReportsReportUuidExportGetError = ExportReportApiV1HelpersReportsReportUuidExportGetErrors[keyof ExportReportApiV1HelpersReportsReportUuidExportGetErrors];
+
+export type ExportReportApiV1HelpersReportsReportUuidExportGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ShareReportApiV1HelpersReportsReportUuidVisibilityPutData = {
+    body: VisibilityRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Report Uuid
+         */
+        report_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/helpers/reports/{report_uuid}/visibility';
+};
+
+export type ShareReportApiV1HelpersReportsReportUuidVisibilityPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ShareReportApiV1HelpersReportsReportUuidVisibilityPutError = ShareReportApiV1HelpersReportsReportUuidVisibilityPutErrors[keyof ShareReportApiV1HelpersReportsReportUuidVisibilityPutErrors];
+
+export type ShareReportApiV1HelpersReportsReportUuidVisibilityPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReportOut;
+};
+
+export type ShareReportApiV1HelpersReportsReportUuidVisibilityPutResponse = ShareReportApiV1HelpersReportsReportUuidVisibilityPutResponses[keyof ShareReportApiV1HelpersReportsReportUuidVisibilityPutResponses];
+
+export type SaveReplyAsReportApiV1HelpersReportsFromReplyPostData = {
+    body: FromReplyRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/helpers/reports/from-reply';
+};
+
+export type SaveReplyAsReportApiV1HelpersReportsFromReplyPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveReplyAsReportApiV1HelpersReportsFromReplyPostError = SaveReplyAsReportApiV1HelpersReportsFromReplyPostErrors[keyof SaveReplyAsReportApiV1HelpersReportsFromReplyPostErrors];
+
+export type SaveReplyAsReportApiV1HelpersReportsFromReplyPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReportOut;
+};
+
+export type SaveReplyAsReportApiV1HelpersReportsFromReplyPostResponse = SaveReplyAsReportApiV1HelpersReportsFromReplyPostResponses[keyof SaveReplyAsReportApiV1HelpersReportsFromReplyPostResponses];
+
+export type WhoOwesMeApiV1HelpersWhoOwesMeGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/helpers/who-owes-me';
+};
+
+export type WhoOwesMeApiV1HelpersWhoOwesMeGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type WhoOwesMeApiV1HelpersWhoOwesMeGetError = WhoOwesMeApiV1HelpersWhoOwesMeGetErrors[keyof WhoOwesMeApiV1HelpersWhoOwesMeGetErrors];
+
+export type WhoOwesMeApiV1HelpersWhoOwesMeGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: WhoOwesMeResponse;
+};
+
+export type WhoOwesMeApiV1HelpersWhoOwesMeGetResponse = WhoOwesMeApiV1HelpersWhoOwesMeGetResponses[keyof WhoOwesMeApiV1HelpersWhoOwesMeGetResponses];
+
+export type ListCommitmentsApiV1HelpersCommitmentsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Direction
+         */
+        direction?: 'owed_to_me' | 'i_owe' | null;
+        /**
+         * Status
+         */
+        status?: 'open' | 'settled' | 'cancelled' | null;
+    };
+    url: '/api/v1/helpers/commitments';
+};
+
+export type ListCommitmentsApiV1HelpersCommitmentsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListCommitmentsApiV1HelpersCommitmentsGetError = ListCommitmentsApiV1HelpersCommitmentsGetErrors[keyof ListCommitmentsApiV1HelpersCommitmentsGetErrors];
+
+export type ListCommitmentsApiV1HelpersCommitmentsGetResponses = {
+    /**
+     * Response List Commitments Api V1 Helpers Commitments Get
+     *
+     * Successful Response
+     */
+    200: Array<CommitmentOut>;
+};
+
+export type ListCommitmentsApiV1HelpersCommitmentsGetResponse = ListCommitmentsApiV1HelpersCommitmentsGetResponses[keyof ListCommitmentsApiV1HelpersCommitmentsGetResponses];
+
+export type AddCommitmentApiV1HelpersCommitmentsPostData = {
+    body: CommitmentCreate;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/helpers/commitments';
+};
+
+export type AddCommitmentApiV1HelpersCommitmentsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddCommitmentApiV1HelpersCommitmentsPostError = AddCommitmentApiV1HelpersCommitmentsPostErrors[keyof AddCommitmentApiV1HelpersCommitmentsPostErrors];
+
+export type AddCommitmentApiV1HelpersCommitmentsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: CommitmentOut;
+};
+
+export type AddCommitmentApiV1HelpersCommitmentsPostResponse = AddCommitmentApiV1HelpersCommitmentsPostResponses[keyof AddCommitmentApiV1HelpersCommitmentsPostResponses];
+
+export type ChangeCommitmentApiV1HelpersCommitmentsCommitmentUuidPatchData = {
+    body: CommitmentChange;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Commitment Uuid
+         */
+        commitment_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/helpers/commitments/{commitment_uuid}';
+};
+
+export type ChangeCommitmentApiV1HelpersCommitmentsCommitmentUuidPatchErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ChangeCommitmentApiV1HelpersCommitmentsCommitmentUuidPatchError = ChangeCommitmentApiV1HelpersCommitmentsCommitmentUuidPatchErrors[keyof ChangeCommitmentApiV1HelpersCommitmentsCommitmentUuidPatchErrors];
+
+export type ChangeCommitmentApiV1HelpersCommitmentsCommitmentUuidPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: CommitmentOut;
+};
+
+export type ChangeCommitmentApiV1HelpersCommitmentsCommitmentUuidPatchResponse = ChangeCommitmentApiV1HelpersCommitmentsCommitmentUuidPatchResponses[keyof ChangeCommitmentApiV1HelpersCommitmentsCommitmentUuidPatchResponses];
+
+export type MyInterestsApiV1HelpersResearchInterestsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/helpers/research/interests';
+};
+
+export type MyInterestsApiV1HelpersResearchInterestsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyInterestsApiV1HelpersResearchInterestsGetError = MyInterestsApiV1HelpersResearchInterestsGetErrors[keyof MyInterestsApiV1HelpersResearchInterestsGetErrors];
+
+export type MyInterestsApiV1HelpersResearchInterestsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: InterestsOut;
+};
+
+export type MyInterestsApiV1HelpersResearchInterestsGetResponse = MyInterestsApiV1HelpersResearchInterestsGetResponses[keyof MyInterestsApiV1HelpersResearchInterestsGetResponses];
+
+export type SaveMyInterestsApiV1HelpersResearchInterestsPutData = {
+    body: InterestsWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/helpers/research/interests';
+};
+
+export type SaveMyInterestsApiV1HelpersResearchInterestsPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveMyInterestsApiV1HelpersResearchInterestsPutError = SaveMyInterestsApiV1HelpersResearchInterestsPutErrors[keyof SaveMyInterestsApiV1HelpersResearchInterestsPutErrors];
+
+export type SaveMyInterestsApiV1HelpersResearchInterestsPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: InterestsOut;
+};
+
+export type SaveMyInterestsApiV1HelpersResearchInterestsPutResponse = SaveMyInterestsApiV1HelpersResearchInterestsPutResponses[keyof SaveMyInterestsApiV1HelpersResearchInterestsPutResponses];
+
+export type AskTradingSummaryApiV1HelpersResearchTradingSummaryPostData = {
+    body: SummaryRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/helpers/research/trading-summary';
+};
+
+export type AskTradingSummaryApiV1HelpersResearchTradingSummaryPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AskTradingSummaryApiV1HelpersResearchTradingSummaryPostError = AskTradingSummaryApiV1HelpersResearchTradingSummaryPostErrors[keyof AskTradingSummaryApiV1HelpersResearchTradingSummaryPostErrors];
+
+export type AskTradingSummaryApiV1HelpersResearchTradingSummaryPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SummaryResponse;
+};
+
+export type AskTradingSummaryApiV1HelpersResearchTradingSummaryPostResponse = AskTradingSummaryApiV1HelpersResearchTradingSummaryPostResponses[keyof AskTradingSummaryApiV1HelpersResearchTradingSummaryPostResponses];
+
+export type ListTrackersApiV1HelpersTrackersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/helpers/trackers';
+};
+
+export type ListTrackersApiV1HelpersTrackersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListTrackersApiV1HelpersTrackersGetError = ListTrackersApiV1HelpersTrackersGetErrors[keyof ListTrackersApiV1HelpersTrackersGetErrors];
+
+export type ListTrackersApiV1HelpersTrackersGetResponses = {
+    /**
+     * Response List Trackers Api V1 Helpers Trackers Get
+     *
+     * Successful Response
+     */
+    200: Array<TrackerOut>;
+};
+
+export type ListTrackersApiV1HelpersTrackersGetResponse = ListTrackersApiV1HelpersTrackersGetResponses[keyof ListTrackersApiV1HelpersTrackersGetResponses];
+
+export type GetTrackerApiV1HelpersTrackersTrackerUuidGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Tracker Uuid
+         */
+        tracker_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/helpers/trackers/{tracker_uuid}';
+};
+
+export type GetTrackerApiV1HelpersTrackersTrackerUuidGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetTrackerApiV1HelpersTrackersTrackerUuidGetError = GetTrackerApiV1HelpersTrackersTrackerUuidGetErrors[keyof GetTrackerApiV1HelpersTrackersTrackerUuidGetErrors];
+
+export type GetTrackerApiV1HelpersTrackersTrackerUuidGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TrackerDetail;
+};
+
+export type GetTrackerApiV1HelpersTrackersTrackerUuidGetResponse = GetTrackerApiV1HelpersTrackersTrackerUuidGetResponses[keyof GetTrackerApiV1HelpersTrackersTrackerUuidGetResponses];
+
+export type AddTrackerRowApiV1HelpersTrackersTrackerUuidRowsPostData = {
+    body: TrackerRowWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Tracker Uuid
+         */
+        tracker_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/helpers/trackers/{tracker_uuid}/rows';
+};
+
+export type AddTrackerRowApiV1HelpersTrackersTrackerUuidRowsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddTrackerRowApiV1HelpersTrackersTrackerUuidRowsPostError = AddTrackerRowApiV1HelpersTrackersTrackerUuidRowsPostErrors[keyof AddTrackerRowApiV1HelpersTrackersTrackerUuidRowsPostErrors];
+
+export type AddTrackerRowApiV1HelpersTrackersTrackerUuidRowsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: TrackerDetail;
+};
+
+export type AddTrackerRowApiV1HelpersTrackersTrackerUuidRowsPostResponse = AddTrackerRowApiV1HelpersTrackersTrackerUuidRowsPostResponses[keyof AddTrackerRowApiV1HelpersTrackersTrackerUuidRowsPostResponses];
 
 export type CareStatusApiV1CareStatusGetData = {
     body?: never;

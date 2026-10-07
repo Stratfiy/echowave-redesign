@@ -250,6 +250,22 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   // door. Read once and taken off the address, so a refresh does not put
   // them back after the person has sent or deleted them.
   const [prefill, setPrefill] = useState<string>("");
+  // "?helper=": a helper to start with (screen 06), from an old "Build an
+  // agent" link that now opens the builder here. Read once, taken off.
+  const [initialHelper, setInitialHelper] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const helper = params.get("helper");
+      if (!helper) return;
+      setInitialHelper(helper);
+      params.delete("helper");
+      const rest = params.toString();
+      window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}`);
+    } catch {
+      // No URL to read: Automatic, as always.
+    }
+  }, []);
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -500,6 +516,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         replying={replying}
         onStop={() => void stop()}
         draftRequest={draftRequest}
+        initialHelper={initialHelper}
         onSent={() => {
           asked();
           setThreadsVersion((v) => v + 1);

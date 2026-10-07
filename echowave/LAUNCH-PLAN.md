@@ -375,7 +375,7 @@ hourly, reviews and merges each PR, and starts the next streams.
 | controls | 1 | claude/stream-controls | #525 merged | yes | 247 stream + core pass; UI 1414 pass | |
 | shell | 1 | claude/stream-shell | #526 merged | yes | as controls (merged together) | |
 | today | 2 | claude/stream-today | | | | |
-| agents | 2 | claude/stream-agents | | | | |
+| agents | 2 | claude/stream-agents | #532 | yes (AGENTS-LAUNCH.md) | 44 api + 20 ui, live check | |
 | learning | 2 | claude/stream-learning | see PR | yes (`LEARNING.md`) | see PR | |
 | voice | 2 | claude/stream-voice | | | | |
 | meetings | 2 | claude/stream-meetings | see PR | yes (MEETINGS.md) | 56 API + 38 UI; running-instance checks in PR | |

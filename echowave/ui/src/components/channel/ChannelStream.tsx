@@ -45,6 +45,7 @@ import { BlockedCard } from '@/components/channel/BlockedCard';
 import { tagTokens } from '@/components/channel/ChannelComposer';
 import { emphasisTokens } from '@/components/channel/emphasis';
 import { isJudgeableReply, ReplyFeedback, useMyFeedback } from '@/components/channel/ReplyFeedback';
+import { SaveReportButton } from '@/components/helpers/SaveReportButton';
 import { ComparisonCard } from '@/components/reach/ComparisonCard';
 import { ReachConnectChip } from '@/components/reach/ReachConnectChip';
 import { ErrorState } from '@/components/shell/ErrorState';
@@ -245,6 +246,22 @@ function ActivityRow({
 }
 
 type Attached = AttachedFile;
+
+/** The helper names a reply can carry (launch stream `agents`). */
+const HELPER_NAMES: Record<string, string> = {
+    inbox: 'Inbox',
+    research: 'Research',
+    follow_up: 'Follow-up',
+    learning_guide: 'Learning Guide',
+    call_appointment: 'Call and Appointment',
+    builder: 'Build something',
+};
+
+/** A report Research saved, named by an activity row on the thread. */
+function savedReportOf(event: TimelineEvent): string | null {
+    const saved = (event.payload as { saved_report?: { uuid?: unknown } } | null)?.saved_report;
+    return typeof saved?.uuid === 'string' ? saved.uuid : null;
+}
 
 /** The files a message carried, if any. */
 function attachmentsOf(event: TimelineEvent): Attached[] {
@@ -463,6 +480,9 @@ export function ChannelStream({
     // Was this useful? under Decibyl's replies (reply_feedback). Read once
     // per batch of replies, after auth, so a reload shows what was said.
     const feedbackOn = useFeature('reply_feedback') && assistant;
+    // Launch stream `agents`: keep a reply as a saved report, and name the
+    // helper a reply came from (screen 04: reports share this surface).
+    const reportsOn = useFeature('research_reports') && assistant;
     // Stream `reach`. Off, its rows are not drawn (the server does not
     // write them while off either).
     const outsideToolsOn = useFeature('outside_tools');
@@ -958,11 +978,18 @@ export function ChannelStream({
             );
         }
         if (event.kind !== 'message' || event.workflow_id != null) return null;
-        const outcome = (event.payload ?? {}) as { stopped?: boolean; failed?: boolean };
+        const outcome = (event.payload ?? {}) as { stopped?: boolean; failed?: boolean; helper?: string };
         const sources = sourcesForReply(inOrder, event.id);
-        if (!outcome.stopped && !outcome.failed && sources.length === 0) return null;
+        const canSave = reportsOn && !outcome.failed && event.folder_id == null;
+        if (!outcome.stopped && !outcome.failed && sources.length === 0 && !canSave && !outcome.helper) return null;
         return (
             <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                {outcome.helper && (
+                    <span className="text-xs text-muted-foreground" data-testid="reply-helper">
+                        {HELPER_NAMES[outcome.helper] ?? outcome.helper}
+                    </span>
+                )}
+                {canSave && <SaveReportButton eventId={event.id} />}
                 {(outcome.stopped || outcome.failed) && (
                     <>
                         <TaskStatus state={outcome.stopped ? 'partial' : 'failed'} />
@@ -1123,7 +1150,17 @@ export function ChannelStream({
                             <React.Fragment key={event.id}>
                             {divider}
                             <li className="flex gap-3">
-                                <ActivityRow event={event} who={activityWho(event)} />
+                                <ActivityRow event={event} who={activityWho(event)}>
+                                    {savedReportOf(event) && (
+                                        <Link
+                                            href={`/saved-reports/${savedReportOf(event)}`}
+                                            className="ml-2 inline-flex min-h-11 items-center underline md:min-h-0"
+                                            data-testid="open-saved-report"
+                                        >
+                                            Open report
+                                        </Link>
+                                    )}
+                                </ActivityRow>
                             </li>
                             </React.Fragment>
                         );

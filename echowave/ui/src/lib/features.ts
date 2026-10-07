@@ -66,6 +66,12 @@ export type Feature =
     | "first_task_onboarding"
     | "chat_shell"
     | "shell_mobile"
+    // Launch stream `agents` (LAUNCH-PLAN.md, phase 2).
+    | "launch_helpers"
+    | "research_reports"
+    | "follow_up_ledger"
+    | "trading_summaries"
+    | "describe_builder"
     // Launch stream `support` (LAUNCH-PLAN.md, phase 2).
     | "support_help"
     | "support_inbox"

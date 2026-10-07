@@ -794,6 +794,21 @@ CHAT_SHELL_ENABLED = _flag("CHAT_SHELL_ENABLED")
 # of the workflow canvas.
 SHELL_MOBILE_ENABLED = _flag("SHELL_MOBILE_ENABLED")
 
+# Launch stream `agents` (8 October 2026). Each off by default; see
+# AGENTS-LAUNCH.md and services/helpers/.
+# Screen 06: the helper picker in Chat -- Automatic and the five launch
+# helpers, each a configuration over Decibyl with a capability state.
+LAUNCH_HELPERS_ENABLED = _flag("LAUNCH_HELPERS_ENABLED")
+# Research keeps a saved report with its sources; the export is the same
+# rendering the screen shows.
+RESEARCH_REPORTS_ENABLED = _flag("RESEARCH_REPORTS_ENABLED")
+# Follow-up tracks commitments a person approved, and answers "who owes me".
+FOLLOW_UP_LEDGER_ENABLED = _flag("FOLLOW_UP_LEDGER_ENABLED")
+# Research summarises markets by a person's own interests: information only.
+TRADING_SUMMARIES_ENABLED = _flag("TRADING_SUMMARIES_ENABLED")
+# "Ask Decibyl to build or do anything": agents, routines and trackers from
+# a description, in Chat; nobody is sent to the old /start journey.
+DESCRIBE_BUILDER_ENABLED = _flag("DESCRIBE_BUILDER_ENABLED")
 # Launch stream `care` (LAUNCH-PLAN.md, phase 2): older people and their
 # families. Each off by default; see CARE.md and services/features.py.
 # Simple mode: large text, voice first, one thing at a time. A preference on

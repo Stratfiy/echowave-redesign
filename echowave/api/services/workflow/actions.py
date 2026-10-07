@@ -110,6 +110,13 @@ INSTALL_FROM_REPOSITORY = "install_from_repository"
 #: services/workflow/routines.py). Internal like the three above: Decibyl
 #: reaches it through schedule_routine, which has already read the words.
 SCHEDULE_ROUTINE = "schedule_routine"
+#: Track a commitment the person approves (launch stream `agents`,
+#: Follow-up; see services/helpers/commitments.py). Internal: reached
+#: through track_commitment, which has already validated the fields.
+TRACK_COMMITMENT = "track_commitment"
+#: Create a tracker the person described (the describe-it builder; see
+#: services/helpers/trackers.py). Internal for the same reason.
+CREATE_TRACKER = "create_tracker"
 #: One step Decibyl wants to take on a person's own computer that sends,
 #: pays, deletes or submits (see services/workflow/desktop_steps.py and
 #: echowave/desktop). Internal like the others: only the desktop app
@@ -170,6 +177,8 @@ INTERNAL_ACTIONS = (
     BUILD_FROM_SPEC,
     INSTALL_FROM_REPOSITORY,
     SCHEDULE_ROUTINE,
+    TRACK_COMMITMENT,
+    CREATE_TRACKER,
     DESKTOP_STEP,
     BROWSER_STEP,
     *CARE_ACTIONS,
@@ -475,14 +484,19 @@ async def resolve(
         if tool is None or not connected_tools.is_connected(tool):
             raise ActionError("That app is not connected here.")
         app = connected_tools.toolkit_of(tool)
+        args = {
+            "tool_uuid": tool.tool_uuid,
+            "tool_name": tool.name,
+            "toolkit": app,
+            "arguments": dict(arguments.get("arguments") or {}),
+        }
+        if arguments.get("commitment_id") is not None:
+            # A follow-up for a tracked commitment (Follow-up helper): part of
+            # the approved act, so it is in the version like the arguments.
+            args["commitment_id"] = int(arguments["commitment_id"])
         return {
             "action": action,
-            "args": {
-                "tool_uuid": tool.tool_uuid,
-                "tool_name": tool.name,
-                "toolkit": app,
-                "arguments": dict(arguments.get("arguments") or {}),
-            },
+            "args": args,
             "label": f"{tool.name} via {app}" if app else str(tool.name),
             "why": why,
             # What pressing Confirm does, in one derived line. Taken from the
@@ -519,6 +533,44 @@ async def resolve(
             return bot_from_brief.resolve(arguments)
         except bot_from_brief.BriefError as exc:
             raise ActionError(str(exc)) from exc
+
+    if action == TRACK_COMMITMENT:
+        from api.services import acting
+        from api.services.helpers import commitments
+
+        try:
+            fields = commitments.clean(arguments)
+        except commitments.Invalid as exc:
+            raise ActionError(str(exc)) from exc
+        return {
+            "action": TRACK_COMMITMENT,
+            # Whose follow-up list it joins: the person who asked, recorded
+            # now, not whoever later presses Confirm.
+            "args": {**fields.as_args(), "owner_user_id": acting.acting_user()},
+            "label": commitments.label(fields),
+            "why": why,
+            "effect": "Adds it to your follow-ups, private to you. Nothing is sent.",
+            "reversible": False,
+            "state": PROPOSED,
+        }
+
+    if action == CREATE_TRACKER:
+        from api.services import acting
+        from api.services.helpers import trackers
+
+        try:
+            spec = trackers.clean_spec(arguments)
+        except trackers.Invalid as exc:
+            raise ActionError(str(exc)) from exc
+        return {
+            "action": CREATE_TRACKER,
+            "args": {**spec, "owner_user_id": acting.acting_user()},
+            "label": trackers.label(spec),
+            "why": why,
+            "effect": "Creates an empty tracker, private to you. Nothing is sent.",
+            "reversible": False,
+            "state": PROPOSED,
+        }
 
     if action == INSTALL_FROM_REPOSITORY:
         repository = str(arguments.get("repository") or "").strip()[:200]
@@ -966,6 +1018,12 @@ async def propose(
             ),
         }
 
+    # Which helper asked, when one did (launch stream `agents`): every card
+    # carries organisation, member and helper. Not part of the version.
+    from api.services.helpers import turn as helper_turn
+
+    if helper_turn.current():
+        payload["helper"] = helper_turn.current()
     if _ledger_on(organization_id):
         # The exact act a Confirm will approve (design, "Approval state").
         payload["version"] = payload_version(payload)
@@ -1513,6 +1571,8 @@ async def _execute(
     """Do it. Returns one line on what happened; raises on refusal."""
     action = payload.get("action")
     args = payload.get("args") or {}
+    if action in (TRACK_COMMITMENT, CREATE_TRACKER):
+        return await _execute_helper_card(organization_id, payload, event_id)
     if action in OWNED_ACTIONS:
         return await _execute_owned(organization_id, payload)
     if action in IDENTITY_ACTIONS:
@@ -1776,6 +1836,40 @@ async def _execute(
         )
         return f"Done: {args.get('tool_name', 'the tool')}."
     raise ActionError("That is not something that can be done.")
+
+
+async def _execute_helper_card(
+    organization_id: int, payload: dict[str, Any], event_id: int | None
+) -> str:
+    """The launch-helper cards: track a commitment, create a tracker."""
+    args = payload.get("args") or {}
+    owner = args.get("owner_user_id") or (payload.get("confirmed") or {}).get("by")
+    if not owner:
+        raise ActionError("Nobody asked for this, so nobody owns it.")
+    if payload.get("action") == TRACK_COMMITMENT:
+        from api.services.helpers import commitments
+
+        try:
+            fields = commitments.clean(args)
+        except commitments.Invalid as exc:
+            raise ActionError(str(exc)) from exc
+        await commitments.create(
+            fields,
+            organization_id=organization_id,
+            user_id=int(owner),
+            approved_card_id=event_id,
+        )
+        return f"Tracking it: {commitments.label(fields)[len('Track: ') :]}."
+    from api.services.helpers import trackers
+
+    try:
+        spec = trackers.clean_spec(args)
+    except trackers.Invalid as exc:
+        raise ActionError(str(exc)) from exc
+    row = await trackers.create(
+        spec, organization_id=organization_id, user_id=int(owner)
+    )
+    return f"Created the tracker {row.name}. Tell me a row to add."
 
 
 async def _reverse(organization_id: int, payload: dict[str, Any]) -> None:

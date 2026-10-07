@@ -37,6 +37,7 @@ from api.routes.evals import router as evals_router
 from api.routes.extraction_library import router as extraction_library_router
 from api.routes.feature_admin import router as feature_admin_router
 from api.routes.folder import router as folder_router
+from api.routes.helpers import router as helpers_router
 from api.routes.identity import router as identity_router
 from api.routes.impersonation import router as impersonation_router
 from api.routes.knowledge_base import router as knowledge_base_router
@@ -173,6 +174,7 @@ router.include_router(bot_triggers_router)
 router.include_router(skills_router)
 router.include_router(tasks_router)
 router.include_router(controls_router)
+router.include_router(helpers_router)
 router.include_router(care_router)
 router.include_router(controls_admin_router)
 router.include_router(staff_console_router)
