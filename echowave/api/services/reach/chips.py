@@ -47,6 +47,8 @@ async def offer(
             "reason": reason,
             "why": (why or "")[:200],
             "offered_to": user_id,
+            # The chip is the person's: a colleague's thread never shows it.
+            "private_to": user_id,
         },
         in_channel=False,
     )

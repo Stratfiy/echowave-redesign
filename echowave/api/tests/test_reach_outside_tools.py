@@ -142,6 +142,7 @@ class TestTheChip:
             kinds=["reach_connect_offered"],
             limit=5,
             assistant_thread=True,
+            viewer_id=people.a.id,
         )
         chip = rows[0].payload
         assert chip["reach_kind"] == "tool" and chip["name"] == "Linear"

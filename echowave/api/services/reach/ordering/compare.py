@@ -129,6 +129,7 @@ async def compare(
                 "not_compared": not_compared,
                 "at": at.isoformat(),
                 "for_user_id": user_id,
+                "private_to": user_id,
             },
             in_channel=False,
         )

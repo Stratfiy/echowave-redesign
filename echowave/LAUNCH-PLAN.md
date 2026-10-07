@@ -375,6 +375,6 @@ hourly, reviews and merges each PR, and starts the next streams.
 | ops | 2 | claude/stream-ops | #524 | yes | see PR | |
 | aws-gateway | 2 | claude/stream-aws-gateway | | | | |
 | browser | 2 | claude/stream-browser | | | | |
-| reach | 2 | claude/stream-reach | | | | |
+| reach | 2 | claude/stream-reach | draft | yes (REACH.md) | see PR | |
 | care | 2 | claude/stream-care | | | | |
 | desktop | 2 | claude/stream-desktop | | | | |

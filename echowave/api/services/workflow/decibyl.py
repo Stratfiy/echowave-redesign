@@ -912,6 +912,9 @@ async def _history(
         organization_id=organization_id,
         limit=chat_memory.MAX_ROWS,
         thread_id=thread_id,
+        # The person asking reads their own reach rows; a colleague's turn
+        # on the same thread does not.
+        viewer_id=acting.valid_member(acting.acting_user()),
         **thread_filter(organization_id),
     )
     newest_first: list[tuple[str, str]] = []

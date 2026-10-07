@@ -19,6 +19,8 @@ vi.mock("@/client/sdk.gen", () => ({
     reviseOrderApiV1ReachOrdersOrderIdRevisePost: revise,
     checkOrderApiV1ReachOrdersOrderIdCheckPost: check,
 }));
+const flags = vi.hoisted(() => ({ ordering: true }));
+vi.mock("@/lib/features", () => ({ useFeature: (name: string) => (flags as Record<string, boolean>)[name] ?? false }));
 
 import { ActionCard } from "@/components/workflow/ActionCard";
 
@@ -72,6 +74,7 @@ const order = {
 };
 
 beforeEach(() => {
+    flags.ordering = true;
     detail.mockReset();
     settle.mockReset();
     revise.mockReset();
@@ -126,6 +129,14 @@ describe("before it is placed", () => {
             { item_id: "i3", quantity: 1 },
         ]);
         await waitFor(() => expect(onFired).toHaveBeenCalled());
+    });
+
+    it("switched off, it says nothing will be placed and offers no Approve", async () => {
+        flags.ordering = false;
+        detail.mockResolvedValue({ error: { detail: "Not Found" }, response: { status: 404 } });
+        render(<ActionCard event={event({})} />);
+        expect((await screen.findByTestId("order-switched-off")).textContent).toContain("nothing will be placed");
+        expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
     });
 
     it("a colleague sees that it is not theirs, and no details", async () => {

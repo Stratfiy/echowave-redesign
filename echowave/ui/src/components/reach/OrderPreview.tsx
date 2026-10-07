@@ -26,6 +26,7 @@ import type { ReachOrderDetail, TimelineEvent } from '@/client/types.gen';
 import { ActionPreview, type ApprovalStatus } from '@/components/shell/ActionPreview';
 import { Button } from '@/components/ui/button';
 import { detailFromError } from '@/lib/apiError';
+import { useFeature } from '@/lib/features';
 
 import { rupees } from './money';
 
@@ -52,6 +53,7 @@ export function OrderPreview({
     /** A new card replaced this one: the thread should refetch. */
     onFired?: () => void;
 }) {
+    const orderingOn = useFeature('ordering');
     const payload = (event.payload ?? {}) as Payload;
     const draft = payload.args?.draft;
     const [order, setOrder] = useState<ReachOrderDetail | null>(null);
@@ -86,6 +88,15 @@ export function OrderPreview({
         return (
             <p className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground" aria-busy="true">
                 Loading the order…
+            </p>
+        );
+    }
+    if (!orderingOn) {
+        // Rolled back: the server refuses to place it, so say that rather
+        // than show a bill with an Approve button that cannot work.
+        return (
+            <p className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground" data-testid="order-switched-off">
+                {event.summary}. Ordering is switched off here, so nothing will be placed.
             </p>
         );
     }

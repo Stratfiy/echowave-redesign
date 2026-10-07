@@ -44,6 +44,7 @@ class TestCompare:
             kinds=["reach_comparison"],
             limit=2,
             assistant_thread=True,
+            viewer_id=people.a.id,
         )
         table = rows[0].payload
         assert [c["app"] for c in table["compared"]] == ["Zomato"]

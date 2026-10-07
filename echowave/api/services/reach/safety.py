@@ -37,7 +37,9 @@ MAX_RESULT_CHARS = 6_000
 #: How much of a server's own description of a tool reaches the model.
 MAX_DESCRIPTION_CHARS = 300
 
-_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f​-‏‪-‮⁦-⁩]")
+_CONTROL = re.compile(
+    r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\u200b-\u200f\u202a-\u202e\u2066-\u2069]"
+)
 
 #: Phrases that, in a result, are addressed to the model rather than about
 #: the world. A flag, never a filter: the text is still shown as data.

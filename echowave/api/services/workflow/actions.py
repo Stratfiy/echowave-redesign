@@ -630,6 +630,14 @@ async def resolve(
     }
 
 
+def _owned_switched_on(organization_id: int, action: str | None) -> bool:
+    """An order needs ``ordering``; an outside write needs ``outside_tools``."""
+    from api.services import reach
+
+    flag = reach.ORDERING if action == PLACE_ORDER else reach.OUTSIDE_TOOLS
+    return reach.enabled(flag, organization_id)
+
+
 async def _resolve_owned(
     organization_id: int, action: str, arguments: dict[str, Any], why: str
 ) -> dict[str, Any]:
@@ -641,6 +649,8 @@ async def _resolve_owned(
     """
     from api.services import acting
 
+    if not _owned_switched_on(organization_id, action):
+        raise ActionError("That is not switched on here.")
     owner = acting.valid_member(acting.acting_user())
     named = acting.valid_member(arguments.get("owner_user_id"))
     if owner is None or (named is not None and named != owner):
@@ -661,6 +671,8 @@ async def _resolve_owned(
             "why": why,
             "effect": card["effect"],
             "owner_user_id": owner,
+            # Only its owner reads this card (agent_events' viewer filter).
+            "private_to": owner,
             "reversible": False,
             "state": PROPOSED,
         }
@@ -687,6 +699,7 @@ async def _resolve_owned(
             "undone from here."
         ),
         "owner_user_id": owner,
+        "private_to": owner,
         "reaches_people": True,
         "reversible": False,
         "state": PROPOSED,
@@ -748,6 +761,7 @@ async def _already_proposed(
         limit=DUPLICATE_WINDOW,
         assistant_thread=assistant,
         thread_id=agent_timeline.current_thread() if assistant else None,
+        viewer_id=payload.get("private_to"),
     )
     for row in rows or []:
         if _is_same_proposal(row, payload):
@@ -1156,6 +1170,9 @@ async def _say(event: Any, line: str) -> None:
     from api.services.workflow import decibyl
 
     payload: dict[str, Any] = {"body": line, "action_event_id": event.id}
+    if (event.payload or {}).get("private_to"):
+        # What happened to a private card is as private as the card.
+        payload["private_to"] = event.payload["private_to"]
     if event.workflow_id is None:
         payload["from"] = decibyl.NAME
     await agent_timeline.record(
@@ -1182,6 +1199,9 @@ async def _execute_owned(organization_id: int, payload: dict[str, Any]) -> str:
     confirmer = confirmed.get("by")
     if confirmer != payload.get("owner_user_id"):
         raise ActionError("Only the person this is for could approve it.")
+    if not _owned_switched_on(organization_id, action):
+        # Rolled back between approval and the run: off means off.
+        raise ActionError("This has been switched off here, so nothing was done.")
     if action == PLACE_ORDER:
         from api.services.reach.ordering import service as ordering
 

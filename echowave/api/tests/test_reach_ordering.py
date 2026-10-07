@@ -208,6 +208,26 @@ class TestApproval:
         await actions.run(event.id, people.org)
         assert reach_fakes.ORDERS == {}
 
+    async def test_switched_off_after_approval_nothing_is_placed(
+        self, reach_on, people, no_queue, monkeypatch
+    ):
+        await connect_zomato(people.org, people.a.id)
+        _, event = await _card(people.org, people.a.id)
+        await actions.settle(
+            organization_id=people.org,
+            event_id=event.id,
+            verb="confirm",
+            user_id=people.a.id,
+            version=event.payload.get("version"),
+        )
+        monkeypatch.setattr(constants, "ORDERING_ENABLED", False)
+        await actions.run(event.id, people.org)
+        after = (
+            await db_client.get_agent_event(event.id, organization_id=people.org)
+        ).payload
+        assert after["state"] == "failed" and "switched off" in after["error"]
+        assert reach_fakes.ORDERS == {}
+
     async def test_a_changed_bill_is_refused_not_placed(
         self, reach_on, people, no_queue
     ):
@@ -316,6 +336,7 @@ class TestHonestStates:
             kinds=["reach_connect_offered"],
             limit=5,
             assistant_thread=True,
+            viewer_id=people.a.id,
         )
         chip = rows[0].payload
         assert chip["provider"] == "zomato" and chip["state"] == "available"
