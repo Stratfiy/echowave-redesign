@@ -1225,6 +1225,49 @@ def answer_refusal(payload: dict[str, Any], user_id: int) -> str | None:
     return None
 
 
+#: The fields that give a card its own "who decides" rule
+#: (``answer_refusal``); such a card is not also held to its thread.
+_OWNER_FIELDS = ("only_user_id", "owner_user_id", "private_to", "requested_by")
+_OWNED_KINDS = (DESKTOP_STEP, BROWSER_STEP, MEETING_FOLLOW_UP)
+
+
+async def thread_refusal(event: Any, user_id: int) -> str | None:
+    """``NOT_HERE`` when a card sits on a private Decibyl conversation this
+    person may not read (D-1b), else None.
+
+    The rule is the timeline's: a conversation is the person's who wrote its
+    first line, and one with no author on record is an Admin's. Without it a
+    plain member could approve or edit a card on a colleague's private chat
+    by its id, though they could not see it. A card with its own owner rule
+    (``answer_refusal``) is decided by that rule instead, and cards on an
+    agent's thread or a channel are the workspace's, as before. Nothing
+    changes while private threads are off.
+    """
+    from api import constants
+
+    if not constants.DECIBYL_PRIVATE_THREADS_ENABLED:
+        return None
+    if event.workflow_id is not None or event.folder_id is not None:
+        return None
+    payload = dict(event.payload or {})
+    if payload.get("action") in _OWNED_KINDS or any(
+        payload.get(field) is not None for field in _OWNER_FIELDS
+    ):
+        return None
+    author = await db_client.thread_author(
+        organization_id=event.organization_id, thread_id=event.thread_id
+    )
+    if author is not None:
+        return None if author == user_id else NOT_HERE
+    from api.enums import ORGANIZATION_ROLE_RANK, OrganizationRole
+
+    membership = await db_client.get_membership(user_id, event.organization_id)
+    rank = ORGANIZATION_ROLE_RANK.get(membership.role if membership else "", -1)
+    if rank >= ORGANIZATION_ROLE_RANK[OrganizationRole.ADMIN.value]:
+        return None
+    return NOT_HERE
+
+
 def _assert_owner(payload: dict[str, Any], user_id: int) -> None:
     """A private card is settled and edited by its owner and nobody else --
     not a colleague, not an admin. Said the way a wrong tenant is."""
@@ -1294,6 +1337,9 @@ async def settle(
     arms it once: the move from proposed is a compare-and-swap.
     """
     event = await _proposal(organization_id, event_id)
+    refusal = await thread_refusal(event, user_id)
+    if refusal is not None:
+        raise ActionError(refusal)
     payload = dict(event.payload or {})
     state = payload.get("state") or PROPOSED
     refusal = answer_refusal(payload, user_id)
@@ -1492,6 +1538,9 @@ async def revise(
     if not isinstance(arguments, dict) or not arguments:
         raise ActionError("Say what to change.")
     event = await _proposal(organization_id, event_id)
+    refusal = await thread_refusal(event, user_id)
+    if refusal is not None:
+        raise ActionError(refusal)
     payload = dict(event.payload or {})
     state = payload.get("state") or PROPOSED
     _assert_owner(payload, user_id)

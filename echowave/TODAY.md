@@ -74,7 +74,9 @@ per-workspace overrides from the staff console.
   conversation's privacy (D-1b): with private threads on, only its author
   sees it, and a card without an author is visible to an Admin. Anything
   else in the workspace is visible as before. Another workspace's card
-  reads as "not here".
+  reads as "not here". Answering follows the same rule: `settle` and
+  `revise` refuse a colleague's private card with "That proposal is not
+  here." (`actions.thread_refusal`), so knowing its id is not enough.
 * **Exact preview**: the verb as the title, then the account (digits masked
   to the last four), recipient, amount, content, attachments, timing and
   consequence. Nothing is truncated. The decision sits in a sticky,
@@ -213,6 +215,12 @@ directly above Save ("Every Monday at 10:00. Next run: Mon 12 Oct 2026,
 10:00 IST (Asia/Kolkata)."), in the workspace's zone and hours, and says that
 switching a routine off stops future runs while a run already started
 finishes.
+
+A routine armed from a card in someone's private chat stays theirs: the
+routines list hides it from colleagues (`routines.hidden_from`), and its
+runs and its started/skipped lines go to that chat's thread, not the shared
+one. A routine saved with `routine_start_on` off has no card link, so it is
+workspace-visible as before.
 
 ## Events (catalogue)
 

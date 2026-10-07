@@ -71,6 +71,12 @@ async def fire_due_routines(ctx) -> None:
                 broken_apps=broken.get(organization_id, set()),
             )
 
+            # Lines about a routine set in a private chat go to that chat.
+            origin = await routines.origin_card(
+                organization_id, routine.armed_by_card_event_id
+            )
+            thread = origin.thread_id if origin is not None else None
+
             if decision.fire:
                 # Stamped before the job is enqueued, not after. The stamp is
                 # what stops a second firing, so a crash between the two must
@@ -85,6 +91,7 @@ async def fire_due_routines(ctx) -> None:
                     actor=AgentEventActor.SYSTEM.value,
                     summary=f"{routine.name} started its scheduled run",
                     workflow_id=routine.workflow_id,
+                    thread_id=thread,
                     payload={
                         "routine_id": routine.id,
                         "slot": decision.slot.isoformat(),
@@ -116,6 +123,7 @@ async def fire_due_routines(ctx) -> None:
                 actor=AgentEventActor.SYSTEM.value,
                 summary=f"{routine.name} did not run: {decision.detail}",
                 workflow_id=routine.workflow_id,
+                thread_id=thread,
                 payload={"routine_id": routine.id, "reason": reason},
             )
         except Exception as exc:  # noqa: BLE001
