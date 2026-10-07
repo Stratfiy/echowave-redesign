@@ -89,7 +89,14 @@ async def test_nothing_is_written_unless_both_switches_are_on(
     monkeypatch.setattr(constants, "EVENT_CATALOGUE_ENABLED", True)
     assert await telemetry.record(async_session, "cost_stop_engaged") is None
     await async_session.flush()
-    assert (await async_session.scalars(select(AnalyticsOutboxModel))).all() == []
+    # Only this event: other streams' tests share the outbox table.
+    assert (
+        await async_session.scalars(
+            select(AnalyticsOutboxModel).where(
+                AnalyticsOutboxModel.name == "cost_stop_engaged"
+            )
+        )
+    ).all() == []
 
 
 @pytest.mark.asyncio
@@ -106,7 +113,9 @@ async def test_record_writes_one_pseudonymous_row_and_health_sees_it(
         properties={"status": "succeeded", "command": "laya.rollback"},
     )
     assert event_id
-    row = await async_session.scalar(select(AnalyticsOutboxModel))
+    row = await async_session.scalar(
+        select(AnalyticsOutboxModel).where(AnalyticsOutboxModel.event_id == event_id)
+    )
     assert row.name == "ops_command_executed"
     env = row.envelope
     assert env["user_id"].startswith("u_") and env["workspace_id"].startswith("w_")
@@ -161,15 +170,21 @@ async def test_costing_a_run_records_usage_cost_in_the_same_transaction(
         await async_session.flush()
         return row
 
+    def mine(run_id: int):
+        # Only this run's events: other streams' tests share the outbox table.
+        return select(AnalyticsOutboxModel).where(
+            AnalyticsOutboxModel.envelope["task_id"].as_string() == f"run-{run_id}"
+        )
+
     off = await run()
     await cost_workflow_run(async_session, off.id)
-    assert (await async_session.scalars(select(AnalyticsOutboxModel))).all() == []
+    assert (await async_session.scalars(mine(off.id))).all() == []
 
     monkeypatch.setattr(constants, "SERVER_ANALYTICS_ENABLED", True)
     monkeypatch.setattr(constants, "EVENT_CATALOGUE_ENABLED", True)
     on = await run()
     await cost_workflow_run(async_session, on.id)
-    rows = (await async_session.scalars(select(AnalyticsOutboxModel))).all()
+    rows = (await async_session.scalars(mine(on.id))).all()
     assert [r.name for r in rows] == ["usage_cost_recorded"]
     env = rows[0].envelope
     assert env["task_id"] == f"run-{on.id}"
