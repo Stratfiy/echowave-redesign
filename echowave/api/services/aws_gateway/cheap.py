@@ -27,6 +27,14 @@ _JSON = re.compile(r"\{.*\}", re.DOTALL)
 
 
 def available() -> bool:
+    """On, configured, enabled in AWS -- and not rolled back. The cheap tier
+    answers in Laya's place, so the ops rollback switch (``laya_rollback``)
+    silences it exactly as it silences Laya; Auto's hard deadline and
+    circuit breaker (``ops/laya_eval.guarded_choose``) wrap it the same way."""
+    from api.services import features
+
+    if features.is_on("laya_rollback"):
+        return False
     return config.cheap_status().available
 
 

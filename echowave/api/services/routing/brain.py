@@ -21,6 +21,7 @@ a call on Auto runs on what Auto resolves to with no router: Everyday.
 
 from __future__ import annotations
 
+import asyncio
 import re
 from dataclasses import asdict, dataclass
 from typing import Any
@@ -103,14 +104,46 @@ class Route:
         return asdict(self)
 
 
+_PENDING: set[asyncio.Task] = set()
+
+
+def _count_shadow(laya_eval, ruled: str, asked: decision.Decision) -> None:
+    """Agreement counters for the evaluation report, off the reply path."""
+    from api.services import features
+
+    if not features.is_on(laya_eval.GUARDRAILS_FLAG):
+        return
+    try:
+        task = asyncio.get_running_loop().create_task(
+            laya_eval.record_shadow(ruled, asked)
+        )
+    except RuntimeError:
+        return
+    _PENDING.add(task)
+    task.add_done_callback(_PENDING.discard)
+
+
 async def route(text: str, *, attachments: int = 0) -> Route:
     """Sort one piece of work. Never raises: the rules are always there."""
+    from api.services.ops import laya_eval
+
     ruled = by_rules(text, attachments=attachments)
     mode = constants.LAYA_ROUTING
     if mode not in ("shadow", "on") or not decision.enabled():
         return Route(kind=ruled, preset=PRESET_FOR[ruled], source="rules")
+    # The rollback switch (stream ops): rules alone, Laya never asked.
+    if laya_eval.rolled_back():
+        return Route(
+            kind=ruled,
+            preset=PRESET_FOR[ruled],
+            source="rules",
+            abstained="rolled_back",
+        )
 
-    asked = await decision.choose(QUESTION, KINDS, text)
+    # Behind the hard deadline and circuit breaker while laya_guardrails is
+    # on; exactly decision.choose while it is off.
+    asked = await laya_eval.guarded_choose(QUESTION, KINDS, text)
+    _count_shadow(laya_eval, ruled, asked)
     if mode == "shadow":
         if asked.label is not None and asked.label != ruled:
             logger.info(

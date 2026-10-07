@@ -75,6 +75,48 @@ def _cipher() -> Fernet:
         ) from exc
 
 
+def seal(plaintext: str) -> str:
+    """Encrypt a key under the platform secret, for a store that holds a key
+    before or after it is the active one (the credential lifecycle's staged
+    and previous keys, services/ops/credentials.py)."""
+    return _cipher().encrypt(plaintext.encode()).decode()
+
+
+def unseal(ciphertext: str) -> str:
+    """The inverse of :func:`seal`. Raises PlatformCredentialError when the
+    secret has changed since the key was sealed."""
+    try:
+        return _cipher().decrypt(ciphertext.encode()).decode()
+    except InvalidToken as exc:
+        raise PlatformCredentialError(
+            "The sealed key cannot be decrypted; PLATFORM_CREDENTIAL_SECRET has changed."
+        ) from exc
+
+
+def check_key_shape(api_key: str) -> str:
+    """The checks :func:`set_credential` applies to a pasted key, reusable by
+    the lifecycle's stage step. Returns the trimmed key."""
+    api_key = (api_key or "").strip()
+    if len(api_key) < 8:
+        raise PlatformCredentialError(
+            "That does not look like an API key. Paste the whole value."
+        )
+    if MASK_RUN.search(api_key):
+        raise PlatformCredentialError(
+            "That is the masked key the dashboard displays, not the key itself."
+        )
+    if any(ord(character) > 127 for character in api_key):
+        raise PlatformCredentialError(
+            "That key contains characters an API key cannot hold."
+        )
+    return api_key
+
+
+def normalise_slot(component: CostComponent | str, provider: str) -> tuple[str, str]:
+    """Public form of the (component, provider) validation."""
+    return _normalise(component, provider)
+
+
 def encryption_is_configured() -> bool:
     """Whether keys can be stored at all, for the admin screen to say so."""
     try:

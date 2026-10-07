@@ -1,5 +1,9 @@
 # Going live
 
+> Routine deploys, rollback, environment parity and day-to-day operations
+> are in **`OPS-RUNBOOK.md`**, which is reconciled against the workflows.
+> This page is the first-box and configuration reference.
+
 ## Deploying to test it yourself first
 
 Most of this document is about serving customers. If you are pushing to a box
@@ -403,7 +407,7 @@ then add the id to `BEDROCK_ENABLED_MODELS` and restart.
 | Flag | What it does | Settings |
 | --- | --- | --- |
 | `AWS_FALLBACK_BRAIN_ENABLED` | When the platform's Claude errors or times out (after the usual vendor fallbacks), a Bedrock model answers the turn. The reply ends with "(Claude was unavailable just now, so a backup model answered this one.)"; usage is recorded as `aws_bedrock` under feature `<feature>:fallback` | `BEDROCK_FALLBACK_MODEL` (e.g. Amazon Nova Pro or an open-weight model), `BEDROCK_FALLBACK_TIMEOUT_SECONDS` (60) |
-| `AWS_CHEAP_TIER_ENABLED` | A small model sorts work for Auto in Laya's place; the rules still decide when it abstains | `BEDROCK_CHEAP_MODEL` (Nova Micro or Lite), `BEDROCK_CHEAP_TIMEOUT_MS` (1500) |
+| `AWS_CHEAP_TIER_ENABLED` | A small model sorts work for Auto in Laya's place; the rules still decide when it abstains. It sits under the same ops guardrails as Laya: the hard deadline and circuit breaker (`laya_guardrails`), and `laya_rollback` silences it | `BEDROCK_CHEAP_MODEL` (Nova Micro or Lite), `BEDROCK_CHEAP_TIMEOUT_MS` (1500) |
 | `AWS_EMBEDDINGS_ENABLED` | "Multilingual (AWS)" knowledge search on Settings → Models. The vector column holds 1536 numbers, so only a model that returns 1536 is offered (Cohere Embed v4); documents are re-read for the new model | `BEDROCK_EMBEDDING_MODEL`, `BEDROCK_EMBEDDING_DIMENSIONS` (1536) |
 | `AWS_NOVA_SONIC_ENABLED` | Nova Sonic speech-to-speech as the `nova` tier, for Hindi and Indian English only (any other language runs on the natural tier). Sarvam stays the default for Indian-language voice | `NOVA_SONIC_MODEL`, `NOVA_SONIC_REGION`, `NOVA_SONIC_VOICE` |
 
@@ -474,6 +478,10 @@ Notes:
 * Check the Nova Sonic action name against the Bedrock IAM reference when you
   add it; it is the one statement here not exercised by the read-only check.
 
+The fallback brain's spend, like every direct model call, counts toward the
+ops cost stop (`cost_stop`), which now reads `model_usage` priced on the rate
+card beside call receipts.
+
 ### Prices
 
 Rows for `anthropic_aws` (Claude Platform on AWS) and `aws_bedrock` (Bedrock:
@@ -493,6 +501,12 @@ stored has to be edited.
 
 ## Updating a running box
 
+**Routinely, you do not do this by hand.** A merge to `main` runs
+`.github/workflows/deploy.yml`, which hands `scripts/ci_deploy.sh` to the box
+over SSM: fetch, build, up, migrate, seed rates, build docs, health check,
+roll back on failure (`OPS-RUNBOOK.md` section 4). The manual path below is for
+a box that is not wired to the workflow yet, and for break-glass.
+
 Pull and rebuild in place:
 
 ```bash
@@ -504,17 +518,18 @@ git pull --recurse-submodules
 cd echowave
 sudo ./remote_up.sh --build
 
-# Docs are a build artifact, not a container. A pull that changed .mdx files
-# changes nothing on the docs host until this runs.
+# Docs are a build artifact, not a container. ci_deploy.sh builds them on
+# every workflow deploy; on this manual path, this is what builds them.
 cd docs && npm ci && npm run build && cd ..
 ```
 
-### Migrations do not run themselves on this path
+### Migrations run at container start, and again in the deploy
 
-Only the Helm chart runs `alembic upgrade head` as a hook. On the Docker/EC2
-path above **nothing migrates the database for you** — the containers come up
-against whatever schema is already there, and the failures that produces are
-confusing rather than loud. Run it yourself, from the host, after the pull:
+`scripts/start_services_docker.sh` runs `alembic upgrade head` when the api
+container starts (roles `all` and `control`; a `media` node skips it), and
+`ci_deploy.sh` runs it once more after `up`. So both the workflow and
+`remote_up.sh` migrate. Check the result rather than assuming it, from the
+host or with the `migrate-status` action of `.github/workflows/ops.yml`:
 
 ```bash
 set -a && source api/.env && set +a

@@ -34,7 +34,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
-from api.services import acting, prompt_budget, reporting_window
+from api.services import acting, features, prompt_budget, reporting_window
 from api.services.billing import model_usage
 from api.services.documents import tools as procurement
 from api.services.knowledge_graph import personal as personal_memory
@@ -58,6 +58,7 @@ from api.services.workflow import (
     prospects,
     records,
     reply_draft,
+    reply_stop,
     routines,
     self_edit,
     skill_context,
@@ -326,6 +327,14 @@ async def ask(
         thread_id=thread_id,
     )
 
+    # The person's daily allowance of turns (operational quotas): held even
+    # in free mode. Over it, the answer is a line in the thread saying so,
+    # and nothing is asked of any model or bot. No-op while switched off.
+    if await turn_refused(
+        organization_id=organization_id, user_id=user_id, thread_id=thread_id
+    ):
+        return []
+
     from api.tasks.arq import enqueue_job
     from api.tasks.function_names import FunctionNames
 
@@ -379,6 +388,47 @@ async def ask(
             thread_id=thread_id,
         )
     return asked
+
+
+async def turn_refused(
+    *,
+    organization_id: int,
+    user_id: int | None,
+    thread_id: str | None = None,
+    workflow_id: int | None = None,
+    folder_id: int | None = None,
+) -> bool:
+    """Spend one of the person's turns, or say in the thread that today's are
+    used and return True. A line nobody can be charged for (no person) is
+    not refused: every person-facing entry passes the signed-in member."""
+    from api.services import member_preferences, quotas
+
+    if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id <= 0:
+        return False
+    try:
+        await quotas.consume(user_id, quotas.MODEL_TURNS)
+        return False
+    except quotas.QuotaExceeded as exc:
+        usage = exc.usage
+    line = quotas.message(usage, await member_preferences.timezone_of(user_id))
+    on_thread = workflow_id is None and folder_id is None
+    await agent_timeline.record(
+        organization_id=organization_id,
+        kind=AgentEventKind.MESSAGE.value,
+        actor=AgentEventActor.AGENT.value,
+        summary=line,
+        workflow_id=workflow_id,
+        folder_id=folder_id,
+        payload={
+            "body": line,
+            **({"from": NAME} if on_thread else {}),
+            "quota": usage.as_dict(),
+        },
+        # A bot's own chat is not its channel; a channel line is.
+        in_channel=folder_id is not None,
+        thread_id=thread_id if on_thread else None,
+    )
+    return True
 
 
 # --- the context -----------------------------------------------------------
@@ -720,7 +770,12 @@ async def build_context(organization_id: int, question: str) -> str:
             facts=len(memory_rows),
             passages=len(knowledge.get("chunks") or []),
         ),
-        payload={"from": NAME},
+        payload={
+            "from": NAME,
+            "sources": sources_read(
+                bots=len(members), facts=len(memory_rows), knowledge=knowledge
+            ),
+        },
         in_channel=False,
     )
 
@@ -750,6 +805,49 @@ def skills_section(installed: list[Any], invoked: list[Any]) -> str:
     if not block:
         return ""
     return f"## Skills this account installed\n{block}\n\n"
+
+
+def sources_read(
+    *, bots: int, facts: int, knowledge: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """What an answer was read from, for the sources panel (screen 04).
+
+    One entry per reading, including the one that could not run: "2 of 3
+    sources checked" is the honest line when the knowledge base is not set
+    up, and a panel that lists only what worked hides that it was missing.
+    """
+    chunks = knowledge.get("chunks") or []
+    documents: list[str] = []
+    for chunk in chunks[:KNOWLEDGE_CHUNKS]:
+        name = chunk.get("document_name") or chunk.get("filename")
+        if name and name not in documents:
+            documents.append(str(name))
+    knowledge_ok = knowledge.get("status") != "unavailable"
+    return [
+        {
+            "kind": "team",
+            "label": "Your team",
+            "status": "read",
+            "detail": f"{bots} agent{'s' if bots != 1 else ''}",
+        },
+        {
+            "kind": "memory",
+            "label": "Confirmed facts",
+            "status": "read",
+            "detail": f"{facts} fact{'s' if facts != 1 else ''}",
+        },
+        {
+            "kind": "knowledge",
+            "label": "Company knowledge",
+            "status": "read" if knowledge_ok else "unavailable",
+            "detail": (
+                f"{len(chunks)} passage{'s' if len(chunks) != 1 else ''}"
+                if knowledge_ok
+                else "Not set up for this workspace"
+            ),
+            "documents": documents,
+        },
+    ]
 
 
 def readings_line(*, bots: int, facts: int, passages: int) -> str:
@@ -876,6 +974,9 @@ async def _answer(
     """The turn itself, inside the thread its caller set."""
     from api.services.agent_builder import client, settings
 
+    # Which model wrote the reply, for feedback stored against it; None when
+    # the turn never reached one.
+    model = None
     context = await build_context(organization_id, text)
     context = f"{context}\n\n{await office_context(organization_id, subjects)}"
     handed = ""
@@ -924,6 +1025,10 @@ async def _answer(
 
     #: The backup model's id when it answered any part of this turn.
     backup_model = ""
+    failed = False
+    stopped = False
+    # A Stop meant for an earlier reply must not end this one.
+    await reply_stop.clear(organization_id, thread_id)
     try:
         if not preset:
             # Auto: no brain picked for this turn, so the turn's own work
@@ -1027,23 +1132,38 @@ async def _answer(
             from api.services.aws_gateway import fallback
 
             body = fallback.with_note(body)
+    except reply_stop.Stopped as exc:
+        # The person pressed Stop: what had formed is the reply, marked so
+        # the screen says it is partial rather than presenting it as whole.
+        stopped = True
+        body = (exc.text or "").strip() or "Stopped before I said anything."
     except settings.OwnKeyMissing as exc:
         # BYOK-1: the account runs on its own keys and none can answer. Said
         # plainly on the thread rather than charged to Decibyl's key.
+        failed = True
         body = str(exc)
     except client.BuilderClientError as exc:
         # The vendor's own refusal, already said for a person to read: out
         # of credit, rate limited, a rejected key. "I could not think that
         # through" hid which of those it was, and each is fixed differently.
         logger.error("Decibyl could not answer: {}", exc)
+        failed = True
         body = str(exc)
     except Exception as exc:  # noqa: BLE001 - the thread must say something
         logger.error("Decibyl could not answer: {}", exc)
+        failed = True
         body = (
             "I could not think that through just now. This is us, not you; "
             "try again in a moment."
         )
 
+    # ``failed`` and ``stopped`` are the turn's state for the screen (task
+    # states on screen 04): a refusal must never read as a finished answer.
+    outcome: dict[str, Any] = {}
+    if failed:
+        outcome["failed"] = True
+    if stopped:
+        outcome["stopped"] = True
     await agent_timeline.record(
         organization_id=organization_id,
         kind=AgentEventKind.MESSAGE.value,
@@ -1053,13 +1173,25 @@ async def _answer(
             "body": body,
             "from": NAME,
             "preset": preset,
+            # The model that actually answered: the backup model's, on
+            # Bedrock, when the fallback brain stood in for Claude.
+            "model": (
+                f"aws_bedrock:{backup_model}"
+                if backup_model
+                else f"{model.provider}:{model.model}"
+                if model is not None
+                else None
+            ),
             **({"backup_model": backup_model} if backup_model else {}),
+            **outcome,
         },
         in_channel=False,
     )
     # After the row, so the screen swaps the forming text for the row rather
     # than showing a blank between them.
     await reply_draft.clear(organization_id)
+    if stopped:
+        await reply_stop.clear(organization_id, thread_id)
     # And into the graph, with time, so what the person said on the thread
     # can be asked about later (Family B). No graph, nothing happens.
     try:
@@ -1650,6 +1782,10 @@ async def _speak(
     from api.services.agent_builder import client
 
     last = {"at": 0.0}
+    # Stop (screen 04): read on the same beat as the draft is written, so a
+    # person's Stop lands within a quarter of a second and the text so far
+    # becomes the reply (see reply_stop).
+    can_stop = features.is_on("chat_shell", organization_id)
 
     async def on_text(text: str) -> None:
         # A few writes a second is plenty for a screen polling at that rate,
@@ -1658,6 +1794,10 @@ async def _speak(
         if now - last["at"] < 0.25:
             return
         last["at"] = now
+        if can_stop and await reply_stop.requested(
+            organization_id, agent_timeline.current_thread()
+        ):
+            raise reply_stop.Stopped(text)
         await reply_draft.set_draft(organization_id, text)
 
     # A turn on the account's own key is recorded apart (BYOK-1): the usage

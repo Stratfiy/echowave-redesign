@@ -135,7 +135,7 @@ def blocks(card: Card) -> list[dict[str, Any]]:
                         "type": "button",
                         "text": {"type": "plain_text", "text": label},
                         "action_id": verb,
-                        "value": button_id(card.event_id, verb),
+                        "value": button_id(card.event_id, verb, card.version),
                         **({"style": "primary"} if verb == "confirm" else {}),
                     }
                     for verb, label in buttons

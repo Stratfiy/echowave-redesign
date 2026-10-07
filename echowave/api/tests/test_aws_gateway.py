@@ -1131,9 +1131,10 @@ class TestAutoSaysSo:
     async def test_the_chat_reply_carries_the_note_and_the_record(self):
         from unittest.mock import AsyncMock, patch
 
+        from tests.test_decibyl_connected_tools import _thread
+
         from api.services.agent_builder.client import ModelReply
         from api.services.workflow import connected_tools, decibyl
-        from tests.test_decibyl_connected_tools import _thread
 
         reply = ModelReply(text="Your order ships today.", fallback_model=NOVA_PRO)
         with (
@@ -1153,13 +1154,16 @@ class TestAutoSaysSo:
         assert body == f"Your order ships today.\n\n{fallback.NOTE}"
         payload = record.await_args_list[-1].kwargs["payload"]
         assert payload["backup_model"] == NOVA_PRO
+        # Controls' provider:model on the reply names the model that answered.
+        assert payload["model"] == f"aws_bedrock:{NOVA_PRO}"
 
     async def test_a_claude_reply_is_untouched(self):
         from unittest.mock import AsyncMock, patch
 
+        from tests.test_decibyl_connected_tools import _thread
+
         from api.services.agent_builder.client import ModelReply
         from api.services.workflow import connected_tools, decibyl
-        from tests.test_decibyl_connected_tools import _thread
 
         with (
             _thread(),
@@ -1173,3 +1177,107 @@ class TestAutoSaysSo:
         ):
             body = await decibyl.answer(7, "where is my order?")
         assert body == "Ships today."
+
+
+# --- under ops' guardrails (Laya rollback, deadline, breaker; cost stop) -----------
+
+
+def _cheap_ready(monkeypatch):
+    _bedrock_account(monkeypatch, enabled=NOVA_MICRO)
+    monkeypatch.setattr(constants, "AWS_CHEAP_TIER_ENABLED", True)
+    monkeypatch.setattr(constants, "BEDROCK_CHEAP_MODEL", NOVA_MICRO)
+    monkeypatch.setattr(constants, "LAYA_ROUTING", "on")
+
+
+@pytest.mark.asyncio
+class TestTheCheapTierUnderLayasGuardrails:
+    async def test_the_rollback_switch_silences_it(self, monkeypatch):
+        from api.services.routing import brain, decision
+
+        _cheap_ready(monkeypatch)
+        runtime = _FakeRuntime(
+            converse=_converse_reply('{"choice": "deep", "confidence": 0.9}')
+        )
+        _use_runtime(monkeypatch, runtime)
+        monkeypatch.setattr(constants, "LAYA_ROLLBACK_ENABLED", True)
+        assert not cheap.available()
+        assert not decision.enabled()
+        route = await brain.route("hi")
+        assert route.source == "rules"
+        assert runtime.requests == []
+
+    async def test_the_hard_deadline_and_breaker_wrap_it(self, monkeypatch):
+        import asyncio
+
+        from api.services.ops import laya_eval
+        from api.services.routing import brain
+
+        _cheap_ready(monkeypatch)
+        monkeypatch.setattr(constants, "LAYA_GUARDRAILS_ENABLED", True)
+        monkeypatch.setattr(constants, "LAYA_HARD_DEADLINE_MS", 20)
+        monkeypatch.setattr(constants, "LAYA_BREAKER_FAILURES", 2)
+        monkeypatch.setattr(constants, "BEDROCK_CHEAP_TIMEOUT_MS", 5000)
+        laya_eval.reset_breaker()
+
+        class Slow(_FakeRuntime):
+            async def converse(self, **request):
+                self.requests.append(request)
+                await asyncio.sleep(1)
+
+        runtime = Slow()
+        _use_runtime(monkeypatch, runtime)
+        try:
+            first = await brain.route("hi")
+            second = await brain.route("hi")
+            assert first.source == "laya_fallback" and first.abstained == "deadline"
+            assert second.abstained == "deadline"
+            # Two deadline misses open the breaker: the third is not asked.
+            third = await brain.route("hi")
+            assert third.abstained == "circuit_open"
+            assert len(runtime.requests) == 2
+        finally:
+            laya_eval.reset_breaker()
+
+
+@pytest.mark.asyncio
+class TestFallbackSpendReachesTheCostStop:
+    async def test_direct_model_spend_is_counted_and_byok_is_not(
+        self, async_session, monkeypatch
+    ):
+        from datetime import UTC, datetime, timedelta
+
+        from api.db.models import ModelUsageModel
+        from api.services.billing import rates
+        from api.services.ops import cost_stop
+
+        async def rate(session, *, provider, component, at, model=""):
+            if provider == "aws_bedrock" and model == NOVA_PRO:
+                return SimpleNamespace(model=NOVA_PRO, rate_mpaise=100_000)
+            return None
+
+        monkeypatch.setattr(rates, "resolve_provider_rate", rate)
+        for feature in ("decibyl:fallback", "decibyl:byok"):
+            async_session.add(
+                ModelUsageModel(
+                    organization_id=None,
+                    feature=feature,
+                    provider="aws_bedrock",
+                    model=NOVA_PRO,
+                    prompt_tokens=2000,
+                    completion_tokens=1000,
+                    cache_read_input_tokens=0,
+                    cache_creation_input_tokens=0,
+                )
+            )
+        await async_session.flush()
+        since = datetime.now(UTC) - timedelta(hours=1)
+        direct = await cost_stop.ModelUsageSpendSource().platform_paise(
+            async_session, since
+        )
+        # 3,000 tokens at 100,000 millipaise (Rs1) per 1k = 300 paise; the
+        # own-key row cost the platform nothing.
+        assert direct == 300
+        combined = await cost_stop.CombinedSpendSource().platform_paise(
+            async_session, since
+        )
+        assert combined >= direct

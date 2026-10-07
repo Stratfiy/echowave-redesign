@@ -1,5 +1,11 @@
 # Build the api and ui images here, so the production box never builds anything.
 #
+# CURRENT STATE (7 Oct 2026, echowave/OPS-RUNBOOK.md section 2): the push
+# trigger was removed (commit 8e52017), so this runs on manual dispatch only
+# and nothing is built on merge; the box still builds its own images
+# (ci_deploy.sh defaults to IMAGE_SOURCE=build). The notes below describe the
+# intended state once ECR pushes are permitted and the trigger is restored.
+#
 # WHY THIS EXISTS. Deploys used to run `docker compose build` on the box. Two
 # consequences, and the second is the expensive one:
 #

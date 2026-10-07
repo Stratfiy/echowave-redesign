@@ -99,6 +99,27 @@ FLAGS: dict[str, str] = {
     "aws_cheap_tier": "AWS_CHEAP_TIER_ENABLED",
     "aws_embeddings": "AWS_EMBEDDINGS_ENABLED",
     "aws_nova_sonic": "AWS_NOVA_SONIC_ENABLED",
+    # Launch stream `controls` (LAUNCH-PLAN.md, phase 1).
+    "capability_checklist": "CAPABILITY_CHECKLIST_ENABLED",
+    "operational_quotas": "OPERATIONAL_QUOTAS_ENABLED",
+    "task_ledger": "TASK_LEDGER_ENABLED",
+    "personal_space": "PERSONAL_SPACE_ENABLED",
+    "member_preferences": "MEMBER_PREFERENCES_ENABLED",
+    "event_catalogue": "EVENT_CATALOGUE_ENABLED",
+    "reply_feedback": "REPLY_FEEDBACK_ENABLED",
+    # Launch stream `shell` (LAUNCH-PLAN.md, phase 1).
+    "early_access": "EARLY_ACCESS_ENABLED",
+    "first_task_onboarding": "FIRST_TASK_ONBOARDING_ENABLED",
+    "chat_shell": "CHAT_SHELL_ENABLED",
+    "shell_mobile": "SHELL_MOBILE_ENABLED",
+    # Stream ops (handoff 11, 14, 15 G-H, 34, 35).
+    "ops_console": "OPS_CONSOLE_ENABLED",
+    "server_analytics": "SERVER_ANALYTICS_ENABLED",
+    "telemetry_redaction": "TELEMETRY_REDACTION_ENABLED",
+    "session_replay": "SESSION_REPLAY_ENABLED",
+    "laya_guardrails": "LAYA_GUARDRAILS_ENABLED",
+    "laya_rollback": "LAYA_ROLLBACK_ENABLED",
+    "cost_stop": "COST_STOP_ENABLED",
 }
 
 
@@ -147,6 +168,24 @@ DESCRIPTIONS: dict[str, str] = {
     "aws_cheap_tier": "A small Bedrock model sorts work for Auto instead of Laya.",
     "aws_embeddings": "Knowledge search on Bedrock embeddings as a managed choice.",
     "aws_nova_sonic": "Nova Sonic speech-to-speech, Hindi and Indian English only.",
+    "capability_checklist": "Staff see each capability's source, configuration and tested state.",
+    "operational_quotas": "Daily limits per person (turns, voice, sends, browser), even in free mode.",
+    "task_ledger": "One task state set, approvals bound to the exact payload, no stale updates.",
+    "personal_space": "Every person has a personal space beside the workspaces they join.",
+    "member_preferences": "A person's own language, timezone, voice and summary time.",
+    "event_catalogue": "Versioned analytics events with a private envelope, sent from an outbox.",
+    "reply_feedback": "Was this useful? Yes / Not quite under replies and finished tasks.",
+    "early_access": "The public waitlist and invitation pages (screen 01).",
+    "first_task_onboarding": "Language, timezone and a first task; new people land in Chat (screen 02).",
+    "chat_shell": "Chat: three starters, attach menu, Dictate and Talk, Stop, New content, sources and task states (screens 03-04).",
+    "shell_mobile": "Phone shell: Chat and Today at the bottom, profile in the header, keyboard-aware bar, read-only workflow steps.",
+    "ops_console": "Staff operations: health, provider key lifecycle, typed commands, evidence.",
+    "server_analytics": "Server-owned product events to PostHog through a durable outbox.",
+    "telemetry_redaction": "Redact secrets and personal data from logs and error reports.",
+    "session_replay": "Session replay on non-sensitive screens only (off: no replay at all).",
+    "laya_guardrails": "Laya hard deadline, circuit breaker and shadow agreement statistics.",
+    "laya_rollback": "Rollback: Auto routes by rules alone and never asks Laya.",
+    "cost_stop": "Stop new billable work when provider spend runs away.",
 }
 
 
@@ -332,6 +371,20 @@ def is_on(name: str, organization_id: int | None = None) -> bool:
     if organization_id is None:
         return False
     return organization_id in org_overrides().get(name, frozenset())
+
+
+def on_anywhere(name: str) -> bool:
+    """Whether ``name`` is on for anyone at all: everyone, or at least one
+    organisation by a console row or ``FEATURE_ORG_OVERRIDES``. For a
+    scheduled job that would otherwise scan every workspace to find none."""
+    if is_on(name):
+        return True
+    if any(
+        feature == name and org is not None and row.enabled and row.live()
+        for (feature, org), row in _SNAPSHOT.items()
+    ):
+        return True
+    return bool(org_overrides().get(name))
 
 
 def public() -> dict[str, bool]:
