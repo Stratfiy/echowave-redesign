@@ -355,6 +355,142 @@ overstated until you fill it in.
 
 ---
 
+## 7. Claude and other models through AWS (optional)
+
+Everything here is off until configured, and nothing in it needs an AWS key
+in `.env`: on EC2 the instance role signs every request (the standard AWS
+credential chain). Staff see each part's state, and the exact step still
+missing, at `GET /api/v1/superuser/aws-gateway`; a workspace sees "Needs setup"
+on Settings → Models for a choice that is listed but not ready. Code:
+`api/services/aws_gateway/`.
+
+### Where Claude runs: `CLAUDE_BACKEND`
+
+| Value | What it means | Also set |
+| --- | --- | --- |
+| `anthropic` (default) | Today: Anthropic's API on the platform key | — |
+| `aws_platform` | Claude Platform on AWS: Anthropic-operated, full API parity, IAM and AWS billing. Recommended | `CLAUDE_AWS_REGION` (or `AWS_REGION`), `ANTHROPIC_AWS_WORKSPACE_ID` |
+| `bedrock` | Amazon Bedrock: a feature subset (no server-side web search or fetch, batches, Files API or MCP connector; our own web tools still run) | `BEDROCK_REGION` (or `AWS_REGION`), `BEDROCK_CLAUDE_MODEL_IDS`, `BEDROCK_ENABLED_MODELS` |
+
+It moves the platform's own Claude everywhere it is used: Decibyl chat, the
+builder, Auto's routing and the call pipeline's managed brain (on Bedrock the
+call pipeline uses its existing Bedrock provider). A workspace that brought
+its own Anthropic key keeps going to Anthropic with it.
+
+`BEDROCK_CLAUDE_MODEL_IDS` maps each Claude model the tiers name to its Bedrock
+id, e.g. `claude-haiku-4-5=anthropic.claude-haiku-4-5-20251001-v1:0,claude-opus-5-5=anthropic.claude-opus-5-5`.
+Every tier model needs an entry (Haiku, Sonnet, Opus and the builder's model).
+
+**If the backend is chosen but not ready** (missing setting, model access not
+granted), Claude stays on Anthropic's API, the API log says why once, and the
+staff view shows "needs setup". It never fails a turn for that reason.
+
+### Bedrock model access: `BEDROCK_ENABLED_MODELS`
+
+Listing a region's models is not permission to use them. The read-only check
+on 7 Oct 2026 found ap-south-1 lists Anthropic's models while access is
+`NOT_AUTHORIZED` (agreement not accepted). So a Bedrock model is "needs setup"
+until it is in `BEDROCK_ENABLED_MODELS` (comma-separated Bedrock ids), and goes
+back to "needs setup" for ten minutes whenever AWS refuses it at runtime.
+
+What the founder enables in AWS, per model, in the Bedrock console → Model
+access (in the region set above): request access, accept the model's EULA or
+agreement (Anthropic's use-case form for Claude), wait for "Access granted",
+then add the id to `BEDROCK_ENABLED_MODELS` and restart.
+
+### The gateway beyond Claude (each behind its own flag)
+
+| Flag | What it does | Settings |
+| --- | --- | --- |
+| `AWS_FALLBACK_BRAIN_ENABLED` | When the platform's Claude errors or times out (after the usual vendor fallbacks), a Bedrock model answers the turn. The reply ends with "(Claude was unavailable just now, so a backup model answered this one.)"; usage is recorded as `aws_bedrock` under feature `<feature>:fallback` | `BEDROCK_FALLBACK_MODEL` (e.g. Amazon Nova Pro or an open-weight model), `BEDROCK_FALLBACK_TIMEOUT_SECONDS` (60) |
+| `AWS_CHEAP_TIER_ENABLED` | A small model sorts work for Auto in Laya's place; the rules still decide when it abstains | `BEDROCK_CHEAP_MODEL` (Nova Micro or Lite), `BEDROCK_CHEAP_TIMEOUT_MS` (1500) |
+| `AWS_EMBEDDINGS_ENABLED` | "Multilingual (AWS)" knowledge search on Settings → Models. The vector column holds 1536 numbers, so only a model that returns 1536 is offered (Cohere Embed v4); documents are re-read for the new model | `BEDROCK_EMBEDDING_MODEL`, `BEDROCK_EMBEDDING_DIMENSIONS` (1536) |
+| `AWS_NOVA_SONIC_ENABLED` | Nova Sonic speech-to-speech as the `nova` tier, for Hindi and Indian English only (any other language runs on the natural tier). Sarvam stays the default for Indian-language voice | `NOVA_SONIC_MODEL`, `NOVA_SONIC_REGION`, `NOVA_SONIC_VOICE` |
+
+Nova Sonic is served from a few regions only, none of them in India today
+(pipecat lists us-east-1, us-west-2 and ap-northeast-1 for Nova 2 Sonic), so
+call audio on that tier is processed outside India. Decide that before
+switching it on.
+
+### The instance role's policy
+
+Least privilege: only the actions and model ARNs in use. Replace the region,
+account and ids with yours; keep only the statements for what you enable.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ClaudePlatformOnAWS",
+      "Effect": "Allow",
+      "Action": [
+        "aws-external-anthropic:CreateInference",
+        "aws-external-anthropic:CountTokens",
+        "aws-external-anthropic:GetModel",
+        "aws-external-anthropic:ListModels",
+        "aws-external-anthropic:GetWorkspace"
+      ],
+      "Resource": "arn:aws:aws-external-anthropic:ap-south-1:<account-id>:workspace/<wrkspc_id>"
+    },
+    {
+      "Sid": "BedrockModels",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ],
+      "Resource": [
+        "arn:aws:bedrock:ap-south-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
+        "arn:aws:bedrock:ap-south-1::foundation-model/anthropic.claude-opus-5-5",
+        "arn:aws:bedrock:ap-south-1::foundation-model/<fallback-model-id>",
+        "arn:aws:bedrock:ap-south-1::foundation-model/<cheap-model-id>",
+        "arn:aws:bedrock:ap-south-1::foundation-model/<embedding-model-id>"
+      ]
+    },
+    {
+      "Sid": "NovaSonic",
+      "Effect": "Allow",
+      "Action": ["bedrock:InvokeModelWithBidirectionalStream"],
+      "Resource": "arn:aws:bedrock:<nova-sonic-region>::foundation-model/<nova-sonic-model-id>"
+    }
+  ]
+}
+```
+
+Notes:
+
+* `bedrock:InvokeModel` covers Converse and `InvokeModelWithResponseStream`
+  covers ConverseStream; both are needed for streaming chat.
+* A model reached through a cross-region inference profile (`apac.`,
+  `global.` ids) also needs the profile's ARN
+  (`arn:aws:bedrock:<region>:<account-id>:inference-profile/<id>`) and the
+  foundation-model ARN in every destination region. Its id also needs its own
+  row on the rate card (Super admin → Billing → Rate card), or its usage shows
+  as unpriced.
+* The AWS-managed `AnthropicInferenceAccess` policy also works for Claude
+  Platform on AWS but grants read access to every resource in the workspace;
+  the statement above is narrower.
+* Check the Nova Sonic action name against the Bedrock IAM reference when you
+  add it; it is the one statement here not exercised by the read-only check.
+
+### Prices
+
+Rows for `anthropic_aws` (Claude Platform on AWS) and `aws_bedrock` (Bedrock:
+Claude, Nova, Nova 2 Sonic and Cohere Embed v4) are in
+`api/services/billing/default_rates.py`, all marked provisional until an AWS
+invoice confirms them. Run `scripts.seed_provider_rates` after deploying.
+
+### Rollback
+
+Set `CLAUDE_BACKEND=anthropic` (or remove it) and switch the four
+`AWS_*_ENABLED` flags off (environment or Super admin → Flags), then restart.
+Claude goes back to Anthropic's API on the platform key. A workspace that
+chose "Multilingual (AWS)" runs on standard knowledge search from its next
+request (documents embedded by the Bedrock model show as needing to be read
+again), and a bundle on the `nova` tier runs on the natural tier. Nothing
+stored has to be edited.
+
 ## Updating a running box
 
 Pull and rebuild in place:

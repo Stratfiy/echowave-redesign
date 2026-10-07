@@ -16473,6 +16473,43 @@ export type SetTrialEndApiV1SuperuserOrganizationsOrganizationIdTrialPostRespons
 
 export type SetTrialEndApiV1SuperuserOrganizationsOrganizationIdTrialPostResponse = SetTrialEndApiV1SuperuserOrganizationsOrganizationIdTrialPostResponses[keyof SetTrialEndApiV1SuperuserOrganizationsOrganizationIdTrialPostResponses];
 
+export type AwsGatewayStatusApiV1SuperuserAwsGatewayGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/superuser/aws-gateway';
+};
+
+export type AwsGatewayStatusApiV1SuperuserAwsGatewayGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AwsGatewayStatusApiV1SuperuserAwsGatewayGetError = AwsGatewayStatusApiV1SuperuserAwsGatewayGetErrors[keyof AwsGatewayStatusApiV1SuperuserAwsGatewayGetErrors];
+
+export type AwsGatewayStatusApiV1SuperuserAwsGatewayGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
 export type ListFeaturesApiV1AdminFeaturesGetData = {
     body?: never;
     headers?: {

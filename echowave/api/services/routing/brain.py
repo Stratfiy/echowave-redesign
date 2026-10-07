@@ -107,7 +107,7 @@ async def route(text: str, *, attachments: int = 0) -> Route:
     """Sort one piece of work. Never raises: the rules are always there."""
     ruled = by_rules(text, attachments=attachments)
     mode = constants.LAYA_ROUTING
-    if mode not in ("shadow", "on") or not constants.LAYA_URL:
+    if mode not in ("shadow", "on") or not decision.enabled():
         return Route(kind=ruled, preset=PRESET_FOR[ruled], source="rules")
 
     asked = await decision.choose(QUESTION, KINDS, text)

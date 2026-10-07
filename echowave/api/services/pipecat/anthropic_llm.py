@@ -68,3 +68,13 @@ class DecibylAnthropicLLMService(AnthropicLLMService):
         if params.get("tools"):
             params["tool_choice"] = {"type": "auto", "disable_parallel_tool_use": True}
         return params
+
+
+class DecibylAnthropicAWSLLMService(DecibylAnthropicLLMService):
+    """The same service on Claude Platform on AWS (stream aws-gateway).
+
+    Built with the SDK's AWS client by the factory; nothing else differs.
+    A class of its own because usage is priced by the processor's class
+    name, and a call on AWS is billed through AWS (``anthropic_aws``), not
+    on Anthropic's first-party invoice.
+    """

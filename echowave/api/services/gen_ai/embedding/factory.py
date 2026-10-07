@@ -87,6 +87,21 @@ async def build_embedding_service(
             api_version=api_version or DEFAULT_AZURE_API_VERSION,
         )
 
+    if provider == ServiceProviders.AWS_BEDROCK.value:
+        # Only the managed tier, which carries the gateway's marker: this
+        # signs with the platform's own AWS role, so a configuration a
+        # customer typed must never reach it.
+        from api.services.aws_gateway import claude as aws_claude
+
+        from .bedrock_service import BedrockEmbeddingService
+
+        if api_key != aws_claude.BEDROCK_KEY:
+            raise ValueError(
+                "Bedrock embeddings run only as Decibyl's managed knowledge "
+                "search. Choose it in Settings -> Models."
+            )
+        return BedrockEmbeddingService(db_client=db_client, model_id=model_id)
+
     if provider == ServiceProviders.DECIBYL.value:
         cid = correlation_id
         if cid is None and resolve_correlation:

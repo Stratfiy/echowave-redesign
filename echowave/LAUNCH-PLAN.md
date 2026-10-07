@@ -372,7 +372,7 @@ hourly, reviews and merges each PR, and starts the next streams.
 | support | 2 | claude/stream-support | | | | |
 | staff | 2 | claude/stream-staff | | | | |
 | ops | 2 | claude/stream-ops | #524 | yes | see PR | |
-| aws-gateway | 2 | claude/stream-aws-gateway | | | | |
+| aws-gateway | 2 | claude/stream-aws-gateway | draft | yes (flags off) | 63 new backend + 1 UI, fakes only | |
 | browser | 2 | claude/stream-browser | | | | |
 | reach | 2 | claude/stream-reach | | | | |
 | care | 2 | claude/stream-care | | | | |

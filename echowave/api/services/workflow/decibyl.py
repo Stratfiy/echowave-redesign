@@ -922,6 +922,8 @@ async def _answer(
         context = f"{context}\n\n{attached}"
     conversation.add_user(f"{context}\n\n## Question\n{text}{handed}")
 
+    #: The backup model's id when it answered any part of this turn.
+    backup_model = ""
     try:
         if not preset:
             # Auto: no brain picked for this turn, so the turn's own work
@@ -943,6 +945,7 @@ async def _answer(
         loaded: dict[str, dict[str, Any]] = {}
         tools = await tools_for(organization_id, loaded)
         reply = await _speak(model, conversation, organization_id, tools=tools)
+        backup_model = reply.fallback_model
         # Up to MAX_TOOL_ROUNDS rounds, not one: a read of a connected app
         # feeds the answer, and a read may precede a proposed write ("find
         # the lead, then draft the mail"). On the last allowed round the
@@ -1009,6 +1012,7 @@ async def _answer(
                 organization_id,
                 tools=tools if (reads_only and not capped) else None,
             )
+            backup_model = backup_model or reply.fallback_model
         body = (reply.text or "").strip()
         if not body:
             body = (
@@ -1016,6 +1020,13 @@ async def _answer(
                 if rounds >= MAX_TOOL_ROUNDS
                 else "I have nothing to add on that."
             )
+        if backup_model:
+            # A backup model answered some of this turn because Claude could
+            # not (services/aws_gateway/fallback.py). Said on the reply, never
+            # passed off as Claude's.
+            from api.services.aws_gateway import fallback
+
+            body = fallback.with_note(body)
     except settings.OwnKeyMissing as exc:
         # BYOK-1: the account runs on its own keys and none can answer. Said
         # plainly on the thread rather than charged to Decibyl's key.
@@ -1038,7 +1049,12 @@ async def _answer(
         kind=AgentEventKind.MESSAGE.value,
         actor=AgentEventActor.AGENT.value,
         summary=body[:500],
-        payload={"body": body, "from": NAME, "preset": preset},
+        payload={
+            "body": body,
+            "from": NAME,
+            "preset": preset,
+            **({"backup_model": backup_model} if backup_model else {}),
+        },
         in_channel=False,
     )
     # After the row, so the screen swaps the forming text for the row rather

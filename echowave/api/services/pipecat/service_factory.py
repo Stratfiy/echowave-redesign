@@ -8,11 +8,13 @@ import aiohttp
 from fastapi import HTTPException
 from loguru import logger
 
+from api import constants
 from api.constants import MPS_API_URL
 from api.schemas.ai_model_configuration import (
     DECIBYL_DEFAULT_VOICE,
     DECIBYL_GENDER_VOICES,
 )
+from api.services.aws_gateway import claude as aws_claude
 from api.services.configuration import voice_catalogue
 from api.services.configuration.options import (
     DEEPGRAM_FLUX_MODELS,
@@ -120,7 +122,10 @@ from pipecat.utils.text.xml_function_tag_filter import XMLFunctionTagFilter
 
 if TYPE_CHECKING:
     from api.services.pipecat.audio_config import AudioConfig
-from api.services.pipecat.anthropic_llm import DecibylAnthropicLLMService
+from api.services.pipecat.anthropic_llm import (
+    DecibylAnthropicAWSLLMService,
+    DecibylAnthropicLLMService,
+)
 from api.services.pipecat.reasoning_effort import (
     claude_effort,
     claude_rejects_sampling,
@@ -1679,33 +1684,41 @@ def create_llm_service_from_provider(
             **kwargs,
         )
     elif provider == ServiceProviders.ANTHROPIC.value:
-        # Our subclass: pipecat's own drops empty thinking blocks and parallel
-        # tool calls, both of which break a call. See anthropic_llm.py.
-        return DecibylAnthropicLLMService(
-            api_key=api_key,
-            settings=AnthropicLLMSettings(
-                model=model,
-                # Anthropic bills cache writes above the normal input rate and
-                # cache reads well below it. A voice agent resends a system
-                # prompt and a growing transcript on every single turn, which
-                # is the shape caching is for — the prefix is stable and the
-                # turn count is high.
-                enable_prompt_caching=True,
-                # Newer Claude models refuse sampling parameters (a 400 on the
-                # first turn) and take an effort level instead, which is the
-                # agent's own reasoning-effort setting. See reasoning_effort.py.
-                extra=(
-                    {"output_config": {"effort": claude_effort(reasoning_effort)}}
-                    if claude_takes_effort(model)
-                    else {}
-                ),
-                **(
-                    _llm_tuning(None, max_tokens)
-                    if claude_rejects_sampling(model)
-                    else _llm_tuning(temperature, max_tokens, default_temperature=0.1)
-                ),
+        claude_settings = AnthropicLLMSettings(
+            model=model,
+            # Anthropic bills cache writes above the normal input rate and
+            # cache reads well below it. A voice agent resends a system
+            # prompt and a growing transcript on every single turn, which
+            # is the shape caching is for — the prefix is stable and the
+            # turn count is high.
+            enable_prompt_caching=True,
+            # Newer Claude models refuse sampling parameters (a 400 on the
+            # first turn) and take an effort level instead, which is the
+            # agent's own reasoning-effort setting. See reasoning_effort.py.
+            extra=(
+                {"output_config": {"effort": claude_effort(reasoning_effort)}}
+                if claude_takes_effort(model)
+                else {}
+            ),
+            **(
+                _llm_tuning(None, max_tokens)
+                if claude_rejects_sampling(model)
+                else _llm_tuning(temperature, max_tokens, default_temperature=0.1)
             ),
         )
+        if aws_claude.is_aws_key(api_key):
+            # Claude Platform on AWS (CLAUDE_BACKEND=aws_platform): the same
+            # service on the SDK's AWS client, signed with the instance role.
+            # ``api_key`` is the gateway's marker and is never sent; the
+            # subclass exists so usage is priced as Claude on AWS.
+            return DecibylAnthropicAWSLLMService(
+                client=aws_claude.async_client(api_key, timeout=60.0, max_retries=2),
+                api_key=api_key,
+                settings=claude_settings,
+            )
+        # Our subclass: pipecat's own drops empty thinking blocks and parallel
+        # tool calls, both of which break a call. See anthropic_llm.py.
+        return DecibylAnthropicLLMService(api_key=api_key, settings=claude_settings)
     elif provider == ServiceProviders.CEREBRAS.value:
         return CerebrasLLMService(
             api_key=api_key,
@@ -1799,6 +1812,12 @@ def create_llm_service_from_provider(
             ),
         )
     elif provider == ServiceProviders.AWS_BEDROCK.value:
+        # A managed Claude brain on Bedrock (CLAUDE_BACKEND=bedrock) arrives
+        # here with the gateway's marker and no keys: pipecat then signs with
+        # the AWS credential chain (the instance role), in BEDROCK_REGION.
+        if aws_claude.is_aws_key(api_key):
+            aws_access_key = aws_secret_key = None
+            aws_region = aws_region or constants.BEDROCK_REGION
         return AWSBedrockLLMService(
             aws_access_key=aws_access_key,
             aws_secret_key=aws_secret_key,
@@ -2026,6 +2045,14 @@ def create_realtime_llm_service(user_config, audio_config: "AudioConfig"):
                 language=_realtime_language_setting(language),
             ),
         )
+    elif provider == "aws_nova_sonic":
+        # Managed only (the ``nova`` speech-to-speech tier, stream
+        # aws-gateway): signed with the instance role, so ``api_key`` is the
+        # gateway's marker and is not sent anywhere. The voice comes from
+        # configuration; Nova Sonic picks the language from it.
+        from api.services.aws_gateway import nova_sonic
+
+        return nova_sonic.build_service(model=model)
     elif provider == ServiceProviders.AZURE_REALTIME.value:
         from api.services.pipecat.realtime.azure_realtime import (
             DecibylAzureRealtimeLLMService,

@@ -69,6 +69,46 @@ def _credential_component(component: CostComponent | str) -> CostComponent:
     return component  # type: ignore[return-value]
 
 
+async def _platform_key(
+    session, *, component, provider: str, model: str | None = None
+) -> str | None:
+    """The credential a managed section runs on.
+
+    The platform key stored for the vendor -- except Claude's brain when
+    ``CLAUDE_BACKEND`` puts Claude on AWS and the backend is ready, where it
+    is that backend's marker (``services/aws_gateway/claude.py``) and the
+    factory signs with the instance role instead of sending a key.
+    """
+    if provider == managed_tiers.BEDROCK_PROVIDER and (
+        component == managed_tiers.EMBEDDINGS_COMPONENT
+    ):
+        from api.services.aws_gateway import claude as aws_claude
+        from api.services.aws_gateway import config as aws_config
+
+        return (
+            aws_claude.BEDROCK_KEY if aws_config.embeddings_status().available else None
+        )
+    if provider == managed_tiers.NOVA_SONIC_PROVIDER:
+        from api.services.aws_gateway import config as aws_config
+        from api.services.aws_gateway import nova_sonic
+
+        return (
+            nova_sonic.CREDENTIAL if aws_config.nova_sonic_status().available else None
+        )
+    if (
+        provider == "anthropic"
+        and _credential_component(component) == CostComponent.LLM
+    ):
+        from api.services.aws_gateway import claude as aws_claude
+
+        marker = aws_claude.platform_credential(model)
+        if marker:
+            return marker
+    return await platform_credentials.resolve_api_key(
+        session, component=_credential_component(component), provider=provider
+    )
+
+
 def _is_managed(section) -> bool:
     return section is not None and section.is_managed
 
@@ -122,10 +162,11 @@ async def apply(effective) -> None:
                 upstream_provider = _provider_value(section)
                 upstream_model = getattr(section, "model", None) or ""
 
-            api_key = await platform_credentials.resolve_api_key(
+            api_key = await _platform_key(
                 session,
-                component=_credential_component(component),
+                component=component,
                 provider=upstream_provider,
+                model=upstream_model,
             )
             if not api_key:
                 logger.error(
@@ -137,6 +178,16 @@ async def apply(effective) -> None:
                     upstream_provider,
                 )
                 continue
+
+            from api.services.aws_gateway import claude as aws_claude
+
+            if aws_claude.backend_for_key(api_key) == "bedrock":
+                # Claude on Bedrock runs through the pipeline's existing
+                # Bedrock provider, on the Bedrock model id configured for
+                # this Claude model. The region and credentials are the
+                # factory's to fill in from the AWS configuration.
+                upstream_provider = ServiceProviders.AWS_BEDROCK.value
+                upstream_model = aws_claude.wire_model(api_key, upstream_model)
 
             section.provider = upstream_provider
             section.model = upstream_model
@@ -220,10 +271,11 @@ async def managed_availability(session) -> dict[str, bool]:
     for name, component in MANAGED_SECTIONS:
         upstream = managed_tiers.resolve(component, "default")
         credential_component = _credential_component(component)
-        key = await platform_credentials.resolve_api_key(
+        key = await _platform_key(
             session,
-            component=credential_component,
+            component=component,
             provider=upstream.provider,
+            model=upstream.model,
         )
         # Holding a key is necessary and no longer sufficient. A key the
         # provider has explicitly rejected buys the customer the exact
@@ -275,10 +327,11 @@ async def tier_availability(session) -> dict[str, dict[str, bool]]:
         answers: dict[str, bool] = {}
         for tier in tiers:
             upstream = managed_tiers.resolve(component, tier)
-            key = await platform_credentials.resolve_api_key(
+            key = await _platform_key(
                 session,
-                component=_credential_component(component),
+                component=component,
                 provider=upstream.provider,
+                model=upstream.model,
             )
             answers[tier] = bool(key)
         out[name] = answers
@@ -318,11 +371,7 @@ async def missing_platform_keys() -> list[tuple[str, str]]:
     missing = []
     async with db_client.async_session() as session:
         for component, provider in sorted(managed_tiers.upstream_providers()):
-            key = await platform_credentials.resolve_api_key(
-                session,
-                component=_credential_component(component),
-                provider=provider,
-            )
+            key = await _platform_key(session, component=component, provider=provider)
             if not key:
                 missing.append((component, provider))
     return missing
@@ -348,13 +397,20 @@ async def unusable_managed_tiers() -> list[tuple[str, str, str]]:
             # resolve() never returns None: an unknown tier falls back to
             # default, which is the behaviour a stored configuration relies on.
             resolved = managed_tiers.resolve(component, tier)
-            key = await platform_credentials.resolve_api_key(
+            key = await _platform_key(
                 session,
-                component=_credential_component(component),
+                component=component,
                 provider=resolved.provider,
+                model=resolved.model,
             )
             if not key:
                 # Already reported, by name, from missing_platform_keys.
+                continue
+            from api.services.aws_gateway import claude as aws_claude
+
+            if aws_claude.is_aws_key(key):
+                # Not a key a vendor probe can test. Whether Claude on AWS can
+                # run this model is aws_gateway's status, on the Models screen.
                 continue
             result = await key_validation.validate_key(
                 resolved.provider, key, model=resolved.model
