@@ -282,3 +282,28 @@ class TestASyllabusByLink:
                 org, a.id, title="Python", material="https://example.org/syllabus"
             )
         assert await core.list_goals(org, a.id) == []
+
+
+@pytest.mark.asyncio
+class TestFeedbackLeavesTheRetryToThem:
+    async def test_marking_asks_for_a_hint_not_the_answer(self, monkeypatch):
+        # Found on staging: after a wrong answer the feedback wrote out the
+        # whole solution, so "Try again" became copying it.
+        model = teacher.ModelTeacher(1)
+        asked = {}
+
+        async def ask(_org, _goal, text):
+            asked["text"] = text
+            return {
+                "results": [{"criterion": "idea", "met": False, "note": "Missing."}],
+                "feedback": "Look at what a variable holds.",
+            }
+
+        monkeypatch.setattr(model, "_ask", ask)
+        await model.mark(
+            teacher.GoalBrief("Python", "en-IN"),
+            exercise="Define a variable.",
+            rubric=[{"criterion": "idea", "description": "Says what it is."}],
+            answer="no idea",
+        )
+        assert "do not write out the answer" in asked["text"].lower()

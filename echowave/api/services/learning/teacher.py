@@ -401,6 +401,8 @@ class ModelTeacher:
             f"Exercise: {exercise}\nRubric: {json.dumps(rubric, ensure_ascii=False)}\n"
             f"Their answer: {answer}\n"
             "Mark each rubric criterion as met or not, with a short note. "
+            "In the feedback, do not write out the answer: name what is "
+            "missing and give a hint, so their next try is their own. "
             'Shape: {"results": [{"criterion": "...", "met": true, "note": "..."}], '
             '"feedback": "specific feedback: what is right, what to fix"}',
         )
