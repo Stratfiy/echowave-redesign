@@ -395,6 +395,7 @@ async def answer_baseline(
             goal.baseline_answer = answer
             goal.baseline_level = placement.level
             goal.baseline_feedback = placement.feedback
+            goal.plan = list(placement.plan) or None
             goal.status = "active"
             goal.updated_at = _now()
             await session.commit()
@@ -541,6 +542,17 @@ async def next_exercise(
         ):
             return await session_state(organization_id, user_id, goal_uuid)
         focus = None
+        if skill_id is None and easier:
+            # "Try a smaller step" after a miss is about the skill that was
+            # missed, not the next one: teach that one again, smaller.
+            latest = await session.scalar(
+                select(LearningExerciseModel)
+                .where(LearningExerciseModel.goal_id == goal.id)
+                .order_by(LearningExerciseModel.id.desc())
+                .limit(1)
+            )
+            if latest is not None and latest.status != "passed":
+                skill_id = latest.skill_id
         if skill_id is not None:
             skill_row = await session.scalar(
                 select(LearningSkillModel).where(
@@ -551,6 +563,27 @@ async def next_exercise(
             if skill_row is None:
                 raise NotFound("That skill is not in this goal.")
             focus = skill_row.name
+        elif goal.plan:
+            # The plan decides what comes next: the first lesson in it not
+            # yet practised. A lesson that was just missed is that lesson,
+            # so it comes back -- smaller, because it was missed.
+            practised = set(
+                (
+                    await session.scalars(
+                        select(LearningSkillModel).where(
+                            LearningSkillModel.goal_id == goal.id
+                        )
+                    )
+                ).all()
+            )
+            by_name = {row.name.casefold(): row for row in practised}
+            for name in goal.plan:
+                row = by_name.get(str(name).casefold())
+                if row is None or row.status != PRACTISED:
+                    focus = str(name)
+                    if row is not None and (row.misses_in_a_row or 0) > 0:
+                        easier = True
+                    break
         names = (
             await session.scalars(
                 select(LearningSkillModel.name)
@@ -908,9 +941,11 @@ async def progress(
             or 0
         )
         goal_out = _goal_dict(goal)
+        goal_plan = list(goal.plan or [])
     skill_rows = [_skill_dict(s, now) for s in skills]
     return {
         "goal": goal_out,
+        "plan": _plan_rows(goal_plan, skill_rows),
         "practice_count": count,
         "state": "no_practice" if count == 0 else "practised",
         "skills": skill_rows,
@@ -924,6 +959,25 @@ async def progress(
         ],
         "next_step": _next_step(goal_out, skill_rows),
     }
+
+
+def _plan_rows(plan: list[str], skills: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The plan in order, each lesson with its skill's evidence (or "Not
+    practised yet" when it has not been taught)."""
+    by_name = {s["name"].casefold(): s for s in skills}
+    rows = []
+    for name in plan:
+        skill = by_name.get(str(name).casefold())
+        status = skill["status"] if skill else NOT_PRACTISED
+        rows.append(
+            {
+                "name": str(name),
+                "skill_id": skill["skill_id"] if skill else None,
+                "status": status,
+                "label": SKILL_LABELS.get(status, status),
+            }
+        )
+    return rows
 
 
 def _next_step(goal: dict[str, Any], skills: list[dict[str, Any]]) -> dict[str, Any]:
@@ -1118,6 +1172,98 @@ async def suggestions(
                 }
             )
     return out[:MAX_SUGGESTIONS]
+
+
+# --- streak and the day's lesson (Today) ------------------------------------
+
+
+async def _zone(user_id: int):
+    from zoneinfo import ZoneInfo
+
+    from api.services import member_preferences
+
+    try:
+        name = (await member_preferences.get(user_id)).get("timezone")
+        return ZoneInfo(name) if name else ZoneInfo("Asia/Kolkata")
+    except Exception:  # noqa: BLE001 - an unknown zone is India's, not an error
+        return ZoneInfo("Asia/Kolkata")
+
+
+async def streak(
+    organization_id: int, user_id: int, *, now: datetime | None = None
+) -> dict[str, Any]:
+    """Days in a row, in the person's own timezone, with at least one marked
+    answer -- across every goal here. Evidence like the rest: reading or
+    chatting never keeps a streak. A day not practised *yet* does not break
+    it until the day is over."""
+    now = _now(now)
+    zone = await _zone(user_id)
+    async with db_client.async_session() as session:
+        stamps = (
+            await session.scalars(
+                select(LearningAttemptModel.created_at).where(
+                    LearningAttemptModel.organization_id == organization_id,
+                    LearningAttemptModel.user_id == user_id,
+                    LearningAttemptModel.created_at <= now,
+                    LearningAttemptModel.created_at >= now - timedelta(days=400),
+                )
+            )
+        ).all()
+    days = set()
+    for at in stamps:
+        if at.tzinfo is None:
+            at = at.replace(tzinfo=UTC)
+        days.add(at.astimezone(zone).date())
+    today_local = now.astimezone(zone).date()
+    practised_today = today_local in days
+    day = today_local if practised_today else today_local - timedelta(days=1)
+    count = 0
+    while day in days:
+        count += 1
+        day -= timedelta(days=1)
+    return {"days": count, "practised_today": practised_today}
+
+
+async def today(
+    organization_id: int, user_id: int, *, now: datetime | None = None
+) -> dict[str, Any]:
+    """What Today shows for learning: the streak and, for each active goal,
+    the day's lesson (its next step) and whether it was practised today."""
+    now = _now(now)
+    zone = await _zone(user_id)
+    today_local = now.astimezone(zone).date()
+    lessons = []
+    for goal in await list_goals(organization_id, user_id):
+        if goal["status"] != "active":
+            continue
+        got = await progress(organization_id, user_id, goal["goal_id"], now=now)
+        step = got["next_step"]
+        text = step["text"]
+        if step["kind"] == "continue":
+            planned = next((p for p in got["plan"] if p["status"] != PRACTISED), None)
+            text = (
+                f"Today's lesson: {planned['name']}."
+                if planned
+                else "Today's lesson: the next step."
+            )
+        last = goal["last_practised_at"]
+        done = bool(
+            last and datetime.fromisoformat(last).astimezone(zone).date() == today_local
+        )
+        lessons.append(
+            {
+                "goal_id": goal["goal_id"],
+                "goal_title": goal["title"],
+                "kind": step["kind"],
+                "skill_id": step.get("skill_id"),
+                "text": text,
+                "done_today": done,
+            }
+        )
+    return {
+        "streak": await streak(organization_id, user_id, now=now),
+        "lessons": lessons[:MAX_SUGGESTIONS],
+    }
 
 
 # --- export and deletion ----------------------------------------------------

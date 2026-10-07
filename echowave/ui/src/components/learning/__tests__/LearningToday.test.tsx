@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LearningToday } from "../LearningToday";
 
-const api = vi.hoisted(() => ({ reviews: vi.fn(), suggestions: vi.fn() }));
+const api = vi.hoisted(() => ({ reviews: vi.fn(), suggestions: vi.fn(), today: vi.fn() }));
 const flags = vi.hoisted(() => ({ learning: true, learning_today: true }));
 
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
@@ -16,6 +16,7 @@ vi.mock("@/lib/features", () => ({ useFeature: (name: string) => Boolean((flags 
 vi.mock("@/client/sdk.gen", () => ({
     learningReviewsDueApiV1LearningReviewsGet: api.reviews,
     learningSuggestionsApiV1LearningSuggestionsGet: api.suggestions,
+    learningTodayApiV1LearningTodayGet: api.today,
 }));
 
 const review = { goal_id: "g-1", goal_title: "Spanish", skill_id: 4, skill_name: "Past tense", status: "practised", label: "Practised", due_at: "2026-10-07T09:00:00Z" };
@@ -23,6 +24,8 @@ const review = { goal_id: "g-1", goal_title: "Spanish", skill_id: 4, skill_name:
 beforeEach(() => {
     api.reviews.mockReset();
     api.suggestions.mockReset();
+    api.today.mockReset();
+    api.today.mockResolvedValue({ data: { streak: { days: 0, practised_today: false }, lessons: [] } });
     flags.learning = true;
     flags.learning_today = true;
 });
@@ -35,6 +38,21 @@ describe("Learning in Today", () => {
         const link = await screen.findByText("Review Past tense");
         expect(link.closest("a")?.getAttribute("href")).toBe("/overview?learn=g-1&review=4");
         expect(screen.getByText(/Ratios has been hard/)).toBeTruthy();
+    });
+
+    it("shows the day's lesson and the streak before anything is due", async () => {
+        api.reviews.mockResolvedValue({ data: [] });
+        api.suggestions.mockResolvedValue({ data: [] });
+        api.today.mockResolvedValue({
+            data: {
+                streak: { days: 3, practised_today: false },
+                lessons: [{ goal_id: "g-7", goal_title: "Python", kind: "continue", skill_id: null, text: "Today's lesson: Loops.", done_today: false }],
+            },
+        });
+        render(<LearningToday />);
+        const link = await screen.findByText("Today's lesson: Loops.");
+        expect(link.closest("a")?.getAttribute("href")).toBe("/overview?learn=g-7");
+        expect(screen.getByText(/3-day streak/)).toBeTruthy();
     });
 
     it("draws nothing when nothing is due", async () => {

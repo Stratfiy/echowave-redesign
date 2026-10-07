@@ -65,10 +65,18 @@ class Baseline:
     question: str
 
 
+#: How many lessons a plan may name. Short on purpose: a plan is the next
+#: few weeks, not a syllabus.
+MIN_PLAN, MAX_PLAN = 3, 8
+
+
 @dataclass(frozen=True)
 class Placement:
     level: str
     feedback: str
+    #: The lesson names, in order, for this person at this level. Empty when
+    #: the teacher gave none: lessons then simply follow one another.
+    plan: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -87,6 +95,19 @@ class Marking:
     outcome: str
     results: list[dict[str, Any]]
     feedback: str
+
+
+def plan_from(value: Any) -> list[str]:
+    """The lesson names a teacher planned, cleaned; ``[]`` for anything that
+    is not a usable list. A missing plan never fails a placement."""
+    if not isinstance(value, list):
+        return []
+    names: list[str] = []
+    for item in value:
+        name = str(item or "").strip()[:120]
+        if name and name.casefold() not in {n.casefold() for n in names}:
+            names.append(name)
+    return names[:MAX_PLAN] if len(names) >= MIN_PLAN else []
 
 
 def outcome_from(results: list[dict[str, Any]]) -> str:
@@ -148,6 +169,7 @@ class FakeTeacher:
         return Placement(
             level=level,
             feedback="Thanks. We will start from there and build up.",
+            plan=[f"{goal.title}: step {n}" for n in range(1, 5)],
         )
 
     async def lesson(
@@ -294,13 +316,21 @@ class ModelTeacher:
             self.organization_id,
             goal,
             f"Question: {question}\nTheir answer: {answer}\n"
-            'Place them. Shape: {"level": "new|some|confident", '
-            '"feedback": "one or two sentences, specific to the answer"}',
+            "Place them, then plan the lessons for someone at that level, "
+            "smallest first. "
+            'Shape: {"level": "new|some|confident", '
+            '"feedback": "one or two sentences, specific to the answer", '
+            f'"plan": ["short lesson name", ...]}} with {MIN_PLAN} to {MAX_PLAN} '
+            "lessons.",
         )
         level = str(data.get("level") or "").strip().lower()
         if level not in LEVELS:
             raise TeacherFailed("unknown level")
-        return Placement(level=level, feedback=_text(data.get("feedback"), 1200))
+        return Placement(
+            level=level,
+            feedback=_text(data.get("feedback"), 1200),
+            plan=plan_from(data.get("plan")),
+        )
 
     async def lesson(
         self,
