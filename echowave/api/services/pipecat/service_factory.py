@@ -28,6 +28,7 @@ from api.services.pipecat.gemini_json_schema_adapter import (
 )
 from api.services.pipecat.minimax_tts import MiniMaxOwnedSessionTTSService
 from api.services.pipecat.sarvam_llm import DecibylSarvamLLMService
+from api.services.pipecat.sarvam_stt import DecibylSarvamSTTService
 from api.services.pipecat.sarvam_tts import DecibylSarvamTTSService
 from api.services.pipecat.stage_direction_filter import StageDirectionFilter
 from api.utils.url_security import validate_user_configured_service_url
@@ -104,7 +105,7 @@ from pipecat.services.sarvam.llm import SarvamLLMSettings
 from pipecat.services.sarvam.stt import (
     MODEL_CONFIGS as SARVAM_STT_MODEL_CONFIGS,
 )
-from pipecat.services.sarvam.stt import SarvamSTTService, SarvamSTTSettings
+from pipecat.services.sarvam.stt import SarvamSTTSettings
 from pipecat.services.sarvam.tts import SarvamTTSSettings
 from pipecat.services.smallest.stt import SmallestSTTService, SmallestSTTSettings
 from pipecat.services.smallest.tts import SmallestTTSService, SmallestTTSSettings
@@ -510,7 +511,10 @@ def create_stt_service(
         else:
             # Unmapped BCP-47 codes pass through; Sarvam accepts them per https://docs.sarvam.ai/api-reference-docs/speech-to-text/transcribe
             pipecat_language = language
-        return SarvamSTTService(
+        # The subclass opens its websocket beside the call instead of in front
+        # of it, so the greeting is not queued behind the handshake. See
+        # sarvam_stt.
+        return DecibylSarvamSTTService(
             api_key=user_config.stt.api_key,
             settings=SarvamSTTSettings(
                 model=user_config.stt.model,
