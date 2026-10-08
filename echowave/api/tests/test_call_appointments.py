@@ -37,7 +37,7 @@ async def people(test_engine):
 def hours(monkeypatch):
     """Open 09:00-11:00 every weekday, in India time."""
 
-    async def schedule(_org, _workflow):
+    async def schedule(_org, _workflow, _run=None):
         return {
             "enabled": True,
             "timezone": "Asia/Kolkata",
@@ -152,7 +152,7 @@ class TestSlots:
     async def test_no_hours_is_needs_setup_not_all_day(self, people, monkeypatch):
         await _grant(people, booking="book")
 
-        async def nothing(_org, _workflow):
+        async def nothing(_org, _workflow, _run=None):
             return None
 
         monkeypatch.setattr(appointments, "_schedule", nothing)

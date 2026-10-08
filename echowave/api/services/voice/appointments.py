@@ -248,13 +248,49 @@ async def _zone(organization_id: int) -> ZoneInfo:
         return ZoneInfo("Asia/Kolkata")
 
 
-async def _schedule(organization_id: int, workflow_id: int | None) -> Any:
-    """The hours that apply, or None when nobody set any."""
+async def _run_configurations(
+    organization_id: int, workflow_run_id: int | None
+) -> dict[str, Any] | None:
+    """The configurations of the version this call is running -- the draft on
+    a test, the published one on a live call -- or None when the run names
+    none. Scoped to the organisation like every read here."""
+    if not workflow_run_id:
+        return None
+    from api.db.models import WorkflowDefinitionModel
+
+    run = await db_client.get_workflow_run(
+        workflow_run_id, organization_id=organization_id
+    )
+    definition_id = getattr(run, "definition_id", None)
+    if not definition_id:
+        return None
+    async with db_client.async_session() as session:
+        definition = await session.get(WorkflowDefinitionModel, definition_id)
+    if definition is None:
+        return None
+    return dict(definition.workflow_configurations or {})
+
+
+async def _schedule(
+    organization_id: int,
+    workflow_id: int | None,
+    workflow_run_id: int | None = None,
+) -> Any:
+    """The hours that apply, or None when nobody set any.
+
+    The agent's own hours come from the version the call runs on (a test
+    runs the draft), else from the published version, else the
+    organisation's hours. Reading only the published version refused every
+    booking a test of a new receptionist tried: its hours were in the draft
+    the owner had just saved."""
     from api.services.organization_preferences import get_organization_preferences
     from api.services.workflow import agent_hours
 
     agent_schedule = None
-    if workflow_id:
+    running = await _run_configurations(organization_id, workflow_run_id)
+    if running is not None:
+        agent_schedule = running.get(agent_hours.CONFIG_KEY)
+    elif workflow_id:
         workflow = await db_client.get_workflow(
             workflow_id, organization_id=organization_id
         )
@@ -302,6 +338,7 @@ async def open_slots(
     organization_id: int,
     day: date,
     workflow_id: int | None = None,
+    workflow_run_id: int | None = None,
     now: datetime | None = None,
     limit: int = MAX_SLOTS,
 ) -> dict[str, Any]:
@@ -319,7 +356,9 @@ async def open_slots(
             ),
         }
     schedule = await _schedule(
-        organization_id, workflow_id or policy["call_workflow_id"]
+        organization_id,
+        workflow_id or policy["call_workflow_id"],
+        workflow_run_id,
     )
     if schedule is None:
         return {
@@ -435,6 +474,7 @@ async def book(
         organization_id=organization_id,
         day=local_day,
         workflow_id=workflow_id,
+        workflow_run_id=workflow_run_id,
         now=now,
         limit=24 * 60 // SLOT_STEP,
     )
@@ -630,7 +670,10 @@ async def run_tool(
         if name == SLOTS_TOOL:
             day = date.fromisoformat(str(arguments.get("date") or ""))
             return await open_slots(
-                organization_id=organization_id, day=day, workflow_id=workflow_id
+                organization_id=organization_id,
+                day=day,
+                workflow_id=workflow_id,
+                workflow_run_id=workflow_run_id,
             )
         if name == BOOK_TOOL:
             day = date.fromisoformat(str(arguments.get("date") or ""))
