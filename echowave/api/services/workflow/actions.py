@@ -716,6 +716,11 @@ async def resolve(
             # in the workspace may read, and a goal is its learner's own. The
             # learner's screen shows the title beside the card.
             "args": {"goal_uuid": goal_uuid, "user_id": owner},
+            # The learner's card alone, on whatever thread it sits: a goal
+            # started on the learning page has no thread, and the authorless
+            # one is an Admin's -- which hid a plain member's own card from
+            # them and showed it to the owner.
+            "private_to": owner,
             "label": "Delete a learning goal and all its practice",
             "why": why or "Asked to delete it from the progress page.",
             "reversible": False,
