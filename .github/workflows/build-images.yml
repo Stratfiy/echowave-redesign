@@ -94,6 +94,12 @@ jobs:
             # which is what compose gives it (`context: ./sandbox`). Building
             # it from echowave/ would fail on the first COPY.
             context: echowave/sandbox
+          # The isolated browser the sandbox starts per task. Nothing built it,
+          # so a fresh box pulled a name that did not exist and every browse
+          # said "still downloading" forever (sandbox/browser/README.md).
+          - name: browser-box
+            dockerfile: echowave/sandbox/browser/Dockerfile
+            context: echowave/sandbox/browser
 
     steps:
       - name: Check out, with pipecat

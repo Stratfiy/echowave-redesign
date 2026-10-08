@@ -134,6 +134,25 @@ def prepare(body: dict[str, Any], *, signals: list[str]) -> dict[str, Any]:
     return payload
 
 
+class _ForcedToolChoiceRefused(Exception):
+    """The model said no to a forced ``tool_choice``; see ``call``."""
+
+
+def _refuses_forced_tool_choice(status: int, text: str) -> bool:
+    return status == 400 and "tool_choice" in text and "not supported" in text
+
+
+def _unforced(payload: dict[str, Any]) -> dict[str, Any] | None:
+    """The same request with ``tool_choice`` relaxed to ``auto``, or None if it
+    was not forcing a tool. browser-use forces one on every step; models that
+    reason before acting refuse that outright, and every step then failed.
+    With ``auto`` the tools are still offered and the model still picks one."""
+    choice = payload.get("tool_choice")
+    if not isinstance(choice, dict) or choice.get("type") not in ("any", "tool"):
+        return None
+    return {**payload, "tool_choice": {"type": "auto"}}
+
+
 async def _post(payload: dict[str, Any], key: str) -> dict[str, Any]:
     async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS) as client:
         response = await client.post(
@@ -146,6 +165,8 @@ async def _post(payload: dict[str, Any], key: str) -> dict[str, Any]:
             json=payload,
         )
     if response.status_code >= 400:
+        if _refuses_forced_tool_choice(response.status_code, response.text):
+            raise _ForcedToolChoiceRefused()
         logger.error(
             "Browser model call returned {}: {}",
             response.status_code,
@@ -169,7 +190,19 @@ async def call(
         )
     payload = prepare(body, signals=signals)
     try:
-        reply = await _post(payload, key)
+        try:
+            reply = await _post(payload, key)
+        except _ForcedToolChoiceRefused:
+            relaxed = _unforced(payload)
+            if relaxed is None:
+                raise BridgeError("The model could not answer just now.") from None
+            logger.info(
+                "Browser model refused a forced tool_choice; retrying with auto"
+            )
+            payload = relaxed
+            reply = await _post(payload, key)
+    except _ForcedToolChoiceRefused:
+        raise BridgeError("The model could not answer just now.") from None
     except httpx.HTTPError as exc:
         logger.error("Browser model call failed: {}", exc)
         raise BridgeError("The model could not be reached just now.") from exc
