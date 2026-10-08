@@ -7,165 +7,229 @@
 <style>
   :root {
     --paper: #ffffff; --paper-2: #f9f9f9; --fog: #f4f4f4; --line: #ececec;
-    --ink: #0d0d0d; --ink-2: #5d5d5d; --ink-3: #8f8f8f;
-    --pink: #F7B5E3; --yellow: #FFD66B; --green: #CDEB7A; --ok: #075A39;
+    --ink: #0d0d0d; --ink-2: #5d5d5d; --ink-3: #8f8f8f; --ok: #075A39;
     --display: "Inter Display", "Inter", "Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans Telugu", "Noto Sans Bengali", sans-serif;
     --body: "Inter", "Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans Telugu", "Noto Sans Bengali", sans-serif;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--paper); }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: #fbfaf8; }
   body { font-family: var(--body); color: var(--ink); -webkit-font-smoothing: antialiased; }
   .stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; }
-  .scene { position: absolute; inset: 0; }
+  .scene { position: absolute; inset: 0; perspective: 2400px; }
   [data-in] { opacity: 0; will-change: transform, opacity; }
   .center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
   .blob { display: block; }
+  .ico { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
-  /* S1 */
-  .blob-row { display: flex; gap: 36px; }
-  .logo-big { width: 620px; }
+  /* colour wash behind everything */
+  .mesh { position: absolute; inset: -200px; filter: blur(130px) saturate(1.2); }
+  .mesh i { position: absolute; border-radius: 50%; display: block; }
+  .grain { position: absolute; inset: 0; opacity: 0.05; mix-blend-mode: multiply; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
 
-  /* S2 */
-  .h1 { font-family: var(--display); font-weight: 600; font-size: 116px; line-height: 1.04; letter-spacing: -0.035em; text-align: center; }
-  .h1 .w { display: inline-block; margin: 0 0.12em; }
-  .pills { display: flex; gap: 22px; margin-top: 72px; }
-  .pill { display: flex; align-items: center; gap: 16px; padding: 14px 30px 14px 16px; border: 1.5px solid var(--line); border-radius: 999px; font-size: 38px; font-weight: 500; letter-spacing: -0.01em; }
+  /* kinetic captions */
+  .caption { position: absolute; z-index: 20; left: 0; right: 0; top: 46px; text-align: center; font-family: var(--display); font-weight: 650; font-size: 66px; letter-spacing: -0.035em; line-height: 1.1; }
+  .kin .wd { display: inline-block; overflow: hidden; vertical-align: top; padding: 0 0.02em 0.08em; margin-bottom: -0.08em; }
+  .kin .wd > span { display: inline-block; }
+  .pill { display: inline-block; padding: 10px 40px 14px; border-radius: 999px; background: rgba(255,255,255,0.72); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.9); box-shadow: 0 20px 50px rgba(40,20,80,0.14); }
+  .muted { color: #7a7a85; }
+  .grad { background: linear-gradient(90deg, #E0308C, #9A5BFF 45%, #3D9BFF); -webkit-background-clip: text; background-clip: text; color: transparent; }
 
-  /* captions */
-  .caption { position: absolute; left: 0; right: 0; top: 64px; text-align: center; font-family: var(--display); font-weight: 600; font-size: 64px; letter-spacing: -0.03em; }
-  .caption .muted { color: var(--ink-3); }
-
-  /* S3 chat window */
-  .window { position: absolute; left: 168px; top: 157px; width: 1200px; height: 677px; zoom: 1.25; border: 1px solid var(--line); border-radius: 22px; overflow: hidden; display: flex; background: var(--paper); box-shadow: 0 30px 80px rgba(13,13,13,0.08), 0 2px 6px rgba(13,13,13,0.04); }
+  /* browser window */
+  .browser { position: absolute; background: #fff; border-radius: 18px; overflow: hidden; border: 1px solid rgba(13,13,13,0.08);
+    box-shadow: 0 60px 140px rgba(40,20,80,0.18), 0 12px 30px rgba(13,13,13,0.08); transform-origin: 50% 50%; }
+  .chrome { height: 46px; background: #f6f6f7; border-bottom: 1px solid #ececec; display: flex; align-items: center; padding: 0 18px; gap: 8px; }
+  .chrome .dot { width: 13px; height: 13px; border-radius: 50%; }
+  .url { margin: 0 auto; width: 520px; height: 30px; border-radius: 9px; background: #fff; border: 1px solid #e6e6e8; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; color: #5d5d5d; }
+  .url b { color: #0d0d0d; font-weight: 500; }
+  .app { display: flex; transform-origin: 0 0; }
   .rail { width: 232px; background: var(--paper-2); border-right: 1px solid var(--line); padding: 20px 14px; display: flex; flex-direction: column; gap: 4px; font-size: 15px; }
   .rail img { width: 112px; margin: 4px 8px 22px; }
-  .rail .item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; color: var(--ink); }
+  .rail .item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; }
   .rail .item.active { background: #ececec; font-weight: 600; }
   .rail .label { font-size: 12px; color: var(--ink-3); padding: 18px 10px 6px; letter-spacing: 0.02em; }
-  .ico { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-  .main { flex: 1; display: flex; flex-direction: column; }
+  .main { flex: 1; display: flex; flex-direction: column; background: #fff; }
   .header { height: 56px; border-bottom: 1px solid var(--line); display: flex; align-items: center; padding: 0 24px; font-weight: 600; font-size: 16px; gap: 10px; }
   .convo { flex: 1; width: 760px; margin: 0 auto; padding-top: 22px; display: flex; flex-direction: column; gap: 14px; font-size: 18px; line-height: 1.6; }
   .user { align-self: flex-end; max-width: 560px; background: var(--fog); border-radius: 22px; padding: 14px 20px; }
   .bot { display: flex; gap: 14px; align-items: flex-start; }
-  .card { border: 1px solid var(--line); border-radius: 18px; padding: 16px 22px; margin-left: 46px; }
-  .card-h { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 17px; margin-bottom: 14px; }
+  .card { border: 1px solid var(--line); border-radius: 18px; padding: 16px 22px; margin-left: 46px; background: #fff; }
+  .card-h { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 17px; margin-bottom: 12px; }
   .row { display: flex; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--line); font-size: 16px; }
   .row span:first-child { color: var(--ink-2); }
   .row span:last-child { font-weight: 500; }
-  .actions { display: flex; gap: 10px; margin-top: 16px; align-items: center; }
+  .actions { display: flex; gap: 10px; margin-top: 14px; align-items: center; }
   .btn { padding: 10px 22px; border-radius: 999px; font-size: 15px; font-weight: 600; border: 1.5px solid var(--ink); }
   .btn.primary { background: var(--ink); color: #fff; }
   .note { font-size: 14px; color: var(--ink-3); margin-left: 8px; }
   .done { display: flex; align-items: center; gap: 10px; color: var(--ok); font-weight: 500; font-size: 16px; margin-left: 46px; }
-  .composer { width: 760px; margin: 0 auto 28px; border: 1px solid #d9dee5; border-radius: 26px; padding: 16px 20px; font-size: 18px; display: flex; align-items: center; justify-content: space-between; min-height: 62px; }
-  .composer .ph { color: var(--ink-3); }
+  .composer { width: 760px; margin: 0 auto 28px; border: 1px solid #d9dee5; border-radius: 26px; padding: 16px 20px; font-size: 18px; display: flex; align-items: center; justify-content: space-between; min-height: 62px; background: #fff; }
+  .ph { color: var(--ink-3); }
   .send { width: 34px; height: 34px; border-radius: 50%; background: var(--ink); display: grid; place-items: center; flex-shrink: 0; }
   .caret { display: inline-block; width: 2px; height: 1.1em; background: var(--ink); vertical-align: -0.18em; margin-left: 1px; }
-  .cursor { position: absolute; width: 34px; height: 34px; z-index: 10; pointer-events: none; }
+  .cursor { position: absolute; width: 34px; height: 34px; z-index: 10; filter: drop-shadow(0 3px 6px rgba(0,0,0,.25)); }
 
-  /* S4 channels */
-  .chan { position: absolute; top: 250px; width: 700px; height: 520px; border: 1px solid var(--line); border-radius: 28px; padding: 40px; background: var(--paper); box-shadow: 0 30px 80px rgba(13,13,13,0.06); }
-  .chan .tag { font-size: 16px; color: var(--ink-3); letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600; margin-bottom: 26px; display: flex; align-items: center; gap: 10px; }
-  .call-name { font-family: var(--display); font-size: 40px; font-weight: 600; letter-spacing: -0.02em; margin-top: 18px; }
-  .timer { font-size: 22px; color: var(--ink-2); margin-top: 6px; font-variant-numeric: tabular-nums; }
-  .wave { display: flex; gap: 7px; align-items: center; height: 120px; margin-top: 34px; }
-  .wave i { display: block; width: 9px; border-radius: 9px; background: var(--ink); }
-  .msg { max-width: 520px; padding: 16px 22px; border-radius: 22px; font-size: 26px; line-height: 1.5; margin-bottom: 18px; }
-  .msg.out { background: var(--ink); color: #fff; border-bottom-right-radius: 6px; margin-left: auto; }
-  .msg.in { background: var(--fog); border-bottom-left-radius: 6px; }
-  .meta { font-size: 15px; color: var(--ink-3); margin: -8px 0 18px; text-align: right; }
-  .langs { position: absolute; left: 0; right: 0; bottom: 92px; display: flex; justify-content: center; gap: 18px; }
-  .lang { padding: 14px 30px; border-radius: 999px; background: var(--fog); font-size: 34px; font-weight: 500; }
+  /* hook home */
+  .home { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #fff; padding-bottom: 40px; }
+  .greet { font-family: var(--display); font-weight: 600; font-size: 34px; letter-spacing: -0.03em; margin-bottom: 26px; display: flex; align-items: center; gap: 14px; }
+  .home .composer { width: 700px; margin: 0; font-size: 21px; line-height: 1.4; border-radius: 28px; padding: 18px 18px 18px 24px; align-items: flex-end; gap: 16px; box-shadow: 0 8px 30px rgba(13,13,13,0.06); }
+  .chips { display: flex; gap: 10px; margin-top: 18px; }
+  .chips div { padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; font-size: 14px; color: var(--ink-2); }
 
-  /* S5 today */
-  .today { position: absolute; left: 460px; top: 220px; width: 1000px; }
-  .today h2 { font-family: var(--display); font-size: 56px; font-weight: 600; letter-spacing: -0.03em; }
-  .today .date { color: var(--ink-3); font-size: 22px; margin: 6px 0 30px; }
-  .t-row { display: flex; align-items: center; gap: 22px; border: 1px solid var(--line); border-radius: 20px; padding: 24px 28px; margin-bottom: 16px; }
-  .t-row .t-main { flex: 1; }
-  .t-title { font-size: 26px; font-weight: 600; letter-spacing: -0.01em; }
-  .t-sub { font-size: 19px; color: var(--ink-2); margin-top: 4px; }
-  .bar { height: 10px; border-radius: 10px; background: var(--fog); margin-top: 16px; overflow: hidden; }
-  .bar i { display: block; height: 100%; background: var(--ink); border-radius: 10px; width: 0; }
-  .check { display: flex; align-items: center; gap: 8px; color: var(--ok); font-weight: 600; font-size: 19px; }
+  /* phones */
+  .phone { position: absolute; width: 372px; height: 770px; border-radius: 62px; background: linear-gradient(145deg, #3a3a3e, #121214 40%, #2a2a2e); padding: 11px;
+    box-shadow: 0 70px 140px rgba(40,20,80,0.28), 0 20px 40px rgba(13,13,13,0.18), inset 0 0 0 2px #4a4a50; transform-style: preserve-3d; }
+  .screen { position: relative; width: 100%; height: 100%; border-radius: 52px; overflow: hidden; background: #fff; display: flex; flex-direction: column; }
+  .island { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); width: 112px; height: 32px; border-radius: 20px; background: #000; z-index: 5; }
+  .status { height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 6px 30px 0 34px; font-size: 16px; font-weight: 600; flex-shrink: 0; }
+  .status .bat { display: flex; gap: 6px; align-items: center; }
+  .status .bat i { display: block; width: 24px; height: 12px; border-radius: 4px; border: 1.5px solid currentColor; position: relative; }
+  .status .bat i::after { content: ""; position: absolute; inset: 1.5px; right: 5px; background: currentColor; border-radius: 2px; }
+  .glare { position: absolute; inset: 0; border-radius: 52px; background: linear-gradient(115deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 35%); pointer-events: none; z-index: 6; }
 
-  /* S6 */
-  .end-line { font-family: var(--display); font-size: 52px; font-weight: 500; letter-spacing: -0.025em; color: var(--ink-2); margin-top: 52px; }
+  /* call screen */
+  .call { color: #fff; background: radial-gradient(120% 80% at 50% 0%, #3b5b2a 0%, #1a2416 45%, #0b0d0a 100%); }
+  .call .who { text-align: center; margin-top: 70px; }
+  .call .who .blob { margin: 0 auto 18px; }
+  .call .nm { font-family: var(--display); font-size: 32px; font-weight: 600; letter-spacing: -0.02em; }
+  .call .sub { font-size: 15px; opacity: 0.7; margin-top: 6px; }
+  .call .wave { display: flex; gap: 5px; align-items: center; justify-content: center; height: 90px; margin-top: 46px; }
+  .call .wave i { display: block; width: 6px; border-radius: 6px; background: #fff; }
+  .call .btns { position: absolute; bottom: 70px; left: 0; right: 0; display: flex; justify-content: center; gap: 26px; }
+  .call .btns div { width: 68px; height: 68px; border-radius: 50%; background: rgba(255,255,255,0.16); display: grid; place-items: center; }
+  .call .btns .end { background: #ff3b30; }
+  .call .btns .ico { width: 26px; height: 26px; stroke: #fff; }
+  .call .live { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 15px; font-variant-numeric: tabular-nums; background: rgba(255,255,255,0.12); padding: 5px 12px; border-radius: 999px; }
+  .call .live b { width: 8px; height: 8px; border-radius: 50%; background: #7EDB2E; display: block; }
 
-  .hook { position: absolute; left: 240px; right: 240px; top: 330px; }
-  .greet { font-family: var(--display); font-weight: 600; font-size: 72px; letter-spacing: -0.03em; text-align: center; margin-bottom: 56px; display: flex; align-items: center; justify-content: center; gap: 26px; }
-  .big-composer { border: 1.5px solid #d9dee5; border-radius: 52px; padding: 34px 34px 34px 50px; font-size: 44px; line-height: 1.35; display: flex; align-items: flex-end; justify-content: space-between; gap: 30px; min-height: 140px; background: #fff; box-shadow: 0 30px 80px rgba(13,13,13,0.06); }
-  .big-composer .ph { color: var(--ink-3); }
-  .big-send { width: 72px; height: 72px; border-radius: 50%; background: var(--ink); display: grid; place-items: center; flex-shrink: 0; }
-  .big-send .ico { width: 34px; height: 34px; stroke: #fff; stroke-width: 2.2; }
-  .cta { margin-top: 48px; padding: 20px 44px; border-radius: 999px; background: var(--ink); color: #fff; font-family: var(--display); font-size: 46px; font-weight: 600; letter-spacing: -0.02em; }
-  .cta span { color: #8f8f8f; font-weight: 500; }
+  /* chat app screen */
+  .wa { background: #efe7dd; }
+  .wa .status { background: #f6f5f3; }
+  .wa-h { background: #f6f5f3; display: flex; align-items: center; gap: 12px; padding: 8px 16px 12px; border-bottom: 1px solid #e3ddd4; flex-shrink: 0; }
+  .wa-h .nm { font-weight: 600; font-size: 17px; }
+  .wa-h .on { font-size: 13px; color: #6b7a6b; }
+  .wa-body { flex: 1; padding: 18px 14px; display: flex; flex-direction: column; gap: 10px; background-image: radial-gradient(rgba(120,100,70,0.08) 1px, transparent 1px); background-size: 18px 18px; }
+  .day { align-self: center; font-size: 12px; background: #fff; padding: 4px 10px; border-radius: 8px; color: #6b6b6b; box-shadow: 0 1px 1px rgba(0,0,0,0.06); }
+  .bub { max-width: 270px; padding: 8px 12px 6px; border-radius: 14px; font-size: 18px; line-height: 1.45; box-shadow: 0 1px 1px rgba(0,0,0,0.08); }
+  .bub.out { align-self: flex-end; background: #d9fdd3; border-top-right-radius: 4px; }
+  .bub.in { align-self: flex-start; background: #fff; border-top-left-radius: 4px; }
+  .bub small { display: block; text-align: right; font-size: 11px; color: #6b7a6b; margin-top: 2px; }
+  .bub small em { color: #3d9bff; font-style: normal; }
+  .wa-in { background: #f6f5f3; padding: 10px 14px 34px; display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
+  .wa-in div { flex: 1; height: 40px; border-radius: 20px; background: #fff; }
+  .wa-in span { width: 40px; height: 40px; border-radius: 50%; background: #1f9d55; }
+
+  /* glass chips */
+  .glass { position: absolute; padding: 16px 30px; border-radius: 999px; font-size: 36px; font-weight: 500; background: rgba(255,255,255,0.55); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(255,255,255,0.8); box-shadow: 0 20px 50px rgba(40,20,80,0.12); }
+
+  /* Today on phone */
+  .td { background: #fff; }
+  .td-h { padding: 14px 24px 6px; }
+  .td-h h2 { font-family: var(--display); font-size: 36px; font-weight: 650; letter-spacing: -0.03em; }
+  .td-h .date { color: var(--ink-3); font-size: 15px; margin-top: 2px; }
+  .td-list { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; flex: 1; }
+  .t-row { display: flex; align-items: center; gap: 14px; border: 1px solid var(--line); border-radius: 20px; padding: 16px; background: #fff; }
+  .t-main { flex: 1; min-width: 0; }
+  .t-title { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+  .t-sub { font-size: 14px; color: var(--ink-2); margin-top: 2px; }
+  .bar { height: 8px; border-radius: 8px; background: var(--fog); margin-top: 10px; overflow: hidden; }
+  .bar i { display: block; height: 100%; border-radius: 8px; width: 0; background: linear-gradient(90deg, #3D9BFF, #9A5BFF); }
+  .check { display: inline-flex; align-items: center; gap: 6px; color: var(--ok); font-weight: 600; font-size: 13px; margin-top: 6px; }
+  .tabbar { display: flex; justify-content: space-around; padding: 12px 40px 34px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-3); }
+  .tabbar div { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .tabbar .on { color: var(--ink); font-weight: 600; }
+  .tabbar .ico { width: 22px; height: 22px; }
+  .side-title { position: absolute; left: 200px; top: 360px; width: 780px; font-family: var(--display); font-weight: 650; font-size: 104px; letter-spacing: -0.045em; line-height: 1.0; }
+  .side-sub { position: absolute; left: 204px; top: 600px; width: 640px; font-size: 30px; line-height: 1.4; color: var(--ink-2); }
+
+  /* reveal + outro */
+  .logo-big { width: 600px; }
+  .headline { font-family: var(--display); font-weight: 650; font-size: 92px; letter-spacing: -0.045em; text-align: center; line-height: 1.04; margin-top: 46px; }
+  .cta { margin-top: 52px; padding: 22px 46px; border-radius: 999px; background: var(--ink); color: #fff; font-family: var(--display); font-size: 46px; font-weight: 600; letter-spacing: -0.02em; box-shadow: 0 24px 60px rgba(40,20,80,0.25); }
+  .cta span { color: #9a9aa5; font-weight: 500; }
+  .float { position: absolute; }
 </style>
 </head>
 <body>
 <div class="stage" id="stage">
+  <div class="mesh" id="mesh">
+    <i style="width:900px;height:900px;background:#FF5DB1"></i>
+    <i style="width:800px;height:800px;background:#FFC21F"></i>
+    <i style="width:850px;height:850px;background:#7EDB2E"></i>
+    <i style="width:900px;height:900px;background:#3D9BFF"></i>
+    <i style="width:800px;height:800px;background:#9A5BFF"></i>
+  </div>
+  <div class="grain"></div>
 
-  <!-- 1 Hook: the real ask, typed big -->
-  <section class="scene" data-in="0" data-out="2.95" data-fade="0.3">
-    <div class="hook">
-      <div class="greet" data-in="0" data-dur="0.01"><svg class="blob" data-blob="0" data-fill="#F7B5E3" width="84" height="84"></svg>What can I do for you, Priya?</div>
-      <div class="big-composer" data-in="0" data-dur="0.01" id="bigc"><div id="bigtyped"><span class="ph">Ask Decibyl</span></div>
-        <div class="big-send" id="bigsend"><svg class="ico" viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></div></div>
+  <!-- 1 Hook: the real home, the ask typed in -->
+  <section class="scene" data-in="0" data-dur="0.01" data-out="2.95" data-fade="0.3">
+    <div class="browser" id="hookwin" style="left:180px;top:120px;width:1560px;height:840px">
+      <div class="chrome"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span>
+        <div class="url"><svg class="ico" style="width:13px;height:13px" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><b>app.decibyl.ai</b>/overview</div></div>
+      <div class="app" style="zoom:1.4;height:566px">
+        <aside class="rail">
+          <img src="decibyl-logo.svg">
+          <div class="item active"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/></svg>Chat</div>
+          <div class="item"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>Today</div>
+          <div class="label">RECENTS</div>
+          <div class="item"><svg class="blob" data-blob="0" data-color="pink" width="22" height="22"></svg>Amma's care</div>
+          <div class="item"><svg class="blob" data-blob="1" data-color="orange" width="22" height="22"></svg>Shop orders</div>
+          <div class="item"><svg class="blob" data-blob="2" data-color="purple" width="22" height="22"></svg>Weekly accounts</div>
+        </aside>
+        <div class="home">
+          <div class="greet"><svg class="blob" data-blob="0" data-color="pink" width="44" height="44"></svg>What can I do for you, Priya?</div>
+          <div class="composer" id="bigc"><div id="bigtyped"><span class="ph">Ask Decibyl</span></div>
+            <div class="send" id="bigsend"><svg class="ico" viewBox="0 0 24 24" style="stroke:#fff"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></div></div>
+          <div class="chips"><div>Plan my week</div><div>Call the bank for me</div><div>Teach me Excel</div></div>
+        </div>
+      </div>
     </div>
   </section>
 
   <!-- 2 Reveal -->
-  <section class="scene" data-in="3.2" data-out="6.3" data-fade="0.01">
+  <section class="scene" data-in="3.2" data-dur="0.01" data-out="6.2" data-fade="0.25">
+    <div class="float" style="left:250px;top:180px" data-in="3.3" data-mode="pop"><svg class="blob bob" data-blob="0" data-color="pink" width="150" height="150"></svg></div>
+    <div class="float" style="left:1540px;top:150px" data-in="3.4" data-mode="pop"><svg class="blob bob" data-blob="1" data-color="yellow" width="120" height="120"></svg></div>
+    <div class="float" style="left:180px;top:720px" data-in="3.5" data-mode="pop"><svg class="blob bob" data-blob="2" data-color="green" width="120" height="120"></svg></div>
+    <div class="float" style="left:1560px;top:700px" data-in="3.6" data-mode="pop"><svg class="blob bob" data-blob="1" data-color="blue" width="160" height="160"></svg></div>
+    <div class="float" style="left:900px;top:870px" data-in="3.7" data-mode="pop"><svg class="blob bob" data-blob="0" data-color="purple" width="90" height="90"></svg></div>
     <div class="center">
-      <div class="blob-row" style="margin-bottom:60px" data-in="3.2" data-dur="0.01" data-out="6.05" data-fade="0.3">
-        <span data-in="3.30" data-mode="pop"><svg class="blob" data-blob="0" data-color="pink" width="110" height="110"></svg></span>
-        <span data-in="3.40" data-mode="pop"><svg class="blob" data-blob="1" data-color="yellow" width="110" height="110"></svg></span>
-        <span data-in="3.50" data-mode="pop"><svg class="blob" data-blob="2" data-color="green" width="110" height="110"></svg></span>
-        <span data-in="3.60" data-mode="pop"><svg class="blob" data-blob="1" data-color="blue" width="110" height="110"></svg></span>
-        <span data-in="3.70" data-mode="pop"><svg class="blob" data-blob="0" data-color="purple" width="110" height="110"></svg></span>
-      </div>
-      <img class="logo-big" src="decibyl-logo.svg" data-in="3.5" data-dur="0.8" data-mode="grow" data-out="6.05" data-fade="0.3">
-      <div class="end-line" data-in="3.75" data-dur="0.6" data-out="6.05" data-fade="0.3" style="color:var(--ink);font-weight:600;font-size:64px">One assistant for a person's whole life.</div>
+      <img class="logo-big" src="decibyl-logo.svg" data-in="3.35" data-dur="0.8" data-mode="grow">
+      <div class="headline kin" data-kin="3.55">One assistant for a person's <span class="grad">whole life.</span></div>
     </div>
   </section>
 
   <!-- 3 Chat: preview, approve, done -->
-  <section class="scene" data-in="6.4" data-out="12.0" data-fade="0.35">
-    <div class="caption" data-in="7.0">Always asks before it acts.</div>
-    <div class="window" data-in="6.45" data-dur="0.7" data-dist="40">
-      <aside class="rail">
-        <img src="decibyl-logo.svg">
-        <div class="item active"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/></svg>Chat</div>
-        <div class="item"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>Today</div>
-        <div class="label">RECENTS</div>
-        <div class="item"><svg class="blob" data-blob="0" data-fill="#F7B5E3" width="22" height="22"></svg>Amma's care</div>
-        <div class="item"><svg class="blob" data-blob="1" data-color="orange" width="22" height="22"></svg>Shop orders</div>
-        <div class="item"><svg class="blob" data-blob="2" data-color="purple" width="22" height="22"></svg>Weekly accounts</div>
-      </aside>
-      <div class="main">
-        <div class="header"><svg class="blob" data-blob="0" data-fill="#F7B5E3" width="24" height="24"></svg>Amma's care</div>
-        <div class="convo">
-          <div class="user">Remind Amma about her 8 pm medicine, and move Friday's clinic visit to Saturday.</div>
-          <div class="bot">
-            <svg class="blob" data-blob="0" data-fill="#F7B5E3" width="32" height="32"></svg>
-            <div id="stream"></div>
-          </div>
-          <div class="card" id="card" data-in="8.0" data-dur="0.45">
-            <div class="card-h"><svg class="ico" viewBox="0 0 24 24"><path d="M5 4h4l2 5-3 2a11 11 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>Call Sunrise Clinic</div>
-            <div class="row"><span>Move appointment</span><span>Fri 10:00 → Sat 11:30</span></div>
-            <div class="row"><span>WhatsApp reminder to Amma</span><span>Daily, 8:00 pm · Hindi</span></div>
-            <div class="actions">
-              <div class="btn primary" id="approve">Approve</div>
-              <div class="btn">Edit</div>
-              <div class="note" id="note">Nothing happens until you approve.</div>
+  <section class="scene" data-in="6.4" data-dur="0.01" data-out="12.0" data-fade="0.35">
+    <div class="caption"><span class="pill kin" data-kin="7.0">Always asks <span class="muted">before it acts.</span></span></div>
+    <div class="browser" id="chatwin" style="left:210px;top:170px;width:1500px;height:880px" data-in="6.45" data-dur="0.5" data-dist="0">
+      <div class="chrome"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span>
+        <div class="url"><svg class="ico" style="width:13px;height:13px" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><b>app.decibyl.ai</b>/chat/amma</div></div>
+      <div class="app" style="zoom:1.25;height:667px">
+        <aside class="rail">
+          <img src="decibyl-logo.svg">
+          <div class="item active"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/></svg>Chat</div>
+          <div class="item"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>Today</div>
+          <div class="label">RECENTS</div>
+          <div class="item"><svg class="blob" data-blob="0" data-color="pink" width="22" height="22"></svg>Amma's care</div>
+          <div class="item"><svg class="blob" data-blob="1" data-color="orange" width="22" height="22"></svg>Shop orders</div>
+          <div class="item"><svg class="blob" data-blob="2" data-color="purple" width="22" height="22"></svg>Weekly accounts</div>
+        </aside>
+        <div class="main">
+          <div class="header"><svg class="blob" data-blob="0" data-color="pink" width="24" height="24"></svg>Amma's care</div>
+          <div class="convo">
+            <div class="user">Remind Amma about her 8 pm medicine, and move Friday's clinic visit to Saturday.</div>
+            <div class="bot"><svg class="blob" data-blob="0" data-color="pink" width="32" height="32"></svg><div id="stream"></div></div>
+            <div class="card" id="card" data-in="8.0" data-dur="0.45">
+              <div class="card-h"><svg class="ico" viewBox="0 0 24 24"><path d="M5 4h4l2 5-3 2a11 11 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>Call Sunrise Clinic</div>
+              <div class="row"><span>Move appointment</span><span>Fri 10:00 → Sat 11:30</span></div>
+              <div class="row"><span>WhatsApp reminder to Amma</span><span>Daily, 8:00 pm · Hindi</span></div>
+              <div class="actions"><div class="btn primary" id="approve">Approve</div><div class="btn">Edit</div><div class="note" id="note">Nothing happens until you approve.</div></div>
             </div>
+            <div class="done" data-in="9.8" data-dur="0.35"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>Called · Saturday 11:30 confirmed</div>
+            <div class="done" data-in="10.05" data-dur="0.35"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>Reminder set · Amma, every day at 8:00 pm</div>
           </div>
-          <div class="done" data-in="9.8" data-dur="0.35"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>Called · Saturday 11:30 confirmed</div>
-          <div class="done" data-in="10.05" data-dur="0.35"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>Reminder set · Amma, every day at 8:00 pm</div>
-        </div>
-        <div class="composer"><span><span class="ph">Ask Decibyl</span></span>
-          <div class="send"><svg class="ico" viewBox="0 0 24 24" style="stroke:#fff"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></div>
+          <div class="composer"><span class="ph">Ask Decibyl</span><div class="send"><svg class="ico" viewBox="0 0 24 24" style="stroke:#fff"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></div></div>
         </div>
       </div>
     </div>
@@ -173,65 +237,72 @@
   </section>
 
   <!-- 4 Phone + WhatsApp, in their language -->
-  <section class="scene" data-in="12.3" data-out="16.3" data-fade="0.35">
-    <div class="caption" data-in="12.4">Acts on the phone and WhatsApp, <span class="muted">in their language.</span></div>
-    <div class="chan" style="left:220px" data-in="12.55" data-dist="40">
-      <div class="tag"><svg class="ico" viewBox="0 0 24 24"><path d="M5 4h4l2 5-3 2a11 11 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>Phone call</div>
-      <svg class="blob" data-blob="2" data-fill="#CDEB7A" width="96" height="96"></svg>
-      <div class="call-name">Sunrise Clinic</div>
-      <div class="timer" id="timer">00:00</div>
-      <div class="wave" id="wave"></div>
+  <section class="scene" data-in="12.3" data-dur="0.01" data-out="16.3" data-fade="0.35">
+    <div class="caption kin" data-kin="12.4">Acts on the phone and WhatsApp, <span class="muted">in their language.</span></div>
+    <div class="phone" id="ph1" style="left:540px;top:236px" data-in="12.5" data-dur="0.7" data-dist="80">
+      <div class="screen call"><div class="island"></div>
+        <div class="status"><span>8:00</span><span class="bat"><i></i></span></div>
+        <div class="who"><svg class="blob" data-blob="2" data-color="green" width="120" height="120"></svg>
+          <div class="nm">Sunrise Clinic</div><div class="sub">Decibyl, calling for Priya</div>
+          <div class="live"><b></b><span id="timer">00:00</span></div></div>
+        <div class="wave" id="wave"></div>
+        <div class="btns">
+          <div><svg class="ico" viewBox="0 0 24 24"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div>
+          <div class="end"><svg class="ico" viewBox="0 0 24 24" style="transform:rotate(135deg)"><path d="M5 4h4l2 5-3 2a11 11 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg></div>
+          <div><svg class="ico" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9zM16 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12"/></svg></div>
+        </div>
+        <div class="glare"></div></div>
     </div>
-    <div class="chan" style="left:1000px" data-in="12.7" data-dist="40">
-      <div class="tag"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/></svg>WhatsApp · Amma</div>
-      <div class="msg out" data-in="13.1">अम्मा, रात के 8 बज गए। दवा का समय है।</div>
-      <div class="meta" data-in="13.25">8:00 pm</div>
-      <div class="msg in" data-in="13.6">ले ली, बेटा। 🙏</div>
-      <div class="msg out" data-in="14.2">बहुत अच्छा। कल फिर याद दिलाऊँगी।</div>
+    <div class="phone" id="ph2" style="left:1008px;top:236px" data-in="12.7" data-dur="0.7" data-dist="80">
+      <div class="screen wa"><div class="island"></div>
+        <div class="status"><span>8:00</span><span class="bat"><i></i></span></div>
+        <div class="wa-h"><svg class="ico" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></svg><svg class="blob" data-blob="0" data-color="pink" width="40" height="40"></svg><div><div class="nm">Amma</div><div class="on">online</div></div></div>
+        <div class="wa-body">
+          <div class="day">Today</div>
+          <div class="bub out" data-in="13.1" data-dur="0.35" data-dist="14">अम्मा, रात के 8 बज गए। दवा का समय है। 💊<small>8:00 pm <em>✓✓</em></small></div>
+          <div class="bub in" data-in="13.6" data-dur="0.35" data-dist="14">ले ली, बेटा। 🙏<small>8:01 pm</small></div>
+          <div class="bub out" data-in="14.2" data-dur="0.35" data-dist="14">बहुत अच्छा। कल फिर याद दिलाऊँगी।<small>8:01 pm <em>✓✓</em></small></div>
+        </div>
+        <div class="wa-in"><div></div><span></span></div>
+        <div class="glare"></div></div>
     </div>
-    <div class="langs">
-      <div class="lang" data-in="14.0" data-mode="pop">नमस्ते</div>
-      <div class="lang" data-in="14.15" data-mode="pop">வணக்கம்</div>
-      <div class="lang" data-in="14.3" data-mode="pop">నమస్కారం</div>
-      <div class="lang" data-in="14.45" data-mode="pop">নমস্কার</div>
-      <div class="lang" data-in="14.6" data-mode="pop">Hello</div>
-    </div>
+    <div class="glass" style="left:190px;top:330px" data-in="14.0" data-mode="pop">नमस्ते</div>
+    <div class="glass" style="left:150px;top:560px" data-in="14.15" data-mode="pop">வணக்கம்</div>
+    <div class="glass" style="left:1470px;top:300px" data-in="14.3" data-mode="pop">నమస్కారం</div>
+    <div class="glass" style="left:1500px;top:540px" data-in="14.45" data-mode="pop">নমস্কার</div>
+    <div class="glass" style="left:1440px;top:770px" data-in="14.6" data-mode="pop">Hello</div>
   </section>
 
-  <!-- 5 Today -->
-  <section class="scene" data-in="16.55" data-out="19.0" data-fade="0.3">
-    <div class="caption" data-in="16.6">Teaches them at their own pace.</div>
-    <div class="today">
-      <div data-in="16.65"><h2>Today</h2><div class="date">Thursday, 8 October</div></div>
-      <div class="t-row" data-in="16.8">
-        <svg class="blob" data-blob="1" data-color="blue" width="64" height="64"></svg>
-        <div class="t-main"><div class="t-title">Lesson 3 of 10 · Spotting scam calls</div><div class="t-sub">Next: what a real bank never asks for</div><div class="bar"><i id="bar"></i></div></div>
-      </div>
-      <div class="t-row" data-in="17.0">
-        <svg class="blob" data-blob="0" data-fill="#F7B5E3" width="64" height="64"></svg>
-        <div class="t-main"><div class="t-title">Amma's medicine · 8:00 pm</div><div class="t-sub">WhatsApp reminder, in Hindi</div></div>
-        <div class="check"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>Taken</div>
-      </div>
-      <div class="t-row" data-in="17.2">
-        <svg class="blob" data-blob="2" data-fill="#CDEB7A" width="64" height="64"></svg>
-        <div class="t-main"><div class="t-title">Sunrise Clinic · Saturday 11:30</div><div class="t-sub">Moved from Friday by phone</div></div>
-        <div class="check"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>Confirmed</div>
-      </div>
+  <!-- 5 Today on the phone -->
+  <section class="scene" data-in="16.55" data-dur="0.01" data-out="19.0" data-fade="0.3">
+    <div class="side-title kin" data-kin="16.6">Teaches them at their <span class="grad">own pace.</span></div>
+    <div class="phone" id="ph3" style="left:1200px;top:155px" data-in="16.6" data-dur="0.7" data-dist="80">
+      <div class="screen td"><div class="island"></div>
+        <div class="status"><span>8:05</span><span class="bat"><i></i></span></div>
+        <div class="td-h"><h2>Today</h2><div class="date">Thursday, 8 October</div></div>
+        <div class="td-list">
+          <div class="t-row" data-in="16.8" data-dist="16"><svg class="blob" data-blob="1" data-color="blue" width="46" height="46"></svg>
+            <div class="t-main"><div class="t-title">Lesson 3 of 10</div><div class="t-sub">Spotting scam calls</div><div class="bar"><i id="bar"></i></div></div></div>
+          <div class="t-row" data-in="17.0" data-dist="16"><svg class="blob" data-blob="0" data-color="pink" width="46" height="46"></svg>
+            <div class="t-main"><div class="t-title">Amma's medicine</div><div class="t-sub">8:00 pm · WhatsApp, Hindi</div><div class="check"><svg class="ico" style="width:14px;height:14px" viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></svg>Taken</div></div></div>
+          <div class="t-row" data-in="17.2" data-dist="16"><svg class="blob" data-blob="2" data-color="green" width="46" height="46"></svg>
+            <div class="t-main"><div class="t-title">Sunrise Clinic</div><div class="t-sub">Saturday 11:30 · moved by phone</div><div class="check"><svg class="ico" style="width:14px;height:14px" viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></svg>Confirmed</div></div></div>
+        </div>
+        <div class="tabbar"><div><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/></svg>Chat</div><div class="on"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>Today</div></div>
+        <div class="glare"></div></div>
     </div>
   </section>
 
   <!-- 6 Outro -->
-  <section class="scene" data-in="19.2" data-fade="0.01">
+  <section class="scene" data-in="19.2" data-dur="0.01">
+    <div class="float" style="left:300px;top:200px" data-in="19.3" data-mode="pop"><svg class="blob bob" data-blob="0" data-color="pink" width="130" height="130"></svg></div>
+    <div class="float" style="left:1500px;top:170px" data-in="19.4" data-mode="pop"><svg class="blob bob" data-blob="1" data-color="yellow" width="110" height="110"></svg></div>
+    <div class="float" style="left:230px;top:740px" data-in="19.5" data-mode="pop"><svg class="blob bob" data-blob="2" data-color="green" width="110" height="110"></svg></div>
+    <div class="float" style="left:1540px;top:720px" data-in="19.6" data-mode="pop"><svg class="blob bob" data-blob="1" data-color="blue" width="140" height="140"></svg></div>
+    <div class="float" style="left:880px;top:120px" data-in="19.7" data-mode="pop"><svg class="blob bob" data-blob="0" data-color="purple" width="80" height="80"></svg></div>
     <div class="center">
-      <div class="blob-row" style="margin-bottom:56px">
-        <span data-in="19.30" data-mode="pop"><svg class="blob" data-blob="0" data-color="pink" width="80" height="80"></svg></span>
-        <span data-in="19.40" data-mode="pop"><svg class="blob" data-blob="1" data-color="yellow" width="80" height="80"></svg></span>
-        <span data-in="19.50" data-mode="pop"><svg class="blob" data-blob="2" data-color="green" width="80" height="80"></svg></span>
-        <span data-in="19.60" data-mode="pop"><svg class="blob" data-blob="1" data-color="blue" width="80" height="80"></svg></span>
-        <span data-in="19.70" data-mode="pop"><svg class="blob" data-blob="0" data-color="purple" width="80" height="80"></svg></span>
-      </div>
       <img class="logo-big" src="decibyl-logo.svg" data-in="19.45" data-dur="0.8" data-mode="grow">
-      <div class="cta" data-in="20.1" data-dur="0.5" data-mode="grow"><span>Try it at</span> app.decibyl.ai</div>
+      <div class="cta" data-in="19.9" data-dur="0.5" data-mode="grow"><span>Try it at</span> app.decibyl.ai</div>
     </div>
   </section>
 </div>
@@ -243,8 +314,7 @@ const PATHS = [
   "M47 5c16-2 33 7 41 22s9 35-1 49-30 21-46 17S9 77 5 60 31 7 47 5z",
 ];
 const NS = "http://www.w3.org/2000/svg";
-// Blob faces: BlobFace.tsx's shapes and eyes, in vivid colour with a soft
-// gradient and a highlight.
+// Blob faces: BlobFace.tsx's shapes and eyes, in vivid colour with a soft gradient and a highlight.
 const VIVID = {
   pink:   ["#FFC2E6", "#FF5DB1", "#E0308C"],
   yellow: ["#FFF0A8", "#FFC21F", "#F29A00"],
@@ -253,14 +323,13 @@ const VIVID = {
   purple: ["#E3D1FF", "#9A5BFF", "#6A2FE0"],
   orange: ["#FFD6B0", "#FF7A2E", "#E2510F"],
 };
-const FROM_PASTEL = { "#F7B5E3": "pink", "#FFD66B": "yellow", "#CDEB7A": "green" };
 let gid = 0;
 document.querySelectorAll("svg.blob").forEach((s) => {
   s.setAttribute("viewBox", "0 0 100 100");
   s.style.overflow = "visible";
   const big = +s.getAttribute("width") >= 40;
   const [rx, ry] = big ? [5, 7] : [6, 8];
-  const [hi, mid, lo] = VIVID[s.dataset.color || FROM_PASTEL[s.dataset.fill] || "pink"];
+  const [hi, mid, lo] = VIVID[s.dataset.color || "pink"];
   const id = "bg" + gid++;
   s.innerHTML = `<defs><radialGradient id="${id}" cx="34%" cy="28%" r="80%">
       <stop offset="0" stop-color="${hi}"/><stop offset="0.45" stop-color="${mid}"/><stop offset="1" stop-color="${lo}"/></radialGradient></defs>
@@ -274,88 +343,143 @@ document.querySelectorAll("svg.blob").forEach((s) => {
   }
   s.appendChild(eyes);
 });
+
+// Kinetic captions: every word rises out of its own mask, one after another.
+document.querySelectorAll(".kin").forEach((el) => {
+  let t0 = +el.dataset.kin, k = 0;
+  const walk = (node) => {
+    [...node.childNodes].forEach((c) => {
+      if (c.nodeType === 3) {
+        const frag = document.createDocumentFragment();
+        c.textContent.split(/(\s+)/).forEach((w) => {
+          if (!w) return;
+          if (/^\s+$/.test(w)) { frag.appendChild(document.createTextNode(" ")); return; }
+          const wd = document.createElement("span"); wd.className = "wd";
+          const inner = document.createElement("span");
+          inner.textContent = w; inner.dataset.in = (t0 + k++ * 0.06).toFixed(2); inner.dataset.mode = "rise"; inner.dataset.dur = "0.55";
+          wd.appendChild(inner); frag.appendChild(wd);
+        });
+        c.replaceWith(frag);
+      } else walk(c);
+    });
+  };
+  walk(el);
+  el.style.opacity = 1;
+});
+// Gradient text needs the gradient on each word.
+document.querySelectorAll(".grad .wd > span").forEach((s) => s.classList.add("grad"));
+
 const wave = document.getElementById("wave");
-for (let i = 0; i < 48; i++) wave.appendChild(document.createElement("i"));
+for (let i = 0; i < 34; i++) wave.appendChild(document.createElement("i"));
 
 const clamp = (x) => Math.max(0, Math.min(1, x));
 const easeOut = (x) => 1 - Math.pow(1 - x, 3);
+const easeOutQ = (x) => 1 - Math.pow(1 - x, 5);
 const easeIn = (x) => x * x * x;
 const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 const back = (x) => { const c = 1.6; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const lerp = (a, b, x) => a + (b - a) * x;
 
 const USER = "Remind Amma about her 8 pm medicine, and move Friday's clinic visit to Saturday.";
 const BOT = "I'll call Sunrise Clinic to move it to Saturday 11:30, and send Amma a WhatsApp reminder in Hindi every evening. Here's exactly what I'll do:";
 
 function seek(t) {
+  // Colour wash drifts slowly.
+  const pos = [[200, 150], [1300, 100], [150, 700], [1350, 650], [750, 380]];
+  [...document.getElementById("mesh").children].forEach((c, i) => {
+    const [x, y] = pos[i];
+    c.style.transform = `translate(${x + 160 * Math.sin(t * 0.23 + i * 1.7)}px, ${y + 120 * Math.cos(t * 0.19 + i * 2.3)}px)`;
+    c.style.opacity = 0.42;
+  });
+
   // Generic enter/exit for every timed element.
   document.querySelectorAll("[data-in]").forEach((el) => {
-    const tin = +el.dataset.in, dur = +(el.dataset.dur || 0.6), dist = +(el.dataset.dist || 24);
+    const tin = +el.dataset.in, dur = +(el.dataset.dur || 0.6), dist = +(el.dataset.dist ?? 24);
     const out = el.dataset.out != null ? +el.dataset.out : Infinity, fade = +(el.dataset.fade || 0.45);
     const p = clamp((t - tin) / dur), q = clamp((t - out) / fade);
     const mode = el.dataset.mode;
     let tf = "", op = p;
     if (mode === "pop") { tf = `scale(${0.4 + 0.6 * back(p)})`; op = clamp(p * 3); }
     else if (mode === "grow") { const e = easeOut(p); tf = `scale(${0.92 + 0.08 * e})`; op = e; }
+    else if (mode === "rise") { const e = easeOutQ(p); tf = `translateY(${(1 - e) * 110}%)`; op = clamp(p * 2.5); }
     else { tf = `translateY(${(1 - easeOut(p)) * dist}px)`; op = easeOut(p); }
-    if (q > 0) {
-      if (el.dataset.outmode === "shrink") tf += ` scale(${1 - 0.5 * easeIn(q)})`;
-      else tf += ` translateY(${-14 * easeIn(q)}px)`;
-    }
+    if (q > 0) tf += ` translateY(${-14 * easeIn(q)}px)`;
     el.style.opacity = op * (1 - easeIn(q));
-    el.style.transform = tf;
+    if (!el.classList.contains("phone") && !el.classList.contains("browser")) el.style.transform = tf;
+    else el.dataset.tf = tf;
   });
 
-  // Blinks: every face blinks now and then, staggered by position.
+  // Floating faces bob gently.
+  document.querySelectorAll(".bob").forEach((s, i) => {
+    s.style.transform = `translateY(${10 * Math.sin(t * 1.6 + i)}px) rotate(${4 * Math.sin(t * 0.9 + i * 2)}deg)`;
+  });
+
+  // Blinks, staggered.
   document.querySelectorAll("svg.blob").forEach((s, i) => {
     const period = 3.1 + (i % 5) * 0.37, ph = (t + i * 0.53) % period;
     const b = ph < 0.16 ? 1 - Math.sin((ph / 0.16) * Math.PI) * 0.9 : 1;
     s.querySelector(".eyes").setAttribute("transform", `translate(0 ${46 * (1 - b)}) scale(1 ${b})`);
   });
 
-  // 1 Hook: the ask types into the big composer, then Send is pressed.
+  // 1 Hook: window settles in 3D, camera pushes toward the composer, the ask types, Send.
+  const hw = document.getElementById("hookwin");
+  const hs = easeOut(clamp(t / 0.9)), hz = easeInOut(clamp((t - 0.2) / 1.4));
+  hw.style.transformOrigin = "50% 58%";
+  hw.style.transform = `rotateX(${lerp(14, 0, hs)}deg) scale(${lerp(0.94, 1, hs) * lerp(1, 1.16, hz)}) translateY(${-30 * easeIn(clamp((t - 2.8) / 0.4))}px)`;
   const bt = document.getElementById("bigtyped");
   const tp = clamp((t - 0.12) / 1.45);
   bt.innerHTML = t < 0.12 ? '<span class="ph">Ask Decibyl</span>'
     : USER.slice(0, Math.round(tp * USER.length)) + (t < 2.75 ? '<span class="caret"></span>' : "");
-  const bpress = t > 2.72 && t < 2.86;
-  document.getElementById("bigsend").style.transform = bpress ? "scale(0.9)" : "scale(1)";
-  const lift = easeIn(clamp((t - 2.8) / 0.4));
-  document.getElementById("bigc").style.transform = `translateY(${-30 * lift}px)`;
+  document.getElementById("bigsend").style.transform = t > 2.72 && t < 2.86 ? "scale(0.88)" : "scale(1)";
 
-  // 3 The reply streams.
+  // 3 Chat window: tilts up into place, then the camera leans in on the preview card.
+  const cw = document.getElementById("chatwin");
+  const cs = easeOut(clamp((t - 6.45) / 0.9));
+  const zin = easeInOut(clamp((t - 8.15) / 0.8)), zout = easeInOut(clamp((t - 10.6) / 0.8));
+  const z = 1 + 0.2 * zin * (1 - zout);
+  cw.style.transformOrigin = "62% 40%";
+  cw.style.transform = `rotateX(${lerp(16, 0, cs)}deg) rotateY(${lerp(-10, 0, cs)}deg) translateY(${lerp(60, 0, cs)}px) scale(${lerp(0.9, 1, cs) * z})`;
   const sp = clamp((t - 6.9) / 1.0);
   document.getElementById("stream").textContent = BOT.slice(0, Math.round(sp * BOT.length));
 
-  // 3 Cursor glides to Approve and presses it.
   const cur = document.getElementById("cursor"), ap = document.getElementById("approve");
   const r = ap.getBoundingClientRect();
   const tx = r.left + r.width * 0.55, ty = r.top + r.height * 0.55;
   const m = easeInOut(clamp((t - 8.55) / 0.8));
-  const sx = 1500, sy = 1000;
-  cur.style.left = sx + (tx - sx) * m + "px";
-  cur.style.top = sy + (ty - sy) * m + "px";
+  cur.style.left = lerp(1560, tx, m) + "px";
+  cur.style.top = lerp(1000, ty, m) + "px";
   const press = t > 9.38 && t < 9.5;
   cur.style.opacity = (t > 8.45 && t < 11.0) ? clamp((t - 8.45) / 0.15) * (1 - clamp((t - 10.7) / 0.3)) : 0;
   cur.style.transform = press ? "scale(0.88)" : "scale(1)";
-  ap.style.transform = press ? "scale(0.98)" : "scale(1)";
+  ap.style.transform = press ? "scale(0.97)" : "scale(1)";
   const approved = t >= 9.45;
   ap.textContent = approved ? "Approved" : "Approve";
   ap.style.background = approved ? "#ffffff" : "#0d0d0d";
   ap.style.color = approved ? "#0d0d0d" : "#ffffff";
   document.getElementById("note").textContent = approved ? "Approved by you · 4:12 pm" : "Nothing happens until you approve.";
 
-  // 4 Live call: timer and voice waveform.
+  // 4 Phones float in 3D.
+  const p1 = document.getElementById("ph1"), p2 = document.getElementById("ph2");
+  const ps = easeOut(clamp((t - 12.5) / 1.0));
+  p1.style.transform = `${p1.dataset.tf || ""} rotateY(${lerp(28, 14, ps) + 2 * Math.sin(t * 0.8)}deg) rotateX(${4 + 1.5 * Math.sin(t * 0.7)}deg) rotateZ(-2deg)`;
+  p2.style.transform = `${p2.dataset.tf || ""} rotateY(${lerp(-28, -14, ps) - 2 * Math.sin(t * 0.8 + 1)}deg) rotateX(${4 + 1.5 * Math.sin(t * 0.7 + 1)}deg) rotateZ(2deg)`;
   const secs = Math.max(0, Math.floor((t - 12.55) * 2.4));
-  document.getElementById("timer").textContent = "Live · 00:" + String(Math.min(59, secs)).padStart(2, "0");
+  document.getElementById("timer").textContent = "00:" + String(Math.min(59, secs)).padStart(2, "0");
   [...wave.children].forEach((b, i) => {
     const talk = 0.55 + 0.45 * Math.sin(t * 2.1);
-    const h = 10 + 100 * talk * Math.abs(Math.sin(i * 0.55 + t * 7.3) * Math.cos(i * 0.21 - t * 3.1));
+    const h = 8 + 80 * talk * Math.abs(Math.sin(i * 0.55 + t * 7.3) * Math.cos(i * 0.21 - t * 3.1));
     b.style.height = h.toFixed(1) + "px";
-    b.style.opacity = 0.35 + 0.65 * (h / 110);
+    b.style.opacity = 0.35 + 0.65 * (h / 88);
   });
 
-  // 5 Lesson progress fills.
+  // 5 Today phone.
+  const p3 = document.getElementById("ph3");
+  const ts = easeOut(clamp((t - 16.6) / 1.0));
+  p3.style.transform = `${p3.dataset.tf || ""} rotateY(${lerp(-30, -16, ts) - 2 * Math.sin(t * 0.8)}deg) rotateX(${5 + 1.5 * Math.sin(t * 0.7)}deg) rotateZ(3deg)`;
   document.getElementById("bar").style.width = (30 * easeOut(clamp((t - 17.3) / 1.2))) + "%";
+
+  // Browsers: keep their generic fade (opacity) and apply any pending generic transform on top.
+  [hw, cw].forEach((w) => { if (w.dataset.tf && !w.dataset.in) w.style.transform = w.dataset.tf + " " + w.style.transform; });
 }
 window.seek = seek;
 window.DURATION = 22;
