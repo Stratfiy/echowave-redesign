@@ -155,6 +155,18 @@ const ICONS = {
     realtime: Radio,
 } as const;
 
+/**
+ * What the voice row calls the agent's voice. Its name when the list names
+ * it; "Custom voice" when the agent has a voice nobody could name (a cloned
+ * or library voice the vendor would not describe); "Default voice" when none
+ * is set. Never the provider's id: "HBlqQDCBvQxsEK8OFtEZ" is not a voice a
+ * person can recognise, and it is what the panel used to print.
+ */
+export function voiceLabel(voice: string | null | undefined, named: VoiceOption | undefined): string {
+    if (named?.name && named.name !== named.voice_id) return named.name;
+    return voice ? "Custom voice" : "Default voice";
+}
+
 function ms(value: number | null): string {
     return value === null ? "—" : `${Math.round(value)}ms`;
 }
@@ -283,8 +295,10 @@ export function ModelRow({
             >
                 <Volume2 className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                 <span className="min-w-0 flex-1 truncate text-sm">
-                    {named?.name ?? slot.voice ?? "Default voice"}
-                    {named?.description && <span className="text-muted-foreground"> · {named.description}</span>}
+                    {voiceLabel(slot.voice, named)}
+                    {named?.description && named.name !== named.voice_id && (
+                        <span className="text-muted-foreground"> · {named.description}</span>
+                    )}
                 </span>
                 {editable && (
                     <ModelSlotEditor
