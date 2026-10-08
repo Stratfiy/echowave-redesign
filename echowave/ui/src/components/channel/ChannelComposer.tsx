@@ -106,6 +106,11 @@ export function channelSlug(channel: ChannelRef): string {
 
 export type Tag = { kind: 'bot' | 'channel'; fragment: string };
 
+/** The box's type, shared by the textarea and the painted copy under it.
+ *  16px in Chat at every width, so iOS does not zoom into the box. */
+export const COMPOSER_TYPE_CHAT = 'text-base leading-6';
+export const COMPOSER_TYPE = 'text-sm';
+
 /** What is being typed at the caret: `@` a bot or `#` a channel, or null.
  *  Same boundary rule as `mentionFragment`: at the start or after a space. */
 export function tagFragment(text: string, caret: number): Tag | null {
@@ -833,7 +838,10 @@ export function ChannelComposer({
                         aria-hidden="true"
                         className={cn(
                             'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words px-1 py-1',
-                            chatShell ? 'text-base leading-6 md:text-sm' : 'text-sm',
+                            // Must match the textarea's type exactly: a smaller
+                            // size here wraps at different words, and the
+                            // person's second line goes blank but for the caret.
+                            chatShell ? COMPOSER_TYPE_CHAT : COMPOSER_TYPE,
                         )}
                     >
                         {tagTokens(text).map((token, index) =>
@@ -866,7 +874,7 @@ export function ChannelComposer({
                             'relative min-h-[28px] w-full resize-none border-0 bg-transparent px-1 py-1 text-transparent caret-foreground outline-none placeholder:text-[#8f8f8f]',
                             // Six lines, then it scrolls (screen 04); 16px on
                             // a phone so iOS does not zoom into the box.
-                            chatShell ? 'max-h-[156px] text-base leading-6' : 'max-h-40 text-sm',
+                            chatShell ? `max-h-[156px] ${COMPOSER_TYPE_CHAT}` : `max-h-40 ${COMPOSER_TYPE}`,
                         )}
                         onChange={(event) => {
                             event.target.style.height = 'auto';
