@@ -44,7 +44,7 @@ export type ActionPayload = {
     error?: string;
     done?: { at?: string; note?: string };
     /** What a build produced (KAN-140): where Hear it and Try it go. */
-    result?: { workflow_id?: number; handle?: string | null; open_url?: string | null };
+    result?: { workflow_id?: number; handle?: string | null; open_url?: string | null; calls?: boolean };
 };
 
 export function actionOf(event: TimelineEvent): ActionPayload {
@@ -180,13 +180,19 @@ export function ActionCard({
                         // A built bot is not undone; it is heard. The two
                         // test verbs go straight into the tester, marked TEST.
                         <>
-                            <Button size="sm" asChild>
-                                <Link href={`/workflow/${action.result.workflow_id}?test=call`}>
-                                    <Phone aria-hidden className="mr-1 h-3.5 w-3.5" />
-                                    Hear it
-                                </Link>
-                            </Button>
-                            <Button size="sm" variant="outline" asChild>
+                            {action.result.calls !== false && (
+                                <Button size="sm" asChild>
+                                    <Link href={`/workflow/${action.result.workflow_id}?test=call`}>
+                                        <Phone aria-hidden className="mr-1 h-3.5 w-3.5" />
+                                        Hear it
+                                    </Link>
+                                </Button>
+                            )}
+                            <Button
+                                size="sm"
+                                variant={action.result.calls === false ? 'default' : 'outline'}
+                                asChild
+                            >
                                 <Link href={`/workflow/${action.result.workflow_id}?test=text`}>
                                     <MessageSquare aria-hidden className="mr-1 h-3.5 w-3.5" />
                                     Try it

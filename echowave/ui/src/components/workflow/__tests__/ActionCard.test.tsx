@@ -134,6 +134,25 @@ describe("once done", () => {
         expect(screen.queryByText(/Cannot be undone/)).toBeNull();
     });
 
+    it("an email agent is tried, not heard: no phone button", () => {
+        render(
+            <ActionCard
+                event={event({
+                    action: "create_bot",
+                    label: "Create Netoyed Outreach",
+                    reversible: false,
+                    state: "done",
+                    done: { note: "Created Netoyed Outreach (@netoyed-outreach)." },
+                    result: { workflow_id: 7, handle: "netoyed-outreach", calls: false },
+                })}
+            />,
+        );
+        expect(screen.queryByRole("link", { name: /Hear it/ })).toBeNull();
+        expect(screen.getByRole("link", { name: /Try it/ }).getAttribute("href")).toBe(
+            "/workflow/7?test=text",
+        );
+    });
+
     it("a placed call says it cannot be undone and offers nothing", () => {
         render(
             <ActionCard

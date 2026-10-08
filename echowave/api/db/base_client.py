@@ -38,7 +38,15 @@ class BaseDBClient:
             pool_recycle=1800,
             pool_pre_ping=True,
         )
-        self.async_session = async_sessionmaker(bind=self.engine)
+        # expire_on_commit=False, as the test session in conftest.py has
+        # always been. With the default, every attribute of a row is expired
+        # on commit, and reading one afterwards -- ``row.id`` to return it --
+        # is a lazy load that asyncio cannot do: MissingGreenlet. Every test
+        # passed and production failed: the Excel export never handed over
+        # its file, and no agent event's id came back to ring the bell.
+        self.async_session = async_sessionmaker(
+            bind=self.engine, expire_on_commit=False
+        )
 
     async def execute_raw_query(
         self, query: str, params: dict[str, Any] = None
