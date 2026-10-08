@@ -79,6 +79,10 @@ export const CHAT_STARTERS = [
  *  (screen 13), rather than putting words in the box. */
 export const TEACH_STARTER = "Teach me something";
 
+/** A card under the hello: the server's openers, or the fixed lists. A
+ *  life-stage starter may name the helper that does its job. */
+type StarterCard = Pick<Opener, "kind" | "text" | "helper" | "helper_name">;
+
 /** At most three starters on the Chat start (screen 03). */
 export const MAX_STARTERS = 3;
 
@@ -176,6 +180,8 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   // "&review=<skill>" opens on a review; "&topic=" names a new one (a course
   // named in Chat). Null is the conversation.
   const learning = useFeature("learning");
+  // Helpers (screen 06): a life-stage starter may go to one.
+  const helpersOn = useFeature("launch_helpers");
   const [lesson, setLesson] = useState<{ goalId: string | null; review: number | null; topic?: string | null } | null>(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -242,7 +248,11 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   // with Retry, never as the empty greeting (screen 03).
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [replying, setReplying] = useState(false);
-  const [draftRequest, setDraftRequest] = useState<{ text: string; id: number } | null>(null);
+  const [draftRequest, setDraftRequest] = useState<{
+    text: string;
+    id: number;
+    helper?: { key: string; name: string } | null;
+  } | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [stopNotice, setStopNotice] = useState<string | null>(null);
   // A first task or starter that could not be sent: said, and its words
@@ -485,12 +495,20 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
     }
   };
 
-  const sendOpener = async (text: string) => {
+  // `helper`: a life-stage starter's helper, sent only when the server said
+  // it can answer here (home_openers.route_helpers); otherwise Automatic,
+  // which holds every tool a helper does.
+  const sendOpener = async (text: string, helper?: string | null) => {
     setSendingOpener(text);
     setSendError(null);
     const started = startsFresh ? crypto.randomUUID() : undefined;
     const response = await postMessageApiV1TimelineMessagePost({
-      body: { assistant: true, thread_id: started ?? threadId, text },
+      body: {
+        assistant: true,
+        thread_id: started ?? threadId,
+        text,
+        ...(helpersOn && helper ? { helper } : {}),
+      },
     });
     setSendingOpener(null);
     if (response.error) {
@@ -640,8 +658,8 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
           className="mt-5 flex w-full flex-wrap justify-center gap-2"
           aria-label="Ask Decibyl"
         >
-          {((cards: { kind: string; text: string }[]) =>
-            learning ? withTeachStarter(cards, (text) => ({ kind: "time", text })) : cards)(
+          {((cards: StarterCard[]): StarterCard[] =>
+            learning ? withTeachStarter<StarterCard>(cards, (text) => ({ kind: "time", text })) : cards)(
             openers.length > 0
               ? openers
               : (chatShell ? CHAT_STARTERS : brandNew ? FIRST_JOBS : OPENERS).map((text, index) => ({
@@ -652,7 +670,11 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
             // Screen 03: no more than three, and choosing one puts it in the
             // box to edit rather than sending it.
             .slice(0, chatShell ? MAX_STARTERS : undefined)
-            .map(({ text }) => {
+            .map(({ text, helper, helper_name }) => {
+            // A life-stage starter carries the helper that does its job
+            // (home_openers.LIFE_STAGE_STARTERS), when that helper can
+            // answer here; every other card goes to Automatic as before.
+            const chosen = helper ? { key: helper, name: helper_name || helper } : null;
             return (
               <button
                 key={text}
@@ -662,8 +684,8 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
                   learning && text === TEACH_STARTER
                     ? openLesson(null)
                     : chatShell
-                      ? setDraftRequest({ text, id: Date.now() })
-                      : void sendOpener(text)
+                      ? setDraftRequest({ text, id: Date.now(), helper: chosen })
+                      : void sendOpener(text, helper)
                 }
                 // The handoff's chips: 36px pills, hairline edge, grey words.
                 className="h-9 max-w-full truncate rounded-full border border-border bg-background px-3.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-60"

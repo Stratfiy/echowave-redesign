@@ -51,6 +51,16 @@ def _summary(template: AgentTemplate) -> dict[str, Any]:
         "vertical": template.vertical,
         "industry": template.industry,
         "function": template.function,
+        # The shelf's third axis (life stages, 8 Oct 2026): the key to
+        # filter on and the heading to show it under, both from _base so
+        # the screen invents neither.
+        "life_stage": template.life_stage or None,
+        "life_stage_label": template.life_stage_label or None,
+        # A role that works without a number but rings somebody when it
+        # can: what the call is, that it needs a phone line, what it does
+        # instead, and where a line is set up.
+        "call_step": template.call_step.as_card() if template.call_step else None,
+        "uses": list(template.uses),
         "direction": template.direction.value,
         "summary": template.summary,
         "languages": template.languages,

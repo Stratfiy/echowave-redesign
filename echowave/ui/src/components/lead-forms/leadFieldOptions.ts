@@ -115,6 +115,11 @@ export const ONBOARDING_ROLE_OPTIONS = [
   { value: "sales_marketing", label: "Sales or marketing" },
   { value: "developer", label: "Developer or IT" },
   { value: "agency", label: "Agency, building for clients" },
+  // The life stages the shelf shows first (8 Oct 2026). Home's first cards
+  // read these (api/services/workflow/home_openers.LIFE_STAGE_BY_ROLE).
+  { value: "student", label: "College student (18+)" },
+  { value: "senior", label: "Retired, or 60 and over" },
+  { value: "creator", label: "Creator or influencer" },
   { value: "other", label: "Something else" },
 ] as const;
 
