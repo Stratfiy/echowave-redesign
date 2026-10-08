@@ -107,12 +107,12 @@ describe("the agent shelf", () => {
         await screen.findByText("Clinic front desk");
         const strips = screen.getAllByTestId("role-art");
         expect(strips).toHaveLength(2);
-        expect(strips[0].querySelector("img")?.getAttribute("src")).toBe("/art/3d/notify-heart.webp");
-        expect(strips[1].querySelector("img")?.getAttribute("src")).toBe("/art/3d/wallet.webp");
-        expect(screen.getByTestId("hero-art").querySelectorAll("img")).toHaveLength(4);
+        expect(strips[0].querySelector("[data-art]")?.getAttribute("data-art")).toBe("notify-heart");
+        expect(strips[1].querySelector("[data-art]")?.getAttribute("data-art")).toBe("wallet");
+        expect(screen.getByTestId("hero-art").querySelectorAll("[data-art]")).toHaveLength(4);
         // The industry tiles carry their picture instead of the icon.
         const tile = screen.getByRole("button", { name: /Lending\s*1 agent/ });
-        expect(tile.querySelector("img")?.getAttribute("src")).toBe("/art/3d/money-bag.webp");
+        expect(tile.querySelector("[data-art]")?.getAttribute("data-art")).toBe("money-bag");
     });
 
     it("an industry tile filters the rows, and pressing it again clears", async () => {

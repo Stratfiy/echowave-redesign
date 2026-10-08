@@ -448,26 +448,19 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         />
       )}
       {empty && !showLesson && (
-      <div className="flex shrink-0 flex-col items-center px-2 pb-6 text-center">
-        {/* The real mark, on a round tile with a soft grey halo: the
-            greeting's face. */}
-        <div
-          aria-hidden="true"
-          data-testid="decibyl-mark"
-          className="mt-1.5 flex h-[72px] w-[72px] items-center justify-center rounded-full border border-border bg-card shadow-[0_0_0_6px_var(--muted),0_10px_30px_-8px_rgba(0,0,0,0.25)]"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/decibyl-mark.svg" alt="" width={56} height={56} className="h-14 w-14 dark:invert" />
-        </div>
-        <h2 className="mt-5 text-3xl font-semibold tracking-tight sm:text-4xl">
-          Hi, I&apos;m Decibyl!
+      <div className="flex shrink-0 flex-col items-center px-2 pb-5 pt-[6vh] text-center">
+        {/* The design handoff's home (screen 03): one plain question over
+            the box. The big mark and "Hi, I'm Decibyl!" went at the
+            founder's request -- the brand is already in the rail. */}
+        <h2 className="text-[28px] font-semibold tracking-tight sm:text-[32px]">
+          What can I do for you{firstName ? `, ${firstName}` : ""}?
         </h2>
-        <p className="mt-2 max-w-lg text-[15px] text-muted-foreground">
-          {greeting}
-          {firstName ? `, ${firstName}` : ""}.{" "}
+        <p className="mt-2 max-w-md text-[15px] text-muted-foreground">
           {brandNew
-            ? "Say hi, or tell me one thing you'd love off your plate this week. I'll set up an agent for it and you can hear it in a minute."
-            : `${headline ? summarise(headline, span) : ""} I know your agents, your numbers and your company's documents.`}
+            ? "Tell me one thing you'd love off your plate this week. I'll set up an agent for it."
+            : headline
+              ? summarise(headline, span)
+              : `${greeting}.`}
         </p>
       </div>
       )}

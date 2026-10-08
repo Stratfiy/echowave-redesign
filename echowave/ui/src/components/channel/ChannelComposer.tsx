@@ -986,7 +986,7 @@ export function ChannelComposer({
                         size="icon"
                         aria-label="Mention an agent"
                         title="Mention an agent"
-                        className={cn('shrink-0 text-muted-foreground', chatShell && 'hidden sm:inline-flex')}
+                        className={cn('shrink-0 text-muted-foreground', chatShell && 'hidden')}
                         onMouseDown={(event) => {
                             event.preventDefault();
                             typeSigil('@');
@@ -1003,7 +1003,7 @@ export function ChannelComposer({
                         size="icon"
                         aria-label="Send to a channel"
                         title="Send to a channel"
-                        className={cn('shrink-0 text-muted-foreground', chatShell && 'hidden sm:inline-flex')}
+                        className={cn('shrink-0 text-muted-foreground', chatShell && 'hidden')}
                         onMouseDown={(event) => {
                             event.preventDefault();
                             typeSigil('#');
@@ -1046,7 +1046,7 @@ export function ChannelComposer({
                         ) : (
                             <Mic className="h-4 w-4" />
                         )}
-                        {chatShell && <span className="hidden text-xs sm:inline">Dictate</span>}
+                        
                     </Button>
                     {/* Talk is a live conversation (screen 05), not dictation:
                         a different icon, its own word, and the voice stream's
@@ -1071,7 +1071,7 @@ export function ChannelComposer({
                             <span className="hidden text-xs sm:inline">Talk</span>
                         </Button>
                     )}
-                    {memory && (
+                    {memory && !chatShell && (
                         <span
                             role="img"
                             aria-label={`Memory: ${formatTokens(memory.used)} of ${formatTokens(memory.budget)} tokens`}
@@ -1114,7 +1114,7 @@ export function ChannelComposer({
                                 className={cn('shrink-0 gap-1 px-2 text-xs text-muted-foreground', chatShell && 'min-h-11 min-w-11 md:min-h-8 md:min-w-8')}
                             >
                                 <Brain className="h-4 w-4" />
-                                <span className="hidden sm:inline">{presetLabel}</span>
+                                <span className={chatShell ? 'sr-only' : 'hidden sm:inline'}>{presetLabel}</span>
                                 <ChevronDown className="h-3 w-3" />
                             </Button>
                         </DropdownMenuTrigger>

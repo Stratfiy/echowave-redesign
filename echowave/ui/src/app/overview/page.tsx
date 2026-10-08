@@ -52,8 +52,11 @@ function Overview() {
           screen above a conversation, and said what the reader could already
           see -- the greeting inside the thread says what actually happened,
           which is the sentence worth the space. */}
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/70 px-4 py-2 sm:px-6">
-        <h1 className="truncate text-[15px] font-semibold text-foreground">Decibyl</h1>
+      {/* The rail already says Decibyl; the strip keeps only About, with no
+          rule under it, so the question sits on one calm white canvas. */}
+      <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-2 sm:px-6">
+        <h1 className="sr-only">Decibyl</h1>
+        <span />
         <Button
           size="sm"
           variant={aboutOpen ? "secondary" : "ghost"}

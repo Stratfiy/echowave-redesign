@@ -155,7 +155,7 @@ describe("Chat start", () => {
         seen.load = "error";
         render(<HomeAboveTheFold />);
         await waitFor(() => expect(seen.stream.length).toBeGreaterThan(0));
-        await waitFor(() => expect(screen.queryByText("Hi, I'm Decibyl!")).toBeNull());
+        await waitFor(() => expect(screen.queryByText(/What can I do for you/)).toBeNull());
     });
 
     it("passes the Chat states down to the stream and the composer", async () => {
