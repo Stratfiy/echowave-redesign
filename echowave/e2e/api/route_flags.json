@@ -416,6 +416,21 @@
    "decibyl_browser"
   ]
  },
+ "/api/v1/call-when-done": {
+  "POST": [
+   "call_when_done"
+  ]
+ },
+ "/api/v1/call-when-done/status": {
+  "GET": [
+   "call_when_done"
+  ]
+ },
+ "/api/v1/call-when-done/{callback_id}": {
+  "DELETE": [
+   "call_when_done"
+  ]
+ },
  "/api/v1/care/circle": {
   "GET": [
    "care_family_circle"

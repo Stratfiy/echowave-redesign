@@ -42,6 +42,7 @@ import { BotAvatar } from '@/components/bot/BotAvatar';
 import { BrowserPanel } from '@/components/browser/BrowserPanel';
 import { type AttachedFile,AttachedFileChip } from '@/components/channel/AttachedFileChip';
 import { BlockedCard } from '@/components/channel/BlockedCard';
+import { CallWhenDoneNotice,callWhenDoneOf } from '@/components/channel/CallWhenDoneNotice';
 import { tagTokens } from '@/components/channel/ChannelComposer';
 import { emphasisTokens } from '@/components/channel/emphasis';
 import { isJudgeableReply, ReplyFeedback, useMyFeedback } from '@/components/channel/ReplyFeedback';
@@ -957,8 +958,12 @@ export function ChannelStream({
                                 type="button"
                                 disabled={sendingChip !== null}
                                 onClick={() => void sendChip(chip.text, chip.helper)}
+                                data-testid={chip.kind === 'call_when_done' ? 'chip-call-when-done' : undefined}
                                 className="rounded-full border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-[var(--accent-brand)] hover:text-foreground disabled:opacity-50"
                             >
+                                {chip.kind === 'call_when_done' && (
+                                    <Phone aria-hidden className="mr-1 inline h-3.5 w-3.5 align-[-2px]" />
+                                )}
                                 {chip.text}
                             </button>
                         </li>
@@ -1389,6 +1394,32 @@ export function ChannelStream({
                                                 all.map((e) => (e.id === updated.id ? updated : e)),
                                             )
                                         }
+                                    />
+                                </div>
+                            </li>
+                            </React.Fragment>
+                        );
+                    }
+                    // "Call me when it's done": when Decibyl will ring, or
+                    // why it told you here instead -- and, with no number on
+                    // file, the number asked for right here in the thread.
+                    const doneCall = event.kind === 'message' ? callWhenDoneOf(event.payload) : null;
+                    if (doneCall) {
+                        const said = (event.payload as { body?: unknown } | null)?.body;
+                        return (
+                            <React.Fragment key={event.id}>
+                            {divider}
+                            <li className="flex gap-3">
+                                {face(event)}
+                                <div className="min-w-0 flex-1">
+                                    <p className="mb-1 text-xs text-muted-foreground">
+                                        <time dateTime={event.at}>{when(event.at)}</time>
+                                    </p>
+                                    <CallWhenDoneNotice
+                                        body={typeof said === 'string' ? said : event.summary}
+                                        info={doneCall}
+                                        threadId={threadId}
+                                        onAsked={() => void loadLatest()}
                                     />
                                 </div>
                             </li>

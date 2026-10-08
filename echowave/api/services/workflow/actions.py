@@ -178,6 +178,11 @@ PLACE_CALL = "place_call"
 #: the booking tool, on one card (stream `voice`; services/voice/
 #: booking_setup.py). Internal: reached through set_up_booking.
 SET_UP_BOOKING = "set_up_booking"
+#: Confirm the number Decibyl rings when a task finishes ("call me when it's
+#: done"; services/call_when_done/number.py). Internal: proposed when the
+#: person opts in without a confirmed number, never by a model on its own;
+#: only that person may answer it.
+CALL_WHEN_DONE_NUMBER = "call_when_done_number"
 INTERNAL_ACTIONS = (
     PLACE_ORDER,
     RUN_OUTSIDE_TOOL,
@@ -196,6 +201,7 @@ INTERNAL_ACTIONS = (
     *IDENTITY_ACTIONS,
     PLACE_CALL,
     SET_UP_BOOKING,
+    CALL_WHEN_DONE_NUMBER,
 )
 
 #: The states a proposal moves through. Terminal ones are the last four.
@@ -529,6 +535,13 @@ async def resolve(
         # timeline with the step it saw. A proposal arriving here came from
         # a model, and a model does not get to describe the button.
         raise ActionError("That is not something I can propose.")
+    if action == CALL_WHEN_DONE_NUMBER:
+        from api.services.call_when_done import CallWhenDoneError, number
+
+        try:
+            return number.resolve(arguments, why)
+        except CallWhenDoneError as exc:
+            raise ActionError(str(exc)) from exc
     if action in CARE_ACTIONS:
         from api.services.care import cards as care_cards
 
@@ -2276,6 +2289,13 @@ async def _execute(
         from api.services.care import cards as care_cards
 
         return await care_cards.execute(organization_id, payload)
+    if action == CALL_WHEN_DONE_NUMBER:
+        from api.services.call_when_done import CallWhenDoneError, number
+
+        try:
+            return await number.execute(organization_id, payload, event_id)
+        except CallWhenDoneError as exc:
+            raise ActionError(str(exc)) from exc
     if action == RUN_TOOL:
         from api.services.workflow import connected_tools
 
@@ -2390,6 +2410,11 @@ async def _reverse(organization_id: int, payload: dict[str, Any]) -> None:
         from api.services.care import cards as care_cards
 
         await care_cards.reverse(organization_id, payload)
+        return
+    if action == CALL_WHEN_DONE_NUMBER:
+        from api.services.call_when_done import number
+
+        await number.reverse(organization_id, payload)
         return
     if action == MEETING_FOLLOW_UP:
         from api.services.meetings import follow_ups
