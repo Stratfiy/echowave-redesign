@@ -78,6 +78,9 @@ export type ActionPayload = {
         open_url?: string | null;
         order_id?: string | null;
         payment_link?: string | null;
+        /** False for an agent that never takes a call (email, scheduled):
+         *  the card offers Try it, not Hear it. */
+        calls?: boolean;
     };
 };
 
@@ -295,13 +298,19 @@ export function ActionCard({
                         // A built bot is not undone; it is heard. The two
                         // test verbs go straight into the tester, marked TEST.
                         <>
-                            <Button size="sm" asChild>
-                                <Link href={`/workflow/${action.result.workflow_id}?test=call`}>
-                                    <Phone aria-hidden className="mr-1 h-3.5 w-3.5" />
-                                    Hear it
-                                </Link>
-                            </Button>
-                            <Button size="sm" variant="outline" asChild>
+                            {action.result.calls !== false && (
+                                <Button size="sm" asChild>
+                                    <Link href={`/workflow/${action.result.workflow_id}?test=call`}>
+                                        <Phone aria-hidden className="mr-1 h-3.5 w-3.5" />
+                                        Hear it
+                                    </Link>
+                                </Button>
+                            )}
+                            <Button
+                                size="sm"
+                                variant={action.result.calls === false ? 'default' : 'outline'}
+                                asChild
+                            >
                                 <Link href={`/workflow/${action.result.workflow_id}?test=text`}>
                                     <MessageSquare aria-hidden className="mr-1 h-3.5 w-3.5" />
                                     Try it

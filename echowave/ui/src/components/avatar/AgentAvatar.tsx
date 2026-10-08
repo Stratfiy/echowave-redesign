@@ -3,9 +3,10 @@
 /**
  * An agent's face: bloub's engine (src/lib/bloub) drawn in React.
  *
- * A port of bloub's BloubBot.vue renderer, without its montage player and
- * pointer tracking: one state at a time, chosen by the caller (stateForTone),
- * with the shape, colour and resting expression the agent wears.
+ * A port of bloub's BloubBot.vue renderer, without its montage player: one
+ * state at a time, chosen by the caller (stateForTone), with the shape, colour
+ * and resting expression the agent wears. With `follow`, the eyes track the
+ * pointer, as Grok's bot does on its first screen.
  *
  * The engine is a pure function of time, so a still face is just
  * `sample(t)` at a fixed t. Faces animate on one shared loop (ticker.ts), pause
@@ -17,12 +18,14 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { NOTIF_BLUE } from "@/lib/bloub/decor";
 import { BotEngine, type BotFrame } from "@/lib/bloub/engine";
 import { EXPRESSION_BY_ID } from "@/lib/bloub/expressions";
+import { clamp, easings } from "@/lib/bloub/math";
 import { DEMI_VIEWBOX, RAYON } from "@/lib/bloub/repere";
 import { COLOR_BY_ID, mixHex, SHAPE_BY_ID } from "@/lib/bloub/skins";
-import type { StateId } from "@/lib/bloub/states";
+import { STATE_BY_ID, type StateId } from "@/lib/bloub/states";
 import { cn } from "@/lib/utils";
 
 import { type Avatar, avatarOf, moodForTone, stateForTone } from "./avatar";
+import { lookAt, TURN_TIME } from "./gaze";
 import { subscribe } from "./ticker";
 
 /** Late enough that every state's arrival has settled: the still frame. */
@@ -43,6 +46,8 @@ type Props = {
      *  (idle, notify, thinking, sleep), which draw nothing behind the body;
      *  set the surface colour for the orbit-style states, which do. */
     paper?: string;
+    /** The eyes follow the pointer (mouse or pen; a finger leaves no cursor). */
+    follow?: boolean;
     /** Accessible name; omit for a decorative face beside a visible name. */
     label?: string;
     className?: string;
@@ -61,7 +66,7 @@ function useReducedMotion(): boolean {
     return reduced;
 }
 
-export function AgentAvatar({ avatar, tone, state: explicit, size = 40, animate = true, paper = "transparent", label, className }: Props) {
+export function AgentAvatar({ avatar, tone, state: explicit, size = 40, animate = true, paper = "transparent", follow = false, label, className }: Props) {
     const face = moodForTone(avatarOf(avatar), tone);
     const state = explicit ?? stateForTone(tone);
     const radii = SHAPE_BY_ID.get(face.shape)?.radii ?? null;
@@ -106,15 +111,43 @@ export function AgentAvatar({ avatar, tone, state: explicit, size = 40, animate 
         return () => observer.disconnect();
     }, [live]);
 
+    // Where the pointer is, in client pixels; null when it left the window.
+    const pointer = useRef<{ x: number; y: number } | null>(null);
+    useEffect(() => {
+        if (!live || !follow) return;
+        const move = (event: PointerEvent) => {
+            if (event.pointerType !== "touch") pointer.current = { x: event.clientX, y: event.clientY };
+        };
+        const leave = () => {
+            pointer.current = null;
+        };
+        window.addEventListener("pointermove", move);
+        document.addEventListener("pointerleave", leave);
+        return () => {
+            window.removeEventListener("pointermove", move);
+            document.removeEventListener("pointerleave", leave);
+        };
+    }, [live, follow]);
+
     useEffect(() => {
         if (!live || !onScreen) return;
+        const since = clock.current;
         return subscribe((dt) => {
             const current = engine.current;
             if (!current) return;
             clock.current += dt;
+            // Only a resting face follows: elsewhere the gaze is the animation.
+            const box = svg.current?.getBoundingClientRect();
+            if (follow && box && box.width > 0 && STATE_BY_ID.get(current.state)?.baseFace) {
+                const at = pointer.current;
+                const nx = at ? clamp((at.x - (box.left + box.width / 2)) / Math.max(1, window.innerWidth / 2), -1, 1) : 0;
+                const ny = at ? clamp((at.y - (box.top + box.height / 2)) / Math.max(1, window.innerHeight / 2), -1, 1) : 0;
+                const mix = easings.easeOutQuint(clamp((clock.current - since) / TURN_TIME));
+                current.setLook(lookAt(nx, ny, mix, at !== null), clock.current);
+            }
             setFrame(current.sample(clock.current));
         });
-    }, [live, onScreen]);
+    }, [live, onScreen, follow]);
 
     const uid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
     const maskId = `face-mask-${uid}`;

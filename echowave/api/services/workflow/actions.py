@@ -2114,18 +2114,33 @@ async def _execute(
             workflow_id, organization_id=organization_id
         )
         handle = getattr(workflow, "handle", None) if workflow else None
+        from api.services.agent_templates import get_template
+        from api.services.agent_templates._base import CALLING_DIRECTIONS
+
+        template = get_template(str(args.get("template_id") or ""))
+        # An email or scheduled agent has no call to hear and no number to
+        # buy; saying otherwise sent somebody looking for a phone number for
+        # an outreach agent that only ever writes email.
+        on_a_phone = template is None or template.direction in CALLING_DIRECTIONS
         # Kept on the card, so Hear it and Try it know where to go.
         payload.setdefault("result", {}).update(
             {
                 "workflow_id": workflow_id,
                 "handle": handle,
                 "open_url": result.get("open_url"),
+                "calls": on_a_phone,
             }
         )
         who = f"@{handle}" if handle else result.get("name", "the agent")
+        if on_a_phone:
+            return (
+                f"Created {result.get('name', 'the bot')} ({who}). Hear it or try "
+                "it from this card; it needs a number before it can take real calls."
+            )
         return (
-            f"Created {result.get('name', 'the bot')} ({who}). Hear it or try it "
-            "from this card; it needs a number before it can take real calls."
+            f"Created {result.get('name', 'the bot')} ({who}). Try it from this "
+            "card; to run it for real, open it and use Setup, then Triggers, "
+            "then Run once."
         )
     if action == RETURN_MISSED_CALL:
         from api.services.telephony import missed_call
