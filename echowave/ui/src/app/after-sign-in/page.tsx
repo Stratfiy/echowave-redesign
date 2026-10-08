@@ -18,7 +18,15 @@ import { getRedirectUrl } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export default async function AfterSignInPage() {
+export default async function AfterSignInPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ verify?: string }>;
+}) {
+  // "Do this later" on the verify step comes back here with ?verify=later.
+  // Without honouring it, the check below sent the person straight back to
+  // the code they had just put off -- a loop with no way into the product.
+  const verifyLater = (await searchParams)?.verify === "later";
   logger.debug("[AfterSignInPage] Starting after-sign-in page");
   const authProvider = await getServerAuthProvider();
   logger.debug("[AfterSignInPage] Auth provider:", authProvider);
@@ -65,7 +73,7 @@ export default async function AfterSignInPage() {
       const me = await getAuthUserApiV1UserAuthUserGet({
         headers: { Authorization: `Bearer ${accessToken}` },
       });
-      if (me.data && me.data.email_verified === false) {
+      if (me.data && me.data.email_verified === false && !verifyLater) {
         logger.debug(
           "[AfterSignInPage] Email not verified - redirecting to /auth/verify",
         );

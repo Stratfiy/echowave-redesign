@@ -122,7 +122,7 @@ export default function VerifyEmailPage() {
           >
             {copy.resend}
           </button>
-          <a href={NEXT} className="underline-offset-4 hover:text-foreground hover:underline">
+          <a href={`${NEXT}?verify=later`} className="underline-offset-4 hover:text-foreground hover:underline">
             {copy.later}
           </a>
         </div>
