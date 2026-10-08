@@ -32,6 +32,14 @@ describe("MobileTabBar", () => {
     expect(screen.getByRole("link", { name: "Today" }).getAttribute("aria-current")).toBe("page");
   });
 
+  it("opens Files at /files and keeps it lit on Audio clips", () => {
+    pathname = "/recordings";
+    render(<MobileTabBar />);
+    const files = screen.getByRole("link", { name: "Files" });
+    expect(files.getAttribute("href")).toBe("/files");
+    expect(files.getAttribute("aria-current")).toBe("page");
+  });
+
   it("lights nothing on the agent list or in Settings", () => {
     for (const path of ["/workflow", "/settings/models"]) {
       pathname = path;

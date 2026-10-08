@@ -78,7 +78,7 @@ describe("v2 rail", () => {
     const hrefs = within(nav)
       .getAllByRole("link")
       .map((link) => link.getAttribute("href"));
-    expect(hrefs).toEqual(["/overview", "/tasks", "/settings/knowledge"]);
+    expect(hrefs).toEqual(["/overview", "/tasks", "/files"]);
   });
 
   it("lights Today on a campaigns page, where Activity now lives", () => {

@@ -8,7 +8,7 @@ describe("activeHome", () => {
     expect(HOMES.filter((h) => !h.flag).map((h) => h.title)).toEqual(["Chat", "Today", "Files"]);
   });
 
-  it.each(["/settings/knowledge", "/recordings"])("lights Files on %s", (path) => {
+  it.each(["/files", "/recordings"])("lights Files on %s", (path) => {
     expect(activeHome(path)).toBe("files");
   });
 

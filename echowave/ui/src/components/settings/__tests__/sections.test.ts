@@ -15,7 +15,6 @@ describe("Settings' sections", () => {
       "Daily brief",
       "Notifications",
       "Models",
-      "Files",
       "Apps and tools",
       "Channels",
       "Phone numbers",
@@ -26,6 +25,12 @@ describe("Settings' sections", () => {
       "Developer",
       "Compliance",
     ]);
+  });
+
+  it("leaves Files out: it is one page, reached from the rail", () => {
+    expect(SETTINGS_SECTIONS.map((s) => s.title)).not.toContain("Files");
+    expect(SETTINGS_SECTIONS.map((s) => s.href)).not.toContain("/files");
+    expect(SETTINGS_SECTIONS.some((s) => s.id === "knowledge")).toBe(false);
   });
 
   it("puts every section in a group, and General has a page of its own on a phone", () => {

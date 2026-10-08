@@ -241,7 +241,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         // documents and clips a bot reads -- rather than the category the
         // industry files them under.
         title: "Files",
-        url: "/settings/knowledge",
+        url: "/files",
         activePaths: ["/recordings"],
         icon: Database,
         keywords: [

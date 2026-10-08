@@ -268,7 +268,7 @@ export function AgentProfilePanel({
                 </h3>
                 <p className="text-sm text-muted-foreground">
                     {documents === 0 ? 'No documents of its own.' : `${documents} ${documents === 1 ? 'document' : 'documents'} of its own.`}{' '}
-                    <Link href="/settings/knowledge" className="underline underline-offset-2">
+                    <Link href="/files" className="underline underline-offset-2">
                         Knowledge base
                     </Link>{' '}
                     is read by every agent.

@@ -16,7 +16,7 @@ import type { Feature } from "@/lib/features";
  * - Today  -> /tasks, with its tabs: routines, contacts, what was handed
  *             over, and Activity (calls, missed calls, review, analytics,
  *             usage), which lights it too.
- * - Files  -> /settings/knowledge: the workspace's files, which every agent
+ * - Files  -> /files: the workspace's files, which every agent
  *             reads. A door on the rail because people drop files in often;
  *             the page itself takes a drop anywhere on it.
  * - Studio -> /studio, only with the `studio` flag.
@@ -65,7 +65,7 @@ export const HOMES: readonly Home[] = [
       "/missed-calls",
     ],
   },
-  { id: "files", title: "Files", url: "/settings/knowledge", icon: FolderOpen, activePaths: ["/recordings", "/files"] },
+  { id: "files", title: "Files", url: "/files", icon: FolderOpen, activePaths: ["/recordings"] },
   { id: "studio", title: "Studio", url: "/studio", icon: Wand2, flag: "studio" },
 ];
 
