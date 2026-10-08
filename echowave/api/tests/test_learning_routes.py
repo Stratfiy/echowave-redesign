@@ -307,6 +307,46 @@ class TestPrivate:
             )
         assert sneaky.status_code == 422
 
+    async def test_a_goal_cannot_name_somebody_elses_conversation(
+        self, people, learning_on, monkeypatch
+    ):
+        """A goal's conversation is where its cards go. With private threads
+        on, naming a colleague's conversation is "not found", the way the
+        conversation itself is, and nothing is started."""
+        from api.enums import AgentEventActor, AgentEventKind
+        from api.services.workflow import agent_timeline
+
+        monkeypatch.setattr(constants, "DECIBYL_PRIVATE_THREADS_ENABLED", True)
+        a, b, org = people
+        theirs, mine = f"t-b-{uuid4().hex[:8]}", f"t-a-{uuid4().hex[:8]}"
+        for author, thread in ((b.id, theirs), (a.id, mine)):
+            await agent_timeline.record(
+                organization_id=org,
+                kind=AgentEventKind.MESSAGE.value,
+                actor=AgentEventActor.HUMAN.value,
+                summary="hi",
+                payload={"body": "hi", "author_id": author},
+                in_channel=False,
+                thread_id=thread,
+            )
+        async with _client(a.id, org) as c:
+            await _placed(c)
+            refused = await c.post(
+                "/api/v1/learning/goals", json={"title": "Tables", "thread_id": theirs}
+            )
+            assert refused.status_code == 404, refused.text
+            titles = [
+                g["title"] for g in (await c.get("/api/v1/learning/goals")).json()
+            ]
+            assert "Tables" not in titles
+            for thread in (mine, f"t-new-{uuid4().hex[:8]}"):
+                ok = await c.post(
+                    "/api/v1/learning/goals",
+                    json={"title": thread, "thread_id": thread},
+                )
+                assert ok.status_code == 201, ok.text
+                assert ok.json()["goal"]["thread_id"] == thread
+
 
 @pytest.mark.asyncio
 class TestDeletion:
