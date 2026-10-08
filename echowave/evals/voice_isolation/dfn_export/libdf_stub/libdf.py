@@ -10,6 +10,7 @@ Every function follows the Rust source of libDF v0.5.6:
                            unit_norm_init)
 All arithmetic is float32 like the Rust code (state recursions are sequential over time).
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -25,10 +26,14 @@ def _freq2erb(f):
 
 def _erb2freq(n):
     n = np.float32(n)
-    return np.float32(24.7 * 9.265) * (np.exp(n / np.float32(9.265), dtype=np.float32) - np.float32(1.0))
+    return np.float32(24.7 * 9.265) * (
+        np.exp(n / np.float32(9.265), dtype=np.float32) - np.float32(1.0)
+    )
 
 
-def erb_fb_widths(sr: int, fft_size: int, nb_bands: int, min_nb_freqs: int) -> np.ndarray:
+def erb_fb_widths(
+    sr: int, fft_size: int, nb_bands: int, min_nb_freqs: int
+) -> np.ndarray:
     nyq = sr // 2
     freq_width = np.float32(sr) / np.float32(fft_size)
     erb_low = _freq2erb(0.0)
@@ -39,7 +44,9 @@ def erb_fb_widths(sr: int, fft_size: int, nb_bands: int, min_nb_freqs: int) -> n
     freq_over = 0
     for i in range(1, nb_bands + 1):
         f = _erb2freq(erb_low + np.float32(i) * step)
-        fb = int(np.round(np.float32(f / freq_width)))  # Rust f32::round (half away from 0)
+        fb = int(
+            np.round(np.float32(f / freq_width))
+        )  # Rust f32::round (half away from 0)
         # np.round is half-to-even; guard the exact .5 case explicitly
         q = float(np.float32(f / freq_width))
         if q - np.floor(q) == 0.5:
@@ -109,10 +116,16 @@ class DF:
             if reset:
                 self.reset()
             for t in range(T):
-                frame = x[c, t * self._hop:(t + 1) * self._hop]
+                frame = x[c, t * self._hop : (t + 1) * self._hop]
                 buf = np.concatenate([self._amem, frame]) * self._win
-                self._amem = np.concatenate([self._amem[self._hop:], frame]) if len(self._amem) > self._hop else frame.copy()
-                out[c, t] = (np.fft.rfft(buf.astype(np.float32)) * self._wnorm).astype(np.complex64)
+                self._amem = (
+                    np.concatenate([self._amem[self._hop :], frame])
+                    if len(self._amem) > self._hop
+                    else frame.copy()
+                )
+                out[c, t] = (np.fft.rfft(buf.astype(np.float32)) * self._wnorm).astype(
+                    np.complex64
+                )
         return out
 
     def synthesis(self, spec: np.ndarray, reset: bool = True) -> np.ndarray:
@@ -126,13 +139,15 @@ class DF:
             for t in range(T):
                 # realfft inverse is unnormalised; numpy irfft divides by n -> multiply back.
                 # Both ignore the imaginary part of DC and Nyquist bins.
-                x = (np.fft.irfft(spec[c, t], n=self._fft) * self._fft).astype(np.float32) * self._win
-                out[c, t * h:(t + 1) * h] = x[:h] + self._smem[:h]
+                x = (np.fft.irfft(spec[c, t], n=self._fft) * self._fft).astype(
+                    np.float32
+                ) * self._win
+                out[c, t * h : (t + 1) * h] = x[:h] + self._smem[:h]
                 split = len(self._smem) - h
                 mem = np.roll(self._smem, -h) if split > 0 else self._smem
                 mem = mem.copy()
-                mem[:split] += x[h:h + split]
-                mem[split:] = x[h + split:]
+                mem[:split] += x[h : h + split]
+                mem[split:] = x[h + split :]
                 self._smem = mem
         return out
 
@@ -143,14 +158,16 @@ def _band_mats(widths):
     M = np.zeros((F, len(widths)), np.float32)
     o = 0
     for i, w in enumerate(widths):
-        M[o:o + w, i] = 1.0 / np.float32(w)
+        M[o : o + w, i] = 1.0 / np.float32(w)
         o += w
     return M
 
 
 def erb(spec, erb_fb, db: bool = True):
     spec = np.asarray(spec)
-    p = (spec.real.astype(np.float32) ** 2 + spec.imag.astype(np.float32) ** 2).astype(np.float32)
+    p = (spec.real.astype(np.float32) ** 2 + spec.imag.astype(np.float32) ** 2).astype(
+        np.float32
+    )
     out = p @ _band_mats(erb_fb)
     if db:
         out = (np.log10(out + np.float32(1e-10)) * np.float32(10.0)).astype(np.float32)
@@ -167,7 +184,10 @@ def erb_norm(erb_feat, alpha, state=None):
     C, T, E = x.shape
     a = np.float32(alpha)
     if state is None:
-        state = np.tile(np.linspace(MEAN_NORM_INIT[0], MEAN_NORM_INIT[1], E, dtype=np.float32), (C, 1))
+        state = np.tile(
+            np.linspace(MEAN_NORM_INIT[0], MEAN_NORM_INIT[1], E, dtype=np.float32),
+            (C, 1),
+        )
     s = np.array(state, np.float32)
     for t in range(T):
         s = x[:, t] * (np.float32(1) - a) + s * a
@@ -180,7 +200,10 @@ def unit_norm(spec, alpha, state=None):
     C, T, F = x.shape
     a = np.float32(alpha)
     if state is None:
-        state = np.tile(np.linspace(UNIT_NORM_INIT[0], UNIT_NORM_INIT[1], F, dtype=np.float32), (C, 1))
+        state = np.tile(
+            np.linspace(UNIT_NORM_INIT[0], UNIT_NORM_INIT[1], F, dtype=np.float32),
+            (C, 1),
+        )
     s = np.array(state, np.float32)
     for t in range(T):
         s = np.abs(x[:, t]).astype(np.float32) * (np.float32(1) - a) + s * a
@@ -189,4 +212,6 @@ def unit_norm(spec, alpha, state=None):
 
 
 def unit_norm_init(num_freq_bins):
-    return np.linspace(UNIT_NORM_INIT[0], UNIT_NORM_INIT[1], num_freq_bins, dtype=np.float32).reshape(1, -1)
+    return np.linspace(
+        UNIT_NORM_INIT[0], UNIT_NORM_INIT[1], num_freq_bins, dtype=np.float32
+    ).reshape(1, -1)

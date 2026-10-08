@@ -4,6 +4,7 @@ on the signals in an npz file and save features + offline enhanced outputs.
 Must be run with the py3.11 venv that has the real `libdf` installed:
     venv311/bin/python -I make_golden.py in.npz out.npz
 """
+
 import os
 import sys
 

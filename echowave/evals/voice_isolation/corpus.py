@@ -157,7 +157,9 @@ def libri_speakers() -> list[str]:
     return sorted(os.path.basename(p) for p in glob.glob(str(root / "*")))
 
 
-def libri_utterances(speaker: str, n: int, *, min_secs: float = 2.0) -> list[np.ndarray]:
+def libri_utterances(
+    speaker: str, n: int, *, min_secs: float = 2.0
+) -> list[np.ndarray]:
     root = path("librispeech/LibriSpeech/test-clean")
     out = []
     for flac in sorted(glob.glob(str(root / speaker / "*" / "*.flac"))):
@@ -254,7 +256,10 @@ def fan(seconds: float, rng: np.random.Generator) -> np.ndarray:
     noise = np.fft.irfft(spectrum, n).astype(np.float32)
     t = np.arange(n) / RATE
     blade = 23.0  # Hz, 3 blades at ~460 rpm
-    hum = sum(np.sin(2 * np.pi * blade * k * t + rng.uniform(0, 6.28)) / k for k in range(1, 6))
+    hum = sum(
+        np.sin(2 * np.pi * blade * k * t + rng.uniform(0, 6.28)) / k
+        for k in range(1, 6)
+    )
     wobble = 1.0 + 0.25 * np.sin(2 * np.pi * 0.08 * t)
     out = (noise / (np.std(noise) + 1e-9) + 0.3 * hum) * wobble
     return (out / (np.std(out) + 1e-9)).astype(np.float32)

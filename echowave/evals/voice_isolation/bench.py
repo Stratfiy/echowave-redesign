@@ -81,7 +81,9 @@ async def _filter_cost(name: str, calls: int = 10) -> dict:
     filters = []
     for _ in range(calls):
         if name == "dfn":
-            f = deepfilternet.build_filter(model_path=str(path("models/dfn3_streaming.onnx")))
+            f = deepfilternet.build_filter(
+                model_path=str(path("models/dfn3_streaming.onnx"))
+            )
         else:
             f = await noise_suppression.build_audio_in_filter({})
         await f.start(RATE)

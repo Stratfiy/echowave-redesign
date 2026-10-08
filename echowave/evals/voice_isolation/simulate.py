@@ -26,10 +26,6 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 
 import numpy as np
-
-from api.services.pipecat import caller_voice_lock, noise_suppression, vad_sensitivity
-from evals.voice_isolation.assets import path
-from evals.voice_isolation.scenes import Rendered
 from pipecat.frames.frames import (
     BotStartedSpeakingFrame,
     BotStoppedSpeakingFrame,
@@ -42,6 +38,10 @@ from pipecat.frames.frames import (
 from pipecat.turns.user_start.min_words_user_turn_start_strategy import (
     MinWordsUserTurnStartStrategy,
 )
+
+from api.services.pipecat import caller_voice_lock, noise_suppression, vad_sensitivity
+from evals.voice_isolation.assets import path
+from evals.voice_isolation.scenes import Rendered
 
 RATE = 8000
 CHUNK = 160  # 20 ms, the transports' grain
@@ -64,11 +64,15 @@ async def _build_filter(name: str):
     if name == "dfn":
         from api.services.pipecat import deepfilternet
 
-        return deepfilternet.build_filter(model_path=str(path("models/dfn3_streaming.onnx")))
+        return deepfilternet.build_filter(
+            model_path=str(path("models/dfn3_streaming.onnx"))
+        )
     raise ValueError(name)
 
 
-async def run_filter(audio: np.ndarray, name: str) -> tuple[list[np.ndarray], float, float]:
+async def run_filter(
+    audio: np.ndarray, name: str
+) -> tuple[list[np.ndarray], float, float]:
     """The filter's output per 20 ms input chunk, its CPU seconds, and the
     longest single call in ms."""
     chunks = [audio[i : i + CHUNK] for i in range(0, len(audio) - CHUNK + 1, CHUNK)]
@@ -122,7 +126,9 @@ def _vosk_model(language: str):
     from vosk import Model, SetLogLevel
 
     SetLogLevel(-1)
-    name = "vosk-model-small-en-in-0.4" if language == "en" else "vosk-model-small-hi-0.22"
+    name = (
+        "vosk-model-small-en-in-0.4" if language == "en" else "vosk-model-small-hi-0.22"
+    )
     return Model(str(path(f"vosk/{name}")))
 
 
@@ -183,7 +189,9 @@ class _Embedders:
     @classmethod
     def get(cls, model: str) -> caller_voice_lock.SpeakerEmbedder:
         if model not in cls.cache:
-            cls.cache[model] = caller_voice_lock.SpeakerEmbedder(str(path(MODELS[model])))
+            cls.cache[model] = caller_voice_lock.SpeakerEmbedder(
+                str(path(MODELS[model]))
+            )
         return cls.cache[model]
 
 
@@ -214,7 +222,8 @@ async def run_strategy(
     finals = [
         i * secs
         for i, kind, _ in asr_events
-        if kind == "final" and rendered.enrol_end <= i * secs <= rendered.enrol_end + 2.5
+        if kind == "final"
+        and rendered.enrol_end <= i * secs <= rendered.enrol_end + 2.5
     ]
     agent_starts = max([rendered.bot_start] + [t + 1.0 for t in finals])
     bot_start = int(agent_starts / secs)
@@ -265,10 +274,16 @@ async def run_strategy(
             state["turn"] = False
             frames.append(BotStartedSpeakingFrame())
         if chunk.size:
-            frames.append(InputAudioRawFrame(audio=chunk.tobytes(), sample_rate=RATE, num_channels=1))
+            frames.append(
+                InputAudioRawFrame(
+                    audio=chunk.tobytes(), sample_rate=RATE, num_channels=1
+                )
+            )
         for kind in vad_at.get(i, []):
             frames.append(
-                VADUserStartedSpeakingFrame() if kind == "start" else VADUserStoppedSpeakingFrame()
+                VADUserStartedSpeakingFrame()
+                if kind == "start"
+                else VADUserStoppedSpeakingFrame()
             )
         ended_turn = False
         for kind, text in asr_at.get(i, []):
@@ -276,7 +291,11 @@ async def run_strategy(
             frames.append(cls(text=text, user_id="caller", timestamp=""))
             if kind == "final" and state["turn"] and i > (state["turn_started"] or 0):
                 ended_turn = True
-        if state["turn"] and not ended_turn and i - (state["turn_started"] or 0) > int(2.5 / secs):
+        if (
+            state["turn"]
+            and not ended_turn
+            and i - (state["turn_started"] or 0) > int(2.5 / secs)
+        ):
             ended_turn = True
         for frame in frames:
             t0 = time.process_time()

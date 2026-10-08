@@ -109,12 +109,22 @@ def _speech(scene: Scene, rng: np.random.Generator):
         barge = own[2][: int(3.0 * corpus.RATE)]
         background = []
         for other in others:
-            background += [u[: int(4.0 * corpus.RATE)] for u in corpus.libri_utterances(other, 6)]
+            background += [
+                u[: int(4.0 * corpus.RATE)] for u in corpus.libri_utterances(other, 6)
+            ]
         rng.shuffle(background)
-        return enrol, barge, background, f"libri:{caller}", [f"libri:{o}" for o in others]
+        return (
+            enrol,
+            barge,
+            background,
+            f"libri:{caller}",
+            [f"libri:{o}" for o in others],
+        )
 
     if scene.language == "hinglish_real":
-        callers, talkers = corpus.MUCS_VOICES[::-1] if scene.seed % 2 else corpus.MUCS_VOICES
+        callers, talkers = (
+            corpus.MUCS_VOICES[::-1] if scene.seed % 2 else corpus.MUCS_VOICES
+        )
         caller = callers[int(rng.integers(0, len(callers)))]
         others = list(rng.choice(talkers, size=2, replace=False))
         own = corpus.mucs_utterances(caller, 3, secs=3.2)
@@ -127,17 +137,27 @@ def _speech(scene: Scene, rng: np.random.Generator):
 
     language = scene.language
     callers, talkers = corpus.VOICES[language]
-    caller = callers[(scene.seed + zlib.crc32(scene.interferer.encode())) % len(callers)]
+    caller = callers[
+        (scene.seed + zlib.crc32(scene.interferer.encode())) % len(callers)
+    ]
     lines = corpus.CALLER_LINES[language]
     picks = rng.choice(len(lines), size=2, replace=False)
     enrol = [corpus.tts(lines[i], caller, language) for i in picks]
     barge_lines = corpus.BARGE_IN_LINES[language]
-    barge = corpus.tts(barge_lines[int(rng.integers(0, len(barge_lines)))], caller, language)
+    barge = corpus.tts(
+        barge_lines[int(rng.integers(0, len(barge_lines)))], caller, language
+    )
     chatter = corpus.CHATTER_LINES[language]
     background = []
     for k, i in enumerate(rng.permutation(len(chatter))):
         background.append(corpus.tts(chatter[i], talkers[k % len(talkers)], language))
-    return enrol, barge, background, f"kokoro:{caller}", [f"kokoro:{t}" for t in talkers]
+    return (
+        enrol,
+        barge,
+        background,
+        f"kokoro:{caller}",
+        [f"kokoro:{t}" for t in talkers],
+    )
 
 
 def render(scene: Scene) -> Rendered:

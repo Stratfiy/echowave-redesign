@@ -42,11 +42,15 @@ BASELINES = [
 ]
 
 
-def default_configs(thresholds: list[float], models: list[str], dfn: bool) -> list[Config]:
+def default_configs(
+    thresholds: list[float], models: list[str], dfn: bool
+) -> list[Config]:
     configs = list(BASELINES)
     for model in models:
         for th in thresholds:
-            configs.append(Config(f"lock {model} t{th:.2f}", lock_model=model, threshold=th))
+            configs.append(
+                Config(f"lock {model} t{th:.2f}", lock_model=model, threshold=th)
+            )
             configs.append(
                 Config(
                     f"lock {model} t{th:.2f} no-loud",
@@ -61,7 +65,12 @@ def default_configs(thresholds: list[float], models: list[str], dfn: bool) -> li
         for model in models:
             for th in thresholds:
                 configs.append(
-                    Config(f"dfn+lock {model} t{th:.2f}", filter="dfn", lock_model=model, threshold=th)
+                    Config(
+                        f"dfn+lock {model} t{th:.2f}",
+                        filter="dfn",
+                        lock_model=model,
+                        threshold=th,
+                    )
                 )
     return configs
 
@@ -89,13 +98,19 @@ def _process(job) -> dict:
         per_filter = {}
         for name in filters:
             chunks, cpu, worst = await run_filter(rendered.audio, name)
-            out["filters"][name] = {"cpu_s": cpu, "audio_s": audio_secs, "worst_ms": worst}
+            out["filters"][name] = {
+                "cpu_s": cpu,
+                "audio_s": audio_secs,
+                "worst_ms": worst,
+            }
             asr = run_asr(chunks, scene.asr_language)
             vads = {env: run_vad(chunks, env) for env in ("normal", "noisy")}
             per_filter[name] = (chunks, asr, vads)
         for config in configs:
             chunks, asr, vads = per_filter[config.filter]
-            outcome = await run_strategy(rendered, chunks, vads[config.vad], asr, config)
+            outcome = await run_strategy(
+                rendered, chunks, vads[config.vad], asr, config
+            )
             out["outcomes"].append(asdict(outcome))
 
     asyncio.run(go())
@@ -112,9 +127,20 @@ def _pct(values, q):
 
 def summarise(records: list[dict], group=None) -> dict:
     """Per configuration (and optional group key): the headline numbers."""
-    rows: dict = defaultdict(lambda: {"scenes": 0, "false": 0, "false_scenes": 0, "agent_s": 0.0,
-                                      "barge": 0, "accepted": 0, "accept_ms": [], "judge_ms": [],
-                                      "lock_cpu": 0.0, "audio_s": 0.0})
+    rows: dict = defaultdict(
+        lambda: {
+            "scenes": 0,
+            "false": 0,
+            "false_scenes": 0,
+            "agent_s": 0.0,
+            "barge": 0,
+            "accepted": 0,
+            "accept_ms": [],
+            "judge_ms": [],
+            "lock_cpu": 0.0,
+            "audio_s": 0.0,
+        }
+    )
     for rec in records:
         meta = rec["scene"]
         for o in rec["outcomes"]:
@@ -143,7 +169,9 @@ def summarise(records: list[dict], group=None) -> dict:
             "accept_p90_ms": _pct(r["accept_ms"], 90),
             "judge_p50_ms": _pct(r["judge_ms"], 50),
             "judge_p95_ms": _pct(r["judge_ms"], 95),
-            "lock_cpu_ms_per_s": 1000 * r["lock_cpu"] / r["audio_s"] if r["audio_s"] else 0,
+            "lock_cpu_ms_per_s": 1000 * r["lock_cpu"] / r["audio_s"]
+            if r["audio_s"]
+            else 0,
         }
     return out
 
@@ -155,7 +183,10 @@ def filter_cost(records: list[dict]) -> dict:
             agg[name][0] += f["cpu_s"]
             agg[name][1] += f["audio_s"]
             agg[name][2] = max(agg[name][2], f["worst_ms"])
-    return {n: {"cpu_ms_per_s": 1000 * c / a, "worst_call_ms": w} for n, (c, a, w) in agg.items()}
+    return {
+        n: {"cpu_ms_per_s": 1000 * c / a, "worst_call_ms": w}
+        for n, (c, a, w) in agg.items()
+    }
 
 
 def main() -> None:
@@ -185,14 +216,20 @@ def main() -> None:
     started = time.time()
     with Pool(args.workers) as pool:
         records = []
-        for k, rec in enumerate(pool.imap_unordered(_process, [(s, configs) for s in grid]), 1):
+        for k, rec in enumerate(
+            pool.imap_unordered(_process, [(s, configs) for s in grid]), 1
+        ):
             records.append(rec)
             if k % 10 == 0:
-                print(f"{k}/{len(grid)} scenes, {time.time() - started:.0f}s", flush=True)
+                print(
+                    f"{k}/{len(grid)} scenes, {time.time() - started:.0f}s", flush=True
+                )
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(json.dumps({"records": records}, ensure_ascii=False))
     print(f"wrote {args.out}: {len(records)} scenes x {len(configs)} configs")
-    print(json.dumps({" | ".join(k): v for k, v in summarise(records).items()}, indent=1))
+    print(
+        json.dumps({" | ".join(k): v for k, v in summarise(records).items()}, indent=1)
+    )
     print(json.dumps(filter_cost(records), indent=1))
     print(statistics.mean(1 for _ in records))
 

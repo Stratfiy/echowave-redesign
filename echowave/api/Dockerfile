@@ -126,7 +126,7 @@ RUN set -eu ; \
 # to Python; with the argument off this stage is an empty directory and the
 # flags, if switched on, log that the model is missing and change nothing.
 #
-# * WeSpeaker ResNet34-LM speaker embedding (Apache-2.0 code, CC BY 4.0
+# * WeSpeaker ECAPA-TDNN512-LM speaker embedding (Apache-2.0 code, CC BY 4.0
 #   weights), downloaded and sha256-checked.
 # * DeepFilterNet3 as a streaming graph (MIT or Apache-2.0). Nobody publishes
 #   that graph, so it is exported here from the official checkpoint by
@@ -135,8 +135,8 @@ RUN set -eu ; \
 #   graph the evaluation measured.
 FROM python:3.13-slim AS voice-isolation-models
 ARG WITH_VOICE_ISOLATION=false
-ARG WESPEAKER_URL=https://huggingface.co/Wespeaker/wespeaker-voxceleb-resnet34-LM/resolve/main/voxceleb_resnet34_LM.onnx
-ARG WESPEAKER_SHA256=7bb2f06e9df17cdf1ef14ee8a15ab08ed28e8d0ef5054ee135741560df2ec068
+ARG WESPEAKER_URL=https://huggingface.co/Wespeaker/wespeaker-ecapa-tdnn512-LM/resolve/main/voxceleb_ECAPA512_LM.onnx
+ARG WESPEAKER_SHA256=d71b85d9b48058ef68004f04f1b78acebefb9dfcf542e19b976a12a5ad1f10b0
 ARG DFN_SHA256=bedbfb772fd375fbaae820f80533ebaf0e10c297d40549accb881a41e5a205cc
 RUN mkdir -p /models
 RUN --mount=type=bind,source=evals/voice_isolation/dfn_export,target=/tmp/dfn_export \
@@ -144,8 +144,8 @@ RUN --mount=type=bind,source=evals/voice_isolation/dfn_export,target=/tmp/dfn_ex
     set -eu ; \
     if [ "${WITH_VOICE_ISOLATION}" = "true" ]; then \
       apt-get update && apt-get install -y --no-install-recommends curl ca-certificates ; \
-      curl -fsSL --retry 3 -o /models/wespeaker_resnet34_lm.onnx "${WESPEAKER_URL}" ; \
-      echo "${WESPEAKER_SHA256}  /models/wespeaker_resnet34_lm.onnx" | sha256sum -c - ; \
+      curl -fsSL --retry 3 -o /models/wespeaker_ecapa512_lm.onnx "${WESPEAKER_URL}" ; \
+      echo "${WESPEAKER_SHA256}  /models/wespeaker_ecapa512_lm.onnx" | sha256sum -c - ; \
       pip install --quiet torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu ; \
       pip install --quiet onnx==1.23.2 onnxruntime numpy loguru appdirs sympy requests packaging ; \
       cp -r /tmp/dfn_export /tmp/dfn_build && /tmp/dfn_build/build.sh /models ; \

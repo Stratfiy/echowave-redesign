@@ -20,6 +20,7 @@ official offline `df.enhance.enhance()` output sample n - 1440 (see verify.py / 
 Additionally a caller sees up to 479 samples of buffering latency if it feeds chunks that are not
 multiples of 480 (e.g. 20 ms = 960 samples -> no extra buffering).
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -31,16 +32,58 @@ HOP = 480
 NB_ERB = 32
 NB_DF = 96
 NBINS = FFT // 2 + 1
-ALPHA = np.float32(0.99)  # df.utils.get_norm_alpha(): round(exp(-hop/sr/tau), 3) with tau=1 s
+ALPHA = np.float32(
+    0.99
+)  # df.utils.get_norm_alpha(): round(exp(-hop/sr/tau), 3) with tau=1 s
 LOOKAHEAD = 2
 DELAY_SAMPLES = (FFT - HOP) + LOOKAHEAD * HOP  # 1440
 
 # ERB band widths for sr=48000, fft=960, nb_bands=32, min_nb_erb_freqs=2 (libDF erb_fb()).
 # Recomputed below by _erb_widths() and asserted to match.
-ERB_WIDTHS = (2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 5, 5, 7, 7, 8, 10, 12, 13, 15, 18, 20,
-              24, 28, 31, 37, 42, 50, 56, 67)
+ERB_WIDTHS = (
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    5,
+    5,
+    7,
+    7,
+    8,
+    10,
+    12,
+    13,
+    15,
+    18,
+    20,
+    24,
+    28,
+    31,
+    37,
+    42,
+    50,
+    56,
+    67,
+)
 
-STATE_NAMES = ("erb_hist", "spec_feat_hist", "c0_hist", "spec_hist", "h_enc", "h_erb", "h_df")
+STATE_NAMES = (
+    "erb_hist",
+    "spec_feat_hist",
+    "c0_hist",
+    "spec_hist",
+    "h_enc",
+    "h_erb",
+    "h_df",
+)
 STATE_SHAPES = {
     "erb_hist": (1, 1, 2, 32),
     "spec_feat_hist": (1, 2, 2, 96),
@@ -56,7 +99,9 @@ def _erb_widths(sr=SR, fft=FFT, nb=NB_ERB, min_nb=2):
     """libDF erb_fb() in float32 arithmetic."""
     f32 = np.float32
     freq2erb = lambda f: f32(9.265) * np.log1p(f32(f) / f32(24.7 * 9.265), dtype=f32)  # noqa: E731
-    erb2freq = lambda n: f32(24.7 * 9.265) * (np.exp(f32(n) / f32(9.265), dtype=f32) - f32(1))  # noqa: E731
+    erb2freq = lambda n: (
+        f32(24.7 * 9.265) * (np.exp(f32(n) / f32(9.265), dtype=f32) - f32(1))
+    )  # noqa: E731
     lo, hi = freq2erb(0.0), freq2erb(float(sr // 2))
     step = (hi - lo) / f32(nb)
     fw = f32(sr) / f32(fft)
@@ -92,16 +137,22 @@ class DeepFilterNetStream:
         so.inter_op_num_threads = 1
         so.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
         so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-        self.sess = ort.InferenceSession(model_path, so, providers=["CPUExecutionProvider"])
+        self.sess = ort.InferenceSession(
+            model_path, so, providers=["CPUExecutionProvider"]
+        )
         self._out_names = [o.name for o in self.sess.get_outputs()]
         # precomputed DSP constants
         self.win = vorbis_window()
         self.wnorm = np.float32(1.0 / (FFT * FFT / (2 * HOP)))  # 1/960, analysis only
         w = np.asarray(ERB_WIDTHS)
         band = np.zeros((NBINS, NB_ERB), np.float32)
-        band[np.arange(NBINS), np.repeat(np.arange(NB_ERB), w)] = 1.0 / np.repeat(w, w).astype(np.float32)
+        band[np.arange(NBINS), np.repeat(np.arange(NB_ERB), w)] = 1.0 / np.repeat(
+            w, w
+        ).astype(np.float32)
         self.erb_mat = band
-        self.syn_scale = self.win * np.float32(FFT)  # irfft(n) * n (realfft unnormalised) * window
+        self.syn_scale = self.win * np.float32(
+            FFT
+        )  # irfft(n) * n (realfft unnormalised) * window
         self.reset()
 
     # ------------------------------------------------------------------ public API
@@ -126,8 +177,10 @@ class DeepFilterNetStream:
         n_hops = buf.size // HOP
         out = np.empty(n_hops * HOP, np.float32)
         for i in range(n_hops):
-            out[i * HOP:(i + 1) * HOP] = self._process_hop(buf[i * HOP:(i + 1) * HOP])
-        self._inbuf = buf[n_hops * HOP:].copy()
+            out[i * HOP : (i + 1) * HOP] = self._process_hop(
+                buf[i * HOP : (i + 1) * HOP]
+            )
+        self._inbuf = buf[n_hops * HOP :].copy()
         return out
 
     def flush(self) -> np.ndarray:
@@ -185,7 +238,10 @@ class DeepFilterNetStream:
         if enh is None:
             y = np.zeros(FFT, np.float32)
         else:
-            y = np.fft.irfft(enh[:, 0] + 1j * enh[:, 1], n=FFT).astype(np.float32) * self.syn_scale
+            y = (
+                np.fft.irfft(enh[:, 0] + 1j * enh[:, 1], n=FFT).astype(np.float32)
+                * self.syn_scale
+            )
         out = y[:HOP] + self._smem
         self._smem = y[HOP:].copy()
         return out

@@ -6,8 +6,9 @@ work at 48 kHz, so this takes the same path RNNoise does on a phone line:
 resample 8 kHz up to 48 kHz, filter, come back down.
 
 **What it is not.** Like RNNoise it is trained to keep speech and remove what
-is not speech. It removes traffic and fans far better; a person talking behind
-the caller is still speech and comes through. For background voices see
+is not speech. It removes traffic and fans far better -- and so the transcriber
+hears a person talking behind the caller *more* clearly. Measured on its own it
+doubles false interruptions from background speech; use it together with
 ``caller_voice_lock``.
 
 **How it runs.** The official package needs torch, numpy below 2 and a Rust
@@ -20,10 +21,11 @@ round-off. At run time it is numpy and onnxruntime, both already in the image.
 
 * Algorithmic delay: 30 ms at 48 kHz (one STFT overlap plus two frames of
   lookahead), on top of the resamplers. RNNoise's whole path measures 20 ms.
-* CPU: about 1 ms per 10 ms hop on one core, ten times RNNoise; see the
-  evaluation for the per-call figure on 8 kHz audio.
-* Licence: DeepFilterNet code is MIT or Apache-2.0 at your option; the weights
-  ship in the same repository under the same terms (``MODEL_LICENCE``).
+* CPU: about 110 ms per second of 8 kHz call audio on one core, resampling
+  included; RNNoise's path measures about 85 (``evals/voice_isolation``).
+* Licence: DeepFilterNet code is MIT or Apache-2.0 at your option. The
+  checkpoint sits in the same repository with no licence of its own; reading
+  it as under the same terms is an inference (``MODEL_LICENCE``).
 """
 
 from __future__ import annotations
@@ -45,8 +47,9 @@ DEFAULT_MODEL_PATH = "/app/models/voice_isolation/dfn3_streaming.onnx"
 
 MODEL_LICENCE = (
     "DeepFilterNet3 (github.com/Rikorose/DeepFilterNet v0.5.6, checkpoint "
-    "model_120.ckpt.best sha256 23b92884...e6003): code and weights MIT OR "
-    "Apache-2.0. Streaming ONNX export by evals/voice_isolation/dfn_export."
+    "model_120.ckpt.best sha256 23b92884...e6003): code MIT OR Apache-2.0; "
+    "the checkpoint carries no separate licence and is read as the same. "
+    "Streaming ONNX export by evals/voice_isolation/dfn_export."
 )
 
 RATE = 48000

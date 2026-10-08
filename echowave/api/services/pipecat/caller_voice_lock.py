@@ -15,8 +15,8 @@ is dropped and the stranger's words with it.
 words -- the caller answering the greeting, giving their name -- the loudest
 frames of that stretch are pooled into a speaker embedding. Loudest, because
 the caller is the one holding the phone: background voices arrive quieter and
-mostly fall outside the band. The network is a WeSpeaker speaker-verification
-model (``MODEL_LICENCE``) run by onnxruntime on CPU at 16 kHz, telephony audio
+mostly fall outside the band. The network is WeSpeaker's ECAPA-TDNN
+speaker-verification model (``MODEL_LICENCE``) run by onnxruntime on CPU at 16 kHz, telephony audio
 resampled up first as RNNoise's is.
 
 **Everything here is biased towards behaving exactly as before.**
@@ -72,20 +72,23 @@ FEATURE = "caller_voice_lock"
 
 #: Where the model is looked for when ``CALLER_VOICE_LOCK_MODEL_PATH`` is unset.
 #: The Dockerfile's ``WITH_VOICE_ISOLATION`` build argument puts it here.
-DEFAULT_MODEL_PATH = "/app/models/voice_isolation/wespeaker_resnet34_lm.onnx"
+DEFAULT_MODEL_PATH = "/app/models/voice_isolation/wespeaker_ecapa512_lm.onnx"
 
 MODEL_LICENCE = (
-    "WeSpeaker ResNet34-LM (voxceleb_resnet34_LM.onnx, huggingface.co/Wespeaker/"
-    "wespeaker-voxceleb-resnet34-LM): WeSpeaker code Apache-2.0; model weights "
-    "CC BY 4.0, trained on VoxCeleb2 (CC BY 4.0). Commercial use permitted "
-    "with attribution."
+    "WeSpeaker ECAPA-TDNN512-LM (voxceleb_ECAPA512_LM.onnx, huggingface.co/"
+    "Wespeaker/wespeaker-ecapa-tdnn512-LM): WeSpeaker code Apache-2.0; model "
+    "weights CC BY 4.0, trained on VoxCeleb2 (CC BY 4.0). Commercial use "
+    "permitted with attribution."
 )
 
 #: The network's own rate. Everything is resampled to it before features.
 MODEL_RATE = 16000
 
 #: Cosine similarity below which speech is judged not to be the caller.
-#: Chosen from ``evals/voice_isolation`` -- see its README for the sweep.
+#: From the ``evals/voice_isolation`` sweep (0.25 / 0.30 / 0.35): 0.30 halves
+#: false interruptions from background speech for two more missed barge-ins in
+#: 320 scenes; 0.35 removes more strangers but starts to refuse real callers in
+#: noise.
 DEFAULT_THRESHOLD = 0.30
 
 #: Seconds of the caller's voice before the lock does anything at all. Two

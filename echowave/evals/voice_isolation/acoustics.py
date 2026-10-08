@@ -17,7 +17,9 @@ TELEPHONY_RATE = 8000
 SPEED_OF_SOUND = 343.0
 
 
-def room_impulse(distance_m: float, rng: np.random.Generator, *, rt60: float = 0.45) -> np.ndarray:
+def room_impulse(
+    distance_m: float, rng: np.random.Generator, *, rt60: float = 0.45
+) -> np.ndarray:
     """A plausible room response for a source ``distance_m`` from the phone.
 
     A direct path delayed by the distance, then an exponentially decaying
@@ -45,7 +47,9 @@ def room_impulse(distance_m: float, rng: np.random.Generator, *, rt60: float = 0
     return h
 
 
-def place(signal: np.ndarray, distance_m: float, rng: np.random.Generator) -> np.ndarray:
+def place(
+    signal: np.ndarray, distance_m: float, rng: np.random.Generator
+) -> np.ndarray:
     """``signal`` as heard by the phone from ``distance_m`` away."""
     if distance_m <= 0.1:
         # The caller: near field, essentially dry, with the slight bass lift
@@ -70,7 +74,9 @@ def active_rms(signal: np.ndarray, frame: int = 320) -> float:
     return float(np.sqrt(np.mean(energy[keep])) + 1e-12)
 
 
-def scale_to_snr(target: np.ndarray, interferer: np.ndarray, snr_db: float) -> np.ndarray:
+def scale_to_snr(
+    target: np.ndarray, interferer: np.ndarray, snr_db: float
+) -> np.ndarray:
     """Scale ``interferer`` so target-active : interferer-active is ``snr_db``."""
     gain = active_rms(target) / (active_rms(interferer) * 10 ** (snr_db / 20.0))
     return (interferer * gain).astype(np.float32)

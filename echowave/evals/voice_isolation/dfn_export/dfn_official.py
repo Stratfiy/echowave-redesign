@@ -5,12 +5,15 @@ Works with the genuine `libdf` (DeepFilterLib wheel, py<=3.11) or with the numpy
 `df.io` is replaced by an empty module because it imports torchaudio's removed
 `torchaudio.backend` API; it is only used for file I/O, never for inference.
 """
+
 import os
 import sys
 import types
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-MODEL_DIR = os.environ.get("DFN_MODEL_DIR", os.path.join(HERE, "work", "DeepFilterNet3"))
+MODEL_DIR = os.environ.get(
+    "DFN_MODEL_DIR", os.path.join(HERE, "work", "DeepFilterNet3")
+)
 CKPT = os.path.join(MODEL_DIR, "checkpoints", "model_120.ckpt.best")
 
 
@@ -32,12 +35,23 @@ def load_official(model_dir: str = MODEL_DIR):
     from df.model import ModelParams
     from libdf import DF
 
-    config.load(os.path.join(model_dir, "config.ini"), config_must_exist=True,
-                allow_defaults=True, allow_reload=True)
+    config.load(
+        os.path.join(model_dir, "config.ini"),
+        config_must_exist=True,
+        allow_defaults=True,
+        allow_reload=True,
+    )
     p = ModelParams()
-    df_state = DF(sr=p.sr, fft_size=p.fft_size, hop_size=p.hop_size, nb_bands=p.nb_erb,
-                  min_nb_erb_freqs=p.min_nb_freqs)
-    model, epoch = load_model(os.path.join(model_dir, "checkpoints"), df_state, epoch="best")
+    df_state = DF(
+        sr=p.sr,
+        fft_size=p.fft_size,
+        hop_size=p.hop_size,
+        nb_bands=p.nb_erb,
+        min_nb_erb_freqs=p.min_nb_freqs,
+    )
+    model, epoch = load_model(
+        os.path.join(model_dir, "checkpoints"), df_state, epoch="best"
+    )
     model.eval()
     torch.set_grad_enabled(False)
     return model, df_state, p, epoch
