@@ -62,6 +62,25 @@ describe("sourcesForReply", () => {
         expect(sourcesForReply([row("message", "human"), reading, reply], reply.id)).toEqual(sources);
     });
 
+    it("shows every file the turn read, from the readings and a later search", () => {
+        const readings = row("activity", "agent", {
+            sources: [
+                { kind: "team", label: "Your team", status: "read" },
+                { kind: "knowledge", label: "Company knowledge", status: "read", documents: ["rates.xlsx, sheet Rates, row 4"] },
+            ],
+        });
+        const search = row("activity", "agent", {
+            sources: [{ kind: "knowledge", label: "Files", status: "read", documents: ["board.jpg (in Menus)"] }],
+        });
+        const again = row("activity", "agent", {
+            sources: [{ kind: "knowledge", label: "Files", status: "read", documents: ["board.jpg (in Menus)", "hours.txt"] }],
+        });
+        const reply = row("message", "agent");
+        const sources = sourcesForReply([row("message", "human"), readings, search, again, reply], reply.id);
+        expect(sources.map((s) => s.label)).toEqual(["Your team", "Company knowledge", "Files"]);
+        expect(sources[2].documents).toEqual(["board.jpg (in Menus)", "hours.txt"]);
+    });
+
     it("never borrows an earlier turn's sources", () => {
         const earlier = row("activity", "agent", { sources: [{ kind: "team", label: "x", status: "read" }] });
         const reply = row("message", "agent");

@@ -478,3 +478,31 @@ def read_passages_line(result: Any) -> Optional[str]:
     if len(names) == 1:
         return f"Read {what} from {names[0]}"
     return f"Read {what} from Company knowledge"
+
+
+def passages_sources(result: Any) -> list[dict[str, Any]]:
+    """The sources entry for a knowledge lookup, for the thread's Sources
+    panel: each file read, once, as its citation (file, folder, and page or
+    sheet). Empty when nothing was read."""
+    chunks = result.get("chunks") if isinstance(result, dict) else None
+    if not chunks:
+        return []
+    cited: list[str] = []
+    for chunk in chunks:
+        if not isinstance(chunk, dict):
+            continue
+        label = (
+            chunk.get("citation") or chunk.get("document_name") or chunk.get("filename")
+        )
+        if label and label not in cited:
+            cited.append(str(label))
+    count = len(chunks)
+    return [
+        {
+            "kind": "knowledge",
+            "label": "Files",
+            "status": "read",
+            "detail": f"{count} passage{'s' if count != 1 else ''}",
+            "documents": cited,
+        }
+    ]

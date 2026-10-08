@@ -16,7 +16,22 @@ export const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 // Kept in step with api/services/knowledge_base/extraction.py. Legacy .doc is
 // deliberately absent: no pure-Python reader handles it, so offering it here
 // only produces an upload that fails after the customer has waited for it.
-export const ACCEPTED_FILE_TYPES = ['.pdf', '.docx', '.txt', '.md', '.json', '.csv', '.xlsx', '.html'];
+// Pictures are read by the workspace's own model (what they show, and every
+// word in them; api/services/knowledge_base/vision.py).
+export const ACCEPTED_FILE_TYPES = [
+    '.pdf',
+    '.docx',
+    '.txt',
+    '.md',
+    '.json',
+    '.csv',
+    '.xlsx',
+    '.html',
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.webp',
+];
 
 /** Who a document is knowledge for. Mirrors api.enums.KnowledgeScope. */
 export type KnowledgeScope = 'library' | 'org' | 'channel' | 'bot';

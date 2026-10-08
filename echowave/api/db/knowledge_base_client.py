@@ -131,6 +131,33 @@ class KnowledgeBaseClient(BaseDBClient):
             )
             return [str(u) for (u,) in rows.all()]
 
+    async def readable_document_uuids(
+        self, organization_id: int, *, exclude_scopes: tuple[str, ...] = ()
+    ) -> list[str]:
+        """Every file of the organisation there is something to read from,
+        but those in ``exclude_scopes``. A blocklist on purpose: a scope
+        added later is readable until someone decides otherwise."""
+        from sqlalchemy import or_
+
+        async with self.async_session() as session:
+            query = select(KnowledgeBaseDocumentModel.document_uuid).where(
+                KnowledgeBaseDocumentModel.organization_id == organization_id,
+                KnowledgeBaseDocumentModel.is_active == True,
+                or_(
+                    KnowledgeBaseDocumentModel.processing_status == "completed",
+                    KnowledgeBaseDocumentModel.total_chunks > 0,
+                    KnowledgeBaseDocumentModel.full_text.is_not(None),
+                ),
+            )
+            if exclude_scopes:
+                query = query.where(
+                    KnowledgeBaseDocumentModel.scope.not_in(list(exclude_scopes))
+                )
+            rows = await session.execute(
+                query.order_by(KnowledgeBaseDocumentModel.created_at.desc())
+            )
+            return [str(u) for (u,) in rows.all()]
+
     async def get_document_by_id(
         self,
         document_id: int,
@@ -520,6 +547,7 @@ class KnowledgeBaseClient(BaseDBClient):
         document_ids: list[int] | None = None,
         document_uuids: list[str] | None = None,
         embedding_model: str | None = None,
+        exclude_scopes: list[str] | None = None,
     ) -> list[dict]:
         """Search for similar chunks using vector similarity.
 
@@ -547,6 +575,9 @@ class KnowledgeBaseClient(BaseDBClient):
             where_conditions = [
                 "c.organization_id = $2",
                 "d.is_active = true",
+                # A passage kept without a vector (a full-document file's)
+                # has no distance to anything; word search finds it.
+                "c.embedding IS NOT NULL",
             ]
             params = [
                 None,
@@ -573,6 +604,16 @@ class KnowledgeBaseClient(BaseDBClient):
                 params.extend(document_uuids)
                 param_index += len(document_uuids)
 
+            # Scopes this reader may not see (a channel's or an agent's files,
+            # for a reader that is neither).
+            if exclude_scopes:
+                placeholders = ", ".join(
+                    f"${param_index + i}" for i in range(len(exclude_scopes))
+                )
+                where_conditions.append(f"d.scope NOT IN ({placeholders})")
+                params.extend(exclude_scopes)
+                param_index += len(exclude_scopes)
+
             # Add embedding_model filter if provided (for dimension compatibility)
             if embedding_model:
                 where_conditions.append(f"c.embedding_model = ${param_index}")
@@ -591,6 +632,8 @@ class KnowledgeBaseClient(BaseDBClient):
                     c.chunk_index,
                     d.filename,
                     d.document_uuid,
+                    d.file_folder_id,
+                    d.scope,
                     1 - (c.embedding <=> $1::vector) as similarity
                 FROM knowledge_base_chunks c
                 JOIN knowledge_base_documents d ON c.document_id = d.id
@@ -610,6 +653,93 @@ class KnowledgeBaseClient(BaseDBClient):
             )
 
             # Convert asyncpg records to dictionaries
+            return [dict(row) for row in rows]
+
+    async def keyword_search_chunks(
+        self,
+        *,
+        organization_id: int,
+        terms: list[str],
+        limit: int = 5,
+        document_uuids: list[str] | None = None,
+        exclude_scopes: list[str] | None = None,
+    ) -> list[dict]:
+        """Passages containing the words of a question, best first.
+
+        What a vector misses -- a SKU, an invoice number, a value under its
+        column header -- and the only search a file read without embeddings
+        has. ``terms`` are matched as prefixes, so "refund" finds "refunds".
+        Each row says how many of the terms it holds (``matched``) so the
+        caller can tell a passage about the question from one that shares a
+        word with it.
+
+        The expression searched is the one ``ix_kb_chunks_fts`` indexes.
+        """
+        import re
+
+        cleaned = []
+        for term in terms:
+            word = re.sub(r"[^\w]", "", term.lower())
+            if word and word not in cleaned:
+                cleaned.append(word)
+        if not cleaned:
+            return []
+        tsquery = " | ".join(f"'{word}':*" for word in cleaned)
+        matched = " + ".join(
+            f"(CASE WHEN tsv @@ to_tsquery('simple', $${i + 4}) THEN 1 ELSE 0 END)"
+            for i in range(len(cleaned))
+        )
+        params: list = [organization_id, tsquery, limit, *[f"'{w}':*" for w in cleaned]]
+        next_index = len(params) + 1
+        conditions = ["c.organization_id = $1", "d.is_active = true"]
+        if document_uuids:
+            placeholders = ", ".join(
+                f"${next_index + i}" for i in range(len(document_uuids))
+            )
+            conditions.append(f"d.document_uuid IN ({placeholders})")
+            params.extend(document_uuids)
+            next_index += len(document_uuids)
+        if exclude_scopes:
+            placeholders = ", ".join(
+                f"${next_index + i}" for i in range(len(exclude_scopes))
+            )
+            conditions.append(f"d.scope NOT IN ({placeholders})")
+            params.extend(exclude_scopes)
+            next_index += len(exclude_scopes)
+
+        query_sql = f"""
+            SELECT * FROM (
+                SELECT
+                    c.id,
+                    c.document_id,
+                    c.chunk_text,
+                    c.contextualized_text,
+                    c.chunk_metadata,
+                    c.chunk_index,
+                    d.filename,
+                    d.document_uuid,
+                    d.file_folder_id,
+                    d.scope,
+                    ts_rank_cd(tsv, to_tsquery('simple', $2)) AS rank,
+                    {matched} AS matched
+                FROM knowledge_base_chunks c
+                JOIN knowledge_base_documents d ON c.document_id = d.id,
+                LATERAL (
+                    SELECT to_tsvector(
+                        'simple', coalesce(c.contextualized_text, c.chunk_text)
+                    ) AS tsv
+                ) v
+                WHERE {" AND ".join(conditions)}
+                  AND to_tsvector('simple', coalesce(c.contextualized_text, c.chunk_text))
+                      @@ to_tsquery('simple', $2)
+            ) hits
+            ORDER BY matched DESC, rank DESC, id
+            LIMIT $3
+        """.replace("$$", "$")
+        async with self.async_session() as session:
+            connection = await session.connection()
+            raw_connection = await connection.get_raw_connection()
+            rows = await raw_connection.driver_connection.fetch(query_sql, *params)
             return [dict(row) for row in rows]
 
     async def update_document_full_text(
@@ -902,5 +1032,11 @@ class KnowledgeBaseClient(BaseDBClient):
             ".json": "application/json",
             ".html": "text/html",
             ".md": "text/markdown",
+            ".csv": "text/csv",
+            ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".webp": "image/webp",
         }
         return mime_types.get(extension, "application/octet-stream")

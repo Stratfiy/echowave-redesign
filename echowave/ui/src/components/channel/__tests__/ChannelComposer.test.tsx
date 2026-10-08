@@ -145,7 +145,7 @@ describe('a file is a message', () => {
     it('refuses a file type nothing can read, before uploading', async () => {
         composer();
         const picker = screen.getByLabelText('Attach a file', { selector: 'input' });
-        fireEvent.change(picker, { target: { files: [new File(['x'], 'photo.png')] } });
+        fireEvent.change(picker, { target: { files: [new File(['x'], 'clip.mp4')] } });
         expect(await screen.findByRole('alert')).toBeTruthy();
         expect(upload).not.toHaveBeenCalled();
     });
