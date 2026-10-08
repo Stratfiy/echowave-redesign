@@ -404,6 +404,10 @@ async def memory(
         folder = await db_client.get_folder(folder_id, organization_id=organization_id)
         if folder is None:
             raise HTTPException(status_code=404, detail="No such channel here")
+    if assistant:
+        # The same rule as reading the thread: how big somebody else's
+        # private conversation is, and that the id names one, is theirs.
+        await _assert_thread_is_theirs(user, organization_id, thread_id)
     usage = await chat_memory.usage(
         organization_id,
         workflow_id=workflow_id,

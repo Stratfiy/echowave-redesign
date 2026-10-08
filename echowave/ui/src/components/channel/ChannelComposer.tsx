@@ -174,6 +174,7 @@ export function ChannelComposer({
     draftRequest,
     initialHelper,
     startsNewThread = false,
+    originalUnknown = false,
 }: {
     /** A channel, or -- with `workflowId` instead -- one bot's own chat, where
      *  there is nobody to @ because the bot is implied. */
@@ -213,6 +214,9 @@ export function ChannelComposer({
      *  person's (private threads, a plain member): the first message starts
      *  a new one of their own, minted here the way New chat mints one. */
     startsNewThread?: boolean;
+    /** Decibyl's start screen before it is known whether the original
+     *  conversation is this person's: nothing about it is read yet. */
+    originalUnknown?: boolean;
 }) {
     const [text, setText] = useState(initialText ?? '');
     // Screen 06 (`launch_helpers`): Decibyl's thread only. Null is Automatic.
@@ -329,7 +333,14 @@ export function ChannelComposer({
     // the same arithmetic the reply uses. Read on open and after every
     // send, once more when the reply has had time to land.
     const [memory, setMemory] = useState<{ used: number; budget: number; plan: string; raiseTo: string | null } | null>(null);
+    // The original conversation on a start screen that starts a new one is
+    // not this person's to measure: no meter until their own exists.
+    const unmeasured = assistant && threadId === null && (startsNewThread || originalUnknown);
     const readMemory = async () => {
+        if (unmeasured) {
+            setMemory(null);
+            return;
+        }
         try {
             const response = await memoryApiV1TimelineMemoryGet({
                 query: {
@@ -350,10 +361,13 @@ export function ChannelComposer({
             // No meter: the box still sends.
         }
     };
+    // Read again for whichever conversation is now on screen: the meter
+    // belongs to the chat, and a switch must not leave the last one's.
     useEffect(() => {
+        setMemory(null);
         void readMemory();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [chatKey]);
+    }, [chatKey, threadId, unmeasured]);
     const memoryAfterReply = useRef<ReturnType<typeof setTimeout> | null>(null);
     useEffect(() => () => {
         if (memoryAfterReply.current) clearTimeout(memoryAfterReply.current);

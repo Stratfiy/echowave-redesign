@@ -132,3 +132,53 @@ class TestAMembersFirstMessage:
                 json={"assistant": True, "thread_id": "t-asha", "text": "hi"},
             )
         assert posted.status_code == 404
+
+
+class TestTheMemoryMeter:
+    """Found in the privacy pass: the meter beside the composer answered a
+    member with the size and message count of somebody else's private
+    conversation -- and so confirmed the id named one, which every other
+    read hides behind "not found"."""
+
+    async def test_someone_elses_thread_is_not_measured(self, people, monkeypatch):
+        monkeypatch.setattr(constants, "DECIBYL_PRIVATE_THREADS_ENABLED", True)
+        await _say(people, author=people.a, thread_id="t-asha", text="Asha's own words")
+        async with client_as(people.as_b) as c:
+            theirs = await c.get(
+                "/api/v1/timeline/memory",
+                params={"assistant": True, "thread_id": "t-asha"},
+            )
+        async with client_as(people.as_a) as c:
+            mine = await c.get(
+                "/api/v1/timeline/memory",
+                params={"assistant": True, "thread_id": "t-asha"},
+            )
+        assert theirs.status_code == 404
+        assert mine.status_code == 200 and mine.json()["messages_total"] == 1
+
+    async def test_nor_the_original_when_it_is_not_theirs(self, people, monkeypatch):
+        monkeypatch.setattr(constants, "DECIBYL_PRIVATE_THREADS_ENABLED", True)
+        await _say(people, author=people.a, thread_id=None, text="the owner's line")
+        async with client_as(people.as_b) as c:
+            original = await c.get(
+                "/api/v1/timeline/memory", params={"assistant": True}
+            )
+            fresh = await c.get(
+                "/api/v1/timeline/memory",
+                params={"assistant": True, "thread_id": str(uuid4())},
+            )
+        assert original.status_code == 404
+        # A conversation nobody has spoken in yet is theirs to start.
+        assert fresh.status_code == 200 and fresh.json()["messages_total"] == 0
+
+    async def test_with_the_flag_off_it_is_measured_for_everyone(
+        self, people, monkeypatch
+    ):
+        monkeypatch.setattr(constants, "DECIBYL_PRIVATE_THREADS_ENABLED", False)
+        await _say(people, author=people.a, thread_id="t-open", text="shared")
+        async with client_as(people.as_b) as c:
+            read = await c.get(
+                "/api/v1/timeline/memory",
+                params={"assistant": True, "thread_id": "t-open"},
+            )
+        assert read.status_code == 200 and read.json()["messages_total"] == 1

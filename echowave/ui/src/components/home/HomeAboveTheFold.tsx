@@ -594,6 +594,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         draftRequest={draftRequest}
         initialHelper={initialHelper}
         startsNewThread={startsFresh}
+        originalUnknown={holdStream}
         onSent={(_asked, started) => {
           if (started) switchThread(started);
           asked();
