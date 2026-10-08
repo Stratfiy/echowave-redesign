@@ -182,3 +182,45 @@ class TestTheMemoryMeter:
                 params={"assistant": True, "thread_id": "t-open"},
             )
         assert read.status_code == 200 and read.json()["messages_total"] == 1
+
+
+class TestAskedBeforeCards:
+    """Found in the phase 3 privacy sweep: Chat's start cards and the chips
+    under a thread offer "what you asked before" -- and read it from the
+    original conversation for whoever was looking, so a member was offered
+    the owner's own words."""
+
+    @pytest.fixture(autouse=True)
+    async def an_agent(self, people):
+        # The asked-before cards are offered once the workspace has an agent;
+        # before that the start offers first jobs instead.
+        await db_client.create_workflow(
+            "Front desk",
+            {"nodes": [], "edges": []},
+            people.a.id,
+            organization_id=people.org,
+        )
+
+    async def _cards(self, user):
+        async with client_as(user) as c:
+            home = await c.get("/api/v1/team/home", params={"hours": 24})
+            chips = await c.get("/api/v1/timeline/chips")
+        assert home.status_code == 200, home.text
+        assert chips.status_code == 200, chips.text
+        return [o["text"] for o in home.json()["openers"]] + [
+            c["text"] for c in chips.json()["chips"]
+        ]
+
+    async def test_a_member_is_not_offered_the_owners_words(self, people, monkeypatch):
+        monkeypatch.setattr(constants, "DECIBYL_PRIVATE_THREADS_ENABLED", True)
+        await _say(people, author=people.a, thread_id=None, text="Asha's private worry")
+        assert "Asha's private worry" not in await self._cards(people.as_b)
+        # The owner's own words are still offered back to the owner.
+        assert "Asha's private worry" in await self._cards(people.as_a)
+
+    async def test_with_the_flag_off_the_shared_conversation_is_shared(
+        self, people, monkeypatch
+    ):
+        monkeypatch.setattr(constants, "DECIBYL_PRIVATE_THREADS_ENABLED", False)
+        await _say(people, author=people.a, thread_id=None, text="a shared question")
+        assert "a shared question" in await self._cards(people.as_b)

@@ -866,7 +866,10 @@ async def thread_chips(
         members = [m.model_dump() for m in await _members(organization_id, 24)]
         missed = await db_client.unreturned_missed_call_count(organization_id, hours=48)
         cards = await home_openers.gather(
-            organization_id, members=members, unreturned_missed_calls=missed
+            organization_id,
+            members=members,
+            unreturned_missed_calls=missed,
+            viewer_id=user.id,
         )
     except Exception as exc:  # noqa: BLE001 - the thread still works
         logger.warning("Could not build thread chips for {}: {}", organization_id, exc)
