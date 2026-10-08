@@ -79,6 +79,8 @@ async def me(
                 "event_catalogue",
                 "reply_feedback",
                 "free_mode",
+                "support_inbox",
+                "support_actions",
             )
         },
     }

@@ -932,6 +932,28 @@ async def update_case(
         return _ticket_dict(fresh, staff=True)
 
 
+async def overdue_count(session: Any, now: datetime | None = None) -> int:
+    """Cases still waiting on a first response past their severity's target:
+    the founder overview's "Support escalations"."""
+    now = now or datetime.now(UTC)
+    waiting = (
+        (
+            await session.execute(
+                select(SupportTicketModel).where(
+                    SupportTicketModel.status.in_(ACTIVE),
+                    SupportTicketModel.first_response_at.is_(None),
+                    # The shortest target bounds what can be overdue.
+                    SupportTicketModel.created_at
+                    < now - min(FIRST_RESPONSE_TARGET.values()),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return sum(1 for t in waiting if overdue(t, now))
+
+
 async def summary(days: int = 30) -> dict[str, Any]:
     """First response, resolution and reopening -- each measured on its own
     (handoff 33). Satisfaction is not collected yet, and says so."""

@@ -218,18 +218,30 @@ async def attention(session: AsyncSession, *, now: datetime) -> list[dict[str, A
             )
         )
 
-    # Support escalations are the support stream's queue.
-    items.append(
-        _item(
-            "support_escalations",
-            "Support escalations",
-            None,
-            "/superadmin/support",
-            "info",
-            state="needs_setup",
-            reason="The support inbox is built by the support stream.",
+    # Support escalations: cases past their first-response target.
+    if features.is_on("support_inbox"):
+        from api.services.support import tickets
+
+        items.append(
+            _item(
+                "support_escalations",
+                "Support cases past their first-response target",
+                await tickets.overdue_count(session, now),
+                "/superadmin/support",
+            )
         )
-    )
+    else:
+        items.append(
+            _item(
+                "support_escalations",
+                "Support escalations",
+                None,
+                "/superadmin/support",
+                "info",
+                state="disabled_by_policy",
+                reason="support_inbox is off",
+            )
+        )
     return items
 
 
