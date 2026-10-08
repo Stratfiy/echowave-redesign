@@ -19602,6 +19602,10 @@ export type ThreadsResponse = {
      * Threads
      */
     threads: Array<ThreadSummary>;
+    /**
+     * Original Is Yours
+     */
+    original_is_yours?: boolean;
 };
 
 /**

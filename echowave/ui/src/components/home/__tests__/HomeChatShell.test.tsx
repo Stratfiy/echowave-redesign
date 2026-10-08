@@ -20,7 +20,10 @@ const seen = vi.hoisted(() => ({
 const flags = vi.hoisted(() => ({ chat_shell: true, learning: false }));
 
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
-vi.mock("@/lib/features", () => ({ useFeature: (name: string) => Boolean((flags as Record<string, boolean>)[name]) }));
+vi.mock("@/lib/features", () => ({
+    useFeature: (name: string) => Boolean((flags as Record<string, boolean>)[name]),
+    useFeaturesSettled: () => true,
+}));
 vi.mock("@/client/sdk.gen", () => ({
     teamHomeApiV1TeamHomeGet: api.home,
     postMessageApiV1TimelineMessagePost: api.post,
@@ -132,6 +135,18 @@ describe("Chat start", () => {
         expect(window.location.search).toBe("");
         rerender(<HomeAboveTheFold />);
         expect(api.post).toHaveBeenCalledTimes(1);
+    });
+
+    it("a first task that could not be sent is kept in the box, not lost", async () => {
+        // Phase 3: a failed send of the first task (or of a starter with the
+        // flag off) was dropped without a word.
+        api.home.mockResolvedValue({ data: { headline, suggestions: [], openers: [] } });
+        api.post.mockResolvedValue({ error: { detail: "Thread not found" } });
+        window.history.replaceState(null, "", "/overview?ask=Plan%20my%20week");
+        render(<HomeAboveTheFold />);
+        await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1));
+        await waitFor(() => expect(screen.getByTestId("composer").getAttribute("data-draft")).toBe("Plan my week"));
+        expect(screen.getByRole("alert").textContent).toContain("Thread not found");
     });
 
     it("sends Stop to the server for this thread", async () => {

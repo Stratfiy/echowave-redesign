@@ -173,6 +173,8 @@ export function ChannelComposer({
     onStop,
     draftRequest,
     initialHelper,
+    startsNewThread = false,
+    originalUnknown = false,
 }: {
     /** A channel, or -- with `workflowId` instead -- one bot's own chat, where
      *  there is nobody to @ because the bot is implied. */
@@ -186,8 +188,9 @@ export function ChannelComposer({
     /** The channels `#` offers. Fetched here when not given. */
     channels?: ChannelRef[];
     channelName: string;
-    /** Sent, with the bots it was handed to. */
-    onSent?: (asked: number[]) => void;
+    /** Sent, with the bots it was handed to, and the conversation it went
+     *  to when this send started a new one (`startsNewThread`). */
+    onSent?: (asked: number[], startedThread?: string) => void;
     /** Words already in the box when it opens -- "Build me a bot that " from
      *  the door -- with the caret at the end, so the person just carries on. */
     initialText?: string;
@@ -207,6 +210,13 @@ export function ChannelComposer({
     /** Screen 06: a helper named on the address (`?helper=`), chosen once
      *  the server says it is available. */
     initialHelper?: string | null;
+    /** Decibyl's start screen, when the original conversation is not this
+     *  person's (private threads, a plain member): the first message starts
+     *  a new one of their own, minted here the way New chat mints one. */
+    startsNewThread?: boolean;
+    /** Decibyl's start screen before it is known whether the original
+     *  conversation is this person's: nothing about it is read yet. */
+    originalUnknown?: boolean;
 }) {
     const [text, setText] = useState(initialText ?? '');
     // Screen 06 (`launch_helpers`): Decibyl's thread only. Null is Automatic.
@@ -323,7 +333,14 @@ export function ChannelComposer({
     // the same arithmetic the reply uses. Read on open and after every
     // send, once more when the reply has had time to land.
     const [memory, setMemory] = useState<{ used: number; budget: number; plan: string; raiseTo: string | null } | null>(null);
+    // The original conversation on a start screen that starts a new one is
+    // not this person's to measure: no meter until their own exists.
+    const unmeasured = assistant && threadId === null && (startsNewThread || originalUnknown);
     const readMemory = async () => {
+        if (unmeasured) {
+            setMemory(null);
+            return;
+        }
         try {
             const response = await memoryApiV1TimelineMemoryGet({
                 query: {
@@ -344,10 +361,13 @@ export function ChannelComposer({
             // No meter: the box still sends.
         }
     };
+    // Read again for whichever conversation is now on screen: the meter
+    // belongs to the chat, and a switch must not leave the last one's.
     useEffect(() => {
+        setMemory(null);
         void readMemory();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [chatKey]);
+    }, [chatKey, threadId, unmeasured]);
     const memoryAfterReply = useRef<ReturnType<typeof setTimeout> | null>(null);
     useEffect(() => () => {
         if (memoryAfterReply.current) clearTimeout(memoryAfterReply.current);
@@ -546,10 +566,12 @@ export function ChannelComposer({
         setSending(true);
         setError(null);
         setNotice(null);
+        const startedThread =
+            assistant && !routeTo && threadId === null && startsNewThread ? crypto.randomUUID() : undefined;
         const where = routeTo
             ? { folder_id: routeTo.id }
             : assistant
-              ? { assistant: true, thread_id: threadId }
+              ? { assistant: true, thread_id: startedThread ?? threadId }
               : workflowId != null
                 ? { workflow_id: workflowId }
                 : { folder_id: folderId };
@@ -598,7 +620,7 @@ export function ChannelComposer({
             );
         }
         setNotice(said.join(' ') || null);
-        onSent?.(response.data?.asked ?? []);
+        onSent?.(response.data?.asked ?? [], startedThread);
     };
 
     return (
