@@ -367,6 +367,7 @@ hourly, reviews and merges each PR, and starts the next streams.
 | staff | session_01RiC2NEFF9hHD3gRGrmFKVi |
 | reach | session_015bZvzcdWNkr9Ezwq39ukz8 |
 | care | session_018WSGYyj3rNjPKiMfKBZpJz |
+| mobile | session_01BWBurqwedzUCEvdhs18xf4 |
 
 ## Status
 
@@ -388,4 +389,11 @@ hourly, reviews and merges each PR, and starts the next streams.
 | agents | 2 | claude/stream-agents | #532 merged | yes (Learning Guide reads learning's services) | 244 core + 156 pass | on staging, flags on, check 15/15 |
 | today | 2 | claude/stream-today | #535 merged | yes (docked approvals, one answer_refusal) | 335 + 245 pass | on staging, flags on, check 15/15 |
 | settings | 2 | claude/stream-settings | #538 merged | yes | 304 + 324 pass | on staging, flags on, check 15/15 |
-| voice | 2 | claude/stream-voice | #536 merged | yes (one speed setting with settings, one voice screen) | 345 pass | deploying |
+| voice | 2 | claude/stream-voice | #536 merged | yes (one speed setting with settings, one voice screen) | 345 pass | on staging, flags on, check 15/15 |
+| mobile | 2 | claude/mobile | #550 draft | yes (flag `mobile_push` off; People waits on the People API; store release needs the founder's accounts, MOBILE.md) | 27 server + 527 related; app 82 jest; full suite 12,741 pass | not on staging |
+
+## Oct 8 — phase 3 merged, design pass
+
+- Merged into claude/simpler-rail: phase 3 shell #556, learning #555, meetings #554, reach #553, identity #552, support #551. One migration head (20261009meetingstasks), down/up round trip clean, 244 core + 19 new API tests pass, tsc clean, 1867 UI tests pass.
+- Still running: staff + superadmin audit, voice isolation. Waiting on founder: care push, People device sync, outreach permission.
+- Design pass to the handoff: system font stack, ink #0d0d0d / #5d5d5d / #8f8f8f, #f9f9f9 rail, hairline borders, 28px composer with Talk pill, pill starter chips, "What can I do for you?" home with no big logo, pastel job pictures instead of 3D renders.

@@ -1,5 +1,5 @@
-import { useAppConfig } from "@/context/AppConfigContext";
-import { useOrgFeatures } from "@/context/OrgConfigContext";
+import { useAppConfig, useAppConfigSettled } from "@/context/AppConfigContext";
+import { useOrgConfigSettled, useOrgFeatures } from "@/context/OrgConfigContext";
 
 /**
  * Whether a switched-off feature is on, from the flags the backend reports
@@ -130,10 +130,22 @@ export type Feature =
     | "decibyl_voice"
     | "voice_latency"
     | "call_for_me"
-    | "call_appointment";
+    | "call_appointment"
+    // People: synced contacts with context (PEOPLE.md).
+    | "people";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();
     const orgFeatures = useOrgFeatures();
     return Boolean(config?.features?.[name]) || Boolean(orgFeatures?.[name]);
+}
+
+/** Whether every feature map has answered, so a false from useFeature means
+ *  off rather than not yet known. For the few places where acting on "off"
+ *  too early does harm -- Chat's start screen reading a conversation that,
+ *  with private threads on, is not the reader's. */
+export function useFeaturesSettled(): boolean {
+    const app = useAppConfigSettled();
+    const org = useOrgConfigSettled();
+    return app && org;
 }

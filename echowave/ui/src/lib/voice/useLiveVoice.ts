@@ -34,6 +34,7 @@ import {
     startSessionApiV1VoiceSessionsPost,
 } from "@/client/sdk.gen";
 import { resolveBrowserBackendUrl } from "@/lib/apiClient";
+import { announceThreadStarted } from "@/lib/shell/chatEntryPoints";
 
 import { ACTIVE, INITIAL, reduce, type VoiceState } from "./sessionState";
 
@@ -461,6 +462,9 @@ export function useLiveVoice({
             }
             const session = response.data;
             dispatch({ type: "session_started", sessionId: session.id, stateVersion: session.state_version });
+            // The server started a new conversation (the start screen's
+            // original was not this person's): Chat follows it there.
+            if (session.thread_id && session.thread_id !== context.threadId) announceThreadStarted(session.thread_id);
             startMeters(streamRef.current);
             timers.current.connect = setTimeout(() => {
                 if (stateRef.current.phase === "connecting") void fail("connect_timeout", { code: "connect_timeout", message: "The connection did not open. Try again, or continue in text." });

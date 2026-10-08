@@ -33,6 +33,12 @@ from api import constants
 from api.db import db_client
 from api.db.controls_models import MemberPreferencesModel, OutputFeedbackModel
 from api.db.models import AgentEventModel, OrganisationFactModel
+from api.db.people_models import (
+    PeopleSettingsModel,
+    PeopleSyncModel,
+    PersonInteractionModel,
+    PersonModel,
+)
 from api.db.settings_models import (
     MemoryFactRevisionModel,
     PersonalDataRequestModel,
@@ -79,6 +85,7 @@ STORES = (
     ("feedback", "Your Yes / Not quite answers"),
     ("temporary", "Your temporary conversations"),
     ("personal_space", "Conversations in your personal space"),
+    ("people", "Your contacts in People, with their briefs and history"),
 )
 
 #: What is not deleted here, and why. Shown before deletion and kept on the
@@ -140,6 +147,9 @@ async def _counts(user_id: int) -> dict[str, int]:
                 )
                 if space
                 else 0
+            ),
+            "people": await count(
+                select(func.count()).where(PersonModel.owner_user_id == user_id)
             ),
         }
 
@@ -313,8 +323,47 @@ async def _gather(user_id: int) -> dict[str, Any]:
                 )
             )
         ).scalars()
+        people = list(
+            (
+                await session.execute(
+                    select(PersonModel).where(PersonModel.owner_user_id == user_id)
+                )
+            ).scalars()
+        )
+        history: dict[int, list[Any]] = {}
+        for item in (
+            await session.execute(
+                select(PersonInteractionModel)
+                .where(PersonInteractionModel.owner_user_id == user_id)
+                .order_by(PersonInteractionModel.at)
+            )
+        ).scalars():
+            history.setdefault(item.person_id, []).append(item)
         return {
             "exported_at": datetime.now(UTC).isoformat(),
+            "people": [
+                {
+                    "workspace_id": p.organization_id,
+                    "name": p.name,
+                    "phones": list(p.phones or []),
+                    "emails": list(p.emails or []),
+                    "company": p.company,
+                    "relation": p.relation,
+                    "sources": list(p.sources or []),
+                    "brief": p.brief,
+                    "brief_by": p.brief_by,
+                    "interactions": [
+                        {
+                            "channel": i.channel,
+                            "direction": i.direction,
+                            "at": _iso(i.at),
+                            "line": i.line,
+                        }
+                        for i in history.get(p.id, [])
+                    ],
+                }
+                for p in people
+            ],
             "preferences": await member_preferences.get(user_id),
             "onboarding": (
                 {
@@ -656,6 +705,15 @@ async def _delete_store(key: str, *, user_id: int, keep_event_id: int | None) ->
                 # The card running this deletion is its own record.
                 statement = statement.where(AgentEventModel.id != keep_event_id)
             result = await session.execute(statement)
+        elif key == "people":
+            # Handles, sources, interactions, merges and shares go with each
+            # contact (ON DELETE CASCADE); the sync state and settings are the
+            # person's too.
+            for model in (PeopleSyncModel, PeopleSettingsModel):
+                await session.execute(delete(model).where(model.user_id == user_id))
+            result = await session.execute(
+                delete(PersonModel).where(PersonModel.owner_user_id == user_id)
+            )
         else:
             raise PrivacyInvalid(key)
         await session.commit()

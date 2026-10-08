@@ -639,6 +639,11 @@ def fields_shown(el: Element) -> list[dict[str, str]]:
     out: list[dict[str, str]] = []
     for name, value in list(el.form_fields.items())[:20]:
         shown = value
+        if not value:
+            # Masking hides a value; it never invents one. An empty secret
+            # field reads as empty, or the card claims a secret is sent.
+            out.append({"name": name, "value": ""})
+            continue
         words = re.sub(r"[_\-.\[\]]+", " ", re.sub(r"([a-z])([A-Z])", r"\1 \2", name))
         if (
             _PASSWORD_FIELD.search(words)

@@ -47,6 +47,8 @@ NEW = (
 def helpers_on(monkeypatch):
     for name in ALL_FLAGS:
         monkeypatch.setattr(constants, name, True)
+    # start_course is the learning stream's tool, offered with `learning`.
+    monkeypatch.setattr(constants, "LEARNING_ENABLED", True)
 
 
 @pytest.fixture
@@ -646,6 +648,51 @@ class TestSavedReports:
             )
             assert r.status_code == 404
 
+    async def test_an_agents_reply_in_its_own_chat_can_be_kept(self, team, helpers_on):
+        """Found on staging: a research agent built from Chat wrote its
+        report in its own chat, and nothing could keep it -- the agent has no
+        save_report, and Save as report took Decibyl's replies only."""
+        from api.db import db_client
+        from api.services.workflow import agent_timeline
+
+        bot = await db_client.create_workflow(
+            name="Research agent",
+            workflow_definition={"nodes": [], "edges": []},
+            user_id=team.a.id,
+            organization_id=team.org,
+        )
+        await agent_timeline.record(
+            organization_id=team.org,
+            kind="message",
+            actor="human",
+            summary="solar subsidy in Bengaluru?",
+            payload={"body": "solar subsidy in Bengaluru?", "direct": True},
+            workflow_id=bot.id,
+            in_channel=False,
+        )
+        reply = await agent_timeline.record(
+            organization_id=team.org,
+            kind="message",
+            actor="agent",
+            summary="Rs 78,000",
+            payload={"body": "Up to Rs 78,000 for 3 kW (https://pmsuryaghar.gov.in/)."},
+            workflow_id=bot.id,
+            in_channel=False,
+        )
+        async with _client(_as(team.a, team.org)) as client:
+            r = await client.post(
+                "/api/v1/helpers/reports/from-reply", json={"event_id": reply}
+            )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["question"] == "solar subsidy in Bengaluru?"
+        assert body["sources"][0]["url"] == "https://pmsuryaghar.gov.in/"
+        async with _client(_as(team.c, team.other)) as client:
+            r = await client.post(
+                "/api/v1/helpers/reports/from-reply", json={"event_id": reply}
+            )
+            assert r.status_code == 404
+
 
 class TestInformationOnly:
     def test_advice_is_removed_and_facts_are_kept(self):
@@ -957,6 +1004,148 @@ class TestCommitments:
             helper="follow_up",
         )
         assert result["status"] == "not_proposed"
+
+
+@pytest.mark.asyncio
+class TestOnlyTheAskerAnswersTheirCards:
+    """Phase 3: a plain member confirmed the owner's track_commitment and
+    create_tracker cards from the owner's private thread. The cards make
+    things that are the asker's own, so only the asker sees and answers
+    them."""
+
+    async def _propose(self, team, tool, arguments, helper):
+        from api.services import acting
+
+        with acting.acting_as(team.a.id), turn.running_as(helper):
+            proposed = await helper_tools.run(
+                tool,
+                organization_id=team.org,
+                arguments=arguments,
+                author_id=team.a.id,
+                thread_id=None,
+                helper=helper,
+            )
+        return await db_client.get_agent_event(
+            proposed["event_id"], organization_id=team.org
+        )
+
+    async def test_a_teammate_can_neither_see_nor_answer_them(self, team, helpers_on):
+        from api.services.workflow import actions
+
+        cards = [
+            await self._propose(
+                team,
+                "track_commitment",
+                {"counterparty": "Ravi", "description": "invoice 12", "amount": "10"},
+                "follow_up",
+            ),
+            await self._propose(
+                team,
+                "create_tracker",
+                {"name": "Visits", "columns": ["Client"]},
+                "builder",
+            ),
+        ]
+        for card in cards:
+            assert card.payload["private_to"] == team.a.id
+            assert actions.answer_refusal(card.payload, team.b.id) == actions.NOT_HERE
+            assert actions.answer_refusal(card.payload, team.a.id) is None
+            with patch("api.tasks.arq.enqueue_job", new=AsyncMock()):
+                with pytest.raises(actions.ActionError):
+                    await actions.settle(
+                        organization_id=team.org,
+                        event_id=card.id,
+                        verb="confirm",
+                        user_id=team.b.id,
+                    )
+                done = await actions.settle(
+                    organization_id=team.org,
+                    event_id=card.id,
+                    verb="confirm",
+                    user_id=team.a.id,
+                )
+            assert done["state"] == "armed"
+        seen_by_b = await db_client.agent_events(
+            organization_id=team.org,
+            kinds=["action_proposed"],
+            assistant_thread=True,
+            viewer_id=team.b.id,
+        )
+        assert not {c.id for c in cards} & {e.id for e in seen_by_b}
+
+    async def test_the_workspace_audit_does_not_copy_a_private_card(
+        self, team, helpers_on
+    ):
+        """Phase 3: the audit every admin reads carried the private card's
+        label -- a name, an amount, what it was for. It keeps who pressed
+        what and when, and says the card was private."""
+        from sqlalchemy import text as sql
+
+        from api.services.workflow import actions
+
+        card = await self._propose(
+            team,
+            "track_commitment",
+            {"counterparty": "Marker9182", "description": "secret", "amount": "77"},
+            "follow_up",
+        )
+        with patch("api.tasks.arq.enqueue_job", new=AsyncMock()):
+            await actions.settle(
+                organization_id=team.org,
+                event_id=card.id,
+                verb="confirm",
+                user_id=team.a.id,
+            )
+        async with db_client.async_session() as session:
+            rows = (
+                await session.execute(
+                    sql(
+                        "SELECT subject, actor_user_id FROM audit_entries"
+                        " WHERE organization_id = :o AND subject_id = :c"
+                    ),
+                    {"o": team.org, "c": str(card.id)},
+                )
+            ).all()
+        assert rows, "the press is still audited"
+        assert all("Marker9182" not in (r.subject or "") for r in rows)
+        assert rows[0].actor_user_id == team.a.id
+
+    async def test_a_follow_up_send_is_the_askers_alone(self, team, helpers_on):
+        from api.services import acting
+        from api.services.helpers import commitments
+        from api.services.workflow import actions
+
+        row = await commitments.create(
+            commitments.clean({"counterparty": "Ravi", "description": "x"}),
+            organization_id=team.org,
+            user_id=team.a.id,
+        )
+        send = _tool("GMAIL_SEND_EMAIL", "gmail", "send-2")
+        with (
+            patch.object(
+                connected_tools, "list_for_organization", AsyncMock(return_value=[send])
+            ),
+            patch.object(db_client, "get_tool_by_uuid", AsyncMock(return_value=send)),
+            acting.acting_as(team.a.id),
+        ):
+            result = await helper_tools.run(
+                "follow_up_commitment",
+                organization_id=team.org,
+                arguments={
+                    "commitment_id": row.id,
+                    "tool": connected_tools.function_name(send),
+                    "arguments": {"to": "ravi@x.in"},
+                },
+                author_id=team.a.id,
+                thread_id=None,
+                helper="follow_up",
+                request="remind Ravi",
+            )
+        card = await db_client.get_agent_event(
+            result["event_id"], organization_id=team.org
+        )
+        assert card.payload["private_to"] == team.a.id
+        assert actions.answer_refusal(card.payload, team.b.id) == actions.NOT_HERE
 
 
 # ---------------------------------------------------------------------------

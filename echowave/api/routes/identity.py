@@ -33,6 +33,7 @@ from api.services.identity import (
     cards,
     connections,
     email_identity,
+    mobile_push,
     notifications,
     phone,
     reconcile,
@@ -800,16 +801,19 @@ async def _availability(user: UserModel) -> dict[str, ChannelAvailability]:
         else []
     )
     any_linked = any(c["linked"] for c in linked)
+    push_ready = notifications.push.configured() or mobile_push.enabled(
+        user.selected_organization_id
+    )
     return {
         "in_app": ChannelAvailability(
             available=False,
             reason="The bell in the app is shared by your workspace, so personal notices are not put there.",
         ),
+        # Browsers need the operator's VAPID keys; the native app needs only
+        # ``mobile_push`` (Expo holds the Apple and Google credentials).
         "push": ChannelAvailability(
-            available=notifications.push.configured(),
-            reason=None
-            if notifications.push.configured()
-            else "Push is not set up on this deployment yet.",
+            available=push_ready,
+            reason=None if push_ready else "Push is not set up on this deployment yet.",
         ),
         "email": ChannelAvailability(
             available=email_is_configured() and bool(getattr(user, "email", None)),

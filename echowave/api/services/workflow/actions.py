@@ -500,6 +500,12 @@ async def resolve(
             # A follow-up for a tracked commitment (Follow-up helper): part of
             # the approved act, so it is in the version like the arguments.
             args["commitment_id"] = int(arguments["commitment_id"])
+            # And the asker's alone to answer, like the commitment it follows.
+            from api.services import acting as _acting
+
+            follow_up_owner = _acting.acting_user()
+        else:
+            follow_up_owner = None
         return {
             "action": action,
             "args": args,
@@ -518,6 +524,7 @@ async def resolve(
             # is the safety, not a button after.
             "reversible": False,
             "state": PROPOSED,
+            **({"private_to": follow_up_owner} if follow_up_owner else {}),
         }
 
     if action == DESKTOP_STEP:
@@ -553,6 +560,9 @@ async def resolve(
             # Whose follow-up list it joins: the person who asked, recorded
             # now, not whoever later presses Confirm.
             "args": {**fields.as_args(), "owner_user_id": acting.acting_user()},
+            # The asker's own (launch stream `agents`): only they see and
+            # answer it, whoever else can read the workspace's threads.
+            "private_to": acting.acting_user(),
             "label": commitments.label(fields),
             "why": why,
             "effect": "Adds it to your follow-ups, private to you. Nothing is sent.",
@@ -571,6 +581,9 @@ async def resolve(
         return {
             "action": CREATE_TRACKER,
             "args": {**spec, "owner_user_id": acting.acting_user()},
+            # The asker's own (launch stream `agents`): only they see and
+            # answer it, whoever else can read the workspace's threads.
+            "private_to": acting.acting_user(),
             "label": trackers.label(spec),
             "why": why,
             "effect": "Creates an empty tracker, private to you. Nothing is sent.",
@@ -703,6 +716,11 @@ async def resolve(
             # in the workspace may read, and a goal is its learner's own. The
             # learner's screen shows the title beside the card.
             "args": {"goal_uuid": goal_uuid, "user_id": owner},
+            # The learner's card alone, on whatever thread it sits: a goal
+            # started on the learning page has no thread, and the authorless
+            # one is an Admin's -- which hid a plain member's own card from
+            # them and showed it to the owner.
+            "private_to": owner,
             "label": "Delete a learning goal and all its practice",
             "why": why or "Asked to delete it from the progress page.",
             "reversible": False,
@@ -1068,6 +1086,16 @@ async def propose(
             payload,
             acting.acting_user(),
         )
+        # The person who asked, on their phone (MOBILE.md). The notice opens
+        # the card; Confirm is only ever on the card. Never raises.
+        from api.services.identity import mobile_push
+
+        await mobile_push.announce_approval(
+            organization_id=organization_id,
+            user_id=acting.acting_user(),
+            event_id=recorded,
+            label=payload.get("label") or "",
+        )
     told = {
         "status": "proposed",
         "event_id": recorded,
@@ -1125,6 +1153,14 @@ SETTINGS_ORIGIN = "settings"
 
 def _from_settings(payload: dict[str, Any]) -> bool:
     return payload.get("origin") == SETTINGS_ORIGIN
+
+
+def _personal_identity(payload: dict[str, Any]) -> bool:
+    if not payload.get("private_to"):
+        return False
+    from api.services.identity import cards as identity_cards
+
+    return identity_cards.is_personal(payload)
 
 
 async def propose_prepared(
@@ -1193,6 +1229,12 @@ def answer_refusal(payload: dict[str, Any], user_id: int) -> str | None:
     cards a person may answer, so nobody is offered a Do it that would be
     refused. ``NOT_HERE`` means the card is private and not theirs to see.
     """
+    owner = payload.get("private_to")
+    if owner is not None and owner != user_id:
+        # First, before any rule with its own words: a card the caller cannot
+        # see answers as an id that names nothing does. "Only the person this
+        # is for..." told a colleague the card existed and was somebody's.
+        return NOT_HERE
     only = payload.get("only_user_id")
     if only is not None and int(only) != int(user_id):
         # A consent card (stream `care`): the person it is about answers it,
@@ -1212,6 +1254,12 @@ def answer_refusal(payload: dict[str, Any], user_id: int) -> str | None:
         # An order or an outside write acts in one person's account: a
         # colleague who can see the card can neither approve nor stop it.
         return "Only the person this is for can decide on it."
+    if action == PLACE_CALL:
+        # A call for one person ("call it for me"): theirs alone, including
+        # cards made before they carried ``private_to``.
+        principal = (payload.get("args") or {}).get("principal_user_id")
+        if principal is not None and int(principal) != int(user_id):
+            return NOT_HERE
     if action == MEETING_FOLLOW_UP:
         from api.services.meetings import follow_ups
 
@@ -1219,10 +1267,50 @@ def answer_refusal(payload: dict[str, Any], user_id: int) -> str | None:
             # A meeting is private to whoever captured it; to anyone else
             # its card is not there, the way a wrong tenant is not.
             return NOT_HERE
-    owner = payload.get("private_to")
-    if owner is not None and owner != user_id:
-        return NOT_HERE
     return None
+
+
+#: The fields that give a card its own "who decides" rule
+#: (``answer_refusal``); such a card is not also held to its thread.
+_OWNER_FIELDS = ("only_user_id", "owner_user_id", "private_to", "requested_by")
+_OWNED_KINDS = (DESKTOP_STEP, BROWSER_STEP, MEETING_FOLLOW_UP)
+
+
+async def thread_refusal(event: Any, user_id: int) -> str | None:
+    """``NOT_HERE`` when a card sits on a private Decibyl conversation this
+    person may not read (D-1b), else None.
+
+    The rule is the timeline's: a conversation is the person's who wrote its
+    first line, and one with no author on record is an Admin's. Without it a
+    plain member could approve or edit a card on a colleague's private chat
+    by its id, though they could not see it. A card with its own owner rule
+    (``answer_refusal``) is decided by that rule instead, and cards on an
+    agent's thread or a channel are the workspace's, as before. Nothing
+    changes while private threads are off.
+    """
+    from api import constants
+
+    if not constants.DECIBYL_PRIVATE_THREADS_ENABLED:
+        return None
+    if event.workflow_id is not None or event.folder_id is not None:
+        return None
+    payload = dict(event.payload or {})
+    if payload.get("action") in _OWNED_KINDS or any(
+        payload.get(field) is not None for field in _OWNER_FIELDS
+    ):
+        return None
+    author = await db_client.thread_author(
+        organization_id=event.organization_id, thread_id=event.thread_id
+    )
+    if author is not None:
+        return None if author == user_id else NOT_HERE
+    from api.enums import ORGANIZATION_ROLE_RANK, OrganizationRole
+
+    membership = await db_client.get_membership(user_id, event.organization_id)
+    rank = ORGANIZATION_ROLE_RANK.get(membership.role if membership else "", -1)
+    if rank >= ORGANIZATION_ROLE_RANK[OrganizationRole.ADMIN.value]:
+        return None
+    return NOT_HERE
 
 
 def _assert_owner(payload: dict[str, Any], user_id: int) -> None:
@@ -1294,6 +1382,9 @@ async def settle(
     arms it once: the move from proposed is a compare-and-swap.
     """
     event = await _proposal(organization_id, event_id)
+    refusal = await thread_refusal(event, user_id)
+    if refusal is not None:
+        raise ActionError(refusal)
     payload = dict(event.payload or {})
     state = payload.get("state") or PROPOSED
     refusal = answer_refusal(payload, user_id)
@@ -1321,9 +1412,11 @@ async def settle(
         # The approval matrix (KAN-160): a card is a "card" subject with no
         # amount. Raises ApprovalRequired, naming who must, before anything
         # is armed; a no-op while the switch is off.
-        if not _from_settings(payload):
+        if not _from_settings(payload) and not _personal_identity(payload):
             # A person's own Settings card (their memory, their saved item,
             # their data) is theirs to approve, not a workspace approver's.
+            # So is their own identity card (their app connection, their
+            # Decibyl address): private, so nobody else could approve it.
             await approvals.check(
                 organization_id,
                 subject=approvals.CARD,
@@ -1492,6 +1585,9 @@ async def revise(
     if not isinstance(arguments, dict) or not arguments:
         raise ActionError("Say what to change.")
     event = await _proposal(organization_id, event_id)
+    refusal = await thread_refusal(event, user_id)
+    if refusal is not None:
+        raise ActionError(refusal)
     payload = dict(event.payload or {})
     state = payload.get("state") or PROPOSED
     _assert_owner(payload, user_id)
@@ -1541,12 +1637,28 @@ async def revise(
         action=audit_log.CARD_REVISED,
         subject_kind="card",
         subject_id=event.id,
-        subject=str(payload.get("label") or action or "")[:255],
+        subject=_audit_subject(payload),
         actor_user_id=user_id,
         before={"state": state, "version": before},
         after={"state": PROPOSED, "version": after},
     )
     return payload
+
+
+def _audit_subject(payload: dict[str, Any]) -> str:
+    """What the workspace audit says a card was. A private card's label is
+    its owner's words (a name, an amount), and a meeting follow-up's is the
+    words of a meeting only its owner can open: the audit every admin reads
+    keeps who pressed what and when, not what the card said (admins do not
+    inherit private things, handoff 25)."""
+    action = payload.get("action")
+    if payload.get("audit_subject"):
+        # A card that names its own neutral subject (stream `care`: "Care:
+        # medicine reminders") keeps it; it says what kind, never whose.
+        return str(payload["audit_subject"])[:255]
+    if payload.get("private_to") or action == MEETING_FOLLOW_UP:
+        return f"Private card ({action})"[:255]
+    return str(payload.get("label") or action or "")[:255]
 
 
 async def _audit(
@@ -1558,14 +1670,7 @@ async def _audit(
         action=action,
         subject_kind="card",
         subject_id=event.id,
-        # A private card (stream `care`) names its own neutral subject: the
-        # workspace audit log is read by admins, not only by its owner.
-        subject=str(
-            payload.get("audit_subject")
-            or payload.get("label")
-            or payload.get("action")
-            or ""
-        )[:255],
+        subject=_audit_subject(payload),
         actor_user_id=user_id,
         before={"state": was},
         after={"state": payload.get("state"), "action": payload.get("action")},
@@ -1603,6 +1708,10 @@ async def _say(event: Any, line: str) -> None:
         payload=payload,
         in_channel=event.folder_id is not None,
         visibility=_visibility(payload, (event.payload or {}).get("action")),
+        # Under the card, on the card's own conversation. The job runs in the
+        # worker, outside any turn, so the context names no thread and the
+        # line went to the person's original chat instead.
+        thread_id=getattr(event, "thread_id", None),
     )
 
 
@@ -1661,6 +1770,36 @@ async def _execute_owned(organization_id: int, payload: dict[str, Any]) -> str:
         data if isinstance(data, str) else str(data), 1_000
     )
     return f"Done: {args.get('tool')} on {row.name}."
+
+
+async def _people_note(
+    payload: dict[str, Any],
+    organization_id: int,
+    *,
+    channel: str,
+    to: str,
+    line: str,
+    ref: str,
+) -> None:
+    """Put a send on the contact's page in the confirming person's People.
+    Never raises; does nothing while People is off."""
+    from api.services.people import interactions as people_interactions
+
+    who = (payload.get("confirmed") or {}).get("by")
+    try:
+        owner = int(who) if who else None
+    except (TypeError, ValueError):
+        owner = None
+    await people_interactions.record(
+        organization_id,
+        owner,
+        channel=channel,
+        direction="out",
+        phone=to if channel == "whatsapp" else None,
+        email=to if channel == "email" else None,
+        line=line,
+        ref=ref,
+    )
 
 
 async def _execute(
@@ -1869,7 +2008,11 @@ async def _execute(
                 "The agent could not be built from that spec just now."
             ) from exc
         payload.setdefault("result", {}).update(
-            {"workflow_id": built["workflow_id"], "handle": built.get("handle")}
+            {
+                "workflow_id": built["workflow_id"],
+                "handle": built.get("handle"),
+                "channel": built.get("channel"),
+            }
         )
         return str(built["note"])
 
@@ -1913,7 +2056,7 @@ async def _execute(
 
         confirmed_at = str((payload.get("confirmed") or {}).get("at") or "")
         try:
-            return await documents.deliver(
+            line = await documents.deliver(
                 organization_id,
                 file_id=str(args.get("file_id") or ""),
                 name=str(args.get("name") or ""),
@@ -1924,6 +2067,15 @@ async def _execute(
             )
         except documents.DocumentError as exc:
             raise ActionError(str(exc)) from exc
+        await _people_note(
+            payload,
+            organization_id,
+            channel="whatsapp" if args.get("channel") == "whatsapp" else "email",
+            to=str(args.get("to") or ""),
+            line=f"Sent {args.get('name') or 'a file'}",
+            ref=f"card:{event_id}" if event_id else f"send_document:{confirmed_at}",
+        )
+        return line
     if action == BROWSER_STEP:
         from api.services.browser import session as browser_session
 
@@ -1971,6 +2123,23 @@ async def _execute(
         await send_approval.note_sent(
             organization_id, dict(args.get("arguments") or {})
         )
+        # People: a mail the person approved, to someone, from their app.
+        sent_to = send_approval.recipient_of(dict(args.get("arguments") or {}))
+        if sent_to:
+            toolkit = (connected_tools.toolkit_of(tool) or "").lower()
+            subject = send_approval.subject_of(dict(args.get("arguments") or {}))
+            await _people_note(
+                payload,
+                organization_id,
+                channel="email",
+                to=str(sent_to),
+                line=(
+                    f"Sent: {subject}"
+                    if subject
+                    else f"Sent with {toolkit or 'an app'}"
+                ),
+                ref=f"card:{event_id}" if event_id else f"run_tool:{confirmed_at}",
+            )
         return f"Done: {args.get('tool_name', 'the tool')}."
     raise ActionError("That is not something that can be done.")
 

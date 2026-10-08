@@ -91,7 +91,7 @@ function Hero({ kind }: { kind: ShelfKind }) {
         </>
     );
     return (
-        <div className="flex items-center justify-between gap-6 overflow-hidden rounded-2xl bg-[var(--accent-brand-tint)] px-6 py-8 sm:px-10 sm:py-10">
+        <div className="flex items-center justify-between gap-6 overflow-hidden rounded-3xl border border-border/70 bg-card px-6 py-8 shadow-[0_1px_2px_rgba(0,0,0,0.03)] sm:px-10 sm:py-10">
             <div className="min-w-0">{words}</div>
             <div aria-hidden="true" data-testid="hero-art" className="relative mr-2 hidden h-[160px] w-[212px] shrink-0 md:block">
                 {HERO_ART.map((art) => (

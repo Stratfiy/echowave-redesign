@@ -160,6 +160,14 @@ describe("Profile and a new goal", () => {
     });
 });
 
+describe("A course named in Chat", () => {
+    it("the start has the course filled in", async () => {
+        render(<LearningSession goalId={null} topic="Python basics" onGoalChange={vi.fn()} onClose={vi.fn()} />);
+        const box = (await screen.findByLabelText("What do you want to learn?")) as HTMLInputElement;
+        expect(box.value).toBe("Python basics");
+    });
+});
+
 describe("The lesson", () => {
     it("asks one baseline question first", async () => {
         api.session.mockResolvedValue({ data: { goal: { ...goal, status: "baseline" }, state: "baseline", baseline_question: "What do you know about fractions?", attempts: [] } });

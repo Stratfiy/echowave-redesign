@@ -65,6 +65,19 @@ class CommentWrite(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+async def _visible(task_id: int, user: UserModel) -> int:
+    """The workspace, once the task is one this person may see: another
+    person's private task (a meeting's follow-up) is a 404, like a wrong
+    workspace's."""
+    organization_id = _organization_id(user)
+    task = await db_client.get_task(
+        task_id, organization_id=organization_id, visible_to=user.id
+    )
+    if task is None:
+        raise HTTPException(status_code=404, detail="That task is not here.")
+    return organization_id
+
+
 _person_name = tasks_board.person_name
 
 
@@ -74,7 +87,7 @@ _context = tasks_board.board_context
 @router.get("")
 async def list_tasks(user: Annotated[UserModel, Depends(get_user)]) -> dict[str, Any]:
     organization_id = _organization_id(user)
-    rows = await db_client.tasks_for_organization(organization_id)
+    rows = await db_client.tasks_for_organization(organization_id, visible_to=user.id)
     ctx = await tasks_board.board_context(
         organization_id,
         viewer_role=await visibility.role_of(
@@ -147,7 +160,9 @@ async def get_task(
 ) -> dict[str, Any]:
     """One card with its comments (TB-1)."""
     organization_id = _organization_id(user)
-    task = await db_client.get_task(task_id, organization_id=organization_id)
+    task = await db_client.get_task(
+        task_id, organization_id=organization_id, visible_to=user.id
+    )
     if task is None:
         raise HTTPException(status_code=404, detail="That task is not here.")
     ctx = await _context(organization_id)
@@ -165,7 +180,9 @@ async def get_task(
         tasks_board.comment_dict(c, ctx["names"], ctx["people"]) for c in comments
     ]
     # TB-2: the card's own sub-tasks, so its page can list and add them.
-    subtasks = await db_client.subtasks_of(task_id, organization_id=organization_id)
+    subtasks = await db_client.subtasks_of(
+        task_id, organization_id=organization_id, visible_to=user.id
+    )
     out["subtasks"] = [
         tasks_board.as_dict(t, ctx["names"], people=ctx["people"], prefix=ctx["prefix"])
         for t in subtasks
@@ -177,7 +194,7 @@ async def get_task(
 async def edit_task(
     task_id: int, body: TaskEdit, user: Annotated[UserModel, Depends(get_user)]
 ) -> dict[str, Any]:
-    organization_id = _organization_id(user)
+    organization_id = await _visible(task_id, user)
     await tasks_board.edit(
         organization_id=organization_id,
         task_id=task_id,
@@ -195,7 +212,7 @@ async def edit_task(
 async def add_comment(
     task_id: int, body: CommentWrite, user: Annotated[UserModel, Depends(get_user)]
 ) -> dict[str, Any]:
-    organization_id = _organization_id(user)
+    organization_id = await _visible(task_id, user)
     out = await tasks_board.comment(
         organization_id=organization_id,
         task_id=task_id,
@@ -211,7 +228,7 @@ async def add_comment(
 async def set_task_status(
     task_id: int, body: TaskStatus, user: Annotated[UserModel, Depends(get_user)]
 ) -> dict[str, Any]:
-    organization_id = _organization_id(user)
+    organization_id = await _visible(task_id, user)
     out = await tasks_board.set_status(
         organization_id=organization_id,
         task_id=task_id,
@@ -304,7 +321,9 @@ async def ledger_of_task(
 ) -> dict[str, Any]:
     """The task's state, version and every move it has made, in order."""
     organization_id = _organization_id(user)
-    task = await db_client.get_task(task_id, organization_id=organization_id)
+    task = await db_client.get_task(
+        task_id, organization_id=organization_id, visible_to=user.id
+    )
     if task is None:
         raise HTTPException(status_code=404, detail="That task is not here.")
     return {
@@ -317,7 +336,7 @@ async def ledger_of_task(
 async def move_ledger_task(
     task_id: int, body: LedgerMove, user: Annotated[UserModel, Depends(get_user)]
 ) -> dict[str, Any]:
-    organization_id = _organization_id(user)
+    organization_id = await _visible(task_id, user)
     try:
         task = await task_ledger.transition(
             organization_id=organization_id,
@@ -337,6 +356,6 @@ async def move_ledger_task(
 async def delete_task(
     task_id: int, user: Annotated[UserModel, Depends(get_user)]
 ) -> None:
-    organization_id = _organization_id(user)
+    organization_id = await _visible(task_id, user)
     if not await db_client.delete_task(task_id, organization_id=organization_id):
         raise HTTPException(status_code=404, detail="That task is not here.")

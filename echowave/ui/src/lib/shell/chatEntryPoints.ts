@@ -81,8 +81,31 @@ export function useEntryPoint(name: EntryPointName): {
     };
 }
 
+/**
+ * A conversation started somewhere other than Chat's composer -- Talk from
+ * the start screen, where the server starts a new one of the person's own
+ * when the original is not theirs. Chat listens and switches to it, so what
+ * was said is on screen rather than in a thread nobody opened.
+ */
+export type ThreadStartedListener = (threadId: string) => void;
+
+const threadListeners = new Set<ThreadStartedListener>();
+
+export function announceThreadStarted(threadId: string) {
+    for (const listener of threadListeners) listener(threadId);
+}
+
+/** Listen for conversations started elsewhere. Returns an unsubscribe. */
+export function onThreadStarted(listener: ThreadStartedListener): () => void {
+    threadListeners.add(listener);
+    return () => {
+        threadListeners.delete(listener);
+    };
+}
+
 /** For tests. */
 export function resetEntryPoints() {
     handlers.clear();
+    threadListeners.clear();
     emit();
 }

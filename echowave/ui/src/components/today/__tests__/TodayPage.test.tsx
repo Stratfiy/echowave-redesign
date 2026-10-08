@@ -38,6 +38,10 @@ vi.mock("@/components/integrations/GoogleCalendarConnect", () => ({
     GoogleCalendarConnect: () => <div data-testid="calendar-connect" />,
 }));
 
+vi.mock("@/components/learning/LearningToday", () => ({
+    LearningToday: () => <div data-testid="learning-today" />,
+}));
+
 import { TodayPage } from "../TodayPage";
 
 function view(overrides: Record<string, unknown> = {}) {
@@ -74,6 +78,13 @@ describe("Today", () => {
         render(<TodayPage />);
         expect(await screen.findByText("Nothing due in Decibyl")).toBeTruthy();
         expect(screen.getByTestId("today-scope").textContent).toContain("Asia/Kolkata");
+    });
+
+    it("has the learning section: the day's lesson shows up in Today", async () => {
+        getToday.mockResolvedValue({ data: view() });
+        render(<TodayPage />);
+        await screen.findByText("Nothing due in Decibyl");
+        expect(screen.getByTestId("learning-today")).toBeTruthy();
     });
 
     it("a failed section is an error with Try again, not an empty Today", async () => {

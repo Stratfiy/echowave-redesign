@@ -33,11 +33,23 @@ afterEach(() => {
 });
 
 describe("the default theme", () => {
-    it("is what globals.css says, light and dark", () => {
+    it("is the design handoff's palette, light and dark", () => {
+        // Oct 8: the default left GitHub's greys for the handoff's ink,
+        // secondary text, hover grey and hairline. Every token the themes
+        // set is still declared, so a picked theme still overrides them all.
         const root = block(":root");
         const dark = block(".dark");
-        for (const [k, v] of Object.entries(themeTokens("github-light", true))) expect(root[k], k).toBe(v);
-        for (const [k, v] of Object.entries(themeTokens("github-dark", true))) expect(dark[k], k).toBe(v);
+        expect(root["--foreground"]).toBe("#0d0d0d");
+        expect(root["--muted-foreground"]).toBe("#5d5d5d");
+        expect(root["--accent"]).toBe("#ececec");
+        expect(root["--border"]).toBe("rgba(0, 0, 0, 0.1)");
+        expect(root["--primary"]).toBe(root["--foreground"]);
+        expect(dark["--background"]).toBe("#212121");
+        expect(dark["--foreground"]).toBe("#ececec");
+        for (const k of Object.keys(themeTokens("github-light", true))) {
+            expect(root[k], k).toBeTruthy();
+            expect(dark[k], k).toBeTruthy();
+        }
     });
 
     it("has no purple and no accent colour: the primary is the text colour", () => {

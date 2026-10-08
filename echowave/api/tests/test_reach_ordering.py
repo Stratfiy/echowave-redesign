@@ -140,7 +140,8 @@ class TestApproval:
         await connect_zomato(people.org, people.a.id)
         _, event = await _card(people.org, people.a.id)
         for verb in ("confirm", "decline", "undo"):
-            with pytest.raises(actions.ActionError, match="Only the person"):
+            # A card private to A reads to B as no card at all.
+            with pytest.raises(actions.ActionError, match="not here"):
                 await actions.settle(
                     organization_id=people.org,
                     event_id=event.id,

@@ -155,6 +155,12 @@ _LENGTH_LINE = {
     "balanced": None,
     "detailed": "Give fuller replies with the reasoning and the steps.",
 }
+#: Said to the model while the person has Simple mode on (launch stream care).
+SIMPLE_MODE_LINE = (
+    "They use Simple mode: reply in a few short sentences of plain, everyday "
+    "words, one thing at a time -- one step or one question per reply, never "
+    "a list of options -- and wait for their answer before the next."
+)
 _turn_block: ContextVar[str | None] = ContextVar("settings_turn_block", default=None)
 
 
@@ -201,6 +207,12 @@ def prompt_block(stored: dict[str, Any], memory_off: str | None) -> str | None:
     length = _LENGTH_LINE.get(stored.get("response_length") or "balanced")
     if length:
         lines.append(length)
+    if stored.get(member_preferences.SIMPLE_MODE) and (
+        member_preferences.simple_mode_offered()
+    ):
+        # Care stream: Simple mode is "one thing at a time" (CARE.md). The
+        # screen draws it; the words have to be told.
+        lines.append(SIMPLE_MODE_LINE)
     instructions = (stored.get("custom_instructions") or "").strip()
     if instructions:
         lines.append(
@@ -216,7 +228,8 @@ def prompt_block(stored: dict[str, Any], memory_off: str | None) -> str | None:
         )
     if not lines:
         return None
-    return "\n\nAbout this person:\n" + "\n".join(f"- {line}" for line in lines)
+    # Ends on a newline: the next rule in the system prompt starts with "- ".
+    return "\n\nAbout this person:\n" + "".join(f"- {line}\n" for line in lines)
 
 
 async def block_for_turn(

@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from api.enums import AgentEventActor, AgentEventKind
-from api.services.reach import connections, safety, wire
+from api.services.reach import chips, connections, safety, wire
 from api.services.reach.ordering import normalise, providers
 from api.services.workflow import agent_timeline
 
@@ -51,12 +51,18 @@ async def compare(
 
     compared: list[dict[str, Any]] = []
     not_compared: list[dict[str, Any]] = []
+    #: Apps a chip can connect for this person, and apps a chip is now on
+    #: the thread for (the model has to say so).
+    connectable: list[providers.Provider] = []
+    chipped: list[str] = []
     for provider in providers.PROVIDERS.values():
         row = await connections.live(
             organization_id, user_id, connections.ORDERING, provider.key
         )
         state = providers.describe(provider, row)
         if state["state"] != providers.CONNECTED:
+            if state["state"] == providers.AVAILABLE:
+                connectable.append(provider)
             not_compared.append(
                 {
                     "app": provider.name,
@@ -76,8 +82,21 @@ async def compare(
                     ),
                     {"query": item},
                 )
-            except (wire.WireError, wire.ToolRefused, wire.NeedsSignIn) as exc:
-                failed = f"{provider.name} did not answer ({type(exc).__name__})."
+            except wire.NeedsSignIn:
+                failed = f"The {provider.name} sign-in has expired."
+                await chips.offer(
+                    organization_id=organization_id,
+                    user_id=user_id,
+                    kind=connections.ORDERING,
+                    provider=provider.key,
+                    name=provider.name,
+                    state=providers.AVAILABLE,
+                    why=f"The {provider.name} sign-in expired.",
+                )
+                chipped.append(provider.name)
+                break
+            except (wire.WireError, wire.ToolRefused):
+                failed = f"{provider.name} did not answer just now."
                 break
             best = _best(normalise.search_results(data), item)
             lines.append(
@@ -133,16 +152,34 @@ async def compare(
             },
             in_channel=False,
         )
+    if not compared:
+        # Nothing to compare is a dead end unless the way past it is on the
+        # thread: a chip for each app this person could connect here.
+        for provider in connectable:
+            await chips.offer(
+                organization_id=organization_id,
+                user_id=user_id,
+                kind=connections.ORDERING,
+                provider=provider.key,
+                name=provider.name,
+                state=providers.AVAILABLE,
+                why="To compare prices on it.",
+            )
+            chipped.append(provider.name)
+    on_thread = (
+        f" A connect chip for {' and '.join(chipped)} is on the thread; say so."
+        if chipped
+        else ""
+    )
     names = ", ".join(c["app"] for c in compared) or "no app"
+    # Each reason is a sentence with its own full stop; inside brackets it
+    # loses it, so the line does not read "yet.); Zomato".
+    why_not = "; ".join(
+        f"{n['app']} ({str(n['why']).rstrip('.')})" for n in not_compared
+    )
     say = (
         f"Compared {names} at {at.strftime('%H:%M')} UTC on {at.strftime('%d %b')}. "
-        + (
-            "Not compared: "
-            + "; ".join(f"{n['app']} ({n['why']})" for n in not_compared)
-            + ". "
-            if not_compared
-            else ""
-        )
+        + (f"Not compared: {why_not}. " if not_compared else "")
         + "These are listed prices; the order card's total, with delivery, "
         "taxes and any coupon, is the figure that counts."
     )
@@ -150,15 +187,17 @@ async def compare(
         return {
             "status": "not_available",
             "reason": (
-                "No ordering app you have connected could be compared. "
-                + "; ".join(f"{n['app']}: {n['why']}" for n in not_compared)
+                "No ordering app you have connected could be compared: "
+                + why_not
+                + "."
+                + on_thread
             ),
         }
     wrapped = safety.as_data(
         source="ordering apps you connected",
         data={"compared": compared, "not_compared": not_compared, "at": at.isoformat()},
     )
-    wrapped["say"] = say
+    wrapped["say"] = say + on_thread
     if len(compared) == 1:
         wrapped["say"] += (
             f" Only {compared[0]['app']} is connected, so there is nothing to compare it against."

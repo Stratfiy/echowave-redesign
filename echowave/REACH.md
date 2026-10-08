@@ -26,8 +26,9 @@ tests only; refused in production whatever it says).
 
 * **Cards.** Two new internal card kinds in `services/workflow/actions.py`:
   `place_order` and `run_outside_tool`. Both carry `owner_user_id`; only
-  that person may confirm, decline or undo them (a colleague gets "Only the
-  person this is for can decide on it"), and the owner is always the person
+  that person may confirm, decline or undo them (a colleague pressing on one
+  by its id gets "That proposal is not here", the same answer as an id that
+  names nothing), and the owner is always the person
   whose turn proposed it, never a model-supplied id. They use the ledger's
   payload versions, run-once claim and undo window unchanged.
 * **Outcome unknown.** A connection lost while placing an order or running
@@ -122,6 +123,24 @@ they cannot shadow Decibyl's own. Hard half, which holds even if the model
 is fooled: nothing an outside server says can place an order or run a write
 -- each is a card only its owner can approve, bound to a checked bill.
 Tests: `api/tests/test_reach_prompt_injection.py`.
+
+## Dead ends, and where things land
+
+Found running the stream end to end (phase 3); each has a test in
+`api/tests/test_reach_dead_ends.py`:
+
+* An ordering app that stops accepting a sign-in (search, prepare or
+  compare) puts a chip on the thread to sign in again, and the model is told
+  it is there. It used to say "connect it again" with nothing to do it with.
+* A comparison with nothing connected puts a chip for each app that can be
+  connected here (none for an app that needs setup).
+* An order edited on its card, and the line under any card saying what
+  happened to it, land on the thread the card is on. Both run outside a
+  turn (an HTTP edit, the worker) and used to land on the person's original
+  chat.
+* A chip for an app connected *since* it was offered reads as connected
+  when the thread is opened again; one offered after (a lapsed sign-in)
+  keeps its sign-in button.
 
 ## Tests
 

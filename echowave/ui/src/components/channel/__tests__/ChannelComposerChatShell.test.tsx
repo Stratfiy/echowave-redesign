@@ -13,13 +13,14 @@ import { registerMeetingMode, registerTalk, resetEntryPoints } from '@/lib/shell
 import { ChannelComposer } from '../ChannelComposer';
 
 const post = vi.hoisted(() => vi.fn());
+const memory = vi.hoisted(() => vi.fn());
 vi.mock('@/client/sdk.gen', () => ({
     postMessageApiV1TimelineMessagePost: post,
     translateTextApiV1TranslatePost: vi.fn(),
     transcribeAudioApiV1WorkflowRecordingsTranscribePost: vi.fn(),
     listFoldersApiV1FolderGet: async () => ({ data: [] }),
     brainsApiV1TimelineBrainsGet: async () => ({ data: { presets: [], vendors: [] } }),
-    memoryApiV1TimelineMemoryGet: async () => ({ data: null }),
+    memoryApiV1TimelineMemoryGet: memory,
 }));
 vi.mock('@/lib/features', () => ({ useFeature: () => false }));
 
@@ -29,6 +30,8 @@ function composer(props: Partial<React.ComponentProps<typeof ChannelComposer>> =
 
 beforeEach(() => {
     post.mockReset();
+    memory.mockReset();
+    memory.mockResolvedValue({ data: null });
     post.mockResolvedValue({ data: { asked: [], unknown: [], ambiguous: [] } });
     localStorage.clear();
 });
@@ -156,6 +159,65 @@ describe('starters and drafts', () => {
         expect(screen.getByRole('button', { name: 'Send' }).className).toContain('size-11');
         expect(screen.getByRole('button', { name: 'Attach' }).className).toContain('size-11');
         expect(screen.getByRole('button', { name: 'Dictate' }).className).toContain('min-h-11');
+    });
+});
+
+describe("a member's first message from the start screen", () => {
+    // Phase 3: with private threads on the original conversation is not a
+    // plain member's, and sending to it failed with "Thread not found".
+    it('starts a new conversation of their own and says which', async () => {
+        const onSent = vi.fn();
+        composer({ threadId: null, startsNewThread: true, onSent });
+        fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Plan my week' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+        await waitFor(() => expect(onSent).toHaveBeenCalled());
+        const sentTo = post.mock.calls[0][0].body.thread_id;
+        expect(sentTo).toMatch(/^[0-9a-f-]{36}$/);
+        expect(onSent).toHaveBeenCalledWith([], sentTo);
+    });
+
+    it('never mints inside a conversation that already exists', async () => {
+        const onSent = vi.fn();
+        composer({ threadId: 't-1', startsNewThread: true, onSent });
+        fireEvent.change(screen.getByRole('textbox'), { target: { value: 'More' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+        await waitFor(() => expect(onSent).toHaveBeenCalledWith([], undefined));
+        expect(post.mock.calls[0][0].body.thread_id).toBe('t-1');
+    });
+
+    it('without it, the start screen still writes to the original', async () => {
+        composer({ threadId: null });
+        fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Hello' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+        await waitFor(() => expect(post).toHaveBeenCalled());
+        expect(post.mock.calls[0][0].body.thread_id).toBeNull();
+    });
+});
+
+describe('the memory meter', () => {
+    // Phase 3: the meter stayed on the conversation it was first read for,
+    // and on a member's start screen it read -- and showed -- the size of a
+    // conversation that was not theirs.
+    it('is read again for the conversation now on screen', async () => {
+        const view = composer({ threadId: 't-1' });
+        await waitFor(() => expect(memory).toHaveBeenCalledTimes(1));
+        view.rerender(<ChannelComposer assistant threadId="t-2" bots={[]} channelName="Decibyl" chatShell />);
+        await waitFor(() => expect(memory).toHaveBeenCalledTimes(2));
+        expect(memory.mock.calls[1][0].query.thread_id).toBe('t-2');
+    });
+
+    it('is not read for an original conversation that is not theirs', async () => {
+        composer({ threadId: null, startsNewThread: true });
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        expect(memory).not.toHaveBeenCalled();
+    });
+
+    it('waits until it is known whose the original is, then reads it', async () => {
+        const view = composer({ threadId: null, originalUnknown: true });
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        expect(memory).not.toHaveBeenCalled();
+        view.rerender(<ChannelComposer assistant threadId={null} bots={[]} channelName="Decibyl" chatShell />);
+        await waitFor(() => expect(memory).toHaveBeenCalledTimes(1));
     });
 });
 

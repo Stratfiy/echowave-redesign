@@ -115,3 +115,40 @@ class TestTheThread:
             organization_id=people.org, assistant_thread=True, limit=100
         )
         assert not [r for r in rows if (r.payload or {}).get("private_to")]
+
+
+class TestACardThatIsNotYours:
+    async def test_reads_like_no_card_at_all(self, reach_on, people, no_queue):
+        """A colleague pressing on a private card by its id learns nothing:
+        not that it exists, not whose it is. The same words as an id that
+        names nothing."""
+        await connect_zomato(people.org, people.a.id)
+        with acting_as(people.a.id):
+            order = await decibyl._tool(
+                people.org,
+                call(
+                    "order_prepare",
+                    app="zomato",
+                    store_id="r1",
+                    items=[{"item_id": "i1", "quantity": 1}],
+                    address_id="a1",
+                ),
+                people.a.id,
+            )
+        async with client_as(people.b) as client:
+            answers = {}
+            for event_id in (order["event_id"], 10**9):
+                for verb in ("confirm", "decline", "undo"):
+                    response = await client.post(
+                        "/api/v1/timeline/actions/settle",
+                        json={"event_id": event_id, "verb": verb},
+                    )
+                    answers[(event_id, verb)] = (
+                        response.status_code,
+                        response.json()["detail"],
+                    )
+        assert len(set(answers.values())) == 1, answers
+        event = await db_client.get_agent_event(
+            order["event_id"], organization_id=people.org
+        )
+        assert event.payload["state"] == "proposed"

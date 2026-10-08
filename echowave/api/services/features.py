@@ -180,6 +180,10 @@ FLAGS: dict[str, str] = {
     "voice_latency": "VOICE_LATENCY_ENABLED",
     "call_for_me": "CALL_FOR_ME_ENABLED",
     "call_appointment": "CALL_APPOINTMENT_ENABLED",
+    # The native app for iOS and Android (MOBILE.md).
+    "mobile_push": "MOBILE_PUSH_ENABLED",
+    # People: synced contacts with context (PEOPLE.md).
+    "people": "PEOPLE_ENABLED",
 }
 
 
@@ -296,6 +300,8 @@ DESCRIPTIONS: dict[str, str] = {
     "voice_latency": "Voice latency per turn: response and interruption times, p50/p95 by language and channel (handoff 12).",
     "call_for_me": "Call it for me: Decibyl places one approved phone call for a person and announces itself first.",
     "call_appointment": "Call and Appointment: booking policy, open slots, booking within policy, verification and escalation on calls.",
+    "mobile_push": "Push to the iOS and Android app through Expo: replies, approvals, reminders and calls, on the person's notification settings.",
+    "people": "People: a person's own contacts synced from Google and Outlook or imported, each with a brief and the last few interactions; private to them.",
 }
 
 

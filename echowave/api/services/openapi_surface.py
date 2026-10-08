@@ -176,6 +176,8 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             # Meeting capture and the meeting record (launch stream
             # `meetings`, screens 11-12).
             "meetings",
+            # A person's own contacts, synced and with context (PEOPLE.md).
+            "people",
             # Help: a person's own support requests, what they share with
             # support and the replies (launch stream `support`).
             "support",

@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { type LoadState, useStaffData } from "@/lib/staff/data";
 import { ago } from "@/lib/staff/format";
-import { canOpen, DESTINATIONS, type Me } from "@/lib/staff/nav";
+import { canOpen, destinationHref, DESTINATIONS, linkNeedsSetup, type Me } from "@/lib/staff/nav";
 import { cn } from "@/lib/utils";
 
 export const PERIODS = [7, 28, 90] as const;
@@ -74,7 +74,7 @@ function Rail({ me, pathname, onNavigate }: { me: Me; pathname: string; onNaviga
                 return (
                     <div key={d.key}>
                         <Link
-                            href={d.href}
+                            href={destinationHref(me, d)}
                             onClick={onNavigate}
                             aria-current={active ? "page" : undefined}
                             className={cn(
@@ -88,7 +88,7 @@ function Rail({ me, pathname, onNavigate }: { me: Me; pathname: string; onNaviga
                             <ul className="mb-1 ml-3 border-l border-border pl-2">
                                 {children.map((c) => (
                                     <li key={c.href}>
-                                        {c.needsSetup ? (
+                                        {linkNeedsSetup(me, c) ? (
                                             <span className="flex min-h-11 items-center justify-between gap-2 px-2 text-xs text-muted-foreground lg:min-h-8">
                                                 {c.label}
                                                 <span className="rounded border border-border px-1.5 py-0.5 text-[11px]">Needs setup</span>

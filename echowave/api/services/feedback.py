@@ -28,7 +28,12 @@ from sqlalchemy.dialects.postgresql import insert
 from api import constants
 from api.db import db_client
 from api.db.controls_models import OutputFeedbackModel
-from api.enums import AgentEventActor, AgentEventKind
+from api.enums import (
+    ORGANIZATION_ROLE_RANK,
+    AgentEventActor,
+    AgentEventKind,
+    OrganizationRole,
+)
 from api.services import events, features
 
 FLAG = "reply_feedback"
@@ -94,6 +99,10 @@ async def _reply_subject(
         )
         if author is not None and author != viewer_id:
             raise NotFound("That reply is not here.")
+        if author is None and not await _is_admin(viewer_id, organization_id):
+            # Nobody's: the conversation from before threads, which the
+            # timeline shows only to the workspace's admins.
+            raise NotFound("That reply is not here.")
     payload = dict(event.payload or {})
     body = str(payload.get("body") or event.summary or "")
     return {
@@ -103,6 +112,14 @@ async def _reply_subject(
         "thread_id": getattr(event, "thread_id", None),
         "workflow_id": event.workflow_id,
     }
+
+
+async def _is_admin(user_id: int | None, organization_id: int) -> bool:
+    if user_id is None:
+        return False
+    membership = await db_client.get_membership(user_id, organization_id)
+    rank = ORGANIZATION_ROLE_RANK.get(membership.role if membership else "", -1)
+    return rank >= ORGANIZATION_ROLE_RANK[OrganizationRole.ADMIN.value]
 
 
 async def _task_subject(organization_id: int, task_id: int) -> dict[str, Any]:

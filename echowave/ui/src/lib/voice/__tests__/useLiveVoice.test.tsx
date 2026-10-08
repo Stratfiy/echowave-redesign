@@ -30,6 +30,8 @@ vi.mock("@/client/sdk.gen", () => ({
 vi.mock("@/client/client.gen", () => ({ client: { getConfig: () => ({ baseUrl: "http://api.test" }) } }));
 vi.mock("@/lib/apiClient", () => ({ resolveBrowserBackendUrl: () => "http://api.test" }));
 
+import { onThreadStarted } from "@/lib/shell/chatEntryPoints";
+
 import { useLiveVoice } from "../useLiveVoice";
 
 class FakeTrack {
@@ -171,6 +173,30 @@ describe("starting", () => {
         expect(sockets[0].protocols).toEqual(["decibyl.auth", "bearer.tok"]);
         expect(sockets[0].sent[0]).toMatchObject({ type: "offer", payload: { sdp: "v=0 fake", type: "offer" } });
         expect(result.current.state.phase).toBe("connecting");
+    });
+});
+
+describe("the conversation it speaks in", () => {
+    // Phase 3: Talk from Chat's start screen, where the original is not this
+    // member's, speaks in a new conversation the server starts; Chat follows.
+    it("announces a conversation the server started, so Chat can follow it", async () => {
+        const started = vi.fn();
+        const off = onThreadStarted(started);
+        api.start.mockResolvedValue({ data: { id: 42, state_version: 1, thread_id: "t-new" } });
+        const { result } = hook();
+        await act(() => result.current.start({ threadId: null, draft: "" }));
+        expect(started).toHaveBeenCalledWith("t-new");
+        off();
+    });
+
+    it("says nothing when the session is in the conversation already on screen", async () => {
+        const started = vi.fn();
+        const off = onThreadStarted(started);
+        api.start.mockResolvedValue({ data: { id: 42, state_version: 1, thread_id: "t-1" } });
+        const { result } = hook();
+        await act(() => result.current.start({ threadId: "t-1", draft: "" }));
+        expect(started).not.toHaveBeenCalled();
+        off();
     });
 });
 

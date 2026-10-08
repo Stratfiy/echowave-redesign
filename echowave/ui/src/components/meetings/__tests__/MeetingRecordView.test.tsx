@@ -101,7 +101,7 @@ describe('a suggested action', () => {
                 version: 'v-hash',
                 revision: 1,
                 label: 'Add a task: Send the deck to the client',
-                effect: 'Adds one task to the task board in Acme. Nothing is sent to anyone: no email, message or calendar invitation.',
+                effect: 'Adds one task to the task board in Acme, seen only by you, like the meeting. Nothing is sent to anyone: no email, message or calendar invitation.',
                 fires_at: null,
                 error: null,
                 done_note: null,

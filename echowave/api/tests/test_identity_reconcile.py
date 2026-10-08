@@ -184,6 +184,63 @@ class TestPerProvider:
         assert (await _state(team, kept))["state"] == "failed"
         assert (await _state(team, gone))["state"] == "done"
 
+    async def test_a_disconnect_found_done_is_recorded_as_the_run_would(
+        self, team, on, composio, never_sends, monkeypatch
+    ):
+        """Phase 3: the card settled done, but the consent stayed ready, the
+        member's registry row stayed (the staff screen reads it) and nothing
+        said connection_revoked -- the run had raised before recording it."""
+        from sqlalchemy import select
+
+        from api.db.identity_models import ConnectionConsentModel
+        from api.db.models import MemberConnectionModel
+        from api.services.identity import connections
+
+        monkeypatch.setattr("api.constants.CONNECTIONS_PER_PERSON_ENABLED", True)
+        monkeypatch.setattr("api.constants.IDENTITY_CONNECTIONS_ENABLED", True)
+        composio.add(team.org, team.member.id, "gmail", "ca_lost")
+        consent = await connections.start(
+            organization_id=team.org,
+            user_id=team.member.id,
+            toolkit="gmail",
+            scope="mine",
+            purpose=None,
+            return_to=None,
+            is_admin=False,
+        )
+        await connections.complete(
+            organization_id=team.org,
+            user_id=team.member.id,
+            consent_id=consent["consent_id"],
+        )
+        # It went at the app; the answer never came back.
+        composio.accounts[f"decibyl_org_{team.org}_user_{team.member.id}"] = []
+        event_id = await _unknown(
+            team,
+            "disconnect_app",
+            {"scope": "mine", "toolkit": "gmail", "connected_account_id": "ca_lost"},
+            private=True,
+        )
+        with patch("api.services.events.emit", AsyncMock()) as emit:
+            await reconcile.sweep()
+        assert (await _state(team, event_id))["state"] == "done"
+        async with db_client.async_session() as session:
+            row = await session.get(ConnectionConsentModel, consent["consent_id"])
+            registry = list(
+                await session.scalars(
+                    select(MemberConnectionModel).where(
+                        MemberConnectionModel.organization_id == team.org,
+                        MemberConnectionModel.user_id == team.member.id,
+                        MemberConnectionModel.toolkit == "gmail",
+                    )
+                )
+            )
+        assert row.state == "revoked" and row.revoked_by == team.member.id
+        assert registry == []
+        assert [c.args[0] for c in emit.await_args_list].count(
+            "connection_revoked"
+        ) == 1
+
     async def test_a_provider_that_cannot_answer_waits_then_asks_the_person(
         self, team, on, never_sends
     ):
