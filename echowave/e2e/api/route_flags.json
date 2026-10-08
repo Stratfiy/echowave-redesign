@@ -482,6 +482,14 @@
    "care_medicine_calls"
   ]
  },
+ "/api/v1/care/medicines/{medicine_id}": {
+  "DELETE": [
+   "care_medicine_calls"
+  ],
+  "PATCH": [
+   "care_medicine_calls"
+  ]
+ },
  "/api/v1/care/medicines/{medicine_id}/pause": {
   "POST": [
    "care_medicine_calls"
