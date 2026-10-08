@@ -242,6 +242,86 @@ class TestHonestStates:
         apps = await connections.apps(team.org, team.member.id, is_admin=False)
         assert apps["state"] == "error" and "incomplete" in apps["reason"]
 
+    async def test_a_failed_read_never_calls_a_connection_disconnected(
+        self, team, on, composio
+    ):
+        """Phase 3: with Composio unreachable, a connection that was ready
+        read "Disconnected. Decibyl can no longer use it." -- the rule for
+        "absent at the app" fired for a listing that was never read."""
+        composio.add(team.org, team.member.id, "gmail", "ca_mine")
+        consent = await connections.start(
+            organization_id=team.org,
+            user_id=team.member.id,
+            toolkit="gmail",
+            scope="mine",
+            purpose=None,
+            return_to=None,
+            is_admin=False,
+        )
+        await connections.complete(
+            organization_id=team.org,
+            user_id=team.member.id,
+            consent_id=consent["consent_id"],
+        )
+        composio.unavailable = True
+        apps = await connections.apps(team.org, team.member.id, is_admin=False)
+        assert apps["state"] == "error"
+        [item] = [i for i in apps["items"] if i["toolkit"] == "gmail"]
+        assert item["state"] != "revoked"
+        assert "Could not be checked" in item["reason"]
+        # Read again once Composio answers and it is gone: then it is revoked.
+        composio.unavailable = False
+        composio.accounts.clear()
+        apps = await connections.apps(team.org, team.member.id, is_admin=False)
+        assert [(i["toolkit"], i["state"]) for i in apps["items"]] == [
+            ("gmail", "revoked")
+        ]
+
+    async def test_finishing_a_sign_in_records_whose_account_it_is(
+        self, team, on, composio, monkeypatch
+    ):
+        """Phase 3: after connecting from Settings, a workspace tool pinned
+        to the member's own account ran for a colleague with that account's
+        id: the ownership registry only learned it from another screen."""
+        from api.services.integrations.composio import client, members
+
+        composio.add(team.org, team.member.id, "gmail", "ca_mine")
+        consent = await connections.start(
+            organization_id=team.org,
+            user_id=team.member.id,
+            toolkit="gmail",
+            scope="mine",
+            purpose=None,
+            return_to=None,
+            is_admin=False,
+        )
+        await connections.complete(
+            organization_id=team.org,
+            user_id=team.member.id,
+            consent_id=consent["consent_id"],
+        )
+        assert await members.owner_of(team.org, "ca_mine") == team.member.id
+        monkeypatch.setattr(client, "COMPOSIO_API_KEY", "test-key")
+        with patch("httpx.AsyncClient.post", AsyncMock()) as sent:
+            told = await client.execute_tool(
+                tool_slug="GMAIL_SEND_EMAIL",
+                arguments={},
+                organization_id=team.org,
+                connected_account_id="ca_mine",
+                user_id=team.owner.id,  # a colleague, an admin even
+            )
+        assert told["status"] == "error" and "another member" in told["error"]
+        assert sent.await_count == 0
+
+    async def test_the_screen_listing_records_whose_account_it_is(
+        self, team, on, composio
+    ):
+        from api.services.integrations.composio import members
+
+        composio.add(team.org, team.member.id, "notion", "ca_listed")
+        await connections.apps(team.org, team.member.id, is_admin=False)
+        assert await members.owner_of(team.org, "ca_listed") == team.member.id
+
     async def test_an_unfinished_sign_in_stays_visible(self, team, on, composio):
         await connections.start(
             organization_id=team.org,
@@ -372,6 +452,57 @@ class TestDisconnectIsACard:
         assert [(i["toolkit"], i["state"]) for i in apps["items"]] == [
             ("gmail", "revoked")
         ]
+
+    async def test_an_approval_rule_cannot_strand_my_own_card(
+        self, team, on, composio, no_queue, monkeypatch
+    ):
+        """Phase 3: with a workspace rule "cards need an admin", a member's
+        own disconnect was refused ("needs approval by an admin") while the
+        admin was refused too ("not here") -- the card could never run."""
+        from api.services.workflow import approvals
+
+        monkeypatch.setattr(constants, "APPROVALS_2026_09_ENABLED", True)
+        await approvals.save_rules(
+            team.org, [{"subject": "card", "approver_role": "admin"}]
+        )
+        composio.add(team.org, team.member.id, "gmail", "ca_mine")
+        told = await self._propose(team)
+        event = await db_client.get_agent_event(
+            told["event_id"], organization_id=team.org
+        )
+        armed = await actions.settle(
+            organization_id=team.org,
+            event_id=told["event_id"],
+            verb="confirm",
+            user_id=team.member.id,
+            version=event.payload["version"],
+        )
+        assert armed["state"] == "armed"
+
+    async def test_a_workspace_card_the_rules_forbid_is_never_made(
+        self, team, on, composio, monkeypatch
+    ):
+        """The other half: a card that changes the workspace still answers
+        to the rules, at the start, so no card exists that nobody can
+        confirm."""
+        from api.services.workflow import approvals
+
+        monkeypatch.setattr(constants, "APPROVALS_2026_09_ENABLED", True)
+        await approvals.save_rules(
+            team.org, [{"subject": "card", "approver_role": "owner"}]
+        )
+        composio.add(team.org, None, "slack", "ca_shared")
+        with pytest.raises(cards.CardError, match="owner"):
+            await cards.propose(
+                organization_id=team.org,
+                user_id=team.owner.id,  # an admin; the rule wants the owner
+                arguments={
+                    "action": cards.DISCONNECT_APP,
+                    "scope": "workspace",
+                    "connected_account_id": "ca_shared",
+                },
+            )
+        assert await cards.mine(team.org, team.owner.id) == []
 
     async def test_an_account_that_is_not_theirs_cannot_be_put_on_a_card(
         self, team, on, composio

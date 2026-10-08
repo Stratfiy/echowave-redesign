@@ -1155,6 +1155,14 @@ def _from_settings(payload: dict[str, Any]) -> bool:
     return payload.get("origin") == SETTINGS_ORIGIN
 
 
+def _personal_identity(payload: dict[str, Any]) -> bool:
+    if not payload.get("private_to"):
+        return False
+    from api.services.identity import cards as identity_cards
+
+    return identity_cards.is_personal(payload)
+
+
 async def propose_prepared(
     *,
     organization_id: int,
@@ -1404,9 +1412,11 @@ async def settle(
         # The approval matrix (KAN-160): a card is a "card" subject with no
         # amount. Raises ApprovalRequired, naming who must, before anything
         # is armed; a no-op while the switch is off.
-        if not _from_settings(payload):
+        if not _from_settings(payload) and not _personal_identity(payload):
             # A person's own Settings card (their memory, their saved item,
             # their data) is theirs to approve, not a workspace approver's.
+            # So is their own identity card (their app connection, their
+            # Decibyl address): private, so nobody else could approve it.
             await approvals.check(
                 organization_id,
                 subject=approvals.CARD,

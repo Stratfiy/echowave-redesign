@@ -37,7 +37,8 @@ only ever sent in a request body; nothing prints them.
 - **Privacy sweep** (`test_privacy_sweep.py`): A makes one of every private
   thing (a private thread, a temporary conversation, a private saved item,
   a reminder, an event, a meeting, a private commitment, personal
-  instructions), each with its own marker. B reads every swept route and
+  instructions, a reserved Decibyl address, a push device's name, the
+  purpose of an app connection), each with its own marker. B reads every swept route and
   each item by id, and no marker may appear. A's own reads are the control:
   each marker must be visible to A somewhere, or the check proves nothing.
   Search routes are searched for the markers.

@@ -279,6 +279,11 @@ async def complete(
             consent.state, consent.reason_code = "error", "not_finished"
         return _consent_view(consent)
     account = ours[0]
+    if consent.scope == MINE:
+        # The tenant's own listing just proved whose account this is: record
+        # it, so a tool pinned to it is refused for anyone else before a
+        # call is made (members.owner_of), not only by Composio after one.
+        await _learn_owner(organization_id, user_id, [account])
     state = _FROM_PROVIDER.get(account["status"], "error")
     fields: dict[str, Any] = {"connected_account_id": account["connected_account_id"]}
     if state == "ready":
@@ -294,6 +299,16 @@ async def complete(
     async with db_client.async_session() as session:
         fresh = await session.get(ConnectionConsentModel, consent.id)
     return _consent_view(fresh)
+
+
+async def _learn_owner(
+    organization_id: int, user_id: int, accounts: list[dict[str, Any]]
+) -> None:
+    from api.services.integrations.composio import members
+
+    await members.learn(
+        organization_id=organization_id, user_id=user_id, accounts=accounts
+    )
 
 
 def _consent_view(row: ConnectionConsentModel) -> dict[str, Any]:
@@ -405,6 +420,8 @@ async def apps(organization_id: int, user_id: int, *, is_admin: bool) -> dict[st
             logger.warning("Connections: could not list {} accounts: {}", scope, exc)
             failed.append(scope)
             continue
+        if scope == MINE:
+            await _learn_owner(organization_id, user_id, accounts)
         for account in accounts:
             toolkit = account.get("app") or "unknown"
             seen_accounts.add(account["connected_account_id"])
@@ -445,7 +462,15 @@ async def apps(organization_id: int, user_id: int, *, is_admin: bool) -> dict[st
     for consent in consents:
         if consent.connected_account_id in seen_accounts:
             continue
-        if consent.state == "ready":
+        reason: str | None = None
+        if consent.state == "ready" and consent.scope in failed:
+            # Its listing could not be read, so it is not known to be gone:
+            # saying "disconnected" here would be a false state.
+            state = "error"
+            reason = (
+                "Could not be checked just now. It was connected when last checked."
+            )
+        elif consent.state == "ready":
             # Ready by our record and absent at the provider: revoked there.
             state = "revoked"
         elif consent.state in ("authorizing", "error", "revoked"):
@@ -466,9 +491,12 @@ async def apps(organization_id: int, user_id: int, *, is_admin: bool) -> dict[st
                 "owner": "you" if consent.scope == MINE else "workspace",
                 "scope": consent.scope,
                 "state": state,
-                "reason": _REASONS.get(state)
-                if not (state == "error" and consent.reason_code == "not_finished")
-                else "Signing in was not finished. Connect again when you are ready.",
+                "reason": reason
+                or (
+                    _REASONS.get(state)
+                    if not (state == "error" and consent.reason_code == "not_finished")
+                    else "Signing in was not finished. Connect again when you are ready."
+                ),
                 "connected_at": None,
                 "last_success_at": _iso(consent.last_success_at),
                 "access": list(consent.access or []),
@@ -560,13 +588,39 @@ async def disconnect(
             f"{found['app_name']} refused to disconnect. Nothing changed."
         ) from exc
     # ComposioUnavailable propagates: whether it went is not known, and the
-    # card says so (outcome unknown; reconciled by reconcile.py).
+    # card says so (outcome unknown; reconciled by reconcile.py, which then
+    # records it with record_revoked).
+    await record_revoked(
+        organization_id,
+        user_id,
+        scope=scope,
+        toolkit=found["toolkit"],
+        connected_account_id=connected_account_id,
+    )
+    return f"Disconnected {found['app_name']}. Decibyl can no longer use it."
+
+
+async def record_revoked(
+    organization_id: int,
+    user_id: int,
+    *,
+    scope: str,
+    toolkit: str,
+    connected_account_id: str,
+    only_if_changed: bool = False,
+) -> None:
+    """Our side of a disconnect the app has done: the consent is revoked,
+    the member's registry row is gone, and ``connection_revoked`` is emitted.
+    Shared by the card's run and by reconciliation of a run whose answer was
+    lost, so both leave the same record; reconciliation passes
+    ``only_if_changed`` so a record already made is not announced twice."""
     async with db_client.async_session() as session:
-        await session.execute(
+        changed = await session.execute(
             update(ConnectionConsentModel)
             .where(
                 ConnectionConsentModel.organization_id == organization_id,
                 ConnectionConsentModel.connected_account_id == connected_account_id,
+                ConnectionConsentModel.state != "revoked",
             )
             .values(
                 state="revoked",
@@ -575,24 +629,29 @@ async def disconnect(
                 updated_at=_now(),
             )
         )
+        dropped = None
         if scope == MINE:
-            await session.execute(
+            dropped = await session.execute(
                 delete(MemberConnectionModel).where(
                     and_(
                         MemberConnectionModel.organization_id == organization_id,
                         MemberConnectionModel.user_id == user_id,
-                        MemberConnectionModel.toolkit == found["toolkit"],
+                        MemberConnectionModel.toolkit == toolkit,
                     )
                 )
             )
         await session.commit()
-    await events.emit(
-        "connection_revoked",
-        user_id=user_id,
-        organization_id=organization_id,
-        properties={"app": found["toolkit"], "status": "revoked"},
-    )
-    return f"Disconnected {found['app_name']}. Decibyl can no longer use it."
+    if (
+        not only_if_changed
+        or changed.rowcount
+        or (dropped is not None and dropped.rowcount)
+    ):
+        await events.emit(
+            "connection_revoked",
+            user_id=user_id,
+            organization_id=organization_id,
+            properties={"app": toolkit, "status": "revoked"},
+        )
 
 
 async def note_success(
