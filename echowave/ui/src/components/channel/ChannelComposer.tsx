@@ -775,10 +775,12 @@ export function ChannelComposer({
                     which read as a form; this reads as a place to write. */}
                 <div
                     className={cn(
-                        "border border-border/60 bg-card px-3 pb-2 pt-3 transition-colors focus-within:border-ring/60 sm:px-4",
-                        hero
-                            ? "rounded-3xl pt-4 shadow-md focus-within:shadow-lg"
-                            : "rounded-2xl shadow-none",
+                        "border bg-card px-3 pb-2 pt-3 transition-colors sm:px-4",
+                        // The handoff's box: 28px corners, one 15% hairline,
+                        // no drop shadow; focus only darkens the edge.
+                        hero || chatShell
+                            ? "rounded-[28px] border-input pl-5 pt-3.5 shadow-none focus-within:border-black/25 dark:focus-within:border-white/25"
+                            : "rounded-2xl border-border/60 shadow-none focus-within:border-ring/60",
                     )}
                 >
                     {dictation.listening && (
@@ -856,13 +858,15 @@ export function ChannelComposer({
                         placeholder={
                             workflowId != null
                                 ? `Message ${channelName}`
-                                : `Message #${channelName} — @ an agent to ask it for something`
+                                : assistant
+                                  ? 'Give Decibyl a job, or ask it to make an agent'
+                                  : `Message #${channelName} — @ an agent to ask it for something`
                         }
                         className={cn(
-                            'relative min-h-[28px] w-full resize-none border-0 bg-transparent px-1 py-1 text-transparent caret-foreground outline-none',
+                            'relative min-h-[28px] w-full resize-none border-0 bg-transparent px-1 py-1 text-transparent caret-foreground outline-none placeholder:text-[#8f8f8f]',
                             // Six lines, then it scrolls (screen 04); 16px on
                             // a phone so iOS does not zoom into the box.
-                            chatShell ? 'max-h-[156px] text-base leading-6 md:text-sm' : 'max-h-40 text-sm',
+                            chatShell ? 'max-h-[156px] text-base leading-6' : 'max-h-40 text-sm',
                         )}
                         onChange={(event) => {
                             event.target.style.height = 'auto';
@@ -1068,7 +1072,7 @@ export function ChannelComposer({
                         ) : (
                             <Mic className="h-4 w-4" />
                         )}
-                        
+
                     </Button>
                     {/* Talk is a live conversation (screen 05), not dictation:
                         a different icon, its own word, and the voice stream's
@@ -1084,13 +1088,14 @@ export function ChannelComposer({
                             aria-disabled={!talk.available || undefined}
                             data-available={talk.available}
                             className={cn(
-                                'motion-m1 min-h-11 min-w-11 shrink-0 gap-1 px-2 md:min-h-8 md:min-w-8',
-                                talk.available ? 'text-foreground' : 'text-muted-foreground/70',
+                                // The handoff's Talk: a grey pill with its word.
+                                'motion-m1 min-h-11 min-w-11 shrink-0 gap-1.5 rounded-full bg-[#f4f4f4] px-3.5 text-sm hover:bg-[#ececec] md:h-9 md:min-h-9 dark:bg-white/10 dark:hover:bg-white/15',
+                                talk.available ? 'text-foreground' : 'text-muted-foreground',
                             )}
                             onClick={openTalk}
                         >
                             <AudioLines className="h-4 w-4" />
-                            <span className="hidden text-xs sm:inline">Talk</span>
+                            <span className="hidden sm:inline">Talk</span>
                         </Button>
                     )}
                     {memory && !chatShell && (
@@ -1208,7 +1213,7 @@ export function ChannelComposer({
                         // the text so far as the reply, marked partial.
                         <Button
                             size="icon"
-                            className="motion-m1 size-11 shrink-0 rounded-full bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 md:size-8"
+                            className="motion-m1 size-11 shrink-0 rounded-full bg-primary text-primary-foreground shadow-none hover:bg-primary/90 md:size-9"
                             onClick={() => onStop?.()}
                             aria-label="Stop"
                             title="Stop. What has been written so far is kept."
@@ -1219,8 +1224,8 @@ export function ChannelComposer({
                     <Button
                         size="icon"
                         className={cn(
-                            'h-8 w-8 shrink-0 rounded-full bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100',
-                            chatShell && 'motion-m1 size-11 md:size-8',
+                            'h-8 w-8 shrink-0 rounded-full bg-primary text-primary-foreground shadow-none hover:bg-primary/90 disabled:bg-[#d7d7d7] disabled:text-white disabled:opacity-100 dark:disabled:bg-white/20',
+                            chatShell && 'motion-m1 size-11 md:size-9',
                         )}
                         onClick={() => void send()}
                         disabled={(!text.trim() && attachments.length === 0 && blocks.length === 0) || sending || !!uploadingFile}

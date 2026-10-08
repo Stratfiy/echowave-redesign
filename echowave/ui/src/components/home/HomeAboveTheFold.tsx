@@ -28,7 +28,6 @@ import {
   threadsApiV1TimelineThreadsGet,
 } from "@/client/sdk.gen";
 import type { Headline, Opener, Suggestion } from "@/client/types.gen";
-import { ArtImage } from "@/components/art/Art3D";
 import { type ChannelBot, ChannelComposer } from "@/components/channel/ChannelComposer";
 import { ChannelStream } from "@/components/channel/ChannelStream";
 import { ThreadList } from "@/components/home/ThreadList";
@@ -40,7 +39,6 @@ import { Announcer } from "@/components/shell/Announcer";
 import { SourceCoverage } from "@/components/shell/SourceCoverage";
 import { ApprovalDock } from "@/components/today/ApprovalDock";
 import { detailFromResult } from "@/lib/apiError";
-import { jobArt } from "@/lib/art";
 import { useAuth } from "@/lib/auth";
 import { useFeature, useFeaturesSettled } from "@/lib/features";
 import { onThreadStarted } from "@/lib/shell/chatEntryPoints";
@@ -518,7 +516,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
       <div
         className={cn(
           "mx-auto flex min-h-0 w-full flex-1 flex-col",
-          empty ? "max-w-2xl justify-center overflow-y-auto py-6" : chatShell ? "max-w-[760px]" : "max-w-4xl",
+          empty ? "max-w-[720px] justify-start overflow-y-auto pb-6 pt-[8vh]" : chatShell ? "max-w-[760px]" : "max-w-4xl",
         )}
       >
       {showLesson && lesson && (
@@ -532,11 +530,11 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         />
       )}
       {empty && !showLesson && (
-      <div className="flex shrink-0 flex-col items-center px-2 pb-5 pt-[6vh] text-center">
+      <div className="flex shrink-0 flex-col items-center px-2 pb-5 text-center">
         {/* The design handoff's home (screen 03): one plain question over
             the box. The big mark and "Hi, I'm Decibyl!" went at the
             founder's request -- the brand is already in the rail. */}
-        <h2 className="text-[28px] font-semibold tracking-tight sm:text-[32px]">
+        <h2 className="text-[28px] font-semibold tracking-[-0.015em]">
           What can I do for you{firstName ? `, ${firstName}` : ""}?
         </h2>
         <p className="mt-2 max-w-md text-[15px] text-muted-foreground">
@@ -636,7 +634,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
       {empty && !showLesson && (
         <div className="flex flex-col items-center">
         <div
-          className="mt-4 grid w-full gap-2 sm:grid-cols-2"
+          className="mt-5 flex w-full flex-wrap justify-center gap-2"
           aria-label="Ask Decibyl"
         >
           {((cards: { kind: string; text: string }[]) =>
@@ -664,18 +662,10 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
                       ? setDraftRequest({ text, id: Date.now() })
                       : void sendOpener(text)
                 }
-                className="group flex w-full items-center gap-3 rounded-2xl border border-border bg-card/70 px-3.5 py-3 text-left text-sm font-medium transition-colors hover:border-[var(--accent-brand)]/40 hover:bg-card disabled:opacity-60"
+                // The handoff's chips: 36px pills, hairline edge, grey words.
+                className="h-9 max-w-full truncate rounded-full border border-border bg-background px-3.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-60"
               >
-                <ArtImage name={jobArt(text, "sphere")} size={28} />
-                <span className="line-clamp-2 min-w-0 flex-1">
-                  {sendingOpener === text ? "Asking…" : text}
-                </span>
-                <span
-                  aria-hidden="true"
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-all group-hover:translate-x-0.5 group-hover:bg-[var(--accent-brand)] group-hover:text-white"
-                >
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </span>
+                {sendingOpener === text ? "Asking…" : text}
               </button>
             );
           })}

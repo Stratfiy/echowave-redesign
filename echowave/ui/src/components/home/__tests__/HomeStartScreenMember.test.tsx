@@ -82,7 +82,7 @@ describe("Chat start for a member whose original conversation is not theirs", ()
 
     it("opens on the greeting, never reading the original conversation", async () => {
         render(<HomeAboveTheFold firstName="Bala" />);
-        expect(await screen.findByText("Hi, I'm Decibyl!")).toBeTruthy();
+        expect(await screen.findByText(/What can I do for you/)).toBeTruthy();
         expect(seen.stream).toHaveLength(0);
         await waitFor(() => expect(screen.getByTestId("composer").getAttribute("data-starts-new")).toBe("true"));
     });
@@ -99,7 +99,7 @@ describe("Chat start for a member whose original conversation is not theirs", ()
 
     it("follows a conversation Talk started from here", async () => {
         render(<HomeAboveTheFold />);
-        await screen.findByText("Hi, I'm Decibyl!");
+        await screen.findByText(/What can I do for you/);
         act(() => announceThreadStarted("t-voice"));
         await waitFor(() => expect(lastStream()?.threadId).toBe("t-voice"));
     });
@@ -148,7 +148,7 @@ describe("Before the flags have answered", () => {
         flags.decibyl_private_threads = true;
         api.threads.mockResolvedValue({ data: { threads: [], original_is_yours: false } });
         view.rerender(<HomeAboveTheFold />);
-        expect(await screen.findByText("Hi, I'm Decibyl!")).toBeTruthy();
+        expect(await screen.findByText(/What can I do for you/)).toBeTruthy();
         expect(seen.stream).toHaveLength(0);
     });
 });
