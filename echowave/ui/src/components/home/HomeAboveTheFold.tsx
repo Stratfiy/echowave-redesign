@@ -24,6 +24,7 @@ import {
   postMessageApiV1TimelineMessagePost,
   stopReplyApiV1ShellChatStopPost,
   teamHomeApiV1TeamHomeGet,
+  threadsApiV1TimelineThreadsGet,
 } from "@/client/sdk.gen";
 import type { Headline, Opener, Suggestion } from "@/client/types.gen";
 import { ArtImage } from "@/components/art/Art3D";
@@ -39,7 +40,8 @@ import { SourceCoverage } from "@/components/shell/SourceCoverage";
 import { ApprovalDock } from "@/components/today/ApprovalDock";
 import { jobArt } from "@/lib/art";
 import { useAuth } from "@/lib/auth";
-import { useFeature } from "@/lib/features";
+import { useFeature, useFeaturesSettled } from "@/lib/features";
+import { onThreadStarted } from "@/lib/shell/chatEntryPoints";
 import type { SourceRead, TaskState, TurnStatus } from "@/lib/shell/taskState";
 import { cn } from "@/lib/utils";
 
@@ -321,6 +323,55 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
     }
   }, []);
   const newThread = useCallback(() => switchThread(crypto.randomUUID()), [switchThread]);
+  // With private threads on, the original conversation is only its author's
+  // (or an Admin's when nobody is on record), and the server says which.
+  // When it is not this person's, the start screen opens on nothing to read
+  // -- not on "Could not load this conversation" -- and the first message
+  // starts a new conversation of their own. Null until the server answers.
+  const privateThreads = useFeature("decibyl_private_threads");
+  const flagsSettled = useFeaturesSettled();
+  const [originalIsYours, setOriginalIsYours] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!privateThreads || authLoading || !user) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await threadsApiV1TimelineThreadsGet({ query: { limit: 1 } });
+        if (cancelled) return;
+        // No answer: read the original as before, and let its own load
+        // state say what happened.
+        setOriginalIsYours(response.error || !response.data ? true : response.data.original_is_yours !== false);
+      } catch {
+        if (!cancelled) setOriginalIsYours(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [privateThreads, authLoading, user]);
+  const startsFresh = privateThreads && threadId === null && originalIsYours === false;
+  // Not yet known whether the original may be read -- the flags have not
+  // answered, or the server has not -- nothing is fetched, and nothing is
+  // drawn, the same rule as first load.
+  const holdStream = threadId === null && (!flagsSettled || (privateThreads && originalIsYours === null));
+  useEffect(() => {
+    if (!startsFresh) return;
+    setRows(0);
+    setLoadState("ready");
+  }, [startsFresh]);
+  // A conversation started elsewhere from this screen -- Talk, which starts
+  // a new one when the original is not this person's -- is followed here.
+  const threadRef = useRef(threadId);
+  threadRef.current = threadId;
+  useEffect(
+    () =>
+      onThreadStarted((started) => {
+        if (threadRef.current !== null) return;
+        switchThread(started);
+        setThreadsVersion((v) => v + 1);
+      }),
+    [switchThread],
+  );
   const onCountChange = useCallback((count: number) => setRows(count), []);
   const refreshStream = useRef<() => void>(() => {});
   const registerRefresh = useCallback((refresh: () => void) => {
@@ -409,11 +460,13 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
 
   const sendOpener = async (text: string) => {
     setSendingOpener(text);
+    const started = startsFresh ? crypto.randomUUID() : undefined;
     const response = await postMessageApiV1TimelineMessagePost({
-      body: { assistant: true, thread_id: threadId, text },
+      body: { assistant: true, thread_id: started ?? threadId, text },
     });
     setSendingOpener(null);
     if (response.error) return;
+    if (started) switchThread(started);
     asked();
     setThreadsVersion((v) => v + 1);
     refreshStream.current();
@@ -500,6 +553,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
             no rows from the last chat showing until the poll catches up,
             no cursor pointing into a different conversation. */}
         {memoryManager && threadId?.startsWith("tmp-") && <TemporaryBanner threadId={threadId} />}
+        {!startsFresh && !holdStream && (
         <ChannelStream
           key={threadId ?? "original"}
           assistant
@@ -516,6 +570,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
           onOpenSources={chatShell ? onOpenSources : undefined}
           onOpenLesson={learning ? (goalId, topic) => openLesson(goalId, null, topic) : undefined}
         />
+        )}
       </div>
       {approvalDock && (
         // The composer's own gutter, so the dock lines up with the box it sits on.
@@ -538,7 +593,9 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         onStop={() => void stop()}
         draftRequest={draftRequest}
         initialHelper={initialHelper}
-        onSent={() => {
+        startsNewThread={startsFresh}
+        onSent={(_asked, started) => {
+          if (started) switchThread(started);
           asked();
           setThreadsVersion((v) => v + 1);
           refreshStream.current();

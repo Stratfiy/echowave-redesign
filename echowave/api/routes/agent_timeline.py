@@ -427,6 +427,11 @@ class ThreadSummary(BaseModel):
 
 class ThreadsResponse(BaseModel):
     threads: list[ThreadSummary]
+    #: Whether the reader may read and write the original (null) thread. With
+    #: private threads on it is only its author's, or an Admin's when nobody
+    #: is on record; Chat's start screen starts a new conversation instead of
+    #: opening one that would answer "Thread not found".
+    original_is_yours: bool = True
 
 
 async def _is_admin(user: UserModel, organization_id: int) -> bool:
@@ -493,7 +498,16 @@ async def threads(
         viewer_id=user.id if private else None,
         viewer_is_admin=await _is_admin(user, organization_id) if private else False,
     )
-    return ThreadsResponse(threads=[ThreadSummary(**row) for row in rows])
+    original_is_yours = True
+    if private:
+        try:
+            await _assert_thread_is_theirs(user, organization_id, None)
+        except HTTPException:
+            original_is_yours = False
+    return ThreadsResponse(
+        threads=[ThreadSummary(**row) for row in rows],
+        original_is_yours=original_is_yours,
+    )
 
 
 @router.get("/recents")

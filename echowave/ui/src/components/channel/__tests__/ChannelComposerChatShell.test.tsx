@@ -159,6 +159,38 @@ describe('starters and drafts', () => {
     });
 });
 
+describe("a member's first message from the start screen", () => {
+    // Phase 3: with private threads on the original conversation is not a
+    // plain member's, and sending to it failed with "Thread not found".
+    it('starts a new conversation of their own and says which', async () => {
+        const onSent = vi.fn();
+        composer({ threadId: null, startsNewThread: true, onSent });
+        fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Plan my week' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+        await waitFor(() => expect(onSent).toHaveBeenCalled());
+        const sentTo = post.mock.calls[0][0].body.thread_id;
+        expect(sentTo).toMatch(/^[0-9a-f-]{36}$/);
+        expect(onSent).toHaveBeenCalledWith([], sentTo);
+    });
+
+    it('never mints inside a conversation that already exists', async () => {
+        const onSent = vi.fn();
+        composer({ threadId: 't-1', startsNewThread: true, onSent });
+        fireEvent.change(screen.getByRole('textbox'), { target: { value: 'More' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+        await waitFor(() => expect(onSent).toHaveBeenCalledWith([], undefined));
+        expect(post.mock.calls[0][0].body.thread_id).toBe('t-1');
+    });
+
+    it('without it, the start screen still writes to the original', async () => {
+        composer({ threadId: null });
+        fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Hello' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+        await waitFor(() => expect(post).toHaveBeenCalled());
+        expect(post.mock.calls[0][0].body.thread_id).toBeNull();
+    });
+});
+
 describe('with the flag off', () => {
     it('is the composer it was: a paperclip, a mic, and no Talk', () => {
         render(<ChannelComposer assistant bots={[]} channelName="Decibyl" />);

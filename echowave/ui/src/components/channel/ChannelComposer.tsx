@@ -173,6 +173,7 @@ export function ChannelComposer({
     onStop,
     draftRequest,
     initialHelper,
+    startsNewThread = false,
 }: {
     /** A channel, or -- with `workflowId` instead -- one bot's own chat, where
      *  there is nobody to @ because the bot is implied. */
@@ -186,8 +187,9 @@ export function ChannelComposer({
     /** The channels `#` offers. Fetched here when not given. */
     channels?: ChannelRef[];
     channelName: string;
-    /** Sent, with the bots it was handed to. */
-    onSent?: (asked: number[]) => void;
+    /** Sent, with the bots it was handed to, and the conversation it went
+     *  to when this send started a new one (`startsNewThread`). */
+    onSent?: (asked: number[], startedThread?: string) => void;
     /** Words already in the box when it opens -- "Build me a bot that " from
      *  the door -- with the caret at the end, so the person just carries on. */
     initialText?: string;
@@ -207,6 +209,10 @@ export function ChannelComposer({
     /** Screen 06: a helper named on the address (`?helper=`), chosen once
      *  the server says it is available. */
     initialHelper?: string | null;
+    /** Decibyl's start screen, when the original conversation is not this
+     *  person's (private threads, a plain member): the first message starts
+     *  a new one of their own, minted here the way New chat mints one. */
+    startsNewThread?: boolean;
 }) {
     const [text, setText] = useState(initialText ?? '');
     // Screen 06 (`launch_helpers`): Decibyl's thread only. Null is Automatic.
@@ -546,10 +552,12 @@ export function ChannelComposer({
         setSending(true);
         setError(null);
         setNotice(null);
+        const startedThread =
+            assistant && !routeTo && threadId === null && startsNewThread ? crypto.randomUUID() : undefined;
         const where = routeTo
             ? { folder_id: routeTo.id }
             : assistant
-              ? { assistant: true, thread_id: threadId }
+              ? { assistant: true, thread_id: startedThread ?? threadId }
               : workflowId != null
                 ? { workflow_id: workflowId }
                 : { folder_id: folderId };
@@ -598,7 +606,7 @@ export function ChannelComposer({
             );
         }
         setNotice(said.join(' ') || null);
-        onSent?.(response.data?.asked ?? []);
+        onSent?.(response.data?.asked ?? [], startedThread);
     };
 
     return (

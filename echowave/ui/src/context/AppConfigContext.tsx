@@ -53,11 +53,13 @@ const defaultConfig: AppConfig = {
         : 'Unable to verify backend health.',
 };
 
-const AppConfigContext = createContext<AppConfigContextType>({
+const OUTSIDE_PROVIDER: AppConfigContextType = {
     config: null,
     loading: true,
     refresh: async () => { },
-});
+};
+
+const AppConfigContext = createContext<AppConfigContextType>(OUTSIDE_PROVIDER);
 
 export function AppConfigProvider({ children }: { children: ReactNode }) {
     const [config, setConfig] = useState<AppConfig | null>(null);
@@ -127,4 +129,11 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
 
 export function useAppConfig() {
     return useContext(AppConfigContext);
+}
+
+/** Whether the start-up config (and so the global feature map) has arrived.
+ *  Outside the provider there is nothing to wait for. */
+export function useAppConfigSettled(): boolean {
+    const context = useContext(AppConfigContext);
+    return context === OUTSIDE_PROVIDER || !context.loading;
 }

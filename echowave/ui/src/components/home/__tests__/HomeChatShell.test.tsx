@@ -20,7 +20,10 @@ const seen = vi.hoisted(() => ({
 const flags = vi.hoisted(() => ({ chat_shell: true, learning: false }));
 
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
-vi.mock("@/lib/features", () => ({ useFeature: (name: string) => Boolean((flags as Record<string, boolean>)[name]) }));
+vi.mock("@/lib/features", () => ({
+    useFeature: (name: string) => Boolean((flags as Record<string, boolean>)[name]),
+    useFeaturesSettled: () => true,
+}));
 vi.mock("@/client/sdk.gen", () => ({
     teamHomeApiV1TeamHomeGet: api.home,
     postMessageApiV1TimelineMessagePost: api.post,
