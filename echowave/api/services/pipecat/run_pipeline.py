@@ -25,7 +25,7 @@ from api.services.integrations import (
     IntegrationRuntimeContext,
     create_runtime_sessions,
 )
-from api.services.pipecat import vad_sensitivity
+from api.services.pipecat import caller_voice_lock, vad_sensitivity
 from api.services.pipecat.active_calls import (
     register_active_call as register_worker_active_call,
 )
@@ -36,6 +36,7 @@ from api.services.pipecat.agent_end_call import wants_agent_end_call
 from api.services.pipecat.audio_config import AudioConfig, create_audio_config
 from api.services.pipecat.backchannel import Backchannel, backchannel_settings
 from api.services.pipecat.call_recording import recording_enabled
+from api.services.pipecat.context_ready_gate import LLMContextReadyGate
 from api.services.pipecat.dynamic_greeting import (
     fetch_greeting as fetch_dynamic_greeting,
 )
@@ -291,6 +292,34 @@ def _create_non_realtime_user_turn_start_strategies(
             min_words=_resolve_turn_start_min_words(run_configs)
         )
     ]
+
+
+def _lock_interruptions_to_caller(strategies: list, organization_id) -> list:
+    """Wrap the start strategies in the caller voice lock, while it is on.
+
+    Only the word-count and transcriber-called strategies are wrapped: they are
+    the ones that propose a turn with enough speech behind it to judge. A raw
+    voice-activity start fires on 200 ms of sound, where the lock would find
+    too little to judge on every proposal and so change nothing -- it is left
+    as it is, and the log says so rather than leaving the switch looking on.
+    """
+    if not features.is_on(caller_voice_lock.FEATURE, organization_id):
+        return strategies
+    wrapped = []
+    for strategy in strategies:
+        if isinstance(
+            strategy, (MinWordsUserTurnStartStrategy, ExternalUserTurnStartStrategy)
+        ):
+            wrapped.append(
+                caller_voice_lock.CallerVoiceLockUserTurnStartStrategy(strategy)
+            )
+        else:
+            logger.info(
+                f"caller_voice_lock is on but does not apply to {strategy}: "
+                "interruptions on this agent are not checked against the caller"
+            )
+            wrapped.append(strategy)
+    return wrapped
 
 
 def _resolve_user_speech_timeout(run_configs: dict) -> float:
@@ -1276,9 +1305,12 @@ async def _run_pipeline_impl(
         # follows those external signals. Other models use configurable turn
         # detection.
         uses_external_turns = stt_uses_external_turns(user_config)
-        user_turn_start_strategies = _create_non_realtime_user_turn_start_strategies(
-            run_configs,
-            uses_external_turns=uses_external_turns,
+        user_turn_start_strategies = _lock_interruptions_to_caller(
+            _create_non_realtime_user_turn_start_strategies(
+                run_configs,
+                uses_external_turns=uses_external_turns,
+            ),
+            workflow.organization_id,
         )
         turn_start_strategy = run_configs.get(
             "turn_start_strategy", DEFAULT_TURN_START_STRATEGY
@@ -1624,6 +1656,9 @@ async def _run_pipeline_impl(
             end_call_phrase_watcher=end_call_phrase_watcher,
             backchannel=backchannel,
             voice_watch=_create_voice_watch(user_config, workflow_run_id, tts),
+            # The greeting can now play before the start node is set; this
+            # holds a caller's turn that beats the start node to the model.
+            context_ready_gate=LLMContextReadyGate(engine.llm_context_ready),
         )
 
     # Create pipeline task with audio configuration
@@ -1736,6 +1771,7 @@ async def _run_pipeline_impl(
         integration_runtime_sessions=integration_runtime_sessions,
         include_transcript_end_timestamps=include_transcript_end_timestamps,
         keep_recording=keep_recording,
+        early_opening=not is_realtime,
     )
 
     if keep_recording:

@@ -132,7 +132,10 @@ export type Feature =
     | "call_for_me"
     | "call_appointment"
     // People: synced contacts with context (PEOPLE.md).
-    | "people";
+    | "people"
+    // Voice isolation: background voices on calls (VOICE.md).
+    | "caller_voice_lock"
+    | "deepfilternet_filter";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

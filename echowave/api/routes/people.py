@@ -24,6 +24,7 @@ from api.db.people_models import PersonModel
 from api.services.auth.depends import get_user
 from api.services.people import (
     briefs,
+    device,
     enabled,
     imports,
     normalise,
@@ -165,6 +166,46 @@ class PickerContact(BaseModel):
 
 class PickerImport(BaseModel):
     contacts: list[PickerContact] = Field(max_length=imports.MAX_CONTACTS)
+
+
+class DeviceContactIn(BaseModel):
+    """One contact as the phone holds it."""
+
+    #: The device's own stable id for this contact.
+    id: str = Field(min_length=1, max_length=device.MAX_CONTACT_ID)
+    name: str | None = Field(default=None, max_length=200)
+    phones: list[str] = Field(default_factory=list, max_length=10)
+    emails: list[str] = Field(default_factory=list, max_length=10)
+    company: str | None = Field(default=None, max_length=200)
+
+
+class DeviceSyncRequest(BaseModel):
+    #: A stable id for this install of the app on this phone.
+    device_id: str = Field(min_length=1, max_length=device.MAX_DEVICE_ID)
+    #: The cursor from the last answer; null to start a full sync.
+    cursor: str | None = Field(default=None, max_length=200)
+    #: True for every page of a full sync (the whole address book).
+    full: bool = False
+    #: On a full sync, true on the last page: contacts not sent are removed.
+    final: bool = True
+    contacts: list[DeviceContactIn] = Field(
+        default_factory=list, max_length=device.MAX_BATCH
+    )
+    #: Contact ids deleted on the phone since the last sync.
+    removed: list[str] = Field(default_factory=list, max_length=device.MAX_BATCH)
+
+
+class DeviceSyncResult(BaseModel):
+    #: Send this with the next batch. Null when ``full_required``.
+    cursor: str | None = None
+    #: The cursor did not match: nothing was changed; send a full sync.
+    full_required: bool = False
+    added: int = 0
+    updated: int = 0
+    unchanged: int = 0
+    removed: int = 0
+    skipped: int = 0
+    open_merges: int = 0
 
 
 class SyncStarted(BaseModel):
@@ -556,6 +597,37 @@ async def import_picked(
     organization_id = _require(user)
     contacts, skipped = imports.parse_picker([c.model_dump() for c in body.contacts])
     return await _store_all(organization_id, user.id, contacts, "picker", skipped)
+
+
+@router.post("/device/sync", response_model=DeviceSyncResult)
+async def sync_device(
+    body: DeviceSyncRequest, user: Annotated[UserModel, Depends(get_user)]
+) -> DeviceSyncResult:
+    """The phone app's address book, a batch at a time (up to 2,000 contacts
+    and 2,000 removals). Each answer carries the cursor for the next batch;
+    a cursor that does not match changes nothing and asks for a full sync.
+    The contacts are the caller's own, like every other source."""
+    organization_id = _require(user)
+    result = await device.sync(
+        organization_id,
+        user.id,
+        device_id=body.device_id,
+        cursor=body.cursor,
+        full=body.full,
+        final=body.final,
+        contacts=[device.DeviceContact(**c.model_dump()) for c in body.contacts],
+        removed=[r[: device.MAX_CONTACT_ID] for r in body.removed],
+    )
+    return DeviceSyncResult(
+        cursor=result.cursor,
+        full_required=result.full_required,
+        added=result.added,
+        updated=result.updated,
+        unchanged=result.unchanged,
+        removed=result.removed,
+        skipped=result.skipped,
+        open_merges=await store.open_merge_count(organization_id, user.id),
+    )
 
 
 @router.post("/sync/{provider}", response_model=SyncStarted)

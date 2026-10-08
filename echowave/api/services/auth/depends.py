@@ -16,6 +16,7 @@ from api.enums import (
     StaffRole,
 )
 from api.schemas.ai_model_configuration import EffectiveAIModelConfiguration
+from api.services.auth import impersonation_tokens
 from api.services.auth.key_environment import is_sandbox
 from api.services.auth.stack_auth import stackauth
 from api.services.configuration.registry import ServiceProviders
@@ -64,6 +65,7 @@ async def get_user(
 ) -> UserModel:
     user = await _authenticate(request, authorization, x_api_key)
     _refuse_if_suspended(user)
+    await _refuse_if_workspace_suspended(user)
     return user
 
 
@@ -71,6 +73,19 @@ async def get_user(
 SUSPENDED_DETAIL = (
     "This account is suspended. Write to support if you think this is a mistake."
 )
+
+
+async def _refuse_if_workspace_suspended(user: UserModel) -> None:
+    """Phase 3 (`staff`): a workspace suspended through the approved
+    ``workspace.suspend`` command refuses its members while it is their
+    selected workspace. Staff are never refused. Cached per process
+    (services/staff/workspaces.py), so this costs no query per request."""
+    if getattr(user, "staff_role", None):
+        return
+    from api.services.staff import workspaces
+
+    if await workspaces.is_suspended(getattr(user, "selected_organization_id", None)):
+        raise HTTPException(status_code=403, detail=workspaces.SUSPENDED_DETAIL)
 
 
 def _refuse_if_suspended(user: UserModel) -> None:
@@ -103,7 +118,11 @@ async def _authenticate(
     # Check if we're using local (email/password) auth
     # ------------------------------------------------------------------
     if AUTH_PROVIDER == "local":
-        return await _handle_oss_auth(authorization)
+        return await _handle_oss_auth(
+            authorization,
+            method=getattr(request, "method", None),
+            path=getattr(getattr(request, "url", None), "path", None),
+        )
 
     # ------------------------------------------------------------------
     # 1. Validate and fetch the authenticated Stack user
@@ -339,7 +358,12 @@ async def get_user_with_selected_organization(
     return user
 
 
-async def _handle_oss_auth(authorization: str | None) -> UserModel:
+async def _handle_oss_auth(
+    authorization: str | None,
+    *,
+    method: str | None = None,
+    path: str | None = None,
+) -> UserModel:
     """
     Handle authentication for OSS deployment mode.
     Validates JWT tokens issued by the email/password auth flow.
@@ -359,6 +383,10 @@ async def _handle_oss_auth(authorization: str | None) -> UserModel:
 
     try:
         payload = decode_jwt_token(token)
+        # A borrowed session (staff viewing as, or impersonating, this
+        # person): read-only means read-only on every route, and an ended
+        # one is refused (services/auth/impersonation_tokens.py).
+        await impersonation_tokens.check(payload, method, path)
         user = await db_client.get_user_by_id(int(payload["sub"]))
         if user:
             return user
@@ -714,6 +742,14 @@ async def get_user_ws(
         else:
             # Use the same logic as get_user but with token from query
             user = await get_user(authorization=f"Bearer {token}")
+            # A websocket is a conversation with an agent, which can act; a
+            # read-only borrowed session may not open one.
+            if AUTH_PROVIDER == "local":
+                try:
+                    payload = decode_jwt_token(token)
+                except Exception:
+                    payload = {}
+                impersonation_tokens.refuse_write(payload, "WEBSOCKET", None)
         return user
     except HTTPException as e:
         await websocket.close(code=1008, reason=e.detail)

@@ -5974,6 +5974,102 @@ export type Device = {
 };
 
 /**
+ * DeviceContactIn
+ *
+ * One contact as the phone holds it.
+ */
+export type DeviceContactIn = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Phones
+     */
+    phones?: Array<string>;
+    /**
+     * Emails
+     */
+    emails?: Array<string>;
+    /**
+     * Company
+     */
+    company?: string | null;
+};
+
+/**
+ * DeviceSyncRequest
+ */
+export type DeviceSyncRequest = {
+    /**
+     * Device Id
+     */
+    device_id: string;
+    /**
+     * Cursor
+     */
+    cursor?: string | null;
+    /**
+     * Full
+     */
+    full?: boolean;
+    /**
+     * Final
+     */
+    final?: boolean;
+    /**
+     * Contacts
+     */
+    contacts?: Array<DeviceContactIn>;
+    /**
+     * Removed
+     */
+    removed?: Array<string>;
+};
+
+/**
+ * DeviceSyncResult
+ */
+export type DeviceSyncResult = {
+    /**
+     * Cursor
+     */
+    cursor?: string | null;
+    /**
+     * Full Required
+     */
+    full_required?: boolean;
+    /**
+     * Added
+     */
+    added?: number;
+    /**
+     * Updated
+     */
+    updated?: number;
+    /**
+     * Unchanged
+     */
+    unchanged?: number;
+    /**
+     * Removed
+     */
+    removed?: number;
+    /**
+     * Skipped
+     */
+    skipped?: number;
+    /**
+     * Open Merges
+     */
+    open_merges?: number;
+};
+
+/**
  * Disconnect
  */
 export type Disconnect = {
@@ -7910,6 +8006,24 @@ export type GoogleVertexRealtimeLlmConfiguration = {
 };
 
 /**
+ * GrantRequest
+ */
+export type GrantRequest = {
+    /**
+     * Workflow Run Id
+     */
+    workflow_run_id?: number | null;
+    /**
+     * Days
+     */
+    days?: number;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+};
+
+/**
  * GrantWrite
  */
 export type GrantWrite = {
@@ -8938,6 +9052,14 @@ export type ImpersonateRequest = {
      * Email
      */
     email?: string | null;
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Mode
+     */
+    mode?: string;
 };
 
 /**
@@ -8947,11 +9069,23 @@ export type ImpersonateResponse = {
     /**
      * Refresh Token
      */
-    refresh_token: string;
+    refresh_token?: string | null;
     /**
      * Access Token
      */
     access_token: string;
+    /**
+     * Mode
+     */
+    mode?: string;
+    /**
+     * Auth Provider
+     */
+    auth_provider?: string;
+    /**
+     * Expires In Seconds
+     */
+    expires_in_seconds?: number;
 };
 
 /**
@@ -18964,6 +19098,10 @@ export type SuperuserWorkflowRunResponse = {
      */
     transcript_url: string | null;
     /**
+     * Content Access
+     */
+    content_access?: string;
+    /**
      * Usage Info
      */
     usage_info: {
@@ -23872,6 +24010,66 @@ export type SetPlatformManagedApiV1AdminTelephonyConfigurationsConfigIdPlatformM
 
 export type SetPlatformManagedApiV1AdminTelephonyConfigurationsConfigIdPlatformManagedPutResponse = SetPlatformManagedApiV1AdminTelephonyConfigurationsConfigIdPlatformManagedPutResponses[keyof SetPlatformManagedApiV1AdminTelephonyConfigurationsConfigIdPlatformManagedPutResponses];
 
+export type ListPhoneNumbersApiV1AdminTelephonyPhoneNumbersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Q
+         */
+        q?: string | null;
+        /**
+         * Organization Id
+         */
+        organization_id?: number | null;
+        /**
+         * Shared
+         */
+        shared?: boolean | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/admin/telephony/phone-numbers';
+};
+
+export type ListPhoneNumbersApiV1AdminTelephonyPhoneNumbersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListPhoneNumbersApiV1AdminTelephonyPhoneNumbersGetError = ListPhoneNumbersApiV1AdminTelephonyPhoneNumbersGetErrors[keyof ListPhoneNumbersApiV1AdminTelephonyPhoneNumbersGetErrors];
+
+export type ListPhoneNumbersApiV1AdminTelephonyPhoneNumbersGetResponses = {
+    /**
+     * Response List Phone Numbers Api V1 Admin Telephony Phone Numbers Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListPhoneNumbersApiV1AdminTelephonyPhoneNumbersGetResponse = ListPhoneNumbersApiV1AdminTelephonyPhoneNumbersGetResponses[keyof ListPhoneNumbersApiV1AdminTelephonyPhoneNumbersGetResponses];
+
 export type ListSharedOutboundApiV1AdminTelephonySharedOutboundGetData = {
     body?: never;
     headers?: {
@@ -25977,6 +26175,54 @@ export type GetCallApiV1AdminBillingCallsWorkflowRunIdGetResponses = {
 };
 
 export type GetCallApiV1AdminBillingCallsWorkflowRunIdGetResponse = GetCallApiV1AdminBillingCallsWorkflowRunIdGetResponses[keyof GetCallApiV1AdminBillingCallsWorkflowRunIdGetResponses];
+
+export type GetCallTranscriptApiV1AdminBillingCallsWorkflowRunIdTranscriptGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Run Id
+         */
+        workflow_run_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/billing/calls/{workflow_run_id}/transcript';
+};
+
+export type GetCallTranscriptApiV1AdminBillingCallsWorkflowRunIdTranscriptGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCallTranscriptApiV1AdminBillingCallsWorkflowRunIdTranscriptGetError = GetCallTranscriptApiV1AdminBillingCallsWorkflowRunIdTranscriptGetErrors[keyof GetCallTranscriptApiV1AdminBillingCallsWorkflowRunIdTranscriptGetErrors];
+
+export type GetCallTranscriptApiV1AdminBillingCallsWorkflowRunIdTranscriptGetResponses = {
+    /**
+     * Response Get Call Transcript Api V1 Admin Billing Calls  Workflow Run Id  Transcript Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetCallTranscriptApiV1AdminBillingCallsWorkflowRunIdTranscriptGetResponse = GetCallTranscriptApiV1AdminBillingCallsWorkflowRunIdTranscriptGetResponses[keyof GetCallTranscriptApiV1AdminBillingCallsWorkflowRunIdTranscriptGetResponses];
 
 export type ListCampaignsApiV1AdminBillingCampaignsGetData = {
     body?: never;
@@ -31933,6 +32179,140 @@ export type AcceptInvitationApiV1OrganizationsInvitationsAcceptPostResponses = {
 };
 
 export type AcceptInvitationApiV1OrganizationsInvitationsAcceptPostResponse = AcceptInvitationApiV1OrganizationsInvitationsAcceptPostResponses[keyof AcceptInvitationApiV1OrganizationsInvitationsAcceptPostResponses];
+
+export type ListStaffAccessApiV1OrganizationsStaffAccessGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations/staff-access';
+};
+
+export type ListStaffAccessApiV1OrganizationsStaffAccessGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListStaffAccessApiV1OrganizationsStaffAccessGetError = ListStaffAccessApiV1OrganizationsStaffAccessGetErrors[keyof ListStaffAccessApiV1OrganizationsStaffAccessGetErrors];
+
+export type ListStaffAccessApiV1OrganizationsStaffAccessGetResponses = {
+    /**
+     * Response List Staff Access Api V1 Organizations Staff Access Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListStaffAccessApiV1OrganizationsStaffAccessGetResponse = ListStaffAccessApiV1OrganizationsStaffAccessGetResponses[keyof ListStaffAccessApiV1OrganizationsStaffAccessGetResponses];
+
+export type GrantStaffAccessApiV1OrganizationsStaffAccessPostData = {
+    body: GrantRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations/staff-access';
+};
+
+export type GrantStaffAccessApiV1OrganizationsStaffAccessPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GrantStaffAccessApiV1OrganizationsStaffAccessPostError = GrantStaffAccessApiV1OrganizationsStaffAccessPostErrors[keyof GrantStaffAccessApiV1OrganizationsStaffAccessPostErrors];
+
+export type GrantStaffAccessApiV1OrganizationsStaffAccessPostResponses = {
+    /**
+     * Response Grant Staff Access Api V1 Organizations Staff Access Post
+     *
+     * Successful Response
+     */
+    201: {
+        [key: string]: unknown;
+    };
+};
+
+export type GrantStaffAccessApiV1OrganizationsStaffAccessPostResponse = GrantStaffAccessApiV1OrganizationsStaffAccessPostResponses[keyof GrantStaffAccessApiV1OrganizationsStaffAccessPostResponses];
+
+export type RevokeStaffAccessApiV1OrganizationsStaffAccessGrantIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Grant Id
+         */
+        grant_id: number;
+    };
+    query?: never;
+    url: '/api/v1/organizations/staff-access/{grant_id}';
+};
+
+export type RevokeStaffAccessApiV1OrganizationsStaffAccessGrantIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RevokeStaffAccessApiV1OrganizationsStaffAccessGrantIdDeleteError = RevokeStaffAccessApiV1OrganizationsStaffAccessGrantIdDeleteErrors[keyof RevokeStaffAccessApiV1OrganizationsStaffAccessGrantIdDeleteErrors];
+
+export type RevokeStaffAccessApiV1OrganizationsStaffAccessGrantIdDeleteResponses = {
+    /**
+     * Response Revoke Staff Access Api V1 Organizations Staff Access  Grant Id  Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RevokeStaffAccessApiV1OrganizationsStaffAccessGrantIdDeleteResponse = RevokeStaffAccessApiV1OrganizationsStaffAccessGrantIdDeleteResponses[keyof RevokeStaffAccessApiV1OrganizationsStaffAccessGrantIdDeleteResponses];
 
 export type DeleteProviderKeyApiV1AdminProviderKeysDeleteData = {
     body?: never;
@@ -44651,6 +45031,54 @@ export type UserDetailApiV1AdminStaffUsersUserIdGetResponses = {
 
 export type UserDetailApiV1AdminStaffUsersUserIdGetResponse = UserDetailApiV1AdminStaffUsersUserIdGetResponses[keyof UserDetailApiV1AdminStaffUsersUserIdGetResponses];
 
+export type EndAssistedAccessApiV1AdminStaffUsersUserIdAssistedAccessEndPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * User Id
+         */
+        user_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/staff/users/{user_id}/assisted-access/end';
+};
+
+export type EndAssistedAccessApiV1AdminStaffUsersUserIdAssistedAccessEndPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EndAssistedAccessApiV1AdminStaffUsersUserIdAssistedAccessEndPostError = EndAssistedAccessApiV1AdminStaffUsersUserIdAssistedAccessEndPostErrors[keyof EndAssistedAccessApiV1AdminStaffUsersUserIdAssistedAccessEndPostErrors];
+
+export type EndAssistedAccessApiV1AdminStaffUsersUserIdAssistedAccessEndPostResponses = {
+    /**
+     * Response End Assisted Access Api V1 Admin Staff Users  User Id  Assisted Access End Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type EndAssistedAccessApiV1AdminStaffUsersUserIdAssistedAccessEndPostResponse = EndAssistedAccessApiV1AdminStaffUsersUserIdAssistedAccessEndPostResponses[keyof EndAssistedAccessApiV1AdminStaffUsersUserIdAssistedAccessEndPostResponses];
+
 export type UserTasksApiV1AdminStaffUsersUserIdTasksGetData = {
     body?: never;
     headers?: {
@@ -54908,6 +55336,45 @@ export type ImportPickedApiV1PeopleImportPickerPostResponses = {
 
 export type ImportPickedApiV1PeopleImportPickerPostResponse = ImportPickedApiV1PeopleImportPickerPostResponses[keyof ImportPickedApiV1PeopleImportPickerPostResponses];
 
+export type SyncDeviceApiV1PeopleDeviceSyncPostData = {
+    body: DeviceSyncRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/people/device/sync';
+};
+
+export type SyncDeviceApiV1PeopleDeviceSyncPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SyncDeviceApiV1PeopleDeviceSyncPostError = SyncDeviceApiV1PeopleDeviceSyncPostErrors[keyof SyncDeviceApiV1PeopleDeviceSyncPostErrors];
+
+export type SyncDeviceApiV1PeopleDeviceSyncPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: DeviceSyncResult;
+};
+
+export type SyncDeviceApiV1PeopleDeviceSyncPostResponse = SyncDeviceApiV1PeopleDeviceSyncPostResponses[keyof SyncDeviceApiV1PeopleDeviceSyncPostResponses];
+
 export type StartSyncApiV1PeopleSyncProviderPostData = {
     body?: never;
     headers?: {
@@ -57024,6 +57491,10 @@ export type SupportQueueApiV1AdminSupportTicketsGetData = {
          * Overdue
          */
         overdue?: boolean;
+        /**
+         * Requester User Id
+         */
+        requester_user_id?: number | null;
     };
     url: '/api/v1/admin/support/tickets';
 };

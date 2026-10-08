@@ -3,10 +3,12 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from api.constants import AUTH_PROVIDER
 from api.db import db_client
 from api.db.models import AdminActionLogModel, UserModel
+from api.services.auth import impersonation_tokens
 from api.services.auth.depends import get_superuser
 from api.services.auth.stack_auth import (
     StackAuthSessionError,
@@ -28,11 +30,22 @@ class ImpersonateRequest(BaseModel):
     provider_user_id: str | None = None
     user_id: int | None = None
     email: str | None = None
+    #: Why staff is looking (phase 3): recorded on the audit row. Required --
+    #: a borrowed session with no stated reason cannot be reviewed.
+    reason: str = Field(min_length=3, max_length=300)
+    #: ``read_only`` (view as: every write is refused on the server) or
+    #: ``full`` (act as the person). Read-only is the default.
+    mode: str = Field(default="read_only", pattern="^(read_only|full)$")
 
 
 class ImpersonateResponse(BaseModel):
-    refresh_token: str
+    #: Stack Auth only; a local borrowed session is a single access token.
+    refresh_token: str | None = None
     access_token: str
+    mode: str = "full"
+    #: ``stack`` or ``local``: which cookie the UI writes.
+    auth_provider: str = "stack"
+    expires_in_seconds: int = 3600
 
 
 class SuperuserWorkflowRunResponse(BaseModel):
@@ -47,6 +60,9 @@ class SuperuserWorkflowRunResponse(BaseModel):
     is_completed: bool
     recording_url: str | None
     transcript_url: str | None
+    #: ``granted`` when the workspace allows staff to read this call;
+    #: otherwise ``consent_required`` and both URLs above are withheld.
+    content_access: str = "consent_required"
     usage_info: dict | None
     cost_info: dict | None
     initial_context: dict | None
@@ -60,6 +76,28 @@ class SuperuserWorkflowRunsListResponse(BaseModel):
     page: int
     limit: int
     total_pages: int
+
+
+async def _close_unstarted(actor_id, start_id, target_user, provider_user_id) -> None:
+    """The start row is written before the session exists (so none exists
+    unaudited). When the session then could not be made, close the row, or
+    the console would show an impersonation open that never happened."""
+    from api.services.auth.impersonation_audit import STOPPED
+
+    try:
+        async with db_client.async_session() as s:
+            s.add(
+                AdminActionLogModel(
+                    actor_user_id=actor_id,
+                    action=STOPPED,
+                    target_user_id=getattr(target_user, "id", None),
+                    target_provider_id=provider_user_id,
+                    note=f"never started: the session could not be made (start #{start_id})",
+                )
+            )
+            await s.commit()
+    except Exception as exc:  # noqa: BLE001 -- the 502 is the answer either way
+        logger.error("Could not close an unstarted impersonation: {}", exc)
 
 
 @router.post("/impersonate")
@@ -77,6 +115,36 @@ async def impersonate(
         request.provider_user_id.strip() if request.provider_user_id else None
     ) or None
     email = request.email.strip().lower() if request.email else None
+    local = AUTH_PROVIDER == "local"
+
+    if not local and request.mode == "read_only":
+        # A Stack session carries none of our claims, so read-only could not
+        # be enforced on it; refuse rather than hand over a full session.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Read-only view needs local sign-in on this deployment.",
+        )
+
+    if local and provider_user_id is None:
+        # Local accounts are found here, never in Stack (which is not
+        # configured): by id, else by address.
+        found = (
+            await db_client.get_user_by_id(request.user_id)
+            if request.user_id is not None
+            else await db_client.get_user_by_email(email)
+            if email
+            else None
+        )
+        if found is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND
+                if (request.user_id is not None or email)
+                else status.HTTP_400_BAD_REQUEST,
+                detail="User not found."
+                if (request.user_id is not None or email)
+                else "One of 'provider_user_id', 'user_id', or 'email' must be provided.",
+            )
+        provider_user_id = found.provider_id
 
     # ------------------------------------------------------------------
     # Fallback: resolve provider_user_id from internal ``user_id`` or email.
@@ -139,25 +207,28 @@ async def impersonate(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="A staff account cannot be impersonated.",
         )
+    if local and target_user is None:
+        raise HTTPException(status_code=404, detail="User not found.")
     try:
         async with db_client.async_session() as audit_session:
-            audit_session.add(
-                AdminActionLogModel(
-                    actor_user_id=user.id,
-                    action="impersonation_started",
-                    target_user_id=getattr(target_user, "id", None),
-                    target_provider_id=provider_user_id,
-                    target_organization_id=getattr(
-                        target_user, "selected_organization_id", None
-                    ),
-                    actor_ip=(
-                        http_request.client.host if http_request.client else None
-                    ),
-                    note=(email or (target_user.email if target_user else None) or "")[
-                        :500
-                    ],
-                )
+            start = AdminActionLogModel(
+                actor_user_id=user.id,
+                action="impersonation_started",
+                target_user_id=getattr(target_user, "id", None),
+                target_provider_id=provider_user_id,
+                target_organization_id=getattr(
+                    target_user, "selected_organization_id", None
+                ),
+                actor_ip=(http_request.client.host if http_request.client else None),
+                note=impersonation_tokens.note_for(
+                    request.mode,
+                    request.reason,
+                    email or (target_user.email if target_user else None),
+                ),
             )
+            audit_session.add(start)
+            await audit_session.flush()
+            start_id = start.id
             await audit_session.commit()
     except Exception as exc:
         # A failed audit write must not let an UNAUDITED impersonation proceed:
@@ -168,12 +239,28 @@ async def impersonate(
             detail="Could not record this impersonation; not proceeding.",
         ) from exc
 
+    if local:
+        # A local borrowed session: the person's own token plus who is really
+        # there, the mode and the audit row (impersonation_tokens.py).
+        return ImpersonateResponse(
+            access_token=impersonation_tokens.mint(
+                user_id=target_user.id,
+                email=target_user.email,
+                actor_user_id=user.id,
+                mode=request.mode,
+                start_id=start_id,
+            ),
+            mode=request.mode,
+            auth_provider="local",
+        )
+
     # ------------------------------------------------------------------
     # Call Stack Auth to create the impersonation session
     # ------------------------------------------------------------------
     try:
         session = await stackauth.impersonate(provider_user_id)
     except StackAuthSessionError as exc:
+        await _close_unstarted(user.id, start_id, target_user, provider_user_id)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Failed to create Stack Auth impersonation session.",
@@ -184,6 +271,7 @@ async def impersonate(
         or "refresh_token" not in session
         or "access_token" not in session
     ):
+        await _close_unstarted(user.id, start_id, target_user, provider_user_id)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Failed to create Stack Auth impersonation session.",
@@ -192,6 +280,8 @@ async def impersonate(
     return ImpersonateResponse(
         refresh_token=session["refresh_token"],
         access_token=session["access_token"],
+        mode=request.mode,
+        auth_provider="stack",
     )
 
 
@@ -236,6 +326,22 @@ async def get_workflow_runs(
     )
 
     total_pages = (total_count + limit - 1) // limit  # Ceiling division
+
+    # A call's recording and transcript are the customer's conversation:
+    # handed out only under the workspace's consent (phase 3).
+    from api.services.staff import call_content
+
+    async with db_client.async_session() as session:
+        granted = await call_content.granted_runs(
+            session, [(run["id"], run.get("organization_id")) for run in workflow_runs]
+        )
+    for run in workflow_runs:
+        if run["id"] in granted:
+            run["content_access"] = "granted"
+        else:
+            run["content_access"] = "consent_required"
+            run["recording_url"] = None
+            run["transcript_url"] = None
 
     return SuperuserWorkflowRunsListResponse(
         workflow_runs=[SuperuserWorkflowRunResponse(**run) for run in workflow_runs],

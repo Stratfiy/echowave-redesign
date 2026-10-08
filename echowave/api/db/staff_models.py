@@ -268,3 +268,39 @@ class QualityEvalResultModel(Base):
     __table_args__ = (
         UniqueConstraint("run_id", "case_id", name="uq_quality_eval_result"),
     )
+
+
+class StaffContentGrantModel(Base):
+    """A workspace's consent for staff to read call content (phase 3).
+
+    Staff see call metadata and cost on every call. The transcript and the
+    recording are the customer's conversation, so they open only under a
+    grant a workspace owner or admin made: for one call
+    (``workflow_run_id``) or for every call in the workspace (NULL), for a
+    bounded time, revocable. Each read under a grant writes
+    ``data_access_log`` (actor ``staff``).
+    """
+
+    __tablename__ = "staff_content_grants"
+
+    id = Column(Integer, primary_key=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    #: One call, or NULL for every call in the workspace.
+    workflow_run_id = Column(Integer, nullable=True)
+    granted_by_user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    #: Why the customer allowed it (their words, optional).
+    reason = Column(String(300), nullable=True)
+    granted_at = Column(DateTime(timezone=True), nullable=False, default=_now)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_by_user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+    __table_args__ = (
+        Index("ix_staff_content_grants_org_run", "organization_id", "workflow_run_id"),
+    )

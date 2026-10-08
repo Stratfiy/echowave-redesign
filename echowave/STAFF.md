@@ -157,7 +157,71 @@ messages, memory and KYC documents are never read. Provider references are
 masked; analytics drill-down is keyed pseudonyms only. The console's main
 region carries `ph-no-capture`, and the secret form never echoes a value.
 
+## Phase 3: what was added to make the superadmin side complete
+
+Audited against handoff screens 39-44 and the operator's list (find,
+view-as, suspend, money, flags, keys and model policy, telephony, calls,
+support, evaluations and incidents, health, roles and audit). Everything
+below is behind the existing flags; nothing new to switch on.
+
+* **View as and impersonate under local sign-in.** `POST
+  /superuser/impersonate` called Stack Auth even when `AUTH_PROVIDER=local`
+  (staging and production) and answered 500. Now it mints a one-hour local
+  token (`services/auth/impersonation_tokens.py`) with the staffer, the mode
+  and the audit row in it. A **reason** is required and kept on the audit
+  row. `mode=read_only` (the default) is refused every write on every route,
+  and cannot open a websocket; the way out (`/impersonation/stop`) always
+  works. A stopped session is refused on the server, not only in the browser.
+  Signing in or out as yourself clears the "viewing as" marker, so a
+  staffer's own session never carries a customer's banner. Staff see an
+  open session on the person screen and can end it
+  (`POST /admin/staff/users/{id}/assisted-access/end`). Under Stack Auth,
+  read-only is refused (409): a Stack session cannot carry the claim.
+* **Workspace suspension.** `workspace.suspend` (two people, like
+  `user.suspend`) and `workspace.unsuspend`, with
+  `organizations.staff_suspended_at`. While set: members are refused while it
+  is their selected workspace, and no new run starts in it
+  (`workspace_suspended` at `quota_service`). Staff are never refused.
+* **The person screen** shows each workspace's plan, credit balance, 28-day
+  spend and failed tasks, the flags that differ for it, and its last
+  failures (times and ids only, never the sentence), with a link to the
+  account page for owners. The Support tab lists the person's tickets
+  (`requester_user_id` on the support queue).
+* **Routing, cost stop and rollbacks** (`/superadmin/controls/routing`):
+  Laya state with `laya.rollback` / `laya.restore`, the cost stop with
+  `cost_stop.engage` / `cost_stop.release` (platform or one workspace),
+  `flag.rollback` for each flag change, and `provider.resume` for each
+  pause. All ops-stream commands, previewed and approved as before.
+* **Phone numbers and telephony** (`/superadmin/telephony`): every number
+  across workspaces (`GET /admin/telephony/phone-numbers`), its carrier
+  configuration, what it answers, and lending it as shared outbound. Every
+  telephony write now writes `admin_action_log` (it only logged before).
+* **Call content under consent.** A call's recording and transcript open to
+  staff only while a workspace owner or admin allows it, for that call or
+  every call, for up to 30 days (`staff_content_grants`;
+  `/organizations/staff-access`, a card on the call's page in the app).
+  Without it, `GET /admin/billing/calls/{id}` withholds the recording and
+  `GET .../transcript` answers 403; the Runs list withholds both addresses.
+  Each read writes `data_access_log` (actor `staff`) and an audit row.
+* **Operations**: an Active calls tab (live, connecting, longest, possibly
+  stuck: connected over 30 minutes or never connected after 5), and the
+  analytics outbox's backlog, gave-up count and oldest age, measured even
+  while PostHog is unset (it reported nothing at all before).
+* **Navigation**: the support inbox and actions (no longer "needs setup"),
+  telephony, calls, campaigns, partners, privacy readiness and the new
+  routing page are in the rail; `ui/src/lib/staff/__tests__/reachable.test.ts`
+  fails when any staff screen is reachable from nothing. The rail lights one
+  destination, the most specific.
+* **Refusal**: a definite non-staff session is redirected in middleware
+  before anything renders (`ui/src/lib/auth/staffGate.ts`); the layout's
+  `redirect()` intermittently crashed the App Router instead.
+  `api/tests/test_phase3_staff.py` sends every `/admin` and `/superuser`
+  route, as a workspace owner and as a plain member, and requires a refusal.
+
 ## Migration
+
+`20261009phase3staff` (revises `20261009meetingstasks`): `organizations.staff_suspended_at`
+and `staff_content_grants`. Additive; downgrade drops both.
 
 `20261008staff` (revises `202610071500shell`): `staff_role_grants`,
 `staff_commands`, `staff_refunds`, `staff_incidents`,

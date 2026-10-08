@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
@@ -36,6 +36,7 @@ from api.services.staff import (
     role_admin,
     roles,
     users,
+    workspaces,  # noqa: F401  (registers workspace.suspend / unsuspend)
 )
 
 router = APIRouter(
@@ -134,6 +135,24 @@ async def user_detail(
         found["connections"] = await users.connections(session, user_id)
     found["limits"] = await users.limits(user_id)
     return found
+
+
+@router.post("/users/{user_id}/assisted-access/end")
+async def end_assisted_access(
+    user_id: int,
+    request: Request,
+    ctx: Annotated[Ctx, Depends(roles.require("users.suspend.request"))],
+) -> dict[str, Any]:
+    """End an open view-as or impersonation of this person. The borrowed
+    session is refused on its next request (it is revoked on the server, not
+    only in the browser that holds it)."""
+    async with db_client.async_session() as session:
+        return await users.end_assisted_access(
+            session,
+            user_id,
+            actor_user_id=ctx.user.id,
+            actor_ip=request.client.host if request.client else None,
+        )
 
 
 @router.get("/users/{user_id}/tasks")
@@ -437,6 +456,7 @@ async def operations_summary(
     async with db_client.async_session() as session:
         jobs = await operations.jobs(session, hours=hours)
         delivery = await operations.delivery(session, hours=hours)
+        calls = await operations.active_calls(session)
     try:
         snapshot = await system_status.snapshot()
         infra = operations.health_from_probes(snapshot)
@@ -447,6 +467,7 @@ async def operations_summary(
     return {
         "jobs": jobs,
         "delivery": delivery,
+        "calls": calls,
         "infrastructure": infra,
         "providers": providers,
     }

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 
 import { getServerBackendUrl } from '@/lib/apiClient';
 import { isPublicPath } from '@/lib/auth/publicPaths';
+import { definitelyNotStaff, isStaffPath } from '@/lib/auth/staffGate';
 
 const OSS_TOKEN_COOKIE = 'decibyl_auth_token';
 
@@ -61,6 +62,12 @@ export async function middleware(request: NextRequest) {
   if (!token) {
     const loginUrl = new URL('/auth/login', request.url);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // The staff area: someone who is definitely not staff goes home before
+  // anything renders (lib/auth/staffGate.ts says why it is not the layout).
+  if (isStaffPath(pathname) && (await definitelyNotStaff(getServerBackendUrl(), token))) {
+    return NextResponse.redirect(new URL('/overview', request.url));
   }
 
   return NextResponse.next();

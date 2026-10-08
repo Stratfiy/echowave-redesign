@@ -302,14 +302,19 @@ async def _analytics() -> Signal:
         return Signal(
             "analytics_outbox", NOT_CONFIGURED, "The event catalogue is switched off."
         )
+    async with db_client.async_session() as session:
+        health = await telemetry.outbox_health(session)
     if not constants.POSTHOG_API_KEY or not constants.ANALYTICS_PSEUDONYM_KEY:
+        # Still measured: events are held, not dropped, and a backlog that
+        # grows with nobody able to see its size is the silent kind
+        # (api/AGENTS.md, "Silent Absence").
         return Signal(
             "analytics_outbox",
             NOT_CONFIGURED,
-            "PostHog key or ANALYTICS_PSEUDONYM_KEY is unset; events are held.",
+            "PostHog key or ANALYTICS_PSEUDONYM_KEY is unset; "
+            f"{health['pending']} events held.",
+            metrics=health,
         )
-    async with db_client.async_session() as session:
-        health = await telemetry.outbox_health(session)
     age = health["oldest_age_seconds"]
     if health["stuck"]:
         return Signal(

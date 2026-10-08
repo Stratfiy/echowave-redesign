@@ -169,6 +169,12 @@ export async function impersonateAsSuperadmin(params: {
   providerUserId?: string;
   email?: string;
   redirectPath?: string;
+  /** Why staff is looking; required by the API and kept on the audit row. */
+  reason: string;
+  /** `read_only` (view as; the API refuses every write) or `full`. */
+  mode?: "read_only" | "full";
+  /** Who the banner names; a display hint only. */
+  who?: string;
   /**
    * If true the browser opens the impersonated session in a **new tab**
    * (via `window.open`). Defaults to `false` which navigates in the current tab.
@@ -181,6 +187,9 @@ export async function impersonateAsSuperadmin(params: {
     providerUserId,
     email,
     redirectPath,
+    reason,
+    mode = "read_only",
+    who,
     openInNewTab = false,
   } = params;
   const IMPERSONATION_TARGET = "decibyl_impersonation";
@@ -197,7 +206,7 @@ export async function impersonateAsSuperadmin(params: {
   }
 
   // Build request body depending on which identifier we have.
-  const body: Record<string, unknown> = {};
+  const body: { user_id?: number; provider_user_id?: string; email?: string } = {};
   if (userId !== undefined) {
     body.user_id = userId;
   }
@@ -218,7 +227,7 @@ export async function impersonateAsSuperadmin(params: {
   >;
   try {
     resp = await impersonateApiV1SuperuserImpersonatePost({
-      body,
+      body: { ...body, reason, mode },
       headers: {
         Authorization: `Bearer ${adminAccessToken}`,
       },
@@ -233,10 +242,13 @@ export async function impersonateAsSuperadmin(params: {
     throw new Error(detailFromResult(resp, "Failed to impersonate user"));
   }
 
+  // Local sign-in answers one access token; Stack a refresh token.
+  const local = resp.data?.auth_provider === "local";
   const refreshToken = resp.data?.refresh_token;
-  if (!refreshToken) {
+  const localToken = local ? resp.data?.access_token : null;
+  if (!refreshToken && !localToken) {
     targetWindow?.close();
-    throw new Error("No refresh token returned from impersonate");
+    throw new Error("No session returned from impersonate");
   }
 
   // ---------------------------------------------------------------------------------
@@ -275,10 +287,11 @@ export async function impersonateAsSuperadmin(params: {
     form.target = IMPERSONATION_TARGET;
   }
   for (const [key, value] of Object.entries({
-    refresh_token: refreshToken,
+    ...(localToken ? { local_token: localToken } : { refresh_token: refreshToken ?? "" }),
+    mode,
     redirect_path: finalRedirect,
     // Who the banner names for the hour (KAN-82). A hint, never an identity.
-    who: email ?? (userId !== undefined ? `user ${userId}` : providerUserId ?? ""),
+    who: who ?? email ?? (userId !== undefined ? `user ${userId}` : providerUserId ?? ""),
   })) {
     const input = document.createElement("input");
     input.type = "hidden";

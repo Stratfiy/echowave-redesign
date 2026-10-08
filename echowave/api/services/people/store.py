@@ -38,7 +38,16 @@ from api.services.people.normalise import Incoming, name_key
 
 #: How many interactions a person page and a brief read.
 RECENT = 8
-SOURCES = ("google", "microsoft", "vcard", "csv", "picker", "manual", "decibyl")
+SOURCES = (
+    "google",
+    "microsoft",
+    "vcard",
+    "csv",
+    "picker",
+    "device",
+    "manual",
+    "decibyl",
+)
 
 
 def now() -> datetime:

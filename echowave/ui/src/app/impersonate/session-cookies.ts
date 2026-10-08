@@ -138,3 +138,53 @@ export function markerHeader(
     secure: requestIsSecure(request),
   });
 }
+
+/** The two cookies local sign-in keeps (app/api/auth/session/route.ts). */
+export const OSS_TOKEN_COOKIE = "decibyl_auth_token";
+export const OSS_USER_COOKIE = "decibyl_auth_user";
+
+/** A read-only view is marked `ro:` so the banner says so. */
+export function markerValue(who: string, readOnly: boolean): string {
+  const name = who.slice(0, 120) || "1";
+  return readOnly ? `ro:${name}` : name;
+}
+
+function httpOnlyCookie(
+  request: NextRequest,
+  name: string,
+  value: string,
+  maxAge: number,
+): string {
+  const parts = [
+    `${name}=${encodeURIComponent(value)}`,
+    "Path=/",
+    `Max-Age=${maxAge}`,
+    "HttpOnly",
+    "SameSite=Lax",
+  ];
+  if (requestIsSecure(request)) parts.push("Secure");
+  return parts.join("; ");
+}
+
+/** Set (or, with a null token, clear) the local session cookies. */
+export function localSessionHeaders(
+  request: NextRequest,
+  token: string | null,
+  who: string,
+): string[] {
+  if (token === null) {
+    return [
+      httpOnlyCookie(request, OSS_TOKEN_COOKIE, "", 0),
+      httpOnlyCookie(request, OSS_USER_COOKIE, "", 0),
+    ];
+  }
+  return [
+    httpOnlyCookie(request, OSS_TOKEN_COOKIE, token, IMPERSONATION_MAX_AGE),
+    httpOnlyCookie(
+      request,
+      OSS_USER_COOKIE,
+      JSON.stringify({ id: who || "impersonated", name: who || "Customer", email: who, provider: "local" }),
+      IMPERSONATION_MAX_AGE,
+    ),
+  ];
+}

@@ -47,6 +47,7 @@ async def support_queue(
     assignee: str | None = None,
     severity: str | None = None,
     overdue: bool = False,
+    requester_user_id: int | None = None,
 ) -> dict[str, Any]:
     try:
         rows = await tickets.queue(
@@ -55,6 +56,7 @@ async def support_queue(
             assignee=assignee,
             severity=severity,
             overdue_only=overdue,
+            requester_user_id=requester_user_id,
         )
     except (tickets.TicketError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { markerHeader, sessionClearingHeaders } from "../session-cookies";
+import { localSessionHeaders, markerHeader, sessionClearingHeaders } from "../session-cookies";
 
 /**
  * The way out of an impersonation (KAN-82).
@@ -25,6 +25,10 @@ export async function POST(request: NextRequest) {
     303,
   );
   for (const header of sessionClearingHeaders(request)) {
+    response.headers.append("set-cookie", header);
+  }
+  // Local sign-in: the borrowed token cookie too (phase 3).
+  for (const header of localSessionHeaders(request, null, "")) {
     response.headers.append("set-cookie", header);
   }
   response.headers.append("set-cookie", markerHeader(request, null));

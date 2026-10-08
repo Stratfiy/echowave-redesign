@@ -186,6 +186,9 @@ FLAGS: dict[str, str] = {
     "mobile_push": "MOBILE_PUSH_ENABLED",
     # People: synced contacts with context (PEOPLE.md).
     "people": "PEOPLE_ENABLED",
+    # Voice isolation: background voices (VOICE.md).
+    "caller_voice_lock": "CALLER_VOICE_LOCK_ENABLED",
+    "deepfilternet_filter": "DEEPFILTERNET_FILTER_ENABLED",
 }
 
 
@@ -305,6 +308,8 @@ DESCRIPTIONS: dict[str, str] = {
     "outreach": "Outreach: find leads from a lead-data provider (Apollo), draft one email card per lead on the person's own mailbox, Confirm all.",
     "mobile_push": "Push to the iOS and Android app through Expo: replies, approvals, reminders and calls, on the person's notification settings.",
     "people": "People: a person's own contacts synced from Google and Outlook or imported, each with a brief and the last few interactions; private to them.",
+    "caller_voice_lock": "Only the caller can interrupt a phone agent: speech that does not match the caller's voice, learnt in their first seconds, no longer stops the agent.",
+    "deepfilternet_filter": "DeepFilterNet3 instead of RNNoise as the noise filter on calls with noise suppression on.",
 }
 
 

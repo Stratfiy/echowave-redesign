@@ -255,6 +255,11 @@
    "staff_console"
   ]
  },
+ "/api/v1/admin/staff/users/{user_id}/assisted-access/end": {
+  "POST": [
+   "staff_console"
+  ]
+ },
  "/api/v1/admin/staff/users/{user_id}/tasks": {
   "GET": [
    "staff_console"

@@ -1,0 +1,34 @@
+[
+ {
+  "model": "resnet34_lm",
+  "model_mb_on_disk": 26.530309,
+  "rss_added_by_model_mb": 86.50390625,
+  "judge_ms_p50": 55.06549849951625,
+  "judge_ms_p95": 72.61042785007703,
+  "enrol_ms_p50": 144.23683550012356,
+  "per_call_buffer_kb_max": 492.1875
+ },
+ {
+  "model": "ecapa512_lm",
+  "model_mb_on_disk": 24.861931,
+  "rss_added_by_model_mb": 56.33203125,
+  "judge_ms_p50": 23.306260499794007,
+  "judge_ms_p95": 29.92138090012304,
+  "enrol_ms_p50": 61.53274999996938,
+  "per_call_buffer_kb_max": 492.1875
+ },
+ {
+  "filter": "rnnoise",
+  "cpu_ms_per_audio_s": 83.83557575250835,
+  "per_20ms_chunk_ms_p50": 1.6724619999877177,
+  "per_20ms_chunk_ms_p99": 2.541932839685612,
+  "rss_for_10_calls_mb": 69.29296875
+ },
+ {
+  "filter": "dfn",
+  "cpu_ms_per_audio_s": 108.5885774247491,
+  "per_20ms_chunk_ms_p50": 2.042220000475936,
+  "per_20ms_chunk_ms_p99": 3.784997579896287,
+  "rss_for_10_calls_mb": 37.5
+ }
+]

@@ -182,8 +182,14 @@ class RenameOrganizationRequest(BaseModel):
 
 
 def _organization_name(row) -> str:
-    """The name the switcher shows: what an admin typed, or the id until then."""
-    return row[1] or f"Organization {row[0]}"
+    """The name the switcher shows: what an admin typed. Until then an owner
+    sees "My workspace" -- "Organization 13952" read as a database row on the
+    first screen -- and anyone else sees the number, so two unnamed teams can
+    still be told apart."""
+    if row[1]:
+        return row[1]
+    role = str(getattr(row[2], "value", row[2])).lower()
+    return "My workspace" if role == "owner" else f"Organization {row[0]}"
 
 
 @router.get("/mine", response_model=List[UserOrganizationResponse])

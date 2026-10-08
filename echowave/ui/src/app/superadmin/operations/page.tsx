@@ -15,19 +15,29 @@ type Ops = {
     jobs: { window_hours: number; by_state: Record<string, number>; failing: Array<{ task_id: number; organization_id: number; state: string; kind: string; created_at: string | null; finished_at: string | null }> };
     delivery: { by_status: Record<string, number>; dead_letter: Array<{ delivery_id: number; organization_id: number; workflow_run_id: number | null; attempts: number; last_status_code: number | null; at: string | null }>; retry: string };
     infrastructure: { state: string; signals: Array<{ name: string; state: string; detail?: string | null }>; build?: Record<string, string> | null; reason?: string };
+    calls: {
+        observed_at: string;
+        live: number;
+        connecting: number;
+        by_channel: Array<{ mode: string; live: number }>;
+        longest_minutes: number | null;
+        possibly_stuck: Array<{ workflow_run_id: number; organization_id: number; campaign_id: number | null; mode: string; direction: string; state: string; age_minutes: number | null; reason: string }>;
+        thresholds: { long_call_minutes: number; not_connected_minutes: number };
+    };
     providers: Array<{ provider: string; status: string; kind: string; remaining: number | null; currency: string | null; needs_attention: boolean; detail: string | null }>;
 };
 
-const TABS = ["jobs", "providers", "delivery", "infrastructure"] as const;
+const TABS = ["jobs", "calls", "providers", "delivery", "infrastructure"] as const;
 type Tab = (typeof TABS)[number];
 
 function OperationsInner() {
     const router = useRouter();
     const params = useSearchParams();
     const tab = (TABS as readonly string[]).includes(params?.get("tab") ?? "") ? (params?.get("tab") as Tab) : "jobs";
-    const { can } = useStaffConsole();
+    const { can, me } = useStaffConsole();
     const query = useStaffData<Ops>("/api/v1/admin/staff/operations", undefined, 60_000);
-    const opsHealth = useStaffData<{ status: string; signals: Array<{ name: string; status: string; detail: string }> }>("/api/v1/admin/ops/health");
+    const opsHealth = useStaffData<{ status: string; signals: Array<{ name: string; status: string; detail: string; metrics?: Record<string, unknown> }> }>("/api/v1/admin/ops/health");
+    const owner = me.roles.includes("owner");
     const [act, setAct] = useState<{ command: string; target: Record<string, unknown>; label: string } | null>(null);
     useReportFreshness(query.state, query.refreshedAt);
 
@@ -198,9 +208,20 @@ function OperationsInner() {
                                     Overall <StateBadge state={h.status === "ok" ? "healthy" : h.status} />
                                 </li>
                                 {h.signals.map((s) => (
-                                    <li key={s.name} className="flex items-center justify-between gap-2">
-                                        <span>{words(s.name)}</span>
-                                        <StateBadge state={s.status === "ok" ? "healthy" : s.status} />
+                                    <li key={s.name} className="border-b border-border py-1 last:border-0" data-testid={`ops-signal-${s.name}`}>
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span>{words(s.name)}</span>
+                                            <StateBadge state={s.status === "ok" ? "healthy" : s.status} />
+                                        </div>
+                                        {s.detail && <p className="text-xs text-muted-foreground">{s.detail}</p>}
+                                        {s.name === "analytics_outbox" && s.metrics && (
+                                            <p className="text-xs tabular-nums">
+                                                Waiting {count(Number(s.metrics.pending ?? 0))} · gave up {count(Number(s.metrics.stuck ?? 0))} · oldest{" "}
+                                                {s.metrics.oldest_age_seconds === null || s.metrics.oldest_age_seconds === undefined
+                                                    ? "none waiting"
+                                                    : `${Math.round(Number(s.metrics.oldest_age_seconds) / 60)} min`}
+                                            </p>
+                                        )}
                                     </li>
                                 ))}
                             </ul>
@@ -221,6 +242,80 @@ function OperationsInner() {
                         </section>
                     )}
                 </div>
+            )}
+
+            {tab === "calls" && (
+                <Panel title="Active calls" query={query}>
+                    {(d) => (
+                        <div className="space-y-3 text-sm" data-testid="active-calls">
+                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                {[
+                                    ["Live now", count(d.calls.live)],
+                                    ["Connecting", count(d.calls.connecting)],
+                                    ["Longest", d.calls.longest_minutes === null ? "None live" : `${d.calls.longest_minutes} min`],
+                                    ["Possibly stuck", count(d.calls.possibly_stuck.length)],
+                                ].map(([label, value]) => (
+                                    <div key={label} className="rounded-md border border-border p-3">
+                                        <p className="text-xs text-muted-foreground">{label}</p>
+                                        <p className="text-lg font-semibold tabular-nums">{value}</p>
+                                    </div>
+                                ))}
+                            </div>
+                            {d.calls.by_channel.length > 0 && (
+                                <p className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                                    {d.calls.by_channel.map((c) => (
+                                        <span key={c.mode}>
+                                            {c.mode}: {count(c.live)}
+                                        </span>
+                                    ))}
+                                </p>
+                            )}
+                            {d.calls.possibly_stuck.length === 0 ? (
+                                <Empty>
+                                    No call has run past {d.calls.thresholds.long_call_minutes} minutes or failed to connect within {d.calls.thresholds.not_connected_minutes}. Read{" "}
+                                    {when(d.calls.observed_at)}.
+                                </Empty>
+                            ) : (
+                                <TableRegion label="Possibly stuck calls">
+                                    <table className="w-full min-w-[560px] text-sm">
+                                        <thead>
+                                            <tr className="text-left text-xs text-muted-foreground">
+                                                <th className="py-1 font-normal">Run</th>
+                                                <th className="py-1 font-normal">Workspace</th>
+                                                <th className="py-1 font-normal">Channel</th>
+                                                <th className="py-1 font-normal">Why</th>
+                                                <th className="py-1 text-right font-normal">Age</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-border">
+                                            {d.calls.possibly_stuck.map((c) => (
+                                                <tr key={c.workflow_run_id}>
+                                                    <td className="py-1 font-mono text-xs">
+                                                        {owner ? (
+                                                            <Link className="underline underline-offset-2" href={`/superadmin/billing/calls/${c.workflow_run_id}`}>
+                                                                #{c.workflow_run_id}
+                                                            </Link>
+                                                        ) : (
+                                                            `#${c.workflow_run_id}`
+                                                        )}
+                                                    </td>
+                                                    <td className="py-1">{c.organization_id}</td>
+                                                    <td className="py-1">
+                                                        {c.mode} · {words(c.direction)}
+                                                    </td>
+                                                    <td className="py-1">
+                                                        <StateBadge state="degraded" label={words(c.reason)} />
+                                                    </td>
+                                                    <td className="py-1 text-right tabular-nums">{c.age_minutes} min</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </TableRegion>
+                            )}
+                        </div>
+                    )}
+                </Panel>
             )}
 
             {act && (

@@ -87,6 +87,7 @@ from api.routes.settings import router as settings_router
 from api.routes.shell import public_router as public_early_access_router
 from api.routes.shell import router as shell_router
 from api.routes.skills import router as skills_router
+from api.routes.staff_access import router as staff_access_router
 from api.routes.staff_console import router as staff_console_router
 from api.routes.studio import public_router as public_studio_router
 from api.routes.studio import router as studio_router
@@ -154,6 +155,7 @@ router.include_router(partners_router)
 router.include_router(partner_admin_router)
 router.include_router(managed_numbers_router)
 router.include_router(organization_members_router)
+router.include_router(staff_access_router)
 router.include_router(platform_credentials_router)
 router.include_router(provider_keys_router)
 router.include_router(dialer_connections_router)

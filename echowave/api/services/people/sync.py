@@ -308,6 +308,8 @@ async def resync_due() -> int:
                     .where(
                         PeopleSyncModel.status == "ok",
                         PeopleSyncModel.last_synced_at < cutoff,
+                        # Phones sync themselves (services/people/device.py).
+                        PeopleSyncModel.provider.in_(providers.PROVIDERS),
                     )
                     .limit(200)
                 )
