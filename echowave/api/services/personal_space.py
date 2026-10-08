@@ -68,9 +68,12 @@ async def find(user_id: int) -> OrganizationModel | None:
 async def ensure(user_id: int) -> OrganizationModel:
     """The person's personal space, made the first time it is asked for.
 
-    Safe under a race: the insert is ON CONFLICT DO NOTHING on the unique
-    provider id, and the membership likewise, so two first requests end
-    with one space and one membership.
+    Safe under a race: the insert is ON CONFLICT DO NOTHING on any unique
+    constraint, and the membership likewise, so two first requests end with
+    one space and one membership. Any constraint, not only the provider id:
+    the space is also unique per owner (``uq_organizations_personal_owner``),
+    and a racing insert that met that one first raised instead of yielding.
+    Both keys come from the user id, so either conflict means it exists.
     """
     existing = await find(user_id)
     if existing is not None:
@@ -86,7 +89,7 @@ async def ensure(user_id: int) -> OrganizationModel:
                 personal_owner_user_id=user_id,
                 created_at=now,
             )
-            .on_conflict_do_nothing(index_elements=["provider_id"])
+            .on_conflict_do_nothing()
         )
         space = await session.scalar(
             select(OrganizationModel).where(
