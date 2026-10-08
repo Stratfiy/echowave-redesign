@@ -22002,7 +22002,7 @@ export type WorkflowConfigurationDefaults = {
     /**
      * Caller Environment
      */
-    caller_environment?: 'quiet' | 'normal' | 'noisy';
+    caller_environment?: 'auto' | 'quiet' | 'normal' | 'noisy';
     /**
      * Dictionary
      */

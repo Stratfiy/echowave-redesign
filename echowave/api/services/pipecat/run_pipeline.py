@@ -368,7 +368,9 @@ def _create_non_realtime_user_turn_stop_strategies(
     ]
 
 
-def _create_realtime_user_turn_config(provider: str, run_configs: dict):
+def _create_realtime_user_turn_config(
+    provider: str, run_configs: dict, *, phone: bool = False
+):
     """Return user turn strategies and optional local VAD for realtime providers."""
 
     def external_provider_turn_config():
@@ -388,7 +390,7 @@ def _create_realtime_user_turn_config(provider: str, run_configs: dict):
                 ],
                 stop=[SpeechTimeoutUserTurnStopStrategy(wait_for_transcript=False)],
             ),
-            SileroVADAnalyzer(params=vad_sensitivity.params(run_configs)),
+            SileroVADAnalyzer(params=vad_sensitivity.params(run_configs, phone=phone)),
         )
 
     if provider in {
@@ -749,6 +751,21 @@ async def _run_pipeline(
             await call_concurrency.unregister_active_call(workflow_run_id)
         finally:
             unregister_worker_active_call(workflow_run_id)
+
+
+#: Run modes that are a call on a phone line, as opposed to the browser or text.
+PHONE_RUN_MODES = frozenset(
+    m.value
+    for m in (
+        WorkflowRunMode.ARI,
+        WorkflowRunMode.PLIVO,
+        WorkflowRunMode.TWILIO,
+        WorkflowRunMode.VONAGE,
+        WorkflowRunMode.VOBIZ,
+        WorkflowRunMode.CLOUDONIX,
+        WorkflowRunMode.TELNYX,
+    )
+)
 
 
 #: Below this a cap is not a call; the balance gate at start has already
@@ -1240,7 +1257,11 @@ async def _run_pipeline_impl(
     )
     # Thresholds follow the agent's stated surroundings: a caller in a crowd
     # needs a higher bar before the next table counts as them speaking.
-    user_vad_analyzer = SileroVADAnalyzer(params=vad_sensitivity.params(run_configs))
+    # A phone line starts noisier than a browser: see vad_sensitivity.
+    is_phone_call = getattr(workflow_run, "mode", None) in PHONE_RUN_MODES
+    user_vad_analyzer = SileroVADAnalyzer(
+        params=vad_sensitivity.params(run_configs, phone=is_phone_call)
+    )
 
     # Configure turn strategies based on STT provider, model, and workflow configuration
     if is_realtime:
@@ -1248,7 +1269,7 @@ async def _run_pipeline_impl(
         # Realtime services still need user-turn tracking even when the model
         # itself owns speech generation and interruption behavior.
         user_turn_strategies, user_vad_analyzer = _create_realtime_user_turn_config(
-            user_config.realtime.provider, run_configs
+            user_config.realtime.provider, run_configs, phone=is_phone_call
         )
     else:
         # Some STT services emit their own turn boundaries, so the aggregator
