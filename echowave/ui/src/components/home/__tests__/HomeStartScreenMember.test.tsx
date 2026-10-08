@@ -104,6 +104,25 @@ describe("Chat start for a member whose original conversation is not theirs", ()
         await waitFor(() => expect(lastStream()?.threadId).toBe("t-voice"));
     });
 
+    it("the first task from onboarding starts a new conversation, asked once", async () => {
+        // An invited member's first task (screen 02) arrives as "?ask=" and
+        // was sent before the screen knew the original was not theirs: a
+        // 404, swallowed, and the task never asked.
+        let answer: (value: unknown) => void = () => {};
+        api.threads.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+        window.history.replaceState(null, "", "/overview?ask=Plan%20my%20week");
+        render(<HomeAboveTheFold />);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        expect(api.post).not.toHaveBeenCalled();
+        answer({ data: { threads: [], original_is_yours: false } });
+        await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1));
+        const body = api.post.mock.calls[0][0].body;
+        expect(body.text).toBe("Plan my week");
+        expect(body.thread_id).toMatch(/^[0-9a-f-]{36}$/);
+        await waitFor(() => expect(lastStream()?.threadId).toBe(body.thread_id));
+        expect(api.post).toHaveBeenCalledTimes(1);
+    });
+
     it("a starter sent from the start screen starts a new conversation too", async () => {
         flags.chat_shell = false;
         render(<HomeAboveTheFold />);

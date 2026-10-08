@@ -38,6 +38,7 @@ import { TemporaryBanner } from "@/components/settings/TemporaryBanner";
 import { Announcer } from "@/components/shell/Announcer";
 import { SourceCoverage } from "@/components/shell/SourceCoverage";
 import { ApprovalDock } from "@/components/today/ApprovalDock";
+import { detailFromResult } from "@/lib/apiError";
 import { jobArt } from "@/lib/art";
 import { useAuth } from "@/lib/auth";
 import { useFeature, useFeaturesSettled } from "@/lib/features";
@@ -223,6 +224,9 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   const [draftRequest, setDraftRequest] = useState<{ text: string; id: number } | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [stopNotice, setStopNotice] = useState<string | null>(null);
+  // A first task or starter that could not be sent: said, and its words
+  // kept in the box to send again, never dropped.
+  const [sendError, setSendError] = useState<string | null>(null);
   const [sources, setSources] = useState<{ list: SourceRead[]; replyId: number } | null>(null);
   // "?ask=": the first task from onboarding (screen 02), asked once on
   // arrival and taken off the address so a refresh does not ask it again.
@@ -421,11 +425,13 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
 
   const asked_ = useRef(false);
   useEffect(() => {
-    if (!ask || asked_.current || authLoading || !user) return;
+    // Not before it is known where it goes: an invited member's first task
+    // belongs in a new conversation of their own, not the original.
+    if (!ask || asked_.current || authLoading || !user || holdStream) return;
     asked_.current = true;
     void sendOpener(ask);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ask, authLoading, user]);
+  }, [ask, authLoading, user, holdStream]);
 
   const onTurnStatus = useCallback((status: TurnStatus | null) => {
     setAnnouncement(status ? (TURN_ANNOUNCEMENT[status.state] ?? null) : null);
@@ -460,12 +466,17 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
 
   const sendOpener = async (text: string) => {
     setSendingOpener(text);
+    setSendError(null);
     const started = startsFresh ? crypto.randomUUID() : undefined;
     const response = await postMessageApiV1TimelineMessagePost({
       body: { assistant: true, thread_id: started ?? threadId, text },
     });
     setSendingOpener(null);
-    if (response.error) return;
+    if (response.error) {
+      setSendError(detailFromResult(response, "Could not send that"));
+      setDraftRequest({ text, id: Date.now() });
+      return;
+    }
     if (started) switchThread(started);
     asked();
     setThreadsVersion((v) => v + 1);
@@ -596,6 +607,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         startsNewThread={startsFresh}
         originalUnknown={holdStream}
         onSent={(_asked, started) => {
+          setSendError(null);
           if (started) switchThread(started);
           asked();
           setThreadsVersion((v) => v + 1);
@@ -661,6 +673,11 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         </div>
       )}
       </div>
+      {sendError && (
+        <p role="alert" className="px-4 text-sm text-destructive sm:px-6">
+          {sendError}
+        </p>
+      )}
       {chatShell && stopNotice && (
         <p role="status" className="px-4 text-sm text-muted-foreground sm:px-6">
           {stopNotice}

@@ -137,6 +137,18 @@ describe("Chat start", () => {
         expect(api.post).toHaveBeenCalledTimes(1);
     });
 
+    it("a first task that could not be sent is kept in the box, not lost", async () => {
+        // Phase 3: a failed send of the first task (or of a starter with the
+        // flag off) was dropped without a word.
+        api.home.mockResolvedValue({ data: { headline, suggestions: [], openers: [] } });
+        api.post.mockResolvedValue({ error: { detail: "Thread not found" } });
+        window.history.replaceState(null, "", "/overview?ask=Plan%20my%20week");
+        render(<HomeAboveTheFold />);
+        await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1));
+        await waitFor(() => expect(screen.getByTestId("composer").getAttribute("data-draft")).toBe("Plan my week"));
+        expect(screen.getByRole("alert").textContent).toContain("Thread not found");
+    });
+
     it("sends Stop to the server for this thread", async () => {
         api.home.mockResolvedValue({ data: { headline, suggestions: [], openers: [] } });
         window.history.replaceState(null, "", "/overview?thread=t-9");
