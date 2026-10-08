@@ -31,6 +31,14 @@ PAUSED = "paused"
 #: The person said no to the card; nothing ever rang.
 DECLINED = "declined"
 
+#: How a reminder reaches the person. ``call`` rings their phone through a
+#: workspace phone line; ``app`` shows it in Decibyl and sends it on their own
+#: notification channels, and needs no phone number -- so reminders work on
+#: a workspace without one (every feature works on Free with no number).
+CALL = "call"
+APP = "app"
+CHANNELS = (CALL, APP)
+
 MAX_TIMES = 6
 MAX_MEDICINES = 12
 _TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -146,7 +154,8 @@ def medicine_dict(row: Any, doses: list[Any] | None = None) -> dict[str, Any]:
         "timezone": row.timezone,
         "language": row.language,
         "language_name": LANGUAGE_NAMES.get(row.language, row.language),
-        "phone_masked": mask_phone(row.phone),
+        "channel": row.channel or CALL,
+        "phone_masked": mask_phone(row.phone) if row.phone else None,
         "alert_member_ids": list(row.alert_member_ids or []),
         "state": row.state,
         "card_event_id": row.card_event_id,
@@ -214,19 +223,30 @@ async def propose(
     *,
     label: str,
     times: list[str],
-    phone: str,
+    phone: str | None = None,
     language: str | None = None,
     alert_member_ids: list[int] | None = None,
+    channel: str | None = None,
 ) -> dict[str, Any]:
     """Save the reminder, waiting, and put the card in front of the person.
 
-    Refused with NeedsSetup when reminder calls cannot be placed here: a
-    reminder that silently never rings is worse than none."""
+    A phone call is refused with NeedsSetup where calls cannot be placed --
+    a reminder that silently never rings is worse than none -- and the
+    refusal names the way past: a reminder in Decibyl, which needs no number.
+    With no channel named, a phone number means a call and none means app."""
     from api.services.care import calls, circle
 
+    channel = channel or (CALL if phone else APP)
+    if channel not in CHANNELS:
+        raise CareError("Choose a phone call or a reminder in Decibyl.")
     label = clean_label(label)
     times = clean_times(times)
-    phone = normalise_phone(phone)
+    if channel == CALL:
+        if not phone:
+            raise CareError("A phone call needs a number to ring.")
+        phone = normalise_phone(phone)
+    else:
+        phone = None
     default_language, tz = await _defaults(organization_id, user_id)
     language = (language or default_language).strip()
     if language not in LANGUAGE_NAMES:
@@ -235,11 +255,12 @@ async def propose(
     if member_ids and not circle.enabled(organization_id):
         raise CareError("The family circle is not switched on here.")
     await circle.alertable_members(organization_id, user_id, member_ids)
-    readiness = await calls.readiness(organization_id)
-    if readiness["state"] == "needs_setup":
-        from api.services.care import NeedsSetup
+    if channel == CALL:
+        readiness = await calls.readiness(organization_id)
+        if readiness["state"] == "needs_setup":
+            from api.services.care import NeedsSetup
 
-        raise NeedsSetup(readiness["reason"])
+            raise NeedsSetup(f"{readiness['reason']} {calls.APP_INSTEAD}")
     async with db_client.async_session() as session:
         count = len(
             (
@@ -261,6 +282,7 @@ async def propose(
             times=times,
             timezone=tz,
             language=language,
+            channel=channel,
             phone=phone,
             alert_member_ids=member_ids,
             state=AWAITING,
@@ -321,13 +343,15 @@ async def resume(
     """A paused reminder rings again only after a new card is confirmed."""
     from api.services.care import NeedsSetup, calls
 
-    readiness = await calls.readiness(organization_id)
-    if readiness["state"] == "needs_setup":
-        raise NeedsSetup(readiness["reason"])
     async with db_client.async_session() as session:
         row = await _own(session, organization_id, user_id, medicine_id)
         if row.state != PAUSED:
             raise CareError("Only a paused reminder can be started again.")
+        channel = row.channel or CALL
+    if channel == CALL:
+        readiness = await calls.readiness(organization_id)
+        if readiness["state"] == "needs_setup":
+            raise NeedsSetup(f"{readiness['reason']} {calls.APP_INSTEAD}")
     event_id = await _propose_card(organization_id, user_id, medicine_id)
     async with db_client.async_session() as session:
         row = await _own(session, organization_id, user_id, medicine_id)
@@ -428,6 +452,7 @@ async def card_args(organization_id: int, arguments: dict[str, Any]) -> dict[str
         "times": list(row.times or []),
         "timezone": row.timezone,
         "language": row.language,
+        "channel": row.channel or CALL,
         "phone": row.phone,
         "alert_member_ids": [m["id"] for m in members],
         "alert_names": [m["name"] for m in members],
@@ -451,6 +476,7 @@ async def activate(
             row.label == args.get("label")
             and list(row.times or []) == list(args.get("times") or [])
             and row.phone == args.get("phone")
+            and (row.channel or CALL) == args.get("channel", CALL)
             and row.language == args.get("language")
             and list(row.alert_member_ids or [])
             == list(args.get("alert_member_ids") or [])
@@ -461,6 +487,17 @@ async def activate(
         row.approved_version = version
         row.updated_at = _now()
         await session.commit()
+    if args.get("channel") == APP:
+        told = (
+            f" If you do not tap I took it, {', '.join(args['alert_names'])} "
+            "will be told."
+            if args.get("alert_names")
+            else ""
+        )
+        return (
+            f"Reminders are on for {args['label']}: every day at "
+            f"{say_times(list(args['times']))}, in Decibyl.{told}"
+        )
     told = (
         f" If a call is missed, {', '.join(args['alert_names'])} will be told."
         if args.get("alert_names")

@@ -75,7 +75,7 @@ class TestConsent:
         made = await circle.propose_member(
             org, amma.id, name="Priya", email=priya.email, shares=["medicine_alerts"]
         )
-        with pytest.raises(actions.ActionError, match="Only the person"):
+        with pytest.raises(actions.ActionError, match="not here"):
             await cs.press(org, made["event_id"], colleague.id)
         card = await db_client.get_agent_event(made["event_id"], organization_id=org)
         assert card.payload["state"] == actions.PROPOSED

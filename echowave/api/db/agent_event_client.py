@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from typing import Any, Optional, Sequence
 
-from sqlalchemy import false, func, or_, select, tuple_, update
+from sqlalchemy import false, func, or_, select, true, tuple_, update
 
 from api.db.base_client import BaseDBClient
 from api.db.models import AgentEventModel
@@ -363,6 +363,7 @@ class AgentEventClient(BaseDBClient):
         limit: int = 50,
         viewer_id: Optional[int] = None,
         viewer_is_admin: bool = False,
+        reader_id: Optional[int] = None,
     ) -> list[dict[str, Any]]:
         """Decibyl's conversations, most recently spoken in first.
 
@@ -392,9 +393,16 @@ class AgentEventClient(BaseDBClient):
         private threads are on (D-1b): a thread is the person's who wrote its
         first line, and one with no author on record is an Admin's to see.
         None lists everything, which is what the flag being off means.
+
+        ``reader_id`` is who is reading, whatever the switch says. A line
+        whose payload names a ``private_to`` person (a care card's lines, a
+        reach order's) is counted and used as a title only for that person,
+        the rule the timeline itself follows; without it a private line
+        became a colleague's thread title.
         """
         from sqlalchemy import func
 
+        private_to = AgentEventModel.payload["private_to"].as_string()
         grouped = (
             select(
                 AgentEventModel.thread_id.label("thread_id"),
@@ -408,6 +416,9 @@ class AgentEventClient(BaseDBClient):
                 AgentEventModel.folder_id.is_(None),
                 AgentEventModel.kind == AgentEventKind.MESSAGE.value,
                 AgentEventModel.visibility == AgentEventVisibility.ALWAYS.value,
+                or_(private_to.is_(None), private_to == str(reader_id))
+                if reader_id is not None
+                else true(),
             )
             .group_by(AgentEventModel.thread_id)
             .order_by(func.max(AgentEventModel.at).desc())

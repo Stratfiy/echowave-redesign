@@ -10545,9 +10545,13 @@ export type Medicine = {
      */
     language_name: string;
     /**
+     * Channel
+     */
+    channel: string;
+    /**
      * Phone Masked
      */
-    phone_masked: string;
+    phone_masked?: string | null;
     /**
      * Alert Member Ids
      */
@@ -10581,6 +10585,12 @@ export type MedicineList = {
         [key: string]: string;
     };
     /**
+     * App
+     */
+    app: {
+        [key: string]: string;
+    };
+    /**
      * Languages
      */
     languages: {
@@ -10611,7 +10621,11 @@ export type MedicineWrite = {
     /**
      * Phone
      */
-    phone: string;
+    phone?: string | null;
+    /**
+     * Channel
+     */
+    channel?: 'call' | 'app' | null;
     /**
      * Language
      */

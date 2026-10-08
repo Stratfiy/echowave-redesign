@@ -41,6 +41,7 @@ export const SHARE_LABELS: Record<string, string> = {
 
 export const DOSE_WORDS: Record<string, string> = {
     calling: "Calling now",
+    reminded: "Time for it now",
     taken: "Taken",
     not_taken: "Not taken",
     not_answered: "Not answered",

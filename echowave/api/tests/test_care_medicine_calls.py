@@ -123,7 +123,9 @@ class TestSetUp:
             assert r.status_code == 409 and r.json()["detail"]["state"] == "needs_setup"
             status = await c.get("/api/v1/care/status")
             parts = {p["key"]: p["state"] for p in status.json()["parts"]}
-            assert parts["care_medicine_calls"] == "needs_setup"
+            # Reminders in Decibyl need no number, so the part is available;
+            # it is phone calls that wait for a line.
+            assert parts["care_medicine_calls"] == "available"
 
     async def test_test_mode_is_never_offered_in_production(self, home, monkeypatch):
         for environment in ("production", "staging", "something-new"):

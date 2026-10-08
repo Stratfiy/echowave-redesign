@@ -149,8 +149,11 @@ class CareMedicineModel(Base):
     timezone = Column(String(64), nullable=False)
     #: BCP 47, from member_preferences.LANGUAGES: the language of the call.
     language = Column(String(16), nullable=False)
-    #: E.164, the phone the reminder rings.
-    phone = Column(String(20), nullable=False)
+    #: ``call`` (rings ``phone``) or ``app`` (shown in Decibyl and sent on the
+    #: person's notification channels; needs no number).
+    channel = Column(String(8), nullable=False, default="call", server_default="call")
+    #: E.164, the phone a ``call`` reminder rings; NULL for ``app``.
+    phone = Column(String(20), nullable=True)
     #: care_circle_members ids told when a dose is missed or not answered.
     alert_member_ids = Column(JSON, nullable=False, default=list)
     state = Column(String(24), nullable=False, default="awaiting_approval")

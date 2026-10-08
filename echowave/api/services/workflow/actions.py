@@ -1652,6 +1652,10 @@ def _audit_subject(payload: dict[str, Any]) -> str:
     keeps who pressed what and when, not what the card said (admins do not
     inherit private things, handoff 25)."""
     action = payload.get("action")
+    if payload.get("audit_subject"):
+        # A card that names its own neutral subject (stream `care`: "Care:
+        # medicine reminders") keeps it; it says what kind, never whose.
+        return str(payload["audit_subject"])[:255]
     if payload.get("private_to") or action == MEETING_FOLLOW_UP:
         return f"Private card ({action})"[:255]
     return str(payload.get("label") or action or "")[:255]

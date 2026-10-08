@@ -501,6 +501,7 @@ async def threads(
         limit=limit,
         viewer_id=user.id if private else None,
         viewer_is_admin=await _is_admin(user, organization_id) if private else False,
+        reader_id=user.id,
     )
     original_is_yours = True
     if private:
@@ -530,6 +531,7 @@ async def recents(
         organization_id=organization_id,
         viewer_id=user.id if private else None,
         viewer_is_admin=await _is_admin(user, organization_id) if private else False,
+        reader_id=user.id,
         limit=limit,
     )
     return {"items": items}
