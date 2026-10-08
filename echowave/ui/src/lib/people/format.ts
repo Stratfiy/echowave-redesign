@@ -9,6 +9,7 @@ export const SOURCE_LABELS: Record<string, string> = {
     vcard: "vCard",
     csv: "CSV",
     picker: "Phone",
+    device: "Phone app",
     manual: "Added by you",
     decibyl: "From Decibyl",
 };

@@ -84,6 +84,18 @@ async def test_a_colleague_never_sees_a_contact_or_a_brief(
         ref=f"run:{marker}",
     )
     async with client_as(people.as_user(people.a)) as c:
+        # And from the phone app, the last source.
+        synced = await c.post(
+            "/api/v1/people/device/sync",
+            json={
+                "device_id": "pixel-a",
+                "full": True,
+                "contacts": [
+                    {"id": "9", "name": f"Phone {marker}", "phones": ["9000011111"]}
+                ],
+            },
+        )
+        assert synced.json()["added"] == 1, synced.text
         mine = (await c.get("/api/v1/people")).text
     assert marker in mine  # the check can see it where it belongs
 
