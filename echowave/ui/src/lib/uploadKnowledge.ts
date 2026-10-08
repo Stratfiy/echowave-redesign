@@ -27,7 +27,14 @@ export type KnowledgeTarget =
     | { scope: 'channel'; folderId: number }
     | { scope: 'bot'; workflowId: number };
 
-export type Uploaded = { document_uuid: string; filename: string; size_bytes: number };
+export type Uploaded = {
+    document_uuid: string;
+    filename: string;
+    size_bytes: number;
+    /** 1 for a new file; more when it was the same name uploaded again into
+     *  the same place, which makes it the next version of that file. */
+    version?: number;
+};
 
 /** Why a file cannot be uploaded, or null when it can. */
 export function rejectFile(file: File): string | null {
@@ -86,5 +93,13 @@ export async function uploadKnowledge(
     });
     if (processed.error) throw new Error(detailFromError(processed.error, 'The file was sent but could not be read'));
     progress(100);
-    return { document_uuid: minted.data.document_uuid, filename: file.name, size_bytes: file.size };
+    // The file it was filed as: the same name uploaded again into the same
+    // place is that file's next version, under the file's own id, not the
+    // fresh one minted for the upload.
+    return {
+        document_uuid: processed.data?.document_uuid ?? minted.data.document_uuid,
+        filename: processed.data?.filename ?? file.name,
+        size_bytes: file.size,
+        version: processed.data?.version ?? 1,
+    };
 }

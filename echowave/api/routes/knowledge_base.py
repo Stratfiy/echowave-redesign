@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from api.db import db_client
 from api.enums import KnowledgeScope, PostHogEvent
 from api.schemas.knowledge_base import (
+    ChangesResponseSchema,
     ChunkSearchRequestSchema,
     ChunkSearchResponseSchema,
     DocumentListResponseSchema,
@@ -24,6 +25,8 @@ from api.schemas.knowledge_base import (
     FileFolderSchema,
     FileFolderUpdateSchema,
     ProcessDocumentRequestSchema,
+    SyncFileSchema,
+    SyncFolderSchema,
 )
 from api.sdk_expose import sdk_expose
 from api.services.auth.depends import get_user
@@ -31,8 +34,10 @@ from api.services.billing import subscription_plans
 from api.services.knowledge_base import (
     folders,
     staleness,
+    sync,
     translate_document,
     upload_keys,
+    versions,
 )
 from api.services.posthog_client import capture_event
 from api.services.storage import storage_fs
@@ -75,7 +80,9 @@ def _document_response(document, *, needs_reingest: bool = False, **overrides):
         name: overrides[name] if name in overrides else read(document)
         for name, read in readers.items()
     }
-    return DocumentResponseSchema(needs_reingest=needs_reingest, **values)
+    return DocumentResponseSchema(
+        needs_reingest=needs_reingest, **values, **versions.describe(values)
+    )
 
 
 def _folder_error(exc: folders.FolderError) -> HTTPException:
@@ -363,22 +370,47 @@ async def process_document(
         # Extract filename from s3_key
         filename = request.s3_key.split("/")[-1]
 
-        # Create document record with the specific UUID from upload
-        document = await db_client.create_document(
-            organization_id=user.selected_organization_id,
-            created_by=user.id,
+        # The same name in the same place is the same file, uploaded again:
+        # its next version, read afresh, rather than a second copy.
+        previous = await versions.previous_upload(
+            user.selected_organization_id,
             filename=filename,
-            file_size_bytes=0,  # Will be updated by background task
-            file_hash="",  # Will be computed by background task
-            mime_type="application/octet-stream",  # Will be detected by background task
-            custom_metadata={"s3_key": request.s3_key},
-            document_uuid=request.document_uuid,  # Use UUID from upload
-            retrieval_mode=request.retrieval_mode,
             scope=scope,
             folder_id=folder_id,
             workflow_id=workflow_id,
             file_folder_id=file_folder_id,
+            document_uuid=request.document_uuid,
         )
+        if previous is not None:
+            document = await versions.begin(
+                previous,
+                organization_id=user.selected_organization_id,
+                s3_key=request.s3_key,
+                user_id=user.id,
+                retrieval_mode=request.retrieval_mode,
+            )
+        else:
+            # Create document record with the specific UUID from upload
+            document = await db_client.create_document(
+                organization_id=user.selected_organization_id,
+                created_by=user.id,
+                filename=filename,
+                file_size_bytes=0,  # Will be updated by background task
+                file_hash="",  # Will be computed by background task
+                mime_type="application/octet-stream",  # Detected by the task
+                custom_metadata={
+                    "s3_key": request.s3_key,
+                    versions.VERSIONS_KEY: versions.first_version(
+                        s3_key=request.s3_key, user_id=user.id
+                    ),
+                },
+                document_uuid=request.document_uuid,  # Use UUID from upload
+                retrieval_mode=request.retrieval_mode,
+                scope=scope,
+                folder_id=folder_id,
+                workflow_id=workflow_id,
+                file_folder_id=file_folder_id,
+            )
 
         # Enqueue background task for processing
         await enqueue_job(
@@ -392,8 +424,9 @@ async def process_document(
         )
 
         logger.info(
-            f"Created document {request.document_uuid} (id={document.id}) and enqueued processing "
-            f"with OpenAI embeddings, org {user.selected_organization_id}"
+            f"{'New version of' if previous is not None else 'Created'} document "
+            f"{document.document_uuid} (id={document.id}) and enqueued processing, "
+            f"org {user.selected_organization_id}"
         )
 
         capture_event(
@@ -401,7 +434,8 @@ async def process_document(
             event=PostHogEvent.KNOWLEDGE_BASE_CREATED,
             properties={
                 "document_id": document.id,
-                "document_uuid": str(request.document_uuid),
+                "document_uuid": str(document.document_uuid),
+                "new_version": previous is not None,
                 "filename": filename,
                 "retrieval_mode": request.retrieval_mode,
                 "organization_id": user.selected_organization_id,
@@ -931,3 +965,40 @@ async def update_document(
     except folders.FolderError as exc:
         raise _folder_error(exc) from exc
     return _document_response(document)
+
+
+@router.get(
+    "/changes",
+    response_model=ChangesResponseSchema,
+    summary="Files and folders changed since a cursor (for sync clients)",
+)
+async def list_changes(
+    cursor: Annotated[
+        str | None,
+        Query(description="The cursor from the last answer; none for everything"),
+    ] = None,
+    limit: Annotated[int, Query(ge=1, le=sync.MAX_PAGE)] = sync.MAX_PAGE,
+    user=Depends(get_user),
+) -> ChangesResponseSchema:
+    """What a desktop or mobile client keeping a local copy of Files reads.
+    Deleted files and folders come back marked ``deleted``; send ``cursor``
+    back next time, and ask again straight away while ``has_more``."""
+    try:
+        page = await sync.changes(
+            user.selected_organization_id, cursor=cursor, limit=limit
+        )
+    except sync.BadCursor as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ChangesResponseSchema(
+        files=[
+            SyncFileSchema(
+                **_document_response(entry["document"]).model_dump(),
+                folder_path=entry["folder_path"],
+                deleted=entry["deleted"],
+            )
+            for entry in page["files"]
+        ],
+        folders=[SyncFolderSchema(**folder) for folder in page["folders"]],
+        cursor=page["cursor"],
+        has_more=page["has_more"],
+    )

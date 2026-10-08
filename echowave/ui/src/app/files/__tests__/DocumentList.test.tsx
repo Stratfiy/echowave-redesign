@@ -19,7 +19,7 @@ vi.mock('@/client/sdk.gen', () => ({
 }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-import DocumentList from '../DocumentList';
+import DocumentList, { fileState } from '../DocumentList';
 
 const doc = (over: Record<string, unknown>) => ({
     id: 1,
@@ -125,5 +125,83 @@ describe('files in folders', () => {
         const data: Record<string, string> = {};
         fireEvent.dragStart(row, { dataTransfer: { setData: (k: string, v: string) => (data[k] = v), effectAllowed: '' } });
         expect(data['application/x-decibyl-file']).toBe('d1');
+    });
+});
+
+describe('what each file says about itself', () => {
+    it("says Reading, Ready, or Couldn't read with the reason", async () => {
+        list.mockResolvedValue({
+            data: {
+                documents: [
+                    doc({ document_uuid: 'a', filename: 'new.pdf', processing_status: 'processing', state: 'reading' }),
+                    doc({ document_uuid: 'b', filename: 'done.pdf', state: 'ready' }),
+                    doc({
+                        document_uuid: 'c',
+                        filename: 'locked.pdf',
+                        processing_status: 'failed',
+                        state: 'failed',
+                        processing_error: 'This PDF is password protected.',
+                        state_detail: 'This PDF is password protected. Agents still answer from version 1.',
+                    }),
+                ],
+                total: 3,
+                limit: 100,
+                offset: 0,
+            },
+        });
+        render(<DocumentList refreshTrigger={0} />);
+        expect(await screen.findByText('Reading')).toBeTruthy();
+        expect(screen.getByText('Ready')).toBeTruthy();
+        expect(screen.getByText("Couldn't read")).toBeTruthy();
+        expect(screen.getByText('This PDF is password protected. Agents still answer from version 1.')).toBeTruthy();
+    });
+
+    it('works the state out from an older response, and never shows none', () => {
+        expect(fileState({ processing_status: 'pending' } as never)).toBe('reading');
+        expect(fileState({ processing_status: 'completed' } as never)).toBe('ready');
+        expect(fileState({ processing_status: 'failed' } as never)).toBe('failed');
+    });
+
+    it('lists the earlier versions of a file uploaded again', async () => {
+        list.mockResolvedValue({
+            data: {
+                documents: [
+                    doc({
+                        version: 2,
+                        state: 'ready',
+                        versions: [
+                            { version: 1, uploaded_at: '2026-09-01T00:00:00Z', file_size_bytes: 2048, current: false },
+                            { version: 2, uploaded_at: '2026-09-14T00:00:00Z', file_size_bytes: 1024, current: true },
+                        ],
+                    }),
+                ],
+                total: 1,
+                limit: 100,
+                offset: 0,
+            },
+        });
+        render(<DocumentList refreshTrigger={0} />);
+        expect(await screen.findByText('Version 2')).toBeTruthy();
+        expect(screen.getByText('Earlier versions (1)')).toBeTruthy();
+        expect(screen.getByText(/^Version 1, uploaded/)).toBeTruthy();
+    });
+
+    it('asks again while anything is Reading, and stops once nothing is', async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        try {
+            list.mockResolvedValueOnce({
+                data: { documents: [doc({ processing_status: 'processing', state: 'reading' })], total: 1, limit: 100, offset: 0 },
+            });
+            list.mockResolvedValue({ data: { documents: [doc({ state: 'ready' })], total: 1, limit: 100, offset: 0 } });
+            render(<DocumentList refreshTrigger={0} />);
+            await screen.findByText('Reading');
+            await vi.advanceTimersByTimeAsync(5100);
+            expect(await screen.findByText('Ready')).toBeTruthy();
+            const calls = list.mock.calls.length;
+            await vi.advanceTimersByTimeAsync(15000);
+            expect(list.mock.calls.length).toBe(calls);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });

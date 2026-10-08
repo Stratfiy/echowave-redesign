@@ -76,6 +76,9 @@ export default function FilesPage() {
     const addDropped = async (dropped: DroppedFile[], target: DropTarget) => {
         let added = 0;
         const skipped: { label: string; why: string }[] = [];
+        // Uploaded again under a name already there: the next version of
+        // that file, not a copy. Said, so nobody goes looking for a second.
+        const renewed: string[] = [];
         const made = new Map<string, number | null>();
 
         const folderFor = async (path: string[]): Promise<number | null> => {
@@ -101,8 +104,9 @@ export default function FilesPage() {
             setDropping(label);
             try {
                 const fileFolderId = await folderFor(path);
-                await uploadKnowledge(file, { scope: "org" }, { fileFolderId });
+                const uploaded = await uploadKnowledge(file, { scope: "org" }, { fileFolderId });
                 added += 1;
+                if ((uploaded?.version ?? 1) > 1) renewed.push(`${uploaded.filename} (version ${uploaded.version})`);
             } catch (error) {
                 toast.error(`${label}: ${error instanceof Error ? error.message : "it was not added"}`);
             }
@@ -116,7 +120,12 @@ export default function FilesPage() {
             toast.error(`${skipped.length} files were not added: ${shown}${more}. ${skipped[0].why}`);
         }
         if (added) {
-            toast.success(added === 1 ? "1 file added. Reading it now." : `${added} files added. Reading them now.`);
+            const updated = renewed.length
+                ? ` ${renewed.length === 1 ? "A new version of" : "New versions of"} ${renewed.join(", ")}.`
+                : "";
+            toast.success(
+                (added === 1 ? "1 file added. Reading it now." : `${added} files added. Reading them now.`) + updated,
+            );
         }
         if (added || made.size) refreshAll();
     };

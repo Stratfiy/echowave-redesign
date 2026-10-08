@@ -58,6 +58,16 @@ class ProcessDocumentRequestSchema(KnowledgeScopeFields):
     )
 
 
+class DocumentVersionSchema(BaseModel):
+    """One upload of a file. The newest is the one agents read."""
+
+    version: int
+    uploaded_at: str | None = None
+    uploaded_by: int | None = None
+    file_size_bytes: int | None = None
+    current: bool = False
+
+
 class DocumentResponseSchema(BaseModel):
     """Response schema for document metadata."""
 
@@ -89,6 +99,45 @@ class DocumentResponseSchema(BaseModel):
     organization_id: int
     created_by: int
     is_active: bool
+    #: The newest upload of this file; re-uploading the same name into the
+    #: same folder makes the next one (services/knowledge_base/versions.py).
+    version: int = 1
+    #: Every upload, oldest first.
+    versions: list[DocumentVersionSchema] = Field(default_factory=list)
+    #: reading | ready | failed -- what the Files page shows.
+    state: str = "ready"
+    #: Why it failed, or what agents read meanwhile; None when nothing to say.
+    state_detail: str | None = None
+
+
+class SyncFileSchema(DocumentResponseSchema):
+    """A file as the "changed since" listing reports it."""
+
+    #: "Pricing/2026"; "" at the top level.
+    folder_path: str = ""
+    #: The file was deleted: remove the local copy.
+    deleted: bool = False
+
+
+class SyncFolderSchema(BaseModel):
+    id: int
+    folder_uuid: str
+    name: str
+    parent_id: int | None = None
+    path: str = ""
+    deleted: bool = False
+    updated_at: datetime | None = None
+
+
+class ChangesResponseSchema(BaseModel):
+    """Files and folders changed since a cursor, for a client keeping a local
+    copy in step. Send ``cursor`` back next time; fetch again straight away
+    while ``has_more``."""
+
+    files: list[SyncFileSchema]
+    folders: list[SyncFolderSchema]
+    cursor: str
+    has_more: bool
 
 
 class DocumentListResponseSchema(BaseModel):

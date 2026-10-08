@@ -3396,6 +3396,32 @@ export type CerebrasLlmConfiguration = {
 };
 
 /**
+ * ChangesResponseSchema
+ *
+ * Files and folders changed since a cursor, for a client keeping a local
+ * copy in step. Send ``cursor`` back next time; fetch again straight away
+ * while ``has_more``.
+ */
+export type ChangesResponseSchema = {
+    /**
+     * Files
+     */
+    files: Array<SyncFileSchema>;
+    /**
+     * Folders
+     */
+    folders: Array<SyncFolderSchema>;
+    /**
+     * Cursor
+     */
+    cursor: string;
+    /**
+     * Has More
+     */
+    has_more: boolean;
+};
+
+/**
  * ChannelAvailability
  */
 export type ChannelAvailability = {
@@ -6271,6 +6297,22 @@ export type DocumentResponseSchema = {
      * Is Active
      */
     is_active: boolean;
+    /**
+     * Version
+     */
+    version?: number;
+    /**
+     * Versions
+     */
+    versions?: Array<DocumentVersionSchema>;
+    /**
+     * State
+     */
+    state?: string;
+    /**
+     * State Detail
+     */
+    state_detail?: string | null;
 };
 
 /**
@@ -6342,6 +6384,34 @@ export type DocumentUploadResponseSchema = {
      * S3 key where file should be uploaded
      */
     s3_key: string;
+};
+
+/**
+ * DocumentVersionSchema
+ *
+ * One upload of a file. The newest is the one agents read.
+ */
+export type DocumentVersionSchema = {
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Uploaded At
+     */
+    uploaded_at?: string | null;
+    /**
+     * Uploaded By
+     */
+    uploaded_by?: number | null;
+    /**
+     * File Size Bytes
+     */
+    file_size_bytes?: number | null;
+    /**
+     * Current
+     */
+    current?: boolean;
 };
 
 /**
@@ -19339,6 +19409,168 @@ export type SwitchOrganizationRequest = {
      * Organization Id
      */
     organization_id: number;
+};
+
+/**
+ * SyncFileSchema
+ *
+ * A file as the "changed since" listing reports it.
+ */
+export type SyncFileSchema = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Document Uuid
+     */
+    document_uuid: string;
+    /**
+     * Filename
+     */
+    filename: string;
+    /**
+     * File Size Bytes
+     */
+    file_size_bytes: number;
+    /**
+     * File Hash
+     */
+    file_hash: string;
+    /**
+     * Mime Type
+     */
+    mime_type: string;
+    /**
+     * Processing Status
+     */
+    processing_status: string;
+    /**
+     * Processing Error
+     */
+    processing_error?: string | null;
+    /**
+     * Needs Reingest
+     */
+    needs_reingest?: boolean;
+    /**
+     * Total Chunks
+     */
+    total_chunks: number;
+    /**
+     * Retrieval Mode
+     */
+    retrieval_mode?: string;
+    /**
+     * Custom Metadata
+     */
+    custom_metadata: {
+        [key: string]: unknown;
+    };
+    /**
+     * Docling Metadata
+     */
+    docling_metadata: {
+        [key: string]: unknown;
+    };
+    /**
+     * Source Url
+     */
+    source_url?: string | null;
+    /**
+     * Scope
+     */
+    scope?: string;
+    /**
+     * Folder Id
+     */
+    folder_id?: number | null;
+    /**
+     * Workflow Id
+     */
+    workflow_id?: number | null;
+    /**
+     * File Folder Id
+     */
+    file_folder_id?: number | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Organization Id
+     */
+    organization_id: number;
+    /**
+     * Created By
+     */
+    created_by: number;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Version
+     */
+    version?: number;
+    /**
+     * Versions
+     */
+    versions?: Array<DocumentVersionSchema>;
+    /**
+     * State
+     */
+    state?: string;
+    /**
+     * State Detail
+     */
+    state_detail?: string | null;
+    /**
+     * Folder Path
+     */
+    folder_path?: string;
+    /**
+     * Deleted
+     */
+    deleted?: boolean;
+};
+
+/**
+ * SyncFolderSchema
+ */
+export type SyncFolderSchema = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Folder Uuid
+     */
+    folder_uuid: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Parent Id
+     */
+    parent_id?: number | null;
+    /**
+     * Path
+     */
+    path?: string;
+    /**
+     * Deleted
+     */
+    deleted?: boolean;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
 };
 
 /**
@@ -60937,6 +61169,56 @@ export type UpdateFileFolderApiV1KnowledgeBaseFileFoldersFolderIdPatchResponses 
 };
 
 export type UpdateFileFolderApiV1KnowledgeBaseFileFoldersFolderIdPatchResponse = UpdateFileFolderApiV1KnowledgeBaseFileFoldersFolderIdPatchResponses[keyof UpdateFileFolderApiV1KnowledgeBaseFileFoldersFolderIdPatchResponses];
+
+export type ListChangesApiV1KnowledgeBaseChangesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Cursor
+         *
+         * The cursor from the last answer; none for everything
+         */
+        cursor?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/knowledge-base/changes';
+};
+
+export type ListChangesApiV1KnowledgeBaseChangesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListChangesApiV1KnowledgeBaseChangesGetError = ListChangesApiV1KnowledgeBaseChangesGetErrors[keyof ListChangesApiV1KnowledgeBaseChangesGetErrors];
+
+export type ListChangesApiV1KnowledgeBaseChangesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ChangesResponseSchema;
+};
+
+export type ListChangesApiV1KnowledgeBaseChangesGetResponse = ListChangesApiV1KnowledgeBaseChangesGetResponses[keyof ListChangesApiV1KnowledgeBaseChangesGetResponses];
 
 export type GetUploadUrlsApiV1WorkflowRecordingsUploadUrlPostData = {
     body: BatchRecordingUploadRequestSchema;

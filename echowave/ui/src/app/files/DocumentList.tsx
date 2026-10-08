@@ -55,6 +55,16 @@ export const TRANSLATION_LANGUAGES: { code: string; name: string }[] = [
   { code: 'od-IN', name: 'Odia' },
 ];
 
+/** Reading, Ready or Couldn't read. The server says which; a response
+ *  without it (an older API) is worked out from the processing status, so a
+ *  file is never shown in no state at all. */
+export function fileState(doc: Pick<DocumentResponseSchema, 'state' | 'processing_status'>): 'reading' | 'ready' | 'failed' {
+  if (doc.state === 'reading' || doc.state === 'ready' || doc.state === 'failed') return doc.state;
+  if (doc.processing_status === 'completed') return 'ready';
+  if (doc.processing_status === 'failed') return 'failed';
+  return 'reading';
+}
+
 interface DocumentListProps {
   refreshTrigger: number;
   /** The Files-page folder being shown; null is the top level. Left out,
@@ -130,11 +140,10 @@ export default function DocumentList({ refreshTrigger, fileFolderId, folders = [
     fetchDocuments();
   }, [fetchDocuments, refreshTrigger]);
 
-  // Poll for documents that are processing
+  // Poll while anything is being read, so Reading turns into Ready or
+  // Couldn't read on its own.
   useEffect(() => {
-    const processingDocs = documents.filter(
-      (doc) => doc.processing_status === 'processing' || doc.processing_status === 'pending'
-    );
+    const processingDocs = documents.filter((doc) => fileState(doc) === 'reading');
 
     if (processingDocs.length === 0) return;
 
@@ -223,22 +232,18 @@ export default function DocumentList({ refreshTrigger, fileFolderId, folders = [
     fetchDocuments();
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <Badge className="bg-green-500">Completed</Badge>;
-      case 'processing':
+  const getStatusBadge = (doc: DocumentResponseSchema) => {
+    switch (fileState(doc)) {
+      case 'ready':
+        return <Badge className="bg-green-600">Ready</Badge>;
+      case 'reading':
         return (
           <Badge variant="secondary" className="animate-pulse">
-            Processing
+            Reading
           </Badge>
         );
-      case 'pending':
-        return <Badge variant="outline">Pending</Badge>;
-      case 'failed':
-        return <Badge variant="destructive">Failed</Badge>;
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return <Badge variant="destructive">Couldn&apos;t read</Badge>;
     }
   };
 
@@ -421,7 +426,12 @@ export default function DocumentList({ refreshTrigger, fileFolderId, folders = [
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-medium truncate">{doc.filename}</span>
-                    {getStatusBadge(doc.processing_status)}
+                    {getStatusBadge(doc)}
+                    {(doc.version ?? 1) > 1 && (
+                      <Badge variant="outline" className="text-xs" title="Uploaded again under the same name">
+                        Version {doc.version}
+                      </Badge>
+                    )}
                     {doc.needs_reingest && (
                       <Badge
                         variant="outline"
@@ -445,10 +455,31 @@ export default function DocumentList({ refreshTrigger, fileFolderId, folders = [
                     )}
                     <span>{formatDate(doc.created_at)}</span>
                   </div>
-                  {doc.processing_error && (
-                    <p className="text-xs text-destructive mt-1">
-                      Error: {doc.processing_error}
+                  {fileState(doc) === 'failed' ? (
+                    <p className="text-xs text-destructive mt-1" role="status">
+                      {doc.state_detail || doc.processing_error || "We could not read this file."}
                     </p>
+                  ) : doc.state_detail ? (
+                    <p className="text-xs text-muted-foreground mt-1">{doc.state_detail}</p>
+                  ) : null}
+                  {(doc.versions?.length ?? 0) > 1 && (
+                    <details className="mt-1 text-xs text-muted-foreground">
+                      <summary className="cursor-pointer select-none">
+                        Earlier versions ({(doc.versions?.length ?? 1) - 1})
+                      </summary>
+                      <ul className="mt-1 space-y-0.5 pl-4">
+                        {[...(doc.versions ?? [])]
+                          .filter((v) => !v.current)
+                          .reverse()
+                          .map((v) => (
+                            <li key={v.version}>
+                              Version {v.version}
+                              {v.uploaded_at ? `, uploaded ${formatDate(v.uploaded_at)}` : ''}
+                              {v.file_size_bytes ? `, ${formatFileSize(v.file_size_bytes)}` : ''}
+                            </li>
+                          ))}
+                      </ul>
+                    </details>
                   )}
                   {typeof doc.custom_metadata?.translated_from === 'string' && (
                     <p className="text-xs text-muted-foreground mt-1">

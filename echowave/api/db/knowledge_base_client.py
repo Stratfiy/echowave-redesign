@@ -117,7 +117,14 @@ class KnowledgeBaseClient(BaseDBClient):
                 .where(
                     KnowledgeBaseDocumentModel.organization_id == organization_id,
                     KnowledgeBaseDocumentModel.is_active == True,
-                    KnowledgeBaseDocumentModel.processing_status == "completed",
+                    # Read, or still holding what an earlier version said:
+                    # a file being re-read (or whose new version could not
+                    # be read) answers from its previous version meanwhile.
+                    or_(
+                        KnowledgeBaseDocumentModel.processing_status == "completed",
+                        KnowledgeBaseDocumentModel.total_chunks > 0,
+                        KnowledgeBaseDocumentModel.full_text.is_not(None),
+                    ),
                     or_(*scopes),
                 )
                 .order_by(KnowledgeBaseDocumentModel.created_at.desc())
@@ -412,6 +419,10 @@ class KnowledgeBaseClient(BaseDBClient):
             document.processing_status = status
             if error_message:
                 document.processing_error = error_message
+            elif status == "completed":
+                # Read at last: an error from an earlier attempt or version
+                # no longer describes the file.
+                document.processing_error = None
             if total_chunks is not None:
                 document.total_chunks = total_chunks
             if docling_metadata:
@@ -645,7 +656,9 @@ class KnowledgeBaseClient(BaseDBClient):
                 KnowledgeBaseDocumentModel.document_uuid.in_(document_uuids),
                 KnowledgeBaseDocumentModel.retrieval_mode == "full_document",
                 KnowledgeBaseDocumentModel.is_active == True,
-                KnowledgeBaseDocumentModel.processing_status == "completed",
+                # The text there is, including a previous version's while the
+                # next one is being read.
+                KnowledgeBaseDocumentModel.full_text.is_not(None),
             )
             result = await session.execute(query)
             return list(result.scalars().all())
@@ -730,6 +743,8 @@ class KnowledgeBaseClient(BaseDBClient):
         filename: str,
         file_folder_id: int | None,
         scope: str,
+        folder_id: int | None = None,
+        workflow_id: int | None = None,
         exclude_uuid: str | None = None,
     ) -> KnowledgeBaseDocumentModel | None:
         """The live file of this name in this folder and scope, newest first.
@@ -737,14 +752,23 @@ class KnowledgeBaseClient(BaseDBClient):
         What a re-upload is matched against: the same name in the same place
         is the same file, so it becomes a new version of it rather than a
         second copy. Case-insensitive, because "Price List.pdf" and
-        "price list.pdf" are one file to the person who uploaded both.
+        "price list.pdf" are one file to the person who uploaded both. A
+        channel's or an agent's file matches only within that channel or
+        agent (``folder_id`` / ``workflow_id``): the same name given to two
+        agents is two files.
         """
+
+        def same(column, value):
+            return column.is_(None) if value is None else column == value
+
         async with self.async_session() as session:
             query = select(KnowledgeBaseDocumentModel).where(
                 KnowledgeBaseDocumentModel.organization_id == organization_id,
                 KnowledgeBaseDocumentModel.is_active == True,
                 KnowledgeBaseDocumentModel.scope == scope,
                 func.lower(KnowledgeBaseDocumentModel.filename) == filename.lower(),
+                same(KnowledgeBaseDocumentModel.folder_id, folder_id),
+                same(KnowledgeBaseDocumentModel.workflow_id, workflow_id),
             )
             if file_folder_id is None:
                 query = query.where(KnowledgeBaseDocumentModel.file_folder_id.is_(None))
@@ -762,16 +786,41 @@ class KnowledgeBaseClient(BaseDBClient):
             return rows.scalars().first()
 
     async def documents_changed_since(
-        self, organization_id: int, since: datetime | None, *, limit: int = 500
+        self,
+        organization_id: int,
+        since: datetime | None,
+        *,
+        after_id: int = 0,
+        until: datetime | None = None,
+        limit: int = 500,
     ) -> list[KnowledgeBaseDocumentModel]:
-        """Files added, re-read, renamed, moved or deleted after ``since``,
-        deleted ones included, oldest change first."""
+        """Files added, re-read, renamed, moved or deleted after the position
+        ``(since, after_id)`` and no later than ``until``, deleted ones
+        included, oldest change first.
+
+        The position is a pair rather than a time because one folder deleted
+        with its contents stamps hundreds of rows with the same instant, and a
+        page boundary inside them must neither repeat the page forever nor
+        skip the rest.
+        """
+        from sqlalchemy import and_, or_
+
         async with self.async_session() as session:
             query = select(KnowledgeBaseDocumentModel).where(
                 KnowledgeBaseDocumentModel.organization_id == organization_id
             )
             if since is not None:
-                query = query.where(KnowledgeBaseDocumentModel.updated_at > since)
+                query = query.where(
+                    or_(
+                        KnowledgeBaseDocumentModel.updated_at > since,
+                        and_(
+                            KnowledgeBaseDocumentModel.updated_at == since,
+                            KnowledgeBaseDocumentModel.id > after_id,
+                        ),
+                    )
+                )
+            if until is not None:
+                query = query.where(KnowledgeBaseDocumentModel.updated_at <= until)
             rows = await session.execute(
                 query.order_by(
                     KnowledgeBaseDocumentModel.updated_at,
@@ -779,6 +828,44 @@ class KnowledgeBaseClient(BaseDBClient):
                 ).limit(limit)
             )
             return list(rows.scalars().all())
+
+    async def begin_document_version(
+        self,
+        document_id: int,
+        *,
+        organization_id: int,
+        s3_key: str,
+        versions: list[dict],
+        retrieval_mode: str,
+    ) -> KnowledgeBaseDocumentModel | None:
+        """Point a file at a newly uploaded version and mark it to be read.
+
+        The previous version's passages and text stay in place until the new
+        one has been read, so an agent answering meanwhile still has the
+        file; the ingestion task replaces them when it succeeds.
+        """
+        async with self.async_session() as session:
+            document = (
+                await session.execute(
+                    select(KnowledgeBaseDocumentModel).where(
+                        KnowledgeBaseDocumentModel.id == document_id,
+                        KnowledgeBaseDocumentModel.organization_id == organization_id,
+                    )
+                )
+            ).scalar_one_or_none()
+            if document is None:
+                return None
+            metadata = dict(document.custom_metadata or {})
+            metadata["s3_key"] = s3_key
+            metadata["versions"] = versions
+            document.custom_metadata = metadata
+            document.retrieval_mode = retrieval_mode
+            document.processing_status = "pending"
+            document.processing_error = None
+            document.updated_at = datetime.now(UTC)
+            await session.commit()
+            await session.refresh(document)
+            return document
 
     @staticmethod
     def compute_file_hash(file_path: str) -> str:

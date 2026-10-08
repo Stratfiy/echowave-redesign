@@ -207,16 +207,24 @@ class FileFolderClient(BaseDBClient):
             return int(result.rowcount or 0)
 
     async def file_folders_changed_since(
-        self, organization_id: int, since: datetime | None
+        self,
+        organization_id: int,
+        since: datetime | None,
+        *,
+        until: datetime | None = None,
     ) -> list[FileFolderModel]:
-        """Folders created, renamed, moved or deleted after ``since``,
-        deleted ones included, oldest change first."""
+        """Folders created, renamed, moved or deleted at or after ``since``
+        and no later than ``until``, deleted ones included, oldest change
+        first. At, not only after: a folder sharing the cursor's instant is
+        sent again rather than missed, and applying it twice changes nothing."""
         async with self.async_session() as session:
             query = select(FileFolderModel).where(
                 FileFolderModel.organization_id == organization_id
             )
             if since is not None:
-                query = query.where(FileFolderModel.updated_at > since)
+                query = query.where(FileFolderModel.updated_at >= since)
+            if until is not None:
+                query = query.where(FileFolderModel.updated_at <= until)
             rows = await session.execute(
                 query.order_by(FileFolderModel.updated_at, FileFolderModel.id)
             )
